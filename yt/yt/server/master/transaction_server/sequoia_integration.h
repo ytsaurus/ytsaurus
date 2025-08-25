@@ -6,6 +6,12 @@
 
 namespace NYT::NTransactionServer {
 
+namespace NProto {
+
+class TTransactionFinishRequest;
+
+} // namespace NProto
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: modifies original RPC request.
@@ -16,7 +22,8 @@ void StartCypressTransactionInSequoiaAndReply(
 TFuture<void> DoomCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,
     TTransactionId transactionId,
-    NRpc::TAuthenticationIdentity authenticationIdentity);
+    NRpc::TAuthenticationIdentity authenticationIdentity,
+    const NProto::TTransactionFinishRequest& request);
 
 TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,

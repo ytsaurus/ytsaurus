@@ -5,6 +5,7 @@
 #include "config.h"
 #include "boomerang_tracker.h"
 #include "sequoia_integration.h"
+#include "transaction_finisher.h"
 #include "transaction_presence_cache.h"
 #include "transaction_replication_session.h"
 #include "transaction.h"
@@ -49,6 +50,7 @@
 #include <yt/yt/server/lib/lease_server/proto/lease_manager.pb.h>
 
 #include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
+#include <yt/yt/server/lib/sequoia/transaction_finish_request.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
@@ -1436,13 +1438,17 @@ public:
         return GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
             cellIdsToSyncWith,
-            /*transactionIdToRevokeLeases*/ NullTransactionId);
+            /*transactionIdToRevokeLeases*/ NullTransactionId,
+            NRpc::NullMutationId,
+            NRpc::GetCurrentAuthenticationIdentity());
     }
 
     TFuture<void> GetReadyToPrepareTransactionCommit(
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
         const std::vector<TCellId>& cellIdsToSyncWith,
-        TTransactionId transactionIdToRevokeLeases)
+        TTransactionId transactionIdToRevokeLeases,
+        NRpc::TMutationId requestMutationId,
+        const NRpc::TAuthenticationIdentity& authenticationIdentity)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -1507,7 +1513,12 @@ public:
         }
 
         if (transactionIdToRevokeLeases) {
-            asyncResults.push_back(RevokeTransactionLeases(transactionIdToRevokeLeases));
+            NProto::TTransactionFinishRequest finishRequest;
+            finishRequest.set_kind(ToProto(ETransactionFinishRequest::Commit));
+            NRpc::WriteAuthenticationIdentityToProto(&finishRequest, authenticationIdentity);
+            ToProto(finishRequest.mutable_mutation_id(), requestMutationId);
+            ToProto(finishRequest.mutable_commit()->mutable_prerequisite_transaction_ids(), prerequisiteTransactionIds);
+            asyncResults.push_back(RevokeTransactionLeases(transactionIdToRevokeLeases, &finishRequest));
         }
 
         return AllSucceeded(std::move(asyncResults));
@@ -1554,6 +1565,14 @@ public:
         auto state = transaction->GetState(persistent);
         if (state != ETransactionState::Active) {
             return;
+        }
+
+        if (transaction->IsNative() &&
+            GetDynamicConfig()->Testing->PrerequisiteCheckFailureDuringCommitOfTransactions.contains(transaction->GetId()))
+        {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: this failure is requested manually via dynamic config");
         }
 
         const auto& leaseManager = Bootstrap_->GetLeaseManager();
@@ -1782,6 +1801,7 @@ public:
 
         const auto& request = context->Request();
         auto mutationId = context->GetMutationId();
+        auto isRetry = context->IsRetry();
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
 
         if (!(IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) &&
@@ -1790,26 +1810,29 @@ public:
             return;
         }
 
+        auto* transaction = FindTransaction(transactionId);
+
         // NB: the main Sequoia tx which handles Cypress tx commit uses Sequoia
         // RK too. The reason of this early check is to not reply with "no such
         // tx" error when tx was just committed and commit-tx response is kept
         // in Sequoia RK.
         if (IsMirroringToSequoiaEnabled() &&
             IsCypressTransactionMirroredToSequoia(transactionId) &&
-            !IsObjectAlive(FindTransaction(transactionId)))
+            !IsObjectAlive(transaction))
         {
             // NB: FinishNonAliveCypressTransactionInSequoia() requires tx to be
             // not alive from master point of view.
             context->ReplyFrom(FinishNonAliveCypressTransactionInSequoia(
                 Bootstrap_,
                 transactionId,
-                context->GetMutationId(),
-                context->IsRetry()));
+                mutationId,
+                isRetry));
             return;
         }
 
-        // TODO(kvk1920): avoid looking up |transactionId| twice.
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            ThrowNoSuchTransaction(transactionId);
+        }
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
 
@@ -1820,12 +1843,19 @@ public:
         // NB: even if lease issuing or transaction mirroring is disabled leases
         // still have to be revoked properly since Cypress transaction may be
         // started before leases were disabled.
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 || IsCypressTransactionMirroredToSequoia(transactionId);
+        auto revokeLeases =
+            transaction->GetSuccessorTransactionLeaseCount() > 0 || IsCypressTransactionMirroredToSequoia(transactionId);
+        if (revokeLeases) {
+            const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+            transactionFinisher->BeginRequest(context, transaction);
+        }
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
             /*cellIdsToSyncWith*/ {},
-            revokeLeases ? transactionId : NullTransactionId);
+            revokeLeases ? transactionId : NullTransactionId,
+            context->GetMutationId(),
+            context->GetAuthenticationIdentity());
 
         TFuture<TSharedRefArray> responseFuture;
         // Fast path.
@@ -1835,6 +1865,7 @@ public:
                 prerequisiteTransactionIds,
                 mutationId,
                 context->IsRetry(),
+                context->GetRequestId(),
                 /*prepareError*/ {});
         } else {
             responseFuture = readyEvent.Apply(
@@ -1844,7 +1875,8 @@ public:
                     transactionId,
                     prerequisiteTransactionIds,
                     mutationId,
-                    context->IsRetry())
+                    context->IsRetry(),
+                    context->GetRequestId())
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
@@ -1885,11 +1917,17 @@ public:
         auto revokeLeases =
             transaction->GetSuccessorTransactionLeaseCount() > 0 ||
             IsCypressTransactionMirroredToSequoia(transactionId);
+        if (revokeLeases) {
+            const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+            transactionFinisher->BeginRequest(context, transaction);
+        }
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
             /*cellIdsToSyncWith*/ {},
-            revokeLeases ? transactionId : NullTransactionId);
+            revokeLeases ? transactionId : NullTransactionId,
+            context->GetMutationId(),
+            context->GetAuthenticationIdentity());
 
         TFuture<TSharedRefArray> responseFuture;
         // Fast path.
@@ -1899,6 +1937,7 @@ public:
                 prerequisiteTransactionIds,
                 context->GetMutationId(),
                 context->IsRetry(),
+                context->GetRequestId(),
                 /*prepareError*/ {});
         } else {
             responseFuture = readyEvent.Apply(
@@ -1908,7 +1947,8 @@ public:
                     transactionId,
                     prerequisiteTransactionIds,
                     context->GetMutationId(),
-                    context->IsRetry())
+                    context->IsRetry(),
+                    context->GetRequestId())
                     .AsyncVia(EpochAutomatonInvoker_));
         }
 
@@ -1921,6 +1961,7 @@ public:
         std::vector<TTransactionId> prerequisiteTransactionIds,
         NRpc::TMutationId mutationId,
         bool isRetry,
+        NRpc::TRequestId requestId,
         const TError& prepareError)
     {
         if (!prepareError.IsOK()) {
@@ -1939,7 +1980,8 @@ public:
                 prerequisiteTransactionIds,
                 std::move(mutationId),
                 NRpc::GetCurrentAuthenticationIdentity(),
-                isRetry)
+                isRetry,
+                requestId)
                     .AsyncVia(EpochAutomatonInvoker_));
     }
 
@@ -1949,6 +1991,7 @@ public:
         NRpc::TMutationId mutationId,
         NRpc::TAuthenticationIdentity authenticationIdentity,
         bool isRetry,
+        NRpc::TRequestId requestId,
         const TErrorOr<TTimestamp>& timestampOrError)
     {
         if (!timestampOrError.IsOK()) {
@@ -1971,7 +2014,29 @@ public:
                 commitTimestamp,
                 authenticationIdentity,
                 mutationId,
-                isRetry);
+                isRetry)
+                .Apply(BIND([this, this_ = MakeStrong(this), transactionId, requestId] (const TErrorOr<TSharedRefArray>& errorOrResponse) -> TFuture<TSharedRefArray> {
+                    // If Cypress transaction commit is failed in late prepare
+                    // (e.g. because of prerequisite check failed) then
+                    // transaction should be aborted _before_ sending response
+                    // to client. Therefore, it's necesseary to wait here for
+                    // transaction abort.
+                    //
+                    // Transaction abort is scheduled via transaction finisher
+                    // during Sequoia tansaction action.
+                    if (requestId &&
+                        !errorOrResponse.IsOK() &&
+                        errorOrResponse.FindMatching(NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell))
+                    {
+                        const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+                        return transactionFinisher->EndRequestAndGetFailedCommitCompletionFuture(requestId, transactionId)
+                            .Apply(BIND([errorOrResponse] {
+                                return errorOrResponse.ValueOrThrow();
+                            }));
+                    }
+
+                    return MakeFuture(errorOrResponse);
+                }).AsyncVia(EpochAutomatonInvoker_));
         }
 
         auto request = BuildCommitCypressTransactionRequest(
@@ -2001,9 +2066,19 @@ public:
             return;
         }
 
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        YT_VERIFY(transaction->GetIsCypressTransaction());
+
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
+            Bootstrap_->GetTransactionFinisher()->BeginRequest(context, transaction);
+
+            NProto::TTransactionFinishRequest finishRequest;
+            finishRequest.set_kind(ToProto(ETransactionFinishRequest::Abort));
+            NRpc::WriteAuthenticationIdentityToProto(&finishRequest, authenticationIdentity);
+            ToProto(finishRequest.mutable_mutation_id(), context->GetMutationId());
+            finishRequest.mutable_abort()->set_force(force);
             context->ReplyFrom(
-                RevokeTransactionLeases(transactionId)
+                RevokeTransactionLeases(transactionId, &finishRequest)
                 .Apply(BIND([context, transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
                     return AbortCypressTransactionInSequoia(
                         Bootstrap_,
@@ -2016,10 +2091,6 @@ public:
             return;
         }
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
-
-        YT_VERIFY(transaction->GetIsCypressTransaction());
-
         auto request = BuildAbortCypressTransactionRequest(
             transactionId,
             force,
@@ -2030,7 +2101,8 @@ public:
         context->ReplyFrom(DoAbortTransaction(
             std::move(mutation),
             transaction,
-            force));
+            force,
+            context->GetAuthenticationIdentity()));
     }
 
     // COMPAT(h0pless): Remove this after CTxS will be used by clients to manipulate Cypress transactions.
@@ -2044,7 +2116,7 @@ public:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto force = request.force();
         auto* transaction = FindTransaction(transactionId);
-        if (!transaction || !transaction->GetIsCypressTransaction()) {
+        if (!IsObjectAlive(transaction) || !transaction->GetIsCypressTransaction()) {
             return false;
         }
 
@@ -2057,6 +2129,8 @@ public:
         req.set_force(force);
         WriteAuthenticationIdentityToProto(&req, NRpc::GetCurrentAuthenticationIdentity());
 
+        Bootstrap_->GetTransactionFinisher()->BeginRequest(context, transaction);
+
         auto mutation = CreateMutation(HydraManager_, req);
         mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
         mutation->SetCurrentTraceContext();
@@ -2064,14 +2138,16 @@ public:
         context->ReplyFrom(DoAbortTransaction(
             std::move(mutation),
             transaction,
-            force));
+            force,
+            context->GetAuthenticationIdentity()));
         return true;
     }
 
     TFuture<TSharedRefArray> DoAbortTransaction(
         std::unique_ptr<TMutation> abortMutation,
         TTransaction* transaction,
-        bool force)
+        bool force,
+        const NRpc::TAuthenticationIdentity& authenticationIdentity)
     {
         auto transactionId = transaction->GetId();
 
@@ -2081,7 +2157,12 @@ public:
                 std::move(abortMutation),
                 /*error*/ {});
         } else {
-            return RevokeTransactionLeases(transactionId).Apply(
+            NProto::TTransactionFinishRequest finishRequest;
+            finishRequest.set_kind(ToProto(ETransactionFinishRequest::Abort));
+            NRpc::WriteAuthenticationIdentityToProto(&finishRequest, authenticationIdentity);
+            ToProto(finishRequest.mutable_mutation_id(), abortMutation->GetMutationId());
+            finishRequest.mutable_abort()->set_force(force);
+            return RevokeTransactionLeases(transactionId, &finishRequest).Apply(
                 BIND(
                     &TTransactionManager::OnTransactionAbortPrepared,
                     MakeStrong(this),
@@ -2553,12 +2634,14 @@ private:
                 prerequisiteTransactionIds,
                 request->commit_timestamp());
         } catch (const std::exception& ex) {
-            // Abort it reliably.
-            // TODO(kvk1920): proper way to abort mirrored tx from master.
-            YT_LOG_WARNING(ex,
-                "Failed to commit transaction (TransactionId: %v)",
-                transaction->GetId());
-            SetTransactionTimeout(transaction, TDuration::MilliSeconds(250));
+            TTransactionAbortRequest abortRequest;
+            abortRequest.AuthenticationIdentity = identity;
+            abortRequest.Force = true;
+
+            const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+            transactionFinisher->PersistRequest(transaction, abortRequest, /*update*/ true);
+
+            throw;
         }
     }
 
@@ -2898,17 +2981,52 @@ private:
         bulkInsertState.AddLockableDynamicTables(std::move(lockableDynamicTablesToAdd));
     }
 
-    void RevokeLeases(TTransactionId transactionId)
+    void RevokeLeases(TTransactionId transactionId, const NProto::TTransactionFinishRequest* finishRequest)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = FindTransaction(transactionId);
-        if (!transaction) {
+        if (!IsObjectAlive(transaction)) {
             YT_LOG_DEBUG(
                 "Requested to revoke leases for non-existent transaction, ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
+
+        auto transactionFinisherGuard = Finally([&] {
+            const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+            if (!finishRequest) {
+                YT_LOG_ALERT("Lease revocation without payload (TransactionId: %v)", transactionId);
+                return;
+            }
+
+            auto* transaction = FindTransaction(transactionId);
+            if (!IsObjectAlive(transaction)) {
+                return;
+            }
+
+            auto fillUserFinishRequest = [&] (TTransactionFinishRequestBase* request) {
+                request->MutationId = YT_OPTIONAL_FROM_PROTO(*finishRequest, mutation_id, NRpc::TMutationId)
+                    .value_or(NRpc::NullMutationId);
+                request->AuthenticationIdentity = NRpc::ParseAuthenticationIdentityFromProto(*finishRequest);
+            };
+
+            switch (FromProto<ETransactionFinishRequest>(finishRequest->kind())) {
+                case ETransactionFinishRequest::Abort: {
+                    TTransactionAbortRequest abortRequest = {.Force = finishRequest->abort().force() };
+                    fillUserFinishRequest(&abortRequest);
+                    transactionFinisher->PersistRequest(transaction, abortRequest);
+                } break;
+                case ETransactionFinishRequest::Commit: {
+                    TTransactionCommitRequest commitRequest;
+                    FromProto(&commitRequest.PrerequisiteTransactionIds, finishRequest->commit().prerequisite_transaction_ids());
+                    fillUserFinishRequest(&commitRequest);
+                    transactionFinisher->PersistRequest(transaction, commitRequest);
+                } break;
+                case ETransactionFinishRequest::Expiration:
+                    transactionFinisher->PersistRequest(transaction, TTransactionExpirationRequest{});
+            }
+        });
 
         DoRevokeLeases(transaction, /*force*/ false);
     }
@@ -2921,7 +3039,7 @@ private:
         YT_VERIFY(options.LatePrepare);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        RevokeLeases(transactionId);
+        RevokeLeases(transactionId, request->has_finish_request() ? &request->finish_request() : nullptr);
     }
 
     void HydraRevokeLeases(NProto::TReqRevokeLeases* request)
@@ -2930,7 +3048,7 @@ private:
         YT_VERIFY(HasHydraContext());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        RevokeLeases(transactionId);
+        RevokeLeases(transactionId, request->has_finish_request() ? &request->finish_request() : nullptr);
     }
 
     void DoRevokeLeases(TTransaction* transaction, bool force)
@@ -2997,6 +3115,156 @@ private:
             default: {
                 return nullptr;
             }
+        }
+    }
+
+    TFuture<void> MaybeCommitTransactionWithoutLeaseRevocation(
+        TTransaction* transaction,
+        NRpc::TMutationId mutationId,
+        const NRpc::TAuthenticationIdentity& identity,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsLeader());
+        YT_VERIFY(IsObjectAlive(transaction));
+        YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
+
+        auto transactionId = transaction->GetId();
+        if (!IsCypressTransactionType(TypeFromId(transactionId))) {
+            // NB: non-Cypress transaction may use 2PC so it should be committed
+            // via transaction supervisor.
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            return transactionSupervisor->CommitTransaction(transactionId);
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, identity);
+
+        return GetReadyToPrepareTransactionCommit(
+            prerequisiteTransactionIds,
+            {})
+            .Apply(BIND(
+                &TTransactionManager::DoCommitTransaction,
+                MakeStrong(this),
+                transactionId,
+                prerequisiteTransactionIds,
+                mutationId,
+                /*isRetry*/ true,
+                NRpc::NullRequestId)
+                .AsyncVia(EpochAutomatonInvoker_))
+            .Apply(BIND(&TTransactionManager::UnwrapResponseError));
+    }
+
+    static TError UnwrapResponseError(const TErrorOr<TSharedRefArray>& responseOrError)
+    {
+        if (!responseOrError.IsOK()) {
+            return TError(responseOrError);
+        }
+
+        NRpc::NProto::TResponseHeader responseHeader;
+        YT_VERIFY(NRpc::TryParseResponseHeader(responseOrError.Value(), &responseHeader));
+
+        if (responseHeader.has_error()) {
+            return FromProto<TError>(responseHeader.error());
+        }
+
+        return TError{};
+    }
+
+    TFuture<void> MaybeAbortTransactionWithoutLeaseRevocation(
+        TTransaction* transaction,
+        NRpc::TMutationId mutationId,
+        const NRpc::TAuthenticationIdentity& identity,
+        bool force) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsLeader());
+        YT_VERIFY(IsObjectAlive(transaction));
+        YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
+
+        auto transactionId = transaction->GetId();
+
+        if (!IsCypressTransactionType(TypeFromId(transactionId))) {
+            // NB: non-Cypress transaction may use 2PC so it should be committed
+            // via transaction supervisor.
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            return transactionSupervisor->AbortTransaction(transactionId);
+        }
+
+        TFuture<TSharedRefArray> responseFuture;
+        if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
+            responseFuture = AbortCypressTransactionInSequoia(
+                Bootstrap_,
+                transactionId,
+                force,
+                identity,
+                mutationId,
+                /*retry*/ true);
+        } else {
+            auto request = BuildAbortCypressTransactionRequest(
+                transactionId,
+                force,
+                identity);
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            mutation->SetMutationId(mutationId, /*isRetry*/ true);
+            responseFuture = OnTransactionAbortPrepared(std::move(mutation), /*error*/ {});
+        }
+
+        return responseFuture.Apply(BIND(&TTransactionManager::UnwrapResponseError));
+    }
+
+    TFuture<void> MaybeAbortExpiredTransactionWithoutLeaseRevocation(
+        TTransaction* transaction) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsLeader());
+        YT_VERIFY(IsObjectAlive(transaction));
+
+        auto transactionId = transaction->GetId();
+
+        if (!IsCypressTransactionType(TypeFromId(transactionId))) {
+            // NB: non-Cypress transaction may use 2PC so it should be committed
+            // via transaction supervisor.
+            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+            return transactionSupervisor->AbortTransaction(transactionId);
+        }
+
+        TFuture<TSharedRefArray> responseFuture;
+        if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
+            responseFuture = AbortExpiredCypressTransactionInSequoia(
+                Bootstrap_,
+                transactionId);
+        } else {
+            auto request = BuildAbortCypressTransactionRequest(
+                transactionId,
+                /*force*/ false,
+                NRpc::GetRootAuthenticationIdentity());
+
+            auto mutation = CreateMutation(HydraManager_, request);
+            responseFuture = OnTransactionAbortPrepared(std::move(mutation), /*error*/ {});
+        }
+
+        return responseFuture.Apply(BIND(&TTransactionManager::UnwrapResponseError));
+    }
+
+    TFuture<void> RevokeLeasesForExpiredTransaction(TTransaction* transaction) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsLeader());
+        YT_VERIFY(IsObjectAlive(transaction));
+
+        switch (transaction->GetTransactionLeasesState()) {
+            case ETransactionLeasesState::Active: {
+                NProto::TTransactionFinishRequest finishRequest;
+                finishRequest.set_kind(ToProto(ETransactionFinishRequest::Expiration));
+                finishRequest.mutable_expiration();
+                return RevokeTransactionLeases(transaction->GetId(), &finishRequest);
+            }
+            case ETransactionLeasesState::Revoking:
+                return transaction->LeasesRevokedPromise().ToFuture().ToUncancelable();
+            case ETransactionLeasesState::Revoked:
+                return VoidFuture;
         }
     }
 
@@ -3174,9 +3442,10 @@ private:
         IteratePredecessorTransactions(transaction, BIND(discountTransactionLease));
 
         YT_LOG_DEBUG(
-            "Transaction lease unregistered (TransactionId: %v, CellId: %v)",
+            "Transaction lease unregistered (TransactionId: %v, CellId: %v, SuccessorLeaseCount: %v)",
             transaction->GetId(),
-            cellId);
+            cellId,
+            transaction->GetSuccessorTransactionLeaseCount());
 
         return true;
     }
@@ -3400,82 +3669,10 @@ private:
             return;
         }
 
-        TFuture<void> abortFuture;
-        if (transaction->GetIsCypressTransaction()) {
-            TFuture<TSharedRefArray> response;
-            if (IsMirroringToSequoiaEnabled() &&
-                IsCypressTransactionMirroredToSequoia(transactionId))
-            {
-                response = RevokeTransactionLeases(transactionId)
-                    .Apply(BIND([bootstrap = Bootstrap_, transactionId] () {
-                        return AbortExpiredCypressTransactionInSequoia(
-                            bootstrap,
-                            transactionId);
-                    }));
-            } else {
-                NProto::TReqAbortCypressTransaction request;
-                ToProto(request.mutable_transaction_id(), transactionId);
-                request.set_force(false);
-                WriteAuthenticationIdentityToProto(&request, NRpc::GetRootAuthenticationIdentity());
+        auto traceContextGuard = NTracing::TTraceContextGuard(NTracing::GetOrCreateTraceContext("TransactionExpiration"));
 
-                auto mutation = CreateMutation(HydraManager_, request);
-                response = DoAbortTransaction(std::move(mutation), transaction, /*force*/ false);
-            }
-            abortFuture = response
-                .Apply(BIND([=] (const TErrorOr<TSharedRefArray>& rspOrError) {
-                    if (!rspOrError.IsOK()) {
-                        return MakeFuture<void>(rspOrError);
-                    }
-
-                    const auto& rsp = rspOrError.Value();
-
-                    NRpc::NProto::TResponseHeader header;
-                    YT_VERIFY(NRpc::TryParseResponseHeader(rsp, &header));
-                    if (header.has_error()) {
-                        auto error = FromProto<TError>(header.error());
-                        return MakeFuture<void>(error);
-                    }
-
-                    return VoidFuture;
-                }));
-        } else {
-            const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-            abortFuture = transactionSupervisor->AbortTransaction(transactionId);
-        }
-
-        abortFuture.Subscribe(
-            BIND([
-                =,
-                this,
-                this_ = MakeStrong(this),
-                automatonInvoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)
-            ] (const TError& error) {
-                if (error.IsOK()) {
-                    return;
-                }
-
-                // TODO(kvk1920): replace with YT_LOG_ALERT when all errors from
-                // Ground will become retriable.
-                YT_LOG_WARNING_IF(error.GetCode() != NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                    error,
-                    "Non-retriable error during expired transaction abort");
-
-                if (IsLeader()) {
-                    // Poor man's retry.
-                    // TODO(kvk1920): implement transaction abort tracker
-                    // and use it here.
-                    // NB: We don't need parent id here since it is used
-                    // only to ping ancestors.
-                    LeaseTracker_->UnregisterTransaction(transactionId);
-                    LeaseTracker_->RegisterTransaction(
-                        transactionId,
-                        /*parentId*/ {},
-                        /*timeout*/ TDuration::MilliSeconds(250),
-                        /*deadline*/ std::nullopt,
-                        BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
-                            .Via(automatonInvoker));
-                }
-            }));
+        const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
+        transactionFinisher->ScheduleExpiredTransactionLeaseRevocation(transaction);
     }
 
     void IterateSuccessorTransactions(
@@ -3551,7 +3748,9 @@ private:
         auto* transaction = FindTransaction(transactionId);
         // Transaction was already committed or aborted. Let commit and abort
         // handlers deal with it.
-        if (!transaction) {
+        if (!IsObjectAlive(transaction) ||
+            transaction->GetPersistentState() != ETransactionState::Active)
+        {
             return VoidFuture;
         }
 
@@ -3564,7 +3763,7 @@ private:
             return VoidFuture;
         }
 
-        if (GetDynamicConfig()->ThrowOnLeaseRevocation) {
+        if (GetDynamicConfig()->Testing->ThrowOnLeaseRevocation) {
             auto error = TError("Testing error");
             return MakeFuture<void>(error);
         }
@@ -3573,10 +3772,10 @@ private:
         return leaseRevocationFuture.ToUncancelable();
     }
 
-    TFuture<void> RevokeTransactionLeases(TTransactionId transactionId)
+    TFuture<void> RevokeTransactionLeases(TTransactionId transactionId, NProto::TTransactionFinishRequest* finishRequest)
     {
         if (IsCypressTransactionMirroredToSequoia(transactionId) && IsMirroringToSequoiaEnabled()) {
-            return DoomCypressTransactionInSequoia(Bootstrap_, transactionId, NRpc::GetRootAuthenticationIdentity())
+            return DoomCypressTransactionInSequoia(Bootstrap_, transactionId, NRpc::GetRootAuthenticationIdentity(), *finishRequest)
                 .Apply(BIND(
                     &TTransactionManager::GetLeaseRevocationFuture,
                     MakeStrong(this),
@@ -3586,6 +3785,9 @@ private:
 
         NProto::TReqRevokeLeases request;
         ToProto(request.mutable_transaction_id(), transactionId);
+        if (finishRequest) {
+            request.mutable_finish_request()->Swap(finishRequest);
+        }
         auto mutation = CreateMutation(HydraManager_, request);
         mutation->SetCurrentTraceContext();
         return mutation->Commit().AsVoid()
@@ -3602,7 +3804,7 @@ private:
         YT_VERIFY(HasHydraContext());
 
         auto* transaction = FindTransaction(leaseId);
-        if (!transaction) {
+        if (!IsObjectAlive(transaction)) {
             YT_LOG_DEBUG(
                 "Unknown lease was revoked, ignored (LeaseId: %v, CellId: %v)",
                 leaseId,

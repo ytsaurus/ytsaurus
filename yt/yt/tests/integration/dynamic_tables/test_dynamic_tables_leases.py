@@ -1,10 +1,10 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
     authors, ls, issue_lease, revoke_lease, reference_lease, unreference_lease, insert_rows, select_rows,
     create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells, build_snapshot,
     sync_unmount_table, raises_yt_error, start_transaction, commit_transaction, abort_transaction,
-    sync_reshard_table, mount_table, wait_for_tablet_state
+    sync_reshard_table, mount_table, wait_for_tablet_state, gc_collect,
 )
 
 from yt.test_helpers import (
@@ -292,7 +292,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("mode", ["commit", "abort"])
     def test_revoke_transaction_leases(self, mode):
-        set("//sys/@config/transaction_manager/throw_on_lease_revocation", True)
+        set("//sys/@config/transaction_manager/testing/throw_on_lease_revocation", True)
 
         cell_id = sync_create_cells(1)[0]
         tx = self._create_lease(cell_id)
@@ -302,6 +302,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
 
         create("map_node", "//tmp/m", tx=tx)
 
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 60000)
         if mode == "commit":
             with raises_yt_error("Testing error"):
                 commit_transaction(tx)
@@ -314,7 +315,6 @@ class TestDynamicTablesLeases(YTEnvSetup):
         wait(lambda: self._get_leases(cell_id)[tx]["state"] == "revoking")
 
         self._check_lease(cell_id, "revoking", 1, 0, lease_id=tx)
-
         unreference_lease(cell_id, tx)
 
         wait(lambda: get(f"#{tx}/@leases_state") == "revoked")
@@ -323,17 +323,17 @@ class TestDynamicTablesLeases(YTEnvSetup):
         assert len(self._get_leases(cell_id)) == 0
         assert len(get(f"#{cell_id}/@lease_transaction_ids")) == 0
 
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 50)
+        wait(lambda: not exists(f"#{tx}"))
         if mode == "commit":
-            commit_transaction(tx)
             assert exists("//tmp/m")
         else:
-            abort_transaction(tx)
             assert not exists("//tmp/m")
 
     @authors("gritukan")
     @pytest.mark.parametrize("mode", ["active", "commit", "abort"])
     def test_abort_transaction_with_force(self, mode):
-        set("//sys/@config/transaction_manager/throw_on_lease_revocation", True)
+        set("//sys/@config/transaction_manager/testing/throw_on_lease_revocation", True)
 
         cell_id = sync_create_cells(1)[0]
         tx = self._create_lease(cell_id)
@@ -343,6 +343,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
 
         create("map_node", "//tmp/m", tx=tx)
 
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 60000)
         if mode == "commit":
             with raises_yt_error("Testing error"):
                 commit_transaction(tx)
@@ -371,7 +372,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
     @pytest.mark.parametrize("mode", ["commit", "abort", "force_abort"])
     @pytest.mark.parametrize("action_tx_name", ["tx", "tx2", "tx3"])
     def test_revoke_lease_successor_transaction(self, mode, action_tx_name):
-        set("//sys/@config/transaction_manager/throw_on_lease_revocation", True)
+        set("//sys/@config/transaction_manager/testing/throw_on_lease_revocation", True)
 
         cell_id = sync_create_cells(1)[0]
 
@@ -420,6 +421,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
             action_tx = tx3
             successor_transactions = [tx3, ltx, tx5, tx6, tx7]
 
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 60000)
         if mode == "commit":
             with raises_yt_error("Testing error"):
                 commit_transaction(action_tx)
@@ -463,13 +465,17 @@ class TestDynamicTablesLeases(YTEnvSetup):
             assert len(self._get_leases(cell_id)) == 0
             assert len(get(f"#{cell_id}/@lease_transaction_ids")) == 0
 
+            set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 50)
+            wait(lambda: not exists(f"#{action_tx}"))
+            gc_collect()
             if mode == "commit":
-                commit_transaction(action_tx)
                 if action_tx == ltx:
                     assert exists("//tmp/m", tx=tx2)
             else:
-                abort_transaction(action_tx)
+                if action_tx == ltx:
+                    assert not exists("//tmp/m", tx=tx2)
 
+        gc_collect()
         for tx in all_tx:
             if tx in successor_transactions:
                 assert not exists(f"#{tx}")
@@ -579,3 +585,31 @@ class TestDynamicTablesLeases(YTEnvSetup):
 
         with raises_yt_error("Prerequisite check failed"):
             commit_transaction(t_tx)
+
+    @authors("kvk1920")
+    def test_transaction_finisher_persistence(self):
+        cell_id = sync_create_cells(1)[0]
+        ltx = self._create_lease(cell_id)
+
+        create("map_node", "//tmp/m", tx=ltx)
+
+        reference_lease(cell_id, ltx)
+
+        set("//sys/@config/transaction_manager/testing/throw_on_lease_revocation", True)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            ptx = start_transaction()
+            with raises_yt_error("Testing error"):
+                commit_transaction(ltx, prerequisite_transaction_ids=[ptx])
+
+            abort_transaction(ptx)
+            with Restarter(self.Env, MASTERS_SERVICE):
+                pass
+
+        wait(lambda: get(f"#{cell_id}/@peers/0/state") == "leading")
+        unreference_lease(cell_id, ltx)
+
+        # Transaction commit should fail since prerequisite transaction is
+        # already aborted before lease revocation is finished.
+        wait(lambda: not exists(f"#{ltx}"))
+        assert not exists("//tmp/m")
