@@ -264,41 +264,16 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     @not_implemented_in_sequoia
     def test_map(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/map", {"hello": "world", "list": [0, "a", {}], "n": 1})
-        assert get("//tmp/map") == {"hello": "world", "list": [0, "a", {}], "n": 1}
+        set("//tmp/map", {"hello1": "world1", "hello2": "world2"})
+        assert get("//tmp/map") == {"hello1": "world1", "hello2": "world2"}
 
-        set("//tmp/map/hello", "not_world")
-        assert get("//tmp/map") == {"hello": "not_world", "list": [0, "a", {}], "n": 1}
+        set("//tmp/map/hello1", "not_world1")
+        assert get("//tmp/map") == {"hello1": "not_world1", "hello2": "world2"}
 
-        set("//tmp/map/list/2/some", "value")
-        assert get("//tmp/map") == {
-            "hello": "not_world",
-            "list": [0, "a", {"some": "value"}],
-            "n": 1,
-        }
+        remove("//tmp/map/hello2")
+        assert get("//tmp/map") == {"hello1": "not_world1"}
 
-        remove("//tmp/map/n")
-        assert get("//tmp/map") == {
-            "hello": "not_world",
-            "list": [0, "a", {"some": "value"}],
-        }
-
-        set("//tmp/map/list", [], force=True)
-        assert get("//tmp/map") == {"hello": "not_world", "list": []}
-
-        set("//tmp/map/list/end", {})
-        set("//tmp/map/list/0/a", 1)
-        assert get("//tmp/map") == {"hello": "not_world", "list": [{"a": 1}]}
-
-        set("//tmp/map/list/begin", {})
-        set("//tmp/map/list/0/b", 2)
-        assert get("//tmp/map") == {"hello": "not_world", "list": [{"b": 2}, {"a": 1}]}
-
-        remove("//tmp/map/hello")
-        assert get("//tmp/map") == {"list": [{"b": 2}, {"a": 1}]}
-
-        remove("//tmp/map/list")
+        remove("//tmp/map/hello1")
         assert get("//tmp/map") == {}
 
         with raises_yt_error("has no child with key"):
@@ -435,20 +410,19 @@ class TestCypress(YTEnvSetup):
 
     @authors("panin", "ignat")
     @not_implemented_in_sequoia
-    def test_format_json(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
+    def test_json_format(self):
+        create("document", "//tmp/d")
         # check input format for json
         set(
-            "//tmp/json_in",
+            "//tmp/d",
             b'{"list": [1,2,{"string": "this"}]}',
             is_raw=True,
             input_format="json",
         )
-        assert get("//tmp/json_in") == {"list": [1, 2, {"string": "this"}]}
+        assert get("//tmp/d") == {"list": [1, 2, {"string": "this"}]}
 
         # check output format for json
-        set("//tmp/json_out", {"list": [1, 2, {"string": "this"}]})
-        assert get(b"//tmp/json_out", is_raw=True, output_format="json") == b'{"list":[1,2,{"string":"this"}]}'
+        assert get(b"//tmp/d", is_raw=True, output_format="json") == b'{"list":[1,2,{"string":"this"}]}'
 
     @authors("ignat")
     def test_map_remove_all1(self):
@@ -560,28 +534,20 @@ class TestCypress(YTEnvSetup):
             get("//tmp/@b")
 
     @authors("babenko", "ignat")
-    def test_copy_simple1(self):
+    def test_copy_scalar(self):
         set("//tmp/a", 1)
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b") == 1
 
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
-    def test_copy_simple2(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/a", [1, 2, 3])
-        copy("//tmp/a", "//tmp/b")
-        assert get("//tmp/b") == [1, 2, 3]
-
-    @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
-    def test_copy_simple3(self):
+    def test_copy_scalar_with_attr(self):
         set("//tmp/a", b"<x=y> 1", is_raw=True)
         copy("//tmp/a", "//tmp/b")
         assert get("//tmp/b/@x") == "y"
 
     @authors("babenko", "ignat")
-    def test_copy_simple4(self):
+    def test_copy_map(self):
         set("//tmp/a", {"x1": "y1", "x2": "y2"})
         assert get("//tmp/a/@count") == 2
 
@@ -589,7 +555,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b/@count") == 2
 
     @authors("babenko", "ignat")
-    def test_copy_simple5(self):
+    def test_path_after_copy(self):
         set("//tmp/a", {"b": 1})
         assert get("//tmp/a/b/@path") == "//tmp/a/b"
 
@@ -600,13 +566,13 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/c/b/@path") == "//tmp/c/b"
 
     @authors("babenko", "ignat")
-    def test_copy_simple6a(self):
+    def test_cannot_copy_to_itself(self):
         create("map_node", "//tmp/a")
         with raises_yt_error("Cannot copy or move a node to itself"):
             copy("//tmp/a", "//tmp/a/b")
 
     @authors("babenko")
-    def test_copy_simple6b(self):
+    def test_cannot_copy_to_descendant(self):
         tx = start_transaction()
         create("map_node", "//tmp/a", tx=tx)
         create("map_node", "//tmp/a/b", tx=tx)
@@ -614,7 +580,7 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/a", "//tmp/a/b/c", tx=tx)
 
     @authors("babenko")
-    def test_copy_simple7(self):
+    def test_cannot_copy_unversioned_object(self):
         tx = start_transaction()
         if self.ENABLE_TMP_PORTAL:
             msg = "Attribute \"path\" is not found"
@@ -624,7 +590,7 @@ class TestCypress(YTEnvSetup):
             copy("#" + tx, "//tmp/t")
 
     @authors("babenko", "ignat")
-    def test_copy_simple8(self):
+    def test_copy_through_link(self):
         create("map_node", "//tmp/a")
         create("table", "//tmp/a/t")
         link("//tmp/a", "//tmp/b")
@@ -1926,9 +1892,6 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("String node length limit exceeded"):
             set("//tmp/test_node", {"key": "x" * 301})
 
-        with raises_yt_error("List nodes are deprecated"):
-            set("//tmp/test_node", ["x" * 301])
-
     @authors("babenko")
     @not_implemented_in_sequoia
     def test_attribute_size_limit(self):
@@ -2634,29 +2597,20 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @not_implemented_in_sequoia
-    def test_ignore_ampersand1(self):
+    def test_ignore_ampersand_for_map(self):
         set("//tmp/map", {})
         set("//tmp/map&/a", "b")
         assert get("//tmp/map&/a") == "b"
         assert get("//tmp/map&/@type") == "map_node"
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
-    def test_ignore_ampersand2(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/list", [])
-        set("//tmp/list&/end", "x")
-        assert get("//tmp/list&/0") == "x"
-        assert get("//tmp/list&/@type") == "list_node"
-
     @authors("babenko", "ignat")
     @not_implemented_in_sequoia
-    def test_ignore_ampersand3(self):
+    def test_ignore_ampersand_for_virtual_map(self):
         assert get("//sys/chunks&/@type") == "chunk_map"
 
     @authors("ignat")
     @not_implemented_in_sequoia
-    def test_ignore_ampersand4(self):
+    def test_ignore_ampersand_in_exists(self):
         assert not exists("//tmp/missing")
         assert not exists("//tmp/missing&")
         assert exists("//tmp")
