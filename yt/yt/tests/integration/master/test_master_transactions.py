@@ -540,6 +540,25 @@ class TestMasterTransactions(YTEnvSetup):
         gc_collect()
         assert not exists(f"#{tx_a}")
 
+    @authors("kvk1920")
+    def test_prerequisite_check_failure_during_commit(self):
+        tx = start_transaction()
+        m = create("map_node", "//tmp/m", tx=tx)
+
+        set("//sys/@config/transaction_manager/testing/prerequisite_check_failure_during_commit_of_transactions", [tx])
+
+        # Sync with upstream to ensure testing config is applied on transaction
+        # coordinator cell.
+        get(f"#{tx}/@state")
+
+        with raises_yt_error("Prerequisite check failed: this failure is requested manually via dynamic config"):
+            commit_transaction(tx)
+
+        gc_collect()
+
+        assert not exists(f"#{tx}")
+        assert not exists(f"#{m}")
+
     @authors("shakurov")
     def test_prerequisite_tx_read_requests(self):
         good_tx = start_transaction()
@@ -966,14 +985,60 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 6
 
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "14": {"roles": ["transaction_coordinator"]},
+        "15": {"roles": ["transaction_coordinator"]},
+    }
+
     @authors("kvk1920")
     def test_expiration_during_ground_unavailability(self):
         tx = start_transaction(timeout=10000)
         start_time = datetime.now()
+        set("//sys/@config/transaction_manager/transaction_finisher/alert_on_too_many_retries", False)
         with Restarter(self.ground_envs[0], NODES_SERVICE):
             sleep(12 - (datetime.now() - start_time).total_seconds())
             assert exists(f"#{tx}")
         wait(lambda: not exists(f"#{tx}"))
+        set("//sys/@config/transaction_manager/transaction_finisher/alert_on_too_many_retries", True)
+
+    def _get_cell_id(self, cell_tag):
+        def cell_tag_from_id(cell_id):
+            return int(cell_id.split("-")[2], base=16) >> 16
+
+        static_master_config = self.Env.configs["master"][0]
+        for entry in [static_master_config["primary_master"]] + static_master_config["secondary_masters"]:
+            if cell_tag_from_id(entry["cell_id"]) == cell_tag:
+                return entry["cell_id"]
+        assert False, f"No master cell with cell tag {cell_tag}"
+
+    @authors("kvk1920")
+    def test_transaction_finish_after_lease_revocation(self):
+        set("//sys/@config/transaction_manager/testing/throw_on_lease_revocation", True)
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 50)
+
+        tx = start_transaction()
+        set("//tmp/i", 123)
+        set("//tmp/i", 321, tx=tx)
+
+        # Issue leases.
+        try:
+            create("rootstock", "//rootstock")
+            set("//rootstock/i", 123, prerequisite_transaction_ids=[tx])
+        finally:
+            remove("//rootstock", force=True)
+
+        sequoia_node_host_cell_id = self._get_cell_id(13)
+        assert sequoia_node_host_cell_id in get(f"#{tx}/@lease_cell_ids")
+
+        with raises_yt_error("Testing error"):
+            commit_transaction(tx)
+
+        wait(lambda: not exists(f"#{tx}"))
+        assert get("//tmp/i") == 321
 
 
 @pytest.mark.enabled_multidaemon

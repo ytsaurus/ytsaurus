@@ -1006,8 +1006,8 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
     @authors("kvk1920")
     def test_rollback(self):
         # t1 is prerequisite for t2
-        #                       /  \
-        #                      t3  t4
+        #  |                    /  \
+        # t5                   t3  t4
         t1 = start_transaction(timeout=100000)
         t2 = start_transaction(prerequisite_transaction_ids=[t1], timeout=100000)
         t3 = start_transaction(tx=t2, timeout=100000)
@@ -1015,6 +1015,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         t5 = start_transaction(tx=t1, timeout=100000, replicate_to_master_cell_tags=[13])
 
         m3 = create("map_node", "//tmp/m3", tx=t3)
+        create("map_node", "//tmp/m4", tx=t4)
         create("map_node", "//tmp/m1", tx=t1)
 
         for table in DESCRIPTORS.get_group("transaction_tables"):
@@ -1025,12 +1026,11 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
             # from Sequoia point of view.
             commit_transaction(t4)
 
-        # Looks like abort_transaction() never returns an error. Strange but OK
-        # for now...
-        # TODO(kvk1920): in this case client should retry request after
-        # mirroring will be disabled. So client should actually get an error.
-        abort_transaction(t4)
         assert exists(f"#{t4}")
+        assert exists("//tmp/m4", tx=t4)
+        assert not exists("//tmp/m4")
+
+        assert get(f"#{t4}/@leases_state") != "active"
 
         # Disable transaction enabling and try to commit/abort some transactions.
         set("//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia", False)
@@ -1038,8 +1038,13 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists(f"#{t1}")
         assert exists(f"#{t2}")
         assert exists(f"#{t3}")
-        assert exists(f"#{t4}")
         assert exists(f"#{t5}")
+
+        # Commit of |t4| has been stared before transaction mirroring was
+        # disabled. |t4| should be eventually committed by transaction finisher.
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 50)
+        wait(lambda: not exists(f"#{t4}"))
+        assert exists("//tmp/m4", tx=t2)
 
         assert exists("//tmp/m3", tx=t3)
         assert exists("//tmp/m1", tx=t1)

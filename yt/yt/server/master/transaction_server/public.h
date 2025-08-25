@@ -39,6 +39,7 @@ using TRspRegisterLockableDynamicTables = NTransactionClient::NProto::TRspRegist
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicTransactionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicTransactionManagerTestingConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionPresenceCache)
 DECLARE_REFCOUNTED_STRUCT(TTransactionPresenceCacheConfig)
@@ -48,6 +49,10 @@ DECLARE_REFCOUNTED_STRUCT(TBoomerangTrackerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithoutBoomerangs)
 DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithBoomerangs)
+
+DECLARE_REFCOUNTED_STRUCT(ITransactionFinisher)
+DECLARE_REFCOUNTED_STRUCT(ITransactionFinisherHost)
+DECLARE_REFCOUNTED_STRUCT(TTransactionFinisherConfig)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
 

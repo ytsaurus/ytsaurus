@@ -173,6 +173,7 @@ DEFINE_ENUM(EMasterReign,
     ((AdditionalMulticellChunksSamples)                             (3018))  // grphil
     ((BulkInsertSendsDynamicStoresToMountingTablets)                (3019))  // ifsmirnov
     ((SequoiaPrerequisiteRevisionsOnRead)                           (3020))  // cherepashka
+    ((TransactionFinisher)                                          (3021))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

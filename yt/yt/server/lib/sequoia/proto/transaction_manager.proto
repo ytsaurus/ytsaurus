@@ -84,14 +84,47 @@ message TReqMarkCypressTransactionsReplicatedToCells
     repeated NYT.NProto.TGuid transaction_ids = 2;
 }
 
-message TReqRevokeCypressTransactionLeases
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-}
-
 message TReqMaterializeCypressTransactionReplicas
 {
     repeated TReqStartForeignTransaction transactions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTransactionFinishRequest
+{
+    optional string user = 1;
+    optional string user_tag = 2;
+    optional NYT.NProto.TGuid mutation_id = 3;
+    optional int32 kind = 4; // ETransactionFinishRequest
+
+    message TCommit
+    {
+        repeated NYT.NProto.TGuid prerequisite_transaction_ids = 1;
+    }
+    optional TCommit commit = 5;
+
+    message TAbort
+    {
+        optional bool force = 1;
+    }
+    optional TAbort abort = 6;
+
+    message TExpiration
+    { }
+    optional TExpiration expiration = 7;
+}
+
+message TReqRevokeCypressTransactionLeases
+{
+    optional NYT.NProto.TGuid transaction_id = 1;
+    optional TTransactionFinishRequest finish_request = 2;
+}
+
+message TReqRevokeLeases
+{
+    optional NYT.NProto.TGuid transaction_id = 1;
+    optional NYT.NTransactionServer.NProto.TTransactionFinishRequest finish_request = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
