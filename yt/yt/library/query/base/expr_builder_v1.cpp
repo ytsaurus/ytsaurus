@@ -531,26 +531,6 @@ public:
         ColumnResolver_.Finish();
     }
 
-    TLogicalTypePtr GetColumnType(const NAst::TColumnReference& reference)
-    {
-        if (AfterGroupBy_) {
-            // Search other way after group by.
-            if (reference.TableName) {
-                return nullptr;
-            }
-
-            for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
-                const auto& item = (*GroupItems_)[index];
-                if (item.Name == reference.ColumnName) {
-                    return item.Expression->LogicalType;
-                }
-            }
-            return nullptr;
-        }
-
-        return ColumnResolver_.Resolve(reference);
-    }
-
     void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
     {
         YT_VERIFY(!GroupItems_ && !AggregateItems_);
@@ -874,7 +854,20 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
 TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
 {
     if (AfterGroupBy_) {
-        if (auto type = GetColumnType(reference)) {
+        TLogicalTypePtr type = nullptr;
+
+        // Search other way after group by.
+        if (!reference.TableName) {
+            for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
+                const auto& item = (*GroupItems_)[index];
+                if (item.Name == reference.ColumnName) {
+                    type = item.Expression->LogicalType;
+                    break;
+                }
+            }
+        }
+
+        if (type) {
             return UnwrapCompositeMemberAccessor(reference, type);
         }
     }
@@ -894,8 +887,9 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
         }
     }
 
+    // Do not resolve this way after group by.
     if (!AfterGroupBy_) {
-        if (auto type = GetColumnType(reference)) {
+        if (auto type = ResolveColumn(reference)) {
             return UnwrapCompositeMemberAccessor(reference, type);
         }
     }

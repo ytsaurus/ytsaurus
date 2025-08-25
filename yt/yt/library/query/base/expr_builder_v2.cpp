@@ -134,10 +134,10 @@ public:
     }
 
     TString InferGroupItemName(
-        const TConstExpressionPtr& typedExpression,
-        const NAst::TExpression& /*expressionsAst*/) override
+        const TConstExpressionPtr& /*typedExpression*/,
+        const NAst::TExpression& expressionsAst) override
     {
-        return InferName(typedExpression);
+        return InferColumnName(expressionsAst);
     }
 
     void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
@@ -292,26 +292,6 @@ TConstExpressionPtr TExprBuilderV2::OnExpression(
 {
     auto result = DoOnExpression(expr);
 
-    for (const auto& aliasResolver : AliasResolvers_) {
-        if (aliasResolver->NeedSubstitute) {
-            auto subexpressionName = InferName(result);
-
-            auto* groupItems = aliasResolver->GroupItems;
-            YT_VERIFY(groupItems);
-
-            for (const auto& [expression, name]: *groupItems) {
-                if (name == subexpressionName) {
-                    aliasResolver->NeedSubstitute = false;
-
-                    result = New<TReferenceExpression>(
-                        result->LogicalType,
-                        subexpressionName);
-                    break;
-                }
-            }
-        }
-    }
-
     return result;
 }
 
@@ -429,6 +409,20 @@ TConstExpressionPtr TExprBuilderV2::OnColumnReference(const NAst::TColumnReferen
 
     auto* aliasResolver = AliasResolvers_.back().get();
 
+    if (aliasResolver->AfterGroupBy) {
+        auto* groupItems = aliasResolver->GroupItems;
+        YT_VERIFY(groupItems);
+
+        if (!reference.TableName) {
+            for (const auto& [expression, name]: *groupItems) {
+                // TODO(lukyan): InferColumnName(reference) instead of reference.ColumnName?
+                if (name == reference.ColumnName) {
+                    return New<TReferenceExpression>(expression->LogicalType, reference.ColumnName);
+                }
+            }
+        }
+    }
+
     if (!reference.TableName) {
         const auto& columnName = reference.ColumnName;
         auto found = aliasResolver->AliasMap.find(columnName);
@@ -444,7 +438,7 @@ TConstExpressionPtr TExprBuilderV2::OnColumnReference(const NAst::TColumnReferen
         }
     }
 
-    // Lookup in tables.
+    // Need substitute for expressions inside aggregate functions.
     if (auto type = aliasResolver->ColumnResolver.Resolve(reference)) {
         if (aliasResolver->AfterGroupBy) {
             // Cannot increase resolver level.
