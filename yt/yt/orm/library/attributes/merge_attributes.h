@@ -23,6 +23,13 @@ struct TAttributeValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDuplicatePolicy,
+    (PrioritizeColumn)
+    (PrioritizeEtc)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <std::ranges::range TRange, class TPathProj, class TIsEtcProj>
 void ValidateSortedPaths(const TRange& paths, TPathProj pathProj, TIsEtcProj etcProj);
 
@@ -54,7 +61,8 @@ private:
 
 NYson::TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
-    NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
+    NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
+    EDuplicatePolicy duplicatePolicy = EDuplicatePolicy::PrioritizeColumn);
 
 ////////////////////////////////////////////////////////////////////////////////
 

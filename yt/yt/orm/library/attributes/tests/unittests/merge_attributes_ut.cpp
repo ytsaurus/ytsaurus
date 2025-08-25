@@ -134,6 +134,30 @@ TEST(TMergeAttributesTest, Etc)
     EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
 }
 
+TEST(TMergeAttributesTest, DuplicateValues)
+{
+    using namespace std::literals;
+    NYson::TYsonString elementYsonStringBuf{"b"sv};
+    NYson::TYsonString etcYsonStringBuf{R"({"a"="c";})"sv};
+    std::vector<TAttributeValue> attributeValues = {
+        {.Path = "/x/a", .Value = elementYsonStringBuf},
+        {.Path = "/x", .Value = etcYsonStringBuf, .IsEtc=true},
+    };
+
+    {
+        auto mergedYsonString =
+            MergeAttributes(attributeValues, NYson::EYsonFormat::Text, EDuplicatePolicy::PrioritizeColumn);
+        NYson::TYsonString expectedYsonString{R"({"x"={"a"="b";};})"sv};
+        EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+    }
+    {
+        auto mergedYsonString =
+            MergeAttributes(attributeValues, NYson::EYsonFormat::Text, EDuplicatePolicy::PrioritizeEtc);
+        NYson::TYsonString expectedYsonString{R"({"x"={"a"="c";};})"sv};
+        EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TValidateSortedPathsTest, SimpleOk)
