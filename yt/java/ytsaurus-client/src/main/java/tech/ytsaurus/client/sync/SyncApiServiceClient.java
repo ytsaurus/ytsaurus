@@ -37,6 +37,7 @@ import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.ReadQueryResult;
@@ -148,6 +149,8 @@ interface SyncApiServiceClient extends SyncTransactionalClient {
     void updateOperationParameters(UpdateOperationParameters req);
 
     QueueRowset pullConsumer(PullConsumer req);
+
+    QueueRowset pullQueue(PullQueue req);
 
     void registerQueueConsumer(RegisterQueueConsumer req);
 

@@ -10,6 +10,7 @@ import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.rows.QueueRowset;
@@ -53,6 +54,24 @@ public class QueuesAPITest extends YTsaurusClientTestBase {
                 PullConsumer.builder()
                         .setQueuePath(queuePath)
                         .setConsumerPath(consumerPath)
+                        .setPartitionIndex(0)
+                        .build()
+        ).join();
+
+        Assert.assertEquals(3, rowset.getRows().size());
+    }
+
+    @Test
+    public void testPullQueue() {
+        YTsaurusClient yt = ytFixture.getYt();
+
+        YPath queuePath = ytFixture.getTestDirectory().child("queue");
+
+        createAndFillQueue(yt, queuePath);
+
+        QueueRowset rowset = yt.pullQueue(
+                PullQueue.builder()
+                        .setQueuePath(queuePath)
                         .setPartitionIndex(0)
                         .build()
         ).join();

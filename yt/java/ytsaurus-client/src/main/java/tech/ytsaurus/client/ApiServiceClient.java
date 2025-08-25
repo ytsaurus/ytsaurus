@@ -57,6 +57,7 @@ import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PausePipeline;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.ReadQueryResult;
@@ -344,6 +345,28 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
 
+    /**
+     * Reads a batch of rows from a given partition of a given queue, starting at (at least) the given offset.
+     * Requires the user to have read-access to the specified queue.
+     * There is no guarantee that `PullQueue#rowBatchReadOptions#maxRowCount` rows will be returned even if they are
+     * in the queue.
+     * <p>
+     *
+     * @param req PullQueue request.
+     * @return CompletableFuture that completes with {@link QueueRowset}.
+     */
+    CompletableFuture<QueueRowset> pullQueue(PullQueue req);
+
+    /**
+     * Same as {@link ApiServiceClient#pullQueue(PullQueue)}, but requires user to have read-access to the consumer
+     * and the consumer being registered for the given queue.
+     * There is no guarantee that `PullConsumer#rowBatchReadOptions#maxRowCount` rows will be returned even if they
+     * are in the queue.
+     * <p>
+     *
+     * @param req PullConsumer request.
+     * @return CompletableFuture that completes with {@link QueueRowset}.
+     */
     CompletableFuture<QueueRowset> pullConsumer(PullConsumer req);
 
     CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req);
@@ -513,7 +536,6 @@ public interface ApiServiceClient extends TransactionalClient {
 
     /**
      * Patches operation specification for running operation.
-     *
      */
     CompletableFuture<Void> patchOperationSpec(PatchOperationSpec req);
 
