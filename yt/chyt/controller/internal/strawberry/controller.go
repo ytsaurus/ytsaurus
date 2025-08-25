@@ -34,6 +34,9 @@ type Controller interface {
 	// Returns true if the state has been changed and all oplets should be restarted.
 	UpdateState() (changed bool, err error)
 
+	// GetControllerSnapshot returns snapshot of controller state for tracking oplet coherence.
+	GetControllerSnapshot() (yson.RawValue, error)
+
 	// DescribeOptions returns human-readable descriptors for controller-related speclet options.
 	// Some options can be missing in the result if they are not intended to be visible through user interfaces.
 	//

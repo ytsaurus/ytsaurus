@@ -32,8 +32,10 @@ type PersistentState struct {
 	YTOpPoolTrees []string `yson:"yt_op_pool_trees,omitempty"`
 	// YTOpPool is the last set pool of the current yt operation.
 	YTOpPool *string `yson:"yt_op_pool,omitempty"`
-	// SecretsRevision is a content_revision of the secrets with which current yt operation is started.
+	// YTOpSecretsRevision is a content_revision of the secrets with which current yt operation is started.
 	YTOpSecretsRevision yt.Revision `yson:"yt_op_secrets_revision"`
+	// YTOpControllerSnapshot is a snapshot of controller state when current yt operation was started.
+	YTOpControllerSnapshot yson.RawValue `yson:"yt_op_controller_snapshot,omitempty"`
 
 	// SpecletRevision is a revision of the last seen speclet node.
 	SpecletRevision yt.Revision `yson:"speclet_revision"`
