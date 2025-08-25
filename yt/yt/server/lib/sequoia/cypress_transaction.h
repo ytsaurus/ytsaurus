@@ -1,5 +1,7 @@
 #pragma once
 
+#include "transaction_finish_request.h"
+
 #include <yt/yt/ytlib/cypress_transaction_client/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -32,6 +34,7 @@ TFuture<void> DoomCypressTransaction(
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressClient::TTransactionId transactionId,
     NRpc::TAuthenticationIdentity authenticationIdentity,
+    const NTransactionServer::NProto::TTransactionFinishRequest& request,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 

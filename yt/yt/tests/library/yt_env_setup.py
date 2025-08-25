@@ -629,8 +629,7 @@ class YTEnvSetup(object):
         delta_global_cluster_connection_config = None
 
         if cls.get_param("USE_SEQUOIA", index):
-            if delta_global_cluster_connection_config is None:
-                delta_global_cluster_connection_config = {}
+            delta_global_cluster_connection_config = {}
             update_inplace(delta_global_cluster_connection_config, {
                 "sequoia_retries": {
                     "enable": True,
@@ -639,6 +638,16 @@ class YTEnvSetup(object):
                     "cypress_modification": 5000,
                     "cypress_transaction_mirroring": 5000,
                     "response_keeper": 5000,
+                },
+                # NB: default backoff is 3 seconds. It's too long. Typical
+                # Sequoia tx lives no longer than 300ms.
+                "transaction_manager": {
+                    "enable_exponential_retry_backoffs": True,
+                    "retry_backoffs": {
+                        "min_backoff": 300,
+                        "max_backoff": 1500,
+                        "backoff_multiplier": 1.2,
+                    },
                 },
             })
         if cls._is_ground_cluster(index):
@@ -2096,6 +2105,15 @@ class YTEnvSetup(object):
                     "enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases": True,
                     "forbid_transaction_actions_for_cypress_transactions": True,
                 })
+                # COMPAT(kvk1920)
+                if cls.Env.get_component_version("ytserver-master").abi >= (25, 3):
+                    update_inplace(config["transaction_manager"], {
+                        "transaction_finisher": {
+                            "retries": {
+                                "invocation_count": 60,
+                            }
+                        }
+                    })
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi >= (24, 2):

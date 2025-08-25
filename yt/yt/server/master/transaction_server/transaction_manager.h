@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "transaction_finisher_host.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -34,6 +35,7 @@ namespace NYT::NTransactionServer {
 
 struct ITransactionManager
     : public NTransactionSupervisor::ITransactionManager
+    , public ITransactionFinisherHost
 {
     //! Raised when a new transaction is started.
     DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionStarted);

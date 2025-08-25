@@ -1593,21 +1593,24 @@ public:
         TCellId coordinatorCellId,
         TTransactionId transactionId,
         TAuthenticationIdentity authenticationIdentity,
+        const NTransactionServer::NProto::TTransactionFinishRequest& request,
         IInvokerPtr invoker,
         TLogger logger)
         : TSequoiaMutation(
             std::move(sequoiaClient),
             coordinatorCellId,
             "doom",
-            "Sequoia transaction: mark Cypress transaction as doomed",
+            Format("Sequoia transaction: mark Cypress transaction %Qv as doomed", transactionId),
             std::move(invoker),
             std::move(logger),
-            std::move(authenticationIdentity)),
-        TransactionId_(transactionId)
+            std::move(authenticationIdentity))
+        , TransactionId_(transactionId)
+        , FinishRequest_(request)
     { }
 
 private:
     const TTransactionId TransactionId_;
+    const NTransactionServer::NProto::TTransactionFinishRequest FinishRequest_;
 
     TFuture<void> ApplySequoiaTransaction() final
     {
@@ -1688,6 +1691,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         NTransactionServer::NProto::TReqRevokeCypressTransactionLeases action;
         ToProto(action.mutable_transaction_id(), TransactionId_);
+        action.mutable_finish_request()->CopyFrom(FinishRequest_);
 
         auto coordinatorCellTag = CellTagFromId(TransactionId_);
 
@@ -2308,6 +2312,7 @@ TFuture<void> DoomCypressTransaction(
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
     TAuthenticationIdentity authenticationIdentity,
+    const NTransactionServer::NProto::TTransactionFinishRequest& request,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2316,6 +2321,7 @@ TFuture<void> DoomCypressTransaction(
         cypressTransactionCoordinatorCellId,
         transactionId,
         std::move(authenticationIdentity),
+        request,
         std::move(invoker),
         std::move(logger))
         ->Apply();

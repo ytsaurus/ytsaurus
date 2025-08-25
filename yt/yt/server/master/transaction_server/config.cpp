@@ -32,6 +32,34 @@ void TBoomerangTrackerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTransactionFinisherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("retries", &TThis::Retries)
+        .Default(TExponentialBackoffOptions{
+            .InvocationCount = 25,
+            .MinBackoff = TDuration::MilliSeconds(200),
+            .BackoffMultiplier = 1.3,
+        });
+    registrar.Parameter("scan_period", &TThis::ScanPeriod)
+        .Default(TDuration::MilliSeconds(150));
+    registrar.Parameter("max_transactions_per_scan", &TThis::MaxTransactionsPerScan)
+        .Default(100);
+    registrar.Parameter("alert_on_too_many_retries", &TThis::AlertOnTooManyRetries)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicTransactionManagerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("throw_on_lease_revocation", &TThis::ThrowOnLeaseRevocation)
+        .Default(false);
+    registrar.Parameter("prerequisite_check_failure_during_commit_of_transactions", &TThis::PrerequisiteCheckFailureDuringCommitOfTransactions)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_transaction_timeout", &TThis::MaxTransactionTimeout)
@@ -43,6 +71,7 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("boomerang_tracker", &TThis::BoomerangTracker)
         .DefaultNew();
+
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
     registrar.Parameter("check_transaction_is_compatible_with_method", &TThis::CheckTransactionIsCompatibleWithMethod)
@@ -71,8 +100,8 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("transaction_type_to_method_whitelist", &TThis::TransactionTypeToMethodWhitelist)
         .Default(defaultWhitelist);
 
-    registrar.Parameter("throw_on_lease_revocation", &TThis::ThrowOnLeaseRevocation)
-        .Default(false);
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     // COMPAT(gritukan): This is an emergency button to restore old master transactions
     // behavior.
@@ -90,6 +119,9 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_non_strict_externalized_transaction_usage", &TThis::EnableNonStrictExternalizedTransactionUsage)
         .Default(true);
+
+    registrar.Parameter("transaction_finisher", &TThis::TransactionFinisher)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
