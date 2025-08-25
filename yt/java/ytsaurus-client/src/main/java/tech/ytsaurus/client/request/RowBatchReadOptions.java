@@ -29,6 +29,15 @@ public class RowBatchReadOptions {
         return builder.build();
     }
 
+    @Override
+    public String toString() {
+        return "RowBatchReadOptions{" +
+                "maxRowCount=" + maxRowCount +
+                ", maxDataWeight=" + maxDataWeight +
+                ", dataWeightPerRowHint=" + dataWeightPerRowHint +
+                '}';
+    }
+
     /**
      * Construct empty builder for row batch read options.
      */

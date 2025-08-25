@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+
 import java.util.Objects;
 
 import javax.annotation.Nullable;
@@ -7,17 +8,18 @@ import javax.annotation.Nullable;
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
+import tech.ytsaurus.rpcproxy.TReqPullQueue;
 
 /**
- * Immutable pull consumer request.
+ * Immutable pull queue request.
+ * It almost the same to {@link tech.ytsaurus.client.request.PullConsumer} except that {@link PullQueue} doesn't
+ * required consumer.
  * <p>
  *
- * @see tech.ytsaurus.client.ApiServiceClient#pullConsumer(PullConsumer)
+ * @see tech.ytsaurus.client.ApiServiceClient#pullQueue(PullQueue)
  */
-public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer>
-        implements HighLevelRequest<TReqPullQueueConsumer.Builder> {
-    private final YPath consumerPath;
+public class PullQueue extends RequestBase<PullQueue.Builder, PullQueue>
+        implements HighLevelRequest<TReqPullQueue.Builder> {
     private final YPath queuePath;
     private final int partitionIndex;
     private final RowBatchReadOptions rowBatchReadOptions;
@@ -26,9 +28,8 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
     @Nullable
     private final ReplicaConsistency replicaConsistency;
 
-    PullConsumer(Builder builder) {
+    PullQueue(Builder builder) {
         super(builder);
-        this.consumerPath = Objects.requireNonNull(builder.consumerPath);
         this.queuePath = Objects.requireNonNull(builder.queuePath);
         this.partitionIndex = Objects.requireNonNull(builder.partitionIndex);
         this.rowBatchReadOptions = Objects.requireNonNull(builder.rowBatchReadOptions);
@@ -37,7 +38,7 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
     }
 
     /**
-     * Construct empty builder for pull consumer request.
+     * Construct empty builder for pull queue request.
      */
     public static Builder builder() {
         return new Builder();
@@ -49,7 +50,6 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
     @Override
     public Builder toBuilder() {
         return builder()
-                .setConsumerPath(consumerPath)
                 .setQueuePath(queuePath)
                 .setPartitionIndex(partitionIndex)
                 .setOffset(offset)
@@ -64,7 +64,6 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-        sb.append("consumerPath: ").append(consumerPath).append(";");
         sb.append("queuePath: ").append(queuePath).append(";");
         sb.append("partitionIndex: ").append(partitionIndex).append(";");
         if (offset != null) {
@@ -81,9 +80,8 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
      * Internal method: prepare request to send over network.
      */
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqPullQueueConsumer.Builder, ?> requestBuilder) {
-        TReqPullQueueConsumer.Builder builder = requestBuilder.body();
-        builder.setConsumerPath(ByteString.copyFromUtf8(consumerPath.toString()));
+    public void writeTo(RpcClientRequestBuilder<TReqPullQueue.Builder, ?> requestBuilder) {
+        TReqPullQueue.Builder builder = requestBuilder.body();
         builder.setQueuePath(ByteString.copyFromUtf8(queuePath.toString()));
         builder.setPartitionIndex(partitionIndex);
         builder.setRowBatchReadOptions(rowBatchReadOptions.toProto());
@@ -96,11 +94,9 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
     }
 
     /**
-     * Builder for {@link PullConsumer}
+     * Builder for {@link PullQueue}
      */
-    public static class Builder extends RequestBase.Builder<PullConsumer.Builder, PullConsumer> {
-        @Nullable
-        private YPath consumerPath;
+    public static class Builder extends RequestBase.Builder<Builder, PullQueue> {
         @Nullable
         private YPath queuePath;
         @Nullable
@@ -114,41 +110,72 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
         private Builder() {
         }
 
-        public PullConsumer.Builder setConsumerPath(YPath consumerPath) {
-            this.consumerPath = consumerPath;
-            return self();
-        }
-
-        public PullConsumer.Builder setQueuePath(YPath queuePath) {
+        /**
+         * Set path to the QYT.
+         * <p>
+         *
+         * @param queuePath Path.
+         * @return self
+         */
+        public Builder setQueuePath(YPath queuePath) {
             this.queuePath = queuePath;
             return self();
         }
 
-        public PullConsumer.Builder setOffset(@Nullable Long offset) {
+        /**
+         * Set offset to start reading from.
+         * <p>
+         *
+         * @param offset Offset value.
+         * @return self
+         */
+        public Builder setOffset(@Nullable Long offset) {
             this.offset = offset;
             return self();
         }
 
-        public PullConsumer.Builder setPartitionIndex(int partitionIndex) {
+        /**
+         * Set partition index to read from.
+         * <p>
+         *
+         * @param partitionIndex Partition index.
+         * @return self
+         */
+        public Builder setPartitionIndex(int partitionIndex) {
             this.partitionIndex = partitionIndex;
             return self();
         }
 
-        public PullConsumer.Builder setRowBatchReadOptions(RowBatchReadOptions options) {
+        /**
+         * Set additional row batch read options.
+         * Including maxRowCount, maxDataWeight and dataWeightPerRowHint.
+         * <p>
+         *
+         * @param options Row batch read options.
+         * @return self
+         */
+        public Builder setRowBatchReadOptions(RowBatchReadOptions options) {
             this.rowBatchReadOptions = options;
             return self();
         }
 
-        public PullConsumer.Builder setReplicaConsistency(@Nullable ReplicaConsistency replicaConsistency) {
+        /**
+         * Set replica consistency value (sync or none).
+         * <p>
+         *
+         * @param replicaConsistency Replica consistency.
+         * @return self
+         */
+        public Builder setReplicaConsistency(@Nullable ReplicaConsistency replicaConsistency) {
             this.replicaConsistency = replicaConsistency;
             return self();
         }
 
         /**
-         * Construct {@link PullConsumer} instance.
+         * Construct {@link PullQueue} instance.
          */
-        public PullConsumer build() {
-            return new PullConsumer(this);
+        public PullQueue build() {
+            return new PullQueue(this);
         }
 
         @Override

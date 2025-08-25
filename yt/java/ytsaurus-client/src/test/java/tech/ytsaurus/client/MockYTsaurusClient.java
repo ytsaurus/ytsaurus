@@ -81,6 +81,7 @@ import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PausePipeline;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
 import tech.ytsaurus.client.request.Query;
@@ -306,6 +307,11 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<QueueRowset> pullConsumer(PullConsumer req) {
         return (CompletableFuture<QueueRowset>) callMethod("pullConsumer");
+    }
+
+    @Override
+    public CompletableFuture<QueueRowset> pullQueue(PullQueue req) {
+        return (CompletableFuture<QueueRowset>) callMethod("pullQueue");
     }
 
     @Override

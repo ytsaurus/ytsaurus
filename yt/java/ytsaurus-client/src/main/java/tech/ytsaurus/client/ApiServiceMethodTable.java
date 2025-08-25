@@ -59,6 +59,7 @@ import tech.ytsaurus.rpcproxy.TReqPartitionTables;
 import tech.ytsaurus.rpcproxy.TReqPatchOperationSpec;
 import tech.ytsaurus.rpcproxy.TReqPausePipeline;
 import tech.ytsaurus.rpcproxy.TReqPingTransaction;
+import tech.ytsaurus.rpcproxy.TReqPullQueue;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
@@ -141,6 +142,7 @@ import tech.ytsaurus.rpcproxy.TRspPartitionTables;
 import tech.ytsaurus.rpcproxy.TRspPatchOperationSpec;
 import tech.ytsaurus.rpcproxy.TRspPausePipeline;
 import tech.ytsaurus.rpcproxy.TRspPingTransaction;
+import tech.ytsaurus.rpcproxy.TRspPullQueue;
 import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
@@ -339,6 +341,9 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqPullQueueConsumer.Builder, TRspPullQueueConsumer> PULL_CONSUMER =
             apiServiceMethod("PullConsumer", TReqPullQueueConsumer::newBuilder, TRspPullQueueConsumer.parser());
+
+    public static final RpcMethodDescriptor<TReqPullQueue.Builder, TRspPullQueue> PULL_QUEUE =
+            apiServiceMethod("PullQueue", TReqPullQueue::newBuilder, TRspPullQueue.parser());
 
     public static final RpcMethodDescriptor<TReqAdvanceQueueConsumer.Builder, TRspAdvanceQueueConsumer>
             ADVANCE_CONSUMER = apiServiceMethod(

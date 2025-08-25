@@ -1,6 +1,6 @@
 RECURSE(
     annotations
-    skiff 
+    skiff
     type-info
     yson
     yson-tree
