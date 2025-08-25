@@ -72,6 +72,10 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
+func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
+	return nil, nil
+}
+
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
 	speclet := parsedSpeclet.(Speclet)
 

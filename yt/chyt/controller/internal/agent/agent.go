@@ -288,17 +288,27 @@ func (a *Agent) processOplets() {
 }
 
 func (a *Agent) pass() {
+	var err error
 	startedAt := time.Now()
 
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
+	defer func() {
+		if err != nil {
+			a.l.Info("pass failed", log.Error(err))
+			a.healthState.SetPassState(err)
+		} else {
+			a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
+			a.healthState.SetPassState(nil)
+		}
+	}()
 
-	if err := a.updateControllerState(); err != nil {
-		a.healthState.SetPassState(yterrors.Err("failed to update controller's state", err))
+	if err = a.updateControllerState(); err != nil {
+		err = yterrors.Err("failed to update controller's state", err)
 		return
 	}
 
-	if err := a.updateACLs(); err != nil {
-		a.healthState.SetPassState(yterrors.Err("failed to update ACLs", err))
+	if err = a.updateACLs(); err != nil {
+		err = yterrors.Err("failed to update ACLs", err)
 		return
 	}
 
@@ -321,9 +331,6 @@ func (a *Agent) pass() {
 			panic(fmt.Errorf("invariant violation: alias %v points to oplet for operation with alias %v", alias, oplet.Alias()))
 		}
 	}
-
-	a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
-	a.healthState.SetPassState(nil)
 }
 
 func (a *Agent) updateControllerState() error {

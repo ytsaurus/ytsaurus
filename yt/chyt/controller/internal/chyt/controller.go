@@ -2,6 +2,8 @@ package chyt
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"reflect"
@@ -42,6 +44,11 @@ type Config struct {
 	EnableRuntimeData         *bool                `yson:"enable_runtime_data"`
 	ResourcesConfig           *ResourcesConfig     `yson:"resources_config"`
 	SecureVaultFiles          map[string]string    `yson:"secure_vault_files"`
+}
+
+type controllerSnapshot struct {
+	ClusterConnectionHash string `yson:"cluster_connection_hash,omitempty"`
+	SecureVaultFilesHash  string `yson:"secure_vault_files_hash,omitempty"`
 }
 
 const (
@@ -107,6 +114,8 @@ type Controller struct {
 	root                    ypath.Path
 	cluster                 string
 	tvmSecret               string
+	secrets                 map[string]string
+	snapshot                controllerSnapshot
 	config                  Config
 }
 
@@ -135,6 +144,7 @@ func (c *Controller) getTvmID() (int64, bool) {
 
 var (
 	clusterConnectionFields = []string{
+		"bus_client",
 		"discovery_connection",
 		"master_cache",
 		"primary_master",
@@ -156,6 +166,16 @@ func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool,
 		c.l.Error("failed to update cluster connection: cluster connection contains block_cache section")
 		return false, fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration")
 	}
+	hash := sha256.New()
+	hashEncoder := yson.NewEncoderWriter(
+		yson.NewWriterConfig(
+			hash,
+			yson.WriterConfig{
+				Format: yson.FormatBinary,
+				Kind: yson.StreamListFragment,
+			},
+		),
+	)
 	for _, field := range clusterConnectionFields {
 		newValue, newValueExists := clusterConnection[field]
 		cachedValue, cachedValueExists := c.cachedClusterConnection[field]
@@ -163,10 +183,38 @@ func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool,
 			newValueExists && cachedValueExists && !reflect.DeepEqual(newValue, cachedValue) {
 			c.cachedClusterConnection = clusterConnection
 			changed = true
-			break
+		}
+		if newValueExists {
+			if err = hashEncoder.Encode(field); err != nil {
+				return false, err
+			}
+			if err = hashEncoder.Encode(newValue); err != nil {
+				return false, err
+			}
 		}
 	}
-	c.l.Info("cluster connection updated", log.Bool("changed", changed))
+	c.snapshot.ClusterConnectionHash = hex.EncodeToString(hash.Sum(nil))
+	c.l.Info("cluster connection updated", log.Bool("changed", changed), log.String("hash", c.snapshot.ClusterConnectionHash))
+	return changed, nil
+}
+
+func (c *Controller) updateSecrets() (changed bool, err error) {
+	hash := sha256.New()
+	for secret, name := range c.config.SecureVaultFiles {
+		var value []byte
+		if value, err = os.ReadFile(name); err != nil {
+			c.l.Error("failed to read secret", log.Error(err))
+			return false, err
+		}
+		if c.secrets[secret] != string(value) {
+			c.secrets[secret] = string(value)
+			changed = true
+		}
+		hash.Write([]byte(secret))
+		hash.Write([]byte(value))
+	}
+	c.snapshot.SecureVaultFilesHash = hex.EncodeToString(hash.Sum(nil))
+	c.l.Info("secrets updated", log.Bool("changed", changed), log.String("hash", c.snapshot.SecureVaultFilesHash))
 	return changed, nil
 }
 
@@ -255,11 +303,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		oplet.SetSecret("TVM_SECRET", c.tvmSecret)
 	}
 
-	for secret, name := range c.config.SecureVaultFiles {
-		var value []byte
-		if value, err = os.ReadFile(name); err != nil {
-			return
-		}
+	for secret, value := range c.secrets {
 		oplet.SetSecret(secret, value)
 	}
 
@@ -293,7 +337,19 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 }
 
 func (c *Controller) UpdateState() (changed bool, err error) {
-	return c.updateClusterConnection(context.Background())
+	connectionChanged, err := c.updateClusterConnection(context.Background())
+	if err != nil {
+		return false, err
+	}
+	secretsChanged, err := c.updateSecrets()
+	if err != nil {
+		return false, err
+	}
+	return connectionChanged || secretsChanged, nil
+}
+
+func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
+	return yson.MarshalFormat(c.snapshot, yson.FormatBinary)
 }
 
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
@@ -459,6 +515,7 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		ytc:     ytc,
 		root:    root,
 		cluster: cluster,
+		secrets: make(map[string]string),
 		config:  parseConfig(rawConfig),
 	}
 	c.prepareTvmSecret()
