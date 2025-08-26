@@ -775,7 +775,7 @@ class Problem:
         self._maxcv_history = []
         self._x_history = []
 
-    def __call__(self, x):
+    def __call__(self, x, penalty=0.0):
         """
         Evaluate the objective and nonlinear constraint functions.
 
@@ -783,6 +783,9 @@ class Problem:
         ----------
         x : array_like, shape (n,)
             Point at which the functions are evaluated.
+        penalty : float, optional
+            Penalty parameter used to select the point in the filter to forward
+            to the callback function.
 
         Returns
         -------
@@ -880,11 +883,17 @@ class Problem:
         if self._callback is not None:
             sig = signature(self._callback)
             try:
+                x_best, fun_best, _ = self.best_eval(penalty)
+                x_best = self.build_x(x_best)
                 if set(sig.parameters) == {"intermediate_result"}:
-                    intermediate_result = OptimizeResult(x=x_full, fun=fun_val)
+                    intermediate_result = OptimizeResult(
+                        x=x_best,
+                        fun=fun_best,
+                        # maxcv=maxcv_best,
+                    )
                     self._callback(intermediate_result=intermediate_result)
                 else:
-                    self._callback(x_full)
+                    self._callback(x_best)
             except StopIteration as exc:
                 raise CallbackSuccess from exc
 

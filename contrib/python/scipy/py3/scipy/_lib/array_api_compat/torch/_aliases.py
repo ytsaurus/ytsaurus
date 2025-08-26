@@ -4,8 +4,14 @@ from functools import wraps as _wraps
 from builtins import all as _builtin_all, any as _builtin_any
 
 from ..common._aliases import (matrix_transpose as _aliases_matrix_transpose,
-                               vecdot as _aliases_vecdot)
+                               vecdot as _aliases_vecdot,
+                               clip as _aliases_clip,
+                               unstack as _aliases_unstack,
+                               cumulative_sum as _aliases_cumulative_sum,
+                               )
 from .._internal import get_xp
+
+from ._info import __array_namespace_info__
 
 import torch
 
@@ -145,6 +151,9 @@ def can_cast(from_: Union[Dtype, array], to: Dtype, /) -> bool:
 # Basic renames
 bitwise_invert = torch.bitwise_not
 newaxis = None
+# torch.conj sets the conjugation bit, which breaks conversion to other
+# libraries. See https://github.com/data-apis/array-api-compat/issues/173
+conj = torch.conj_physical
 
 # Two-arg elementwise functions
 # These require a wrapper to do the correct type promotion on 0-D tensors
@@ -155,17 +164,21 @@ bitwise_left_shift = _two_arg(torch.bitwise_left_shift)
 bitwise_or = _two_arg(torch.bitwise_or)
 bitwise_right_shift = _two_arg(torch.bitwise_right_shift)
 bitwise_xor = _two_arg(torch.bitwise_xor)
+copysign = _two_arg(torch.copysign)
 divide = _two_arg(torch.divide)
 # Also a rename. torch.equal does not broadcast
 equal = _two_arg(torch.eq)
 floor_divide = _two_arg(torch.floor_divide)
 greater = _two_arg(torch.greater)
 greater_equal = _two_arg(torch.greater_equal)
+hypot = _two_arg(torch.hypot)
 less = _two_arg(torch.less)
 less_equal = _two_arg(torch.less_equal)
 logaddexp = _two_arg(torch.logaddexp)
 # logical functions are not included here because they only accept bool in the
 # spec, so type promotion is irrelevant.
+maximum = _two_arg(torch.maximum)
+minimum = _two_arg(torch.minimum)
 multiply = _two_arg(torch.multiply)
 not_equal = _two_arg(torch.not_equal)
 pow = _two_arg(torch.pow)
@@ -187,6 +200,10 @@ def min(x: array, /, *, axis: Optional[Union[int, Tuple[int, ...]]] = None, keep
     if axis == ():
         return torch.clone(x)
     return torch.amin(x, axis, keepdims=keepdims)
+
+clip = get_xp(torch)(_aliases_clip)
+unstack = get_xp(torch)(_aliases_unstack)
+cumulative_sum = get_xp(torch)(_aliases_cumulative_sum)
 
 # torch.sort also returns a tuple
 # https://github.com/pytorch/pytorch/issues/70921
@@ -700,12 +717,29 @@ def take(x: array, indices: array, /, *, axis: Optional[int] = None, **kwargs) -
         axis = 0
     return torch.index_select(x, axis, indices, **kwargs)
 
-__all__ = ['result_type', 'can_cast', 'permute_dims', 'bitwise_invert',
-           'newaxis', 'add', 'atan2', 'bitwise_and', 'bitwise_left_shift',
-           'bitwise_or', 'bitwise_right_shift', 'bitwise_xor', 'divide',
-           'equal', 'floor_divide', 'greater', 'greater_equal', 'less',
-           'less_equal', 'logaddexp', 'multiply', 'not_equal', 'pow',
-           'remainder', 'subtract', 'max', 'min', 'sort', 'prod', 'sum',
+def sign(x: array, /) -> array:
+    # torch sign() does not support complex numbers and does not propagate
+    # nans. See https://github.com/data-apis/array-api-compat/issues/136
+    if x.dtype.is_complex:
+        out = x/torch.abs(x)
+        # sign(0) = 0 but the above formula would give nan
+        out[x == 0+0j] = 0+0j
+        return out
+    else:
+        out = torch.sign(x)
+        if x.dtype.is_floating_point:
+            out[torch.isnan(x)] = torch.nan
+        return out
+
+
+__all__ = ['__array_namespace_info__', 'result_type', 'can_cast',
+           'permute_dims', 'bitwise_invert', 'newaxis', 'conj', 'add',
+           'atan2', 'bitwise_and', 'bitwise_left_shift', 'bitwise_or',
+           'bitwise_right_shift', 'bitwise_xor', 'copysign', 'divide',
+           'equal', 'floor_divide', 'greater', 'greater_equal', 'hypot',
+           'less', 'less_equal', 'logaddexp', 'maximum', 'minimum',
+           'multiply', 'not_equal', 'pow', 'remainder', 'subtract', 'max',
+           'min', 'clip', 'unstack', 'cumulative_sum', 'sort', 'prod', 'sum',
            'any', 'all', 'mean', 'std', 'var', 'concat', 'squeeze',
            'broadcast_to', 'flip', 'roll', 'nonzero', 'where', 'reshape',
            'arange', 'eye', 'linspace', 'full', 'ones', 'zeros', 'empty',
@@ -713,6 +747,6 @@ __all__ = ['result_type', 'can_cast', 'permute_dims', 'bitwise_invert',
            'UniqueAllResult', 'UniqueCountsResult', 'UniqueInverseResult',
            'unique_all', 'unique_counts', 'unique_inverse', 'unique_values',
            'matmul', 'matrix_transpose', 'vecdot', 'tensordot', 'isdtype',
-           'take']
+           'take', 'sign']
 
 _all_ignore = ['torch', 'get_xp']

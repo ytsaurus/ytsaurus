@@ -6,6 +6,8 @@ Base classes for MATLAB file stream reading.
 MATLAB is a registered trademark of the Mathworks inc.
 """
 
+from typing import Final
+
 import numpy as np
 from scipy._lib import doccer
 
@@ -79,7 +81,7 @@ matlab_compatible : bool, optional
          '''unicode_strings : bool, optional
    If True, write strings as Unicode, else MATLAB usual encoding.'''}
 
-docfiller = doccer.filldoc(doc_dict)
+docfiller: Final = doccer.filldoc(doc_dict)
 
 '''
 
@@ -220,13 +222,19 @@ def matfile_version(file_name, *, appendmat=True):
 get_matfile_version = matfile_version
 
 
+_HDR_N_BYTES = 20
+
+
 def _get_matfile_version(fileobj):
     # Mat4 files have a zero somewhere in first 4 bytes
     fileobj.seek(0)
-    mopt_bytes = fileobj.read(4)
-    if len(mopt_bytes) == 0:
-        raise MatReadError("Mat file appears to be empty")
-    mopt_ints = np.ndarray(shape=(4,), dtype=np.uint8, buffer=mopt_bytes)
+    hdr_bytes = fileobj.read(_HDR_N_BYTES)
+    if len(hdr_bytes) < _HDR_N_BYTES:
+        raise MatReadError("Mat file appears to be truncated")
+    if hdr_bytes.count(0) == _HDR_N_BYTES:
+        raise MatReadError("Mat file appears to be corrupt "
+                           f"(first {_HDR_N_BYTES} bytes == 0)")
+    mopt_ints = np.ndarray(shape=(4,), dtype=np.uint8, buffer=hdr_bytes[:4])
     if 0 in mopt_ints:
         fileobj.seek(0)
         return (0,0)
@@ -319,8 +327,7 @@ def matdims(arr, oned_as='column'):
         elif oned_as == 'row':
             return (1,) + shape
         else:
-            raise ValueError('1-D option "%s" is strange'
-                             % oned_as)
+            raise ValueError(f'1-D option "{oned_as}" is strange')
     return shape
 
 

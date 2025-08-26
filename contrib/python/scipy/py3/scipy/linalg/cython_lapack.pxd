@@ -30,6 +30,8 @@ ctypedef bint sselect3(s*, s*, s*)
 ctypedef bint zselect1(z*)
 ctypedef bint zselect2(z*, z*)
 
+IF CTE_HAVE_MKL == 1:
+    cdef void cbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, s *theta, s *phi, c *u1, int *ldu1, c *u2, int *ldu2, c *v1t, int *ldv1t, c *v2t, int *ldv2t, s *b11d, s *b11e, s *b12d, s *b12e, s *b21d, s *b21e, s *b22d, s *b22e, s *rwork, int *lrwork, int *info) noexcept nogil
 cdef void cbdsqr(char *uplo, int *n, int *ncvt, int *nru, int *ncc, s *d, s *e, c *vt, int *ldvt, c *u, int *ldu, c *c, int *ldc, s *rwork, int *info) noexcept nogil
 cdef void cgbbrd(char *vect, int *m, int *n, int *ncc, int *kl, int *ku, c *ab, int *ldab, s *d, s *e, c *q, int *ldq, c *pt, int *ldpt, c *c, int *ldc, c *work, s *rwork, int *info) noexcept nogil
 cdef void cgbcon(char *norm, int *n, int *kl, int *ku, c *ab, int *ldab, int *ipiv, s *anorm, s *rcond, c *work, s *rwork, int *info) noexcept nogil
@@ -60,11 +62,20 @@ cdef void cgels(char *trans, int *m, int *n, int *nrhs, c *a, int *lda, c *b, in
 cdef void cgelsd(int *m, int *n, int *nrhs, c *a, int *lda, c *b, int *ldb, s *s, s *rcond, int *rank, c *work, int *lwork, s *rwork, int *iwork, int *info) noexcept nogil
 cdef void cgelss(int *m, int *n, int *nrhs, c *a, int *lda, c *b, int *ldb, s *s, s *rcond, int *rank, c *work, int *lwork, s *rwork, int *info) noexcept nogil
 cdef void cgelsy(int *m, int *n, int *nrhs, c *a, int *lda, c *b, int *ldb, int *jpvt, s *rcond, int *rank, c *work, int *lwork, s *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void cgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, c *v, int *ldv, c *t, int *ldt, c *c, int *ldc, c *work, int *info) noexcept nogil
 cdef void cgeql2(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil
 cdef void cgeqlf(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil
 cdef void cgeqp3(int *m, int *n, c *a, int *lda, int *jpvt, c *tau, c *work, int *lwork, s *rwork, int *info) noexcept nogil
 cdef void cgeqr2(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void cgeqr2p(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil
 cdef void cgeqrf(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void cgeqrfp(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil
+    cdef void cgeqrt(int *m, int *n, int *nb, c *a, int *lda, c *t, int *ldt, c *work, int *info) noexcept nogil
+    cdef void cgeqrt2(int *m, int *n, c *a, int *lda, c *t, int *ldt, int *info) noexcept nogil
+    cdef void cgeqrt3(int *m, int *n, c *a, int *lda, c *t, int *ldt, int *info) noexcept nogil
 cdef void cgerfs(char *trans, int *n, int *nrhs, c *a, int *lda, c *af, int *ldaf, int *ipiv, c *b, int *ldb, c *x, int *ldx, s *ferr, s *berr, c *work, s *rwork, int *info) noexcept nogil
 cdef void cgerq2(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil
 cdef void cgerqf(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil
@@ -118,12 +129,19 @@ cdef void chegvx(int *itype, char *jobz, char *range, char *uplo, int *n, c *a, 
 cdef void cherfs(char *uplo, int *n, int *nrhs, c *a, int *lda, c *af, int *ldaf, int *ipiv, c *b, int *ldb, c *x, int *ldx, s *ferr, s *berr, c *work, s *rwork, int *info) noexcept nogil
 cdef void chesv(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, c *work, int *lwork, int *info) noexcept nogil
 cdef void chesvx(char *fact, char *uplo, int *n, int *nrhs, c *a, int *lda, c *af, int *ldaf, int *ipiv, c *b, int *ldb, c *x, int *ldx, s *rcond, s *ferr, s *berr, c *work, int *lwork, s *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void cheswapr(char *uplo, int *n, c *a, int *lda, int *i1, int *i2) noexcept nogil
 cdef void chetd2(char *uplo, int *n, c *a, int *lda, s *d, s *e, c *tau, int *info) noexcept nogil
 cdef void chetf2(char *uplo, int *n, c *a, int *lda, int *ipiv, int *info) noexcept nogil
 cdef void chetrd(char *uplo, int *n, c *a, int *lda, s *d, s *e, c *tau, c *work, int *lwork, int *info) noexcept nogil
 cdef void chetrf(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *lwork, int *info) noexcept nogil
 cdef void chetri(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void chetri2(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *lwork, int *info) noexcept nogil
+    cdef void chetri2x(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *nb, int *info) noexcept nogil
 cdef void chetrs(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void chetrs2(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, c *work, int *info) noexcept nogil
 cdef void chfrk(char *transr, char *uplo, char *trans, int *n, int *k, s *alpha, c *a, int *lda, s *beta, c *c) noexcept nogil
 cdef void chgeqz(char *job, char *compq, char *compz, int *n, int *ilo, int *ihi, c *h, int *ldh, c *t, int *ldt, c *alpha, c *beta, c *q, int *ldq, c *z, int *ldz, c *work, int *lwork, s *rwork, int *info) noexcept nogil
 cdef char chla_transtype(int *trans) noexcept nogil
@@ -185,6 +203,8 @@ cdef s clantb(char *norm, char *uplo, char *diag, int *n, int *k, c *ab, int *ld
 cdef s clantp(char *norm, char *uplo, char *diag, int *n, c *ap, s *work) noexcept nogil
 cdef s clantr(char *norm, char *uplo, char *diag, int *m, int *n, c *a, int *lda, s *work) noexcept nogil
 cdef void clapll(int *n, c *x, int *incx, c *y, int *incy, s *ssmin) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void clapmr(bint *forwrd, int *m, int *n, c *x, int *ldx, int *k) noexcept nogil
 cdef void clapmt(bint *forwrd, int *m, int *n, c *x, int *ldx, int *k) noexcept nogil
 cdef void claqgb(int *m, int *n, int *kl, int *ku, c *ab, int *ldab, s *r, s *c, s *rowcnd, s *colcnd, s *amax, char *equed) noexcept nogil
 cdef void claqge(int *m, int *n, c *a, int *lda, s *r, s *c, s *rowcnd, s *colcnd, s *amax, char *equed) noexcept nogil
@@ -208,6 +228,8 @@ cdef void clarcm(int *m, int *n, s *a, int *lda, c *b, int *ldb, c *c, int *ldc,
 cdef void clarf(char *side, int *m, int *n, c *v, int *incv, c *tau, c *c, int *ldc, c *work) noexcept nogil
 cdef void clarfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, c *v, int *ldv, c *t, int *ldt, c *c, int *ldc, c *work, int *ldwork) noexcept nogil
 cdef void clarfg(int *n, c *alpha, c *x, int *incx, c *tau) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void clarfgp(int *n, c *alpha, c *x, int *incx, c *tau) noexcept nogil
 cdef void clarft(char *direct, char *storev, int *n, int *k, c *v, int *ldv, c *tau, c *t, int *ldt) noexcept nogil
 cdef void clarfx(char *side, int *m, int *n, c *v, c *tau, c *c, int *ldc, c *work) noexcept nogil
 cdef void clargv(int *n, c *x, int *incx, c *y, int *incy, s *c, int *incc) noexcept nogil
@@ -289,16 +311,25 @@ cdef void cstein(int *n, s *d, s *e, int *m, s *w, int *iblock, int *isplit, c *
 cdef void cstemr(char *jobz, char *range, int *n, s *d, s *e, s *vl, s *vu, int *il, int *iu, int *m, s *w, c *z, int *ldz, int *nzc, int *isuppz, bint *tryrac, s *work, int *lwork, int *iwork, int *liwork, int *info) noexcept nogil
 cdef void csteqr(char *compz, int *n, s *d, s *e, c *z, int *ldz, s *work, int *info) noexcept nogil
 cdef void csycon(char *uplo, int *n, c *a, int *lda, int *ipiv, s *anorm, s *rcond, c *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void csyconv(char *uplo, char *way, int *n, c *a, int *lda, int *ipiv, c *work, int *info) noexcept nogil
 cdef void csyequb(char *uplo, int *n, c *a, int *lda, s *s, s *scond, s *amax, c *work, int *info) noexcept nogil
 cdef void csymv(char *uplo, int *n, c *alpha, c *a, int *lda, c *x, int *incx, c *beta, c *y, int *incy) noexcept nogil
 cdef void csyr(char *uplo, int *n, c *alpha, c *x, int *incx, c *a, int *lda) noexcept nogil
 cdef void csyrfs(char *uplo, int *n, int *nrhs, c *a, int *lda, c *af, int *ldaf, int *ipiv, c *b, int *ldb, c *x, int *ldx, s *ferr, s *berr, c *work, s *rwork, int *info) noexcept nogil
 cdef void csysv(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, c *work, int *lwork, int *info) noexcept nogil
 cdef void csysvx(char *fact, char *uplo, int *n, int *nrhs, c *a, int *lda, c *af, int *ldaf, int *ipiv, c *b, int *ldb, c *x, int *ldx, s *rcond, s *ferr, s *berr, c *work, int *lwork, s *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void csyswapr(char *uplo, int *n, c *a, int *lda, int *i1, int *i2) noexcept nogil
 cdef void csytf2(char *uplo, int *n, c *a, int *lda, int *ipiv, int *info) noexcept nogil
 cdef void csytrf(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *lwork, int *info) noexcept nogil
 cdef void csytri(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void csytri2(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *lwork, int *info) noexcept nogil
+    cdef void csytri2x(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *nb, int *info) noexcept nogil
 cdef void csytrs(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void csytrs2(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, c *work, int *info) noexcept nogil
 cdef void ctbcon(char *norm, char *uplo, char *diag, int *n, int *kd, c *ab, int *ldab, s *rcond, c *work, s *rwork, int *info) noexcept nogil
 cdef void ctbrfs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, c *ab, int *ldab, c *b, int *ldb, c *x, int *ldx, s *ferr, s *berr, c *work, s *rwork, int *info) noexcept nogil
 cdef void ctbtrs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, c *ab, int *ldab, c *b, int *ldb, int *info) noexcept nogil
@@ -315,6 +346,11 @@ cdef void ctgsna(char *job, char *howmny, bint *select, int *n, c *a, int *lda, 
 cdef void ctgsy2(char *trans, int *ijob, int *m, int *n, c *a, int *lda, c *b, int *ldb, c *c, int *ldc, c *d, int *ldd, c *e, int *lde, c *f, int *ldf, s *scale, s *rdsum, s *rdscal, int *info) noexcept nogil
 cdef void ctgsyl(char *trans, int *ijob, int *m, int *n, c *a, int *lda, c *b, int *ldb, c *c, int *ldc, c *d, int *ldd, c *e, int *lde, c *f, int *ldf, s *scale, s *dif, c *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void ctpcon(char *norm, char *uplo, char *diag, int *n, c *ap, s *rcond, c *work, s *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void ctpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, c *v, int *ldv, c *t, int *ldt, c *a, int *lda, c *b, int *ldb, c *work, int *info) noexcept nogil
+    cdef void ctpqrt(int *m, int *n, int *l, int *nb, c *a, int *lda, c *b, int *ldb, c *t, int *ldt, c *work, int *info) noexcept nogil
+    cdef void ctpqrt2(int *m, int *n, int *l, c *a, int *lda, c *b, int *ldb, c *t, int *ldt, int *info) noexcept nogil
+    cdef void ctprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, c *v, int *ldv, c *t, int *ldt, c *a, int *lda, c *b, int *ldb, c *work, int *ldwork) noexcept nogil
 cdef void ctprfs(char *uplo, char *trans, char *diag, int *n, int *nrhs, c *ap, c *b, int *ldb, c *x, int *ldx, s *ferr, s *berr, c *work, s *rwork, int *info) noexcept nogil
 cdef void ctptri(char *uplo, char *diag, int *n, c *ap, int *info) noexcept nogil
 cdef void ctptrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, c *ap, c *b, int *ldb, int *info) noexcept nogil
@@ -333,6 +369,9 @@ cdef void ctrtrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, c *a, i
 cdef void ctrttf(char *transr, char *uplo, int *n, c *a, int *lda, c *arf, int *info) noexcept nogil
 cdef void ctrttp(char *uplo, int *n, c *a, int *lda, c *ap, int *info) noexcept nogil
 cdef void ctzrzf(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void cunbdb(char *trans, char *signs, int *m, int *p, int *q, c *x11, int *ldx11, c *x12, int *ldx12, c *x21, int *ldx21, c *x22, int *ldx22, s *theta, s *phi, c *taup1, c *taup2, c *tauq1, c *tauq2, c *work, int *lwork, int *info) noexcept nogil
+    cdef void cuncsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, c *x11, int *ldx11, c *x12, int *ldx12, c *x21, int *ldx21, c *x22, int *ldx22, s *theta, c *u1, int *ldu1, c *u2, int *ldu2, c *v1t, int *ldv1t, c *v2t, int *ldv2t, c *work, int *lwork, s *rwork, int *lrwork, int *iwork, int *info) noexcept nogil
 cdef void cung2l(int *m, int *n, int *k, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil
 cdef void cung2r(int *m, int *n, int *k, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil
 cdef void cungbr(char *vect, int *m, int *n, int *k, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil
@@ -359,6 +398,8 @@ cdef void cunmrz(char *side, char *trans, int *m, int *n, int *k, int *l, c *a, 
 cdef void cunmtr(char *side, char *uplo, char *trans, int *m, int *n, c *a, int *lda, c *tau, c *c, int *ldc, c *work, int *lwork, int *info) noexcept nogil
 cdef void cupgtr(char *uplo, int *n, c *ap, c *tau, c *q, int *ldq, c *work, int *info) noexcept nogil
 cdef void cupmtr(char *side, char *uplo, char *trans, int *m, int *n, c *ap, c *tau, c *c, int *ldc, c *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, d *theta, d *phi, d *u1, int *ldu1, d *u2, int *ldu2, d *v1t, int *ldv1t, d *v2t, int *ldv2t, d *b11d, d *b11e, d *b12d, d *b12e, d *b21d, d *b21e, d *b22d, d *b22e, d *work, int *lwork, int *info) noexcept nogil
 cdef void dbdsdc(char *uplo, char *compq, int *n, d *d, d *e, d *u, int *ldu, d *vt, int *ldvt, d *q, int *iq, d *work, int *iwork, int *info) noexcept nogil
 cdef void dbdsqr(char *uplo, int *n, int *ncvt, int *nru, int *ncc, d *d, d *e, d *vt, int *ldvt, d *u, int *ldu, d *c, int *ldc, d *work, int *info) noexcept nogil
 cdef void ddisna(char *job, int *m, int *n, d *d, d *sep, int *info) noexcept nogil
@@ -392,11 +433,20 @@ cdef void dgels(char *trans, int *m, int *n, int *nrhs, d *a, int *lda, d *b, in
 cdef void dgelsd(int *m, int *n, int *nrhs, d *a, int *lda, d *b, int *ldb, d *s, d *rcond, int *rank, d *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void dgelss(int *m, int *n, int *nrhs, d *a, int *lda, d *b, int *ldb, d *s, d *rcond, int *rank, d *work, int *lwork, int *info) noexcept nogil
 cdef void dgelsy(int *m, int *n, int *nrhs, d *a, int *lda, d *b, int *ldb, int *jpvt, d *rcond, int *rank, d *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, d *v, int *ldv, d *t, int *ldt, d *c, int *ldc, d *work, int *info) noexcept nogil
 cdef void dgeql2(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil
 cdef void dgeqlf(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil
 cdef void dgeqp3(int *m, int *n, d *a, int *lda, int *jpvt, d *tau, d *work, int *lwork, int *info) noexcept nogil
 cdef void dgeqr2(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dgeqr2p(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil
 cdef void dgeqrf(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dgeqrfp(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil
+    cdef void dgeqrt(int *m, int *n, int *nb, d *a, int *lda, d *t, int *ldt, d *work, int *info) noexcept nogil
+    cdef void dgeqrt2(int *m, int *n, d *a, int *lda, d *t, int *ldt, int *info) noexcept nogil
+    cdef void dgeqrt3(int *m, int *n, d *a, int *lda, d *t, int *ldt, int *info) noexcept nogil
 cdef void dgerfs(char *trans, int *n, int *nrhs, d *a, int *lda, d *af, int *ldaf, int *ipiv, d *b, int *ldb, d *x, int *ldx, d *ferr, d *berr, d *work, int *iwork, int *info) noexcept nogil
 cdef void dgerq2(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil
 cdef void dgerqf(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil
@@ -488,6 +538,8 @@ cdef d dlantp(char *norm, char *uplo, char *diag, int *n, d *ap, d *work) noexce
 cdef d dlantr(char *norm, char *uplo, char *diag, int *m, int *n, d *a, int *lda, d *work) noexcept nogil
 cdef void dlanv2(d *a, d *b, d *c, d *d, d *rt1r, d *rt1i, d *rt2r, d *rt2i, d *cs, d *sn) noexcept nogil
 cdef void dlapll(int *n, d *x, int *incx, d *y, int *incy, d *ssmin) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dlapmr(bint *forwrd, int *m, int *n, d *x, int *ldx, int *k) noexcept nogil
 cdef void dlapmt(bint *forwrd, int *m, int *n, d *x, int *ldx, int *k) noexcept nogil
 cdef d dlapy2(d *x, d *y) noexcept nogil
 cdef d dlapy3(d *x, d *y, d *z) noexcept nogil
@@ -510,6 +562,7 @@ cdef void dlar2v(int *n, d *x, d *y, d *z, int *incx, d *c, d *s, int *incc) noe
 cdef void dlarf(char *side, int *m, int *n, d *v, int *incv, d *tau, d *c, int *ldc, d *work) noexcept nogil
 cdef void dlarfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, d *v, int *ldv, d *t, int *ldt, d *c, int *ldc, d *work, int *ldwork) noexcept nogil
 cdef void dlarfg(int *n, d *alpha, d *x, int *incx, d *tau) noexcept nogil
+cdef void dlarfgp(int *n, d *alpha, d *x, int *incx, d *tau) noexcept nogil
 cdef void dlarft(char *direct, char *storev, int *n, int *k, d *v, int *ldv, d *tau, d *t, int *ldt) noexcept nogil
 cdef void dlarfx(char *side, int *m, int *n, d *v, d *tau, d *c, int *ldc, d *work) noexcept nogil
 cdef void dlargv(int *n, d *x, int *incx, d *y, int *incy, d *c, int *incc) noexcept nogil
@@ -525,6 +578,9 @@ cdef void dlarrk(int *n, int *iw, d *gl, d *gu, d *d, d *e2, d *pivmin, d *relto
 cdef void dlarrr(int *n, d *d, d *e, int *info) noexcept nogil
 cdef void dlarrv(int *n, d *vl, d *vu, d *d, d *l, d *pivmin, int *isplit, int *m, int *dol, int *dou, d *minrgp, d *rtol1, d *rtol2, d *w, d *werr, d *wgap, int *iblock, int *indexw, d *gers, d *z, int *ldz, int *isuppz, d *work, int *iwork, int *info) noexcept nogil
 cdef void dlartg(d *f, d *g, d *cs, d *sn, d *r) noexcept nogil
+cdef void dlartgp(d *f, d *g, d *cs, d *sn, d *r) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dlartgs(d *x, d *y, d *sigma, d *cs, d *sn) noexcept nogil
 cdef void dlartv(int *n, d *x, int *incx, d *y, int *incy, d *c, d *s, int *incc) noexcept nogil
 cdef void dlaruv(int *iseed, int *n, d *x) noexcept nogil
 cdef void dlarz(char *side, int *m, int *n, int *l, d *v, int *incv, d *tau, d *c, int *ldc, d *work) noexcept nogil
@@ -568,6 +624,9 @@ cdef void dlauu2(char *uplo, int *n, d *a, int *lda, int *info) noexcept nogil
 cdef void dlauum(char *uplo, int *n, d *a, int *lda, int *info) noexcept nogil
 cdef void dopgtr(char *uplo, int *n, d *ap, d *tau, d *q, int *ldq, d *work, int *info) noexcept nogil
 cdef void dopmtr(char *side, char *uplo, char *trans, int *m, int *n, d *ap, d *tau, d *c, int *ldc, d *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dorbdb(char *trans, char *signs, int *m, int *p, int *q, d *x11, int *ldx11, d *x12, int *ldx12, d *x21, int *ldx21, d *x22, int *ldx22, d *theta, d *phi, d *taup1, d *taup2, d *tauq1, d *tauq2, d *work, int *lwork, int *info) noexcept nogil
+    cdef void dorcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, d *x11, int *ldx11, d *x12, int *ldx12, d *x21, int *ldx21, d *x22, int *ldx22, d *theta, d *u1, int *ldu1, d *u2, int *ldu2, d *v1t, int *ldv1t, d *v2t, int *ldv2t, d *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void dorg2l(int *m, int *n, int *k, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil
 cdef void dorg2r(int *m, int *n, int *k, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil
 cdef void dorgbr(char *vect, int *m, int *n, int *k, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil
@@ -671,6 +730,8 @@ cdef void dstevd(char *jobz, int *n, d *d, d *e, d *z, int *ldz, d *work, int *l
 cdef void dstevr(char *jobz, char *range, int *n, d *d, d *e, d *vl, d *vu, int *il, int *iu, d *abstol, int *m, d *w, d *z, int *ldz, int *isuppz, d *work, int *lwork, int *iwork, int *liwork, int *info) noexcept nogil
 cdef void dstevx(char *jobz, char *range, int *n, d *d, d *e, d *vl, d *vu, int *il, int *iu, d *abstol, int *m, d *w, d *z, int *ldz, d *work, int *iwork, int *ifail, int *info) noexcept nogil
 cdef void dsycon(char *uplo, int *n, d *a, int *lda, int *ipiv, d *anorm, d *rcond, d *work, int *iwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dsyconv(char *uplo, char *way, int *n, d *a, int *lda, int *ipiv, d *work, int *info) noexcept nogil
 cdef void dsyequb(char *uplo, int *n, d *a, int *lda, d *s, d *scond, d *amax, d *work, int *info) noexcept nogil
 cdef void dsyev(char *jobz, char *uplo, int *n, d *a, int *lda, d *w, d *work, int *lwork, int *info) noexcept nogil
 cdef void dsyevd(char *jobz, char *uplo, int *n, d *a, int *lda, d *w, d *work, int *lwork, int *iwork, int *liwork, int *info) noexcept nogil
@@ -684,12 +745,19 @@ cdef void dsygvx(int *itype, char *jobz, char *range, char *uplo, int *n, d *a, 
 cdef void dsyrfs(char *uplo, int *n, int *nrhs, d *a, int *lda, d *af, int *ldaf, int *ipiv, d *b, int *ldb, d *x, int *ldx, d *ferr, d *berr, d *work, int *iwork, int *info) noexcept nogil
 cdef void dsysv(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, d *work, int *lwork, int *info) noexcept nogil
 cdef void dsysvx(char *fact, char *uplo, int *n, int *nrhs, d *a, int *lda, d *af, int *ldaf, int *ipiv, d *b, int *ldb, d *x, int *ldx, d *rcond, d *ferr, d *berr, d *work, int *lwork, int *iwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dsyswapr(char *uplo, int *n, d *a, int *lda, int *i1, int *i2) noexcept nogil
 cdef void dsytd2(char *uplo, int *n, d *a, int *lda, d *d, d *e, d *tau, int *info) noexcept nogil
 cdef void dsytf2(char *uplo, int *n, d *a, int *lda, int *ipiv, int *info) noexcept nogil
 cdef void dsytrd(char *uplo, int *n, d *a, int *lda, d *d, d *e, d *tau, d *work, int *lwork, int *info) noexcept nogil
 cdef void dsytrf(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *lwork, int *info) noexcept nogil
 cdef void dsytri(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dsytri2(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *lwork, int *info) noexcept nogil
+    cdef void dsytri2x(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *nb, int *info) noexcept nogil
 cdef void dsytrs(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dsytrs2(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, d *work, int *info) noexcept nogil
 cdef void dtbcon(char *norm, char *uplo, char *diag, int *n, int *kd, d *ab, int *ldab, d *rcond, d *work, int *iwork, int *info) noexcept nogil
 cdef void dtbrfs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, d *ab, int *ldab, d *b, int *ldb, d *x, int *ldx, d *ferr, d *berr, d *work, int *iwork, int *info) noexcept nogil
 cdef void dtbtrs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, d *ab, int *ldab, d *b, int *ldb, int *info) noexcept nogil
@@ -706,6 +774,11 @@ cdef void dtgsna(char *job, char *howmny, bint *select, int *n, d *a, int *lda, 
 cdef void dtgsy2(char *trans, int *ijob, int *m, int *n, d *a, int *lda, d *b, int *ldb, d *c, int *ldc, d *d, int *ldd, d *e, int *lde, d *f, int *ldf, d *scale, d *rdsum, d *rdscal, int *iwork, int *pq, int *info) noexcept nogil
 cdef void dtgsyl(char *trans, int *ijob, int *m, int *n, d *a, int *lda, d *b, int *ldb, d *c, int *ldc, d *d, int *ldd, d *e, int *lde, d *f, int *ldf, d *scale, d *dif, d *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void dtpcon(char *norm, char *uplo, char *diag, int *n, d *ap, d *rcond, d *work, int *iwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void dtpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, d *v, int *ldv, d *t, int *ldt, d *a, int *lda, d *b, int *ldb, d *work, int *info) noexcept nogil
+    cdef void dtpqrt(int *m, int *n, int *l, int *nb, d *a, int *lda, d *b, int *ldb, d *t, int *ldt, d *work, int *info) noexcept nogil
+    cdef void dtpqrt2(int *m, int *n, int *l, d *a, int *lda, d *b, int *ldb, d *t, int *ldt, int *info) noexcept nogil
+    cdef void dtprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, d *v, int *ldv, d *t, int *ldt, d *a, int *lda, d *b, int *ldb, d *work, int *ldwork) noexcept nogil
 cdef void dtprfs(char *uplo, char *trans, char *diag, int *n, int *nrhs, d *ap, d *b, int *ldb, d *x, int *ldx, d *ferr, d *berr, d *work, int *iwork, int *info) noexcept nogil
 cdef void dtptri(char *uplo, char *diag, int *n, d *ap, int *info) noexcept nogil
 cdef void dtptrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, d *ap, d *b, int *ldb, int *info) noexcept nogil
@@ -741,6 +814,8 @@ cdef void ilaver(int *vers_major, int *vers_minor, int *vers_patch) noexcept nog
 cdef int ilazlc(int *m, int *n, z *a, int *lda) noexcept nogil
 cdef int ilazlr(int *m, int *n, z *a, int *lda) noexcept nogil
 cdef int izmax1(int *n, z *cx, int *incx) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void sbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, s *theta, s *phi, s *u1, int *ldu1, s *u2, int *ldu2, s *v1t, int *ldv1t, s *v2t, int *ldv2t, s *b11d, s *b11e, s *b12d, s *b12e, s *b21d, s *b21e, s *b22d, s *b22e, s *work, int *lwork, int *info) noexcept nogil
 cdef void sbdsdc(char *uplo, char *compq, int *n, s *d, s *e, s *u, int *ldu, s *vt, int *ldvt, s *q, int *iq, s *work, int *iwork, int *info) noexcept nogil
 cdef void sbdsqr(char *uplo, int *n, int *ncvt, int *nru, int *ncc, s *d, s *e, s *vt, int *ldvt, s *u, int *ldu, s *c, int *ldc, s *work, int *info) noexcept nogil
 cdef s scsum1(int *n, c *cx, int *incx) noexcept nogil
@@ -775,11 +850,20 @@ cdef void sgels(char *trans, int *m, int *n, int *nrhs, s *a, int *lda, s *b, in
 cdef void sgelsd(int *m, int *n, int *nrhs, s *a, int *lda, s *b, int *ldb, s *s, s *rcond, int *rank, s *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void sgelss(int *m, int *n, int *nrhs, s *a, int *lda, s *b, int *ldb, s *s, s *rcond, int *rank, s *work, int *lwork, int *info) noexcept nogil
 cdef void sgelsy(int *m, int *n, int *nrhs, s *a, int *lda, s *b, int *ldb, int *jpvt, s *rcond, int *rank, s *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void sgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, s *v, int *ldv, s *t, int *ldt, s *c, int *ldc, s *work, int *info) noexcept nogil
 cdef void sgeql2(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil
 cdef void sgeqlf(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil
 cdef void sgeqp3(int *m, int *n, s *a, int *lda, int *jpvt, s *tau, s *work, int *lwork, int *info) noexcept nogil
 cdef void sgeqr2(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void sgeqr2p(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil
 cdef void sgeqrf(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void sgeqrfp(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil
+    cdef void sgeqrt(int *m, int *n, int *nb, s *a, int *lda, s *t, int *ldt, s *work, int *info) noexcept nogil
+    cdef void sgeqrt2(int *m, int *n, s *a, int *lda, s *t, int *ldt, int *info) noexcept nogil
+    cdef void sgeqrt3(int *m, int *n, s *a, int *lda, s *t, int *ldt, int *info) noexcept nogil
 cdef void sgerfs(char *trans, int *n, int *nrhs, s *a, int *lda, s *af, int *ldaf, int *ipiv, s *b, int *ldb, s *x, int *ldx, s *ferr, s *berr, s *work, int *iwork, int *info) noexcept nogil
 cdef void sgerq2(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil
 cdef void sgerqf(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil
@@ -869,6 +953,8 @@ cdef s slantp(char *norm, char *uplo, char *diag, int *n, s *ap, s *work) noexce
 cdef s slantr(char *norm, char *uplo, char *diag, int *m, int *n, s *a, int *lda, s *work) noexcept nogil
 cdef void slanv2(s *a, s *b, s *c, s *d, s *rt1r, s *rt1i, s *rt2r, s *rt2i, s *cs, s *sn) noexcept nogil
 cdef void slapll(int *n, s *x, int *incx, s *y, int *incy, s *ssmin) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void slapmr(bint *forwrd, int *m, int *n, s *x, int *ldx, int *k) noexcept nogil
 cdef void slapmt(bint *forwrd, int *m, int *n, s *x, int *ldx, int *k) noexcept nogil
 cdef s slapy2(s *x, s *y) noexcept nogil
 cdef s slapy3(s *x, s *y, s *z) noexcept nogil
@@ -891,6 +977,8 @@ cdef void slar2v(int *n, s *x, s *y, s *z, int *incx, s *c, s *s, int *incc) noe
 cdef void slarf(char *side, int *m, int *n, s *v, int *incv, s *tau, s *c, int *ldc, s *work) noexcept nogil
 cdef void slarfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, s *v, int *ldv, s *t, int *ldt, s *c, int *ldc, s *work, int *ldwork) noexcept nogil
 cdef void slarfg(int *n, s *alpha, s *x, int *incx, s *tau) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void slarfgp(int *n, s *alpha, s *x, int *incx, s *tau) noexcept nogil
 cdef void slarft(char *direct, char *storev, int *n, int *k, s *v, int *ldv, s *tau, s *t, int *ldt) noexcept nogil
 cdef void slarfx(char *side, int *m, int *n, s *v, s *tau, s *c, int *ldc, s *work) noexcept nogil
 cdef void slargv(int *n, s *x, int *incx, s *y, int *incy, s *c, int *incc) noexcept nogil
@@ -906,6 +994,9 @@ cdef void slarrk(int *n, int *iw, s *gl, s *gu, s *d, s *e2, s *pivmin, s *relto
 cdef void slarrr(int *n, s *d, s *e, int *info) noexcept nogil
 cdef void slarrv(int *n, s *vl, s *vu, s *d, s *l, s *pivmin, int *isplit, int *m, int *dol, int *dou, s *minrgp, s *rtol1, s *rtol2, s *w, s *werr, s *wgap, int *iblock, int *indexw, s *gers, s *z, int *ldz, int *isuppz, s *work, int *iwork, int *info) noexcept nogil
 cdef void slartg(s *f, s *g, s *cs, s *sn, s *r) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void slartgp(s *f, s *g, s *cs, s *sn, s *r) noexcept nogil
+    cdef void slartgs(s *x, s *y, s *sigma, s *cs, s *sn) noexcept nogil
 cdef void slartv(int *n, s *x, int *incx, s *y, int *incy, s *c, s *s, int *incc) noexcept nogil
 cdef void slaruv(int *iseed, int *n, s *x) noexcept nogil
 cdef void slarz(char *side, int *m, int *n, int *l, s *v, int *incv, s *tau, s *c, int *ldc, s *work) noexcept nogil
@@ -948,6 +1039,9 @@ cdef void slauu2(char *uplo, int *n, s *a, int *lda, int *info) noexcept nogil
 cdef void slauum(char *uplo, int *n, s *a, int *lda, int *info) noexcept nogil
 cdef void sopgtr(char *uplo, int *n, s *ap, s *tau, s *q, int *ldq, s *work, int *info) noexcept nogil
 cdef void sopmtr(char *side, char *uplo, char *trans, int *m, int *n, s *ap, s *tau, s *c, int *ldc, s *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void sorbdb(char *trans, char *signs, int *m, int *p, int *q, s *x11, int *ldx11, s *x12, int *ldx12, s *x21, int *ldx21, s *x22, int *ldx22, s *theta, s *phi, s *taup1, s *taup2, s *tauq1, s *tauq2, s *work, int *lwork, int *info) noexcept nogil
+    cdef void sorcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, s *x11, int *ldx11, s *x12, int *ldx12, s *x21, int *ldx21, s *x22, int *ldx22, s *theta, s *u1, int *ldu1, s *u2, int *ldu2, s *v1t, int *ldv1t, s *v2t, int *ldv2t, s *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void sorg2l(int *m, int *n, int *k, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil
 cdef void sorg2r(int *m, int *n, int *k, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil
 cdef void sorgbr(char *vect, int *m, int *n, int *k, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil
@@ -1049,6 +1143,8 @@ cdef void sstevd(char *jobz, int *n, s *d, s *e, s *z, int *ldz, s *work, int *l
 cdef void sstevr(char *jobz, char *range, int *n, s *d, s *e, s *vl, s *vu, int *il, int *iu, s *abstol, int *m, s *w, s *z, int *ldz, int *isuppz, s *work, int *lwork, int *iwork, int *liwork, int *info) noexcept nogil
 cdef void sstevx(char *jobz, char *range, int *n, s *d, s *e, s *vl, s *vu, int *il, int *iu, s *abstol, int *m, s *w, s *z, int *ldz, s *work, int *iwork, int *ifail, int *info) noexcept nogil
 cdef void ssycon(char *uplo, int *n, s *a, int *lda, int *ipiv, s *anorm, s *rcond, s *work, int *iwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void ssyconv(char *uplo, char *way, int *n, s *a, int *lda, int *ipiv, s *work, int *info) noexcept nogil
 cdef void ssyequb(char *uplo, int *n, s *a, int *lda, s *s, s *scond, s *amax, s *work, int *info) noexcept nogil
 cdef void ssyev(char *jobz, char *uplo, int *n, s *a, int *lda, s *w, s *work, int *lwork, int *info) noexcept nogil
 cdef void ssyevd(char *jobz, char *uplo, int *n, s *a, int *lda, s *w, s *work, int *lwork, int *iwork, int *liwork, int *info) noexcept nogil
@@ -1062,12 +1158,19 @@ cdef void ssygvx(int *itype, char *jobz, char *range, char *uplo, int *n, s *a, 
 cdef void ssyrfs(char *uplo, int *n, int *nrhs, s *a, int *lda, s *af, int *ldaf, int *ipiv, s *b, int *ldb, s *x, int *ldx, s *ferr, s *berr, s *work, int *iwork, int *info) noexcept nogil
 cdef void ssysv(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, s *work, int *lwork, int *info) noexcept nogil
 cdef void ssysvx(char *fact, char *uplo, int *n, int *nrhs, s *a, int *lda, s *af, int *ldaf, int *ipiv, s *b, int *ldb, s *x, int *ldx, s *rcond, s *ferr, s *berr, s *work, int *lwork, int *iwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void ssyswapr(char *uplo, int *n, s *a, int *lda, int *i1, int *i2) noexcept nogil
 cdef void ssytd2(char *uplo, int *n, s *a, int *lda, s *d, s *e, s *tau, int *info) noexcept nogil
 cdef void ssytf2(char *uplo, int *n, s *a, int *lda, int *ipiv, int *info) noexcept nogil
 cdef void ssytrd(char *uplo, int *n, s *a, int *lda, s *d, s *e, s *tau, s *work, int *lwork, int *info) noexcept nogil
 cdef void ssytrf(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *lwork, int *info) noexcept nogil
 cdef void ssytri(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void ssytri2(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *lwork, int *info) noexcept nogil
+    cdef void ssytri2x(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *nb, int *info) noexcept nogil
 cdef void ssytrs(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void ssytrs2(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, s *work, int *info) noexcept nogil
 cdef void stbcon(char *norm, char *uplo, char *diag, int *n, int *kd, s *ab, int *ldab, s *rcond, s *work, int *iwork, int *info) noexcept nogil
 cdef void stbrfs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, s *ab, int *ldab, s *b, int *ldb, s *x, int *ldx, s *ferr, s *berr, s *work, int *iwork, int *info) noexcept nogil
 cdef void stbtrs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, s *ab, int *ldab, s *b, int *ldb, int *info) noexcept nogil
@@ -1084,6 +1187,11 @@ cdef void stgsna(char *job, char *howmny, bint *select, int *n, s *a, int *lda, 
 cdef void stgsy2(char *trans, int *ijob, int *m, int *n, s *a, int *lda, s *b, int *ldb, s *c, int *ldc, s *d, int *ldd, s *e, int *lde, s *f, int *ldf, s *scale, s *rdsum, s *rdscal, int *iwork, int *pq, int *info) noexcept nogil
 cdef void stgsyl(char *trans, int *ijob, int *m, int *n, s *a, int *lda, s *b, int *ldb, s *c, int *ldc, s *d, int *ldd, s *e, int *lde, s *f, int *ldf, s *scale, s *dif, s *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void stpcon(char *norm, char *uplo, char *diag, int *n, s *ap, s *rcond, s *work, int *iwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void stpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, s *v, int *ldv, s *t, int *ldt, s *a, int *lda, s *b, int *ldb, s *work, int *info) noexcept nogil
+    cdef void stpqrt(int *m, int *n, int *l, int *nb, s *a, int *lda, s *b, int *ldb, s *t, int *ldt, s *work, int *info) noexcept nogil
+    cdef void stpqrt2(int *m, int *n, int *l, s *a, int *lda, s *b, int *ldb, s *t, int *ldt, int *info) noexcept nogil
+    cdef void stprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, s *v, int *ldv, s *t, int *ldt, s *a, int *lda, s *b, int *ldb, s *work, int *ldwork) noexcept nogil
 cdef void stprfs(char *uplo, char *trans, char *diag, int *n, int *nrhs, s *ap, s *b, int *ldb, s *x, int *ldx, s *ferr, s *berr, s *work, int *iwork, int *info) noexcept nogil
 cdef void stptri(char *uplo, char *diag, int *n, s *ap, int *info) noexcept nogil
 cdef void stptrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, s *ap, s *b, int *ldb, int *info) noexcept nogil
@@ -1102,6 +1210,9 @@ cdef void strtrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, s *a, i
 cdef void strttf(char *transr, char *uplo, int *n, s *a, int *lda, s *arf, int *info) noexcept nogil
 cdef void strttp(char *uplo, int *n, s *a, int *lda, s *ap, int *info) noexcept nogil
 cdef void stzrzf(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void xerbla_array(char *srname_array, int *srname_len, int *info) noexcept nogil
+    cdef void zbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, d *theta, d *phi, z *u1, int *ldu1, z *u2, int *ldu2, z *v1t, int *ldv1t, z *v2t, int *ldv2t, d *b11d, d *b11e, d *b12d, d *b12e, d *b21d, d *b21e, d *b22d, d *b22e, d *rwork, int *lrwork, int *info) noexcept nogil
 cdef void zbdsqr(char *uplo, int *n, int *ncvt, int *nru, int *ncc, d *d, d *e, z *vt, int *ldvt, z *u, int *ldu, z *c, int *ldc, d *rwork, int *info) noexcept nogil
 cdef void zcgesv(int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *x, int *ldx, z *work, c *swork, d *rwork, int *iter, int *info) noexcept nogil
 cdef void zcposv(char *uplo, int *n, int *nrhs, z *a, int *lda, z *b, int *ldb, z *x, int *ldx, z *work, c *swork, d *rwork, int *iter, int *info) noexcept nogil
@@ -1135,11 +1246,20 @@ cdef void zgels(char *trans, int *m, int *n, int *nrhs, z *a, int *lda, z *b, in
 cdef void zgelsd(int *m, int *n, int *nrhs, z *a, int *lda, z *b, int *ldb, d *s, d *rcond, int *rank, z *work, int *lwork, d *rwork, int *iwork, int *info) noexcept nogil
 cdef void zgelss(int *m, int *n, int *nrhs, z *a, int *lda, z *b, int *ldb, d *s, d *rcond, int *rank, z *work, int *lwork, d *rwork, int *info) noexcept nogil
 cdef void zgelsy(int *m, int *n, int *nrhs, z *a, int *lda, z *b, int *ldb, int *jpvt, d *rcond, int *rank, z *work, int *lwork, d *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, z *v, int *ldv, z *t, int *ldt, z *c, int *ldc, z *work, int *info) noexcept nogil
 cdef void zgeql2(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil
 cdef void zgeqlf(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil
 cdef void zgeqp3(int *m, int *n, z *a, int *lda, int *jpvt, z *tau, z *work, int *lwork, d *rwork, int *info) noexcept nogil
 cdef void zgeqr2(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zgeqr2p(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil
 cdef void zgeqrf(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zgeqrfp(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil
+    cdef void zgeqrt(int *m, int *n, int *nb, z *a, int *lda, z *t, int *ldt, z *work, int *info) noexcept nogil
+    cdef void zgeqrt2(int *m, int *n, z *a, int *lda, z *t, int *ldt, int *info) noexcept nogil
+    cdef void zgeqrt3(int *m, int *n, z *a, int *lda, z *t, int *ldt, int *info) noexcept nogil
 cdef void zgerfs(char *trans, int *n, int *nrhs, z *a, int *lda, z *af, int *ldaf, int *ipiv, z *b, int *ldb, z *x, int *ldx, d *ferr, d *berr, z *work, d *rwork, int *info) noexcept nogil
 cdef void zgerq2(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil
 cdef void zgerqf(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil
@@ -1193,12 +1313,19 @@ cdef void zhegvx(int *itype, char *jobz, char *range, char *uplo, int *n, z *a, 
 cdef void zherfs(char *uplo, int *n, int *nrhs, z *a, int *lda, z *af, int *ldaf, int *ipiv, z *b, int *ldb, z *x, int *ldx, d *ferr, d *berr, z *work, d *rwork, int *info) noexcept nogil
 cdef void zhesv(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *work, int *lwork, int *info) noexcept nogil
 cdef void zhesvx(char *fact, char *uplo, int *n, int *nrhs, z *a, int *lda, z *af, int *ldaf, int *ipiv, z *b, int *ldb, z *x, int *ldx, d *rcond, d *ferr, d *berr, z *work, int *lwork, d *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zheswapr(char *uplo, int *n, z *a, int *lda, int *i1, int *i2) noexcept nogil
 cdef void zhetd2(char *uplo, int *n, z *a, int *lda, d *d, d *e, z *tau, int *info) noexcept nogil
 cdef void zhetf2(char *uplo, int *n, z *a, int *lda, int *ipiv, int *info) noexcept nogil
 cdef void zhetrd(char *uplo, int *n, z *a, int *lda, d *d, d *e, z *tau, z *work, int *lwork, int *info) noexcept nogil
 cdef void zhetrf(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *lwork, int *info) noexcept nogil
 cdef void zhetri(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zhetri2(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *lwork, int *info) noexcept nogil
+    cdef void zhetri2x(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *nb, int *info) noexcept nogil
 cdef void zhetrs(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zhetrs2(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *work, int *info) noexcept nogil
 cdef void zhfrk(char *transr, char *uplo, char *trans, int *n, int *k, d *alpha, z *a, int *lda, d *beta, z *c) noexcept nogil
 cdef void zhgeqz(char *job, char *compq, char *compz, int *n, int *ilo, int *ihi, z *h, int *ldh, z *t, int *ldt, z *alpha, z *beta, z *q, int *ldq, z *z, int *ldz, z *work, int *lwork, d *rwork, int *info) noexcept nogil
 cdef void zhpcon(char *uplo, int *n, z *ap, int *ipiv, d *anorm, d *rcond, z *work, int *info) noexcept nogil
@@ -1259,6 +1386,8 @@ cdef d zlantb(char *norm, char *uplo, char *diag, int *n, int *k, z *ab, int *ld
 cdef d zlantp(char *norm, char *uplo, char *diag, int *n, z *ap, d *work) noexcept nogil
 cdef d zlantr(char *norm, char *uplo, char *diag, int *m, int *n, z *a, int *lda, d *work) noexcept nogil
 cdef void zlapll(int *n, z *x, int *incx, z *y, int *incy, d *ssmin) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zlapmr(bint *forwrd, int *m, int *n, z *x, int *ldx, int *k) noexcept nogil
 cdef void zlapmt(bint *forwrd, int *m, int *n, z *x, int *ldx, int *k) noexcept nogil
 cdef void zlaqgb(int *m, int *n, int *kl, int *ku, z *ab, int *ldab, d *r, d *c, d *rowcnd, d *colcnd, d *amax, char *equed) noexcept nogil
 cdef void zlaqge(int *m, int *n, z *a, int *lda, d *r, d *c, d *rowcnd, d *colcnd, d *amax, char *equed) noexcept nogil
@@ -1282,6 +1411,7 @@ cdef void zlarcm(int *m, int *n, d *a, int *lda, z *b, int *ldb, z *c, int *ldc,
 cdef void zlarf(char *side, int *m, int *n, z *v, int *incv, z *tau, z *c, int *ldc, z *work) noexcept nogil
 cdef void zlarfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, z *v, int *ldv, z *t, int *ldt, z *c, int *ldc, z *work, int *ldwork) noexcept nogil
 cdef void zlarfg(int *n, z *alpha, z *x, int *incx, z *tau) noexcept nogil
+cdef void zlarfgp(int *n, z *alpha, z *x, int *incx, z *tau) noexcept nogil
 cdef void zlarft(char *direct, char *storev, int *n, int *k, z *v, int *ldv, z *tau, z *t, int *ldt) noexcept nogil
 cdef void zlarfx(char *side, int *m, int *n, z *v, z *tau, z *c, int *ldc, z *work) noexcept nogil
 cdef void zlargv(int *n, z *x, int *incx, z *y, int *incy, d *c, int *incc) noexcept nogil
@@ -1363,16 +1493,25 @@ cdef void zstein(int *n, d *d, d *e, int *m, d *w, int *iblock, int *isplit, z *
 cdef void zstemr(char *jobz, char *range, int *n, d *d, d *e, d *vl, d *vu, int *il, int *iu, int *m, d *w, z *z, int *ldz, int *nzc, int *isuppz, bint *tryrac, d *work, int *lwork, int *iwork, int *liwork, int *info) noexcept nogil
 cdef void zsteqr(char *compz, int *n, d *d, d *e, z *z, int *ldz, d *work, int *info) noexcept nogil
 cdef void zsycon(char *uplo, int *n, z *a, int *lda, int *ipiv, d *anorm, d *rcond, z *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zsyconv(char *uplo, char *way, int *n, z *a, int *lda, int *ipiv, z *work, int *info) noexcept nogil
 cdef void zsyequb(char *uplo, int *n, z *a, int *lda, d *s, d *scond, d *amax, z *work, int *info) noexcept nogil
 cdef void zsymv(char *uplo, int *n, z *alpha, z *a, int *lda, z *x, int *incx, z *beta, z *y, int *incy) noexcept nogil
 cdef void zsyr(char *uplo, int *n, z *alpha, z *x, int *incx, z *a, int *lda) noexcept nogil
 cdef void zsyrfs(char *uplo, int *n, int *nrhs, z *a, int *lda, z *af, int *ldaf, int *ipiv, z *b, int *ldb, z *x, int *ldx, d *ferr, d *berr, z *work, d *rwork, int *info) noexcept nogil
 cdef void zsysv(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *work, int *lwork, int *info) noexcept nogil
 cdef void zsysvx(char *fact, char *uplo, int *n, int *nrhs, z *a, int *lda, z *af, int *ldaf, int *ipiv, z *b, int *ldb, z *x, int *ldx, d *rcond, d *ferr, d *berr, z *work, int *lwork, d *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zsyswapr(char *uplo, int *n, z *a, int *lda, int *i1, int *i2) noexcept nogil
 cdef void zsytf2(char *uplo, int *n, z *a, int *lda, int *ipiv, int *info) noexcept nogil
 cdef void zsytrf(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *lwork, int *info) noexcept nogil
 cdef void zsytri(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zsytri2(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *lwork, int *info) noexcept nogil
+    cdef void zsytri2x(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *nb, int *info) noexcept nogil
 cdef void zsytrs(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zsytrs2(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *work, int *info) noexcept nogil
 cdef void ztbcon(char *norm, char *uplo, char *diag, int *n, int *kd, z *ab, int *ldab, d *rcond, z *work, d *rwork, int *info) noexcept nogil
 cdef void ztbrfs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, z *ab, int *ldab, z *b, int *ldb, z *x, int *ldx, d *ferr, d *berr, z *work, d *rwork, int *info) noexcept nogil
 cdef void ztbtrs(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, z *ab, int *ldab, z *b, int *ldb, int *info) noexcept nogil
@@ -1389,6 +1528,11 @@ cdef void ztgsna(char *job, char *howmny, bint *select, int *n, z *a, int *lda, 
 cdef void ztgsy2(char *trans, int *ijob, int *m, int *n, z *a, int *lda, z *b, int *ldb, z *c, int *ldc, z *d, int *ldd, z *e, int *lde, z *f, int *ldf, d *scale, d *rdsum, d *rdscal, int *info) noexcept nogil
 cdef void ztgsyl(char *trans, int *ijob, int *m, int *n, z *a, int *lda, z *b, int *ldb, z *c, int *ldc, z *d, int *ldd, z *e, int *lde, z *f, int *ldf, d *scale, d *dif, z *work, int *lwork, int *iwork, int *info) noexcept nogil
 cdef void ztpcon(char *norm, char *uplo, char *diag, int *n, z *ap, d *rcond, z *work, d *rwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void ztpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, z *v, int *ldv, z *t, int *ldt, z *a, int *lda, z *b, int *ldb, z *work, int *info) noexcept nogil
+    cdef void ztpqrt(int *m, int *n, int *l, int *nb, z *a, int *lda, z *b, int *ldb, z *t, int *ldt, z *work, int *info) noexcept nogil
+    cdef void ztpqrt2(int *m, int *n, int *l, z *a, int *lda, z *b, int *ldb, z *t, int *ldt, int *info) noexcept nogil
+    cdef void ztprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, z *v, int *ldv, z *t, int *ldt, z *a, int *lda, z *b, int *ldb, z *work, int *ldwork) noexcept nogil
 cdef void ztprfs(char *uplo, char *trans, char *diag, int *n, int *nrhs, z *ap, z *b, int *ldb, z *x, int *ldx, d *ferr, d *berr, z *work, d *rwork, int *info) noexcept nogil
 cdef void ztptri(char *uplo, char *diag, int *n, z *ap, int *info) noexcept nogil
 cdef void ztptrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, z *ap, z *b, int *ldb, int *info) noexcept nogil
@@ -1407,6 +1551,9 @@ cdef void ztrtrs(char *uplo, char *trans, char *diag, int *n, int *nrhs, z *a, i
 cdef void ztrttf(char *transr, char *uplo, int *n, z *a, int *lda, z *arf, int *info) noexcept nogil
 cdef void ztrttp(char *uplo, int *n, z *a, int *lda, z *ap, int *info) noexcept nogil
 cdef void ztzrzf(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil
+IF CTE_HAVE_MKL == 1:
+    cdef void zunbdb(char *trans, char *signs, int *m, int *p, int *q, z *x11, int *ldx11, z *x12, int *ldx12, z *x21, int *ldx21, z *x22, int *ldx22, d *theta, d *phi, z *taup1, z *taup2, z *tauq1, z *tauq2, z *work, int *lwork, int *info) noexcept nogil
+    cdef void zuncsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, z *x11, int *ldx11, z *x12, int *ldx12, z *x21, int *ldx21, z *x22, int *ldx22, d *theta, z *u1, int *ldu1, z *u2, int *ldu2, z *v1t, int *ldv1t, z *v2t, int *ldv2t, z *work, int *lwork, d *rwork, int *lrwork, int *iwork, int *info) noexcept nogil
 cdef void zung2l(int *m, int *n, int *k, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil
 cdef void zung2r(int *m, int *n, int *k, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil
 cdef void zungbr(char *vect, int *m, int *n, int *k, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil

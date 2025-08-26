@@ -18,6 +18,20 @@ import math
 import inspect
 import warnings
 
+def _is_jax_zero_gradient_array(x):
+    """Return True if `x` is a zero-gradient array.
+
+    These arrays are a design quirk of Jax that may one day be removed.
+    See https://github.com/google/jax/issues/20620.
+    """
+    if 'numpy' not in sys.modules or 'jax' not in sys.modules:
+        return False
+
+    import numpy as np
+    import jax
+
+    return isinstance(x, np.ndarray) and x.dtype == jax.float0
+
 def is_numpy_array(x):
     """
     Return True if `x` is a NumPy array.
@@ -34,8 +48,10 @@ def is_numpy_array(x):
     is_array_api_obj
     is_cupy_array
     is_torch_array
+    is_ndonnx_array
     is_dask_array
     is_jax_array
+    is_pydata_sparse_array
     """
     # Avoid importing NumPy if it isn't already
     if 'numpy' not in sys.modules:
@@ -44,7 +60,8 @@ def is_numpy_array(x):
     import numpy as np
 
     # TODO: Should we reject ndarray subclasses?
-    return isinstance(x, (np.ndarray, np.generic))
+    return (isinstance(x, (np.ndarray, np.generic))
+            and not _is_jax_zero_gradient_array(x))
 
 def is_cupy_array(x):
     """
@@ -62,10 +79,12 @@ def is_cupy_array(x):
     is_array_api_obj
     is_numpy_array
     is_torch_array
+    is_ndonnx_array
     is_dask_array
     is_jax_array
+    is_pydata_sparse_array
     """
-    # Avoid importing NumPy if it isn't already
+    # Avoid importing CuPy if it isn't already
     if 'cupy' not in sys.modules:
         return False
 
@@ -90,6 +109,7 @@ def is_torch_array(x):
     is_cupy_array
     is_dask_array
     is_jax_array
+    is_pydata_sparse_array
     """
     # Avoid importing torch if it isn't already
     if 'torch' not in sys.modules:
@@ -99,6 +119,33 @@ def is_torch_array(x):
 
     # TODO: Should we reject ndarray subclasses?
     return isinstance(x, torch.Tensor)
+
+def is_ndonnx_array(x):
+    """
+    Return True if `x` is a ndonnx Array.
+
+    This function does not import ndonnx if it has not already been imported
+    and is therefore cheap to use.
+
+    See Also
+    --------
+
+    array_namespace
+    is_array_api_obj
+    is_numpy_array
+    is_cupy_array
+    is_ndonnx_array
+    is_dask_array
+    is_jax_array
+    is_pydata_sparse_array
+    """
+    # Avoid importing torch if it isn't already
+    if 'ndonnx' not in sys.modules:
+        return False
+
+    import ndonnx as ndx
+
+    return isinstance(x, ndx.Array)
 
 def is_dask_array(x):
     """
@@ -115,7 +162,9 @@ def is_dask_array(x):
     is_numpy_array
     is_cupy_array
     is_torch_array
+    is_ndonnx_array
     is_jax_array
+    is_pydata_sparse_array
     """
     # Avoid importing dask if it isn't already
     if 'dask.array' not in sys.modules:
@@ -141,7 +190,9 @@ def is_jax_array(x):
     is_numpy_array
     is_cupy_array
     is_torch_array
+    is_ndonnx_array
     is_dask_array
+    is_pydata_sparse_array
     """
     # Avoid importing jax if it isn't already
     if 'jax' not in sys.modules:
@@ -149,7 +200,36 @@ def is_jax_array(x):
 
     import jax
 
-    return isinstance(x, jax.Array)
+    return isinstance(x, jax.Array) or _is_jax_zero_gradient_array(x)
+
+def is_pydata_sparse_array(x) -> bool:
+    """
+    Return True if `x` is an array from the `sparse` package.
+
+    This function does not import `sparse` if it has not already been imported
+    and is therefore cheap to use.
+
+
+    See Also
+    --------
+
+    array_namespace
+    is_array_api_obj
+    is_numpy_array
+    is_cupy_array
+    is_torch_array
+    is_ndonnx_array
+    is_dask_array
+    is_jax_array
+    """
+    # Avoid importing jax if it isn't already
+    if 'sparse' not in sys.modules:
+        return False
+
+    import sparse
+
+    # TODO: Account for other backends.
+    return isinstance(x, sparse.SparseArray)
 
 def is_array_api_obj(x):
     """
@@ -162,6 +242,7 @@ def is_array_api_obj(x):
     is_numpy_array
     is_cupy_array
     is_torch_array
+    is_ndonnx_array
     is_dask_array
     is_jax_array
     """
@@ -170,15 +251,177 @@ def is_array_api_obj(x):
         or is_torch_array(x) \
         or is_dask_array(x) \
         or is_jax_array(x) \
+        or is_pydata_sparse_array(x) \
         or hasattr(x, '__array_namespace__')
 
-def _check_api_version(api_version):
-    if api_version == '2021.12':
-        warnings.warn("The 2021.12 version of the array API specification was requested but the returned namespace is actually version 2022.12")
-    elif api_version is not None and api_version != '2022.12':
-        raise ValueError("Only the 2022.12 version of the array API specification is currently supported")
+def _compat_module_name():
+    assert __name__.endswith('.common._helpers')
+    return __name__.removesuffix('.common._helpers')
 
-def array_namespace(*xs, api_version=None, _use_compat=True):
+def is_numpy_namespace(xp) -> bool:
+    """
+    Returns True if `xp` is a NumPy namespace.
+
+    This includes both NumPy itself and the version wrapped by array-api-compat.
+
+    See Also
+    --------
+
+    array_namespace
+    is_cupy_namespace
+    is_torch_namespace
+    is_ndonnx_namespace
+    is_dask_namespace
+    is_jax_namespace
+    is_pydata_sparse_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ in {'numpy', _compat_module_name() + '.numpy'}
+
+def is_cupy_namespace(xp) -> bool:
+    """
+    Returns True if `xp` is a CuPy namespace.
+
+    This includes both CuPy itself and the version wrapped by array-api-compat.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_torch_namespace
+    is_ndonnx_namespace
+    is_dask_namespace
+    is_jax_namespace
+    is_pydata_sparse_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ in {'cupy', _compat_module_name() + '.cupy'}
+
+def is_torch_namespace(xp) -> bool:
+    """
+    Returns True if `xp` is a PyTorch namespace.
+
+    This includes both PyTorch itself and the version wrapped by array-api-compat.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_cupy_namespace
+    is_ndonnx_namespace
+    is_dask_namespace
+    is_jax_namespace
+    is_pydata_sparse_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ in {'torch', _compat_module_name() + '.torch'}
+
+
+def is_ndonnx_namespace(xp):
+    """
+    Returns True if `xp` is an NDONNX namespace.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_cupy_namespace
+    is_torch_namespace
+    is_dask_namespace
+    is_jax_namespace
+    is_pydata_sparse_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ == 'ndonnx'
+
+def is_dask_namespace(xp):
+    """
+    Returns True if `xp` is a Dask namespace.
+
+    This includes both ``dask.array`` itself and the version wrapped by array-api-compat.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_cupy_namespace
+    is_torch_namespace
+    is_ndonnx_namespace
+    is_jax_namespace
+    is_pydata_sparse_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ in {'dask.array', _compat_module_name() + '.dask.array'}
+
+def is_jax_namespace(xp):
+    """
+    Returns True if `xp` is a JAX namespace.
+
+    This includes ``jax.numpy`` and ``jax.experimental.array_api`` which existed in
+    older versions of JAX.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_cupy_namespace
+    is_torch_namespace
+    is_ndonnx_namespace
+    is_dask_namespace
+    is_pydata_sparse_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ in {'jax.numpy', 'jax.experimental.array_api'}
+
+def is_pydata_sparse_namespace(xp):
+    """
+    Returns True if `xp` is a pydata/sparse namespace.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_cupy_namespace
+    is_torch_namespace
+    is_ndonnx_namespace
+    is_dask_namespace
+    is_jax_namespace
+    is_array_api_strict_namespace
+    """
+    return xp.__name__ == 'sparse'
+
+def is_array_api_strict_namespace(xp):
+    """
+    Returns True if `xp` is an array-api-strict namespace.
+
+    See Also
+    --------
+
+    array_namespace
+    is_numpy_namespace
+    is_cupy_namespace
+    is_torch_namespace
+    is_ndonnx_namespace
+    is_dask_namespace
+    is_jax_namespace
+    is_pydata_sparse_namespace
+    """
+    return xp.__name__ == 'array_api_strict'
+
+def _check_api_version(api_version):
+    if api_version in ['2021.12', '2022.12']:
+        warnings.warn(f"The {api_version} version of the array API specification was requested but the returned namespace is actually version 2023.12")
+    elif api_version is not None and api_version not in ['2021.12', '2022.12',
+                                                         '2023.12']:
+        raise ValueError("Only the 2023.12 version of the array API specification is currently supported")
+
+def array_namespace(*xs, api_version=None, use_compat=None):
     """
     Get the array API compatible namespace for the arrays `xs`.
 
@@ -189,7 +432,13 @@ def array_namespace(*xs, api_version=None, _use_compat=True):
 
     api_version: str
         The newest version of the spec that you need support for (currently
-        the compat library wrapped APIs support v2022.12).
+        the compat library wrapped APIs support v2023.12).
+
+    use_compat: bool or None
+        If None (the default), the native namespace will be returned if it is
+        already array API compatible, otherwise a compat wrapper is used. If
+        True, the compat library wrapped library will be returned. If False,
+        the native library namespace is returned.
 
     Returns
     -------
@@ -232,48 +481,79 @@ def array_namespace(*xs, api_version=None, _use_compat=True):
     is_torch_array
     is_dask_array
     is_jax_array
+    is_pydata_sparse_array
 
     """
+    if use_compat not in [None, True, False]:
+        raise ValueError("use_compat must be None, True, or False")
+
+    _use_compat = use_compat in [None, True]
+
     namespaces = set()
     for x in xs:
         if is_numpy_array(x):
-            _check_api_version(api_version)
-            if _use_compat:
-                from .. import numpy as numpy_namespace
+            from .. import numpy as numpy_namespace
+            import numpy as np
+            if use_compat is True:
+                _check_api_version(api_version)
                 namespaces.add(numpy_namespace)
-            else:
-                import numpy as np
+            elif use_compat is False:
                 namespaces.add(np)
+            else:
+                # numpy 2.0+ have __array_namespace__, however, they are not yet fully array API
+                # compatible.
+                namespaces.add(numpy_namespace)
         elif is_cupy_array(x):
-            _check_api_version(api_version)
             if _use_compat:
+                _check_api_version(api_version)
                 from .. import cupy as cupy_namespace
                 namespaces.add(cupy_namespace)
             else:
                 import cupy as cp
                 namespaces.add(cp)
         elif is_torch_array(x):
-            _check_api_version(api_version)
             if _use_compat:
+                _check_api_version(api_version)
                 from .. import torch as torch_namespace
                 namespaces.add(torch_namespace)
             else:
                 import torch
                 namespaces.add(torch)
         elif is_dask_array(x):
-            _check_api_version(api_version)
             if _use_compat:
+                _check_api_version(api_version)
                 from ..dask import array as dask_namespace
                 namespaces.add(dask_namespace)
             else:
-                raise TypeError("_use_compat cannot be False if input array is a dask array!")
+                import dask.array as da
+                namespaces.add(da)
         elif is_jax_array(x):
-            _check_api_version(api_version)
-            # jax.experimental.array_api is already an array namespace. We do
-            # not have a wrapper submodule for it.
-            import jax.experimental.array_api as jnp
+            if use_compat is True:
+                _check_api_version(api_version)
+                raise ValueError("JAX does not have an array-api-compat wrapper")
+            elif use_compat is False:
+                import jax.numpy as jnp
+            else:
+                # JAX v0.4.32 and newer implements the array API directly in jax.numpy.
+                # For older JAX versions, it is available via jax.experimental.array_api.
+                import jax.numpy
+                if hasattr(jax.numpy, "__array_api_version__"):
+                    jnp = jax.numpy
+                else:
+                    import jax.experimental.array_api as jnp
             namespaces.add(jnp)
+        elif is_pydata_sparse_array(x):
+            if use_compat is True:
+                _check_api_version(api_version)
+                raise ValueError("`sparse` does not have an array-api-compat wrapper")
+            else:
+                import sparse
+            # `sparse` is already an array namespace. We do not have a wrapper
+            # submodule for it.
+            namespaces.add(sparse)
         elif hasattr(x, '__array_namespace__'):
+            if use_compat is True:
+                raise ValueError("The given array does not have an array-api-compat wrapper")
             namespaces.add(x.__array_namespace__(api_version=api_version))
         else:
             # TODO: Support Python scalars?
@@ -365,7 +645,22 @@ def device(x: Array, /) -> Device:
             return x.device()
         else:
             return x.device
+    elif is_pydata_sparse_array(x):
+        # `sparse` will gain `.device`, so check for this first.
+        x_device = getattr(x, 'device', None)
+        if x_device is not None:
+            return x_device
+        # Everything but DOK has this attr.
+        try:
+            inner = x.data
+        except AttributeError:
+            return "cpu"
+        # Return the device of the constituent array
+        return device(inner)
     return x.device
+
+# Prevent shadowing, used below
+_device = device
 
 # Based on cupy.array_api.Array.to_device
 def _cupy_to_device(x, device, /, stream=None):
@@ -479,9 +774,14 @@ def to_device(x: Array, device: Device, /, *, stream: Optional[Union[int, Any]] 
             return x
         raise ValueError(f"Unsupported device {device!r}")
     elif is_jax_array(x):
-        # This import adds to_device to x
-        import jax.experimental.array_api # noqa: F401
+        if not hasattr(x, "__array_namespace__"):
+            # In JAX v0.4.31 and older, this import adds to_device method to x.
+            import jax.experimental.array_api # noqa: F401
         return x.to_device(device, stream=stream)
+    elif is_pydata_sparse_array(x) and device == _device(x):
+        # Perform trivial check to return the same array if
+        # device is same instead of err-ing.
+        return x
     return x.to_device(device, stream=stream)
 
 def size(x):
@@ -503,11 +803,21 @@ __all__ = [
     "device",
     "get_namespace",
     "is_array_api_obj",
+    "is_array_api_strict_namespace",
     "is_cupy_array",
+    "is_cupy_namespace",
     "is_dask_array",
+    "is_dask_namespace",
     "is_jax_array",
+    "is_jax_namespace",
     "is_numpy_array",
+    "is_numpy_namespace",
     "is_torch_array",
+    "is_torch_namespace",
+    "is_ndonnx_array",
+    "is_ndonnx_namespace",
+    "is_pydata_sparse_array",
+    "is_pydata_sparse_namespace",
     "size",
     "to_device",
 ]

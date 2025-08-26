@@ -3,7 +3,7 @@
 import re
 import warnings
 import numpy as np
-from scipy._lib._util import check_random_state
+from scipy._lib._util import check_random_state, _transition_to_rng
 from ._rotation_groups import create_group
 
 cimport numpy as np
@@ -15,12 +15,20 @@ np.import_array()
 
 # utilities for empty array initialization
 cdef inline double[:] _empty1(int n) noexcept:
+    if n == 0:
+        return array(shape=(1,), itemsize=sizeof(double), format=b"d")[:0]
     return array(shape=(n,), itemsize=sizeof(double), format=b"d")
 cdef inline double[:, :] _empty2(int n1, int n2) noexcept :
+    if n1 == 0:
+        return array(shape=(1, n2), itemsize=sizeof(double), format=b"d")[:0]
     return array(shape=(n1, n2), itemsize=sizeof(double), format=b"d")
 cdef inline double[:, :, :] _empty3(int n1, int n2, int n3) noexcept:
+    if n1 == 0:
+        return array(shape=(1, n2, n3), itemsize=sizeof(double), format=b"d")[:0]
     return array(shape=(n1, n2, n3), itemsize=sizeof(double), format=b"d")
 cdef inline double[:, :] _zeros2(int n1, int n2) noexcept:
+    if n1 == 0:
+        return array(shape=(1, n2), itemsize=sizeof(double), format=b"d")[:0]
     cdef double[:, :] arr = array(shape=(n1, n2),
         itemsize=sizeof(double), format=b"d")
     arr[:, :] = 0
@@ -63,7 +71,7 @@ cdef inline double _normalize4(double[:] elems) noexcept nogil:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline int _argmax4(double[:] a) noexcept nogil:
+cdef inline int _argmax4(const double[:] a) noexcept nogil:
     cdef int imax = 0
     cdef double vmax = a[0]
 
@@ -86,7 +94,7 @@ cdef inline const double[:] _elementary_basis_vector(uchar axis) noexcept:
     if axis == b'x': return _ex
     elif axis == b'y': return _ey
     elif axis == b'z': return _ez
-    
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef inline int _elementary_basis_index(uchar axis) noexcept:
@@ -118,9 +126,9 @@ cdef inline void _quat_canonical(double[:, :] q) noexcept:
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef inline void _get_angles(
-    double[:] angles, bint extrinsic, bint symmetric, bint sign, 
+    double[:] angles, bint extrinsic, bint symmetric, bint sign,
     double lamb, double a, double b, double c, double d):
-    
+
     # intrinsic/extrinsic conversion helpers
     cdef int angle_first, angle_third
     if extrinsic:
@@ -149,18 +157,18 @@ cdef inline void _get_angles(
     # compute first and third angles, according to case
     half_sum = atan2(b, a)
     half_diff = atan2(d, c)
-    
+
     if case == 0:  # no singularities
         angles[angle_first] = half_sum - half_diff
         angles[angle_third] = half_sum + half_diff
-    
+
     else:  # any degenerate case
         angles[2] = 0
         if case == 1:
             angles[0] = 2 * half_sum
         else:
             angles[0] = 2 * half_diff * (-1 if extrinsic else 1)
-            
+
     # for Tait-Bryan/asymmetric sequences
     if not symmetric:
         angles[angle_third] *= sign
@@ -328,12 +336,12 @@ cdef double[:, :] _compute_euler_from_quat(
     # The algorithm assumes extrinsic frame transformations. The algorithm
     # in the paper is formulated for rotation quaternions, which are stored
     # directly by Rotation.
-    # Adapt the algorithm for our case by reversing both axis sequence and 
+    # Adapt the algorithm for our case by reversing both axis sequence and
     # angles for intrinsic rotations when needed
-    
+
     if not extrinsic:
         seq = seq[::-1]
-        
+
     cdef int i = _elementary_basis_index(seq[0])
     cdef int j = _elementary_basis_index(seq[1])
     cdef int k = _elementary_basis_index(seq[2])
@@ -341,9 +349,9 @@ cdef double[:, :] _compute_euler_from_quat(
     cdef bint symmetric = i == k
     if symmetric:
         k = 3 - i - j # get third axis
-        
+
     # Step 0
-    # Check if permutation is even (+1) or odd (-1)     
+    # Check if permutation is even (+1) or odd (-1)
     cdef int sign = (i - j) * (j - k) * (k - i) // 2
 
     cdef Py_ssize_t num_rotations = quat.shape[0]
@@ -355,7 +363,7 @@ cdef double[:, :] _compute_euler_from_quat(
     for ind in range(num_rotations):
 
         # Step 1
-        # Permutate quaternion elements            
+        # Permutate quaternion elements
         if symmetric:
             a = quat[ind, 3]
             b = quat[ind, i]
@@ -448,7 +456,8 @@ cdef inline void _compose_quat_single( # calculate p * q into r
 cdef inline double[:, :] _compose_quat(
     const double[:, :] p, const double[:, :] q
 ) noexcept:
-    cdef Py_ssize_t n = max(p.shape[0], q.shape[0])
+    cdef Py_ssize_t n = q.shape[0] if p.shape[0] == 1 else p.shape[0]
+         
     cdef double[:, :] product = _empty2(n, 4)
 
     # dealing with broadcasting
@@ -831,7 +840,8 @@ cdef class Rotation:
         self._single = False
         quat = np.asarray(quat, dtype=float)
 
-        if quat.ndim not in [1, 2] or quat.shape[len(quat.shape) - 1] != 4:
+        if (quat.ndim not in [1, 2]
+            or quat.shape[len(quat.shape) - 1] != 4):
             raise ValueError("Expected `quat` to have shape (4,) or (N, 4), "
                              f"got {quat.shape}.")
 
@@ -1003,9 +1013,12 @@ cdef class Rotation:
     def from_matrix(cls, matrix):
         """Initialize from rotation matrix.
 
-        Rotations in 3 dimensions can be represented with 3 x 3 proper
-        orthogonal matrices [1]_. If the input is not proper orthogonal,
-        an approximation is created using the method described in [2]_.
+        Rotations in 3 dimensions can be represented with 3 x 3 orthogonal
+        matrices [1]_. If the input is not orthogonal, an approximation is
+        created by orthogonalizing the input matrix using the method described
+        in [2]_, and then converting the orthogonal rotation matrices to
+        quaternions using the algorithm described in [3]_. Matrices must be
+        right-handed.
 
         Parameters
         ----------
@@ -1022,7 +1035,8 @@ cdef class Rotation:
         References
         ----------
         .. [1] https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions
-        .. [2] F. Landis Markley, "Unit Quaternion from Rotation Matrix",
+        .. [2] https://en.wikipedia.org/wiki/Orthogonal_Procrustes_problem
+        .. [3] F. Landis Markley, "Unit Quaternion from Rotation Matrix",
                Journal of guidance, control, and dynamics vol. 31.2, pp.
                440-442, 2008.
 
@@ -1037,6 +1051,8 @@ cdef class Rotation:
         ... [0, -1, 0],
         ... [1, 0, 0],
         ... [0, 0, 1]])
+        >>> r.single
+        True
         >>> r.as_matrix().shape
         (3, 3)
 
@@ -1055,6 +1071,10 @@ cdef class Rotation:
         ... ]])
         >>> r.as_matrix().shape
         (2, 3, 3)
+        >>> r.single
+        False
+        >>> len(r)
+        2
 
         If input matrices are not special orthogonal (orthogonal with
         determinant equal to +1), then a special orthogonal estimate is stored:
@@ -1064,15 +1084,15 @@ cdef class Rotation:
         ... [0.5, 0, 0],
         ... [0, 0, 0.5]])
         >>> np.linalg.det(a)
-        0.12500000000000003
+        0.125
         >>> r = R.from_matrix(a)
         >>> matrix = r.as_matrix()
         >>> matrix
-        array([[-0.38461538, -0.92307692,  0.        ],
-               [ 0.92307692, -0.38461538,  0.        ],
-               [ 0.        ,  0.        ,  1.        ]])
+        array([[ 0., -1.,  0.],
+               [ 1.,  0.,  0.],
+               [ 0.,  0.,  1.]])
         >>> np.linalg.det(matrix)
-        1.0000000000000002
+        1.0
 
         It is also possible to have a stack containing a single rotation:
 
@@ -1094,7 +1114,7 @@ cdef class Rotation:
         .. versionadded:: 1.4.0
         """
         is_single = False
-        matrix = np.asarray(matrix, dtype=float)
+        matrix = np.array(matrix, dtype=float)
 
         if (matrix.ndim not in [2, 3] or
             matrix.shape[len(matrix.shape)-2:] != (3, 3)):
@@ -1104,13 +1124,40 @@ cdef class Rotation:
         # If a single matrix is given, convert it to 3D 1 x 3 x 3 matrix but
         # set self._single to True so that we can return appropriate objects in
         # the `to_...` methods
-        cdef double[:, :, :] cmatrix
         if matrix.shape == (3, 3):
-            cmatrix = matrix[None, :, :]
+            matrix = matrix[np.newaxis, :, :]
             is_single = True
-        else:
-            cmatrix = matrix
 
+        # Calculate the determinant of the rotation matrix
+        # (should be positive for right-handed rotations)
+        dets = np.linalg.det(matrix)
+        if np.any(dets <= 0):
+            ind = np.where(dets <= 0)[0][0]
+            raise ValueError("Non-positive determinant (left-handed or null "
+                             f"coordinate frame) in rotation matrix {ind}: "
+                             f"{matrix[ind]}.")
+
+        # Gramian orthogonality check
+        # (should be the identity matrix for orthogonal matrices)
+        # Note that we have already ruled out left-handed cases above
+        gramians = matrix @ np.transpose(matrix, (0, 2, 1))
+        is_orthogonal = np.all(np.isclose(gramians, np.eye(3), atol=1e-12),
+                                axis=(1, 2))
+        indices_to_orthogonalize = np.where(~is_orthogonal)[0]
+
+        # Orthogonalize the rotation matrices where necessary
+        if len(indices_to_orthogonalize) > 0:
+            # Exact solution to the orthogonal Procrustes problem using singular
+            # value decomposition
+            U, _, Vt = np.linalg.svd(matrix[indices_to_orthogonalize, :, :])
+            matrix[indices_to_orthogonalize, :, :] = U @ Vt
+
+        # Convert the orthogonal rotation matrices to quaternions using the
+        # algorithm described in [3]_. This will also apply another
+        # orthogonalization step to correct for any small errors in the matrices
+        # that skipped the SVD step above.
+        cdef double[:, :, :] cmatrix
+        cmatrix = matrix
         cdef Py_ssize_t num_rotations = cmatrix.shape[0]
         cdef Py_ssize_t i, j, k
         cdef double[:] decision = _empty1(4)
@@ -1210,7 +1257,7 @@ cdef class Rotation:
         >>> r.as_rotvec().shape
         (2, 3)
 
-        It is also possible to have a stack of a single rotaton:
+        It is also possible to have a stack of a single rotation:
 
         >>> r = R.from_rotvec([[0, 0, np.pi/2]])
         >>> r.as_rotvec().shape
@@ -1392,9 +1439,9 @@ cdef class Rotation:
         (extrinsic) or in a body centred frame of reference (intrinsic), which
         is attached to, and moves with, the object under rotation [1]_.
 
-        For both Euler angles and Davenport angles, consecutive axes must 
-        be are orthogonal (``axis2`` is orthogonal to both ``axis1`` and 
-        ``axis3``). For Euler angles, there is an additional relationship 
+        For both Euler angles and Davenport angles, consecutive axes must
+        be are orthogonal (``axis2`` is orthogonal to both ``axis1`` and
+        ``axis3``). For Euler angles, there is an additional relationship
         between ``axis1`` or ``axis3``, with two possibilities:
 
             - ``axis1`` and ``axis3`` are also orthogonal (asymmetric sequence)
@@ -1406,13 +1453,13 @@ cdef class Rotation:
         Parameters
         ----------
         axes : array_like, shape (3,) or ([1 or 2 or 3], 3)
-            Axis of rotation, if one dimensional. If two dimensional, describes the 
+            Axis of rotation, if one dimensional. If two dimensional, describes the
             sequence of axes for rotations, where each axes[i, :] is the ith
             axis. If more than one axis is given, then the second axis must be
             orthogonal to both the first and third axes.
         order : string
-            If it is equal to 'e' or 'extrinsic', the sequence will be 
-            extrinsic. If it is equal to 'i' or 'intrinsic', sequence 
+            If it is equal to 'e' or 'extrinsic', the sequence will be
+            extrinsic. If it is equal to 'i' or 'intrinsic', sequence
             will be treated as intrinsic.
         angles : float or array_like, shape (N,) or (N, [1 or 2 or 3])
             Euler angles specified in radians (`degrees` is False) or degrees
@@ -1430,11 +1477,11 @@ cdef class Rotation:
             - array_like with shape (W,) where `W` is the number of rows of
               `axes`, which corresponds to a single rotation with `W` axes
             - array_like with shape (N, W) where each `angle[i]`
-              corresponds to a sequence of Davenport angles describing a 
+              corresponds to a sequence of Davenport angles describing a
               single rotation
 
         degrees : bool, optional
-            If True, then the given angles are assumed to be in degrees. 
+            If True, then the given angles are assumed to be in degrees.
             Default is False.
 
         Returns
@@ -1520,10 +1567,10 @@ cdef class Rotation:
         norm = np.repeat(np.linalg.norm(axes, axis=1), 3)
         axes = axes / norm.reshape(num_axes, 3)
 
-        if (num_axes > 1 and abs(np.dot(axes[0], axes[1])) >= 1e-7 or 
+        if (num_axes > 1 and abs(np.dot(axes[0], axes[1])) >= 1e-7 or
             num_axes > 2 and abs(np.dot(axes[1], axes[2])) >= 1e-7):
             raise ValueError("Consecutive axes must be orthogonal.")
-            
+
         angles, is_single = _format_angles(angles, degrees, num_axes)
 
         q = Rotation.identity(len(angles))
@@ -1665,7 +1712,7 @@ cdef class Rotation:
         The mapping from quaternions to rotations is
         two-to-one, i.e. quaternions ``q`` and ``-q``, where ``-q`` simply
         reverses the sign of each component, represent the same spatial
-        rotation. 
+        rotation.
 
         Parameters
         ----------
@@ -1937,7 +1984,7 @@ cdef class Rotation:
     @cython.embedsignature(True)
     def _compute_euler(self, seq, degrees, algorithm):
         # Prepare axis sequence to call Euler angles conversion algorithm.
-        
+
         if len(seq) != 3:
             raise ValueError("Expected 3 axes, got {}.".format(seq))
 
@@ -1953,7 +2000,7 @@ cdef class Rotation:
                              "got {}".format(seq))
 
         seq = seq.lower()
-            
+
         if algorithm == 'from_matrix':
             matrix = self.as_matrix()
             if matrix.ndim == 2:
@@ -1969,7 +2016,7 @@ cdef class Rotation:
         else:
             # algorithm can only be 'from_quat' or 'from_matrix'
             assert False
-            
+
         if degrees:
             angles = np.rad2deg(angles)
 
@@ -2037,7 +2084,7 @@ cdef class Rotation:
         rotations. Once the axis sequence has been chosen, Euler angles define
         the angle of rotation around each respective axis [1]_.
 
-        The algorithm from [2]_ has been used to calculate Euler angles for the 
+        The algorithm from [2]_ has been used to calculate Euler angles for the
         rotation about a given sequence of axes.
 
         Euler angles suffer from the problem of gimbal lock [3]_, where the
@@ -2075,9 +2122,9 @@ cdef class Rotation:
         References
         ----------
         .. [1] https://en.wikipedia.org/wiki/Euler_angles#Definition_by_intrinsic_rotations
-        .. [2] Bernardes E, Viollet S (2022) Quaternion to Euler angles 
-               conversion: A direct, general and computationally efficient 
-               method. PLoS ONE 17(11): e0276302. 
+        .. [2] Bernardes E, Viollet S (2022) Quaternion to Euler angles
+               conversion: A direct, general and computationally efficient
+               method. PLoS ONE 17(11): e0276302.
                https://doi.org/10.1371/journal.pone.0276302
         .. [3] https://en.wikipedia.org/wiki/Gimbal_lock#In_applied_mathematics
 
@@ -2125,9 +2172,9 @@ cdef class Rotation:
         Any orientation can be expressed as a composition of 3 elementary
         rotations.
 
-        For both Euler angles and Davenport angles, consecutive axes must 
-        be are orthogonal (``axis2`` is orthogonal to both ``axis1`` and 
-        ``axis3``). For Euler angles, there is an additional relationship 
+        For both Euler angles and Davenport angles, consecutive axes must
+        be are orthogonal (``axis2`` is orthogonal to both ``axis1`` and
+        ``axis3``). For Euler angles, there is an additional relationship
         between ``axis1`` or ``axis3``, with two possibilities:
 
             - ``axis1`` and ``axis3`` are also orthogonal (asymmetric sequence)
@@ -2150,13 +2197,13 @@ cdef class Rotation:
         Parameters
         ----------
         axes : array_like, shape (3,) or ([1 or 2 or 3], 3)
-            Axis of rotation, if one dimensional. If two dimensional, describes the 
+            Axis of rotation, if one dimensional. If two dimensional, describes the
             sequence of axes for rotations, where each axes[i, :] is the ith
             axis. If more than one axis is given, then the second axis must be
             orthogonal to both the first and third axes.
         order : string
-            If it belongs to the set {'e', 'extrinsic'}, the sequence will be 
-            extrinsic. If if belongs to the set {'i', 'intrinsic'}, sequence 
+            If it belongs to the set {'e', 'extrinsic'}, the sequence will be
+            extrinsic. If if belongs to the set {'i', 'intrinsic'}, sequence
             will be treated as intrinsic.
         degrees : boolean, optional
             Returned angles are in degrees if this flag is True, else they are
@@ -2170,7 +2217,7 @@ cdef class Rotation:
 
             - First angle belongs to [-180, 180] degrees (both inclusive)
             - Third angle belongs to [-180, 180] degrees (both inclusive)
-            - Second angle belongs to a set of size 180 degrees, 
+            - Second angle belongs to a set of size 180 degrees,
               given by: ``[-abs(lambda), 180 - abs(lambda)]``, where ``lambda``
               is the angle between the first and third axes.
 
@@ -2354,7 +2401,8 @@ cdef class Rotation:
         Parameters
         ----------
         rotations : sequence of `Rotation` objects
-            The rotations to concatenate.
+            The rotations to concatenate. If a single `Rotation` object is
+            passed in, a copy is returned.
 
         Returns
         -------
@@ -2373,6 +2421,13 @@ cdef class Rotation:
         >>> rc.mean().as_rotvec()
         array([0., 0., 1.5])
 
+        Concatenation of a split rotation recovers the original object.
+
+        >>> rs = [r for r in rc]
+        >>> R.concatenate(rs).as_rotvec()
+        array([[0., 0., 1.],
+               [0., 0., 2.]])
+
         Note that it may be simpler to create the desired rotations by passing
         in a single list of the data during initialization, rather then by
         concatenating:
@@ -2385,6 +2440,9 @@ cdef class Rotation:
         -----
         .. versionadded:: 1.8.0
         """
+        if isinstance(rotations, Rotation):
+            return cls(rotations.as_quat(), normalize=False, copy=True)
+
         if not all(isinstance(x, Rotation) for x in rotations):
             raise TypeError("input must contain Rotation objects only")
 
@@ -2888,6 +2946,9 @@ cdef class Rotation:
         >>> r.mean().as_euler('zyx', degrees=True)
         array([0.24945696, 0.25054542, 0.24945696])
         """
+        if self._quat.shape[0] == 0:
+            raise ValueError("Mean of an empty rotation set is undefined.")
+            
         if weights is None:
             weights = np.ones(len(self))
         else:
@@ -3072,28 +3133,42 @@ cdef class Rotation:
         Examples
         --------
         >>> from scipy.spatial.transform import Rotation as R
-        >>> r = R.from_quat([
+        >>> rs = R.from_quat([
         ... [1, 1, 0, 0],
         ... [0, 1, 0, 1],
-        ... [1, 1, -1, 0]])
-        >>> r.as_quat()
+        ... [1, 1, -1, 0]])  # These quats are normalized
+        >>> rs.as_quat()
         array([[ 0.70710678,  0.70710678,  0.        ,  0.        ],
                [ 0.        ,  0.70710678,  0.        ,  0.70710678],
                [ 0.57735027,  0.57735027, -0.57735027,  0.        ]])
 
         Indexing using a single index:
 
-        >>> p = r[0]
-        >>> p.as_quat()
+        >>> a = rs[0]
+        >>> a.as_quat()
         array([0.70710678, 0.70710678, 0.        , 0.        ])
 
         Array slicing:
 
-        >>> q = r[1:3]
-        >>> q.as_quat()
+        >>> b = rs[1:3]
+        >>> b.as_quat()
         array([[ 0.        ,  0.70710678,  0.        ,  0.70710678],
                [ 0.57735027,  0.57735027, -0.57735027,  0.        ]])
 
+        List comprehension to split each rotation into its own object:
+
+        >>> c = [r for r in rs]
+        >>> print([r.as_quat() for r in c])
+        [array([ 0.70710678,  0.70710678,  0.        ,  0.        ]),
+         array([ 0.        ,  0.70710678,  0.        ,  0.70710678]),
+         array([ 0.57735027,  0.57735027, -0.57735027,  0.        ])]
+
+        Concatenation of split rotations will recover the original object:
+
+        >>> R.concatenate([a, b]).as_quat()
+        array([[ 0.70710678,  0.70710678,  0.        ,  0.        ],
+               [ 0.        ,  0.70710678,  0.        ,  0.70710678],
+               [ 0.57735027,  0.57735027, -0.57735027,  0.        ]])
         """
         if self._single:
             raise TypeError("Single rotation is not subscriptable.")
@@ -3158,7 +3233,8 @@ cdef class Rotation:
 
     @cython.embedsignature(True)
     @classmethod
-    def random(cls, num=None, random_state=None):
+    @_transition_to_rng('random_state', position_num=2)
+    def random(cls, num=None, rng=None):
         """Generate uniformly distributed rotations.
 
         Parameters
@@ -3166,15 +3242,11 @@ cdef class Rotation:
         num : int or None, optional
             Number of random rotations to generate. If None (default), then a
             single rotation is generated.
-        random_state : {None, int, `numpy.random.Generator`,
-                        `numpy.random.RandomState`}, optional
-
-            If `seed` is None (or `np.random`), the `numpy.random.RandomState`
-            singleton is used.
-            If `seed` is an int, a new ``RandomState`` instance is used,
-            seeded with `seed`.
-            If `seed` is already a ``Generator`` or ``RandomState`` instance
-            then that instance is used.
+        rng : `numpy.random.Generator`, optional
+            Pseudorandom number generator state. When `rng` is None, a new
+            `numpy.random.Generator` is created using entropy from the
+            operating system. Types other than `numpy.random.Generator` are
+            passed to `numpy.random.default_rng` to instantiate a `Generator`.
 
         Returns
         -------
@@ -3211,12 +3283,12 @@ cdef class Rotation:
         scipy.stats.special_ortho_group
 
        """
-        random_state = check_random_state(random_state)
+        rng = check_random_state(rng)
 
         if num is None:
-            sample = random_state.normal(size=4)
+            sample = rng.normal(size=4)
         else:
-            sample = random_state.normal(size=(num, 4))
+            sample = rng.normal(size=(num, 4))
 
         return cls(sample)
 
@@ -3488,7 +3560,7 @@ cdef class Rotation:
             tolerance = 1e-3  # tolerance for small angle approximation (rad)
             R_flip = cls.identity()
             if (np.pi - theta) < tolerance:
-                # Near pi radians, the Taylor series appoximation of x/sin(x)
+                # Near pi radians, the Taylor series approximation of x/sin(x)
                 # diverges, so for numerical stability we flip pi and then
                 # rotate back by the small angle pi - theta
                 if cross_norm == 0:
@@ -3673,7 +3745,7 @@ class Slerp:
         if not isinstance(rotations, Rotation):
             raise TypeError("`rotations` must be a `Rotation` instance.")
 
-        if rotations.single or len(rotations) == 1:
+        if rotations.single or len(rotations) <= 1:
             raise ValueError("`rotations` must be a sequence of at least 2 rotations.")
 
         times = np.asarray(times)

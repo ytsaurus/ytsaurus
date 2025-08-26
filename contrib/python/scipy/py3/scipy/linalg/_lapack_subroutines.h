@@ -19,6 +19,9 @@ typedef int (*_zselect2)(npy_complex128*, npy_complex128*);
 extern "C" {
 #endif
 
+#ifdef HAVE_MKL
+void BLAS_FUNC(cbbcsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, float *theta, float *phi, npy_complex64 *u1, int *ldu1, npy_complex64 *u2, int *ldu2, npy_complex64 *v1t, int *ldv1t, npy_complex64 *v2t, int *ldv2t, float *b11d, float *b11e, float *b12d, float *b12e, float *b21d, float *b21e, float *b22d, float *b22e, float *rwork, int *lrwork, int *info);
+#endif
 void BLAS_FUNC(cbdsqr)(char *uplo, int *n, int *ncvt, int *nru, int *ncc, float *d, float *e, npy_complex64 *vt, int *ldvt, npy_complex64 *u, int *ldu, npy_complex64 *c, int *ldc, float *rwork, int *info);
 void BLAS_FUNC(cgbbrd)(char *vect, int *m, int *n, int *ncc, int *kl, int *ku, npy_complex64 *ab, int *ldab, float *d, float *e, npy_complex64 *q, int *ldq, npy_complex64 *pt, int *ldpt, npy_complex64 *c, int *ldc, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(cgbcon)(char *norm, int *n, int *kl, int *ku, npy_complex64 *ab, int *ldab, int *ipiv, float *anorm, float *rcond, npy_complex64 *work, float *rwork, int *info);
@@ -49,11 +52,23 @@ void BLAS_FUNC(cgels)(char *trans, int *m, int *n, int *nrhs, npy_complex64 *a, 
 void BLAS_FUNC(cgelsd)(int *m, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, float *s, float *rcond, int *rank, npy_complex64 *work, int *lwork, float *rwork, int *iwork, int *info);
 void BLAS_FUNC(cgelss)(int *m, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, float *s, float *rcond, int *rank, npy_complex64 *work, int *lwork, float *rwork, int *info);
 void BLAS_FUNC(cgelsy)(int *m, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, int *jpvt, float *rcond, int *rank, npy_complex64 *work, int *lwork, float *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(cgemqrt)(char *side, char *trans, int *m, int *n, int *k, int *nb, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *c, int *ldc, npy_complex64 *work, int *info);
+#endif
 void BLAS_FUNC(cgeql2)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info);
 void BLAS_FUNC(cgeqlf)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(cgeqp3)(int *m, int *n, npy_complex64 *a, int *lda, int *jpvt, npy_complex64 *tau, npy_complex64 *work, int *lwork, float *rwork, int *info);
 void BLAS_FUNC(cgeqr2)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(cgeqr2p)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info);
+#endif
 void BLAS_FUNC(cgeqrf)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(cgeqrfp)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
+void BLAS_FUNC(cgeqrt)(int *m, int *n, int *nb, npy_complex64 *a, int *lda, npy_complex64 *t, int *ldt, npy_complex64 *work, int *info);
+void BLAS_FUNC(cgeqrt2)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *t, int *ldt, int *info);
+void BLAS_FUNC(cgeqrt3)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *t, int *ldt, int *info);
+#endif
 void BLAS_FUNC(cgerfs)(char *trans, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *af, int *ldaf, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *ferr, float *berr, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(cgerq2)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info);
 void BLAS_FUNC(cgerqf)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
@@ -107,12 +122,22 @@ void BLAS_FUNC(chegvx)(int *itype, char *jobz, char *range, char *uplo, int *n, 
 void BLAS_FUNC(cherfs)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *af, int *ldaf, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *ferr, float *berr, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(chesv)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(chesvx)(char *fact, char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *af, int *ldaf, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *rcond, float *ferr, float *berr, npy_complex64 *work, int *lwork, float *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(cheswapr)(char *uplo, int *n, npy_complex64 *a, int *lda, int *i1, int *i2);
+#endif
 void BLAS_FUNC(chetd2)(char *uplo, int *n, npy_complex64 *a, int *lda, float *d, float *e, npy_complex64 *tau, int *info);
 void BLAS_FUNC(chetf2)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, int *info);
 void BLAS_FUNC(chetrd)(char *uplo, int *n, npy_complex64 *a, int *lda, float *d, float *e, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(chetrf)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(chetri)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(chetri2)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *lwork, int *info);
+void BLAS_FUNC(chetri2x)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *nb, int *info);
+#endif
 void BLAS_FUNC(chetrs)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(chetrs2)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *work, int *info);
+#endif
 void BLAS_FUNC(chfrk)(char *transr, char *uplo, char *trans, int *n, int *k, float *alpha, npy_complex64 *a, int *lda, float *beta, npy_complex64 *c);
 void BLAS_FUNC(chgeqz)(char *job, char *compq, char *compz, int *n, int *ilo, int *ihi, npy_complex64 *h, int *ldh, npy_complex64 *t, int *ldt, npy_complex64 *alpha, npy_complex64 *beta, npy_complex64 *q, int *ldq, npy_complex64 *z, int *ldz, npy_complex64 *work, int *lwork, float *rwork, int *info);
 char BLAS_FUNC(chla_transtype)(int *trans);
@@ -174,6 +199,9 @@ float BLAS_FUNC(clantb)(char *norm, char *uplo, char *diag, int *n, int *k, npy_
 float BLAS_FUNC(clantp)(char *norm, char *uplo, char *diag, int *n, npy_complex64 *ap, float *work);
 float BLAS_FUNC(clantr)(char *norm, char *uplo, char *diag, int *m, int *n, npy_complex64 *a, int *lda, float *work);
 void BLAS_FUNC(clapll)(int *n, npy_complex64 *x, int *incx, npy_complex64 *y, int *incy, float *ssmin);
+#ifdef HAVE_MKL
+void BLAS_FUNC(clapmr)(int *forwrd, int *m, int *n, npy_complex64 *x, int *ldx, int *k);
+#endif
 void BLAS_FUNC(clapmt)(int *forwrd, int *m, int *n, npy_complex64 *x, int *ldx, int *k);
 void BLAS_FUNC(claqgb)(int *m, int *n, int *kl, int *ku, npy_complex64 *ab, int *ldab, float *r, float *c, float *rowcnd, float *colcnd, float *amax, char *equed);
 void BLAS_FUNC(claqge)(int *m, int *n, npy_complex64 *a, int *lda, float *r, float *c, float *rowcnd, float *colcnd, float *amax, char *equed);
@@ -197,6 +225,9 @@ void BLAS_FUNC(clarcm)(int *m, int *n, float *a, int *lda, npy_complex64 *b, int
 void BLAS_FUNC(clarf)(char *side, int *m, int *n, npy_complex64 *v, int *incv, npy_complex64 *tau, npy_complex64 *c, int *ldc, npy_complex64 *work);
 void BLAS_FUNC(clarfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *c, int *ldc, npy_complex64 *work, int *ldwork);
 void BLAS_FUNC(clarfg)(int *n, npy_complex64 *alpha, npy_complex64 *x, int *incx, npy_complex64 *tau);
+#ifdef HAVE_MKL
+void BLAS_FUNC(clarfgp)(int *n, npy_complex64 *alpha, npy_complex64 *x, int *incx, npy_complex64 *tau);
+#endif
 void BLAS_FUNC(clarft)(char *direct, char *storev, int *n, int *k, npy_complex64 *v, int *ldv, npy_complex64 *tau, npy_complex64 *t, int *ldt);
 void BLAS_FUNC(clarfx)(char *side, int *m, int *n, npy_complex64 *v, npy_complex64 *tau, npy_complex64 *c, int *ldc, npy_complex64 *work);
 void BLAS_FUNC(clargv)(int *n, npy_complex64 *x, int *incx, npy_complex64 *y, int *incy, float *c, int *incc);
@@ -278,16 +309,29 @@ void BLAS_FUNC(cstein)(int *n, float *d, float *e, int *m, float *w, int *iblock
 void BLAS_FUNC(cstemr)(char *jobz, char *range, int *n, float *d, float *e, float *vl, float *vu, int *il, int *iu, int *m, float *w, npy_complex64 *z, int *ldz, int *nzc, int *isuppz, int *tryrac, float *work, int *lwork, int *iwork, int *liwork, int *info);
 void BLAS_FUNC(csteqr)(char *compz, int *n, float *d, float *e, npy_complex64 *z, int *ldz, float *work, int *info);
 void BLAS_FUNC(csycon)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, float *anorm, float *rcond, npy_complex64 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(csyconv)(char *uplo, char *way, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *info);
+#endif
 void BLAS_FUNC(csyequb)(char *uplo, int *n, npy_complex64 *a, int *lda, float *s, float *scond, float *amax, npy_complex64 *work, int *info);
 void BLAS_FUNC(csymv)(char *uplo, int *n, npy_complex64 *alpha, npy_complex64 *a, int *lda, npy_complex64 *x, int *incx, npy_complex64 *beta, npy_complex64 *y, int *incy);
 void BLAS_FUNC(csyr)(char *uplo, int *n, npy_complex64 *alpha, npy_complex64 *x, int *incx, npy_complex64 *a, int *lda);
 void BLAS_FUNC(csyrfs)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *af, int *ldaf, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *ferr, float *berr, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(csysv)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(csysvx)(char *fact, char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *af, int *ldaf, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *rcond, float *ferr, float *berr, npy_complex64 *work, int *lwork, float *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(csyswapr)(char *uplo, int *n, npy_complex64 *a, int *lda, int *i1, int *i2);
+#endif
 void BLAS_FUNC(csytf2)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, int *info);
 void BLAS_FUNC(csytrf)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(csytri)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(csytri2)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *lwork, int *info);
+void BLAS_FUNC(csytri2x)(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *nb, int *info);
+#endif
 void BLAS_FUNC(csytrs)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(csytrs2)(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *work, int *info);
+#endif
 void BLAS_FUNC(ctbcon)(char *norm, char *uplo, char *diag, int *n, int *kd, npy_complex64 *ab, int *ldab, float *rcond, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(ctbrfs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, npy_complex64 *ab, int *ldab, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *ferr, float *berr, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(ctbtrs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, npy_complex64 *ab, int *ldab, npy_complex64 *b, int *ldb, int *info);
@@ -304,6 +348,12 @@ void BLAS_FUNC(ctgsna)(char *job, char *howmny, int *select, int *n, npy_complex
 void BLAS_FUNC(ctgsy2)(char *trans, int *ijob, int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *c, int *ldc, npy_complex64 *d, int *ldd, npy_complex64 *e, int *lde, npy_complex64 *f, int *ldf, float *scale, float *rdsum, float *rdscal, int *info);
 void BLAS_FUNC(ctgsyl)(char *trans, int *ijob, int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *c, int *ldc, npy_complex64 *d, int *ldd, npy_complex64 *e, int *lde, npy_complex64 *f, int *ldf, float *scale, float *dif, npy_complex64 *work, int *lwork, int *iwork, int *info);
 void BLAS_FUNC(ctpcon)(char *norm, char *uplo, char *diag, int *n, npy_complex64 *ap, float *rcond, npy_complex64 *work, float *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(ctpmqrt)(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *work, int *info);
+void BLAS_FUNC(ctpqrt)(int *m, int *n, int *l, int *nb, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *t, int *ldt, npy_complex64 *work, int *info);
+void BLAS_FUNC(ctpqrt2)(int *m, int *n, int *l, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *t, int *ldt, int *info);
+void BLAS_FUNC(ctprfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *work, int *ldwork);
+#endif
 void BLAS_FUNC(ctprfs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, npy_complex64 *ap, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, float *ferr, float *berr, npy_complex64 *work, float *rwork, int *info);
 void BLAS_FUNC(ctptri)(char *uplo, char *diag, int *n, npy_complex64 *ap, int *info);
 void BLAS_FUNC(ctptrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, npy_complex64 *ap, npy_complex64 *b, int *ldb, int *info);
@@ -322,6 +372,10 @@ void BLAS_FUNC(ctrtrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, n
 void BLAS_FUNC(ctrttf)(char *transr, char *uplo, int *n, npy_complex64 *a, int *lda, npy_complex64 *arf, int *info);
 void BLAS_FUNC(ctrttp)(char *uplo, int *n, npy_complex64 *a, int *lda, npy_complex64 *ap, int *info);
 void BLAS_FUNC(ctzrzf)(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(cunbdb)(char *trans, char *signs, int *m, int *p, int *q, npy_complex64 *x11, int *ldx11, npy_complex64 *x12, int *ldx12, npy_complex64 *x21, int *ldx21, npy_complex64 *x22, int *ldx22, float *theta, float *phi, npy_complex64 *taup1, npy_complex64 *taup2, npy_complex64 *tauq1, npy_complex64 *tauq2, npy_complex64 *work, int *lwork, int *info);
+void BLAS_FUNC(cuncsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, npy_complex64 *x11, int *ldx11, npy_complex64 *x12, int *ldx12, npy_complex64 *x21, int *ldx21, npy_complex64 *x22, int *ldx22, float *theta, npy_complex64 *u1, int *ldu1, npy_complex64 *u2, int *ldu2, npy_complex64 *v1t, int *ldv1t, npy_complex64 *v2t, int *ldv2t, npy_complex64 *work, int *lwork, float *rwork, int *lrwork, int *iwork, int *info);
+#endif
 void BLAS_FUNC(cung2l)(int *m, int *n, int *k, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info);
 void BLAS_FUNC(cung2r)(int *m, int *n, int *k, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info);
 void BLAS_FUNC(cungbr)(char *vect, int *m, int *n, int *k, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info);
@@ -348,6 +402,9 @@ void BLAS_FUNC(cunmrz)(char *side, char *trans, int *m, int *n, int *k, int *l, 
 void BLAS_FUNC(cunmtr)(char *side, char *uplo, char *trans, int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *c, int *ldc, npy_complex64 *work, int *lwork, int *info);
 void BLAS_FUNC(cupgtr)(char *uplo, int *n, npy_complex64 *ap, npy_complex64 *tau, npy_complex64 *q, int *ldq, npy_complex64 *work, int *info);
 void BLAS_FUNC(cupmtr)(char *side, char *uplo, char *trans, int *m, int *n, npy_complex64 *ap, npy_complex64 *tau, npy_complex64 *c, int *ldc, npy_complex64 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dbbcsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, double *theta, double *phi, double *u1, int *ldu1, double *u2, int *ldu2, double *v1t, int *ldv1t, double *v2t, int *ldv2t, double *b11d, double *b11e, double *b12d, double *b12e, double *b21d, double *b21e, double *b22d, double *b22e, double *work, int *lwork, int *info);
+#endif
 void BLAS_FUNC(dbdsdc)(char *uplo, char *compq, int *n, double *d, double *e, double *u, int *ldu, double *vt, int *ldvt, double *q, int *iq, double *work, int *iwork, int *info);
 void BLAS_FUNC(dbdsqr)(char *uplo, int *n, int *ncvt, int *nru, int *ncc, double *d, double *e, double *vt, int *ldvt, double *u, int *ldu, double *c, int *ldc, double *work, int *info);
 void BLAS_FUNC(ddisna)(char *job, int *m, int *n, double *d, double *sep, int *info);
@@ -381,11 +438,23 @@ void BLAS_FUNC(dgels)(char *trans, int *m, int *n, int *nrhs, double *a, int *ld
 void BLAS_FUNC(dgelsd)(int *m, int *n, int *nrhs, double *a, int *lda, double *b, int *ldb, double *s, double *rcond, int *rank, double *work, int *lwork, int *iwork, int *info);
 void BLAS_FUNC(dgelss)(int *m, int *n, int *nrhs, double *a, int *lda, double *b, int *ldb, double *s, double *rcond, int *rank, double *work, int *lwork, int *info);
 void BLAS_FUNC(dgelsy)(int *m, int *n, int *nrhs, double *a, int *lda, double *b, int *ldb, int *jpvt, double *rcond, int *rank, double *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dgemqrt)(char *side, char *trans, int *m, int *n, int *k, int *nb, double *v, int *ldv, double *t, int *ldt, double *c, int *ldc, double *work, int *info);
+#endif
 void BLAS_FUNC(dgeql2)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *info);
 void BLAS_FUNC(dgeqlf)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *lwork, int *info);
 void BLAS_FUNC(dgeqp3)(int *m, int *n, double *a, int *lda, int *jpvt, double *tau, double *work, int *lwork, int *info);
 void BLAS_FUNC(dgeqr2)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dgeqr2p)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *info);
+#endif
 void BLAS_FUNC(dgeqrf)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dgeqrfp)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *lwork, int *info);
+void BLAS_FUNC(dgeqrt)(int *m, int *n, int *nb, double *a, int *lda, double *t, int *ldt, double *work, int *info);
+void BLAS_FUNC(dgeqrt2)(int *m, int *n, double *a, int *lda, double *t, int *ldt, int *info);
+void BLAS_FUNC(dgeqrt3)(int *m, int *n, double *a, int *lda, double *t, int *ldt, int *info);
+#endif
 void BLAS_FUNC(dgerfs)(char *trans, int *n, int *nrhs, double *a, int *lda, double *af, int *ldaf, int *ipiv, double *b, int *ldb, double *x, int *ldx, double *ferr, double *berr, double *work, int *iwork, int *info);
 void BLAS_FUNC(dgerq2)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *info);
 void BLAS_FUNC(dgerqf)(int *m, int *n, double *a, int *lda, double *tau, double *work, int *lwork, int *info);
@@ -477,6 +546,9 @@ double BLAS_FUNC(dlantp)(char *norm, char *uplo, char *diag, int *n, double *ap,
 double BLAS_FUNC(dlantr)(char *norm, char *uplo, char *diag, int *m, int *n, double *a, int *lda, double *work);
 void BLAS_FUNC(dlanv2)(double *a, double *b, double *c, double *d, double *rt1r, double *rt1i, double *rt2r, double *rt2i, double *cs, double *sn);
 void BLAS_FUNC(dlapll)(int *n, double *x, int *incx, double *y, int *incy, double *ssmin);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dlapmr)(int *forwrd, int *m, int *n, double *x, int *ldx, int *k);
+#endif
 void BLAS_FUNC(dlapmt)(int *forwrd, int *m, int *n, double *x, int *ldx, int *k);
 double BLAS_FUNC(dlapy2)(double *x, double *y);
 double BLAS_FUNC(dlapy3)(double *x, double *y, double *z);
@@ -499,6 +571,7 @@ void BLAS_FUNC(dlar2v)(int *n, double *x, double *y, double *z, int *incx, doubl
 void BLAS_FUNC(dlarf)(char *side, int *m, int *n, double *v, int *incv, double *tau, double *c, int *ldc, double *work);
 void BLAS_FUNC(dlarfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, double *v, int *ldv, double *t, int *ldt, double *c, int *ldc, double *work, int *ldwork);
 void BLAS_FUNC(dlarfg)(int *n, double *alpha, double *x, int *incx, double *tau);
+void BLAS_FUNC(dlarfgp)(int *n, double *alpha, double *x, int *incx, double *tau);
 void BLAS_FUNC(dlarft)(char *direct, char *storev, int *n, int *k, double *v, int *ldv, double *tau, double *t, int *ldt);
 void BLAS_FUNC(dlarfx)(char *side, int *m, int *n, double *v, double *tau, double *c, int *ldc, double *work);
 void BLAS_FUNC(dlargv)(int *n, double *x, int *incx, double *y, int *incy, double *c, int *incc);
@@ -514,6 +587,10 @@ void BLAS_FUNC(dlarrk)(int *n, int *iw, double *gl, double *gu, double *d, doubl
 void BLAS_FUNC(dlarrr)(int *n, double *d, double *e, int *info);
 void BLAS_FUNC(dlarrv)(int *n, double *vl, double *vu, double *d, double *l, double *pivmin, int *isplit, int *m, int *dol, int *dou, double *minrgp, double *rtol1, double *rtol2, double *w, double *werr, double *wgap, int *iblock, int *indexw, double *gers, double *z, int *ldz, int *isuppz, double *work, int *iwork, int *info);
 void BLAS_FUNC(dlartg)(double *f, double *g, double *cs, double *sn, double *r);
+void BLAS_FUNC(dlartgp)(double *f, double *g, double *cs, double *sn, double *r);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dlartgs)(double *x, double *y, double *sigma, double *cs, double *sn);
+#endif
 void BLAS_FUNC(dlartv)(int *n, double *x, int *incx, double *y, int *incy, double *c, double *s, int *incc);
 void BLAS_FUNC(dlaruv)(int *iseed, int *n, double *x);
 void BLAS_FUNC(dlarz)(char *side, int *m, int *n, int *l, double *v, int *incv, double *tau, double *c, int *ldc, double *work);
@@ -557,6 +634,10 @@ void BLAS_FUNC(dlauu2)(char *uplo, int *n, double *a, int *lda, int *info);
 void BLAS_FUNC(dlauum)(char *uplo, int *n, double *a, int *lda, int *info);
 void BLAS_FUNC(dopgtr)(char *uplo, int *n, double *ap, double *tau, double *q, int *ldq, double *work, int *info);
 void BLAS_FUNC(dopmtr)(char *side, char *uplo, char *trans, int *m, int *n, double *ap, double *tau, double *c, int *ldc, double *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dorbdb)(char *trans, char *signs, int *m, int *p, int *q, double *x11, int *ldx11, double *x12, int *ldx12, double *x21, int *ldx21, double *x22, int *ldx22, double *theta, double *phi, double *taup1, double *taup2, double *tauq1, double *tauq2, double *work, int *lwork, int *info);
+void BLAS_FUNC(dorcsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, double *x11, int *ldx11, double *x12, int *ldx12, double *x21, int *ldx21, double *x22, int *ldx22, double *theta, double *u1, int *ldu1, double *u2, int *ldu2, double *v1t, int *ldv1t, double *v2t, int *ldv2t, double *work, int *lwork, int *iwork, int *info);
+#endif
 void BLAS_FUNC(dorg2l)(int *m, int *n, int *k, double *a, int *lda, double *tau, double *work, int *info);
 void BLAS_FUNC(dorg2r)(int *m, int *n, int *k, double *a, int *lda, double *tau, double *work, int *info);
 void BLAS_FUNC(dorgbr)(char *vect, int *m, int *n, int *k, double *a, int *lda, double *tau, double *work, int *lwork, int *info);
@@ -660,6 +741,9 @@ void BLAS_FUNC(dstevd)(char *jobz, int *n, double *d, double *e, double *z, int 
 void BLAS_FUNC(dstevr)(char *jobz, char *range, int *n, double *d, double *e, double *vl, double *vu, int *il, int *iu, double *abstol, int *m, double *w, double *z, int *ldz, int *isuppz, double *work, int *lwork, int *iwork, int *liwork, int *info);
 void BLAS_FUNC(dstevx)(char *jobz, char *range, int *n, double *d, double *e, double *vl, double *vu, int *il, int *iu, double *abstol, int *m, double *w, double *z, int *ldz, double *work, int *iwork, int *ifail, int *info);
 void BLAS_FUNC(dsycon)(char *uplo, int *n, double *a, int *lda, int *ipiv, double *anorm, double *rcond, double *work, int *iwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dsyconv)(char *uplo, char *way, int *n, double *a, int *lda, int *ipiv, double *work, int *info);
+#endif
 void BLAS_FUNC(dsyequb)(char *uplo, int *n, double *a, int *lda, double *s, double *scond, double *amax, double *work, int *info);
 void BLAS_FUNC(dsyev)(char *jobz, char *uplo, int *n, double *a, int *lda, double *w, double *work, int *lwork, int *info);
 void BLAS_FUNC(dsyevd)(char *jobz, char *uplo, int *n, double *a, int *lda, double *w, double *work, int *lwork, int *iwork, int *liwork, int *info);
@@ -673,12 +757,22 @@ void BLAS_FUNC(dsygvx)(int *itype, char *jobz, char *range, char *uplo, int *n, 
 void BLAS_FUNC(dsyrfs)(char *uplo, int *n, int *nrhs, double *a, int *lda, double *af, int *ldaf, int *ipiv, double *b, int *ldb, double *x, int *ldx, double *ferr, double *berr, double *work, int *iwork, int *info);
 void BLAS_FUNC(dsysv)(char *uplo, int *n, int *nrhs, double *a, int *lda, int *ipiv, double *b, int *ldb, double *work, int *lwork, int *info);
 void BLAS_FUNC(dsysvx)(char *fact, char *uplo, int *n, int *nrhs, double *a, int *lda, double *af, int *ldaf, int *ipiv, double *b, int *ldb, double *x, int *ldx, double *rcond, double *ferr, double *berr, double *work, int *lwork, int *iwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dsyswapr)(char *uplo, int *n, double *a, int *lda, int *i1, int *i2);
+#endif
 void BLAS_FUNC(dsytd2)(char *uplo, int *n, double *a, int *lda, double *d, double *e, double *tau, int *info);
 void BLAS_FUNC(dsytf2)(char *uplo, int *n, double *a, int *lda, int *ipiv, int *info);
 void BLAS_FUNC(dsytrd)(char *uplo, int *n, double *a, int *lda, double *d, double *e, double *tau, double *work, int *lwork, int *info);
 void BLAS_FUNC(dsytrf)(char *uplo, int *n, double *a, int *lda, int *ipiv, double *work, int *lwork, int *info);
 void BLAS_FUNC(dsytri)(char *uplo, int *n, double *a, int *lda, int *ipiv, double *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dsytri2)(char *uplo, int *n, double *a, int *lda, int *ipiv, double *work, int *lwork, int *info);
+void BLAS_FUNC(dsytri2x)(char *uplo, int *n, double *a, int *lda, int *ipiv, double *work, int *nb, int *info);
+#endif
 void BLAS_FUNC(dsytrs)(char *uplo, int *n, int *nrhs, double *a, int *lda, int *ipiv, double *b, int *ldb, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dsytrs2)(char *uplo, int *n, int *nrhs, double *a, int *lda, int *ipiv, double *b, int *ldb, double *work, int *info);
+#endif
 void BLAS_FUNC(dtbcon)(char *norm, char *uplo, char *diag, int *n, int *kd, double *ab, int *ldab, double *rcond, double *work, int *iwork, int *info);
 void BLAS_FUNC(dtbrfs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, double *ab, int *ldab, double *b, int *ldb, double *x, int *ldx, double *ferr, double *berr, double *work, int *iwork, int *info);
 void BLAS_FUNC(dtbtrs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, double *ab, int *ldab, double *b, int *ldb, int *info);
@@ -695,6 +789,12 @@ void BLAS_FUNC(dtgsna)(char *job, char *howmny, int *select, int *n, double *a, 
 void BLAS_FUNC(dtgsy2)(char *trans, int *ijob, int *m, int *n, double *a, int *lda, double *b, int *ldb, double *c, int *ldc, double *d, int *ldd, double *e, int *lde, double *f, int *ldf, double *scale, double *rdsum, double *rdscal, int *iwork, int *pq, int *info);
 void BLAS_FUNC(dtgsyl)(char *trans, int *ijob, int *m, int *n, double *a, int *lda, double *b, int *ldb, double *c, int *ldc, double *d, int *ldd, double *e, int *lde, double *f, int *ldf, double *scale, double *dif, double *work, int *lwork, int *iwork, int *info);
 void BLAS_FUNC(dtpcon)(char *norm, char *uplo, char *diag, int *n, double *ap, double *rcond, double *work, int *iwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(dtpmqrt)(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, double *v, int *ldv, double *t, int *ldt, double *a, int *lda, double *b, int *ldb, double *work, int *info);
+void BLAS_FUNC(dtpqrt)(int *m, int *n, int *l, int *nb, double *a, int *lda, double *b, int *ldb, double *t, int *ldt, double *work, int *info);
+void BLAS_FUNC(dtpqrt2)(int *m, int *n, int *l, double *a, int *lda, double *b, int *ldb, double *t, int *ldt, int *info);
+void BLAS_FUNC(dtprfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, double *v, int *ldv, double *t, int *ldt, double *a, int *lda, double *b, int *ldb, double *work, int *ldwork);
+#endif
 void BLAS_FUNC(dtprfs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, double *ap, double *b, int *ldb, double *x, int *ldx, double *ferr, double *berr, double *work, int *iwork, int *info);
 void BLAS_FUNC(dtptri)(char *uplo, char *diag, int *n, double *ap, int *info);
 void BLAS_FUNC(dtptrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, double *ap, double *b, int *ldb, int *info);
@@ -730,6 +830,9 @@ void BLAS_FUNC(ilaver)(int *vers_major, int *vers_minor, int *vers_patch);
 int BLAS_FUNC(ilazlc)(int *m, int *n, npy_complex128 *a, int *lda);
 int BLAS_FUNC(ilazlr)(int *m, int *n, npy_complex128 *a, int *lda);
 int BLAS_FUNC(izmax1)(int *n, npy_complex128 *cx, int *incx);
+#ifdef HAVE_MKL
+void BLAS_FUNC(sbbcsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, float *theta, float *phi, float *u1, int *ldu1, float *u2, int *ldu2, float *v1t, int *ldv1t, float *v2t, int *ldv2t, float *b11d, float *b11e, float *b12d, float *b12e, float *b21d, float *b21e, float *b22d, float *b22e, float *work, int *lwork, int *info);
+#endif
 void BLAS_FUNC(sbdsdc)(char *uplo, char *compq, int *n, float *d, float *e, float *u, int *ldu, float *vt, int *ldvt, float *q, int *iq, float *work, int *iwork, int *info);
 void BLAS_FUNC(sbdsqr)(char *uplo, int *n, int *ncvt, int *nru, int *ncc, float *d, float *e, float *vt, int *ldvt, float *u, int *ldu, float *c, int *ldc, float *work, int *info);
 float BLAS_FUNC(scsum1)(int *n, npy_complex64 *cx, int *incx);
@@ -764,11 +867,23 @@ void BLAS_FUNC(sgels)(char *trans, int *m, int *n, int *nrhs, float *a, int *lda
 void BLAS_FUNC(sgelsd)(int *m, int *n, int *nrhs, float *a, int *lda, float *b, int *ldb, float *s, float *rcond, int *rank, float *work, int *lwork, int *iwork, int *info);
 void BLAS_FUNC(sgelss)(int *m, int *n, int *nrhs, float *a, int *lda, float *b, int *ldb, float *s, float *rcond, int *rank, float *work, int *lwork, int *info);
 void BLAS_FUNC(sgelsy)(int *m, int *n, int *nrhs, float *a, int *lda, float *b, int *ldb, int *jpvt, float *rcond, int *rank, float *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(sgemqrt)(char *side, char *trans, int *m, int *n, int *k, int *nb, float *v, int *ldv, float *t, int *ldt, float *c, int *ldc, float *work, int *info);
+#endif
 void BLAS_FUNC(sgeql2)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *info);
 void BLAS_FUNC(sgeqlf)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *lwork, int *info);
 void BLAS_FUNC(sgeqp3)(int *m, int *n, float *a, int *lda, int *jpvt, float *tau, float *work, int *lwork, int *info);
 void BLAS_FUNC(sgeqr2)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(sgeqr2p)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *info);
+#endif
 void BLAS_FUNC(sgeqrf)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(sgeqrfp)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *lwork, int *info);
+void BLAS_FUNC(sgeqrt)(int *m, int *n, int *nb, float *a, int *lda, float *t, int *ldt, float *work, int *info);
+void BLAS_FUNC(sgeqrt2)(int *m, int *n, float *a, int *lda, float *t, int *ldt, int *info);
+void BLAS_FUNC(sgeqrt3)(int *m, int *n, float *a, int *lda, float *t, int *ldt, int *info);
+#endif
 void BLAS_FUNC(sgerfs)(char *trans, int *n, int *nrhs, float *a, int *lda, float *af, int *ldaf, int *ipiv, float *b, int *ldb, float *x, int *ldx, float *ferr, float *berr, float *work, int *iwork, int *info);
 void BLAS_FUNC(sgerq2)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *info);
 void BLAS_FUNC(sgerqf)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *lwork, int *info);
@@ -858,6 +973,9 @@ float BLAS_FUNC(slantp)(char *norm, char *uplo, char *diag, int *n, float *ap, f
 float BLAS_FUNC(slantr)(char *norm, char *uplo, char *diag, int *m, int *n, float *a, int *lda, float *work);
 void BLAS_FUNC(slanv2)(float *a, float *b, float *c, float *d, float *rt1r, float *rt1i, float *rt2r, float *rt2i, float *cs, float *sn);
 void BLAS_FUNC(slapll)(int *n, float *x, int *incx, float *y, int *incy, float *ssmin);
+#ifdef HAVE_MKL
+void BLAS_FUNC(slapmr)(int *forwrd, int *m, int *n, float *x, int *ldx, int *k);
+#endif
 void BLAS_FUNC(slapmt)(int *forwrd, int *m, int *n, float *x, int *ldx, int *k);
 float BLAS_FUNC(slapy2)(float *x, float *y);
 float BLAS_FUNC(slapy3)(float *x, float *y, float *z);
@@ -880,6 +998,9 @@ void BLAS_FUNC(slar2v)(int *n, float *x, float *y, float *z, int *incx, float *c
 void BLAS_FUNC(slarf)(char *side, int *m, int *n, float *v, int *incv, float *tau, float *c, int *ldc, float *work);
 void BLAS_FUNC(slarfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, float *v, int *ldv, float *t, int *ldt, float *c, int *ldc, float *work, int *ldwork);
 void BLAS_FUNC(slarfg)(int *n, float *alpha, float *x, int *incx, float *tau);
+#ifdef HAVE_MKL
+void BLAS_FUNC(slarfgp)(int *n, float *alpha, float *x, int *incx, float *tau);
+#endif
 void BLAS_FUNC(slarft)(char *direct, char *storev, int *n, int *k, float *v, int *ldv, float *tau, float *t, int *ldt);
 void BLAS_FUNC(slarfx)(char *side, int *m, int *n, float *v, float *tau, float *c, int *ldc, float *work);
 void BLAS_FUNC(slargv)(int *n, float *x, int *incx, float *y, int *incy, float *c, int *incc);
@@ -895,6 +1016,10 @@ void BLAS_FUNC(slarrk)(int *n, int *iw, float *gl, float *gu, float *d, float *e
 void BLAS_FUNC(slarrr)(int *n, float *d, float *e, int *info);
 void BLAS_FUNC(slarrv)(int *n, float *vl, float *vu, float *d, float *l, float *pivmin, int *isplit, int *m, int *dol, int *dou, float *minrgp, float *rtol1, float *rtol2, float *w, float *werr, float *wgap, int *iblock, int *indexw, float *gers, float *z, int *ldz, int *isuppz, float *work, int *iwork, int *info);
 void BLAS_FUNC(slartg)(float *f, float *g, float *cs, float *sn, float *r);
+#ifdef HAVE_MKL
+void BLAS_FUNC(slartgp)(float *f, float *g, float *cs, float *sn, float *r);
+void BLAS_FUNC(slartgs)(float *x, float *y, float *sigma, float *cs, float *sn);
+#endif
 void BLAS_FUNC(slartv)(int *n, float *x, int *incx, float *y, int *incy, float *c, float *s, int *incc);
 void BLAS_FUNC(slaruv)(int *iseed, int *n, float *x);
 void BLAS_FUNC(slarz)(char *side, int *m, int *n, int *l, float *v, int *incv, float *tau, float *c, int *ldc, float *work);
@@ -937,6 +1062,10 @@ void BLAS_FUNC(slauu2)(char *uplo, int *n, float *a, int *lda, int *info);
 void BLAS_FUNC(slauum)(char *uplo, int *n, float *a, int *lda, int *info);
 void BLAS_FUNC(sopgtr)(char *uplo, int *n, float *ap, float *tau, float *q, int *ldq, float *work, int *info);
 void BLAS_FUNC(sopmtr)(char *side, char *uplo, char *trans, int *m, int *n, float *ap, float *tau, float *c, int *ldc, float *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(sorbdb)(char *trans, char *signs, int *m, int *p, int *q, float *x11, int *ldx11, float *x12, int *ldx12, float *x21, int *ldx21, float *x22, int *ldx22, float *theta, float *phi, float *taup1, float *taup2, float *tauq1, float *tauq2, float *work, int *lwork, int *info);
+void BLAS_FUNC(sorcsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, float *x11, int *ldx11, float *x12, int *ldx12, float *x21, int *ldx21, float *x22, int *ldx22, float *theta, float *u1, int *ldu1, float *u2, int *ldu2, float *v1t, int *ldv1t, float *v2t, int *ldv2t, float *work, int *lwork, int *iwork, int *info);
+#endif
 void BLAS_FUNC(sorg2l)(int *m, int *n, int *k, float *a, int *lda, float *tau, float *work, int *info);
 void BLAS_FUNC(sorg2r)(int *m, int *n, int *k, float *a, int *lda, float *tau, float *work, int *info);
 void BLAS_FUNC(sorgbr)(char *vect, int *m, int *n, int *k, float *a, int *lda, float *tau, float *work, int *lwork, int *info);
@@ -1038,6 +1167,9 @@ void BLAS_FUNC(sstevd)(char *jobz, int *n, float *d, float *e, float *z, int *ld
 void BLAS_FUNC(sstevr)(char *jobz, char *range, int *n, float *d, float *e, float *vl, float *vu, int *il, int *iu, float *abstol, int *m, float *w, float *z, int *ldz, int *isuppz, float *work, int *lwork, int *iwork, int *liwork, int *info);
 void BLAS_FUNC(sstevx)(char *jobz, char *range, int *n, float *d, float *e, float *vl, float *vu, int *il, int *iu, float *abstol, int *m, float *w, float *z, int *ldz, float *work, int *iwork, int *ifail, int *info);
 void BLAS_FUNC(ssycon)(char *uplo, int *n, float *a, int *lda, int *ipiv, float *anorm, float *rcond, float *work, int *iwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(ssyconv)(char *uplo, char *way, int *n, float *a, int *lda, int *ipiv, float *work, int *info);
+#endif
 void BLAS_FUNC(ssyequb)(char *uplo, int *n, float *a, int *lda, float *s, float *scond, float *amax, float *work, int *info);
 void BLAS_FUNC(ssyev)(char *jobz, char *uplo, int *n, float *a, int *lda, float *w, float *work, int *lwork, int *info);
 void BLAS_FUNC(ssyevd)(char *jobz, char *uplo, int *n, float *a, int *lda, float *w, float *work, int *lwork, int *iwork, int *liwork, int *info);
@@ -1051,12 +1183,22 @@ void BLAS_FUNC(ssygvx)(int *itype, char *jobz, char *range, char *uplo, int *n, 
 void BLAS_FUNC(ssyrfs)(char *uplo, int *n, int *nrhs, float *a, int *lda, float *af, int *ldaf, int *ipiv, float *b, int *ldb, float *x, int *ldx, float *ferr, float *berr, float *work, int *iwork, int *info);
 void BLAS_FUNC(ssysv)(char *uplo, int *n, int *nrhs, float *a, int *lda, int *ipiv, float *b, int *ldb, float *work, int *lwork, int *info);
 void BLAS_FUNC(ssysvx)(char *fact, char *uplo, int *n, int *nrhs, float *a, int *lda, float *af, int *ldaf, int *ipiv, float *b, int *ldb, float *x, int *ldx, float *rcond, float *ferr, float *berr, float *work, int *lwork, int *iwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(ssyswapr)(char *uplo, int *n, float *a, int *lda, int *i1, int *i2);
+#endif
 void BLAS_FUNC(ssytd2)(char *uplo, int *n, float *a, int *lda, float *d, float *e, float *tau, int *info);
 void BLAS_FUNC(ssytf2)(char *uplo, int *n, float *a, int *lda, int *ipiv, int *info);
 void BLAS_FUNC(ssytrd)(char *uplo, int *n, float *a, int *lda, float *d, float *e, float *tau, float *work, int *lwork, int *info);
 void BLAS_FUNC(ssytrf)(char *uplo, int *n, float *a, int *lda, int *ipiv, float *work, int *lwork, int *info);
 void BLAS_FUNC(ssytri)(char *uplo, int *n, float *a, int *lda, int *ipiv, float *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(ssytri2)(char *uplo, int *n, float *a, int *lda, int *ipiv, float *work, int *lwork, int *info);
+void BLAS_FUNC(ssytri2x)(char *uplo, int *n, float *a, int *lda, int *ipiv, float *work, int *nb, int *info);
+#endif
 void BLAS_FUNC(ssytrs)(char *uplo, int *n, int *nrhs, float *a, int *lda, int *ipiv, float *b, int *ldb, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(ssytrs2)(char *uplo, int *n, int *nrhs, float *a, int *lda, int *ipiv, float *b, int *ldb, float *work, int *info);
+#endif
 void BLAS_FUNC(stbcon)(char *norm, char *uplo, char *diag, int *n, int *kd, float *ab, int *ldab, float *rcond, float *work, int *iwork, int *info);
 void BLAS_FUNC(stbrfs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, float *ab, int *ldab, float *b, int *ldb, float *x, int *ldx, float *ferr, float *berr, float *work, int *iwork, int *info);
 void BLAS_FUNC(stbtrs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, float *ab, int *ldab, float *b, int *ldb, int *info);
@@ -1073,6 +1215,12 @@ void BLAS_FUNC(stgsna)(char *job, char *howmny, int *select, int *n, float *a, i
 void BLAS_FUNC(stgsy2)(char *trans, int *ijob, int *m, int *n, float *a, int *lda, float *b, int *ldb, float *c, int *ldc, float *d, int *ldd, float *e, int *lde, float *f, int *ldf, float *scale, float *rdsum, float *rdscal, int *iwork, int *pq, int *info);
 void BLAS_FUNC(stgsyl)(char *trans, int *ijob, int *m, int *n, float *a, int *lda, float *b, int *ldb, float *c, int *ldc, float *d, int *ldd, float *e, int *lde, float *f, int *ldf, float *scale, float *dif, float *work, int *lwork, int *iwork, int *info);
 void BLAS_FUNC(stpcon)(char *norm, char *uplo, char *diag, int *n, float *ap, float *rcond, float *work, int *iwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(stpmqrt)(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, float *v, int *ldv, float *t, int *ldt, float *a, int *lda, float *b, int *ldb, float *work, int *info);
+void BLAS_FUNC(stpqrt)(int *m, int *n, int *l, int *nb, float *a, int *lda, float *b, int *ldb, float *t, int *ldt, float *work, int *info);
+void BLAS_FUNC(stpqrt2)(int *m, int *n, int *l, float *a, int *lda, float *b, int *ldb, float *t, int *ldt, int *info);
+void BLAS_FUNC(stprfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, float *v, int *ldv, float *t, int *ldt, float *a, int *lda, float *b, int *ldb, float *work, int *ldwork);
+#endif
 void BLAS_FUNC(stprfs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, float *ap, float *b, int *ldb, float *x, int *ldx, float *ferr, float *berr, float *work, int *iwork, int *info);
 void BLAS_FUNC(stptri)(char *uplo, char *diag, int *n, float *ap, int *info);
 void BLAS_FUNC(stptrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, float *ap, float *b, int *ldb, int *info);
@@ -1091,6 +1239,10 @@ void BLAS_FUNC(strtrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, f
 void BLAS_FUNC(strttf)(char *transr, char *uplo, int *n, float *a, int *lda, float *arf, int *info);
 void BLAS_FUNC(strttp)(char *uplo, int *n, float *a, int *lda, float *ap, int *info);
 void BLAS_FUNC(stzrzf)(int *m, int *n, float *a, int *lda, float *tau, float *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(xerbla_array)(char *srname_array, int *srname_len, int *info);
+void BLAS_FUNC(zbbcsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, double *theta, double *phi, npy_complex128 *u1, int *ldu1, npy_complex128 *u2, int *ldu2, npy_complex128 *v1t, int *ldv1t, npy_complex128 *v2t, int *ldv2t, double *b11d, double *b11e, double *b12d, double *b12e, double *b21d, double *b21e, double *b22d, double *b22e, double *rwork, int *lrwork, int *info);
+#endif
 void BLAS_FUNC(zbdsqr)(char *uplo, int *n, int *ncvt, int *nru, int *ncc, double *d, double *e, npy_complex128 *vt, int *ldvt, npy_complex128 *u, int *ldu, npy_complex128 *c, int *ldc, double *rwork, int *info);
 void BLAS_FUNC(zcgesv)(int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, npy_complex128 *work, npy_complex64 *swork, double *rwork, int *iter, int *info);
 void BLAS_FUNC(zcposv)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, npy_complex128 *work, npy_complex64 *swork, double *rwork, int *iter, int *info);
@@ -1124,11 +1276,23 @@ void BLAS_FUNC(zgels)(char *trans, int *m, int *n, int *nrhs, npy_complex128 *a,
 void BLAS_FUNC(zgelsd)(int *m, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, double *s, double *rcond, int *rank, npy_complex128 *work, int *lwork, double *rwork, int *iwork, int *info);
 void BLAS_FUNC(zgelss)(int *m, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, double *s, double *rcond, int *rank, npy_complex128 *work, int *lwork, double *rwork, int *info);
 void BLAS_FUNC(zgelsy)(int *m, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, int *jpvt, double *rcond, int *rank, npy_complex128 *work, int *lwork, double *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zgemqrt)(char *side, char *trans, int *m, int *n, int *k, int *nb, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *c, int *ldc, npy_complex128 *work, int *info);
+#endif
 void BLAS_FUNC(zgeql2)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info);
 void BLAS_FUNC(zgeqlf)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);
 void BLAS_FUNC(zgeqp3)(int *m, int *n, npy_complex128 *a, int *lda, int *jpvt, npy_complex128 *tau, npy_complex128 *work, int *lwork, double *rwork, int *info);
 void BLAS_FUNC(zgeqr2)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zgeqr2p)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info);
+#endif
 void BLAS_FUNC(zgeqrf)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zgeqrfp)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);
+void BLAS_FUNC(zgeqrt)(int *m, int *n, int *nb, npy_complex128 *a, int *lda, npy_complex128 *t, int *ldt, npy_complex128 *work, int *info);
+void BLAS_FUNC(zgeqrt2)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *t, int *ldt, int *info);
+void BLAS_FUNC(zgeqrt3)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *t, int *ldt, int *info);
+#endif
 void BLAS_FUNC(zgerfs)(char *trans, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *af, int *ldaf, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *ferr, double *berr, npy_complex128 *work, double *rwork, int *info);
 void BLAS_FUNC(zgerq2)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info);
 void BLAS_FUNC(zgerqf)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);
@@ -1182,12 +1346,22 @@ void BLAS_FUNC(zhegvx)(int *itype, char *jobz, char *range, char *uplo, int *n, 
 void BLAS_FUNC(zherfs)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *af, int *ldaf, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *ferr, double *berr, npy_complex128 *work, double *rwork, int *info);
 void BLAS_FUNC(zhesv)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *work, int *lwork, int *info);
 void BLAS_FUNC(zhesvx)(char *fact, char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *af, int *ldaf, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *rcond, double *ferr, double *berr, npy_complex128 *work, int *lwork, double *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zheswapr)(char *uplo, int *n, npy_complex128 *a, int *lda, int *i1, int *i2);
+#endif
 void BLAS_FUNC(zhetd2)(char *uplo, int *n, npy_complex128 *a, int *lda, double *d, double *e, npy_complex128 *tau, int *info);
 void BLAS_FUNC(zhetf2)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, int *info);
 void BLAS_FUNC(zhetrd)(char *uplo, int *n, npy_complex128 *a, int *lda, double *d, double *e, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);
 void BLAS_FUNC(zhetrf)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *lwork, int *info);
 void BLAS_FUNC(zhetri)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zhetri2)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *lwork, int *info);
+void BLAS_FUNC(zhetri2x)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *nb, int *info);
+#endif
 void BLAS_FUNC(zhetrs)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zhetrs2)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *work, int *info);
+#endif
 void BLAS_FUNC(zhfrk)(char *transr, char *uplo, char *trans, int *n, int *k, double *alpha, npy_complex128 *a, int *lda, double *beta, npy_complex128 *c);
 void BLAS_FUNC(zhgeqz)(char *job, char *compq, char *compz, int *n, int *ilo, int *ihi, npy_complex128 *h, int *ldh, npy_complex128 *t, int *ldt, npy_complex128 *alpha, npy_complex128 *beta, npy_complex128 *q, int *ldq, npy_complex128 *z, int *ldz, npy_complex128 *work, int *lwork, double *rwork, int *info);
 void BLAS_FUNC(zhpcon)(char *uplo, int *n, npy_complex128 *ap, int *ipiv, double *anorm, double *rcond, npy_complex128 *work, int *info);
@@ -1248,6 +1422,9 @@ double BLAS_FUNC(zlantb)(char *norm, char *uplo, char *diag, int *n, int *k, npy
 double BLAS_FUNC(zlantp)(char *norm, char *uplo, char *diag, int *n, npy_complex128 *ap, double *work);
 double BLAS_FUNC(zlantr)(char *norm, char *uplo, char *diag, int *m, int *n, npy_complex128 *a, int *lda, double *work);
 void BLAS_FUNC(zlapll)(int *n, npy_complex128 *x, int *incx, npy_complex128 *y, int *incy, double *ssmin);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zlapmr)(int *forwrd, int *m, int *n, npy_complex128 *x, int *ldx, int *k);
+#endif
 void BLAS_FUNC(zlapmt)(int *forwrd, int *m, int *n, npy_complex128 *x, int *ldx, int *k);
 void BLAS_FUNC(zlaqgb)(int *m, int *n, int *kl, int *ku, npy_complex128 *ab, int *ldab, double *r, double *c, double *rowcnd, double *colcnd, double *amax, char *equed);
 void BLAS_FUNC(zlaqge)(int *m, int *n, npy_complex128 *a, int *lda, double *r, double *c, double *rowcnd, double *colcnd, double *amax, char *equed);
@@ -1271,6 +1448,7 @@ void BLAS_FUNC(zlarcm)(int *m, int *n, double *a, int *lda, npy_complex128 *b, i
 void BLAS_FUNC(zlarf)(char *side, int *m, int *n, npy_complex128 *v, int *incv, npy_complex128 *tau, npy_complex128 *c, int *ldc, npy_complex128 *work);
 void BLAS_FUNC(zlarfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *c, int *ldc, npy_complex128 *work, int *ldwork);
 void BLAS_FUNC(zlarfg)(int *n, npy_complex128 *alpha, npy_complex128 *x, int *incx, npy_complex128 *tau);
+void BLAS_FUNC(zlarfgp)(int *n, npy_complex128 *alpha, npy_complex128 *x, int *incx, npy_complex128 *tau);
 void BLAS_FUNC(zlarft)(char *direct, char *storev, int *n, int *k, npy_complex128 *v, int *ldv, npy_complex128 *tau, npy_complex128 *t, int *ldt);
 void BLAS_FUNC(zlarfx)(char *side, int *m, int *n, npy_complex128 *v, npy_complex128 *tau, npy_complex128 *c, int *ldc, npy_complex128 *work);
 void BLAS_FUNC(zlargv)(int *n, npy_complex128 *x, int *incx, npy_complex128 *y, int *incy, double *c, int *incc);
@@ -1352,16 +1530,29 @@ void BLAS_FUNC(zstein)(int *n, double *d, double *e, int *m, double *w, int *ibl
 void BLAS_FUNC(zstemr)(char *jobz, char *range, int *n, double *d, double *e, double *vl, double *vu, int *il, int *iu, int *m, double *w, npy_complex128 *z, int *ldz, int *nzc, int *isuppz, int *tryrac, double *work, int *lwork, int *iwork, int *liwork, int *info);
 void BLAS_FUNC(zsteqr)(char *compz, int *n, double *d, double *e, npy_complex128 *z, int *ldz, double *work, int *info);
 void BLAS_FUNC(zsycon)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, double *anorm, double *rcond, npy_complex128 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zsyconv)(char *uplo, char *way, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *info);
+#endif
 void BLAS_FUNC(zsyequb)(char *uplo, int *n, npy_complex128 *a, int *lda, double *s, double *scond, double *amax, npy_complex128 *work, int *info);
 void BLAS_FUNC(zsymv)(char *uplo, int *n, npy_complex128 *alpha, npy_complex128 *a, int *lda, npy_complex128 *x, int *incx, npy_complex128 *beta, npy_complex128 *y, int *incy);
 void BLAS_FUNC(zsyr)(char *uplo, int *n, npy_complex128 *alpha, npy_complex128 *x, int *incx, npy_complex128 *a, int *lda);
 void BLAS_FUNC(zsyrfs)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *af, int *ldaf, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *ferr, double *berr, npy_complex128 *work, double *rwork, int *info);
 void BLAS_FUNC(zsysv)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *work, int *lwork, int *info);
 void BLAS_FUNC(zsysvx)(char *fact, char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *af, int *ldaf, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *rcond, double *ferr, double *berr, npy_complex128 *work, int *lwork, double *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zsyswapr)(char *uplo, int *n, npy_complex128 *a, int *lda, int *i1, int *i2);
+#endif
 void BLAS_FUNC(zsytf2)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, int *info);
 void BLAS_FUNC(zsytrf)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *lwork, int *info);
 void BLAS_FUNC(zsytri)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zsytri2)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *lwork, int *info);
+void BLAS_FUNC(zsytri2x)(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *nb, int *info);
+#endif
 void BLAS_FUNC(zsytrs)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zsytrs2)(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *work, int *info);
+#endif
 void BLAS_FUNC(ztbcon)(char *norm, char *uplo, char *diag, int *n, int *kd, npy_complex128 *ab, int *ldab, double *rcond, npy_complex128 *work, double *rwork, int *info);
 void BLAS_FUNC(ztbrfs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, npy_complex128 *ab, int *ldab, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *ferr, double *berr, npy_complex128 *work, double *rwork, int *info);
 void BLAS_FUNC(ztbtrs)(char *uplo, char *trans, char *diag, int *n, int *kd, int *nrhs, npy_complex128 *ab, int *ldab, npy_complex128 *b, int *ldb, int *info);
@@ -1378,6 +1569,12 @@ void BLAS_FUNC(ztgsna)(char *job, char *howmny, int *select, int *n, npy_complex
 void BLAS_FUNC(ztgsy2)(char *trans, int *ijob, int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *c, int *ldc, npy_complex128 *d, int *ldd, npy_complex128 *e, int *lde, npy_complex128 *f, int *ldf, double *scale, double *rdsum, double *rdscal, int *info);
 void BLAS_FUNC(ztgsyl)(char *trans, int *ijob, int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *c, int *ldc, npy_complex128 *d, int *ldd, npy_complex128 *e, int *lde, npy_complex128 *f, int *ldf, double *scale, double *dif, npy_complex128 *work, int *lwork, int *iwork, int *info);
 void BLAS_FUNC(ztpcon)(char *norm, char *uplo, char *diag, int *n, npy_complex128 *ap, double *rcond, npy_complex128 *work, double *rwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(ztpmqrt)(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *work, int *info);
+void BLAS_FUNC(ztpqrt)(int *m, int *n, int *l, int *nb, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *t, int *ldt, npy_complex128 *work, int *info);
+void BLAS_FUNC(ztpqrt2)(int *m, int *n, int *l, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *t, int *ldt, int *info);
+void BLAS_FUNC(ztprfb)(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *work, int *ldwork);
+#endif
 void BLAS_FUNC(ztprfs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, npy_complex128 *ap, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, double *ferr, double *berr, npy_complex128 *work, double *rwork, int *info);
 void BLAS_FUNC(ztptri)(char *uplo, char *diag, int *n, npy_complex128 *ap, int *info);
 void BLAS_FUNC(ztptrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, npy_complex128 *ap, npy_complex128 *b, int *ldb, int *info);
@@ -1396,6 +1593,10 @@ void BLAS_FUNC(ztrtrs)(char *uplo, char *trans, char *diag, int *n, int *nrhs, n
 void BLAS_FUNC(ztrttf)(char *transr, char *uplo, int *n, npy_complex128 *a, int *lda, npy_complex128 *arf, int *info);
 void BLAS_FUNC(ztrttp)(char *uplo, int *n, npy_complex128 *a, int *lda, npy_complex128 *ap, int *info);
 void BLAS_FUNC(ztzrzf)(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);
+#ifdef HAVE_MKL
+void BLAS_FUNC(zunbdb)(char *trans, char *signs, int *m, int *p, int *q, npy_complex128 *x11, int *ldx11, npy_complex128 *x12, int *ldx12, npy_complex128 *x21, int *ldx21, npy_complex128 *x22, int *ldx22, double *theta, double *phi, npy_complex128 *taup1, npy_complex128 *taup2, npy_complex128 *tauq1, npy_complex128 *tauq2, npy_complex128 *work, int *lwork, int *info);
+void BLAS_FUNC(zuncsd)(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, npy_complex128 *x11, int *ldx11, npy_complex128 *x12, int *ldx12, npy_complex128 *x21, int *ldx21, npy_complex128 *x22, int *ldx22, double *theta, npy_complex128 *u1, int *ldu1, npy_complex128 *u2, int *ldu2, npy_complex128 *v1t, int *ldv1t, npy_complex128 *v2t, int *ldv2t, npy_complex128 *work, int *lwork, double *rwork, int *lrwork, int *iwork, int *info);
+#endif
 void BLAS_FUNC(zung2l)(int *m, int *n, int *k, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info);
 void BLAS_FUNC(zung2r)(int *m, int *n, int *k, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info);
 void BLAS_FUNC(zungbr)(char *vect, int *m, int *n, int *k, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info);

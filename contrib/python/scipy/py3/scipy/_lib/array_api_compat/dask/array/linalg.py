@@ -5,7 +5,7 @@ from ..._internal import get_xp
 
 # Exports
 from dask.array.linalg import * # noqa: F403
-from dask.array import trace, outer
+from dask.array import outer
 
 # These functions are in both the main and linalg namespaces
 from dask.array import matmul, tensordot
@@ -42,6 +42,7 @@ def qr(x: Array, mode: Literal['reduced', 'complete'] = 'reduced',
     if mode != "reduced":
         raise ValueError("dask arrays only support using mode='reduced'")
     return QRResult(*da.linalg.qr(x, **kwargs))
+trace = get_xp(da)(_linalg.trace)
 cholesky = get_xp(da)(_linalg.cholesky)
 matrix_rank = get_xp(da)(_linalg.matrix_rank)
 matrix_norm = get_xp(da)(_linalg.matrix_norm)

@@ -314,7 +314,7 @@ class MatFile5Reader(MatFileReader):
                 msg = (
                     f'Duplicate variable name "{name}" in stream'
                     " - replacing previous with new\nConsider"
-                    "scipy.io.matlab._mio5.varmats_from_mat to split "
+                    "scipy.io.matlab.varmats_from_mat to split "
                     "file into single variable files"
                 )
                 warnings.warn(msg, MatReadWarning, stacklevel=2)
@@ -335,7 +335,7 @@ class MatFile5Reader(MatFileReader):
                 warnings.warn(
                     f'Unreadable variable "{name}", because "{err}"',
                     Warning, stacklevel=2)
-                res = "Read error: %s" % err
+                res = f"Read error: {err}"
             self.mat_stream.seek(next_position)
             mdict[name] = res
             if hdr.is_global:
@@ -512,7 +512,7 @@ NDT_ARRAY_FLAGS = MDTYPES[native_code]['dtypes']['array_flags']
 class VarWriter5:
     ''' Generic matlab matrix writing class '''
     mat_tag = np.zeros((), NDT_TAG_FULL)
-    mat_tag['mdtype'] = miMATRIX
+    mat_tag['mdtype'] = miMATRIX  # type: ignore[call-overload]
 
     def __init__(self, file_writer):
         self.file_stream = file_writer.file_stream

@@ -112,40 +112,51 @@ def minimize(
 
             disp : bool, optional
                 Whether to print information about the optimization procedure.
+                Default is ``False``.
             maxfev : int, optional
-                Maximum number of function evaluations.
+                Maximum number of function evaluations. Default is ``500 * n``.
             maxiter : int, optional
-                Maximum number of iterations.
+                Maximum number of iterations. Default is ``1000 * n``.
             target : float, optional
                 Target on the objective function value. The optimization
                 procedure is terminated when the objective function value of a
-                feasible point is less than or equal to this target.
+                feasible point is less than or equal to this target. Default is
+                ``-numpy.inf``.
             feasibility_tol : float, optional
                 Tolerance on the constraint violation. If the maximum
                 constraint violation at a point is less than or equal to this
-                tolerance, the point is considered feasible.
+                tolerance, the point is considered feasible. Default is
+                ``numpy.sqrt(numpy.finfo(float).eps)``.
             radius_init : float, optional
                 Initial trust-region radius. Typically, this value should be in
                 the order of one tenth of the greatest expected change to `x0`.
+                Default is ``1.0``.
             radius_final : float, optional
                 Final trust-region radius. It should indicate the accuracy
-                required in the final values of the variables.
+                required in the final values of the variables. Default is
+                ``1e-6``.
             nb_points : int, optional
                 Number of interpolation points used to build the quadratic
-                models of the objective and constraint functions.
+                models of the objective and constraint functions. Default is
+                ``2 * n + 1``.
             scale : bool, optional
-                Whether to scale the variables according to the bounds.
+                Whether to scale the variables according to the bounds. Default
+                is ``False``.
             filter_size : int, optional
                 Maximum number of points in the filter. The filter is used to
                 select the best point returned by the optimization procedure.
+                Default is ``sys.maxsize``.
             store_history : bool, optional
                 Whether to store the history of the function evaluations.
+                Default is ``False``.
             history_size : int, optional
                 Maximum number of function evaluations to store in the history.
+                Default is ``sys.maxsize``.
             debug : bool, optional
                 Whether to perform additional checks during the optimization
                 procedure. This option should be used only for debugging
-                purposes and is highly discouraged to general users.
+                purposes and is highly discouraged to general users. Default is
+                ``False``.
 
         Other constants (from the keyword arguments) are described below. They
         are not intended to be changed by general users. They should only be
@@ -212,58 +223,65 @@ def minimize(
     ----------------
     decrease_radius_factor : float, optional
         Factor by which the trust-region radius is reduced when the reduction
-        ratio is low or negative.
+        ratio is low or negative. Default is ``0.5``.
     increase_radius_factor : float, optional
         Factor by which the trust-region radius is increased when the reduction
-        ratio is large.
+        ratio is large. Default is ``numpy.sqrt(2.0)``.
     increase_radius_threshold : float, optional
         Threshold that controls the increase of the trust-region radius when
-        the reduction ratio is large.
+        the reduction ratio is large. Default is ``2.0``.
     decrease_radius_threshold : float, optional
         Threshold used to determine whether the trust-region radius should be
-        reduced to the resolution.
+        reduced to the resolution. Default is ``1.4``.
     decrease_resolution_factor : float, optional
         Factor by which the resolution is reduced when the current value is far
-        from its final value.
+        from its final value. Default is ``0.1``.
     large_resolution_threshold : float, optional
         Threshold used to determine whether the resolution is far from its
-        final value.
+        final value. Default is ``250.0``.
     moderate_resolution_threshold : float, optional
         Threshold used to determine whether the resolution is close to its
-        final value.
+        final value. Default is ``16.0``.
     low_ratio : float, optional
-        Threshold used to determine whether the reduction ratio is low.
+        Threshold used to determine whether the reduction ratio is low. Default
+        is ``0.1``.
     high_ratio : float, optional
         Threshold used to determine whether the reduction ratio is high.
+        Default is ``0.7``.
     very_low_ratio : float, optional
         Threshold used to determine whether the reduction ratio is very low.
-        This is used to determine whether the models should be reset.
+        This is used to determine whether the models should be reset. Default
+        is ``0.01``.
     penalty_increase_threshold : float, optional
         Threshold used to determine whether the penalty parameter should be
-        increased.
+        increased. Default is ``1.5``.
     penalty_increase_factor : float, optional
-        Factor by which the penalty parameter is increased.
+        Factor by which the penalty parameter is increased. Default is ``2.0``.
     short_step_threshold : float, optional
-        Factor used to determine whether the trial step is too short.
+        Factor used to determine whether the trial step is too short. Default
+        is ``0.5``.
     low_radius_factor : float, optional
         Factor used to determine which interpolation point should be removed
-        from the interpolation set at each iteration.
+        from the interpolation set at each iteration. Default is ``0.1``.
     byrd_omojokun_factor : float, optional
         Factor by which the trust-region radius is reduced for the computations
         of the normal step in the Byrd-Omojokun composite-step approach.
+        Default is ``0.8``.
     threshold_ratio_constraints : float, optional
         Threshold used to determine which constraints should be taken into
-        account when decreasing the penalty parameter.
+        account when decreasing the penalty parameter. Default is ``2.0``.
     large_shift_factor : float, optional
         Factor used to determine whether the point around which the quadratic
-        models are built should be updated.
+        models are built should be updated. Default is ``10.0``.
     large_gradient_factor : float, optional
-        Factor used to determine whether the models should be reset.
+        Factor used to determine whether the models should be reset. Default is
+        ``10.0``.
     resolution_factor : float, optional
-        Factor by which the resolution is decreased.
+        Factor by which the resolution is decreased. Default is ``2.0``.
     improve_tcg : bool, optional
         Whether to improve the steps computed by the truncated conjugate
-        gradient method when the trust-region boundary is reached.
+        gradient method when the trust-region boundary is reached. Default is
+        ``True``.
 
     References
     ----------
@@ -869,7 +887,7 @@ def _get_bounds(bounds, n):
     elif isinstance(bounds, Bounds):
         if bounds.lb.shape != (n,) or bounds.ub.shape != (n,):
             raise ValueError(f"The bounds must have {n} elements.")
-        return bounds
+        return Bounds(bounds.lb, bounds.ub)
     elif hasattr(bounds, "__len__"):
         bounds = np.asarray(bounds)
         if bounds.shape != (n, 2):
@@ -1408,7 +1426,7 @@ def _eval(pb, framework, step, options):
     if pb.n_eval >= options[Options.MAX_EVAL]:
         raise MaxEvalError
     x_eval = framework.x_best + step
-    fun_val, cub_val, ceq_val = pb(x_eval)
+    fun_val, cub_val, ceq_val = pb(x_eval, framework.penalty)
     r_val = pb.maxcv(x_eval, cub_val, ceq_val)
     if (
         fun_val <= options[Options.TARGET]
