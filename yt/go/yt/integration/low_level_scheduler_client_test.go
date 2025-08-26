@@ -284,19 +284,25 @@ func (s *Suite) TestListJobs(ctx context.Context, t *testing.T, yc yt.Client) {
 		"mapper": map[string]any{
 			"input_format":  "yson",
 			"output_format": "yson",
-			"command":       "echo hello >> /dev/stderr",
+			"command":       "run_constantly_failing_command",
 		},
+		"max_failed_job_count": 1,
 	}
 
 	opID, err := yc.StartOperation(ctx, yt.OperationMap, spec, nil)
 	require.NoError(t, err)
 
-	err = waitOpState(ctx, yc, opID, yt.StateCompleted)
+	err = waitOpState(ctx, yc, opID, yt.StateFailed)
 	require.NoError(t, err)
 
 	result, err := yc.ListJobs(ctx, opID, nil)
 	require.NoError(t, err)
-	require.NotEmpty(t, result.Jobs)
+	require.Len(t, result.Jobs, 1)
+
+	job := result.Jobs[0]
+
+	require.Equal(t, string(yt.JobFailed), job.State)
+	require.NotEmpty(t, job.Error.Message)
 }
 
 func (s *Suite) TestGetOperationByAlias(ctx context.Context, t *testing.T, yc yt.Client) {
