@@ -180,8 +180,10 @@ DEFINE_REFCOUNTED_TYPE(TGentleLoaderConfig)
 struct THugePageManagerConfig
     : public NYTree::TYsonStruct
 {
+    EHugeManagerType Type;
     bool Enabled;
     int PagesPerBlob;
+    i64 HugePageMemoryLimit;
 
     REGISTER_YSON_STRUCT(THugePageManagerConfig);
 
@@ -195,8 +197,10 @@ DEFINE_REFCOUNTED_TYPE(THugePageManagerConfig)
 struct THugePageManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
+    std::optional<EHugeManagerType> Type;
     std::optional<bool> Enabled;
     std::optional<int> PagesPerBlob;
+    std::optional<i64> HugePageMemoryLimit;
 
     REGISTER_YSON_STRUCT(THugePageManagerDynamicConfig);
 

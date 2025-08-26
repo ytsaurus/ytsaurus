@@ -12,6 +12,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/lib/io/huge_page_manager.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/test_framework/test_connection.h>
@@ -328,15 +330,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TThreadPoolConfig)
+DECLARE_REFCOUNTED_STRUCT(TIOEngineConfig)
 
-struct TThreadPoolConfig
+struct TIOEngineConfig
     : public NYTree::TYsonStruct
 {
     int ReadThreadCount;
     int WriteThreadCount;
+    NIO::EDirectIOPolicy UseDirectIOForReads;
 
-    REGISTER_YSON_STRUCT(TThreadPoolConfig);
+    REGISTER_YSON_STRUCT(TIOEngineConfig);
 
     static void Register(TRegistrar registrar)
     {
@@ -346,10 +349,13 @@ struct TThreadPoolConfig
         registrar.Parameter("write_thread_count", &TThis::WriteThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
+
+        registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
+            .Default(NIO::EDirectIOPolicy::Never);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TThreadPoolConfig)
+DEFINE_REFCOUNTED_TYPE(TIOEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -359,6 +365,9 @@ class TDataNodeTest
 public:
     struct TDataNodeTestParams
     {
+        NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
+        bool EnableHugePageManager = false;
+        NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
         int ClusterConnectionThreadPoolSize = 4;
@@ -382,10 +391,11 @@ public:
         auto storeLocationConfig = New<TStoreLocationConfig>();
         storeLocationConfig->Path = Format("/tmp/locations/%v/chunk_store", GenerateRandomString(5, Generator_));
         storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
-        auto threadPoolConfig = New<TThreadPoolConfig>();
-        threadPoolConfig->ReadThreadCount = TestParams_.ReadThreadCount;
-        threadPoolConfig->WriteThreadCount = TestParams_.WriteThreadCount;
-        storeLocationConfig->IOConfig = NYTree::ConvertToNode(threadPoolConfig);
+        auto ioEngineConfig = New<TIOEngineConfig>();
+        ioEngineConfig->ReadThreadCount = TestParams_.ReadThreadCount;
+        ioEngineConfig->WriteThreadCount = TestParams_.WriteThreadCount;
+        ioEngineConfig->UseDirectIOForReads = TestParams_.UseDirectIOForReads;
+        storeLocationConfig->IOConfig = NYTree::ConvertToNode(ioEngineConfig);
         storeLocationConfig->IOWeight = ioWeight;
         storeLocationConfig->SessionCountLimit = sessionCountLimit;
         storeLocationConfig->Throttlers = {};
@@ -411,6 +421,11 @@ public:
         bootstrapConfig->ClusterConnection->Static->PrimaryMaster = New<TMasterConnectionConfig>();
         bootstrapConfig->ClusterConnection->Static->PrimaryMaster->Addresses = {PrimaryMasterAddress};
         bootstrapConfig->ClusterConnection->Static->PrimaryMaster->CellId = CellId;
+
+        bootstrapConfig->HugePageManager = New<NIO::THugePageManagerConfig>();
+        bootstrapConfig->HugePageManager->Type = TestParams_.HugePageManagerType;
+        bootstrapConfig->HugePageManager->Enabled = TestParams_.EnableHugePageManager;
+        bootstrapConfig->HugePageManager->PagesPerBlob = 2;
 
         bootstrapConfig->ClusterConnection->Dynamic = New<TConnectionDynamicConfig>();
         bootstrapConfig->ClusterConnection->Dynamic->ThreadPoolSize = TestParams_.ClusterConnectionThreadPoolSize;
@@ -726,6 +741,9 @@ struct TGetBlockSetTestCase
     bool FetchFromDisk = true;
     bool EnableSequentialIORequests = true;
     bool UseProbePutBlocks = false;
+    NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
+    bool EnableHugePageManager = false;
+    NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -738,6 +756,9 @@ public:
     TGetBlockSetTest()
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
+                .HugePageManagerType = GetParam().HugePageManagerType,
+                .EnableHugePageManager = GetParam().EnableHugePageManager,
+                .UseDirectIOForReads = GetParam().UseDirectIOForReads,
                 .EnableSequentialIORequests = GetParam().EnableSequentialIORequests,
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4
@@ -970,6 +991,12 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     auto getBlockSetFuturesResult = allsucceededGetBlockSetFutures.TryGet();
     EXPECT_TRUE(getBlockSetFuturesResult.has_value());
     EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
+
+    if (testCase.EnableHugePageManager && testCase.HugePageManagerType == NIO::EHugeManagerType::Transparent) {
+        EXPECT_GT(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
+    } else {
+        EXPECT_EQ(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1053,6 +1080,30 @@ INSTANTIATE_TEST_SUITE_P(
             .FetchFromCache = false,
             .FetchFromDisk = true,
             .EnableSequentialIORequests = false
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 100,
+            .BlockSize = 1_MB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
+            .HugePageManagerType = NIO::EHugeManagerType::Transparent,
+            .EnableHugePageManager = true,
+            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 100,
+            .BlockSize = 1_MB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
+            .HugePageManagerType = NIO::EHugeManagerType::Preallocated,
+            .EnableHugePageManager = true,
+            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always
         }
     )
 );

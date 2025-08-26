@@ -6,6 +6,11 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EHugeManagerType,
+    (Preallocated)
+    (Transparent)
+);
+
 DEFINE_ENUM(EIOEngineType,
     (ThreadPool)
     (Uring)
