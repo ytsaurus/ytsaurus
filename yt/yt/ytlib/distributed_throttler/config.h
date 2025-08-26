@@ -26,6 +26,7 @@ DEFINE_ENUM(EDistributedThrottlerMemberPriorityGenerator,
 DEFINE_ENUM(EDistributedThrottlerMemberWeightMode,
     (Uniform)
     (QueueBased)
+    (QueueBasedFree)
 );
 
 struct TDistributedThrottlerConfig
