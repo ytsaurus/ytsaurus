@@ -165,19 +165,27 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
 
 void THugePageManagerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("type", &TThis::Type)
+        .Default(EHugeManagerType::Transparent);
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
     registrar.Parameter("pages_per_blob", &TThis::PagesPerBlob)
         .Default(16);
+    registrar.Parameter("huge_page_memory_limit", &TThis::HugePageMemoryLimit)
+        .Default(1_GB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void THugePageManagerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("type", &TThis::Type)
+        .Default();
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default();
     registrar.Parameter("pages_per_blob", &TThis::PagesPerBlob)
+        .Default();
+    registrar.Parameter("huge_page_memory_limit", &TThis::HugePageMemoryLimit)
         .Default();
 }
 
