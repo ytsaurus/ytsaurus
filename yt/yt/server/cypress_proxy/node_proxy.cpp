@@ -1894,11 +1894,11 @@ private:
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
-        auto defaultResponseSizeLimit = dynamicConfig->DefaultGetResponseSizeLimit;
-        i64 responseSizeLimit = limit.value_or(defaultResponseSizeLimit);
+        auto responseSizeLimit = dynamicConfig->DefaultGetResponseSizeLimit;
 
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+        context->SetRequestInfo("ReceivedLimit: %v, MaxLimit: %v, AttributeFilter: %v",
             limit,
+            responseSizeLimit,
             attributeFilter);
 
         if (limit && limit < 0) {
