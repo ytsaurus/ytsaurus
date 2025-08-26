@@ -32,6 +32,12 @@ int TJobMonitoringIndexManager::GetResidualCapacity()
     return MaxSize_ - Size_;
 }
 
+int TJobMonitoringIndexManager::GetNotAddedIndexesCount()
+{
+    auto guard = TGuard(SpinLock_);
+    return NotAddedIndexesCount_;
+}
+
 void TJobMonitoringIndexManager::SetMaxSize(int maxSize)
 {
     auto guard = TGuard(SpinLock_);
@@ -44,6 +50,7 @@ std::optional<int> TJobMonitoringIndexManager::TryAddIndex(TOperationId operatio
 
     YT_VERIFY(Size_ <= MaxSize_);
     if (Size_ == MaxSize_) {
+        ++NotAddedIndexesCount_;
         return std::nullopt;
     }
 

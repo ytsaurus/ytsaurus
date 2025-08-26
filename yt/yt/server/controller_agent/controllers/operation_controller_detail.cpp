@@ -340,6 +340,10 @@ TOperationControllerBase::TOperationControllerBase(
         BIND_NO_PROPAGATE(&TThis::SendRunningAllocationTimeStatisticsUpdates, MakeWeak(this)),
         Config_->RunningAllocationTimeStatisticsUpdatesSendPeriod))
     , JobAbortsUntilOperationFailure_(Config_->MaxJobAbortsUntilOperationFailure)
+    , UsedMonitoringDescriptorCount_(
+        ControllerAgentProfiler()
+            .WithTag("user_name", AuthenticatedUser_)
+            .Counter("/user_job_monitoring/used_descriptors"))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -9265,38 +9269,43 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
 }
 
 std::optional<TJobMonitoringDescriptor> TOperationControllerBase::AcquireMonitoringDescriptorForJob(
-    TJobId jobId,
+    const TJobletPtr& joblet,
     const TAllocation& /*allocation*/)
 {
     YT_LOG_DEBUG(
         "Trying to assign monitoring descriptor to job (JobId: %v)",
-        jobId);
+        joblet->JobId);
 
     std::optional<TJobMonitoringDescriptor> descriptor;
-
     if (MonitoringDescriptorPool_.empty()) {
-        descriptor = RegisterNewMonitoringDescriptor();
+        descriptor = RegisterNewMonitoringDescriptor(joblet);
     } else {
-        auto it = MonitoringDescriptorPool_.begin();
-        auto foundDescriptor = *it;
-        MonitoringDescriptorPool_.erase(it);
-        descriptor = foundDescriptor;
+        descriptor = TryAcquireMonitoringDescriptorFromPool(joblet);
     }
 
     if (descriptor) {
         YT_LOG_DEBUG(
             "Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
-            jobId,
+            joblet->JobId,
             descriptor);
 
         ++MonitoredUserJobCount_;
     } else {
-        YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", joblet->JobId);
     }
     return descriptor;
 }
 
-std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMonitoringDescriptor()
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::TryAcquireMonitoringDescriptorFromPool(const TJobletPtr& /*joblet*/)
+{
+    auto it = MonitoringDescriptorPool_.begin();
+    YT_VERIFY(it != MonitoringDescriptorPool_.end());
+    auto foundDescriptor = *it;
+    MonitoringDescriptorPool_.erase(it);
+    return foundDescriptor;
+}
+
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMonitoringDescriptor(const TJobletPtr& joblet)
 {
     ++MonitoredUserJobAttemptCount_;
     if (MonitoredUserJobCount_ >= Config_->UserJobMonitoring->ExtendedMaxMonitoredUserJobsPerOperation) {
@@ -9318,6 +9327,16 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
         return {};
     }
 
+
+    if (auto descriptor = DoRegisterNewMonitoringDescriptor(joblet)) {
+        ++RegisteredMonitoringDescriptorCount_;
+        return descriptor;
+    }
+    return {};
+}
+
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::DoRegisterNewMonitoringDescriptor(const TJobletPtr& /*joblet*/)
+{
     auto descriptor = Host_->TryAcquireJobMonitoringDescriptor(OperationId_);
     if (!descriptor) {
         SetOperationAlert(
@@ -9326,7 +9345,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
                 << TErrorAttribute("limit_per_controller_agent", Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent));
         return {};
     }
-    ++RegisteredMonitoringDescriptorCount_;
+    UsedMonitoringDescriptorCount_.Increment();
     return descriptor;
 }
 
