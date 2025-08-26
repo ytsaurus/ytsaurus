@@ -1033,7 +1033,7 @@ private:
                 totalFreeLimit,
                 memberToLocalUsage.size());
 
-            // We use lock here just for safety since noone else should be using this function.
+            // We use lock here just for safety since most of the time there is no concurrency.
             auto guard = TGuard(ThrottlerIdToMemberWeightsLock_);
             auto& weights = ThrottlerIdToMemberWeights_[throttlerId];
 
@@ -1058,6 +1058,87 @@ private:
                     localUsage.Rate,
                     localUsage.Limit,
                     newLimit);
+
+                EmplaceOrCrash(memberIdToLimit[GetShardIndex(memberId)][memberId], throttlerId, newLimit);
+            }
+        }
+
+        return memberIdToLimit;
+    }
+
+    std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> CalculateQueueBasedFreeMemberLimits(
+        const TThrottlerToGlobalUsage& throttlerIdToGlobalUsage,
+        const THashMap<TThrottlerId, std::optional<double>>& throttlerIdToTotalLimit,
+        const THashMap<TThrottlerId, THashMap<TMemberId, TThrottlerLocalUsage>>& throttlerIdToMemberLocalUsages)
+    {
+        auto config = Config_.Acquire();
+        auto factor = config->MemberWeightExponentialSmoothingFactor;
+
+        std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> memberIdToLimit(ShardCount_);
+        for (const auto& [throttlerId, memberToLocalUsage] : throttlerIdToMemberLocalUsages) {
+            auto optionalTotalLimit = GetOrCrash(throttlerIdToTotalLimit, throttlerId);
+            if (!optionalTotalLimit) {
+                YT_LOG_WARNING("Skip throttler without total limit (ThrottlerId: %v)",
+                    throttlerId);
+                continue;
+            }
+
+            double totalLimit = *optionalTotalLimit;
+            double memberLimitThreshold = FloatingPointInverseLowerBound(0, totalLimit, [&] (double value) {
+                double total = 0;
+                for (const auto& [memberId, localUsage] : memberToLocalUsage) {
+                    total += Min(value, localUsage.Rate);
+                }
+                return total <= totalLimit;
+            });
+
+            double truncatedTotalLimit = 0;
+            THashMap<TMemberId, double> memberIdToWeight;
+            for (const auto& [memberId, localUsage] : memberToLocalUsage) {
+                truncatedTotalLimit += Min(localUsage.Rate, memberLimitThreshold);
+            }
+
+            double totalQueueAmount = GetOrCrash(throttlerIdToGlobalUsage, throttlerId).QueueTotalAmount;
+            double totalFreeLimit = config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - truncatedTotalLimit);
+
+            YT_LOG_DEBUG("Updating throttler member limits (ThrottlerId: %v, TotalLimit: %v, TruncatedTotalLimit: %v, MemberLimitThreshold: %v, TotalFreeLimit: %v, TotalQueueAmount: %v, MemberCount: %v)",
+                throttlerId,
+                totalLimit,
+                truncatedTotalLimit,
+                memberLimitThreshold,
+                totalFreeLimit,
+                totalQueueAmount,
+                memberToLocalUsage.size());
+
+            // We use lock here just for safety since most of the time there is no concurrency.
+            auto guard = TGuard(ThrottlerIdToMemberWeightsLock_);
+            auto& weights = ThrottlerIdToMemberWeights_[throttlerId];
+
+            for (const auto& [memberId, localUsage] : memberToLocalUsage) {
+                // Calculate new member weight by exponential smoothing: https://en.wikipedia.org/wiki/Exponential_smoothing.
+                double& weight = weights[memberId];
+                if (totalQueueAmount > 0) {
+                    // Use queue based weights.
+                    weight = (1 - factor) * weight + factor * (localUsage.QueueTotalAmount / totalQueueAmount);
+                } else {
+                    // Use even distribution of weights.
+                    weight = (1 - factor) * weight + factor * (1.0 / memberToLocalUsage.size());
+                }
+
+                // Calculate free limit for member.
+                auto freeLimit = weight * totalFreeLimit;
+
+                // Calculate new member limit.
+                auto newLimit = Min(localUsage.Rate, memberLimitThreshold) + freeLimit;
+
+                YT_LOG_TRACE(
+                    "Updating throttler limit (ThrottlerId: %v, MemberId: %v, Rate: %v, OldLimit: %v, NewLimit: %v, FreeLimit: %v)",
+                    throttlerId,
+                    memberId,
+                    localUsage.Rate,
+                    localUsage.Limit,
+                    newLimit,
+                    freeLimit);
 
                 EmplaceOrCrash(memberIdToLimit[GetShardIndex(memberId)][memberId], throttlerId, newLimit);
             }
@@ -1120,6 +1201,12 @@ private:
                 break;
             case EDistributedThrottlerMemberWeightMode::QueueBased:
                 memberIdToLimit = CalculateQueueBasedMemberLimits(
+                    *throttlerIdToGlobalUsage,
+                    throttlerIdToTotalLimit,
+                    throttlerIdToMemberLocalUsages);
+                break;
+            case EDistributedThrottlerMemberWeightMode::QueueBasedFree:
+                memberIdToLimit = CalculateQueueBasedFreeMemberLimits(
                     *throttlerIdToGlobalUsage,
                     throttlerIdToTotalLimit,
                     throttlerIdToMemberLocalUsages);
