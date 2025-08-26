@@ -32,7 +32,6 @@ jobs:
           echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/docker/odin/})" >> $GITHUB_OUTPUT
 
       - name: Build And Push Docker Image
-        needs: tag
         run: |
           cd yt/docker/ytsaurus
           docker build --target odin -t ghcr.io/ytsaurus/odin:test
