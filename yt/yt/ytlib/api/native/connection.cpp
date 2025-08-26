@@ -292,7 +292,7 @@ public:
         SchedulerChannel_ = CreateSchedulerChannel(
             config->Scheduler,
             ChannelFactory_,
-            GetMasterChannelOrThrow(EMasterChannelKind::Leader),
+            GetMasterChannelOrThrow(EMasterChannelKind::Follower),
             GetNetworks());
 
         BundleControllerChannel_ = NBundleController::CreateBundleControllerChannel(
