@@ -34,6 +34,6 @@ jobs:
       - name: Build And Push Docker Image
         run: |
           cd yt/docker/ytsaurus
-          docker build --target odin -t ghcr.io/ytsaurus/odin:test
+          docker build --target odin -t ghcr.io/ytsaurus/odin:test .
           docker push ghcr.io/ytsaurus/odin:test
 
