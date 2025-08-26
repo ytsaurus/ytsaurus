@@ -183,7 +183,10 @@ struct IOperationControllerHost
     //! Tries to unregister monitored job.
     //!
     //! \returns true iff the job was actually monitored.
-    virtual bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) = 0;
+    virtual bool TryReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) = 0;
+
+    virtual std::optional<TJobMonitoringDescriptor> TryAcquireGangJobMonitoringDescriptor(TOperationId operationId, int rank) = 0;
+    virtual bool TryReleaseGangJobMonitoringDescriptor(TOperationId operationId) = 0;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
     virtual TFuture<void> RemoveSnapshot() = 0;

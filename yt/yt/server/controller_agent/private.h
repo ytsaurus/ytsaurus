@@ -73,7 +73,7 @@ struct TStartedAllocationInfo
 
 struct TJobMonitoringDescriptor
 {
-    TIncarnationId IncarnationId;
+    TGuid Guid;
     int Index = 0;
 
     void Persist(const TPersistenceContext& context);
@@ -82,7 +82,7 @@ struct TJobMonitoringDescriptor
 };
 
 inline const TJobMonitoringDescriptor NullMonitoringDescriptor{
-    .IncarnationId = TIncarnationId(),
+    .Guid = TGuid(),
     .Index = -1,
 };
 

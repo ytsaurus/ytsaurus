@@ -379,10 +379,12 @@ public:
     void RegisterJoblet(const TJobletPtr& joblet) override;
 
     std::optional<TJobMonitoringDescriptor> AcquireMonitoringDescriptorForJob(
-        TJobId jobId,
+        const TJobletPtr& joblet,
         const TAllocation& allocation) override;
     void ReleaseMonitoringDescriptor(const TJobletPtr& joblet);
-    std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor();
+    std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor(const TJobletPtr& joblet);
+    virtual std::optional<TJobMonitoringDescriptor> DoRegisterNewMonitoringDescriptor(const TJobletPtr& joblet);
+    virtual std::optional<TJobMonitoringDescriptor> TryAcquireMonitoringDescriptorFromPool(const TJobletPtr& joblet);
 
     int GetMonitoredUserJobCount() const override;
     int GetRegisteredMonitoringDescriptorCount() const;
@@ -1537,6 +1539,9 @@ private:
     void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     void BuildJobsYson(NYTree::TFluentMap fluent) const;
     void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
+
+    // Monitoring doesn't work well with objects that suddenly run out of life time.
+    NProfiling::TCounter UsedMonitoringDescriptorCount_;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);

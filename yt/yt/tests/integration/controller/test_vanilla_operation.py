@@ -991,6 +991,7 @@ class TestGangOperations(YTEnvSetup):
             "user_job_monitoring": {
                 "extended_max_monitored_user_jobs_per_operation": 5,
                 "max_monitored_user_jobs_per_agent": 10,
+                "max_monitored_user_gangs_jobs_per_agent": 2,
             },
         },
     }
@@ -1033,6 +1034,9 @@ class TestGangOperations(YTEnvSetup):
 
     def _get_jobs_with_no_ranks(self, running_jobs):
         return [job_id for job_id, info in running_jobs.items() if info.get("gang_rank") is None]
+
+    def _get_jobs_with_ranks(self, running_jobs):
+        return [job_id for job_id, info in running_jobs.items() if info.get("gang_rank") is not None]
 
     @authors("pogorelov", "arkady-e1ppa")
     def test_operation_incarnation_is_set(self):
@@ -1611,8 +1615,16 @@ class TestGangOperations(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    @pytest.mark.parametrize("with_job_revival", [False, True])
-    def test_preserving_monitoring_descriptor_for_allocation(self, with_job_revival):
+    @pytest.mark.parametrize(
+        "with_job_revival, use_operation_id_based_descriptors_for_gangs_jobs",
+        [
+            (False, False),
+            (False, True),
+            (True, False),
+            (True, True)
+        ],
+    )
+    def test_preserving_monitoring_descriptor_for_allocation(self, with_job_revival, use_operation_id_based_descriptors_for_gangs_jobs):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=3,
@@ -1620,17 +1632,29 @@ class TestGangOperations(YTEnvSetup):
                 "gang_options": {},
                 "monitoring": {
                     "enable": True,
+                    "use_operation_id_based_descriptors_for_gangs_jobs": use_operation_id_based_descriptors_for_gangs_jobs,
                 },
             },
         )
 
+        def check_gang_monitoring_descriptor(op, running_jobs, job_to_monitoring_descriptors):
+            job_id_to_rank = self._get_job_id_to_rank_map(running_jobs)
+            for job_id, descriptor in job_to_monitoring_descriptors.items():
+                expected_job_descriptor = "{}/{}".format(op.id, job_id_to_rank[job_id])
+                assert descriptor == expected_job_descriptor
+
         first_job_ids = wait_breakpoint(job_count=3)
+        first_running_jobs = self._get_running_jobs(op, 3)
+        self._verify_job_ids_equal(first_running_jobs, first_job_ids)
         assert len(first_job_ids) == 3
 
         print_debug(f"First job info is {op.get_job_node_orchid(first_job_ids[0])}")
 
         first_job_to_monitoring_descriptors = {job_id: op.get_job_node_orchid(job_id)["monitoring_descriptor"] for job_id in first_job_ids}
         first_allocation_id_to_monitoring_descriptors = {get_allocation_id_from_job_id(job_id): descriptor for job_id, descriptor in first_job_to_monitoring_descriptors.items()}
+
+        if use_operation_id_based_descriptors_for_gangs_jobs:
+            check_gang_monitoring_descriptor(op, first_running_jobs, first_job_to_monitoring_descriptors)
 
         if with_job_revival:
             op.wait_for_fresh_snapshot()
@@ -1662,11 +1686,16 @@ class TestGangOperations(YTEnvSetup):
         first_allocation_id_to_monitoring_descriptors.pop(get_allocation_id_from_job_id(first_job_id))
 
         second_job_ids = wait_breakpoint(job_count=3)
+        second_running_jobs = self._get_running_jobs(op, 3)
+        self._verify_job_ids_equal(second_running_jobs, second_job_ids)
 
         assert len(set(first_job_ids) & set(second_job_ids)) == 0
 
         second_job_to_monitoring_descriptors = {job_id: op.get_job_node_orchid(job_id)["monitoring_descriptor"] for job_id in second_job_ids}
         second_allocation_id_to_monitoring_descriptors = {get_allocation_id_from_job_id(job_id): descriptor for job_id, descriptor in second_job_to_monitoring_descriptors.items()}
+
+        if use_operation_id_based_descriptors_for_gangs_jobs:
+            check_gang_monitoring_descriptor(op, second_running_jobs, second_job_to_monitoring_descriptors)
 
         for allocation_id, profiling_descriptor in first_allocation_id_to_monitoring_descriptors.items():
             assert profiling_descriptor == second_allocation_id_to_monitoring_descriptors[allocation_id]
@@ -2034,7 +2063,8 @@ class TestGangOperations(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    def test_gang_operation_monitoring_descriptor_limit(self):
+    @pytest.mark.parametrize("use_operation_id_based_descriptors_for_gangs_jobs", [False, True])
+    def test_gang_operation_monitoring_descriptor_limit(self, use_operation_id_based_descriptors_for_gangs_jobs):
         update_controller_agent_config(path="user_job_monitoring/extended_max_monitored_user_jobs_per_operation", value=1)
 
         op = vanilla(
@@ -2046,6 +2076,7 @@ class TestGangOperations(YTEnvSetup):
                         "command": with_breakpoint("BREAKPOINT"),
                         "gang_options": {},
                         "monitoring": {
+                            "use_operation_id_based_descriptors_for_gangs_jobs": use_operation_id_based_descriptors_for_gangs_jobs,
                             "enable": True
                         }
                     }

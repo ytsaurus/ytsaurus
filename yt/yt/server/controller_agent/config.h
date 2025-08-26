@@ -667,6 +667,7 @@ struct TUserJobMonitoringConfig
     THashMap<EOperationType, bool> EnableExtendedMaxMonitoredUserJobsPerOperation;
 
     int MaxMonitoredUserJobsPerAgent;
+    int MaxMonitoredGangsJobsPerAgent;
 
     REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
 

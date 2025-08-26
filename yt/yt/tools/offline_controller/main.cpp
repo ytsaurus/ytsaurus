@@ -328,7 +328,17 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    bool ReleaseJobMonitoringDescriptor(TOperationId /*operationId*/, TJobMonitoringDescriptor /*descriptor*/) override
+    bool TryReleaseJobMonitoringDescriptor(TOperationId /*operationId*/, TJobMonitoringDescriptor /*descriptor*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    std::optional<TJobMonitoringDescriptor> TryAcquireGangJobMonitoringDescriptor(TOperationId /*operationId*/, int /*rank*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool TryReleaseGangJobMonitoringDescriptor(TOperationId /*operationId*/) override
     {
         YT_UNIMPLEMENTED();
     }

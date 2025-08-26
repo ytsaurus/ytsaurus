@@ -115,7 +115,10 @@ public:
         bool requestNewJob) override;
 
     std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId) override;
-    bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) override;
+    bool TryReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) override;
+
+    std::optional<TJobMonitoringDescriptor> TryAcquireGangJobMonitoringDescriptor(TOperationId operationId, int rank) override;
+    bool TryReleaseGangJobMonitoringDescriptor(TOperationId operationId) override;
 
     TFuture<TOperationSnapshot> DownloadSnapshot() override;
     TFuture<void> RemoveSnapshot() override;
