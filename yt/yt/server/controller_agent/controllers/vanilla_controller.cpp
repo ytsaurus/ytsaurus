@@ -991,12 +991,17 @@ private:
     void EnrichJobInfo(NYTree::TFluentMap fluent, const TJobletPtr& joblet) const final;
 
     std::optional<TJobMonitoringDescriptor> AcquireMonitoringDescriptorForJob(
-        TJobId jobId,
+        const TJobletPtr& joblet,
         const TAllocation& allocation) final;
+
+    std::optional<TJobMonitoringDescriptor> DoRegisterNewMonitoringDescriptor(const TJobletPtr& joblet) final;
+    std::optional<TJobMonitoringDescriptor> TryAcquireMonitoringDescriptorFromPool(const TJobletPtr& joblet) final;
 
     void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) final;
 
     void CustomMaterialize() final;
+
+    NProfiling::TCounter UsedGangsMonitoringDescriptorCount_;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangOperationController, 0x99fa99be);
 };
@@ -1327,6 +1332,10 @@ TGangOperationController::TGangOperationController(
         std::move(host),
         operation)
     , Incarnation_(GenerateNewIncarnation())
+    , UsedGangsMonitoringDescriptorCount_(
+        ControllerAgentProfiler()
+            .WithTag("user_name", AuthenticatedUser_)
+            .Counter("/gang_monitoring_descriptors/used_monitored_descriptor"))
 {
     YT_LOG_DEBUG("Gang operation controller created (Incarnation: %v)", Incarnation_);
     GangOperationStartedCounter.Increment();
@@ -1734,32 +1743,89 @@ void TGangOperationController::EnrichJobInfo(NYTree::TFluentMap fluent, const TJ
 }
 
 std::optional<TJobMonitoringDescriptor> TGangOperationController::AcquireMonitoringDescriptorForJob(
-    TJobId jobId,
+    const TJobletPtr& joblet,
     const TAllocation& allocation)
 {
-    TLastGangJobInfo* lastGangJobInfo = static_cast<TLastGangJobInfo*>(allocation.LastJobInfo.get());
-
+    auto* lastGangJobInfo = static_cast<TLastGangJobInfo*>(allocation.LastJobInfo.get());
     if (!lastGangJobInfo) {
-        return TOperationControllerBase::AcquireMonitoringDescriptorForJob(jobId, allocation);
+        return TOperationControllerBase::AcquireMonitoringDescriptorForJob(joblet, allocation);
     }
 
     YT_LOG_DEBUG(
         "Trying to acquire monitoring descriptor for gang job (JobId: %v, PreviousMonitoringDescriptor: %v)",
-        jobId,
+        joblet->JobId,
         lastGangJobInfo->MonitoringDescriptor);
 
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
     if (lastGangJobInfo->MonitoringDescriptor == NullMonitoringDescriptor) {
+        // NB(krasovav): Need to create monitoring descriptor for all jobs that have rank.
+        if (userJobSpec->Monitoring->UseOperationIdBasedDescriptorsForGangsJobs && gangJoblet.Rank) {
+            return TOperationControllerBase::AcquireMonitoringDescriptorForJob(joblet, allocation);
+        }
         return std::nullopt;
     }
 
     EraseOrCrash(MonitoringDescriptorPool_, lastGangJobInfo->MonitoringDescriptor);
+
     ++MonitoredUserJobCount_;
     YT_LOG_DEBUG(
         "Monitoring descriptor reused for job (JobId: %v, MonitoringDescriptor: %v)",
-        jobId,
+        joblet->JobId,
         lastGangJobInfo->MonitoringDescriptor);
 
     return lastGangJobInfo->MonitoringDescriptor;
+}
+
+std::optional<TJobMonitoringDescriptor> TGangOperationController::DoRegisterNewMonitoringDescriptor(const TJobletPtr& joblet)
+{
+    YT_VERIFY(joblet);
+
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    if (!userJobSpec->Monitoring->UseOperationIdBasedDescriptorsForGangsJobs) {
+        return TOperationControllerBase::DoRegisterNewMonitoringDescriptor(joblet);
+    }
+
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+    if (gangJoblet.Rank) {
+        auto descriptor = Host_->TryAcquireGangJobMonitoringDescriptor(OperationId_, *gangJoblet.Rank);
+        if (descriptor) {
+            UsedGangsMonitoringDescriptorCount_.Increment();
+            return descriptor;
+        }
+        SetOperationAlert(
+            EOperationAlertType::UserJobMonitoringLimited,
+            TError("Limit of monitored user gangs jobs per controller agent reached, some jobs may be not monitored")
+                << TErrorAttribute("limit_per_gang_operation_controller_agent", Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent));
+        return std::nullopt;
+    }
+
+    YT_LOG_DEBUG("Failed to create monitoring descriptor, job with no rank (JobId: %v)", joblet->JobId);
+    return std::nullopt;
+}
+
+std::optional<TJobMonitoringDescriptor> TGangOperationController::TryAcquireMonitoringDescriptorFromPool(const TJobletPtr& joblet)
+{
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    if (!userJobSpec->Monitoring->UseOperationIdBasedDescriptorsForGangsJobs) {
+        return TOperationControllerBase::TryAcquireMonitoringDescriptorFromPool(joblet);
+    }
+
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+    if (!gangJoblet.Rank) {
+        return std::nullopt;
+    }
+
+    auto it = MonitoringDescriptorPool_.find(
+        TJobMonitoringDescriptor(
+            OperationId_.Underlying(),
+            *gangJoblet.Rank));
+    if (it == MonitoringDescriptorPool_.end()) {
+        return std::nullopt;
+    }
+    auto foundDescriptor = *it;
+    MonitoringDescriptorPool_.erase(it);
+    return foundDescriptor;
 }
 
 void TGangOperationController::CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation)

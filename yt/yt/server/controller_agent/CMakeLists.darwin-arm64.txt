@@ -71,5 +71,6 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/tentative_tree_eligibility.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/virtual.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/universal_monitoring_descriptor_manager.cpp
 )
 

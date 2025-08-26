@@ -622,6 +622,9 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("request_gpu_monitoring", &TThis::RequestGpuMonitoring)
         .Default(false);
+
+    registrar.Parameter("use_operation_id_based_descriptors_for_gangs_jobs", &TThis::UseOperationIdBasedDescriptorsForGangsJobs)
+        .Default(false);
 }
 
 const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
@@ -2339,6 +2342,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
+        TStringBuf taskWithDescriptorsForGangsJobsName;
         for (const auto& [taskName, taskSpec] : spec->Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
@@ -2358,6 +2362,9 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
             if (!empty(taskSpec->OutputTablePaths)) {
                 taskWithOutputTableName = taskName;
+            }
+            if (taskSpec->Monitoring && taskSpec->Monitoring->UseOperationIdBasedDescriptorsForGangsJobs) {
+                taskWithDescriptorsForGangsJobsName = taskName;
             }
         }
 
@@ -2383,6 +2390,10 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("You do not want sampling in vanilla operation :)");
+        }
+
+        if (!taskWithGangOptionsName && taskWithDescriptorsForGangsJobsName) {
+            THROW_ERROR_EXCEPTION("\"use_operation_id_based_descriptors_for_gangs_jobs\" must set only for gang operation");
         }
     });
 }

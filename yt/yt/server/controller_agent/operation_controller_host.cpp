@@ -285,9 +285,19 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerHost::TryAcquireJobM
     return Bootstrap_->GetControllerAgent()->TryAcquireJobMonitoringDescriptor(operationId);
 }
 
-bool TOperationControllerHost::ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
+bool TOperationControllerHost::TryReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
 {
     return Bootstrap_->GetControllerAgent()->ReleaseJobMonitoringDescriptor(operationId, descriptor);
+}
+
+std::optional<TJobMonitoringDescriptor> TOperationControllerHost::TryAcquireGangJobMonitoringDescriptor(TOperationId operationId, int rank)
+{
+    return Bootstrap_->GetControllerAgent()->TryAcquireGangJobMonitoringDescriptor(operationId, rank);
+}
+
+bool TOperationControllerHost::TryReleaseGangJobMonitoringDescriptor(TOperationId operationId)
+{
+    return Bootstrap_->GetControllerAgent()->TryReleaseGangJobMonitoringDescriptor(operationId);
 }
 
 TFuture<TOperationSnapshot> TOperationControllerHost::DownloadSnapshot()

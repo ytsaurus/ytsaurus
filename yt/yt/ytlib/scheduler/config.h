@@ -855,6 +855,8 @@ struct TUserJobMonitoringConfig
     //! Shortcut to request all GPU sensors.
     bool RequestGpuMonitoring;
 
+    bool UseOperationIdBasedDescriptorsForGangsJobs;
+
     REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
 
     static void Register(TRegistrar registrar);

@@ -919,11 +919,6 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
-    if (userJobSpec && userJobSpec->Monitoring->Enable) {
-        joblet->UserJobMonitoringDescriptor = TaskHost_->AcquireMonitoringDescriptorForJob(
-            joblet->JobId,
-            allocation);
-    }
 
     if (userJobSpec) {
         joblet->ArchiveTtl = userJobSpec->ArchiveTtl;
@@ -989,6 +984,12 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     // Sync part.
     TaskHost_->CustomizeJoblet(joblet, allocation);
+
+    if (userJobSpec && userJobSpec->Monitoring->Enable) {
+        joblet->UserJobMonitoringDescriptor = TaskHost_->AcquireMonitoringDescriptorForJob(
+            joblet,
+            allocation);
+    }
 
     TaskHost_->RegisterJoblet(joblet);
     if (!joblet->CompetitionType) {
