@@ -1,8 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, wait_no_assert,
-    wait_breakpoint, release_breakpoint, with_breakpoint,
+    authors, wait, wait_no_assert, events_on_fs,
     get, set, get_job, run_test_vanilla,
     create_network_project, extract_statistic_v2)
 
@@ -43,7 +42,12 @@ class TestUserJobNetwork(YTEnvSetup):
         set("//sys/network_projects/n/@project_id", 0xf420)
 
         op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT; curl http://{}/; exit 0".format(get_fqdn())),
+            " ; ".join(
+                [
+                    events_on_fs().breakpoint_cmd("command_started"),
+                    "curl http://{}/".format(get_fqdn()),
+                    events_on_fs().breakpoint_cmd("command_finished"),
+                ]),
             task_patch={
                 "network_project": "n",
                 "monitoring": {
@@ -53,7 +57,7 @@ class TestUserJobNetwork(YTEnvSetup):
             },
         )
 
-        job_id = wait_breakpoint()[0]
+        job_id = events_on_fs().wait_breakpoint("command_started")[0]
 
         @wait_no_assert
         def check():
@@ -76,10 +80,12 @@ class TestUserJobNetwork(YTEnvSetup):
         profiler = profiler_factory().at_node(node)
         counter = profiler.counter("user_job/network/rx_bytes", tags={"job_descriptor": descriptor})
 
-        release_breakpoint()
+        events_on_fs().release_breakpoint("command_started")
 
         wait(lambda: counter.get() is not None)
         # TODO(ignat): investigate flaps of network accounting.
         # wait(lambda: counter.get_delta() > 0)
+
+        events_on_fs().release_breakpoint("command_finished")
 
         op.track()
