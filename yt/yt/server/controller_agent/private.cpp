@@ -15,7 +15,7 @@ using namespace NTracing;
 void TJobMonitoringDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, IncarnationId);
+    Persist(context, Guid);
     Persist(context, Index);
 }
 
@@ -23,7 +23,7 @@ void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& de
 {
     builder->AppendFormat(
         "%v/%v",
-        descriptor.IncarnationId,
+        descriptor.Guid,
         descriptor.Index);
 }
 
@@ -157,5 +157,5 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& lhs, cons
 
 size_t THash<NYT::NControllerAgent::TJobMonitoringDescriptor>::operator()(const NYT::NControllerAgent::TJobMonitoringDescriptor& descriptor) const
 {
-    return MultiHash(descriptor.IncarnationId, descriptor.Index);
+    return MultiHash(descriptor.Guid, descriptor.Index);
 }

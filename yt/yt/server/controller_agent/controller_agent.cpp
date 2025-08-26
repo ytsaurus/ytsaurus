@@ -13,6 +13,7 @@
 #include "operation_controller_host.h"
 #include "private.h"
 #include "scheduling_context.h"
+#include "universal_monitoring_descriptor_manager.h"
 
 #include <yt/yt/server/controller_agent/controllers/common_state.h>
 
@@ -240,6 +241,7 @@ public:
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
+        , GangJobMonitoringDescriptorManager_(Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent)
         , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler().WithHot().Counter("/throttled_schedule_allocation_request_count"))
     {
         ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/used_descriptor_count", MakeStrong(this), [this] {
@@ -247,6 +249,9 @@ public:
         });
         ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/total_descriptor_count", MakeStrong(this), [this] {
             return JobMonitoringIndexManager_.GetMaxSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/not_acquired_monitor_descriptors_count", MakeStrong(this), [this] {
+            return JobMonitoringIndexManager_.GetNotAddedIndexesCount();
         });
         ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/monitored_job_count", MakeStrong(this), [this] {
             return WaitFor(BIND([&] {
@@ -259,6 +264,16 @@ public:
             .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run())
             .Value();
+        });
+
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/gang_monitoring_descriptors/used_descriptor_count", MakeStrong(this), [this] {
+            return GangJobMonitoringDescriptorManager_.GetSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/gang_monitoring_descriptors/total_descriptor_count", MakeStrong(this), [this] {
+            return GangJobMonitoringDescriptorManager_.GetMaxSize();
+        });
+        ControllerAgentProfiler().AddFuncGauge("/user_job_monitoring/gang_monitoring_descriptors/not_acquired_monitor_descriptors_count", MakeStrong(this), [this] {
+            return GangJobMonitoringDescriptorManager_.GetNotAcquiredMonitoringDescriptorsCount();
         });
     }
 
@@ -470,6 +485,8 @@ public:
         JobReporter_->UpdateConfig(Config_->JobReporter);
 
         JobMonitoringIndexManager_.SetMaxSize(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent);
+
+        GangJobMonitoringDescriptorManager_.SetMaxSize(Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent);
     }
 
 
@@ -676,6 +693,10 @@ public:
 
         if (JobMonitoringIndexManager_.TryRemoveOperation(operationId)) {
             EnqueueJobMonitoringAlertUpdate();
+        }
+
+        if (GangJobMonitoringDescriptorManager_.TryRemoveOperation(operationId)) {
+            EnqueueGangJobMonitoringAlertUpdate();
         }
 
         JobTracker_->UnregisterOperation(operationId);
@@ -1020,7 +1041,7 @@ public:
             return std::nullopt;
         }
 
-        return TJobMonitoringDescriptor{IncarnationId_, *index};
+        return TJobMonitoringDescriptor{IncarnationId_.Underlying(), *index};
     }
 
     bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
@@ -1028,6 +1049,30 @@ public:
         auto result = JobMonitoringIndexManager_.TryRemoveIndex(operationId, descriptor.Index);
         if (JobMonitoringIndexManager_.GetResidualCapacity() == 1) {
             EnqueueJobMonitoringAlertUpdate();
+        }
+        return result;
+    }
+
+    std::optional<TJobMonitoringDescriptor> TryAcquireGangJobMonitoringDescriptor(TOperationId operationId, int rank)
+    {
+        if (GangJobMonitoringDescriptorManager_.TryAcqireMonitoringDescriptor(operationId)) {
+            return TJobMonitoringDescriptor{operationId.Underlying(), rank};
+        }
+        YT_LOG_DEBUG(
+            "Failed to register job for monitoring: too many monitored gangs jobs per controller agent "
+            "(OperationId: %v, CurrentMonitoringGangJobsPerAgent: %v, MaxMonitoredGangsJobsPerAgent: %v)",
+            operationId,
+            GangJobMonitoringDescriptorManager_.GetSize(),
+            GangJobMonitoringDescriptorManager_.GetMaxSize());
+        EnqueueGangJobMonitoringAlertUpdate();
+        return std::nullopt;
+    }
+
+    bool TryReleaseGangJobMonitoringDescriptor(TOperationId operationId)
+    {
+        auto result = GangJobMonitoringDescriptorManager_.TryReleaseMonitoringDescriptor(operationId);
+        if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 1) {
+            EnqueueGangJobMonitoringAlertUpdate();
         }
         return result;
     }
@@ -1047,6 +1092,27 @@ public:
             MasterConnector_->SetControllerAgentAlert(
                 EControllerAgentAlertType::UserJobMonitoringLimited,
                 std::move(alert));
+        })
+        .Via(CancelableControlInvoker_)
+        .Run();
+    }
+
+    void EnqueueGangJobMonitoringAlertUpdate()
+    {
+        BIND([&] {
+            auto alert = TError();
+            if (GangJobMonitoringDescriptorManager_.GetResidualCapacity() == 0) {
+                alert = TError(
+                    "Limit of  monitored user gangs jobs per controller agent reached, "
+                    "some jobs may be not monitored")
+                    << TErrorAttribute(
+                        "limit_per_controller_agent",
+                        Config_->UserJobMonitoring->MaxMonitoredGangsJobsPerAgent);
+            }
+            MasterConnector_->SetControllerAgentAlert(
+                EControllerAgentAlertType::UserJobMonitoringLimited,
+                std::move(alert));
+
         })
         .Via(CancelableControlInvoker_)
         .Run();
@@ -1186,6 +1252,7 @@ private:
     TMemoryWatchdogPtr MemoryWatchdog_;
 
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
+    TUniversalMonitoringDescriptorManager GangJobMonitoringDescriptorManager_;
 
     NProfiling::TCounter ThrottledScheduleAllocationRequestCount_;
 
@@ -2560,6 +2627,16 @@ std::optional<TJobMonitoringDescriptor> TControllerAgent::TryAcquireJobMonitorin
 bool TControllerAgent::ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
 {
     return Impl_->ReleaseJobMonitoringDescriptor(operationId, descriptor);
+}
+
+std::optional<TJobMonitoringDescriptor> TControllerAgent::TryAcquireGangJobMonitoringDescriptor(TOperationId operationId, int rank)
+{
+    return Impl_->TryAcquireGangJobMonitoringDescriptor(operationId, rank);
+}
+
+bool TControllerAgent::TryReleaseGangJobMonitoringDescriptor(TOperationId operationId)
+{
+    return Impl_->TryReleaseGangJobMonitoringDescriptor(operationId);
 }
 
 void TControllerAgent::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(

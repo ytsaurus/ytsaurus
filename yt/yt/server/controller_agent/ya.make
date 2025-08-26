@@ -30,6 +30,7 @@ SRCS(
     snapshot_downloader.cpp
     tentative_tree_eligibility.cpp
     virtual.cpp
+    universal_monitoring_descriptor_manager.cpp
 )
 
 PEERDIR(
