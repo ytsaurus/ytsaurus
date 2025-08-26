@@ -18,11 +18,10 @@
 #
 
 # Provides typing union operator ``|`` in Python 3.9:
-from __future__ import annotations
 # Linter does not allow to import ``Generator`` from ``typing`` module:
-from collections.abc import Generator
+from collections.abc import Generator, Callable
 from functools import cache, lru_cache, partial
-from typing import Callable, get_args, Literal
+from typing import get_args, Literal
 
 import numpy as np
 
@@ -207,14 +206,14 @@ class ShortTimeFFT:
 
     It is possible to calculate the SFT of signal parts:
 
-    >>> p_q = SFT.nearest_k_p(N // 2)
-    >>> Sx0 = SFT.stft(x[:p_q])
-    >>> Sx1 = SFT.stft(x[p_q:])
+    >>> N2 = SFT.nearest_k_p(N // 2)
+    >>> Sx0 = SFT.stft(x[:N2])
+    >>> Sx1 = SFT.stft(x[N2:])
 
     When assembling sequential STFT parts together, the overlap needs to be
     considered:
 
-    >>> p0_ub = SFT.upper_border_begin(p_q)[1] - SFT.p_min
+    >>> p0_ub = SFT.upper_border_begin(N2)[1] - SFT.p_min
     >>> p1_le = SFT.lower_border_end[1] - SFT.p_min
     >>> Sx01 = np.hstack((Sx0[:, :p0_ub],
     ...                   Sx0[:, p0_ub:] + Sx1[:, :p1_le],
@@ -861,11 +860,11 @@ class ShortTimeFFT:
             -> np.ndarray:
         r"""Calculate spectrogram or cross-spectrogram.
 
-        The spectrogram is the absolute square of the STFT, i.e, it is
+        The spectrogram is the absolute square of the STFT, i.e., it is
         ``abs(S[q,p])**2`` for given ``S[q,p]``  and thus is always
         non-negative.
         For two STFTs ``Sx[q,p], Sy[q,p]``, the cross-spectrogram is defined
-        as ``Sx[q,p] * np.conj(Sx[q,p])`` and is complex-valued.
+        as ``Sx[q,p] * np.conj(Sy[q,p])`` and is complex-valued.
         This is a convenience function for calling `~ShortTimeFFT.stft` /
         `stft_detrend`, hence all parameters are discussed there. If `y` is not
         ``None`` it needs to have the same shape as `x`.
@@ -886,7 +885,7 @@ class ShortTimeFFT:
         >>> f_i = 5e-3*(t_x - t_x[N // 3])**2 + 1  # varying frequency
         >>> x = square(2*np.pi*np.cumsum(f_i)*T_x)  # the signal
 
-        The utitlized Gaussian window is 50 samples or 2.5 s long. The
+        The utilized Gaussian window is 50 samples or 2.5 s long. The
         parameter ``mfft=800`` (oversampling factor 16) and the `hop` interval
         of 2 in `ShortTimeFFT` was chosen to produce a sufficient number of
         points:
@@ -1227,7 +1226,15 @@ class ShortTimeFFT:
 
     @lru_cache(maxsize=256)
     def _post_padding(self, n: int) -> tuple[int, int]:
-        """Largest signal index and slice index due to padding."""
+        """Largest signal index and slice index due to padding.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples of input signal (must be ≥ half of the window length).
+        """
+        if not (n >= (m2p := self.m_num - self.m_num_mid)):
+            raise ValueError(f"Parameter n must be >= ceil(m_num/2) = {m2p}!")
         w2 = self.win.real**2 + self.win.imag**2
         # move window to the right until the overlap for t < t[n] vanishes:
         q1 = n // self.hop   # last slice index with t[p1] <= t[n]
@@ -1247,6 +1254,11 @@ class ShortTimeFFT:
         given input signal of `n` samples.
         A detailed example is provided in the :ref:`tutorial_stft_sliding_win`
         section of the :ref:`user_guide`.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples of input signal (must be ≥ half of the window length).
 
         See Also
         --------
@@ -1349,6 +1361,19 @@ class ShortTimeFFT:
         A detailed example is given :ref:`tutorial_stft_sliding_win` section
         of the :ref:`user_guide`.
 
+        Parameters
+        ----------
+        n : int
+            Number of samples of input signal (must be ≥ half of the window length).
+
+        Returns
+        -------
+        k_ub : int
+            Lowest signal index, where a touching time slice sticks out past the
+            signal end.
+        p_ub : int
+            Lowest index of time slice of which the end sticks out past the signal end.
+
         See Also
         --------
         k_min: The smallest possible signal index.
@@ -1360,13 +1385,15 @@ class ShortTimeFFT:
         p_range: Determine and validate slice index range.
         ShortTimeFFT: Class this method belongs to.
         """
+        if not (n >= (m2p := self.m_num - self.m_num_mid)):
+            raise ValueError(f"Parameter n must be >= ceil(m_num/2) = {m2p}!")
         w2 = self.win.real**2 + self.win.imag**2
         q2 = n // self.hop + 1  # first t[q] >= t[n]
         q1 = max((n-self.m_num) // self.hop - 1, -1)
         # move window left until does not stick out to the right:
         for q_ in range(q2, q1, -1):
             k_ = q_ * self.hop + (self.m_num - self.m_num_mid)
-            if k_ < n or all(w2[n-k_:] == 0):
+            if k_ <= n or all(w2[n-k_:] == 0):
                 return (q_ + 1) * self.hop - self.m_num_mid, q_ + 1
         return 0, 0  # border starts at first slice
 
@@ -1623,9 +1650,9 @@ class ShortTimeFFT:
             raise RuntimeError(error_str)
 
         if self.phase_shift is None:
-            return x[:self.m_num]
+            return x[..., :self.m_num]
         p_s = (self.phase_shift + self.m_num_mid) % self.m_num
-        return np.roll(x, p_s, axis=-1)[:self.m_num]
+        return np.roll(x, p_s, axis=-1)[..., :self.m_num]
 
     def extent(self, n: int, axes_seq: Literal['tf', 'ft'] = 'tf',
                center_bins: bool = False) -> tuple[float, float, float, float]:
@@ -1653,6 +1680,41 @@ class ShortTimeFFT:
         --------
         :func:`matplotlib.pyplot.imshow`: Display data as an image.
         :class:`scipy.signal.ShortTimeFFT`: Class this method belongs to.
+
+        Examples
+        --------
+        The following two plots illustrate the effect of the parameter `center_bins`:
+        The grid lines represent the three time and the four frequency values of the
+        STFT.
+        The left plot, where ``(t0, t1, f0, f1) = (0, 3, 0, 4)`` is passed as parameter
+        ``extent`` to `~matplotlib.pyplot.imshow`, shows the standard behavior of the
+        time and frequency values being at the lower edge of the corrsponding bin.
+        The right plot, with ``(t0, t1, f0, f1) = (-0.5, 2.5, -0.5, 3.5)``, shows that
+        the bins are centered over the respective values when passing
+        ``center_bins=True``.
+
+        >>> import matplotlib.pyplot as plt
+        >>> import numpy as np
+        >>> from scipy.signal import ShortTimeFFT
+        ...
+        >>> n, m = 12, 6
+        >>> SFT = ShortTimeFFT.from_window('hann', fs=m, nperseg=m, noverlap=0)
+        >>> Sxx = SFT.stft(np.cos(np.arange(n)))  # produces a colorful plot
+        ...
+        >>> fig, axx = plt.subplots(1, 2, tight_layout=True, figsize=(6., 4.))
+        >>> for ax_, center_bins in zip(axx, (False, True)):
+        ...     ax_.imshow(abs(Sxx), origin='lower', interpolation=None, aspect='equal',
+        ...                cmap='viridis', extent=SFT.extent(n, 'tf', center_bins))
+        ...     ax_.set_title(f"{center_bins=}")
+        ...     ax_.set_xlabel(f"Time ({SFT.p_num(n)} points, Δt={SFT.delta_t})")
+        ...     ax_.set_ylabel(f"Frequency ({SFT.f_pts} points, Δf={SFT.delta_f})")
+        ...     ax_.set_xticks(SFT.t(n))  # vertical grid line are timestamps
+        ...     ax_.set_yticks(SFT.f)  # horizontal grid line are frequency values
+        ...     ax_.grid(True)
+        >>> plt.show()
+
+        Note that the step-like behavior with the constant colors is caused by passing
+        ``interpolation=None`` to `~matplotlib.pyplot.imshow`.
         """
         if axes_seq not in ('tf', 'ft'):
             raise ValueError(f"Parameter {axes_seq=} not in ['tf', 'ft']!")
@@ -1660,8 +1722,8 @@ class ShortTimeFFT:
         if self.onesided_fft:
             q0, q1 = 0, self.f_pts
         elif self.fft_mode == 'centered':
-            q0 = -self.mfft // 2
-            q1 = self.mfft // 2 - 1 if self.mfft % 2 == 0 else self.mfft // 2
+            q0 = -(self.mfft // 2)
+            q1 = self.mfft // 2 if self.mfft % 2 == 0 else self.mfft // 2 + 1
         else:
             raise ValueError(f"Attribute fft_mode={self.fft_mode} must be " +
                              "in ['centered', 'onesided', 'onesided2X']")

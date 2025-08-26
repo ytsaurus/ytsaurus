@@ -21,4 +21,10 @@ from .linalg import matrix_transpose, vecdot # noqa: F401
 
 from ..common._helpers import * # noqa: F403
 
-__array_api_version__ = '2022.12'
+try:
+    # Used in asarray(). Not present in older versions.
+    from numpy import _CopyMode # noqa: F401
+except ImportError:
+    pass
+
+__array_api_version__ = '2023.12'

@@ -18,6 +18,7 @@ Alignment should be checked before these wrappers are used.
 
 Raw function pointers (Fortran-style pointer arguments):
 
+- cbbcsd
 - cbdsqr
 - cgbbrd
 - cgbcon
@@ -48,11 +49,17 @@ Raw function pointers (Fortran-style pointer arguments):
 - cgelsd
 - cgelss
 - cgelsy
+- cgemqrt
 - cgeql2
 - cgeqlf
 - cgeqp3
 - cgeqr2
+- cgeqr2p
 - cgeqrf
+- cgeqrfp
+- cgeqrt
+- cgeqrt2
+- cgeqrt3
 - cgerfs
 - cgerq2
 - cgerqf
@@ -106,12 +113,16 @@ Raw function pointers (Fortran-style pointer arguments):
 - cherfs
 - chesv
 - chesvx
+- cheswapr
 - chetd2
 - chetf2
 - chetrd
 - chetrf
 - chetri
+- chetri2
+- chetri2x
 - chetrs
+- chetrs2
 - chfrk
 - chgeqz
 - chla_transtype
@@ -173,6 +184,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - clantp
 - clantr
 - clapll
+- clapmr
 - clapmt
 - claqgb
 - claqge
@@ -196,6 +208,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - clarf
 - clarfb
 - clarfg
+- clarfgp
 - clarft
 - clarfx
 - clargv
@@ -277,16 +290,21 @@ Raw function pointers (Fortran-style pointer arguments):
 - cstemr
 - csteqr
 - csycon
+- csyconv
 - csyequb
 - csymv
 - csyr
 - csyrfs
 - csysv
 - csysvx
+- csyswapr
 - csytf2
 - csytrf
 - csytri
+- csytri2
+- csytri2x
 - csytrs
+- csytrs2
 - ctbcon
 - ctbrfs
 - ctbtrs
@@ -303,6 +321,10 @@ Raw function pointers (Fortran-style pointer arguments):
 - ctgsy2
 - ctgsyl
 - ctpcon
+- ctpmqrt
+- ctpqrt
+- ctpqrt2
+- ctprfb
 - ctprfs
 - ctptri
 - ctptrs
@@ -321,6 +343,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - ctrttf
 - ctrttp
 - ctzrzf
+- cunbdb
+- cuncsd
 - cung2l
 - cung2r
 - cungbr
@@ -347,6 +371,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - cunmtr
 - cupgtr
 - cupmtr
+- dbbcsd
 - dbdsdc
 - dbdsqr
 - ddisna
@@ -380,11 +405,17 @@ Raw function pointers (Fortran-style pointer arguments):
 - dgelsd
 - dgelss
 - dgelsy
+- dgemqrt
 - dgeql2
 - dgeqlf
 - dgeqp3
 - dgeqr2
+- dgeqr2p
 - dgeqrf
+- dgeqrfp
+- dgeqrt
+- dgeqrt2
+- dgeqrt3
 - dgerfs
 - dgerq2
 - dgerqf
@@ -476,6 +507,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - dlantr
 - dlanv2
 - dlapll
+- dlapmr
 - dlapmt
 - dlapy2
 - dlapy3
@@ -498,6 +530,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - dlarf
 - dlarfb
 - dlarfg
+- dlarfgp
 - dlarft
 - dlarfx
 - dlargv
@@ -513,6 +546,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - dlarrr
 - dlarrv
 - dlartg
+- dlartgp
+- dlartgs
 - dlartv
 - dlaruv
 - dlarz
@@ -556,6 +591,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - dlauum
 - dopgtr
 - dopmtr
+- dorbdb
+- dorcsd
 - dorg2l
 - dorg2r
 - dorgbr
@@ -659,6 +696,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - dstevr
 - dstevx
 - dsycon
+- dsyconv
 - dsyequb
 - dsyev
 - dsyevd
@@ -672,12 +710,16 @@ Raw function pointers (Fortran-style pointer arguments):
 - dsyrfs
 - dsysv
 - dsysvx
+- dsyswapr
 - dsytd2
 - dsytf2
 - dsytrd
 - dsytrf
 - dsytri
+- dsytri2
+- dsytri2x
 - dsytrs
+- dsytrs2
 - dtbcon
 - dtbrfs
 - dtbtrs
@@ -694,6 +736,10 @@ Raw function pointers (Fortran-style pointer arguments):
 - dtgsy2
 - dtgsyl
 - dtpcon
+- dtpmqrt
+- dtpqrt
+- dtpqrt2
+- dtprfb
 - dtprfs
 - dtptri
 - dtptrs
@@ -729,6 +775,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - ilazlc
 - ilazlr
 - izmax1
+- sbbcsd
 - sbdsdc
 - sbdsqr
 - scsum1
@@ -763,11 +810,17 @@ Raw function pointers (Fortran-style pointer arguments):
 - sgelsd
 - sgelss
 - sgelsy
+- sgemqrt
 - sgeql2
 - sgeqlf
 - sgeqp3
 - sgeqr2
+- sgeqr2p
 - sgeqrf
+- sgeqrfp
+- sgeqrt
+- sgeqrt2
+- sgeqrt3
 - sgerfs
 - sgerq2
 - sgerqf
@@ -857,6 +910,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - slantr
 - slanv2
 - slapll
+- slapmr
 - slapmt
 - slapy2
 - slapy3
@@ -879,6 +933,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - slarf
 - slarfb
 - slarfg
+- slarfgp
 - slarft
 - slarfx
 - slargv
@@ -894,6 +949,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - slarrr
 - slarrv
 - slartg
+- slartgp
+- slartgs
 - slartv
 - slaruv
 - slarz
@@ -936,6 +993,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - slauum
 - sopgtr
 - sopmtr
+- sorbdb
+- sorcsd
 - sorg2l
 - sorg2r
 - sorgbr
@@ -1037,6 +1096,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - sstevr
 - sstevx
 - ssycon
+- ssyconv
 - ssyequb
 - ssyev
 - ssyevd
@@ -1050,12 +1110,16 @@ Raw function pointers (Fortran-style pointer arguments):
 - ssyrfs
 - ssysv
 - ssysvx
+- ssyswapr
 - ssytd2
 - ssytf2
 - ssytrd
 - ssytrf
 - ssytri
+- ssytri2
+- ssytri2x
 - ssytrs
+- ssytrs2
 - stbcon
 - stbrfs
 - stbtrs
@@ -1072,6 +1136,10 @@ Raw function pointers (Fortran-style pointer arguments):
 - stgsy2
 - stgsyl
 - stpcon
+- stpmqrt
+- stpqrt
+- stpqrt2
+- stprfb
 - stprfs
 - stptri
 - stptrs
@@ -1090,6 +1158,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - strttf
 - strttp
 - stzrzf
+- xerbla_array
+- zbbcsd
 - zbdsqr
 - zcgesv
 - zcposv
@@ -1123,11 +1193,17 @@ Raw function pointers (Fortran-style pointer arguments):
 - zgelsd
 - zgelss
 - zgelsy
+- zgemqrt
 - zgeql2
 - zgeqlf
 - zgeqp3
 - zgeqr2
+- zgeqr2p
 - zgeqrf
+- zgeqrfp
+- zgeqrt
+- zgeqrt2
+- zgeqrt3
 - zgerfs
 - zgerq2
 - zgerqf
@@ -1181,12 +1257,16 @@ Raw function pointers (Fortran-style pointer arguments):
 - zherfs
 - zhesv
 - zhesvx
+- zheswapr
 - zhetd2
 - zhetf2
 - zhetrd
 - zhetrf
 - zhetri
+- zhetri2
+- zhetri2x
 - zhetrs
+- zhetrs2
 - zhfrk
 - zhgeqz
 - zhpcon
@@ -1247,6 +1327,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - zlantp
 - zlantr
 - zlapll
+- zlapmr
 - zlapmt
 - zlaqgb
 - zlaqge
@@ -1270,6 +1351,7 @@ Raw function pointers (Fortran-style pointer arguments):
 - zlarf
 - zlarfb
 - zlarfg
+- zlarfgp
 - zlarft
 - zlarfx
 - zlargv
@@ -1351,16 +1433,21 @@ Raw function pointers (Fortran-style pointer arguments):
 - zstemr
 - zsteqr
 - zsycon
+- zsyconv
 - zsyequb
 - zsymv
 - zsyr
 - zsyrfs
 - zsysv
 - zsysvx
+- zsyswapr
 - zsytf2
 - zsytrf
 - zsytri
+- zsytri2
+- zsytri2x
 - zsytrs
+- zsytrs2
 - ztbcon
 - ztbrfs
 - ztbtrs
@@ -1377,6 +1464,10 @@ Raw function pointers (Fortran-style pointer arguments):
 - ztgsy2
 - ztgsyl
 - ztpcon
+- ztpmqrt
+- ztpqrt
+- ztpqrt2
+- ztprfb
 - ztprfs
 - ztptri
 - ztptrs
@@ -1395,6 +1486,8 @@ Raw function pointers (Fortran-style pointer arguments):
 - ztrttf
 - ztrttp
 - ztzrzf
+- zunbdb
+- zuncsd
 - zung2l
 - zung2r
 - zungbr
@@ -1453,6 +1546,14 @@ cdef extern from "_lapack_subroutines.h":
     ctypedef bint _zselect1(npy_complex128*)
     ctypedef bint _zselect2(npy_complex128*, npy_complex128*)
 
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cbbcsd "BLAS_FUNC(cbbcsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, s *theta, s *phi, npy_complex64 *u1, int *ldu1, npy_complex64 *u2, int *ldu2, npy_complex64 *v1t, int *ldv1t, npy_complex64 *v2t, int *ldv2t, s *b11d, s *b11e, s *b12d, s *b12e, s *b21d, s *b21e, s *b22d, s *b22e, s *rwork, int *lrwork, int *info) nogil
+    cdef void cbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, s *theta, s *phi, c *u1, int *ldu1, c *u2, int *ldu2, c *v1t, int *ldv1t, c *v2t, int *ldv2t, s *b11d, s *b11e, s *b12d, s *b12e, s *b21d, s *b21e, s *b22d, s *b22e, s *rwork, int *lrwork, int *info) noexcept nogil:
+        
+        _fortran_cbbcsd(jobu1, jobu2, jobv1t, jobv2t, trans, m, p, q, theta, phi, <npy_complex64*>u1, ldu1, <npy_complex64*>u2, ldu2, <npy_complex64*>v1t, ldv1t, <npy_complex64*>v2t, ldv2t, b11d, b11e, b12d, b12e, b21d, b21e, b22d, b22e, rwork, lrwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_cbdsqr "BLAS_FUNC(cbdsqr)"(char *uplo, int *n, int *ncvt, int *nru, int *ncc, s *d, s *e, npy_complex64 *vt, int *ldvt, npy_complex64 *u, int *ldu, npy_complex64 *c, int *ldc, s *rwork, int *info) nogil
@@ -1664,6 +1765,14 @@ cdef void cgelsy(int *m, int *n, int *nrhs, c *a, int *lda, c *b, int *ldb, int 
     _fortran_cgelsy(m, n, nrhs, <npy_complex64*>a, lda, <npy_complex64*>b, ldb, jpvt, rcond, rank, <npy_complex64*>work, lwork, rwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cgemqrt "BLAS_FUNC(cgemqrt)"(char *side, char *trans, int *m, int *n, int *k, int *nb, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *c, int *ldc, npy_complex64 *work, int *info) nogil
+    cdef void cgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, c *v, int *ldv, c *t, int *ldt, c *c, int *ldc, c *work, int *info) noexcept nogil:
+        
+        _fortran_cgemqrt(side, trans, m, n, k, nb, <npy_complex64*>v, ldv, <npy_complex64*>t, ldt, <npy_complex64*>c, ldc, <npy_complex64*>work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_cgeql2 "BLAS_FUNC(cgeql2)"(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info) nogil
 cdef void cgeql2(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil:
@@ -1692,12 +1801,52 @@ cdef void cgeqr2(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noe
     _fortran_cgeqr2(m, n, <npy_complex64*>a, lda, <npy_complex64*>tau, <npy_complex64*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cgeqr2p "BLAS_FUNC(cgeqr2p)"(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info) nogil
+    cdef void cgeqr2p(int *m, int *n, c *a, int *lda, c *tau, c *work, int *info) noexcept nogil:
+        
+        _fortran_cgeqr2p(m, n, <npy_complex64*>a, lda, <npy_complex64*>tau, <npy_complex64*>work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_cgeqrf "BLAS_FUNC(cgeqrf)"(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info) nogil
 cdef void cgeqrf(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil:
     
     _fortran_cgeqrf(m, n, <npy_complex64*>a, lda, <npy_complex64*>tau, <npy_complex64*>work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cgeqrfp "BLAS_FUNC(cgeqrfp)"(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *lwork, int *info) nogil
+    cdef void cgeqrfp(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_cgeqrfp(m, n, <npy_complex64*>a, lda, <npy_complex64*>tau, <npy_complex64*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cgeqrt "BLAS_FUNC(cgeqrt)"(int *m, int *n, int *nb, npy_complex64 *a, int *lda, npy_complex64 *t, int *ldt, npy_complex64 *work, int *info) nogil
+    cdef void cgeqrt(int *m, int *n, int *nb, c *a, int *lda, c *t, int *ldt, c *work, int *info) noexcept nogil:
+        
+        _fortran_cgeqrt(m, n, nb, <npy_complex64*>a, lda, <npy_complex64*>t, ldt, <npy_complex64*>work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cgeqrt2 "BLAS_FUNC(cgeqrt2)"(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *t, int *ldt, int *info) nogil
+    cdef void cgeqrt2(int *m, int *n, c *a, int *lda, c *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_cgeqrt2(m, n, <npy_complex64*>a, lda, <npy_complex64*>t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cgeqrt3 "BLAS_FUNC(cgeqrt3)"(int *m, int *n, npy_complex64 *a, int *lda, npy_complex64 *t, int *ldt, int *info) nogil
+    cdef void cgeqrt3(int *m, int *n, c *a, int *lda, c *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_cgeqrt3(m, n, <npy_complex64*>a, lda, <npy_complex64*>t, ldt, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_cgerfs "BLAS_FUNC(cgerfs)"(char *trans, int *n, int *nrhs, npy_complex64 *a, int *lda, npy_complex64 *af, int *ldaf, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, s *ferr, s *berr, npy_complex64 *work, s *rwork, int *info) nogil
@@ -2070,6 +2219,14 @@ cdef void chesvx(char *fact, char *uplo, int *n, int *nrhs, c *a, int *lda, c *a
     _fortran_chesvx(fact, uplo, n, nrhs, <npy_complex64*>a, lda, <npy_complex64*>af, ldaf, ipiv, <npy_complex64*>b, ldb, <npy_complex64*>x, ldx, rcond, ferr, berr, <npy_complex64*>work, lwork, rwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cheswapr "BLAS_FUNC(cheswapr)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *i1, int *i2) nogil
+    cdef void cheswapr(char *uplo, int *n, c *a, int *lda, int *i1, int *i2) noexcept nogil:
+        
+        _fortran_cheswapr(uplo, n, <npy_complex64*>a, lda, i1, i2)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_chetd2 "BLAS_FUNC(chetd2)"(char *uplo, int *n, npy_complex64 *a, int *lda, s *d, s *e, npy_complex64 *tau, int *info) nogil
 cdef void chetd2(char *uplo, int *n, c *a, int *lda, s *d, s *e, c *tau, int *info) noexcept nogil:
@@ -2105,12 +2262,36 @@ cdef void chetri(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *in
     _fortran_chetri(uplo, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_chetri2 "BLAS_FUNC(chetri2)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *lwork, int *info) nogil
+    cdef void chetri2(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_chetri2(uplo, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_chetri2x "BLAS_FUNC(chetri2x)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *nb, int *info) nogil
+    cdef void chetri2x(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *nb, int *info) noexcept nogil:
+        
+        _fortran_chetri2x(uplo, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, nb, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_chetrs "BLAS_FUNC(chetrs)"(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, int *info) nogil
 cdef void chetrs(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, int *info) noexcept nogil:
     
     _fortran_chetrs(uplo, n, nrhs, <npy_complex64*>a, lda, ipiv, <npy_complex64*>b, ldb, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_chetrs2 "BLAS_FUNC(chetrs2)"(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *work, int *info) nogil
+    cdef void chetrs2(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, c *work, int *info) noexcept nogil:
+        
+        _fortran_chetrs2(uplo, n, nrhs, <npy_complex64*>a, lda, ipiv, <npy_complex64*>b, ldb, <npy_complex64*>work, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_chfrk "BLAS_FUNC(chfrk)"(char *transr, char *uplo, char *trans, int *n, int *k, s *alpha, npy_complex64 *a, int *lda, s *beta, npy_complex64 *c) nogil
@@ -2539,6 +2720,14 @@ cdef void clapll(int *n, c *x, int *incx, c *y, int *incy, s *ssmin) noexcept no
     _fortran_clapll(n, <npy_complex64*>x, incx, <npy_complex64*>y, incy, ssmin)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_clapmr "BLAS_FUNC(clapmr)"(bint *forwrd, int *m, int *n, npy_complex64 *x, int *ldx, int *k) nogil
+    cdef void clapmr(bint *forwrd, int *m, int *n, c *x, int *ldx, int *k) noexcept nogil:
+        
+        _fortran_clapmr(forwrd, m, n, <npy_complex64*>x, ldx, k)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_clapmt "BLAS_FUNC(clapmt)"(bint *forwrd, int *m, int *n, npy_complex64 *x, int *ldx, int *k) nogil
 cdef void clapmt(bint *forwrd, int *m, int *n, c *x, int *ldx, int *k) noexcept nogil:
@@ -2699,6 +2888,14 @@ cdef void clarfg(int *n, c *alpha, c *x, int *incx, c *tau) noexcept nogil:
     
     _fortran_clarfg(n, <npy_complex64*>alpha, <npy_complex64*>x, incx, <npy_complex64*>tau)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_clarfgp "BLAS_FUNC(clarfgp)"(int *n, npy_complex64 *alpha, npy_complex64 *x, int *incx, npy_complex64 *tau) nogil
+    cdef void clarfgp(int *n, c *alpha, c *x, int *incx, c *tau) noexcept nogil:
+        
+        _fortran_clarfgp(n, <npy_complex64*>alpha, <npy_complex64*>x, incx, <npy_complex64*>tau)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_clarft "BLAS_FUNC(clarft)"(char *direct, char *storev, int *n, int *k, npy_complex64 *v, int *ldv, npy_complex64 *tau, npy_complex64 *t, int *ldt) nogil
@@ -3267,6 +3464,14 @@ cdef void csycon(char *uplo, int *n, c *a, int *lda, int *ipiv, s *anorm, s *rco
     _fortran_csycon(uplo, n, <npy_complex64*>a, lda, ipiv, anorm, rcond, <npy_complex64*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_csyconv "BLAS_FUNC(csyconv)"(char *uplo, char *way, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *info) nogil
+    cdef void csyconv(char *uplo, char *way, int *n, c *a, int *lda, int *ipiv, c *work, int *info) noexcept nogil:
+        
+        _fortran_csyconv(uplo, way, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_csyequb "BLAS_FUNC(csyequb)"(char *uplo, int *n, npy_complex64 *a, int *lda, s *s, s *scond, s *amax, npy_complex64 *work, int *info) nogil
 cdef void csyequb(char *uplo, int *n, c *a, int *lda, s *s, s *scond, s *amax, c *work, int *info) noexcept nogil:
@@ -3309,6 +3514,14 @@ cdef void csysvx(char *fact, char *uplo, int *n, int *nrhs, c *a, int *lda, c *a
     _fortran_csysvx(fact, uplo, n, nrhs, <npy_complex64*>a, lda, <npy_complex64*>af, ldaf, ipiv, <npy_complex64*>b, ldb, <npy_complex64*>x, ldx, rcond, ferr, berr, <npy_complex64*>work, lwork, rwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_csyswapr "BLAS_FUNC(csyswapr)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *i1, int *i2) nogil
+    cdef void csyswapr(char *uplo, int *n, c *a, int *lda, int *i1, int *i2) noexcept nogil:
+        
+        _fortran_csyswapr(uplo, n, <npy_complex64*>a, lda, i1, i2)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_csytf2 "BLAS_FUNC(csytf2)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, int *info) nogil
 cdef void csytf2(char *uplo, int *n, c *a, int *lda, int *ipiv, int *info) noexcept nogil:
@@ -3330,12 +3543,36 @@ cdef void csytri(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *in
     _fortran_csytri(uplo, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_csytri2 "BLAS_FUNC(csytri2)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *lwork, int *info) nogil
+    cdef void csytri2(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_csytri2(uplo, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_csytri2x "BLAS_FUNC(csytri2x)"(char *uplo, int *n, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *work, int *nb, int *info) nogil
+    cdef void csytri2x(char *uplo, int *n, c *a, int *lda, int *ipiv, c *work, int *nb, int *info) noexcept nogil:
+        
+        _fortran_csytri2x(uplo, n, <npy_complex64*>a, lda, ipiv, <npy_complex64*>work, nb, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_csytrs "BLAS_FUNC(csytrs)"(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, int *info) nogil
 cdef void csytrs(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, int *info) noexcept nogil:
     
     _fortran_csytrs(uplo, n, nrhs, <npy_complex64*>a, lda, ipiv, <npy_complex64*>b, ldb, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_csytrs2 "BLAS_FUNC(csytrs2)"(char *uplo, int *n, int *nrhs, npy_complex64 *a, int *lda, int *ipiv, npy_complex64 *b, int *ldb, npy_complex64 *work, int *info) nogil
+    cdef void csytrs2(char *uplo, int *n, int *nrhs, c *a, int *lda, int *ipiv, c *b, int *ldb, c *work, int *info) noexcept nogil:
+        
+        _fortran_csytrs2(uplo, n, nrhs, <npy_complex64*>a, lda, ipiv, <npy_complex64*>b, ldb, <npy_complex64*>work, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ctbcon "BLAS_FUNC(ctbcon)"(char *norm, char *uplo, char *diag, int *n, int *kd, npy_complex64 *ab, int *ldab, s *rcond, npy_complex64 *work, s *rwork, int *info) nogil
@@ -3448,6 +3685,38 @@ cdef void ctpcon(char *norm, char *uplo, char *diag, int *n, c *ap, s *rcond, c 
     
     _fortran_ctpcon(norm, uplo, diag, n, <npy_complex64*>ap, rcond, <npy_complex64*>work, rwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ctpmqrt "BLAS_FUNC(ctpmqrt)"(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *work, int *info) nogil
+    cdef void ctpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, c *v, int *ldv, c *t, int *ldt, c *a, int *lda, c *b, int *ldb, c *work, int *info) noexcept nogil:
+        
+        _fortran_ctpmqrt(side, trans, m, n, k, l, nb, <npy_complex64*>v, ldv, <npy_complex64*>t, ldt, <npy_complex64*>a, lda, <npy_complex64*>b, ldb, <npy_complex64*>work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ctpqrt "BLAS_FUNC(ctpqrt)"(int *m, int *n, int *l, int *nb, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *t, int *ldt, npy_complex64 *work, int *info) nogil
+    cdef void ctpqrt(int *m, int *n, int *l, int *nb, c *a, int *lda, c *b, int *ldb, c *t, int *ldt, c *work, int *info) noexcept nogil:
+        
+        _fortran_ctpqrt(m, n, l, nb, <npy_complex64*>a, lda, <npy_complex64*>b, ldb, <npy_complex64*>t, ldt, <npy_complex64*>work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ctpqrt2 "BLAS_FUNC(ctpqrt2)"(int *m, int *n, int *l, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *t, int *ldt, int *info) nogil
+    cdef void ctpqrt2(int *m, int *n, int *l, c *a, int *lda, c *b, int *ldb, c *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_ctpqrt2(m, n, l, <npy_complex64*>a, lda, <npy_complex64*>b, ldb, <npy_complex64*>t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ctprfb "BLAS_FUNC(ctprfb)"(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, npy_complex64 *v, int *ldv, npy_complex64 *t, int *ldt, npy_complex64 *a, int *lda, npy_complex64 *b, int *ldb, npy_complex64 *work, int *ldwork) nogil
+    cdef void ctprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, c *v, int *ldv, c *t, int *ldt, c *a, int *lda, c *b, int *ldb, c *work, int *ldwork) noexcept nogil:
+        
+        _fortran_ctprfb(side, trans, direct, storev, m, n, k, l, <npy_complex64*>v, ldv, <npy_complex64*>t, ldt, <npy_complex64*>a, lda, <npy_complex64*>b, ldb, <npy_complex64*>work, ldwork)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ctprfs "BLAS_FUNC(ctprfs)"(char *uplo, char *trans, char *diag, int *n, int *nrhs, npy_complex64 *ap, npy_complex64 *b, int *ldb, npy_complex64 *x, int *ldx, s *ferr, s *berr, npy_complex64 *work, s *rwork, int *info) nogil
@@ -3574,6 +3843,22 @@ cdef void ctzrzf(int *m, int *n, c *a, int *lda, c *tau, c *work, int *lwork, in
     
     _fortran_ctzrzf(m, n, <npy_complex64*>a, lda, <npy_complex64*>tau, <npy_complex64*>work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cunbdb "BLAS_FUNC(cunbdb)"(char *trans, char *signs, int *m, int *p, int *q, npy_complex64 *x11, int *ldx11, npy_complex64 *x12, int *ldx12, npy_complex64 *x21, int *ldx21, npy_complex64 *x22, int *ldx22, s *theta, s *phi, npy_complex64 *taup1, npy_complex64 *taup2, npy_complex64 *tauq1, npy_complex64 *tauq2, npy_complex64 *work, int *lwork, int *info) nogil
+    cdef void cunbdb(char *trans, char *signs, int *m, int *p, int *q, c *x11, int *ldx11, c *x12, int *ldx12, c *x21, int *ldx21, c *x22, int *ldx22, s *theta, s *phi, c *taup1, c *taup2, c *tauq1, c *tauq2, c *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_cunbdb(trans, signs, m, p, q, <npy_complex64*>x11, ldx11, <npy_complex64*>x12, ldx12, <npy_complex64*>x21, ldx21, <npy_complex64*>x22, ldx22, theta, phi, <npy_complex64*>taup1, <npy_complex64*>taup2, <npy_complex64*>tauq1, <npy_complex64*>tauq2, <npy_complex64*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_cuncsd "BLAS_FUNC(cuncsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, npy_complex64 *x11, int *ldx11, npy_complex64 *x12, int *ldx12, npy_complex64 *x21, int *ldx21, npy_complex64 *x22, int *ldx22, s *theta, npy_complex64 *u1, int *ldu1, npy_complex64 *u2, int *ldu2, npy_complex64 *v1t, int *ldv1t, npy_complex64 *v2t, int *ldv2t, npy_complex64 *work, int *lwork, s *rwork, int *lrwork, int *iwork, int *info) nogil
+    cdef void cuncsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, c *x11, int *ldx11, c *x12, int *ldx12, c *x21, int *ldx21, c *x22, int *ldx22, s *theta, c *u1, int *ldu1, c *u2, int *ldu2, c *v1t, int *ldv1t, c *v2t, int *ldv2t, c *work, int *lwork, s *rwork, int *lrwork, int *iwork, int *info) noexcept nogil:
+        
+        _fortran_cuncsd(jobu1, jobu2, jobv1t, jobv2t, trans, signs, m, p, q, <npy_complex64*>x11, ldx11, <npy_complex64*>x12, ldx12, <npy_complex64*>x21, ldx21, <npy_complex64*>x22, ldx22, theta, <npy_complex64*>u1, ldu1, <npy_complex64*>u2, ldu2, <npy_complex64*>v1t, ldv1t, <npy_complex64*>v2t, ldv2t, <npy_complex64*>work, lwork, rwork, lrwork, iwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_cung2l "BLAS_FUNC(cung2l)"(int *m, int *n, int *k, npy_complex64 *a, int *lda, npy_complex64 *tau, npy_complex64 *work, int *info) nogil
@@ -3756,6 +4041,14 @@ cdef void cupmtr(char *side, char *uplo, char *trans, int *m, int *n, c *ap, c *
     
     _fortran_cupmtr(side, uplo, trans, m, n, <npy_complex64*>ap, <npy_complex64*>tau, <npy_complex64*>c, ldc, <npy_complex64*>work, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dbbcsd "BLAS_FUNC(dbbcsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, d *theta, d *phi, d *u1, int *ldu1, d *u2, int *ldu2, d *v1t, int *ldv1t, d *v2t, int *ldv2t, d *b11d, d *b11e, d *b12d, d *b12e, d *b21d, d *b21e, d *b22d, d *b22e, d *work, int *lwork, int *info) nogil
+    cdef void dbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, d *theta, d *phi, d *u1, int *ldu1, d *u2, int *ldu2, d *v1t, int *ldv1t, d *v2t, int *ldv2t, d *b11d, d *b11e, d *b12d, d *b12e, d *b21d, d *b21e, d *b22d, d *b22e, d *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_dbbcsd(jobu1, jobu2, jobv1t, jobv2t, trans, m, p, q, theta, phi, u1, ldu1, u2, ldu2, v1t, ldv1t, v2t, ldv2t, b11d, b11e, b12d, b12e, b21d, b21e, b22d, b22e, work, lwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dbdsdc "BLAS_FUNC(dbdsdc)"(char *uplo, char *compq, int *n, d *d, d *e, d *u, int *ldu, d *vt, int *ldvt, d *q, int *iq, d *work, int *iwork, int *info) nogil
@@ -3988,6 +4281,14 @@ cdef void dgelsy(int *m, int *n, int *nrhs, d *a, int *lda, d *b, int *ldb, int 
     _fortran_dgelsy(m, n, nrhs, a, lda, b, ldb, jpvt, rcond, rank, work, lwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dgemqrt "BLAS_FUNC(dgemqrt)"(char *side, char *trans, int *m, int *n, int *k, int *nb, d *v, int *ldv, d *t, int *ldt, d *c, int *ldc, d *work, int *info) nogil
+    cdef void dgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, d *v, int *ldv, d *t, int *ldt, d *c, int *ldc, d *work, int *info) noexcept nogil:
+        
+        _fortran_dgemqrt(side, trans, m, n, k, nb, v, ldv, t, ldt, c, ldc, work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dgeql2 "BLAS_FUNC(dgeql2)"(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) nogil
 cdef void dgeql2(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil:
@@ -4016,12 +4317,52 @@ cdef void dgeqr2(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noe
     _fortran_dgeqr2(m, n, a, lda, tau, work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dgeqr2p "BLAS_FUNC(dgeqr2p)"(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) nogil
+    cdef void dgeqr2p(int *m, int *n, d *a, int *lda, d *tau, d *work, int *info) noexcept nogil:
+        
+        _fortran_dgeqr2p(m, n, a, lda, tau, work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dgeqrf "BLAS_FUNC(dgeqrf)"(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) nogil
 cdef void dgeqrf(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil:
     
     _fortran_dgeqrf(m, n, a, lda, tau, work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dgeqrfp "BLAS_FUNC(dgeqrfp)"(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) nogil
+    cdef void dgeqrfp(int *m, int *n, d *a, int *lda, d *tau, d *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_dgeqrfp(m, n, a, lda, tau, work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dgeqrt "BLAS_FUNC(dgeqrt)"(int *m, int *n, int *nb, d *a, int *lda, d *t, int *ldt, d *work, int *info) nogil
+    cdef void dgeqrt(int *m, int *n, int *nb, d *a, int *lda, d *t, int *ldt, d *work, int *info) noexcept nogil:
+        
+        _fortran_dgeqrt(m, n, nb, a, lda, t, ldt, work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dgeqrt2 "BLAS_FUNC(dgeqrt2)"(int *m, int *n, d *a, int *lda, d *t, int *ldt, int *info) nogil
+    cdef void dgeqrt2(int *m, int *n, d *a, int *lda, d *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_dgeqrt2(m, n, a, lda, t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dgeqrt3 "BLAS_FUNC(dgeqrt3)"(int *m, int *n, d *a, int *lda, d *t, int *ldt, int *info) nogil
+    cdef void dgeqrt3(int *m, int *n, d *a, int *lda, d *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_dgeqrt3(m, n, a, lda, t, ldt, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dgerfs "BLAS_FUNC(dgerfs)"(char *trans, int *n, int *nrhs, d *a, int *lda, d *af, int *ldaf, int *ipiv, d *b, int *ldb, d *x, int *ldx, d *ferr, d *berr, d *work, int *iwork, int *info) nogil
@@ -4660,6 +5001,14 @@ cdef void dlapll(int *n, d *x, int *incx, d *y, int *incy, d *ssmin) noexcept no
     _fortran_dlapll(n, x, incx, y, incy, ssmin)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dlapmr "BLAS_FUNC(dlapmr)"(bint *forwrd, int *m, int *n, d *x, int *ldx, int *k) nogil
+    cdef void dlapmr(bint *forwrd, int *m, int *n, d *x, int *ldx, int *k) noexcept nogil:
+        
+        _fortran_dlapmr(forwrd, m, n, x, ldx, k)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dlapmt "BLAS_FUNC(dlapmt)"(bint *forwrd, int *m, int *n, d *x, int *ldx, int *k) nogil
 cdef void dlapmt(bint *forwrd, int *m, int *n, d *x, int *ldx, int *k) noexcept nogil:
@@ -4815,6 +5164,13 @@ cdef void dlarfg(int *n, d *alpha, d *x, int *incx, d *tau) noexcept nogil:
     
 
 cdef extern from "_lapack_subroutines.h":
+    void _fortran_dlarfgp "BLAS_FUNC(dlarfgp)"(int *n, d *alpha, d *x, int *incx, d *tau) nogil
+cdef void dlarfgp(int *n, d *alpha, d *x, int *incx, d *tau) noexcept nogil:
+    
+    _fortran_dlarfgp(n, alpha, x, incx, tau)
+    
+
+cdef extern from "_lapack_subroutines.h":
     void _fortran_dlarft "BLAS_FUNC(dlarft)"(char *direct, char *storev, int *n, int *k, d *v, int *ldv, d *tau, d *t, int *ldt) nogil
 cdef void dlarft(char *direct, char *storev, int *n, int *k, d *v, int *ldv, d *tau, d *t, int *ldt) noexcept nogil:
     
@@ -4918,6 +5274,21 @@ cdef void dlartg(d *f, d *g, d *cs, d *sn, d *r) noexcept nogil:
     
     _fortran_dlartg(f, g, cs, sn, r)
     
+
+cdef extern from "_lapack_subroutines.h":
+    void _fortran_dlartgp "BLAS_FUNC(dlartgp)"(d *f, d *g, d *cs, d *sn, d *r) nogil
+cdef void dlartgp(d *f, d *g, d *cs, d *sn, d *r) noexcept nogil:
+    
+    _fortran_dlartgp(f, g, cs, sn, r)
+    
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dlartgs "BLAS_FUNC(dlartgs)"(d *x, d *y, d *sigma, d *cs, d *sn) nogil
+    cdef void dlartgs(d *x, d *y, d *sigma, d *cs, d *sn) noexcept nogil:
+        
+        _fortran_dlartgs(x, y, sigma, cs, sn)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dlartv "BLAS_FUNC(dlartv)"(int *n, d *x, int *incx, d *y, int *incy, d *c, d *s, int *incc) nogil
@@ -5219,6 +5590,22 @@ cdef void dopmtr(char *side, char *uplo, char *trans, int *m, int *n, d *ap, d *
     
     _fortran_dopmtr(side, uplo, trans, m, n, ap, tau, c, ldc, work, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dorbdb "BLAS_FUNC(dorbdb)"(char *trans, char *signs, int *m, int *p, int *q, d *x11, int *ldx11, d *x12, int *ldx12, d *x21, int *ldx21, d *x22, int *ldx22, d *theta, d *phi, d *taup1, d *taup2, d *tauq1, d *tauq2, d *work, int *lwork, int *info) nogil
+    cdef void dorbdb(char *trans, char *signs, int *m, int *p, int *q, d *x11, int *ldx11, d *x12, int *ldx12, d *x21, int *ldx21, d *x22, int *ldx22, d *theta, d *phi, d *taup1, d *taup2, d *tauq1, d *tauq2, d *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_dorbdb(trans, signs, m, p, q, x11, ldx11, x12, ldx12, x21, ldx21, x22, ldx22, theta, phi, taup1, taup2, tauq1, tauq2, work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dorcsd "BLAS_FUNC(dorcsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, d *x11, int *ldx11, d *x12, int *ldx12, d *x21, int *ldx21, d *x22, int *ldx22, d *theta, d *u1, int *ldu1, d *u2, int *ldu2, d *v1t, int *ldv1t, d *v2t, int *ldv2t, d *work, int *lwork, int *iwork, int *info) nogil
+    cdef void dorcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, d *x11, int *ldx11, d *x12, int *ldx12, d *x21, int *ldx21, d *x22, int *ldx22, d *theta, d *u1, int *ldu1, d *u2, int *ldu2, d *v1t, int *ldv1t, d *v2t, int *ldv2t, d *work, int *lwork, int *iwork, int *info) noexcept nogil:
+        
+        _fortran_dorcsd(jobu1, jobu2, jobv1t, jobv2t, trans, signs, m, p, q, x11, ldx11, x12, ldx12, x21, ldx21, x22, ldx22, theta, u1, ldu1, u2, ldu2, v1t, ldv1t, v2t, ldv2t, work, lwork, iwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dorg2l "BLAS_FUNC(dorg2l)"(int *m, int *n, int *k, d *a, int *lda, d *tau, d *work, int *info) nogil
@@ -5941,6 +6328,14 @@ cdef void dsycon(char *uplo, int *n, d *a, int *lda, int *ipiv, d *anorm, d *rco
     _fortran_dsycon(uplo, n, a, lda, ipiv, anorm, rcond, work, iwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dsyconv "BLAS_FUNC(dsyconv)"(char *uplo, char *way, int *n, d *a, int *lda, int *ipiv, d *work, int *info) nogil
+    cdef void dsyconv(char *uplo, char *way, int *n, d *a, int *lda, int *ipiv, d *work, int *info) noexcept nogil:
+        
+        _fortran_dsyconv(uplo, way, n, a, lda, ipiv, work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dsyequb "BLAS_FUNC(dsyequb)"(char *uplo, int *n, d *a, int *lda, d *s, d *scond, d *amax, d *work, int *info) nogil
 cdef void dsyequb(char *uplo, int *n, d *a, int *lda, d *s, d *scond, d *amax, d *work, int *info) noexcept nogil:
@@ -6032,6 +6427,14 @@ cdef void dsysvx(char *fact, char *uplo, int *n, int *nrhs, d *a, int *lda, d *a
     _fortran_dsysvx(fact, uplo, n, nrhs, a, lda, af, ldaf, ipiv, b, ldb, x, ldx, rcond, ferr, berr, work, lwork, iwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dsyswapr "BLAS_FUNC(dsyswapr)"(char *uplo, int *n, d *a, int *lda, int *i1, int *i2) nogil
+    cdef void dsyswapr(char *uplo, int *n, d *a, int *lda, int *i1, int *i2) noexcept nogil:
+        
+        _fortran_dsyswapr(uplo, n, a, lda, i1, i2)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dsytd2 "BLAS_FUNC(dsytd2)"(char *uplo, int *n, d *a, int *lda, d *d, d *e, d *tau, int *info) nogil
 cdef void dsytd2(char *uplo, int *n, d *a, int *lda, d *d, d *e, d *tau, int *info) noexcept nogil:
@@ -6067,12 +6470,36 @@ cdef void dsytri(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *in
     _fortran_dsytri(uplo, n, a, lda, ipiv, work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dsytri2 "BLAS_FUNC(dsytri2)"(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *lwork, int *info) nogil
+    cdef void dsytri2(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_dsytri2(uplo, n, a, lda, ipiv, work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dsytri2x "BLAS_FUNC(dsytri2x)"(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *nb, int *info) nogil
+    cdef void dsytri2x(char *uplo, int *n, d *a, int *lda, int *ipiv, d *work, int *nb, int *info) noexcept nogil:
+        
+        _fortran_dsytri2x(uplo, n, a, lda, ipiv, work, nb, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dsytrs "BLAS_FUNC(dsytrs)"(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, int *info) nogil
 cdef void dsytrs(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, int *info) noexcept nogil:
     
     _fortran_dsytrs(uplo, n, nrhs, a, lda, ipiv, b, ldb, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dsytrs2 "BLAS_FUNC(dsytrs2)"(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, d *work, int *info) nogil
+    cdef void dsytrs2(char *uplo, int *n, int *nrhs, d *a, int *lda, int *ipiv, d *b, int *ldb, d *work, int *info) noexcept nogil:
+        
+        _fortran_dsytrs2(uplo, n, nrhs, a, lda, ipiv, b, ldb, work, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dtbcon "BLAS_FUNC(dtbcon)"(char *norm, char *uplo, char *diag, int *n, int *kd, d *ab, int *ldab, d *rcond, d *work, int *iwork, int *info) nogil
@@ -6185,6 +6612,38 @@ cdef void dtpcon(char *norm, char *uplo, char *diag, int *n, d *ap, d *rcond, d 
     
     _fortran_dtpcon(norm, uplo, diag, n, ap, rcond, work, iwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dtpmqrt "BLAS_FUNC(dtpmqrt)"(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, d *v, int *ldv, d *t, int *ldt, d *a, int *lda, d *b, int *ldb, d *work, int *info) nogil
+    cdef void dtpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, d *v, int *ldv, d *t, int *ldt, d *a, int *lda, d *b, int *ldb, d *work, int *info) noexcept nogil:
+        
+        _fortran_dtpmqrt(side, trans, m, n, k, l, nb, v, ldv, t, ldt, a, lda, b, ldb, work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dtpqrt "BLAS_FUNC(dtpqrt)"(int *m, int *n, int *l, int *nb, d *a, int *lda, d *b, int *ldb, d *t, int *ldt, d *work, int *info) nogil
+    cdef void dtpqrt(int *m, int *n, int *l, int *nb, d *a, int *lda, d *b, int *ldb, d *t, int *ldt, d *work, int *info) noexcept nogil:
+        
+        _fortran_dtpqrt(m, n, l, nb, a, lda, b, ldb, t, ldt, work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dtpqrt2 "BLAS_FUNC(dtpqrt2)"(int *m, int *n, int *l, d *a, int *lda, d *b, int *ldb, d *t, int *ldt, int *info) nogil
+    cdef void dtpqrt2(int *m, int *n, int *l, d *a, int *lda, d *b, int *ldb, d *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_dtpqrt2(m, n, l, a, lda, b, ldb, t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_dtprfb "BLAS_FUNC(dtprfb)"(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, d *v, int *ldv, d *t, int *ldt, d *a, int *lda, d *b, int *ldb, d *work, int *ldwork) nogil
+    cdef void dtprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, d *v, int *ldv, d *t, int *ldt, d *a, int *lda, d *b, int *ldb, d *work, int *ldwork) noexcept nogil:
+        
+        _fortran_dtprfb(side, trans, direct, storev, m, n, k, l, v, ldv, t, ldt, a, lda, b, ldb, work, ldwork)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_dtprfs "BLAS_FUNC(dtprfs)"(char *uplo, char *trans, char *diag, int *n, int *nrhs, d *ap, d *b, int *ldb, d *x, int *ldx, d *ferr, d *berr, d *work, int *iwork, int *info) nogil
@@ -6431,6 +6890,14 @@ cdef int izmax1(int *n, z *cx, int *incx) noexcept nogil:
     return _fortran_izmax1(n, <npy_complex128*>cx, incx)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sbbcsd "BLAS_FUNC(sbbcsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, s *theta, s *phi, s *u1, int *ldu1, s *u2, int *ldu2, s *v1t, int *ldv1t, s *v2t, int *ldv2t, s *b11d, s *b11e, s *b12d, s *b12e, s *b21d, s *b21e, s *b22d, s *b22e, s *work, int *lwork, int *info) nogil
+    cdef void sbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, s *theta, s *phi, s *u1, int *ldu1, s *u2, int *ldu2, s *v1t, int *ldv1t, s *v2t, int *ldv2t, s *b11d, s *b11e, s *b12d, s *b12e, s *b21d, s *b21e, s *b22d, s *b22e, s *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_sbbcsd(jobu1, jobu2, jobv1t, jobv2t, trans, m, p, q, theta, phi, u1, ldu1, u2, ldu2, v1t, ldv1t, v2t, ldv2t, b11d, b11e, b12d, b12e, b21d, b21e, b22d, b22e, work, lwork, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_sbdsdc "BLAS_FUNC(sbdsdc)"(char *uplo, char *compq, int *n, s *d, s *e, s *u, int *ldu, s *vt, int *ldvt, s *q, int *iq, s *work, int *iwork, int *info) nogil
 cdef void sbdsdc(char *uplo, char *compq, int *n, s *d, s *e, s *u, int *ldu, s *vt, int *ldvt, s *q, int *iq, s *work, int *iwork, int *info) noexcept nogil:
@@ -6669,6 +7136,14 @@ cdef void sgelsy(int *m, int *n, int *nrhs, s *a, int *lda, s *b, int *ldb, int 
     _fortran_sgelsy(m, n, nrhs, a, lda, b, ldb, jpvt, rcond, rank, work, lwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sgemqrt "BLAS_FUNC(sgemqrt)"(char *side, char *trans, int *m, int *n, int *k, int *nb, s *v, int *ldv, s *t, int *ldt, s *c, int *ldc, s *work, int *info) nogil
+    cdef void sgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, s *v, int *ldv, s *t, int *ldt, s *c, int *ldc, s *work, int *info) noexcept nogil:
+        
+        _fortran_sgemqrt(side, trans, m, n, k, nb, v, ldv, t, ldt, c, ldc, work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_sgeql2 "BLAS_FUNC(sgeql2)"(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) nogil
 cdef void sgeql2(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil:
@@ -6697,12 +7172,52 @@ cdef void sgeqr2(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noe
     _fortran_sgeqr2(m, n, a, lda, tau, work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sgeqr2p "BLAS_FUNC(sgeqr2p)"(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) nogil
+    cdef void sgeqr2p(int *m, int *n, s *a, int *lda, s *tau, s *work, int *info) noexcept nogil:
+        
+        _fortran_sgeqr2p(m, n, a, lda, tau, work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_sgeqrf "BLAS_FUNC(sgeqrf)"(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) nogil
 cdef void sgeqrf(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil:
     
     _fortran_sgeqrf(m, n, a, lda, tau, work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sgeqrfp "BLAS_FUNC(sgeqrfp)"(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) nogil
+    cdef void sgeqrfp(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_sgeqrfp(m, n, a, lda, tau, work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sgeqrt "BLAS_FUNC(sgeqrt)"(int *m, int *n, int *nb, s *a, int *lda, s *t, int *ldt, s *work, int *info) nogil
+    cdef void sgeqrt(int *m, int *n, int *nb, s *a, int *lda, s *t, int *ldt, s *work, int *info) noexcept nogil:
+        
+        _fortran_sgeqrt(m, n, nb, a, lda, t, ldt, work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sgeqrt2 "BLAS_FUNC(sgeqrt2)"(int *m, int *n, s *a, int *lda, s *t, int *ldt, int *info) nogil
+    cdef void sgeqrt2(int *m, int *n, s *a, int *lda, s *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_sgeqrt2(m, n, a, lda, t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sgeqrt3 "BLAS_FUNC(sgeqrt3)"(int *m, int *n, s *a, int *lda, s *t, int *ldt, int *info) nogil
+    cdef void sgeqrt3(int *m, int *n, s *a, int *lda, s *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_sgeqrt3(m, n, a, lda, t, ldt, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_sgerfs "BLAS_FUNC(sgerfs)"(char *trans, int *n, int *nrhs, s *a, int *lda, s *af, int *ldaf, int *ipiv, s *b, int *ldb, s *x, int *ldx, s *ferr, s *berr, s *work, int *iwork, int *info) nogil
@@ -7327,6 +7842,14 @@ cdef void slapll(int *n, s *x, int *incx, s *y, int *incy, s *ssmin) noexcept no
     _fortran_slapll(n, x, incx, y, incy, ssmin)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_slapmr "BLAS_FUNC(slapmr)"(bint *forwrd, int *m, int *n, s *x, int *ldx, int *k) nogil
+    cdef void slapmr(bint *forwrd, int *m, int *n, s *x, int *ldx, int *k) noexcept nogil:
+        
+        _fortran_slapmr(forwrd, m, n, x, ldx, k)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_slapmt "BLAS_FUNC(slapmt)"(bint *forwrd, int *m, int *n, s *x, int *ldx, int *k) nogil
 cdef void slapmt(bint *forwrd, int *m, int *n, s *x, int *ldx, int *k) noexcept nogil:
@@ -7481,6 +8004,14 @@ cdef void slarfg(int *n, s *alpha, s *x, int *incx, s *tau) noexcept nogil:
     _fortran_slarfg(n, alpha, x, incx, tau)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_slarfgp "BLAS_FUNC(slarfgp)"(int *n, s *alpha, s *x, int *incx, s *tau) nogil
+    cdef void slarfgp(int *n, s *alpha, s *x, int *incx, s *tau) noexcept nogil:
+        
+        _fortran_slarfgp(n, alpha, x, incx, tau)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_slarft "BLAS_FUNC(slarft)"(char *direct, char *storev, int *n, int *k, s *v, int *ldv, s *tau, s *t, int *ldt) nogil
 cdef void slarft(char *direct, char *storev, int *n, int *k, s *v, int *ldv, s *tau, s *t, int *ldt) noexcept nogil:
@@ -7585,6 +8116,22 @@ cdef void slartg(s *f, s *g, s *cs, s *sn, s *r) noexcept nogil:
     
     _fortran_slartg(f, g, cs, sn, r)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_slartgp "BLAS_FUNC(slartgp)"(s *f, s *g, s *cs, s *sn, s *r) nogil
+    cdef void slartgp(s *f, s *g, s *cs, s *sn, s *r) noexcept nogil:
+        
+        _fortran_slartgp(f, g, cs, sn, r)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_slartgs "BLAS_FUNC(slartgs)"(s *x, s *y, s *sigma, s *cs, s *sn) nogil
+    cdef void slartgs(s *x, s *y, s *sigma, s *cs, s *sn) noexcept nogil:
+        
+        _fortran_slartgs(x, y, sigma, cs, sn)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_slartv "BLAS_FUNC(slartv)"(int *n, s *x, int *incx, s *y, int *incy, s *c, s *s, int *incc) nogil
@@ -7879,6 +8426,22 @@ cdef void sopmtr(char *side, char *uplo, char *trans, int *m, int *n, s *ap, s *
     
     _fortran_sopmtr(side, uplo, trans, m, n, ap, tau, c, ldc, work, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sorbdb "BLAS_FUNC(sorbdb)"(char *trans, char *signs, int *m, int *p, int *q, s *x11, int *ldx11, s *x12, int *ldx12, s *x21, int *ldx21, s *x22, int *ldx22, s *theta, s *phi, s *taup1, s *taup2, s *tauq1, s *tauq2, s *work, int *lwork, int *info) nogil
+    cdef void sorbdb(char *trans, char *signs, int *m, int *p, int *q, s *x11, int *ldx11, s *x12, int *ldx12, s *x21, int *ldx21, s *x22, int *ldx22, s *theta, s *phi, s *taup1, s *taup2, s *tauq1, s *tauq2, s *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_sorbdb(trans, signs, m, p, q, x11, ldx11, x12, ldx12, x21, ldx21, x22, ldx22, theta, phi, taup1, taup2, tauq1, tauq2, work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_sorcsd "BLAS_FUNC(sorcsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, s *x11, int *ldx11, s *x12, int *ldx12, s *x21, int *ldx21, s *x22, int *ldx22, s *theta, s *u1, int *ldu1, s *u2, int *ldu2, s *v1t, int *ldv1t, s *v2t, int *ldv2t, s *work, int *lwork, int *iwork, int *info) nogil
+    cdef void sorcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, s *x11, int *ldx11, s *x12, int *ldx12, s *x21, int *ldx21, s *x22, int *ldx22, s *theta, s *u1, int *ldu1, s *u2, int *ldu2, s *v1t, int *ldv1t, s *v2t, int *ldv2t, s *work, int *lwork, int *iwork, int *info) noexcept nogil:
+        
+        _fortran_sorcsd(jobu1, jobu2, jobv1t, jobv2t, trans, signs, m, p, q, x11, ldx11, x12, ldx12, x21, ldx21, x22, ldx22, theta, u1, ldu1, u2, ldu2, v1t, ldv1t, v2t, ldv2t, work, lwork, iwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_sorg2l "BLAS_FUNC(sorg2l)"(int *m, int *n, int *k, s *a, int *lda, s *tau, s *work, int *info) nogil
@@ -8587,6 +9150,14 @@ cdef void ssycon(char *uplo, int *n, s *a, int *lda, int *ipiv, s *anorm, s *rco
     _fortran_ssycon(uplo, n, a, lda, ipiv, anorm, rcond, work, iwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ssyconv "BLAS_FUNC(ssyconv)"(char *uplo, char *way, int *n, s *a, int *lda, int *ipiv, s *work, int *info) nogil
+    cdef void ssyconv(char *uplo, char *way, int *n, s *a, int *lda, int *ipiv, s *work, int *info) noexcept nogil:
+        
+        _fortran_ssyconv(uplo, way, n, a, lda, ipiv, work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ssyequb "BLAS_FUNC(ssyequb)"(char *uplo, int *n, s *a, int *lda, s *s, s *scond, s *amax, s *work, int *info) nogil
 cdef void ssyequb(char *uplo, int *n, s *a, int *lda, s *s, s *scond, s *amax, s *work, int *info) noexcept nogil:
@@ -8678,6 +9249,14 @@ cdef void ssysvx(char *fact, char *uplo, int *n, int *nrhs, s *a, int *lda, s *a
     _fortran_ssysvx(fact, uplo, n, nrhs, a, lda, af, ldaf, ipiv, b, ldb, x, ldx, rcond, ferr, berr, work, lwork, iwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ssyswapr "BLAS_FUNC(ssyswapr)"(char *uplo, int *n, s *a, int *lda, int *i1, int *i2) nogil
+    cdef void ssyswapr(char *uplo, int *n, s *a, int *lda, int *i1, int *i2) noexcept nogil:
+        
+        _fortran_ssyswapr(uplo, n, a, lda, i1, i2)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ssytd2 "BLAS_FUNC(ssytd2)"(char *uplo, int *n, s *a, int *lda, s *d, s *e, s *tau, int *info) nogil
 cdef void ssytd2(char *uplo, int *n, s *a, int *lda, s *d, s *e, s *tau, int *info) noexcept nogil:
@@ -8713,12 +9292,36 @@ cdef void ssytri(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *in
     _fortran_ssytri(uplo, n, a, lda, ipiv, work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ssytri2 "BLAS_FUNC(ssytri2)"(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *lwork, int *info) nogil
+    cdef void ssytri2(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_ssytri2(uplo, n, a, lda, ipiv, work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ssytri2x "BLAS_FUNC(ssytri2x)"(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *nb, int *info) nogil
+    cdef void ssytri2x(char *uplo, int *n, s *a, int *lda, int *ipiv, s *work, int *nb, int *info) noexcept nogil:
+        
+        _fortran_ssytri2x(uplo, n, a, lda, ipiv, work, nb, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ssytrs "BLAS_FUNC(ssytrs)"(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, int *info) nogil
 cdef void ssytrs(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, int *info) noexcept nogil:
     
     _fortran_ssytrs(uplo, n, nrhs, a, lda, ipiv, b, ldb, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ssytrs2 "BLAS_FUNC(ssytrs2)"(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, s *work, int *info) nogil
+    cdef void ssytrs2(char *uplo, int *n, int *nrhs, s *a, int *lda, int *ipiv, s *b, int *ldb, s *work, int *info) noexcept nogil:
+        
+        _fortran_ssytrs2(uplo, n, nrhs, a, lda, ipiv, b, ldb, work, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_stbcon "BLAS_FUNC(stbcon)"(char *norm, char *uplo, char *diag, int *n, int *kd, s *ab, int *ldab, s *rcond, s *work, int *iwork, int *info) nogil
@@ -8831,6 +9434,38 @@ cdef void stpcon(char *norm, char *uplo, char *diag, int *n, s *ap, s *rcond, s 
     
     _fortran_stpcon(norm, uplo, diag, n, ap, rcond, work, iwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_stpmqrt "BLAS_FUNC(stpmqrt)"(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, s *v, int *ldv, s *t, int *ldt, s *a, int *lda, s *b, int *ldb, s *work, int *info) nogil
+    cdef void stpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, s *v, int *ldv, s *t, int *ldt, s *a, int *lda, s *b, int *ldb, s *work, int *info) noexcept nogil:
+        
+        _fortran_stpmqrt(side, trans, m, n, k, l, nb, v, ldv, t, ldt, a, lda, b, ldb, work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_stpqrt "BLAS_FUNC(stpqrt)"(int *m, int *n, int *l, int *nb, s *a, int *lda, s *b, int *ldb, s *t, int *ldt, s *work, int *info) nogil
+    cdef void stpqrt(int *m, int *n, int *l, int *nb, s *a, int *lda, s *b, int *ldb, s *t, int *ldt, s *work, int *info) noexcept nogil:
+        
+        _fortran_stpqrt(m, n, l, nb, a, lda, b, ldb, t, ldt, work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_stpqrt2 "BLAS_FUNC(stpqrt2)"(int *m, int *n, int *l, s *a, int *lda, s *b, int *ldb, s *t, int *ldt, int *info) nogil
+    cdef void stpqrt2(int *m, int *n, int *l, s *a, int *lda, s *b, int *ldb, s *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_stpqrt2(m, n, l, a, lda, b, ldb, t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_stprfb "BLAS_FUNC(stprfb)"(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, s *v, int *ldv, s *t, int *ldt, s *a, int *lda, s *b, int *ldb, s *work, int *ldwork) nogil
+    cdef void stprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, s *v, int *ldv, s *t, int *ldt, s *a, int *lda, s *b, int *ldb, s *work, int *ldwork) noexcept nogil:
+        
+        _fortran_stprfb(side, trans, direct, storev, m, n, k, l, v, ldv, t, ldt, a, lda, b, ldb, work, ldwork)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_stprfs "BLAS_FUNC(stprfs)"(char *uplo, char *trans, char *diag, int *n, int *nrhs, s *ap, s *b, int *ldb, s *x, int *ldx, s *ferr, s *berr, s *work, int *iwork, int *info) nogil
@@ -8957,6 +9592,22 @@ cdef void stzrzf(int *m, int *n, s *a, int *lda, s *tau, s *work, int *lwork, in
     
     _fortran_stzrzf(m, n, a, lda, tau, work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_xerbla_array "BLAS_FUNC(xerbla_array)"(char *srname_array, int *srname_len, int *info) nogil
+    cdef void xerbla_array(char *srname_array, int *srname_len, int *info) noexcept nogil:
+        
+        _fortran_xerbla_array(srname_array, srname_len, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zbbcsd "BLAS_FUNC(zbbcsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, d *theta, d *phi, npy_complex128 *u1, int *ldu1, npy_complex128 *u2, int *ldu2, npy_complex128 *v1t, int *ldv1t, npy_complex128 *v2t, int *ldv2t, d *b11d, d *b11e, d *b12d, d *b12e, d *b21d, d *b21e, d *b22d, d *b22e, d *rwork, int *lrwork, int *info) nogil
+    cdef void zbbcsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, int *m, int *p, int *q, d *theta, d *phi, z *u1, int *ldu1, z *u2, int *ldu2, z *v1t, int *ldv1t, z *v2t, int *ldv2t, d *b11d, d *b11e, d *b12d, d *b12e, d *b21d, d *b21e, d *b22d, d *b22e, d *rwork, int *lrwork, int *info) noexcept nogil:
+        
+        _fortran_zbbcsd(jobu1, jobu2, jobv1t, jobv2t, trans, m, p, q, theta, phi, <npy_complex128*>u1, ldu1, <npy_complex128*>u2, ldu2, <npy_complex128*>v1t, ldv1t, <npy_complex128*>v2t, ldv2t, b11d, b11e, b12d, b12e, b21d, b21e, b22d, b22e, rwork, lrwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zbdsqr "BLAS_FUNC(zbdsqr)"(char *uplo, int *n, int *ncvt, int *nru, int *ncc, d *d, d *e, npy_complex128 *vt, int *ldvt, npy_complex128 *u, int *ldu, npy_complex128 *c, int *ldc, d *rwork, int *info) nogil
@@ -9189,6 +9840,14 @@ cdef void zgelsy(int *m, int *n, int *nrhs, z *a, int *lda, z *b, int *ldb, int 
     _fortran_zgelsy(m, n, nrhs, <npy_complex128*>a, lda, <npy_complex128*>b, ldb, jpvt, rcond, rank, <npy_complex128*>work, lwork, rwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zgemqrt "BLAS_FUNC(zgemqrt)"(char *side, char *trans, int *m, int *n, int *k, int *nb, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *c, int *ldc, npy_complex128 *work, int *info) nogil
+    cdef void zgemqrt(char *side, char *trans, int *m, int *n, int *k, int *nb, z *v, int *ldv, z *t, int *ldt, z *c, int *ldc, z *work, int *info) noexcept nogil:
+        
+        _fortran_zgemqrt(side, trans, m, n, k, nb, <npy_complex128*>v, ldv, <npy_complex128*>t, ldt, <npy_complex128*>c, ldc, <npy_complex128*>work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zgeql2 "BLAS_FUNC(zgeql2)"(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info) nogil
 cdef void zgeql2(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil:
@@ -9217,12 +9876,52 @@ cdef void zgeqr2(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noe
     _fortran_zgeqr2(m, n, <npy_complex128*>a, lda, <npy_complex128*>tau, <npy_complex128*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zgeqr2p "BLAS_FUNC(zgeqr2p)"(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info) nogil
+    cdef void zgeqr2p(int *m, int *n, z *a, int *lda, z *tau, z *work, int *info) noexcept nogil:
+        
+        _fortran_zgeqr2p(m, n, <npy_complex128*>a, lda, <npy_complex128*>tau, <npy_complex128*>work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zgeqrf "BLAS_FUNC(zgeqrf)"(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info) nogil
 cdef void zgeqrf(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil:
     
     _fortran_zgeqrf(m, n, <npy_complex128*>a, lda, <npy_complex128*>tau, <npy_complex128*>work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zgeqrfp "BLAS_FUNC(zgeqrfp)"(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *lwork, int *info) nogil
+    cdef void zgeqrfp(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_zgeqrfp(m, n, <npy_complex128*>a, lda, <npy_complex128*>tau, <npy_complex128*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zgeqrt "BLAS_FUNC(zgeqrt)"(int *m, int *n, int *nb, npy_complex128 *a, int *lda, npy_complex128 *t, int *ldt, npy_complex128 *work, int *info) nogil
+    cdef void zgeqrt(int *m, int *n, int *nb, z *a, int *lda, z *t, int *ldt, z *work, int *info) noexcept nogil:
+        
+        _fortran_zgeqrt(m, n, nb, <npy_complex128*>a, lda, <npy_complex128*>t, ldt, <npy_complex128*>work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zgeqrt2 "BLAS_FUNC(zgeqrt2)"(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *t, int *ldt, int *info) nogil
+    cdef void zgeqrt2(int *m, int *n, z *a, int *lda, z *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_zgeqrt2(m, n, <npy_complex128*>a, lda, <npy_complex128*>t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zgeqrt3 "BLAS_FUNC(zgeqrt3)"(int *m, int *n, npy_complex128 *a, int *lda, npy_complex128 *t, int *ldt, int *info) nogil
+    cdef void zgeqrt3(int *m, int *n, z *a, int *lda, z *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_zgeqrt3(m, n, <npy_complex128*>a, lda, <npy_complex128*>t, ldt, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zgerfs "BLAS_FUNC(zgerfs)"(char *trans, int *n, int *nrhs, npy_complex128 *a, int *lda, npy_complex128 *af, int *ldaf, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, d *ferr, d *berr, npy_complex128 *work, d *rwork, int *info) nogil
@@ -9595,6 +10294,14 @@ cdef void zhesvx(char *fact, char *uplo, int *n, int *nrhs, z *a, int *lda, z *a
     _fortran_zhesvx(fact, uplo, n, nrhs, <npy_complex128*>a, lda, <npy_complex128*>af, ldaf, ipiv, <npy_complex128*>b, ldb, <npy_complex128*>x, ldx, rcond, ferr, berr, <npy_complex128*>work, lwork, rwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zheswapr "BLAS_FUNC(zheswapr)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *i1, int *i2) nogil
+    cdef void zheswapr(char *uplo, int *n, z *a, int *lda, int *i1, int *i2) noexcept nogil:
+        
+        _fortran_zheswapr(uplo, n, <npy_complex128*>a, lda, i1, i2)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zhetd2 "BLAS_FUNC(zhetd2)"(char *uplo, int *n, npy_complex128 *a, int *lda, d *d, d *e, npy_complex128 *tau, int *info) nogil
 cdef void zhetd2(char *uplo, int *n, z *a, int *lda, d *d, d *e, z *tau, int *info) noexcept nogil:
@@ -9630,12 +10337,36 @@ cdef void zhetri(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *in
     _fortran_zhetri(uplo, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zhetri2 "BLAS_FUNC(zhetri2)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *lwork, int *info) nogil
+    cdef void zhetri2(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_zhetri2(uplo, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zhetri2x "BLAS_FUNC(zhetri2x)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *nb, int *info) nogil
+    cdef void zhetri2x(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *nb, int *info) noexcept nogil:
+        
+        _fortran_zhetri2x(uplo, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, nb, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zhetrs "BLAS_FUNC(zhetrs)"(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, int *info) nogil
 cdef void zhetrs(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, int *info) noexcept nogil:
     
     _fortran_zhetrs(uplo, n, nrhs, <npy_complex128*>a, lda, ipiv, <npy_complex128*>b, ldb, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zhetrs2 "BLAS_FUNC(zhetrs2)"(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *work, int *info) nogil
+    cdef void zhetrs2(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *work, int *info) noexcept nogil:
+        
+        _fortran_zhetrs2(uplo, n, nrhs, <npy_complex128*>a, lda, ipiv, <npy_complex128*>b, ldb, <npy_complex128*>work, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zhfrk "BLAS_FUNC(zhfrk)"(char *transr, char *uplo, char *trans, int *n, int *k, d *alpha, npy_complex128 *a, int *lda, d *beta, npy_complex128 *c) nogil
@@ -10057,6 +10788,14 @@ cdef void zlapll(int *n, z *x, int *incx, z *y, int *incy, d *ssmin) noexcept no
     _fortran_zlapll(n, <npy_complex128*>x, incx, <npy_complex128*>y, incy, ssmin)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zlapmr "BLAS_FUNC(zlapmr)"(bint *forwrd, int *m, int *n, npy_complex128 *x, int *ldx, int *k) nogil
+    cdef void zlapmr(bint *forwrd, int *m, int *n, z *x, int *ldx, int *k) noexcept nogil:
+        
+        _fortran_zlapmr(forwrd, m, n, <npy_complex128*>x, ldx, k)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zlapmt "BLAS_FUNC(zlapmt)"(bint *forwrd, int *m, int *n, npy_complex128 *x, int *ldx, int *k) nogil
 cdef void zlapmt(bint *forwrd, int *m, int *n, z *x, int *ldx, int *k) noexcept nogil:
@@ -10216,6 +10955,13 @@ cdef extern from "_lapack_subroutines.h":
 cdef void zlarfg(int *n, z *alpha, z *x, int *incx, z *tau) noexcept nogil:
     
     _fortran_zlarfg(n, <npy_complex128*>alpha, <npy_complex128*>x, incx, <npy_complex128*>tau)
+    
+
+cdef extern from "_lapack_subroutines.h":
+    void _fortran_zlarfgp "BLAS_FUNC(zlarfgp)"(int *n, npy_complex128 *alpha, npy_complex128 *x, int *incx, npy_complex128 *tau) nogil
+cdef void zlarfgp(int *n, z *alpha, z *x, int *incx, z *tau) noexcept nogil:
+    
+    _fortran_zlarfgp(n, <npy_complex128*>alpha, <npy_complex128*>x, incx, <npy_complex128*>tau)
     
 
 cdef extern from "_lapack_subroutines.h":
@@ -10785,6 +11531,14 @@ cdef void zsycon(char *uplo, int *n, z *a, int *lda, int *ipiv, d *anorm, d *rco
     _fortran_zsycon(uplo, n, <npy_complex128*>a, lda, ipiv, anorm, rcond, <npy_complex128*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zsyconv "BLAS_FUNC(zsyconv)"(char *uplo, char *way, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *info) nogil
+    cdef void zsyconv(char *uplo, char *way, int *n, z *a, int *lda, int *ipiv, z *work, int *info) noexcept nogil:
+        
+        _fortran_zsyconv(uplo, way, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zsyequb "BLAS_FUNC(zsyequb)"(char *uplo, int *n, npy_complex128 *a, int *lda, d *s, d *scond, d *amax, npy_complex128 *work, int *info) nogil
 cdef void zsyequb(char *uplo, int *n, z *a, int *lda, d *s, d *scond, d *amax, z *work, int *info) noexcept nogil:
@@ -10827,6 +11581,14 @@ cdef void zsysvx(char *fact, char *uplo, int *n, int *nrhs, z *a, int *lda, z *a
     _fortran_zsysvx(fact, uplo, n, nrhs, <npy_complex128*>a, lda, <npy_complex128*>af, ldaf, ipiv, <npy_complex128*>b, ldb, <npy_complex128*>x, ldx, rcond, ferr, berr, <npy_complex128*>work, lwork, rwork, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zsyswapr "BLAS_FUNC(zsyswapr)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *i1, int *i2) nogil
+    cdef void zsyswapr(char *uplo, int *n, z *a, int *lda, int *i1, int *i2) noexcept nogil:
+        
+        _fortran_zsyswapr(uplo, n, <npy_complex128*>a, lda, i1, i2)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zsytf2 "BLAS_FUNC(zsytf2)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, int *info) nogil
 cdef void zsytf2(char *uplo, int *n, z *a, int *lda, int *ipiv, int *info) noexcept nogil:
@@ -10848,12 +11610,36 @@ cdef void zsytri(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *in
     _fortran_zsytri(uplo, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, info)
     
 
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zsytri2 "BLAS_FUNC(zsytri2)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *lwork, int *info) nogil
+    cdef void zsytri2(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_zsytri2(uplo, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zsytri2x "BLAS_FUNC(zsytri2x)"(char *uplo, int *n, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *work, int *nb, int *info) nogil
+    cdef void zsytri2x(char *uplo, int *n, z *a, int *lda, int *ipiv, z *work, int *nb, int *info) noexcept nogil:
+        
+        _fortran_zsytri2x(uplo, n, <npy_complex128*>a, lda, ipiv, <npy_complex128*>work, nb, info)
+        
+
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zsytrs "BLAS_FUNC(zsytrs)"(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, int *info) nogil
 cdef void zsytrs(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, int *info) noexcept nogil:
     
     _fortran_zsytrs(uplo, n, nrhs, <npy_complex128*>a, lda, ipiv, <npy_complex128*>b, ldb, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zsytrs2 "BLAS_FUNC(zsytrs2)"(char *uplo, int *n, int *nrhs, npy_complex128 *a, int *lda, int *ipiv, npy_complex128 *b, int *ldb, npy_complex128 *work, int *info) nogil
+    cdef void zsytrs2(char *uplo, int *n, int *nrhs, z *a, int *lda, int *ipiv, z *b, int *ldb, z *work, int *info) noexcept nogil:
+        
+        _fortran_zsytrs2(uplo, n, nrhs, <npy_complex128*>a, lda, ipiv, <npy_complex128*>b, ldb, <npy_complex128*>work, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ztbcon "BLAS_FUNC(ztbcon)"(char *norm, char *uplo, char *diag, int *n, int *kd, npy_complex128 *ab, int *ldab, d *rcond, npy_complex128 *work, d *rwork, int *info) nogil
@@ -10966,6 +11752,38 @@ cdef void ztpcon(char *norm, char *uplo, char *diag, int *n, z *ap, d *rcond, z 
     
     _fortran_ztpcon(norm, uplo, diag, n, <npy_complex128*>ap, rcond, <npy_complex128*>work, rwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ztpmqrt "BLAS_FUNC(ztpmqrt)"(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *work, int *info) nogil
+    cdef void ztpmqrt(char *side, char *trans, int *m, int *n, int *k, int *l, int *nb, z *v, int *ldv, z *t, int *ldt, z *a, int *lda, z *b, int *ldb, z *work, int *info) noexcept nogil:
+        
+        _fortran_ztpmqrt(side, trans, m, n, k, l, nb, <npy_complex128*>v, ldv, <npy_complex128*>t, ldt, <npy_complex128*>a, lda, <npy_complex128*>b, ldb, <npy_complex128*>work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ztpqrt "BLAS_FUNC(ztpqrt)"(int *m, int *n, int *l, int *nb, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *t, int *ldt, npy_complex128 *work, int *info) nogil
+    cdef void ztpqrt(int *m, int *n, int *l, int *nb, z *a, int *lda, z *b, int *ldb, z *t, int *ldt, z *work, int *info) noexcept nogil:
+        
+        _fortran_ztpqrt(m, n, l, nb, <npy_complex128*>a, lda, <npy_complex128*>b, ldb, <npy_complex128*>t, ldt, <npy_complex128*>work, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ztpqrt2 "BLAS_FUNC(ztpqrt2)"(int *m, int *n, int *l, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *t, int *ldt, int *info) nogil
+    cdef void ztpqrt2(int *m, int *n, int *l, z *a, int *lda, z *b, int *ldb, z *t, int *ldt, int *info) noexcept nogil:
+        
+        _fortran_ztpqrt2(m, n, l, <npy_complex128*>a, lda, <npy_complex128*>b, ldb, <npy_complex128*>t, ldt, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_ztprfb "BLAS_FUNC(ztprfb)"(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, npy_complex128 *v, int *ldv, npy_complex128 *t, int *ldt, npy_complex128 *a, int *lda, npy_complex128 *b, int *ldb, npy_complex128 *work, int *ldwork) nogil
+    cdef void ztprfb(char *side, char *trans, char *direct, char *storev, int *m, int *n, int *k, int *l, z *v, int *ldv, z *t, int *ldt, z *a, int *lda, z *b, int *ldb, z *work, int *ldwork) noexcept nogil:
+        
+        _fortran_ztprfb(side, trans, direct, storev, m, n, k, l, <npy_complex128*>v, ldv, <npy_complex128*>t, ldt, <npy_complex128*>a, lda, <npy_complex128*>b, ldb, <npy_complex128*>work, ldwork)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_ztprfs "BLAS_FUNC(ztprfs)"(char *uplo, char *trans, char *diag, int *n, int *nrhs, npy_complex128 *ap, npy_complex128 *b, int *ldb, npy_complex128 *x, int *ldx, d *ferr, d *berr, npy_complex128 *work, d *rwork, int *info) nogil
@@ -11092,6 +11910,22 @@ cdef void ztzrzf(int *m, int *n, z *a, int *lda, z *tau, z *work, int *lwork, in
     
     _fortran_ztzrzf(m, n, <npy_complex128*>a, lda, <npy_complex128*>tau, <npy_complex128*>work, lwork, info)
     
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zunbdb "BLAS_FUNC(zunbdb)"(char *trans, char *signs, int *m, int *p, int *q, npy_complex128 *x11, int *ldx11, npy_complex128 *x12, int *ldx12, npy_complex128 *x21, int *ldx21, npy_complex128 *x22, int *ldx22, d *theta, d *phi, npy_complex128 *taup1, npy_complex128 *taup2, npy_complex128 *tauq1, npy_complex128 *tauq2, npy_complex128 *work, int *lwork, int *info) nogil
+    cdef void zunbdb(char *trans, char *signs, int *m, int *p, int *q, z *x11, int *ldx11, z *x12, int *ldx12, z *x21, int *ldx21, z *x22, int *ldx22, d *theta, d *phi, z *taup1, z *taup2, z *tauq1, z *tauq2, z *work, int *lwork, int *info) noexcept nogil:
+        
+        _fortran_zunbdb(trans, signs, m, p, q, <npy_complex128*>x11, ldx11, <npy_complex128*>x12, ldx12, <npy_complex128*>x21, ldx21, <npy_complex128*>x22, ldx22, theta, phi, <npy_complex128*>taup1, <npy_complex128*>taup2, <npy_complex128*>tauq1, <npy_complex128*>tauq2, <npy_complex128*>work, lwork, info)
+        
+
+IF CTE_HAVE_MKL == 1:
+    cdef extern from "_lapack_subroutines.h":
+        void _fortran_zuncsd "BLAS_FUNC(zuncsd)"(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, npy_complex128 *x11, int *ldx11, npy_complex128 *x12, int *ldx12, npy_complex128 *x21, int *ldx21, npy_complex128 *x22, int *ldx22, d *theta, npy_complex128 *u1, int *ldu1, npy_complex128 *u2, int *ldu2, npy_complex128 *v1t, int *ldv1t, npy_complex128 *v2t, int *ldv2t, npy_complex128 *work, int *lwork, d *rwork, int *lrwork, int *iwork, int *info) nogil
+    cdef void zuncsd(char *jobu1, char *jobu2, char *jobv1t, char *jobv2t, char *trans, char *signs, int *m, int *p, int *q, z *x11, int *ldx11, z *x12, int *ldx12, z *x21, int *ldx21, z *x22, int *ldx22, d *theta, z *u1, int *ldu1, z *u2, int *ldu2, z *v1t, int *ldv1t, z *v2t, int *ldv2t, z *work, int *lwork, d *rwork, int *lrwork, int *iwork, int *info) noexcept nogil:
+        
+        _fortran_zuncsd(jobu1, jobu2, jobv1t, jobv2t, trans, signs, m, p, q, <npy_complex128*>x11, ldx11, <npy_complex128*>x12, ldx12, <npy_complex128*>x21, ldx21, <npy_complex128*>x22, ldx22, theta, <npy_complex128*>u1, ldu1, <npy_complex128*>u2, ldu2, <npy_complex128*>v1t, ldv1t, <npy_complex128*>v2t, ldv2t, <npy_complex128*>work, lwork, rwork, lrwork, iwork, info)
+        
 
 cdef extern from "_lapack_subroutines.h":
     void _fortran_zung2l "BLAS_FUNC(zung2l)"(int *m, int *n, int *k, npy_complex128 *a, int *lda, npy_complex128 *tau, npy_complex128 *work, int *info) nogil

@@ -270,6 +270,117 @@ static PY_LONG_LONG coo_todense_thunk(int I_typenum, int T_typenum, void **a)
     }
 }
 
+static PY_LONG_LONG coo_todense_nd_thunk(int I_typenum, int T_typenum, void **a)
+{
+    int j = get_thunk_case(I_typenum, T_typenum);
+    switch (j) {
+        case 1:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_bool_wrapper*)a[4], (npy_bool_wrapper*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 2:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_byte*)a[4], (npy_byte*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 3:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_ubyte*)a[4], (npy_ubyte*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 4:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_short*)a[4], (npy_short*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 5:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_ushort*)a[4], (npy_ushort*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 6:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int*)a[4], (npy_int*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 7:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_uint*)a[4], (npy_uint*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 8:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_long*)a[4], (npy_long*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 9:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_ulong*)a[4], (npy_ulong*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 10:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_longlong*)a[4], (npy_longlong*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 11:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_ulonglong*)a[4], (npy_ulonglong*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 12:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_float*)a[4], (npy_float*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 13:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_double*)a[4], (npy_double*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 14:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_longdouble*)a[4], (npy_longdouble*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 15:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_cfloat_wrapper*)a[4], (npy_cfloat_wrapper*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 16:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_cdouble_wrapper*)a[4], (npy_cdouble_wrapper*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 17:
+            (void)coo_todense_nd((const npy_int32*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_clongdouble_wrapper*)a[4], (npy_clongdouble_wrapper*)a[5], *(const npy_int32*)a[6]);
+            return 0;
+        case 19:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_bool_wrapper*)a[4], (npy_bool_wrapper*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 20:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_byte*)a[4], (npy_byte*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 21:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ubyte*)a[4], (npy_ubyte*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 22:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_short*)a[4], (npy_short*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 23:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ushort*)a[4], (npy_ushort*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 24:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int*)a[4], (npy_int*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 25:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_uint*)a[4], (npy_uint*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 26:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_long*)a[4], (npy_long*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 27:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ulong*)a[4], (npy_ulong*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 28:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_longlong*)a[4], (npy_longlong*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 29:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ulonglong*)a[4], (npy_ulonglong*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 30:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_float*)a[4], (npy_float*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 31:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_double*)a[4], (npy_double*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 32:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_longdouble*)a[4], (npy_longdouble*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 33:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_cfloat_wrapper*)a[4], (npy_cfloat_wrapper*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 34:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_cdouble_wrapper*)a[4], (npy_cdouble_wrapper*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+        case 35:
+            (void)coo_todense_nd((const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_clongdouble_wrapper*)a[4], (npy_clongdouble_wrapper*)a[5], *(const npy_int64*)a[6]);
+            return 0;
+    default:
+        throw std::runtime_error("internal error: invalid argument typenums");
+    }
+}
+
 static PY_LONG_LONG coo_matvec_thunk(int I_typenum, int T_typenum, void **a)
 {
     int j = get_thunk_case(I_typenum, T_typenum);
@@ -375,6 +486,339 @@ static PY_LONG_LONG coo_matvec_thunk(int I_typenum, int T_typenum, void **a)
             return 0;
         case 35:
             (void)coo_matvec(*(const npy_int64*)a[0], (const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_clongdouble_wrapper*)a[3], (const npy_clongdouble_wrapper*)a[4], (npy_clongdouble_wrapper*)a[5]);
+            return 0;
+    default:
+        throw std::runtime_error("internal error: invalid argument typenums");
+    }
+}
+
+static PY_LONG_LONG coo_matvec_nd_thunk(int I_typenum, int T_typenum, void **a)
+{
+    int j = get_thunk_case(I_typenum, T_typenum);
+    switch (j) {
+        case 1:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_bool_wrapper*)a[4], (const npy_bool_wrapper*)a[5], (npy_bool_wrapper*)a[6]);
+            return 0;
+        case 2:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_byte*)a[4], (const npy_byte*)a[5], (npy_byte*)a[6]);
+            return 0;
+        case 3:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ubyte*)a[4], (const npy_ubyte*)a[5], (npy_ubyte*)a[6]);
+            return 0;
+        case 4:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_short*)a[4], (const npy_short*)a[5], (npy_short*)a[6]);
+            return 0;
+        case 5:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ushort*)a[4], (const npy_ushort*)a[5], (npy_ushort*)a[6]);
+            return 0;
+        case 6:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_int*)a[4], (const npy_int*)a[5], (npy_int*)a[6]);
+            return 0;
+        case 7:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_uint*)a[4], (const npy_uint*)a[5], (npy_uint*)a[6]);
+            return 0;
+        case 8:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_long*)a[4], (const npy_long*)a[5], (npy_long*)a[6]);
+            return 0;
+        case 9:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ulong*)a[4], (const npy_ulong*)a[5], (npy_ulong*)a[6]);
+            return 0;
+        case 10:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_longlong*)a[4], (const npy_longlong*)a[5], (npy_longlong*)a[6]);
+            return 0;
+        case 11:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ulonglong*)a[4], (const npy_ulonglong*)a[5], (npy_ulonglong*)a[6]);
+            return 0;
+        case 12:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_float*)a[4], (const npy_float*)a[5], (npy_float*)a[6]);
+            return 0;
+        case 13:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_double*)a[4], (const npy_double*)a[5], (npy_double*)a[6]);
+            return 0;
+        case 14:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_longdouble*)a[4], (const npy_longdouble*)a[5], (npy_longdouble*)a[6]);
+            return 0;
+        case 15:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_cfloat_wrapper*)a[4], (const npy_cfloat_wrapper*)a[5], (npy_cfloat_wrapper*)a[6]);
+            return 0;
+        case 16:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_cdouble_wrapper*)a[4], (const npy_cdouble_wrapper*)a[5], (npy_cdouble_wrapper*)a[6]);
+            return 0;
+        case 17:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_clongdouble_wrapper*)a[4], (const npy_clongdouble_wrapper*)a[5], (npy_clongdouble_wrapper*)a[6]);
+            return 0;
+        case 19:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_bool_wrapper*)a[4], (const npy_bool_wrapper*)a[5], (npy_bool_wrapper*)a[6]);
+            return 0;
+        case 20:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_byte*)a[4], (const npy_byte*)a[5], (npy_byte*)a[6]);
+            return 0;
+        case 21:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ubyte*)a[4], (const npy_ubyte*)a[5], (npy_ubyte*)a[6]);
+            return 0;
+        case 22:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_short*)a[4], (const npy_short*)a[5], (npy_short*)a[6]);
+            return 0;
+        case 23:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ushort*)a[4], (const npy_ushort*)a[5], (npy_ushort*)a[6]);
+            return 0;
+        case 24:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int*)a[4], (const npy_int*)a[5], (npy_int*)a[6]);
+            return 0;
+        case 25:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_uint*)a[4], (const npy_uint*)a[5], (npy_uint*)a[6]);
+            return 0;
+        case 26:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_long*)a[4], (const npy_long*)a[5], (npy_long*)a[6]);
+            return 0;
+        case 27:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ulong*)a[4], (const npy_ulong*)a[5], (npy_ulong*)a[6]);
+            return 0;
+        case 28:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_longlong*)a[4], (const npy_longlong*)a[5], (npy_longlong*)a[6]);
+            return 0;
+        case 29:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ulonglong*)a[4], (const npy_ulonglong*)a[5], (npy_ulonglong*)a[6]);
+            return 0;
+        case 30:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_float*)a[4], (const npy_float*)a[5], (npy_float*)a[6]);
+            return 0;
+        case 31:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_double*)a[4], (const npy_double*)a[5], (npy_double*)a[6]);
+            return 0;
+        case 32:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_longdouble*)a[4], (const npy_longdouble*)a[5], (npy_longdouble*)a[6]);
+            return 0;
+        case 33:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_cfloat_wrapper*)a[4], (const npy_cfloat_wrapper*)a[5], (npy_cfloat_wrapper*)a[6]);
+            return 0;
+        case 34:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_cdouble_wrapper*)a[4], (const npy_cdouble_wrapper*)a[5], (npy_cdouble_wrapper*)a[6]);
+            return 0;
+        case 35:
+            (void)coo_matvec_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_clongdouble_wrapper*)a[4], (const npy_clongdouble_wrapper*)a[5], (npy_clongdouble_wrapper*)a[6]);
+            return 0;
+    default:
+        throw std::runtime_error("internal error: invalid argument typenums");
+    }
+}
+
+static PY_LONG_LONG coo_matmat_dense_thunk(int I_typenum, int T_typenum, void **a)
+{
+    int j = get_thunk_case(I_typenum, T_typenum);
+    switch (j) {
+        case 1:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_bool_wrapper*)a[4], (const npy_bool_wrapper*)a[5], (npy_bool_wrapper*)a[6]);
+            return 0;
+        case 2:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_byte*)a[4], (const npy_byte*)a[5], (npy_byte*)a[6]);
+            return 0;
+        case 3:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ubyte*)a[4], (const npy_ubyte*)a[5], (npy_ubyte*)a[6]);
+            return 0;
+        case 4:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_short*)a[4], (const npy_short*)a[5], (npy_short*)a[6]);
+            return 0;
+        case 5:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ushort*)a[4], (const npy_ushort*)a[5], (npy_ushort*)a[6]);
+            return 0;
+        case 6:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_int*)a[4], (const npy_int*)a[5], (npy_int*)a[6]);
+            return 0;
+        case 7:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_uint*)a[4], (const npy_uint*)a[5], (npy_uint*)a[6]);
+            return 0;
+        case 8:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_long*)a[4], (const npy_long*)a[5], (npy_long*)a[6]);
+            return 0;
+        case 9:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ulong*)a[4], (const npy_ulong*)a[5], (npy_ulong*)a[6]);
+            return 0;
+        case 10:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_longlong*)a[4], (const npy_longlong*)a[5], (npy_longlong*)a[6]);
+            return 0;
+        case 11:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_ulonglong*)a[4], (const npy_ulonglong*)a[5], (npy_ulonglong*)a[6]);
+            return 0;
+        case 12:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_float*)a[4], (const npy_float*)a[5], (npy_float*)a[6]);
+            return 0;
+        case 13:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_double*)a[4], (const npy_double*)a[5], (npy_double*)a[6]);
+            return 0;
+        case 14:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_longdouble*)a[4], (const npy_longdouble*)a[5], (npy_longdouble*)a[6]);
+            return 0;
+        case 15:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_cfloat_wrapper*)a[4], (const npy_cfloat_wrapper*)a[5], (npy_cfloat_wrapper*)a[6]);
+            return 0;
+        case 16:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_cdouble_wrapper*)a[4], (const npy_cdouble_wrapper*)a[5], (npy_cdouble_wrapper*)a[6]);
+            return 0;
+        case 17:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int32*)a[2], (const npy_int32*)a[3], (const npy_clongdouble_wrapper*)a[4], (const npy_clongdouble_wrapper*)a[5], (npy_clongdouble_wrapper*)a[6]);
+            return 0;
+        case 19:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_bool_wrapper*)a[4], (const npy_bool_wrapper*)a[5], (npy_bool_wrapper*)a[6]);
+            return 0;
+        case 20:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_byte*)a[4], (const npy_byte*)a[5], (npy_byte*)a[6]);
+            return 0;
+        case 21:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ubyte*)a[4], (const npy_ubyte*)a[5], (npy_ubyte*)a[6]);
+            return 0;
+        case 22:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_short*)a[4], (const npy_short*)a[5], (npy_short*)a[6]);
+            return 0;
+        case 23:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ushort*)a[4], (const npy_ushort*)a[5], (npy_ushort*)a[6]);
+            return 0;
+        case 24:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int*)a[4], (const npy_int*)a[5], (npy_int*)a[6]);
+            return 0;
+        case 25:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_uint*)a[4], (const npy_uint*)a[5], (npy_uint*)a[6]);
+            return 0;
+        case 26:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_long*)a[4], (const npy_long*)a[5], (npy_long*)a[6]);
+            return 0;
+        case 27:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ulong*)a[4], (const npy_ulong*)a[5], (npy_ulong*)a[6]);
+            return 0;
+        case 28:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_longlong*)a[4], (const npy_longlong*)a[5], (npy_longlong*)a[6]);
+            return 0;
+        case 29:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_ulonglong*)a[4], (const npy_ulonglong*)a[5], (npy_ulonglong*)a[6]);
+            return 0;
+        case 30:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_float*)a[4], (const npy_float*)a[5], (npy_float*)a[6]);
+            return 0;
+        case 31:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_double*)a[4], (const npy_double*)a[5], (npy_double*)a[6]);
+            return 0;
+        case 32:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_longdouble*)a[4], (const npy_longdouble*)a[5], (npy_longdouble*)a[6]);
+            return 0;
+        case 33:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_cfloat_wrapper*)a[4], (const npy_cfloat_wrapper*)a[5], (npy_cfloat_wrapper*)a[6]);
+            return 0;
+        case 34:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_cdouble_wrapper*)a[4], (const npy_cdouble_wrapper*)a[5], (npy_cdouble_wrapper*)a[6]);
+            return 0;
+        case 35:
+            (void)coo_matmat_dense(*(const npy_int64*)a[0], *(const npy_int64*)a[1], (const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_clongdouble_wrapper*)a[4], (const npy_clongdouble_wrapper*)a[5], (npy_clongdouble_wrapper*)a[6]);
+            return 0;
+    default:
+        throw std::runtime_error("internal error: invalid argument typenums");
+    }
+}
+
+static PY_LONG_LONG coo_matmat_dense_nd_thunk(int I_typenum, int T_typenum, void **a)
+{
+    int j = get_thunk_case(I_typenum, T_typenum);
+    switch (j) {
+        case 1:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_bool_wrapper*)a[6], (const npy_bool_wrapper*)a[7], (npy_bool_wrapper*)a[8]);
+            return 0;
+        case 2:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_byte*)a[6], (const npy_byte*)a[7], (npy_byte*)a[8]);
+            return 0;
+        case 3:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_ubyte*)a[6], (const npy_ubyte*)a[7], (npy_ubyte*)a[8]);
+            return 0;
+        case 4:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_short*)a[6], (const npy_short*)a[7], (npy_short*)a[8]);
+            return 0;
+        case 5:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_ushort*)a[6], (const npy_ushort*)a[7], (npy_ushort*)a[8]);
+            return 0;
+        case 6:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_int*)a[6], (const npy_int*)a[7], (npy_int*)a[8]);
+            return 0;
+        case 7:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_uint*)a[6], (const npy_uint*)a[7], (npy_uint*)a[8]);
+            return 0;
+        case 8:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_long*)a[6], (const npy_long*)a[7], (npy_long*)a[8]);
+            return 0;
+        case 9:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_ulong*)a[6], (const npy_ulong*)a[7], (npy_ulong*)a[8]);
+            return 0;
+        case 10:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_longlong*)a[6], (const npy_longlong*)a[7], (npy_longlong*)a[8]);
+            return 0;
+        case 11:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_ulonglong*)a[6], (const npy_ulonglong*)a[7], (npy_ulonglong*)a[8]);
+            return 0;
+        case 12:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_float*)a[6], (const npy_float*)a[7], (npy_float*)a[8]);
+            return 0;
+        case 13:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_double*)a[6], (const npy_double*)a[7], (npy_double*)a[8]);
+            return 0;
+        case 14:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_longdouble*)a[6], (const npy_longdouble*)a[7], (npy_longdouble*)a[8]);
+            return 0;
+        case 15:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_cfloat_wrapper*)a[6], (const npy_cfloat_wrapper*)a[7], (npy_cfloat_wrapper*)a[8]);
+            return 0;
+        case 16:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_cdouble_wrapper*)a[6], (const npy_cdouble_wrapper*)a[7], (npy_cdouble_wrapper*)a[8]);
+            return 0;
+        case 17:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int32*)a[5], (const npy_clongdouble_wrapper*)a[6], (const npy_clongdouble_wrapper*)a[7], (npy_clongdouble_wrapper*)a[8]);
+            return 0;
+        case 19:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_bool_wrapper*)a[6], (const npy_bool_wrapper*)a[7], (npy_bool_wrapper*)a[8]);
+            return 0;
+        case 20:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_byte*)a[6], (const npy_byte*)a[7], (npy_byte*)a[8]);
+            return 0;
+        case 21:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_ubyte*)a[6], (const npy_ubyte*)a[7], (npy_ubyte*)a[8]);
+            return 0;
+        case 22:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_short*)a[6], (const npy_short*)a[7], (npy_short*)a[8]);
+            return 0;
+        case 23:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_ushort*)a[6], (const npy_ushort*)a[7], (npy_ushort*)a[8]);
+            return 0;
+        case 24:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_int*)a[6], (const npy_int*)a[7], (npy_int*)a[8]);
+            return 0;
+        case 25:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_uint*)a[6], (const npy_uint*)a[7], (npy_uint*)a[8]);
+            return 0;
+        case 26:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_long*)a[6], (const npy_long*)a[7], (npy_long*)a[8]);
+            return 0;
+        case 27:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_ulong*)a[6], (const npy_ulong*)a[7], (npy_ulong*)a[8]);
+            return 0;
+        case 28:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_longlong*)a[6], (const npy_longlong*)a[7], (npy_longlong*)a[8]);
+            return 0;
+        case 29:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_ulonglong*)a[6], (const npy_ulonglong*)a[7], (npy_ulonglong*)a[8]);
+            return 0;
+        case 30:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_float*)a[6], (const npy_float*)a[7], (npy_float*)a[8]);
+            return 0;
+        case 31:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_double*)a[6], (const npy_double*)a[7], (npy_double*)a[8]);
+            return 0;
+        case 32:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_longdouble*)a[6], (const npy_longdouble*)a[7], (npy_longdouble*)a[8]);
+            return 0;
+        case 33:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_cfloat_wrapper*)a[6], (const npy_cfloat_wrapper*)a[7], (npy_cfloat_wrapper*)a[8]);
+            return 0;
+        case 34:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_cdouble_wrapper*)a[6], (const npy_cdouble_wrapper*)a[7], (npy_cdouble_wrapper*)a[8]);
+            return 0;
+        case 35:
+            (void)coo_matmat_dense_nd(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], (const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int64*)a[5], (const npy_clongdouble_wrapper*)a[6], (const npy_clongdouble_wrapper*)a[7], (npy_clongdouble_wrapper*)a[8]);
             return 0;
     default:
         throw std::runtime_error("internal error: invalid argument typenums");
@@ -518,9 +962,33 @@ coo_todense_method(PyObject *self, PyObject *args)
 }
 
 PyObject *
+coo_todense_nd_method(PyObject *self, PyObject *args)
+{
+    return call_thunk('v', "IllIT*Ti", coo_todense_nd_thunk, args);
+}
+
+PyObject *
 coo_matvec_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "lIITT*T", coo_matvec_thunk, args);
+}
+
+PyObject *
+coo_matvec_nd_method(PyObject *self, PyObject *args)
+{
+    return call_thunk('v', "llIITT*T", coo_matvec_nd_thunk, args);
+}
+
+PyObject *
+coo_matmat_dense_method(PyObject *self, PyObject *args)
+{
+    return call_thunk('v', "llIITT*T", coo_matmat_dense_thunk, args);
+}
+
+PyObject *
+coo_matmat_dense_nd_method(PyObject *self, PyObject *args)
+{
+    return call_thunk('v', "lllIIITT*T", coo_matmat_dense_nd_thunk, args);
 }
 
 PyObject *
