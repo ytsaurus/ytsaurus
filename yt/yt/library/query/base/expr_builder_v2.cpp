@@ -940,6 +940,10 @@ TConstExpressionPtr TExprBuilderV2::OnTransformOp(
     // TODO(lukyan): On error find first occurence of value with no coercion.
     auto resultType = TypingCtx_.GetWireType(UnifyTypes("transform", &TypingCtx_, resultTypes));
 
+    if (defaultTypedExpr) {
+        defaultTypedExpr = CreateCoercion(resultType, defaultTypedExpr);
+    }
+
     auto rowBuffer = New<TRowBuffer>(TQueryPreparerBufferTag());
     TUnversionedRowBuilder rowBuilder;
     std::vector<TRow> rows;

@@ -2935,18 +2935,27 @@ TEST_F(TQueryEvaluateTest, SimpleTransformWithDefault)
         {"x", EValueType::Int64}
     });
 
-    auto result = YsonToRows({
-        "x=13",
-        "x=-9",
-        "x=17",
-        "x=16",
-    }, resultSplit);
-
     Evaluate(
         "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17), a + 1) as x FROM [//t]",
         split,
         source,
-        ResultMatcher(result));
+        ResultMatcher(YsonToRows({
+            "x=13",
+            "x=-9",
+            "x=17",
+            "x=16",
+        }, resultSplit)));
+
+    Evaluate(
+        "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17), #) as x FROM [//t]",
+        split,
+        source,
+        ResultMatcher(YsonToRows({
+            "x=13",
+            "",
+            "x=17",
+            "",
+        }, resultSplit)));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
