@@ -550,25 +550,7 @@ func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 		return nil
 	}
 
-	// When string_keyed_dict_mode is enabled
-	if ysonMap, ok := data.(map[any]any); ok {
-		result := make([]any, 0, len(ysonMap))
-		for key, val := range ysonMap {
-			var decodedKey, decodedVal any
-			if err := d.decodeSchemaType(key, t.Key, &decodedKey); err != nil {
-				return err
-			}
-			if err := d.decodeSchemaType(val, t.Value, &decodedVal); err != nil {
-				return err
-			}
-
-			result = append(result, []any{decodedKey, decodedVal})
-		}
-		*v = result
-		return nil
-	}
-
-	return fmt.Errorf("expected list or map for dict, got %T", data)
+	return fmt.Errorf("expected a list for dict, got %T", data)
 }
 
 func (d *WireDecoder) decodeVariant(data any, t schema.Variant, v *any) error {
