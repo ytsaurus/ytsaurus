@@ -1041,7 +1041,7 @@ func makeListJobsResult(result *rpc_proxy.TListJobsResult) (*yt.ListJobsResult, 
 
 		var jobError yterrors.Error
 		if job.Error != nil {
-			if err := json.Unmarshal(job.Error, &jobError); err != nil {
+			if err := yson.Unmarshal(job.Error, &jobError); err != nil {
 				return nil, xerrors.Errorf("unable to deserialize job error of job %q: %w", jobID, err)
 			}
 		}
