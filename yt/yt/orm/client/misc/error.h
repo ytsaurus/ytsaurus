@@ -46,6 +46,7 @@ DEFINE_ENUM(EErrorCode,
     ((MaxInstantiatedObjectsLimitExceeded) (100035))
     ((InvalidReferenceMode) (100036))
     ((MigrationConflict) (100037))
+    ((ValidationFailed) (100038))
 );
 
 } // namespace NYT::NOrm::NClient

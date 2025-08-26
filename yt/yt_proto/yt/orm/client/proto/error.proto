@@ -160,6 +160,10 @@ enum EErrorCode
     EC_MIGRATION_CONFLICT = 100037 [
         (NYT.NYson.NProto.enum_value_name) = "migration_conflict"
     ];
+
+    EC_VALIDATION_FAILED = 100038 [
+        (NYT.NYson.NProto.enum_value_name) = "validation_failed"
+    ];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
