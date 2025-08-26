@@ -847,6 +847,11 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        if (hydraManager->GetReadOnly()) {
+            return;
+        }
+
         int scannedTransactionsCount = 0;
         const auto maxTransactionsPerScan = GetDynamicConfig()->MaxTransactionsPerScan;
 
