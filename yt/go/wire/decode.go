@@ -531,7 +531,7 @@ func (d *WireDecoder) decodeTuple(data any, t schema.Tuple, v *any) error {
 func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 	// Dict is represented by default as a YSON list, where each element is a YSON list of two elements: key and value
 	if ysonList, ok := data.([]any); ok {
-		result := make(map[any]any)
+		result := make([]any, 0, len(ysonList))
 		for _, item := range ysonList {
 			kvList, ok := item.([]any)
 			if !ok || len(kvList) != 2 {
@@ -544,7 +544,7 @@ func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 			if err := d.decodeSchemaType(kvList[1], t.Value, &decodedVal); err != nil {
 				return err
 			}
-			result[decodedKey] = decodedVal
+			result = append(result, []any{decodedKey, decodedVal})
 		}
 		*v = result
 		return nil
@@ -552,7 +552,7 @@ func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 
 	// When string_keyed_dict_mode is enabled
 	if ysonMap, ok := data.(map[any]any); ok {
-		result := make(map[any]any)
+		result := make([]any, 0, len(ysonMap))
 		for key, val := range ysonMap {
 			var decodedKey, decodedVal any
 			if err := d.decodeSchemaType(key, t.Key, &decodedKey); err != nil {
@@ -562,7 +562,7 @@ func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
 				return err
 			}
 
-			result[decodedKey] = decodedVal
+			result = append(result, []any{decodedKey, decodedVal})
 		}
 		*v = result
 		return nil

@@ -500,9 +500,9 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			nameTable: NameTable{{Name: "config"}},
 			testData:  []byte(`[["key1";1];["key2";2]]`),
 			expected: map[string]any{
-				"config": map[any]any{
-					"key1": int64(1),
-					"key2": int64(2),
+				"config": []any{
+					[]any{"key1", int64(1)},
+					[]any{"key2", int64(2)},
 				},
 			},
 		},
@@ -527,9 +527,9 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			nameTable: NameTable{{Name: "users"}},
 			testData:  []byte(`[["alice";[25;%true]];["bob";[30;%false]]]`),
 			expected: map[string]any{
-				"users": map[any]any{
-					"alice": map[string]any{"age": int64(25), "active": true},
-					"bob":   map[string]any{"age": int64(30), "active": false},
+				"users": []any{
+					[]any{"alice", map[string]any{"age": int64(25), "active": true}},
+					[]any{"bob", map[string]any{"age": int64(30), "active": false}},
 				},
 			},
 		},
@@ -714,9 +714,9 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			testData:  []byte(`[[["key1";1]];#;[["key2";2]]]`),
 			expected: map[string]any{
 				"complex": []any{
-					map[any]any{"key1": int64(1)},
+					[]any{[]any{"key1", int64(1)}},
 					nil,
-					map[any]any{"key2": int64(2)},
+					[]any{[]any{"key2", int64(2)}},
 				},
 			},
 		},
@@ -807,9 +807,9 @@ func TestDecoder_CompositeTypes(t *testing.T) {
 			nameTable: NameTable{{Name: "categories"}},
 			testData:  []byte(`[["fruits";["apple";"banana"]];["vegetables";["carrot";"lettuce"]]]`),
 			expected: map[string]any{
-				"categories": map[any]any{
-					"fruits":     []any{"apple", "banana"},
-					"vegetables": []any{"carrot", "lettuce"},
+				"categories": []any{
+					[]any{"fruits", []any{"apple", "banana"}},
+					[]any{"vegetables", []any{"carrot", "lettuce"}},
 				},
 			},
 		},
