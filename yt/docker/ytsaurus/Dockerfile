@@ -427,7 +427,6 @@ RUN pip install virtualenv --break-system-packages \
 
 RUN . ${ODIN_VIRTUAL_ENV}/bin/activate \
     && mkdir ${PYTHON_ROOT} \
-    && cd ${SOURCE_ROOT} && pip install -e yt/python/packages \
     && cd ${PYTHON_ROOT} \
     && python ${ODIN_SOURCE_ROOT}/packages/prepare_python_modules.py --source-root "$SOURCE_ROOT" --output-path "$PYTHON_ROOT" \
     && cp "${ODIN_SOURCE_ROOT}/packages/setup.py" ./ && python setup.py bdist_wheel --universal
