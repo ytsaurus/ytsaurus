@@ -1783,7 +1783,8 @@ private:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        if (State_ == EMasterConnectorState::Connected) {
+        auto expected = EMasterConnectorState::Connected;
+        if (State_.compare_exchange_strong(expected, EMasterConnectorState::Disconnecting)) {
             YT_LOG_WARNING(error, "Disconnecting master");
             MasterDisconnected_.Fire();
             YT_LOG_WARNING("Master disconnected");

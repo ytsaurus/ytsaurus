@@ -36,6 +36,9 @@ struct TWatcherLockOptions
 
 DEFINE_ENUM(EMasterConnectorState,
     (Disconnected)
+    // NB(coteeq): Disconnection does many things and even on a prestable cluster
+    // it may take up to 80ms.
+    (Disconnecting)
     (Connecting)
     (Connected)
 );
