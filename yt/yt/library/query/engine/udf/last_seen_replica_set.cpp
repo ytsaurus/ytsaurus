@@ -1,6 +1,6 @@
 #include <yt/yt/library/query/misc/udf_c_abi.h>
 
-#include <yt/yt/client/table_client/unversioned_value.h>
+#include <library/cpp/yt/assert/assert.h>
 
 extern "C" void LastSeenReplicaSetMerge(
     TExpressionContext* context,

@@ -2,7 +2,7 @@
 
 using namespace NYT::NQueryClient::NUdf;
 
-extern "C" void abs(
+extern "C" void math_abs(
     TExpressionContext* /*context*/,
     TUnversionedValue* result,
     TUnversionedValue* data)
