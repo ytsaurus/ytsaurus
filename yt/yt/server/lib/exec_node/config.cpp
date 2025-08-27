@@ -220,6 +220,18 @@ const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicCo
 {
     static const auto DefaultStatisticSensors = ConvertTo<THashMap<TString, TUserJobStatisticSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
+            // Sensors `total_cpu` and `total_memory` are relevant for CRI job environment.
+            .Item("total_cpu").BeginMap()
+                .Item("path").Value("/job/cpu")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/job/cpu")
+            .EndMap()
+            .Item("total_memory").BeginMap()
+                .Item("path").Value("/job/memory")
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/job/memory")
+            .EndMap()
+
             .Item("cpu/burst").BeginMap()
                 .Item("path").Value("/user_job/cpu/burst")
                 .Item("type").Value("counter")
