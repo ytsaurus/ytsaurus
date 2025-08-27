@@ -8,7 +8,13 @@ namespace NYT::NQueryClient::NUdf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void ClearValue(TUnversionedValue* value)
+#ifdef __wasm__
+#define WASM_WEAK __attribute__((weak))
+#else
+#define WASM_WEAK
+#endif
+
+inline void WASM_WEAK ClearValue(TUnversionedValue* value)
 {
     *value = {};
 }

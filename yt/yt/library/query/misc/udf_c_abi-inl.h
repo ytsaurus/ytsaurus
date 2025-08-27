@@ -8,7 +8,13 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void ClearValue(TUnversionedValue* value)
+#ifdef __wasm__
+#define WASM_WEAK __attribute__((weak))
+#else
+#define WASM_WEAK
+#endif
+
+inline void WASM_WEAK ClearValue(TUnversionedValue* value)
 {
     memset(value, 0, sizeof(*value));
 }

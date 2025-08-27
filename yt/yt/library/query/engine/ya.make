@@ -383,9 +383,9 @@ LLVM_BC(
 
 LLVM_BC(
     udf/abs.cpp
-    NAME abs
+    NAME math_abs
     SYMBOLS
-        abs
+        math_abs
 )
 
 LLVM_BC(
