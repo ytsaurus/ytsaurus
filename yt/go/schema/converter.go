@@ -10,8 +10,8 @@ import (
 
 func ConvertFromRPCProxy(rpcSchema *rpc_proxy.TTableSchema) (Schema, error) {
 	schema := Schema{
-		Strict:     ptr.Bool(*rpcSchema.Strict),
-		UniqueKeys: *rpcSchema.UniqueKeys,
+		Strict:     ptr.Bool(rpcSchema.GetStrict()),
+		UniqueKeys: rpcSchema.GetUniqueKeys(),
 		Columns:    make([]Column, len(rpcSchema.Columns)),
 	}
 
@@ -24,14 +24,14 @@ func ConvertFromRPCProxy(rpcSchema *rpc_proxy.TTableSchema) (Schema, error) {
 		}
 
 		schema.Columns[i] = Column{
-			Name:        *col.Name,
+			Name:        col.GetName(),
 			Type:        convertType(col.Type),
 			ComplexType: complexType,
-			Required:    *col.Required,
-			Group:       *col.Group,
-			Expression:  *col.Expression,
-			Aggregate:   AggregateFunction(*col.Aggregate),
-			Lock:        *col.Lock,
+			Required:    col.GetRequired(),
+			Group:       col.GetGroup(),
+			Expression:  col.GetExpression(),
+			Aggregate:   AggregateFunction(col.GetAggregate()),
+			Lock:        col.GetLock(),
 			SortOrder:   convertSortOrder(col.SortOrder),
 		}
 	}
