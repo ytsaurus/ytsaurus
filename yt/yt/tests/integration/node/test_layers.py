@@ -272,6 +272,37 @@ class TestLayers(TestLayersBase):
         for job_id in job_ids:
             assert b"static-bin" in op.read_stderr(job_id)
 
+    @authors("ngc224")
+    def test_layer_with_environment_formatter(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./static_cat; ls $CUSTOM_ROOT_FS 1>&2",
+            file="//tmp/static_cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                    "environment": {
+                        "CUSTOM_ROOT_FS": "$(RootFs)",
+                    },
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            stderr = op.read_stderr(job_id)
+            assert b"static-bin" in stderr
+
 
 class TestProbingLayer(TestLayers):
     NUM_TEST_PARTITIONS = 5
