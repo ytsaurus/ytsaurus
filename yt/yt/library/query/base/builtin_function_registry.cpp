@@ -556,11 +556,14 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "abs",
+        "math_abs",
         anyConstraintsAbs,
         {typeParameterAbs},
         EValueType::Null,
         typeParameterAbs,
-        "abs");
+        "math_abs",
+        ECallingConvention::UnversionedValue,
+        false);
 
     struct TMathFunction {
         std::string Name;
