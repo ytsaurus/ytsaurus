@@ -50,7 +50,6 @@ struct THunkStoreLockingState
     // Transient.
     int TransientLockCount = 0;
     TInstant LastChangeTime;
-    // Should only change false -> true.
     bool IsBeingUnlocked = false;
 
     void Save(TSaveContext& context) const
