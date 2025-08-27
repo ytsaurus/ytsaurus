@@ -82,7 +82,7 @@ template <typename TResult, typename... TArgs>
 Y_FORCE_INLINE TResult TCompartmentFunction<TResult(TArgs...)>::operator()(TArgs... args) const
 {
     static_assert(
-        std::is_integral_v<TResult> || std::is_same_v<TResult, void>,
+        std::is_integral_v<TResult> || std::is_same_v<TResult, void> || std::is_pointer_v<TResult>,
         "Non-integral result types are not supported");
 
     if (Compartment_) {
