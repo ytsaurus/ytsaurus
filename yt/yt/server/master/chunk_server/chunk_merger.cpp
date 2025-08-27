@@ -716,12 +716,6 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
 
     YT_VERIFY(trunkChunkOwner->IsTrunk());
 
-    const auto& config = GetDynamicConfig();
-    if (!config->Enable) {
-        YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
-        return false;
-    }
-
     if (!IsObjectAlive(trunkChunkOwner)) {
         return false;
     }
