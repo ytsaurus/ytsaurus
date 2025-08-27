@@ -179,8 +179,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     if (getBasicAttributesContext.SecurityTags) {
         ToProto(response->mutable_security_tags()->mutable_items(), getBasicAttributesContext.SecurityTags->Items);
     }
-    if (getBasicAttributesContext.Rlaces) {
-        ToProto(response->mutable_rlaces()->mutable_items(), *getBasicAttributesContext.Rlaces);
+    if (getBasicAttributesContext.RlAcl) {
+        ToProto(response->mutable_rl_acl()->mutable_items(), *getBasicAttributesContext.RlAcl);
     }
 
     ToProto(response->mutable_external_transaction_id(), getBasicAttributesContext.ExternalTransactionId);

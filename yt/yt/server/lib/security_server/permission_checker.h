@@ -61,8 +61,8 @@ struct TPermissionCheckResponse
     //! If TPermissionCheckBasicOptions::Columns are given, this array contains
     //! results for individual columns.
     std::optional<std::vector<TPermissionCheckResult>> Columns;
-    //! If there are RLACEs for the object, this array contains descriptors for reader.
-    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> Rlaces;
+    //! If there are RL ACEs for the object, this array contains descriptors for reader.
+    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RlAcl;
 };
 
 TPermissionCheckResponse MakeFastCheckPermissionResponse(

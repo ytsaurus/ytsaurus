@@ -9,8 +9,8 @@ namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TRowLevelAccessControlEntry* protoRlace, const TRowLevelAccessControlEntry& rlace);
-void FromProto(TRowLevelAccessControlEntry* rlace, const NProto::TRowLevelAccessControlEntry& protoRlace);
+void ToProto(NProto::TRowLevelAccessControlEntry* protoRlAce, const TRowLevelAccessControlEntry& rlAce);
+void FromProto(TRowLevelAccessControlEntry* rlAce, const NProto::TRowLevelAccessControlEntry& protoRlAce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
