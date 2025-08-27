@@ -485,7 +485,6 @@ private:
 
             auto token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
-
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
@@ -498,7 +497,13 @@ private:
 
             for (const auto& src : yqlRequest.secrets()) {
                 auto& dst = credentials[src.id()];
-                dst["content"] = ConvertTo<TString>(WaitFor(queryClients[defaultCluster]->GetNode(src.ypath())).ValueOrThrow());
+                auto ypath = NYPath::TRichYPath(src.ypath());
+                auto cluster = ypath.GetCluster().value_or(defaultCluster);
+                if (!queryClients.contains(cluster)) {
+                    queryClients[cluster] = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+                }
+
+                dst["content"] = ConvertTo<TString>(WaitFor(queryClients[cluster]->GetNode(ypath.GetPath())).ValueOrThrow());
                 if (src.has_category()) {
                     dst["category"] = src.category();
                 }

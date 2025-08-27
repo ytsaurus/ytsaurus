@@ -127,14 +127,14 @@ def get_secure_param(key):
     @@
 );
 
-select $get_secure_param(SecureParam("token:geheim")) as sp;
+select $get_secure_param(SecureParam("token:geheim1")) as sp1, $get_secure_param(SecureParam("token:geheim2")) as sp2;
 """
         path = "//tmp/secret_path_to_secret_value"
         set(path, "test")
-        query = start_query("yql", yql_with_python, secrets=[{"id": "geheim", "ypath": path}])
+        query = start_query("yql", yql_with_python, secrets=[{"id": "geheim1", "ypath": path}, {"id": "geheim2", "ypath": f"primary:{path}"}])
         query.track()
         result = query.read_result(0)
-        assert_items_equal(result, [{"sp": "test"}])
+        assert_items_equal(result, [{"sp1": "test", "sp2": "test"}])
 
 
 class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
