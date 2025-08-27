@@ -547,7 +547,7 @@ private:
             .Apply(BIND([this, this_ = MakeStrong(this)] (std::vector<TString> tmpfsPaths) mutable {
                 ResultHolder_.TmpfsPaths = std::move(tmpfsPaths);
 
-                if (ResultHolder_.RootVolume) {
+                if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
                     PrepareArtifactBinds();
                 } else {
                     MakeArtifactSymlinks();

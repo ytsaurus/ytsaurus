@@ -53,6 +53,8 @@ struct TJobWorkspaceBuildingContext
 
     bool NeedGpu = false;
     std::optional<TGpuCheckOptions> GpuCheckOptions;
+
+    bool TestRootFS = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
