@@ -4858,7 +4858,7 @@ private:
             rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
                 request.rowset_descriptor(),
                 MergeRefsToRef<TApiServiceBufferTag>(attachments));
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error sending rows for table %v",
                 path)
                 << TError(ex);
