@@ -184,6 +184,10 @@ protected:
 
     double GetTabletMetric(const TTabletPtr& tablet, const TTableSchemaPtr& schema) const
     {
+        if (tablet->State == ETabletState::Unmounted) {
+            return 0.0;
+        }
+
         auto rowBuffer = New<TRowBuffer>();
         auto value = Evaluator_->Evaluate({
                 ConvertToYsonString(tablet->Statistics.OriginalNode),

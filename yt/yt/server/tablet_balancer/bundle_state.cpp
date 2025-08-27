@@ -1317,7 +1317,7 @@ void TBundleState::FillPerformanceCounters(
                 performanceCountersIt != tabletToPerformanceCounters.end())
             {
                 tablet.PerformanceCounters = std::move(performanceCountersIt->second);
-            } else if (tablet.State == ETabletState::Mounted) {
+            } else if (tablet.State != ETabletState::Unmounted) {
                 THROW_ERROR_EXCEPTION(
                     "Performance counters for tablet %v of table %v were not found in statistics table",
                     tablet.TabletId,
