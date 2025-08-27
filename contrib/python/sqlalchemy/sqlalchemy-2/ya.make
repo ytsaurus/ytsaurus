@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(sqlalchemy)
 
-VERSION(2.0.42)
+VERSION(2.0.43)
 
 LICENSE(MIT)
 
