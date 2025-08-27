@@ -68,7 +68,7 @@ public:
         return RegistrationError_.Read([] (const TError& error) {
             return
                 error.IsOK() ||
-                error.GetCode() == NSequoiaClient::EErrorCode::InvalidSequoiaReign;
+                error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign);
         });
     }
 
