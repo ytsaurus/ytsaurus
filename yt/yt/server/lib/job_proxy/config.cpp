@@ -420,12 +420,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
         .Default(true);
 
-    registrar.Parameter("enable_signature_generation", &TThis::EnableSignatureGeneration)
-        .Default(false);
-
-    registrar.Parameter("enable_signature_validation", &TThis::EnableSignatureValidation)
-        .Default(false);
-
     registrar.Parameter("enable_per_cluster_chunk_reader_statistics", &TThis::EnablePerClusterChunkReaderStatistics)
         .Default(false);
 
