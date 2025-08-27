@@ -1498,6 +1498,20 @@ class TestChunkMerger(YTEnvSetup):
 
         wait(lambda: sum(counter.get_delta() for counter in fallback_counters) > 0)
 
+    @authors("cherepashka")
+    def test_respect_enabled_chunk_merger_mode_after_chunk_merger_is_enabled(self):
+        set("//sys/@config/chunk_manager/chunk_merger/enable", False)
+        create("table", "//tmp/t")
+        for _ in range(5):
+            write_table("<append=true>//tmp/t", {"a": "b"})
+
+        assert get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline"
+
+        self._remove_merge_quotas("//tmp/t")
+        set("//tmp/t/@chunk_merger_mode", "auto")
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        _wait_for_merge("//tmp/t", None)
+
 
 class TestChunkMergerMulticell(TestChunkMerger):
     ENABLE_MULTIDAEMON = False  # Checks structured logs.

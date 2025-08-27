@@ -176,6 +176,7 @@ DEFINE_ENUM(EMasterReign,
     ((TransactionFinisher)                                          (3021))  // kvk1920
     ((DisablePermissionCheckForSequoiaNodes)                        (3022))  // shakurov
     ((AddSchemaRevision)                                            (3023))  // theevilbird
+    ((RespectChunkMergerModeAttributeWhenChunkMergerIsDisabled)     (3024))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
