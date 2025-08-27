@@ -7964,7 +7964,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                         << TErrorAttribute("medium_name", mediumName);
                 }
             }
-            if (Config_->DeprecatedMedia.contains(mediumName)) {
+            if (Config_->DeprecatedMedia.contains(mediumName) && !diskRequest->NbdDisk) {
                 THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                     << TErrorAttribute("medium_name", mediumName);
             }
