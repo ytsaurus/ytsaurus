@@ -9,16 +9,16 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TRowLevelAccessControlEntry* protoRlace, const TRowLevelAccessControlEntry& rlace)
+void ToProto(NProto::TRowLevelAccessControlEntry* protoRlAce, const TRowLevelAccessControlEntry& rlAce)
 {
-    protoRlace->set_expression(rlace.Expression);
-    protoRlace->set_inapplicable_expression_mode(ToProto(rlace.InapplicableExpressionMode));
+    protoRlAce->set_expression(rlAce.Expression);
+    protoRlAce->set_inapplicable_expression_mode(ToProto(rlAce.InapplicableExpressionMode));
 }
 
-void FromProto(TRowLevelAccessControlEntry* rlace, const NProto::TRowLevelAccessControlEntry& protoRlace)
+void FromProto(TRowLevelAccessControlEntry* rlAce, const NProto::TRowLevelAccessControlEntry& protoRlAce)
 {
-    rlace->Expression = protoRlace.expression();
-    rlace->InapplicableExpressionMode = FromProto<EInapplicableExpressionMode>(protoRlace.inapplicable_expression_mode());
+    rlAce->Expression = protoRlAce.expression();
+    rlAce->InapplicableExpressionMode = FromProto<EInapplicableExpressionMode>(protoRlAce.inapplicable_expression_mode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

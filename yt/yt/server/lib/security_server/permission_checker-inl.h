@@ -56,8 +56,8 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         }
     }
 
-    if (ace.Expression && !Response_.Rlaces) {
-        Response_.Rlaces.emplace();
+    if (ace.Expression && !Response_.RlAcl) {
+        Response_.RlAcl.emplace();
     }
 
     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
@@ -111,7 +111,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
                 }
             }
         } else if (ace.Expression) {
-            Response_.Rlaces->emplace_back(
+            Response_.RlAcl->emplace_back(
                 *ace.Expression,
                 ace.InapplicableExpressionMode
                     .value_or(NSecurityClient::EInapplicableExpressionMode::Deny));
@@ -167,14 +167,14 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
     }
 
     if (FullReadExplicitlyGranted_) {
-        // No need to mention RLACEs if we are allowed to FullRead.
-        Response_.Rlaces.reset();
+        // No need to mention RL ACEs if we are allowed to FullRead.
+        Response_.RlAcl.reset();
     }
 
-    if (Response_.Rlaces && FullReadRequested_) {
-        // NB(coteeq): Presence of RLACE alters the behaviour of non-row ACEs.
-        // When RLACEs are present, non-row allowances do not actually allow FullRead.
-        // This hack is not pretty, but it exists for RLACEs to be consistent with columnar ACEs.
+    if (Response_.RlAcl && FullReadRequested_) {
+        // NB(coteeq): Presence of RL ACE alters the behaviour of non-row ACEs.
+        // When RL ACEs are present, non-row allowances do not actually allow FullRead.
+        // This hack is not pretty, but it exists for RL ACEs to be consistent with columnar ACEs.
         SetDeny(NObjectClient::NullObjectId, NObjectClient::NullObjectId);
     }
 
@@ -233,7 +233,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::SetDeny(
             SetDeny(&result, subjectId, objectId);
         }
     }
-    Response_.Rlaces.reset();
+    Response_.RlAcl.reset();
     ShouldProceed_ = false;
 }
 

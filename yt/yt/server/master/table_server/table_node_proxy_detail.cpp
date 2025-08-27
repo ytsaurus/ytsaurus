@@ -182,7 +182,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
             }
         }
 
-        if (checkResponse.Rlaces && !context->OmitInaccessibleRows) {
+        if (checkResponse.RlAcl && !context->OmitInaccessibleRows) {
             // User did not explicitly indicate that he is okay with RLS.
             TPermissionCheckTarget target;
             target.ObjectId = Object_->GetId();
@@ -195,7 +195,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
                 result);
         }
 
-        context->Rlaces = checkResponse.Rlaces;
+        context->RlAcl = checkResponse.RlAcl;
 
         // No need for an extra check below.
         context->Permission = std::nullopt;
