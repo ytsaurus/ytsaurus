@@ -126,7 +126,7 @@ class TestLayers(TestLayersBase):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="./static_cat; ls $YT_ROOT_FS 1>&2",
+                command="./static_cat && ls $YT_ROOT_FS 1>&2",
                 file="//tmp/static_cat",
                 spec={
                     "max_failed_job_count": 1,
@@ -152,7 +152,7 @@ class TestLayers(TestLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat; ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -178,7 +178,7 @@ class TestLayers(TestLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat; ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -207,7 +207,7 @@ class TestLayers(TestLayersBase):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                command="./static_cat; ls $YT_ROOT_FS 1>&2",
+                command="./static_cat && ls $YT_ROOT_FS 1>&2",
                 file="//tmp/static_cat",
                 spec={
                     "max_failed_job_count": 1,
@@ -229,7 +229,7 @@ class TestLayers(TestLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat; ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -254,8 +254,8 @@ class TestLayers(TestLayersBase):
         op = map_reduce(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            mapper_command="./static_cat; ls $YT_ROOT_FS 1>&2",
-            reducer_command="if [ ! -e test ]; then exit 1; fi; cat",
+            mapper_command="./static_cat && ls $YT_ROOT_FS 1>&2",
+            reducer_command="if [ ! -e $YT_ROOT_FS/test ]; then exit 1; fi; cat",
             mapper_file=["//tmp/static_cat"],
             sort_by=["k"],
             spec={
@@ -284,7 +284,7 @@ class TestLayers(TestLayersBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat; ls $CUSTOM_ROOT_FS 1>&2",
+            command="./static_cat && ls $CUSTOM_ROOT_FS 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -301,6 +301,37 @@ class TestLayers(TestLayersBase):
         assert len(job_ids) == 1
         for job_id in job_ids:
             stderr = op.read_stderr(job_id)
+            assert b"static-bin" in stderr
+
+    @authors("ngc224")
+    def test_layer_with_files(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        create("file", "//tmp/file")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        write_file("//tmp/file", b"FILE_CONTENT")
+
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./static_cat file 1>&2 && ls $YT_ROOT_FS 1>&2",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/layer1"],
+                    "file_paths": ["//tmp/static_cat", "//tmp/file"],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            stderr = op.read_stderr(job_id)
+            assert b"FILE_CONTENT" in stderr
             assert b"static-bin" in stderr
 
 
@@ -904,7 +935,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat; ls $YT_ROOT_FS 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
@@ -1020,7 +1051,7 @@ class TestTmpfsLayers(YTEnvSetup):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="./static_cat; ls $YT_ROOT_FS/dir 1>&2",
+            command="./static_cat && ls $YT_ROOT_FS/dir 1>&2",
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,

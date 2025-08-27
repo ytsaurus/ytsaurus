@@ -2370,6 +2370,8 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuCheckOptions = NeedsGpuCheck()
             ? std::make_optional(GetGpuCheckOptions())
             : std::nullopt,
+
+        .TestRootFS = Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS,
     };
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
@@ -3387,7 +3389,8 @@ bool TJob::CanBeAccessedViaBind(const TArtifact& artifact) const
 {
     return !artifact.AccessedViaVirtualSandbox &&
         !artifact.BypassArtifactCache &&
-        !artifact.CopyFile;
+        !artifact.CopyFile &&
+        !Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS;
 }
 
 bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
