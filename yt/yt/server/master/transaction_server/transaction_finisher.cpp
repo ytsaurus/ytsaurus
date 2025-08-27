@@ -987,6 +987,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ActiveRequests_.clear();
+        LeasesRevocationQueue_.Clear();
         FinishQueue_.Clear();
 
         if (Executor_) {
@@ -1004,6 +1005,7 @@ private:
     void Clear() override
     {
         ActiveRequests_.clear();
+        LeasesRevocationQueue_.Clear();
         FinishQueue_.Clear();
         Requests_.clear();
     }
