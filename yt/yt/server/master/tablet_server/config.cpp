@@ -39,13 +39,18 @@ void TTabletCellDecommissionerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_tablet_cell_removal", &TThis::EnableTabletCellRemoval)
         .Default(true);
     registrar.Parameter("decommission_check_period", &TThis::DecommissionCheckPeriod)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("orphans_check_period", &TThis::OrphansCheckPeriod)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("decommission_throttler", &TThis::DecommissionThrottler)
         .DefaultNew();
     registrar.Parameter("kick_orphans_throttler", &TThis::KickOrphansThrottler)
         .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->DecommissionThrottler->Limit = 200;
+        config->KickOrphansThrottler->Limit = 200;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
