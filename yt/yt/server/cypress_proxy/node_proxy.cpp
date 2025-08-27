@@ -533,10 +533,8 @@ protected:
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
-        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
+        context->SetRequestInfo("AttributeFilter: %v",
             attributeFilter);
 
         ValidatePermissionForThis(EPermission::Read);
@@ -697,10 +695,7 @@ protected:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
-
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
+        context->SetRequestInfo("AttributeFilter: %v",
             attributeFilter);
 
         ValidatePermissionForThis(EPermission::Read);
@@ -1891,72 +1886,87 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
-
         const auto& dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig();
         auto responseSizeLimit = dynamicConfig->DefaultGetResponseSizeLimit;
 
-        context->SetRequestInfo("ReceivedLimit: %v, MaxLimit: %v, AttributeFilter: %v",
-            limit,
+        context->SetRequestInfo("ResponseSizeLimit: %v, AttributeFilter: %v",
             responseSizeLimit,
             attributeFilter);
-
-        if (limit && limit < 0) {
-            THROW_ERROR_EXCEPTION("Limit is negative")
-                << TErrorAttribute("limit", limit);
-        }
 
         ValidatePermissionForThis(EPermission::Read);
 
         // TODO(danilalexeev): YT-24566. Support permission validation.
 
         // Fetch nodes from child nodes table.
-        std::queue<TNodeId> childrenLookupQueue;
-        childrenLookupQueue.push(Id_);
+        std::vector<TNodeId> childrenToFetch;
+        childrenToFetch.push_back(Id_);
 
         THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildren;
         nodeIdToChildren[Id_] = {};
 
-        // TODO(h0pless): Ensure that the root node of the requested subtree cannot appear as opaque.
-        int maxRetrievedDepth = 0;
-
-        // NB: 1 node is root node and it should not count towards the limit.
-        // If the number of nodes in a subtree of certain depth it equal to the
-        // limit, then we should fetch the next layer, so opaques can be set
-        // correctly.
-        while (std::ssize(nodeIdToChildren) <= responseSizeLimit + 1) {
-            // This means we finished tree traversal.
-            if (childrenLookupQueue.empty()) {
-                break;
+        std::vector<TNodeId> nodesToFetchFromMaster;
+        auto populateNodesToFetchFromMaster = [&] {
+            for (const auto& [nodeId, children] : nodeIdToChildren) {
+                auto nodeType = TypeFromId(nodeId);
+                if (IsScalarType(nodeType) || attributeFilter) {
+                    nodesToFetchFromMaster.push_back(nodeId);
+                }
             }
+        };
 
+        int maxRetrievedDepth = 0;
+        bool subtreeExceedesSizeLimit = false;
+        while (!childrenToFetch.empty() && !subtreeExceedesSizeLimit) {
             ++maxRetrievedDepth;
 
             std::vector<TFuture<std::vector<TCypressChildDescriptor>>> asyncNextLayer;
-            while (!childrenLookupQueue.empty()) {
-                auto nodeId = childrenLookupQueue.front();
-                childrenLookupQueue.pop();
+            for (auto nodeId : childrenToFetch) {
                 if (IsSequoiaCompositeNodeType(TypeFromId(nodeId))) {
                     asyncNextLayer.push_back(SequoiaSession_->FetchChildren(nodeId));
                 }
             }
+            childrenToFetch.clear();
 
             // This means that we've already fetched all map-nodes.
             if (asyncNextLayer.empty()) {
                 break;
             }
 
-            //NB: An error here will lead to a retry of the whole request.
+            // NB: An error here will lead to a retry of the whole request.
             auto currentSubtreeLayerChildren = WaitFor(AllSucceeded(asyncNextLayer))
                 .ValueOrThrow();
 
+            auto currentSubtreeLayerChildrenCount = std::accumulate(
+                currentSubtreeLayerChildren.begin(),
+                currentSubtreeLayerChildren.end(),
+                i64(0),
+                [&] (i64 totalCount, auto children) {
+                    totalCount += children.size();
+                    return totalCount;
+                });
+
+            // If the number of nodes in a subtree of certain depth it equal to the limit, then we
+            // should fetch the next layer, so opaques can be set correctly. Thankfully it's
+            // cheap to fetch data from a dynamic table. Additionaly root node should not be made
+            // opaque, hence maxRetrievedDepth check.
+            if (std::ssize(nodeIdToChildren) + currentSubtreeLayerChildrenCount > responseSizeLimit && maxRetrievedDepth > 1) {
+                populateNodesToFetchFromMaster();
+                subtreeExceedesSizeLimit = true;
+            }
+
+            // It's still useful to save extra node information even if subtree exceedes size limit.
+            // Said information can be useful during tree traversal.
             for (const auto& children : currentSubtreeLayerChildren) {
                 for (const auto& child : children) {
                     nodeIdToChildren[child.ParentId].push_back(child);
                     nodeIdToChildren[child.ChildId] = {};
-                    childrenLookupQueue.push(child.ChildId);
+                    childrenToFetch.push_back(child.ChildId);
                 }
             }
+        }
+
+        if (!subtreeExceedesSizeLimit) {
+            populateNodesToFetchFromMaster();
         }
 
         // Form a template.
@@ -1966,15 +1976,6 @@ private:
         }
         SetSuppressAccessTracking(requestTemplate, true);
         SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
-
-        // Find all nodes that need to be requested from master cells.
-        std::vector<TNodeId> nodesToFetchFromMaster;
-        for (const auto& [nodeId, children] : nodeIdToChildren) {
-            auto nodeType = TypeFromId(nodeId);
-            if (IsScalarType(nodeType) || attributeFilter) {
-                nodesToFetchFromMaster.push_back(nodeId);
-            }
-        }
 
         auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
             GetNativeAuthenticatedClient(),
@@ -2030,10 +2031,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
-
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
+        context->SetRequestInfo("AttributeFilter: %v",
             attributeFilter);
 
         NYPath::TTokenizer tokenizer(path);
@@ -2055,10 +2053,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
-
-        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
-            limit,
+        context->SetRequestInfo("AttributeFilter: %v",
             attributeFilter);
 
         NYPath::TTokenizer tokenizer(path);
@@ -2159,6 +2154,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
+        // TODO(h0pless): Get rid of limit here.
         auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",

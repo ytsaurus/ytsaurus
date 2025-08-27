@@ -96,6 +96,9 @@ class TestSequoiaInternals(YTEnvSetup):
             "sync_period": 100,
             "sync_period_splay": 100,
         },
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
     }
 
     @authors("kvk1920")
@@ -152,15 +155,75 @@ class TestSequoiaInternals(YTEnvSetup):
         # All nodes should be printed.
         assert get("//tmp/more") == {"memes": {}, "nodes": {"to": "test"}, "stuff": {"to": {"break": 1337}}}
 
-        # Temporarily disable the rest of the test. Due to issues with max_size option.
-        return
+    @authors("h0pless")
+    def test_get_recursive_attributes(self):
+        root = "//tmp/root"
+        root_id = create("map_node", f"{root}")
+        level_1_id = create("map_node", f"{root}/level_1")
+        level_2_id = create("map_node", f"{root}/level_1/level_2")
+        set(f"{root}/level_1/level_2/@magic_word", "abracadabra")
 
-        # Node "memes" should be printed as an empty node, others should be opaque.
-        assert get("//tmp/more", max_size=3) == {"memes": {}, "nodes": yson.YsonEntity(), "stuff": yson.YsonEntity()}
+        # First off, check that root node cannot appear opaque.
+        expected_string = f'<"id"="{root_id}";>{{"level_1"=<"id"="{level_1_id}";>#;}}'
+        for limit in range(3):
+            set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
+            sleep(0.5)
+            assert get(root, attributes=["id", "magic_word"]) == yson.loads(expected_string.encode())
 
-        create("map_node", "//tmp/more/memes/hi")
-        # All 3 nodes should be opaque.
-        assert get("//tmp/more", max_size=3) == {"memes": yson.YsonEntity(), "nodes": yson.YsonEntity(), "stuff": yson.YsonEntity()}
+        expected_string = f'<"id"="{root_id}";>{{"level_1"=<"id"="{level_1_id}";>{{"level_2"=<"id"="{level_2_id}";"magic_word"="abracadabra";>{{}};}};}}'
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 3)
+        sleep(0.5)
+        assert get(root, attributes=["id", "magic_word"]) == yson.loads(expected_string.encode())
+
+    @authors("h0pless")
+    def test_get_recursive_limits(self):
+        # Test directory structure:
+        # root
+        # |-- level_1_string
+        # |-- level_1_map_0
+        # |   |-- level_2_map
+        # |   |   |-- level_3_map
+        # |   |   `-- level_3_string
+        # |   `-- level_2_string
+        # `-- level_1_map_1
+
+        root = "//tmp/root"
+        create("map_node", f"{root}/level_1_map_0/level_2_map/level_3_map", recursive=True)
+        create("string_node", f"{root}/level_1_string")
+        create("string_node", f"{root}/level_1_map_0/level_2_string")
+        create("string_node", f"{root}/level_1_map_0/level_2_map/level_3_string")
+        create("map_node", f"{root}/level_1_map_1",)
+        set(f"{root}/level_1_string", "level_1_value")
+        set(f"{root}/level_1_map_0/level_2_string", "level_2_value")
+        set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
+
+        # First off, check that root node cannot appear opaque.
+        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
+        sleep(0.5)
+        assert get(root) == expected_result
+
+        # Now ensure that until the full layer of children can fit the limit we do not add anything to the response.
+        for limit in range(2, 6):
+            set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
+            sleep(0.5)
+            assert get(root) == expected_result
+
+        # A new layer should be added.
+        expected_result = {
+            "level_1_map_0": {"level_2_map": yson.YsonEntity(), "level_2_string": "level_2_value"},
+            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 6)
+        sleep(0.5)
+        assert get(root) == expected_result
+
+        # The whole tree should be fetched.
+        expected_result = {
+            "level_1_map_0": {"level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"}, "level_2_string": "level_2_value"},
+            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
+        sleep(0.5)
+        assert get(root) == expected_result
 
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
