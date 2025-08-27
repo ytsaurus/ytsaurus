@@ -3,9 +3,10 @@ from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
-    raises_yt_error, get_driver, update_nodes_dynamic_config
+    ls, get, set, print_debug, authors, wait, wait_no_assert, raises_yt_error,
+    wait_breakpoint, with_breakpoint, release_breakpoint,
+    run_test_vanilla, create_user, create, remove, read_table,
+    get_driver, update_nodes_dynamic_config,
 )
 
 from yt.common import update_inplace
@@ -274,6 +275,9 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
                     },
                 },
             },
+            "job_proxy_solomon_exporter": {
+                "host": "node.yt.test",
+            },
         },
         "job_resource_manager": {
             "resource_limits": {
@@ -354,16 +358,36 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
 
     @authors("ermolovd")
     def test_metrics(self):
-        def check_sensor_values(projections):
-            return any('job_descriptor' in projection['tags'] and
-                       projection['value'] > 0 for projection in projections)
+        def check_job_descriptor_sensor_values(projections):
+            job_descriptor_projections = [
+                projection for projection in projections
+                if "job_descriptor" in projection["tags"]
+            ]
+
+            assert any(projection["value"] > 0 for projection in job_descriptor_projections)
+            assert all(
+                "host" not in projection["tags"] and "slot_index" not in projection["tags"]
+                for projection in job_descriptor_projections)
+
+        def check_slot_index_sensor_values(projections):
+            slot_index_projections = [
+                projection for projection in projections
+                if "slot_index" in projection["tags"]
+            ]
+
+            assert any(projection["value"] > 0 for projection in slot_index_projections)
+            assert all(
+                "host" in projection["tags"] and "job_descriptor" not in projection["tags"]
+                for projection in slot_index_projections)
 
         socket_file = self.run_job_proxy(enable_rpc_proxy=True, monitoring=True)
         client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
         client.list("/")
         node = ls("//sys/cluster_nodes")[0]
-        profiler = profiler_factory().at_job_proxy(node, fixed_tags={'yt_service': 'ApiService', 'method': 'ListNode'})
-        wait(lambda: check_sensor_values(profiler.get_all("rpc/server/request_count")))
+
+        profiler = profiler_factory().at_job_proxy(node, fixed_tags={"yt_service": "ApiService", "method": "ListNode"})
+        wait_no_assert(lambda: check_job_descriptor_sensor_values(profiler.get_all("rpc/server/request_count")))
+        wait_no_assert(lambda: check_slot_index_sensor_values(profiler.get_all("rpc/server/request_count")))
 
 
 class TestRpcProxyInJobProxySingleClusterSeveralNodes(TestRpcProxyInJobProxyBase):

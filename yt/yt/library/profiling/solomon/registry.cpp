@@ -335,7 +335,7 @@ void TSolomonRegistry::SetDynamicTags(std::vector<TTag> dynamicTags)
     std::swap(DynamicTags_, dynamicTags);
 }
 
-std::vector<TTag> TSolomonRegistry::GetDynamicTags()
+std::vector<TTag> TSolomonRegistry::GetDynamicTags() const
 {
     auto guard = Guard(DynamicTagsLock_);
     return DynamicTags_;
@@ -522,14 +522,24 @@ TSensorSet* TSolomonRegistry::FindSet(const std::string& name, const TSensorOpti
     }
 }
 
-NProto::TSensorDump TSolomonRegistry::DumpSensors(std::vector<TTagId> extraTags)
+NProto::TSensorDump TSolomonRegistry::DumpSensors(TTagSet customTagSet)
 {
+    TTagIdList extraTags;
     {
         auto guard = Guard(DynamicTagsLock_);
+
         for (const auto& [key, value] : DynamicTags_) {
             extraTags.push_back(TagRegistry_.Encode(std::pair(key, value)));
         }
     }
+
+    std::vector<TTagIdList> customProjections;
+    customTagSet.Range(TagRegistry_.Encode(customTagSet), [&] (auto tagIds) {
+        for (auto tag : extraTags) {
+            tagIds.push_back(tag);
+        }
+        customProjections.push_back(std::move(tagIds));
+    });
 
     NProto::TSensorDump dump;
     TagRegistry_.DumpTags(&dump);
@@ -542,7 +552,7 @@ NProto::TSensorDump TSolomonRegistry::DumpSensors(std::vector<TTagId> extraTags)
         auto* cube = dump.add_cubes();
         cube->set_name(ToProto(name));
 
-        set.DumpCube(cube, extraTags);
+        set.DumpCube(cube, customProjections);
     }
 
     return dump;
@@ -550,19 +560,7 @@ NProto::TSensorDump TSolomonRegistry::DumpSensors(std::vector<TTagId> extraTags)
 
 NProto::TSensorDump TSolomonRegistry::DumpSensors()
 {
-    return DumpSensors({});
-}
-
-NProto::TSensorDump TSolomonRegistry::DumpSensors(const std::optional<std::string>& host, const THashMap<std::string, std::string>& instanceTags)
-{
-    std::vector<TTagId> extraTags;
-    if (host) {
-        extraTags.push_back(TagRegistry_.Encode(std::pair("host", *host)));
-    }
-    for (const auto& [key, value] : instanceTags) {
-        extraTags.push_back(TagRegistry_.Encode(std::pair(key, value)));
-    }
-    return DumpSensors(extraTags);
+    return DumpSensors(TTagSet{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
