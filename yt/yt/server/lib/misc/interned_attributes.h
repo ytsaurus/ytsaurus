@@ -488,6 +488,7 @@
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaId, schema_id) \
     XX(SchemaMode, schema_mode) \
+    XX(SchemaRevision, schema_revision) \
     XX(ScionId, scion_id) \
     XX(Sealed, sealed) \
     XX(SecondaryIndices, secondary_indices) \

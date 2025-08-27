@@ -1781,6 +1781,86 @@ class TestSchemaObjects(TestSchemaDeduplication):
         remove("//tmp/table_12_2")
         wait(lambda: get("#{}/@export_ref_counter".format(schema_id)) == {})
 
+    @authors("theevilbird")
+    def test_schema_revision(self):
+        schema = make_schema([
+            make_column("a", "int64"),
+        ], unique_keys=False, strict=True)
+        create("table", "//tmp/table", attributes={"schema": schema})
+        old_schema_revision = get("//tmp/table/@schema_revision")
+
+        schema += [{"name": "b", "type": "int64"}]
+        alter_table("//tmp/table", schema=schema)
+        current_schema_revision = get("//tmp/table/@schema_revision")
+        assert old_schema_revision < current_schema_revision
+
+        rows = [{"a": 1, "b": 2}]
+        write_table("//tmp/table", rows)
+        assert get("//tmp/table/@schema_revision") == current_schema_revision
+
+        old_schema_revision = current_schema_revision
+        schema += [{"name": "c", "type": "string"}]
+        alter_table("//tmp/table", schema=schema)
+        current_schema_revision = get("//tmp/table/@schema_revision")
+        assert old_schema_revision < current_schema_revision
+
+        schema1 = make_schema([
+            make_column("a", "int64"),
+        ], unique_keys=False, strict=False)
+        create("table", "//tmp/table_non_strict", attributes={"schema": schema1})
+        current_schema_revision = get("//tmp/table_non_strict/@schema_revision")
+        write_table("//tmp/table_non_strict", rows)
+        assert get("//tmp/table_non_strict/@schema_revision") == current_schema_revision
+
+    @authors("theevilbird")
+    def test_schema_revision_transactions(self):
+        schema0 = make_schema([
+            make_column("a", "int64"),
+        ], unique_keys=False, strict=True)
+        create("table", "//tmp/table", attributes={"schema": schema0})
+        trunk_cur_schema_revision = get("//tmp/table/@schema_revision")
+        tx1 = start_transaction()
+
+        schema1 = [i.copy() for i in schema0]
+        schema1 += [{"name": "b", "type": "int64"}]
+        tx1_cur_schema_revision = get("//tmp/table/@schema_revision", tx=tx1)
+        alter_table("//tmp/table", schema=schema1, tx=tx1)
+        assert get("//tmp/table/@schema_revision") == trunk_cur_schema_revision
+
+        tx2 = start_transaction(tx=tx1)
+        schema2 = [i.copy() for i in schema1]
+        schema2 += [{"name": "c", "type": "int64"}]
+        alter_table("//tmp/table", schema=schema2, tx=tx2)
+        tx2_cur_schema_revision = get("//tmp/table/@schema_revision", tx=tx2)
+
+        commit_transaction(tx2)
+        assert get("//tmp/table/@schema_revision") == trunk_cur_schema_revision
+        assert get("//tmp/table/@schema_revision", tx=tx1) == tx2_cur_schema_revision
+        assert tx1_cur_schema_revision < get("//tmp/table/@schema_revision", tx=tx1)
+        tx1_cur_schema_revision = tx2_cur_schema_revision
+
+        tx3 = start_transaction(tx=tx1)
+        schema3 = [i.copy() for i in schema1]
+        schema3 += [{"name": "d", "type": "int64"}]
+        alter_table("//tmp/table", schema=schema3, tx=tx3)
+        assert get("//tmp/table/@schema_revision", tx=tx1) == tx1_cur_schema_revision
+
+        abort_transaction(tx3)
+        assert get("//tmp/table/@schema_revision") == trunk_cur_schema_revision
+        assert get("//tmp/table/@schema_revision", tx=tx1) == tx1_cur_schema_revision
+
+        tx4 = start_transaction(tx=tx1)
+        set("//tmp/table/@test_attr", "tx4", tx=tx4)
+        assert get("//tmp/table/@schema_revision", tx=tx1) == tx1_cur_schema_revision
+        assert get("//tmp/table/@schema_revision", tx=tx4) == tx1_cur_schema_revision
+
+        commit_transaction(tx4)
+        assert get("//tmp/table/@schema_revision", tx=tx1) == tx1_cur_schema_revision
+
+        commit_transaction(tx1)
+        assert get("//tmp/table/@schema_revision") == tx1_cur_schema_revision
+        assert trunk_cur_schema_revision < get("//tmp/table/@schema_revision")
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchemaValidation(YTEnvSetup):
