@@ -175,8 +175,8 @@ TCheckPermissionResponse TClient::DoCheckPermission(
         }
     }
 
-    if (rsp->has_rlaces()) {
-        response.Rlaces = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->rlaces().items());
+    if (rsp->has_rl_acl()) {
+        response.RlAcl = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->rl_acl().items());
     }
 
     return response;

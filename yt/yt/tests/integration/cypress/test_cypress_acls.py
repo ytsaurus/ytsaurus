@@ -2216,36 +2216,36 @@ class TestRowAcls(YTEnvSetup):
     @authors("coteeq")
     def test_check_permission_u0(self):
         response = self._prepare_check_permission("u0")
-        response["rlaces"].sort(key=lambda descriptor: descriptor.get("expression", ""))
+        response["rl_acl"].sort(key=lambda descriptor: descriptor.get("expression", ""))
 
-        assert response["rlaces"][0]["expression"] == "a < 3"
-        assert response["rlaces"][1]["expression"] == "b == 2"
-        assert response["rlaces"][2]["expression"] == "c == \"asdf\""
+        assert response["rl_acl"][0]["expression"] == "a < 3"
+        assert response["rl_acl"][1]["expression"] == "b == 2"
+        assert response["rl_acl"][2]["expression"] == "c == \"asdf\""
 
-        assert "inapplicable_expression_mode" not in response["rlaces"][0]
-        assert "inapplicable_expression_mode" not in response["rlaces"][1]
-        assert response["rlaces"][2]["inapplicable_expression_mode"] == "ignore"
+        assert "inapplicable_expression_mode" not in response["rl_acl"][0]
+        assert "inapplicable_expression_mode" not in response["rl_acl"][1]
+        assert response["rl_acl"][2]["inapplicable_expression_mode"] == "ignore"
 
     @authors("coteeq")
     def test_check_permission_u1(self):
         response = self._prepare_check_permission("u1")
-        response["rlaces"].sort(key=lambda descriptor: descriptor["expression"])
+        response["rl_acl"].sort(key=lambda descriptor: descriptor["expression"])
 
-        assert response["rlaces"][0]["expression"] == "b == 2"
-        assert response["rlaces"][1]["expression"] == "c == \"asdf\""
+        assert response["rl_acl"][0]["expression"] == "b == 2"
+        assert response["rl_acl"][1]["expression"] == "c == \"asdf\""
 
-        assert "inapplicable_expression_mode" not in response["rlaces"][0]
-        assert response["rlaces"][1]["inapplicable_expression_mode"] == "ignore"
+        assert "inapplicable_expression_mode" not in response["rl_acl"][0]
+        assert response["rl_acl"][1]["inapplicable_expression_mode"] == "ignore"
 
     @authors("coteeq")
     def test_check_permission_u2(self):
         response = self._prepare_check_permission("u2")
-        assert "rlaces" not in response
+        assert "rl_acl" not in response
 
     @authors("coteeq")
     def test_check_permission_u3(self):
         response = self._prepare_check_permission("u3")
-        assert response["rlaces"] == []
+        assert response["rl_acl"] == []
 
 
 ##################################################################
