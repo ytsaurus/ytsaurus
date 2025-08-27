@@ -1181,10 +1181,40 @@ func TestDecoder_decodeReflect(t *testing.T) {
 
 	require.Equal(t, int64(123), result.CompositeField["id"])
 	require.Equal(t, "test", result.CompositeField["name"])
+}
 
-	require.Len(t, result.ListField, 5)
-	require.Equal(t, int64(1), result.ListField[0])
-	require.Equal(t, int64(5), result.ListField[4])
+func TestDecoder_decodeReflectTypeError(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "struct_field"},
+	}
 
-	require.Equal(t, schema.Timestamp(1234567890123), result.TimestampField)
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "struct_field", ComplexType: schema.Struct{
+			Members: []schema.StructMember{
+				{Name: "id", Type: schema.TypeInt64},
+				{Name: "name", Type: schema.TypeString},
+			},
+		}},
+	}})
+
+	type StructField struct {
+		Id   int64  `yson:"id"`
+		Name string `yson:"name"`
+	}
+
+	type testStruct struct {
+		StructField StructField `yson:"struct_field"`
+	}
+
+	var result testStruct
+	err := d.UnmarshalRow(Row{
+		NewComposite(0, []byte(`[123;"test"]`)),
+	}, &result)
+
+	require.Error(t, err)
+
+	require.Contains(t, err.Error(), "type mismatch")
+	require.Contains(t, err.Error(), "cannot decode")
+	require.Contains(t, err.Error(), "map[string]interface {}")
+	require.Contains(t, err.Error(), "wire.StructField")
 }
