@@ -24,7 +24,6 @@ add_library(contrib-libs-libevent INTERFACE)
 
 target_compile_options(contrib-libs-libevent INTERFACE
   -DHAVE_CONFIG_H
-  -DEVENT__HAVE_STRLCPY=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 

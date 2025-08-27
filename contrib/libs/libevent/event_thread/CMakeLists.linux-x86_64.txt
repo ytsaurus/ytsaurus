@@ -19,7 +19,6 @@ add_library(libs-libevent-event_thread)
 
 target_compile_options(libs-libevent-event_thread PRIVATE
   -DHAVE_CONFIG_H
-  -DEVENT__HAVE_STRLCPY=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
