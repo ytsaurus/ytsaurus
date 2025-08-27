@@ -294,6 +294,21 @@ class ComputationCellGenerator:
                         .unit("UNIT_SECONDS"))
         )
 
+    def build_processed_message_rate_rowset(self):
+        return (Rowset()
+            .stack(False)
+            .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
+            .row()
+                .cell(
+                    "Processed messages rate",
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.checked.rate|yt.flow.worker.computation.partition_store.input_messages.filtered.rate"))
+                        .aggr("host")
+                        .unit("UNIT_COUNTS_PER_SECOND")
+                )
+                .cell("", EmptyCell())
+                .cell("", EmptyCell())
+                .cell("", EmptyCell())
+        )
 
 GENERATOR = ComputationCellGenerator(has_computation_id_tag=True)
 
@@ -316,6 +331,7 @@ def build_flow_computation():
     d.add(GENERATOR.build_resources_rowset())
     d.add(GENERATOR.build_partition_aggregates_rowset())
     d.add(GENERATOR.build_partition_store_operations_rowset())
+    d.add(GENERATOR.build_processed_message_rate_rowset())
 
     d.set_title("[YT Flow] Pipeline computation")
     add_common_dashboard_parameters(d)
