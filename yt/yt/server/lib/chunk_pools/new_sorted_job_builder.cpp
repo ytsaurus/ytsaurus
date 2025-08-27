@@ -41,7 +41,7 @@ DEFINE_ENUM(EPrimaryEndpointType,
 DEFINE_ENUM(ERowSliceabilityDecision,
     (SliceByRows)
     // All decisions below lead to slicing by keys.
-    (KeyGuaranteeDisabled)
+    (KeyGuaranteeEnabled)
     (NoJobSizeTracker)
     (VersionedSlicesPresent)
     (NonSingletonSliceCountIsAtLeastTwo)
@@ -709,7 +709,7 @@ private:
 
         // With key guarantee there is no row slicing at all.
         if (Options_.EnableKeyGuarantee) {
-            return ERowSliceabilityDecision::KeyGuaranteeDisabled;
+            return ERowSliceabilityDecision::KeyGuaranteeEnabled;
         }
 
         // No job size tracker means present pivot keys, also no row slicing.
