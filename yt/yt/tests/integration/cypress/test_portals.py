@@ -1572,6 +1572,7 @@ class TestCrossCellCopy(YTEnvSetup):
         "content_revision",
         "native_content_revision",
         "revision",
+        "schema_revision",
     ]
 
     # These attributes have to change when cross-cell copying.

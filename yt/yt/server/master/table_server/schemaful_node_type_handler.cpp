@@ -12,6 +12,7 @@ namespace NYT::NTableServer {
 using namespace NCellMaster;
 using namespace NChaosServer;
 using namespace NCypressServer;
+using namespace NHydra;
 using namespace NTableClient;
 using namespace NYTree;
 
@@ -58,6 +59,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoBranch(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
+    branchedNode->SetSchemaRevision(originatingNode->GetSchemaRevision());
 }
 
 template <class TImpl>
@@ -66,7 +68,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* branchedNode)
 {
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
-    tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
+    tableManager->MergeTableSchema(originatingNode, branchedNode);
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     tableManager->ResetTableSchema(branchedNode);
 
