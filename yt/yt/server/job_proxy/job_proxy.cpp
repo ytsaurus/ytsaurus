@@ -107,6 +107,8 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/yt/memory/memory_usage_tracker.h>
@@ -804,7 +806,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         PublicRpcServer_->Start();
         YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
 
-        auto localServerAddress = BuildServiceAddress(GetLocalHostName(), *Config_->BusServer->Port);
+        auto localServerAddress = BuildServiceAddress(NNet::GetLocalHostName(), *Config_->BusServer->Port);
         auto shuffleService = CreateShuffleService(
             ApiServiceThreadPool_->GetInvoker(),
             rootClient,
