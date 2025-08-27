@@ -2,12 +2,12 @@ package rpcclient
 
 import (
 	"context"
+	"errors"
 	"net"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/proto"
-	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
@@ -90,5 +90,5 @@ func (r *MutationRetrier) shouldRetry(err error) bool {
 
 func isNetError(err error) bool {
 	var netErr net.Error
-	return xerrors.As(err, &netErr)
+	return errors.As(err, &netErr)
 }

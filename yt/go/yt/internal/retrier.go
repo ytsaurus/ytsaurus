@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
@@ -33,7 +32,7 @@ const (
 
 func isNetError(err error) bool {
 	var netErr net.Error
-	return xerrors.As(err, &netErr)
+	return errors.As(err, &netErr)
 }
 
 func (r *Retrier) shouldRetry(isRead bool, hasStickyProxy bool, err error) bool {

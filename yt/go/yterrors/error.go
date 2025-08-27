@@ -3,6 +3,7 @@ package yterrors
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -66,7 +67,7 @@ func FindErrorCode(err error, code ErrorCode) *Error {
 	}
 
 	var ytErr *Error
-	if ok := xerrors.As(err, &ytErr); ok {
+	if ok := errors.As(err, &ytErr); ok {
 		if code == ytErr.Code {
 			return ytErr
 		}
@@ -90,7 +91,7 @@ func ContainsMessageRE(err error, messageRE *regexp.Regexp) bool {
 	}
 
 	var ytErr *Error
-	if ok := xerrors.As(err, &ytErr); !ok {
+	if ok := errors.As(err, &ytErr); !ok {
 		return false
 	}
 
