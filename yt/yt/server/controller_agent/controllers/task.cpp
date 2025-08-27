@@ -853,9 +853,13 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec && userJobSpec->DiskRequest) {
-        neededResources.DiskQuota() = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
+        auto diskQuota = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
+        // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
+        if (!userJobSpec->DiskRequest->NbdDisk) {
+            neededResources.DiskQuota() = diskQuota;
+        }
         joblet->DiskRequestAccount = userJobSpec->DiskRequest->Account;
-        joblet->DiskQuota = neededResources.DiskQuota();
+        joblet->DiskQuota = diskQuota;
     }
 
     if (userJobSpec) {
@@ -2217,7 +2221,8 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
     }
     auto resultWithQuota = TJobResourcesWithQuota(result);
     if (auto userJobSpec = GetUserJobSpec()) {
-        if (userJobSpec->DiskRequest) {
+        // Do not set needed resources in case of NBD disk since we do not need these resources on exe nodes.
+        if (userJobSpec->DiskRequest && !userJobSpec->DiskRequest->NbdDisk) {
             resultWithQuota.DiskQuota() = CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory());
         }
     }
