@@ -486,7 +486,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("use_find_chaos_object", &TThis::UseFindChaosObject)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
         .Default(true);
