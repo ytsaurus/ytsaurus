@@ -34,6 +34,7 @@ target_link_libraries(ytserver-all PUBLIC
   library-query-engine
   library-query-row_comparer
   yt-server-cell_balancer
+  yt-server-chaos_cache
   yt-server-clock_server
   yt-server-controller_agent
   yt-server-cypress_proxy

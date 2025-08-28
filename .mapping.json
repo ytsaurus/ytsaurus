@@ -5053,6 +5053,7 @@
   "yt/yt/server/cell_balancer/unittests/CMakeLists.linux-aarch64.txt":"",
   "yt/yt/server/cell_balancer/unittests/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/server/cell_balancer/unittests/CMakeLists.txt":"",
+  "yt/yt/server/chaos_cache/CMakeLists.txt":"",
   "yt/yt/server/clock_server/CMakeLists.txt":"",
   "yt/yt/server/controller_agent/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/server/controller_agent/CMakeLists.darwin-x86_64.txt":"",

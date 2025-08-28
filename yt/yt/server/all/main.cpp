@@ -11,6 +11,7 @@
 #include <yt/yt/server/log_tailer/program.h>
 #include <yt/yt/server/discovery_server/program.h>
 #include <yt/yt/server/timestamp_provider/program.h>
+#include <yt/yt/server/chaos_cache/program.h>
 #include <yt/yt/server/master_cache/program.h>
 #include <yt/yt/server/cell_balancer/program.h>
 #include <yt/yt/server/queue_agent/program.h>
@@ -127,6 +128,7 @@ const TProgramMap& GetProgramMap()
             .Add(NClusterDiscoveryServer::RunClusterDiscoveryServerProgram, "discovery")
             .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-provider")
             .Add(NMasterCache::RunMasterCacheProgram, "master-cache")
+            .Add(NChaosCache::RunChaosCacheProgram, "chaos-cache")
             .Add(NCellBalancer::RunCellBalancerProgram, "cell-balancer")
             .Add(NQueueAgent::RunQueueAgentProgram, "queue-agent")
             .Add(NTabletBalancer::RunTabletBalancerProgram, "tablet-balancer")
