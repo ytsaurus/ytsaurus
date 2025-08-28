@@ -26,16 +26,17 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Refactor this interface and think of better naming.
 /*!
  *  \note Thread affinity: any
  */
-struct IOperationControllerStrategyHost
+struct ISchedulingOperationController
     : public virtual TRefCounted
 {
     //! Returns epoch of the controller.
     virtual TControllerEpoch GetEpoch() const = 0;
 
-    //! Called during heartbeat processing to request actions the node must perform.
+    //! Called during heartbeat processing to send a schedule allocation request to the controller.
     virtual TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
         const ISchedulingContextPtr& context,
         const TJobResources& availableResources,
@@ -63,11 +64,12 @@ struct IOperationControllerStrategyHost
     //! Returns initial grouped needed resources (right after materialization).
     virtual TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const = 0;
 
+    // TODO(eshcherbin): Move it to some other place.
     //! Returns the mode which says how to preempt allocations of this operation.
     virtual EPreemptionMode GetPreemptionMode() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IOperationControllerStrategyHost)
+DEFINE_REFCOUNTED_TYPE(ISchedulingOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +145,7 @@ struct TOperationControllerUnregisterResult
  *  \note Thread affinity: Control unless noted otherwise
  */
 struct IOperationController
-    : public IOperationControllerStrategyHost
+    : public ISchedulingOperationController
 {
     //! Assigns the agent to the operation controller.
     virtual void AssignAgent(const TControllerAgentPtr& agent, TControllerEpoch epoch) = 0;

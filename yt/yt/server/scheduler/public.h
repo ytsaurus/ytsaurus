@@ -33,12 +33,12 @@ struct IEventLogHost;
 
 DECLARE_REFCOUNTED_STRUCT(INodeHeartbeatStrategyProxy)
 
-DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
-struct ISchedulerStrategyHost;
+DECLARE_REFCOUNTED_STRUCT(IStrategy)
+struct IStrategyHost;
 DECLARE_REFCOUNTED_STRUCT(IOperationStrategyHost)
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
-DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
+DECLARE_REFCOUNTED_STRUCT(ISchedulingOperationController)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 struct TOperationControllerInitializeResult;
@@ -55,7 +55,7 @@ DECLARE_REFCOUNTED_STRUCT(TPersistentPoolState)
 DECLARE_REFCOUNTED_STRUCT(TPersistentSchedulingSegmentsState)
 
 // TODO(mrkastep) Move to private.h
-DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)
+DECLARE_REFCOUNTED_CLASS(TStrategyOperationState)
 
 DECLARE_REFCOUNTED_CLASS(TControllerRuntimeData)
 

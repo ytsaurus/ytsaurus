@@ -20,7 +20,7 @@ struct INodeManagerHost
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
 
-    virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
+    virtual const IStrategyPtr& GetStrategy() const = 0;
 
     virtual int GetOperationsArchiveVersion() const = 0;
 };

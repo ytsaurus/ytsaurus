@@ -29,7 +29,7 @@ static const TJobResourcesConfigPtr EmptyAllocationResourcesConfig = New<TJobRes
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareTreeAllocationSchedulerOperationSharedState::TFairShareTreeAllocationSchedulerOperationSharedState(
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     int updatePreemptibleAllocationsListLoggingPeriod,
     const NLogging::TLogger& logger)
     : StrategyHost_(strategyHost)
@@ -79,7 +79,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::IsEnabled()
 
 void TFairShareTreeAllocationSchedulerOperationSharedState::RecordPackingHeartbeat(
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-    const TFairShareStrategyPackingConfigPtr& packingConfig)
+    const TStrategyPackingConfigPtr& packingConfig)
 {
     HeartbeatStatistics_.RecordHeartbeat(heartbeatSnapshot, packingConfig);
 }
@@ -89,7 +89,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::CheckPacking(
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& allocationResources,
     const TJobResources& totalResourceLimits,
-    const TFairShareStrategyPackingConfigPtr& packingConfig)
+    const TStrategyPackingConfigPtr& packingConfig)
 {
     return HeartbeatStatistics_.CheckPacking(
         operationElement,

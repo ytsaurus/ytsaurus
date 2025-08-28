@@ -3,7 +3,7 @@
 #include "private.h"
 #include "operation.h"
 #include "config.h"
-#include "scheduler_strategy_host.h"
+#include "scheduling_strategy_host.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
@@ -194,12 +194,12 @@ using TSharedRunningOperationsMap = TLockProtectedMap<NScheduler::TOperationId, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSharedSchedulerStrategy
+class TSharedStrategy
 {
 public:
-    TSharedSchedulerStrategy(
-        const NScheduler::ISchedulerStrategyPtr& schedulerStrategy,
-        TSchedulerStrategyHost& strategyHost,
+    TSharedStrategy(
+        const NScheduler::IStrategyPtr& schedulerStrategy,
+        TStrategyHost& strategyHost,
         const IInvokerPtr& controlThreadInvoker);
 
     NScheduler::INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
@@ -224,8 +224,8 @@ public:
         NYTree::TFluentMap fluent) const;
 
 private:
-    NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
-    TSchedulerStrategyHost& StrategyHost_;
+    NScheduler::IStrategyPtr Strategy_;
+    TStrategyHost& StrategyHost_;
     IInvokerPtr ControlThreadInvoker_;
 };
 

@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include "scheduler.h"
-#include "scheduler_strategy.h"
+#include "strategy.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>

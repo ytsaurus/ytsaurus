@@ -3,14 +3,14 @@
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_allocation_scheduler.h"
 #include "fair_share_tree_snapshot.h"
-#include "persistent_scheduler_state.h"
+#include "persistent_state.h"
 #include "public.h"
 #include "pools_config_parser.h"
 #include "resource_tree.h"
-#include "scheduler_strategy.h"
+#include "strategy.h"
 #include "scheduling_context.h"
 #include "serialize.h"
-#include "fair_share_strategy_operation_controller.h"
+#include "strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
 #include "fields_filter.h"
 #include "helpers.h"
@@ -189,20 +189,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyOperationState::TFairShareStrategyOperationState(
+TStrategyOperationState::TStrategyOperationState(
     IOperationStrategyHostPtr host,
-    const TFairShareStrategyOperationControllerConfigPtr& config,
+    const TStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Host_(std::move(host))
-    , Controller_(New<TFairShareStrategyOperationController>(Host_, config, nodeShardInvokers))
+    , Controller_(New<TStrategyOperationController>(Host_, config, nodeShardInvokers))
 { }
 
-TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
+TPoolName TStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
 {
     return GetOrCrash(TreeIdToPoolNameMap_, treeId);
 }
 
-void TFairShareStrategyOperationState::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+void TStrategyOperationState::UpdateConfig(const TStrategyOperationControllerConfigPtr& config)
 {
     Controller_->UpdateConfig(config);
 }
@@ -284,10 +284,10 @@ public:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
 
     TFairShareTree(
-        TFairShareStrategyTreeConfigPtr config,
-        TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+        TStrategyTreeConfigPtr config,
+        TStrategyOperationControllerConfigPtr controllerConfig,
         IFairShareTreeHost* host,
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         const std::vector<IInvokerPtr>& feasibleInvokers,
         TString treeId)
         : Config_(std::move(config))
@@ -339,14 +339,14 @@ public:
     }
 
 
-    TFairShareStrategyTreeConfigPtr GetConfig() const override
+    TStrategyTreeConfigPtr GetConfig() const override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return Config_;
     }
 
-    TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const override
+    TStrategyTreeConfigPtr GetSnapshottedConfig() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -357,7 +357,7 @@ public:
         return treeSnapshot->TreeConfig();
     }
 
-    bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
+    bool UpdateConfig(const TStrategyTreeConfigPtr& config) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -401,7 +401,7 @@ public:
         return true;
     }
 
-    void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
+    void UpdateControllerConfig(const TStrategyOperationControllerConfigPtr& config) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -466,7 +466,7 @@ public:
     }
 
     TRegistrationResult RegisterOperation(
-        const TFairShareStrategyOperationStatePtr& state,
+        const TStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
         const TOperationOptionsPtr& operationOptions) override
@@ -518,7 +518,7 @@ public:
         };
     }
 
-    void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) override
+    void UnregisterOperation(const TStrategyOperationStatePtr& state) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -545,7 +545,7 @@ public:
         OperationIdToFirstFoundLimitingAncestorTime_.erase(operationId);
     }
 
-    void EnableOperation(const TFairShareStrategyOperationStatePtr& state) override
+    void EnableOperation(const TStrategyOperationStatePtr& state) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -557,7 +557,7 @@ public:
         TreeScheduler_->EnableOperation(operationElement.Get());
     }
 
-    void DisableOperation(const TFairShareStrategyOperationStatePtr& state) override
+    void DisableOperation(const TStrategyOperationStatePtr& state) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -588,7 +588,7 @@ public:
 
         bool operationWasRunning = element->IsOperationRunningInPool();
 
-        auto state = element->GetFairShareStrategyOperationState();
+        auto state = element->GetStrategyOperationState();
 
         auto oldParent = element->GetMutableParent();
         auto newParent = GetOrCreatePool(newPool, state->GetHost()->GetAuthenticatedUser());
@@ -1335,16 +1335,16 @@ public:
     }
 
 private:
-    TFairShareStrategyTreeConfigPtr Config_;
+    TStrategyTreeConfigPtr Config_;
     INodePtr ConfigNode_;
 
-    TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
+    TStrategyOperationControllerConfigPtr ControllerConfig_;
 
     const TString TreeId_;
     const NLogging::TLogger Logger;
 
     IFairShareTreeHost* const Host_;
-    ISchedulerStrategyHost* const StrategyHost_;
+    IStrategyHost* const StrategyHost_;
 
     TResourceTreePtr ResourceTree_;
 
@@ -2105,7 +2105,7 @@ private:
         }
     }
 
-    int AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+    int AllocateOperationSlotIndex(const TStrategyOperationStatePtr& state, const TString& poolName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2143,7 +2143,7 @@ private:
         return newSlotIndex;
     }
 
-    void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+    void ReleaseOperationSlotIndex(const TStrategyOperationStatePtr& state, const TString& poolName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2173,7 +2173,7 @@ private:
     }
 
     void OnOperationRemovedFromPool(
-        const TFairShareStrategyOperationStatePtr& state,
+        const TStrategyOperationStatePtr& state,
         const TSchedulerOperationElementPtr& element,
         const TSchedulerCompositeElementPtr& parent)
     {
@@ -2194,7 +2194,7 @@ private:
 
     // Returns true if all pool constraints are satisfied.
     bool OnOperationAddedToPool(
-        const TFairShareStrategyOperationStatePtr& state,
+        const TStrategyOperationStatePtr& state,
         const TSchedulerOperationElementPtr& operationElement)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -3364,7 +3364,7 @@ private:
     static void DoBuildOperationProgress(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerOperationElement* element,
-        ISchedulerStrategyHost* const strategyHost,
+        IStrategyHost* const strategyHost,
         TFluentMap fluent)
     {
         auto* parent = element->GetParent();
@@ -3592,10 +3592,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IFairShareTreePtr CreateFairShareTree(
-    TFairShareStrategyTreeConfigPtr config,
-    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+    TStrategyTreeConfigPtr config,
+    TStrategyOperationControllerConfigPtr controllerConfig,
     IFairShareTreeHost* host,
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId)
 {

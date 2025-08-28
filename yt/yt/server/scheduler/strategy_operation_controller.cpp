@@ -1,4 +1,4 @@
-#include "fair_share_strategy_operation_controller.h"
+#include "strategy_operation_controller.h"
 
 #include "operation_controller.h"
 
@@ -12,9 +12,9 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyOperationController::TFairShareStrategyOperationController(
+TStrategyOperationController::TStrategyOperationController(
     const IOperationStrategyHostPtr& operation,
-    const TFairShareStrategyOperationControllerConfigPtr& config,
+    const TStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
@@ -30,12 +30,12 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     UpdateConfig(config);
 }
 
-TControllerEpoch TFairShareStrategyOperationController::GetEpoch() const
+TControllerEpoch TStrategyOperationController::GetEpoch() const
 {
     return Controller_->GetEpoch();
 }
 
-void TFairShareStrategyOperationController::OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext)
+void TStrategyOperationController::OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext)
 {
     auto nodeShardId = schedulingContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
@@ -56,7 +56,7 @@ void TFairShareStrategyOperationController::OnScheduleAllocationStarted(const IS
         nodeShardId);
 }
 
-void TFairShareStrategyOperationController::OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext)
+void TStrategyOperationController::OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext)
 {
     auto nodeShardId = schedulingContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
@@ -74,22 +74,22 @@ void TFairShareStrategyOperationController::OnScheduleAllocationFinished(const I
         nodeShardId);
 }
 
-TCompositeNeededResources TFairShareStrategyOperationController::GetNeededResources() const
+TCompositeNeededResources TStrategyOperationController::GetNeededResources() const
 {
     return Controller_->GetNeededResources();
 }
 
-TAllocationGroupResourcesMap TFairShareStrategyOperationController::GetGroupedNeededResources() const
+TAllocationGroupResourcesMap TStrategyOperationController::GetGroupedNeededResources() const
 {
     return Controller_->GetGroupedNeededResources();
 }
 
-TAllocationGroupResourcesMap TFairShareStrategyOperationController::GetInitialGroupedNeededResources() const
+TAllocationGroupResourcesMap TStrategyOperationController::GetInitialGroupedNeededResources() const
 {
     return Controller_->GetInitialGroupedNeededResources();
 }
 
-TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededAllocationResources() const
+TJobResources TStrategyOperationController::GetAggregatedMinNeededAllocationResources() const
 {
     // Min needed resources must be less than total needed resources of operation. See YT-9363.
     auto result = GetNeededResources().DefaultResources;
@@ -100,7 +100,7 @@ TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededAlloc
     return result;
 }
 
-TJobResources TFairShareStrategyOperationController::GetAggregatedInitialMinNeededAllocationResources() const
+TJobResources TStrategyOperationController::GetAggregatedInitialMinNeededAllocationResources() const
 {
     auto initialGroupedNeededResources = GetInitialGroupedNeededResources();
     if (initialGroupedNeededResources.empty()) {
@@ -116,13 +116,13 @@ TJobResources TFairShareStrategyOperationController::GetAggregatedInitialMinNeed
     return result;
 }
 
-void TFairShareStrategyOperationController::UpdateGroupedNeededResources()
+void TStrategyOperationController::UpdateGroupedNeededResources()
 {
     Controller_->UpdateGroupedNeededResources();
 }
 
-void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationThrottlingLimits(
-    const TFairShareStrategyOperationControllerConfigPtr& config)
+void TStrategyOperationController::UpdateConcurrentScheduleAllocationThrottlingLimits(
+    const TStrategyOperationControllerConfigPtr& config)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -158,7 +158,7 @@ void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationTh
     }
 }
 
-bool TFairShareStrategyOperationController::CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const
+bool TStrategyOperationController::CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -170,7 +170,7 @@ bool TFairShareStrategyOperationController::CheckMaxScheduleAllocationCallsOverd
     return ScheduleAllocationCallsOverdraft_ > 0;
 }
 
-bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
+bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
 {
     auto nodeShardId = schedulingContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
@@ -186,7 +186,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationCal
     return limitViolated;
 }
 
-bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
+bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
 {
     if (!EnableConcurrentScheduleAllocationExecDurationThrottling_.load(std::memory_order::acquire)) {
         return false;
@@ -209,22 +209,22 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleAllocationExe
     return limitViolated;
 }
 
-bool TFairShareStrategyOperationController::HasRecentScheduleAllocationFailure(TCpuInstant now) const
+bool TStrategyOperationController::HasRecentScheduleAllocationFailure(TCpuInstant now) const
 {
     return ScheduleAllocationBackoffDeadline_ > now;
 }
 
-bool TFairShareStrategyOperationController::ScheduleAllocationBackoffObserved() const
+bool TStrategyOperationController::ScheduleAllocationBackoffObserved() const
 {
     return ScheduleAllocationBackoffObserved_.load();
 }
 
-void TFairShareStrategyOperationController::AbortAllocation(TAllocationId allocationId, EAbortReason abortReason, TControllerEpoch allocationEpoch)
+void TStrategyOperationController::AbortAllocation(TAllocationId allocationId, EAbortReason abortReason, TControllerEpoch allocationEpoch)
 {
     Controller_->OnNonscheduledAllocationAborted(allocationId, abortReason, allocationEpoch);
 }
 
-TControllerScheduleAllocationResultPtr TFairShareStrategyOperationController::ScheduleAllocation(
+TControllerScheduleAllocationResultPtr TStrategyOperationController::ScheduleAllocation(
     const ISchedulingContextPtr& context,
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
@@ -311,7 +311,7 @@ TControllerScheduleAllocationResultPtr TFairShareStrategyOperationController::Sc
     return scheduleAllocationResult;
 }
 
-void TFairShareStrategyOperationController::OnScheduleAllocationFailed(
+void TStrategyOperationController::OnScheduleAllocationFailed(
     TCpuInstant now,
     const TString& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
@@ -354,7 +354,7 @@ void TFairShareStrategyOperationController::OnScheduleAllocationFailed(
     }
 }
 
-bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
+bool TStrategyOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
 {
     auto guard = ReaderGuard(SaturatedTentativeTreesLock_);
 
@@ -367,7 +367,7 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInsta
     return saturationTime + DurationToCpuDuration(saturationDeactivationTimeout) > now;
 }
 
-void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+void TStrategyOperationController::UpdateConfig(const TStrategyOperationControllerConfigPtr& config)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -379,12 +379,12 @@ void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrateg
     UpdateConcurrentScheduleAllocationThrottlingLimits(config);
 }
 
-TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationController::GetConfig()
+TStrategyOperationControllerConfigPtr TStrategyOperationController::GetConfig()
 {
     return Config_.Acquire();
 }
 
-void TFairShareStrategyOperationController::SetDetailedLogsEnabled(bool enabled)
+void TStrategyOperationController::SetDetailedLogsEnabled(bool enabled)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 

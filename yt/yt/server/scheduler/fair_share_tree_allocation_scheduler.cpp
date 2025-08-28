@@ -882,7 +882,7 @@ TScheduleAllocationsContext::TScheduleAllocationsContext(
     TFairShareTreeSnapshotPtr treeSnapshot,
     const TFairShareTreeAllocationSchedulerNodeState* nodeState,
     bool schedulingInfoLoggingEnabled,
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     const NProfiling::TCounter& scheduleAllocationsDeadlineReachedCounter,
     const NLogging::TLogger& logger)
     : SchedulingContext_(std::move(schedulingContext))
@@ -2229,7 +2229,7 @@ bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(
     return false;
 }
 
-TFairShareStrategyPackingConfigPtr TScheduleAllocationsContext::GetPackingConfig() const
+TStrategyPackingConfigPtr TScheduleAllocationsContext::GetPackingConfig() const
 {
     return TreeSnapshot_->TreeConfig()->Packing;
 }
@@ -2466,8 +2466,8 @@ TFairShareTreeAllocationScheduler::TFairShareTreeAllocationScheduler(
     NLogging::TLogger logger,
     TWeakPtr<IFairShareTreeAllocationSchedulerHost> host,
     IFairShareTreeHost* treeHost,
-    ISchedulerStrategyHost* strategyHost,
-    TFairShareStrategyTreeConfigPtr config,
+    IStrategyHost* strategyHost,
+    TStrategyTreeConfigPtr config,
     NProfiling::TProfiler profiler)
     : TreeId_(std::move(treeId))
     , Logger(std::move(logger))
@@ -2488,13 +2488,13 @@ TFairShareTreeAllocationScheduler::TFairShareTreeAllocationScheduler(
     Profiler_.AddProducer("/operation_count_by_preemption_priority", OperationCountByPreemptionPriorityBufferedProducer_);
 
     SchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
-        StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy),
+        StrategyHost_->GetControlInvoker(EControlQueue::Strategy),
         BIND(&TFairShareTreeAllocationScheduler::ManageSchedulingSegments, MakeWeak(this)),
         Config_->SchedulingSegments->ManagePeriod);
     SchedulingSegmentsManagementExecutor_->Start();
 
     MinNodeResourceLimitsCheckExecutor_ = New<TPeriodicExecutor>(
-        StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy),
+        StrategyHost_->GetControlInvoker(EControlQueue::Strategy),
         BIND(&TFairShareTreeAllocationScheduler::CheckMinNodeResourceLimits, MakeWeak(this)),
         Config_->MinNodeResourceLimitsCheckPeriod);
     MinNodeResourceLimitsCheckExecutor_->Start();
@@ -3007,7 +3007,7 @@ TError TFairShareTreeAllocationScheduler::CheckOperationIsStuck(
 void TFairShareTreeAllocationScheduler::BuildOperationProgress(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TSchedulerOperationElement* element,
-    ISchedulerStrategyHost* const strategyHost,
+    IStrategyHost* const strategyHost,
     TFluentMap fluent)
 {
     bool isEnabled = treeSnapshot->IsElementEnabled(element);
@@ -3070,7 +3070,7 @@ void TFairShareTreeAllocationScheduler::BuildElementYson(
 
 TAllocationSchedulerPostUpdateContext TFairShareTreeAllocationScheduler::CreatePostUpdateContext(TSchedulerRootElement* rootElement)
 {
-    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
 
     // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
     // in the registration pipeline is done before medium directory sync. That's why we do the initial update
@@ -3119,7 +3119,7 @@ void TFairShareTreeAllocationScheduler::PostUpdate(
 
 TFairShareTreeSchedulingSnapshotPtr TFairShareTreeAllocationScheduler::CreateSchedulingSnapshot(TAllocationSchedulerPostUpdateContext* postUpdateContext)
 {
-    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
 
     return New<TFairShareTreeSchedulingSnapshot>(
         std::move(postUpdateContext->StaticAttributesList),
@@ -3153,7 +3153,7 @@ void TFairShareTreeAllocationScheduler::ProfileOperation(
     writer->AddCounter("/schedule_job_attempt_count", operationSharedState->GetOperationScheduleAllocationAttemptCount());
 }
 
-void TFairShareTreeAllocationScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
+void TFairShareTreeAllocationScheduler::UpdateConfig(TStrategyTreeConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -3244,7 +3244,7 @@ INodePtr TFairShareTreeAllocationScheduler::BuildPersistentState() const
     return ConvertToNode(persistentState);
 }
 
-bool TFairShareTreeAllocationScheduler::IsGpuTree(const TFairShareStrategyTreeConfigPtr& config)
+bool TFairShareTreeAllocationScheduler::IsGpuTree(const TStrategyTreeConfigPtr& config)
 {
     return config->MainResource == EJobResourceType::Gpu;
 }
@@ -4192,7 +4192,7 @@ void TFairShareTreeAllocationScheduler::CheckMinNodeResourceLimits()
 
 void TFairShareTreeAllocationScheduler::ManageSchedulingSegments()
 {
-    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::Strategy));
 
     auto host = Host_.Lock();
     if (!host) {

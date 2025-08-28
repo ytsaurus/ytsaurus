@@ -28,10 +28,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulerStrategyHost
+struct IStrategyHost
     : public virtual IEventLogHost
 {
-    virtual ~ISchedulerStrategyHost() = default;
+    virtual ~IStrategyHost() = default;
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const = 0;
     virtual IInvokerPtr GetFairShareLoggingInvoker() const = 0;
@@ -167,7 +167,7 @@ DEFINE_REFCOUNTED_TYPE(INodeHeartbeatStrategyProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulerStrategy
+struct IStrategy
     : public virtual TRefCounted
 {
     //! Create proxy for handling node heartbeat.
@@ -299,7 +299,7 @@ struct ISchedulerStrategy
         const std::string& user) = 0;
 
     //! Updates current config used by strategy.
-    virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
+    virtual void UpdateConfig(const TStrategyConfigPtr& config) = 0;
 
     //! Builds a YSON map fragment with strategy specific information about operation
     //! that used for event log.
@@ -355,7 +355,14 @@ struct ISchedulerStrategy
     virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)
+DEFINE_REFCOUNTED_TYPE(IStrategy)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IStrategyPtr CreateStrategy(
+    TStrategyConfigPtr config,
+    IStrategyHost* host,
+    std::vector<IInvokerPtr> feasibleInvokers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

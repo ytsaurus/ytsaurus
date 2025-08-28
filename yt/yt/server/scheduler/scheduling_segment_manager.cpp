@@ -136,7 +136,7 @@ TString TSchedulingSegmentManager::GetNodeTagFromModuleName(
 
 TSchedulingSegmentManager::TSchedulingSegmentManager(
     TString treeId,
-    TFairShareStrategySchedulingSegmentsConfigPtr config,
+    TStrategySchedulingSegmentsConfigPtr config,
     NLogging::TLogger logger,
     const NProfiling::TProfiler& profiler)
     : TreeId_(std::move(treeId))
@@ -231,7 +231,7 @@ TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     return error;
 }
 
-void TSchedulingSegmentManager::UpdateConfig(TFairShareStrategySchedulingSegmentsConfigPtr config)
+void TSchedulingSegmentManager::UpdateConfig(TStrategySchedulingSegmentsConfigPtr config)
 {
     Config_ = std::move(config);
 }

@@ -48,9 +48,9 @@ void TPersistentAttributes::ResetOnElementEnabled()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerElementFixedState::TSchedulerElementFixedState(
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    TFairShareStrategyTreeConfigPtr treeConfig,
+    TStrategyTreeConfigPtr treeConfig,
     TString treeId)
     : TreeConfig_(std::move(treeConfig))
     , StrategyHost_(strategyHost)
@@ -77,7 +77,7 @@ int TSchedulerElement::EnumerateElements(int startIndex, bool isSchedulableValue
     return startIndex;
 }
 
-void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
+void TSchedulerElement::UpdateTreeConfig(const TStrategyTreeConfigPtr& config)
 {
     YT_VERIFY(Mutable_);
 
@@ -354,9 +354,9 @@ bool TSchedulerElement::CheckAvailableDemand(const TJobResources& delta)
 }
 
 TSchedulerElement::TSchedulerElement(
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    TFairShareStrategyTreeConfigPtr treeConfig,
+    TStrategyTreeConfigPtr treeConfig,
     TString treeId,
     TString id,
     EResourceTreeElementKind elementKind,
@@ -383,7 +383,7 @@ TSchedulerElement::TSchedulerElement(
     Parent_ = clonedParent;
 }
 
-ISchedulerStrategyHost* TSchedulerElement::GetHost() const
+IStrategyHost* TSchedulerElement::GetHost() const
 {
     YT_VERIFY(Mutable_);
 
@@ -648,9 +648,9 @@ void TSchedulerElement::UpdateStarvationStatuses(TInstant now, bool enablePoolSt
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerCompositeElement::TSchedulerCompositeElement(
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    TFairShareStrategyTreeConfigPtr treeConfig,
+    TStrategyTreeConfigPtr treeConfig,
     const TString& treeId,
     const TString& id,
     EResourceTreeElementKind elementKind,
@@ -717,7 +717,7 @@ void TSchedulerCompositeElement::DisableNonAliveElements()
     }
 }
 
-void TSchedulerCompositeElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
+void TSchedulerCompositeElement::UpdateTreeConfig(const TStrategyTreeConfigPtr& config)
 {
     YT_VERIFY(Mutable_);
 
@@ -1200,13 +1200,13 @@ TSchedulerPoolElementFixedState::TSchedulerPoolElementFixedState(TString id, NOb
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerPoolElement::TSchedulerPoolElement(
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
     const TString& id,
     TGuid objectId,
     TPoolConfigPtr config,
     bool defaultConfigured,
-    TFairShareStrategyTreeConfigPtr treeConfig,
+    TStrategyTreeConfigPtr treeConfig,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerCompositeElement(
@@ -1754,7 +1754,7 @@ void TSchedulerPoolElement::PropagatePoolAttributesToOperations()
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
     IOperationStrategyHostPtr operation,
-    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+    TStrategyOperationControllerConfigPtr controllerConfig,
     TSchedulingTagFilter schedulingTagFilter)
     : OperationId_(operation->GetId())
     , OperationHost_(std::move(operation))
@@ -1768,14 +1768,14 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElement::TSchedulerOperationElement(
-    TFairShareStrategyTreeConfigPtr treeConfig,
+    TStrategyTreeConfigPtr treeConfig,
     TStrategyOperationSpecPtr spec,
     TOperationOptionsPtr operationOptions,
     TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
-    TFairShareStrategyOperationControllerPtr controller,
-    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-    TFairShareStrategyOperationStatePtr state,
-    ISchedulerStrategyHost* strategyHost,
+    TStrategyOperationControllerPtr controller,
+    TStrategyOperationControllerConfigPtr controllerConfig,
+    TStrategyOperationStatePtr state,
+    IStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
     IOperationStrategyHostPtr operation,
     const TString& treeId,
@@ -1796,7 +1796,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     , OperationOptions_(std::move(operationOptions))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
-    , FairShareStrategyOperationState_(std::move(state))
+    , StrategyOperationState_(std::move(state))
 { }
 
 TSchedulerOperationElement::TSchedulerOperationElement(
@@ -1932,7 +1932,7 @@ void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFair
     PostUpdateAttributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
 }
 
-void TSchedulerOperationElement::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+void TSchedulerOperationElement::UpdateControllerConfig(const TStrategyOperationControllerConfigPtr& config)
 {
     YT_VERIFY(Mutable_);
     ControllerConfig_ = config;
@@ -2009,9 +2009,9 @@ TResourceVector TSchedulerOperationElement::GetMaxShare() const
     return TResourceVector::FromDouble(Spec_->MaxShareRatio.value_or(1.0));
 }
 
-const TFairShareStrategyOperationStatePtr& TSchedulerOperationElement::GetFairShareStrategyOperationState() const
+const TStrategyOperationStatePtr& TSchedulerOperationElement::GetStrategyOperationState() const
 {
-    return FairShareStrategyOperationState_;
+    return StrategyOperationState_;
 }
 
 void TSchedulerOperationElement::SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter)
@@ -2464,9 +2464,9 @@ TDuration TSchedulerOperationElement::GetEffectiveAllocationGracefulPreemptionTi
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerRootElement::TSchedulerRootElement(
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    TFairShareStrategyTreeConfigPtr treeConfig,
+    TStrategyTreeConfigPtr treeConfig,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerCompositeElement(

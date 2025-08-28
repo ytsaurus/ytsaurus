@@ -1,7 +1,7 @@
 #include "controller_agent_tracker.h"
 
 #include "scheduler.h"
-#include "scheduler_strategy.h"
+#include "strategy.h"
 #include "controller_agent.h"
 #include "operation.h"
 #include "node_manager.h"

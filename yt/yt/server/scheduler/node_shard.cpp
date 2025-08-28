@@ -1,13 +1,13 @@
 #include "node_manager.h"
 
 #include "node_shard.h"
-#include "scheduler_strategy.h"
+#include "strategy.h"
 #include "scheduling_context.h"
 #include "operation_controller.h"
 #include "controller_agent.h"
 #include "bootstrap.h"
 #include "helpers.h"
-#include "persistent_scheduler_state.h"
+#include "persistent_state.h"
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 

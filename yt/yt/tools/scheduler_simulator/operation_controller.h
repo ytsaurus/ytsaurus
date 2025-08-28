@@ -19,7 +19,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISimulatorOperationController
-    : public NScheduler::IOperationControllerStrategyHost
+    : public NScheduler::ISchedulingOperationController
 {
     virtual void OnJobCompleted(std::unique_ptr<NControllerAgent::TCompletedJobSummary> jobSummary) = 0;
 
