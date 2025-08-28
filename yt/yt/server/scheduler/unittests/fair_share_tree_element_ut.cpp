@@ -264,7 +264,7 @@ public:
     }
 
     MOCK_METHOD(TFuture<TControllerScheduleAllocationResultPtr>, ScheduleAllocation, (
-        const ISchedulingContextPtr& context,
+        const ISchedulingHeartbeatContextPtr& context,
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const TString& treeId,

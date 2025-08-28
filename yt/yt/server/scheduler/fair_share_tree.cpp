@@ -8,7 +8,7 @@
 #include "pools_config_parser.h"
 #include "resource_tree.h"
 #include "strategy.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "serialize.h"
 #include "strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
@@ -2638,7 +2638,7 @@ private:
         return nullptr;
     }
 
-    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleAllocations) override
+    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, bool skipScheduleAllocations) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2653,7 +2653,7 @@ private:
         auto processSchedulingHeartbeatFuture = BIND(
             &TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat,
             TreeScheduler_,
-            schedulingContext,
+            schedulingHeartbeatContext,
             treeSnapshot,
             skipScheduleAllocations)
             .AsyncVia(GetCurrentInvoker())
@@ -2663,7 +2663,7 @@ private:
             .Apply(BIND(
                 &TFairShareTree::ApplyScheduledAndPreemptedResourcesDelta,
                 MakeStrong(this),
-                schedulingContext,
+                schedulingHeartbeatContext,
                 treeSnapshot));
     }
 
@@ -2791,7 +2791,7 @@ private:
     }
 
     void ApplyScheduledAndPreemptedResourcesDelta(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TFairShareTreeSnapshotPtr& treeSnapshot)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2805,12 +2805,12 @@ private:
         TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResourceTimes;
         TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> improperlyPreemptedAllocationResources;
 
-        for (const auto& allocation : schedulingContext->StartedAllocations()) {
+        for (const auto& allocation : schedulingHeartbeatContext->StartedAllocations()) {
             TOperationId operationId = allocation->GetOperationId();
             const TJobResources& scheduledResourcesDelta = allocation->ResourceLimits();
             scheduledAllocationResources[allocation->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
         }
-        for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+        for (const auto& preemptedAllocation : schedulingHeartbeatContext->PreemptedAllocations()) {
             const TAllocationPtr& allocation = preemptedAllocation.Allocation;
             TOperationId operationId = allocation->GetOperationId();
             const TJobResources& preemptedResourcesDelta = allocation->ResourceLimits();

@@ -1,4 +1,4 @@
-#include "scheduling_context_detail.h"
+#include "scheduling_heartbeat_context_detail.h"
 
 #include "exec_node.h"
 #include "allocation.h"
@@ -23,7 +23,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulingContextBase::TSchedulingContextBase(
+TSchedulingHeartbeatContextBase::TSchedulingHeartbeatContextBase(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
@@ -50,75 +50,75 @@ TSchedulingContextBase::TSchedulingContextBase(
     }
 }
 
-int TSchedulingContextBase::GetNodeShardId() const
+int TSchedulingHeartbeatContextBase::GetNodeShardId() const
 {
     return NodeShardId_;
 }
 
-TJobResources& TSchedulingContextBase::ResourceUsage()
+TJobResources& TSchedulingHeartbeatContextBase::ResourceUsage()
 {
     return ResourceUsage_;
 }
 
-const TJobResources& TSchedulingContextBase::ResourceUsage() const
+const TJobResources& TSchedulingHeartbeatContextBase::ResourceUsage() const
 {
     return ResourceUsage_;
 }
 
-const TJobResources& TSchedulingContextBase::ResourceLimits() const
+const TJobResources& TSchedulingHeartbeatContextBase::ResourceLimits() const
 {
     return ResourceLimits_;
 }
 
-TJobResourcesWithQuota TSchedulingContextBase::GetUnconditionalDiscount() const
+TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetUnconditionalDiscount() const
 {
     return ToJobResourcesWithQuota(UnconditionalDiscount_);
 }
 
-const TSchedulingContextBase::TJobResourcesWithQuotaDiscount& TSchedulingContextBase::ConditionalDiscountForOperation(TOperationIndex operationIndex) const
+const TSchedulingHeartbeatContextBase::TJobResourcesWithQuotaDiscount& TSchedulingHeartbeatContextBase::ConditionalDiscountForOperation(TOperationIndex operationIndex) const
 {
     // NB(eshcherbin): |VectorAtOr| returns |const T&|, so we must provide an explicit default value not to shoot ourself.
     static constexpr TJobResourcesWithQuotaDiscount ZeroDiscount;
     return VectorAtOr(ConditionalDiscounts_, operationIndex, ZeroDiscount);
 }
 
-TJobResourcesWithQuota TSchedulingContextBase::GetConditionalDiscountForOperation(TOperationIndex operationIndex) const
+TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetConditionalDiscountForOperation(TOperationIndex operationIndex) const
 {
     return ToJobResourcesWithQuota(ConditionalDiscountForOperation(operationIndex));
 }
 
-TJobResourcesWithQuota TSchedulingContextBase::GetMaxConditionalDiscount() const
+TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetMaxConditionalDiscount() const
 {
     return ToJobResourcesWithQuota(MaxConditionalDiscount_);
 }
 
-void TSchedulingContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources)
+void TSchedulingHeartbeatContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources)
 {
     UnconditionalDiscount_.JobResources += allocationResources.ToJobResources();
     UnconditionalDiscount_.DiscountMediumDiskQuota += GetDiscountMediumQuota(allocationResources.DiskQuota());
 }
 
-const TDiskResources& TSchedulingContextBase::DiskResources() const
+const TDiskResources& TSchedulingHeartbeatContextBase::DiskResources() const
 {
     return DiskResources_;
 }
 
-TDiskResources& TSchedulingContextBase::DiskResources()
+TDiskResources& TSchedulingHeartbeatContextBase::DiskResources()
 {
     return DiskResources_;
 }
 
-const std::vector<TDiskQuota>& TSchedulingContextBase::DiskRequests() const
+const std::vector<TDiskQuota>& TSchedulingHeartbeatContextBase::DiskRequests() const
 {
     return DiskRequests_;
 }
 
-const TExecNodeDescriptorPtr& TSchedulingContextBase::GetNodeDescriptor() const
+const TExecNodeDescriptorPtr& TSchedulingHeartbeatContextBase::GetNodeDescriptor() const
 {
     return NodeDescriptor_;
 }
 
-bool TSchedulingContextBase::CanSatisfyResourceRequest(
+bool TSchedulingHeartbeatContextBase::CanSatisfyResourceRequest(
     const TJobResources& allocationResources,
     const TJobResources& conditionalDiscount,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
@@ -139,7 +139,7 @@ bool TSchedulingContextBase::CanSatisfyResourceRequest(
     return canSatisfyResourceRequest;
 }
 
-bool TSchedulingContextBase::CanStartAllocationForOperation(
+bool TSchedulingHeartbeatContextBase::CanStartAllocationForOperation(
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
     TOperationIndex operationIndex,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
@@ -176,7 +176,7 @@ bool TSchedulingContextBase::CanStartAllocationForOperation(
     return canSatisfyResourceRequest && canSatisfyDiskQuotaRequests;
 }
 
-bool TSchedulingContextBase::CanStartMoreAllocations(
+bool TSchedulingHeartbeatContextBase::CanStartMoreAllocations(
     const std::optional<TJobResources>& customMinSpareAllocationResources) const
 {
     auto minSpareAllocationResources = customMinSpareAllocationResources.value_or(DefaultMinSpareAllocationResources_);
@@ -188,12 +188,12 @@ bool TSchedulingContextBase::CanStartMoreAllocations(
     return !limit || std::ssize(StartedAllocations_) < *limit;
 }
 
-bool TSchedulingContextBase::CanSchedule(const TSchedulingTagFilter& filter) const
+bool TSchedulingHeartbeatContextBase::CanSchedule(const TSchedulingTagFilter& filter) const
 {
     return filter.IsEmpty() || filter.CanSchedule(NodeTags_);
 }
 
-bool TSchedulingContextBase::ShouldAbortAllocationsSinceResourcesOvercommit() const
+bool TSchedulingHeartbeatContextBase::ShouldAbortAllocationsSinceResourcesOvercommit() const
 {
     bool resourcesOvercommitted = !Dominates(ResourceLimits(), ResourceUsage());
     auto now = NProfiling::CpuInstantToInstant(GetNow());
@@ -203,22 +203,22 @@ bool TSchedulingContextBase::ShouldAbortAllocationsSinceResourcesOvercommit() co
     return resourcesOvercommitted && allowedOvercommitTimePassed;
 }
 
-const std::vector<TAllocationPtr>& TSchedulingContextBase::StartedAllocations() const
+const std::vector<TAllocationPtr>& TSchedulingHeartbeatContextBase::StartedAllocations() const
 {
     return StartedAllocations_;
 }
 
-const std::vector<TAllocationPtr>& TSchedulingContextBase::RunningAllocations() const
+const std::vector<TAllocationPtr>& TSchedulingHeartbeatContextBase::RunningAllocations() const
 {
     return RunningAllocations_;
 }
 
-const std::vector<TPreemptedAllocation>& TSchedulingContextBase::PreemptedAllocations() const
+const std::vector<TPreemptedAllocation>& TSchedulingHeartbeatContextBase::PreemptedAllocations() const
 {
     return PreemptedAllocations_;
 }
 
-void TSchedulingContextBase::StartAllocation(
+void TSchedulingHeartbeatContextBase::StartAllocation(
     const TString& treeId,
     TOperationId operationId,
     TIncarnationId incarnationId,
@@ -250,7 +250,7 @@ void TSchedulingContextBase::StartAllocation(
     StartedAllocations_.push_back(std::move(allocation));
 }
 
-void TSchedulingContextBase::PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason)
+void TSchedulingHeartbeatContextBase::PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason)
 {
     YT_VERIFY(allocation->GetNode() == Node_);
     PreemptedAllocations_.push_back({allocation, preemptionTimeout, preemptionReason});
@@ -262,22 +262,22 @@ void TSchedulingContextBase::PreemptAllocation(const TAllocationPtr& allocation,
     }
 }
 
-TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount() const
+TJobResources TSchedulingHeartbeatContextBase::GetNodeFreeResourcesWithoutDiscount() const
 {
     return ResourceLimits_ - ResourceUsage_;
 }
 
-TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount() const
+TJobResources TSchedulingHeartbeatContextBase::GetNodeFreeResourcesWithDiscount() const
 {
     return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources;
 }
 
-TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const
+TJobResources TSchedulingHeartbeatContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const
 {
     return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources + ConditionalDiscountForOperation(operationIndex).JobResources;
 }
 
-TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const
+TDiskResources TSchedulingHeartbeatContextBase::GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const
 {
     auto diskResources = DiskResources_;
 
@@ -295,53 +295,53 @@ TDiskResources TSchedulingContextBase::GetDiskResourcesWithDiscountForOperation(
     return diskResources;
 }
 
-TScheduleAllocationsStatistics TSchedulingContextBase::GetSchedulingStatistics() const
+TScheduleAllocationsStatistics TSchedulingHeartbeatContextBase::GetSchedulingStatistics() const
 {
     return SchedulingStatistics_;
 }
 
-void TSchedulingContextBase::SetSchedulingStatistics(TScheduleAllocationsStatistics statistics)
+void TSchedulingHeartbeatContextBase::SetSchedulingStatistics(TScheduleAllocationsStatistics statistics)
 {
     SchedulingStatistics_ = statistics;
 }
 
-void TSchedulingContextBase::StoreScheduleAllocationExecDurationEstimate(TDuration duration)
+void TSchedulingHeartbeatContextBase::StoreScheduleAllocationExecDurationEstimate(TDuration duration)
 {
     YT_ASSERT(!ScheduleAllocationExecDurationEstimate_);
 
     ScheduleAllocationExecDurationEstimate_ = duration;
 }
 
-TDuration TSchedulingContextBase::ExtractScheduleAllocationExecDurationEstimate()
+TDuration TSchedulingHeartbeatContextBase::ExtractScheduleAllocationExecDurationEstimate()
 {
     YT_ASSERT(ScheduleAllocationExecDurationEstimate_);
 
     return *std::exchange(ScheduleAllocationExecDurationEstimate_, {});
 }
 
-bool TSchedulingContextBase::IsHeartbeatTimeoutExpired() const
+bool TSchedulingHeartbeatContextBase::IsHeartbeatTimeoutExpired() const
 {
     return HeartbeatTimeoutExpired_;
 }
 
-void TSchedulingContextBase::SetHeartbeatTimeoutExpired()
+void TSchedulingHeartbeatContextBase::SetHeartbeatTimeoutExpired()
 {
     HeartbeatTimeoutExpired_ = true;
 }
 
-void TSchedulingContextBase::InitializeConditionalDiscounts(int capacity)
+void TSchedulingHeartbeatContextBase::InitializeConditionalDiscounts(int capacity)
 {
     ConditionalDiscounts_.reserve(capacity);
 }
 
-void TSchedulingContextBase::ResetDiscounts()
+void TSchedulingHeartbeatContextBase::ResetDiscounts()
 {
     UnconditionalDiscount_ = {};
     ConditionalDiscounts_.clear();
     MaxConditionalDiscount_ = {};
 }
 
-void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation)
+void TSchedulingHeartbeatContextBase::SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation)
 {
     TJobResourcesWithQuotaDiscount conditionalDiscount(discountForOperation.ToJobResources(), GetDiscountMediumQuota(discountForOperation.DiskQuota()));
     AssignVectorAt(ConditionalDiscounts_, operationIndex, conditionalDiscount);
@@ -350,12 +350,12 @@ void TSchedulingContextBase::SetConditionalDiscountForOperation(TOperationIndex 
     MaxConditionalDiscount_.DiscountMediumDiskQuota = std::max(MaxConditionalDiscount_.DiscountMediumDiskQuota, conditionalDiscount.DiscountMediumDiskQuota);
 }
 
-TJobResourcesWithQuota TSchedulingContextBase::ToJobResourcesWithQuota(const TJobResourcesWithQuotaDiscount& resources) const
+TJobResourcesWithQuota TSchedulingHeartbeatContextBase::ToJobResourcesWithQuota(const TJobResourcesWithQuotaDiscount& resources) const
 {
     return TJobResourcesWithQuota(resources.JobResources, ToDiscountDiskQuota(resources.DiscountMediumDiskQuota));
 }
 
-TDiskQuota TSchedulingContextBase::ToDiscountDiskQuota(std::optional<i64> discountMediumQuota) const
+TDiskQuota TSchedulingHeartbeatContextBase::ToDiscountDiskQuota(std::optional<i64> discountMediumQuota) const
 {
     TDiskQuota diskQuota;
     if (DiscountMediumIndex_ && discountMediumQuota) {
@@ -364,7 +364,7 @@ TDiskQuota TSchedulingContextBase::ToDiscountDiskQuota(std::optional<i64> discou
     return diskQuota;
 }
 
-i64 TSchedulingContextBase::GetDiscountMediumQuota(const TDiskQuota& diskQuota) const
+i64 TSchedulingHeartbeatContextBase::GetDiscountMediumQuota(const TDiskQuota& diskQuota) const
 {
     if (!DiscountMediumIndex_) {
         return 0;

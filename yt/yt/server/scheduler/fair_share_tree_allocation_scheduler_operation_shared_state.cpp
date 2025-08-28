@@ -508,10 +508,10 @@ TAllocationPreemptionStatusMap TFairShareTreeAllocationSchedulerOperationSharedS
 }
 
 void TFairShareTreeAllocationSchedulerOperationSharedState::OnMinNeededResourcesUnsatisfied(
-    const ISchedulingContextPtr& schedulingContext,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources)
 {
-    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
+    auto& shard = StateShards_[schedulingHeartbeatContext->GetNodeShardId()];
     for (auto resourceType : TEnumTraitsImpl<EJobResourceWithDiskQuotaType>::GetDomainValues()) {
         if (unsatisfiedResources[resourceType]) {
             IncrementAtomicCounterUnsafely(&shard.MinNeededResourcesUnsatisfiedCount[resourceType]);
@@ -526,9 +526,9 @@ TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TFairShareTreeAllocationSc
     return MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
 }
 
-void TFairShareTreeAllocationSchedulerOperationSharedState::OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason)
+void TFairShareTreeAllocationSchedulerOperationSharedState::OnOperationDeactivated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, EDeactivationReason reason)
 {
-    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
+    auto& shard = StateShards_[schedulingHeartbeatContext->GetNodeShardId()];
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasons[reason]);
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasonsFromLastNonStarvingTime[reason]);
 }
@@ -547,9 +547,9 @@ TEnumIndexedArray<EDeactivationReason, int> TFairShareTreeAllocationSchedulerOpe
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
-void TFairShareTreeAllocationSchedulerOperationSharedState::IncrementOperationScheduleAllocationAttemptCount(const ISchedulingContextPtr& schedulingContext)
+void TFairShareTreeAllocationSchedulerOperationSharedState::IncrementOperationScheduleAllocationAttemptCount(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
-    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
+    auto& shard = StateShards_[schedulingHeartbeatContext->GetNodeShardId()];
 
     IncrementAtomicCounterUnsafely(&shard.ScheduleAllocationAttemptCount);
 }

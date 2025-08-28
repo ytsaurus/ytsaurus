@@ -674,7 +674,7 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 }
 
 TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::ScheduleAllocation(
-    const ISchedulingContextPtr& context,
+    const ISchedulingHeartbeatContextPtr& context,
     const TJobResources& allocationLimits,
     const TDiskResources& diskResourceLimits,
     const TString& treeId,

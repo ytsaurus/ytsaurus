@@ -61,7 +61,7 @@ struct TPreemptedAllocation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulingContext
+struct ISchedulingHeartbeatContext
     : public virtual TRefCounted
 {
     virtual int GetNodeShardId() const = 0;
@@ -131,11 +131,11 @@ struct ISchedulingContext
     virtual void SetHeartbeatTimeoutExpired() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
+DEFINE_REFCOUNTED_TYPE(ISchedulingHeartbeatContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulingContextPtr CreateSchedulingContext(
+ISchedulingHeartbeatContextPtr CreateSchedulingHeartbeatContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,

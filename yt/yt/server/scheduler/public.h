@@ -37,7 +37,7 @@ DECLARE_REFCOUNTED_STRUCT(IStrategy)
 struct IStrategyHost;
 DECLARE_REFCOUNTED_STRUCT(IOperationStrategyHost)
 
-DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
+DECLARE_REFCOUNTED_STRUCT(ISchedulingHeartbeatContext)
 DECLARE_REFCOUNTED_STRUCT(ISchedulingOperationController)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 

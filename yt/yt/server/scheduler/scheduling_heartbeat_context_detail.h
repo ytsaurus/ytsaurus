@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "exec_node.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
@@ -9,11 +9,11 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulingContextBase
-    : public ISchedulingContext
+class TSchedulingHeartbeatContextBase
+    : public ISchedulingHeartbeatContext
 {
 public:
-    TSchedulingContextBase(
+    TSchedulingHeartbeatContextBase(
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,

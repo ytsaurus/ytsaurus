@@ -2,28 +2,29 @@
 
 #include "scheduling_strategy_host.h"
 
-#include <yt/yt/server/scheduler/scheduling_context_detail.h>
+#include <yt/yt/server/scheduler/scheduling_heartbeat_context_detail.h>
 #include <yt/yt/server/scheduler/exec_node.h>
 
 namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulingContext
-    : public NScheduler::TSchedulingContextBase
+// TODO(eshcherbin): Split into header and implementation.
+class TSchedulingHeartbeatContext
+    : public NScheduler::TSchedulingHeartbeatContextBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, Now);
 
 public:
-    TSchedulingContext(
+    TSchedulingHeartbeatContext(
         int shardId,
         NScheduler::TSchedulerConfigPtr schedulerConfig,
         NScheduler::TExecNodePtr node,
         const std::vector<NScheduler::TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
         const NScheduler::TJobResources& defaultMinSpareAllocationResources)
-        : TSchedulingContextBase(
+        : TSchedulingHeartbeatContextBase(
             shardId,
             schedulerConfig,
             node,

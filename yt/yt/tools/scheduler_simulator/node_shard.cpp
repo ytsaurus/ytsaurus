@@ -124,23 +124,23 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
     // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
     auto minSpareResources = strategyProxy->GetMinSpareResourcesForScheduling();
-    auto schedulingContext = New<TSchedulingContext>(
+    auto schedulingHeartbeatContext = New<TSchedulingHeartbeatContext>(
         Id_,
         SchedulerConfig_,
         node,
         nodeAllocations,
         MediumDirectory_,
         minSpareResources);
-    schedulingContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
+    schedulingHeartbeatContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
-    WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, /*skipScheduleJobs*/ false))
+    WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, /*skipScheduleJobs*/ false))
         .ThrowOnError();
 
-    node->ResourceUsage() = schedulingContext->ResourceUsage();
+    node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
     // Create events for all started jobs.
-    for (const auto& allocation : schedulingContext->StartedAllocations()) {
-        const auto& duration = GetOrCrash(schedulingContext->GetStartedAllocationsDurations(), allocation->GetId());
+    for (const auto& allocation : schedulingHeartbeatContext->StartedAllocations()) {
+        const auto& duration = GetOrCrash(schedulingHeartbeatContext->GetStartedAllocationsDurations(), allocation->GetId());
 
         // Notify scheduler.
         allocation->SetState(EAllocationState::Running);
@@ -168,7 +168,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     }
 
     // Process all preempted allocations.
-    for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+    for (const auto& preemptedAllocation : schedulingHeartbeatContext->PreemptedAllocations()) {
         auto& allocation = preemptedAllocation.Allocation;
         auto duration = event.Time - allocation->GetStartTime();
 
@@ -193,7 +193,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
     strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
 
-    const auto& statistics = schedulingContext->GetSchedulingStatistics();
+    const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
     YT_LOG_DEBUG(
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
@@ -205,8 +205,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
-        schedulingContext->StartedAllocations().size(),
-        schedulingContext->PreemptedAllocations().size(),
+        schedulingHeartbeatContext->StartedAllocations().size(),
+        schedulingHeartbeatContext->PreemptedAllocations().size(),
         statistics.ScheduledDuringPreemption,
         statistics.UnconditionallyPreemptibleAllocationCount,
         FormatResources(statistics.UnconditionalResourceUsageDiscount),

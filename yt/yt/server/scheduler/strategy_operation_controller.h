@@ -19,8 +19,8 @@ public:
         const TStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
-    void OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext);
-    void OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleAllocationStarted(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
+    void OnScheduleAllocationFinished(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
 
     TControllerEpoch GetEpoch() const;
 
@@ -34,13 +34,13 @@ public:
 
     void UpdateConcurrentScheduleAllocationThrottlingLimits(const TStrategyOperationControllerConfigPtr& config);
     bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
-    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
+    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
     bool ScheduleAllocationBackoffObserved() const;
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,

@@ -358,7 +358,7 @@ private:
     void SubmitAllocationsToStrategy();
 
     void ProcessScheduledAndPreemptedAllocations(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NProto::NNode::TRspHeartbeat* response);
 
     void OnAllocationFinished(const TAllocationPtr& allocation);
@@ -424,7 +424,7 @@ private:
     void UpdateUnutilizedResourcesOnHeartbeatStart(
         const TExecNodePtr& node);
     void UpdateUnutilizedResourcesOnHeartbeatEnd(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TExecNodePtr& node,
         const TJobResources& minSpareResources,
         bool isThrottlingActive,

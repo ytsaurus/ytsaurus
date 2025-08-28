@@ -89,7 +89,7 @@ struct IFairShareTree
     : public virtual TRefCounted
 {
     //! Methods below rely on presence of snapshot.
-    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleAllocations) = 0;
+    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, bool skipScheduleAllocations) = 0;
     virtual void ProcessAllocationUpdates(
         const std::vector<TAllocationUpdate>& allocationUpdates,
         THashSet<TAllocationId>* allocationsToPostpone,

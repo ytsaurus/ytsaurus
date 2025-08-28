@@ -38,7 +38,7 @@ struct ISchedulingOperationController
 
     //! Called during heartbeat processing to send a schedule allocation request to the controller.
     virtual TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const ISchedulingContextPtr& context,
+        const ISchedulingHeartbeatContextPtr& context,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         const TString& treeId,
