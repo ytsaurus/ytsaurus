@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
+
 #include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/ytlib/scheduler/disk_resources.h>
@@ -12,7 +14,7 @@ namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Refactor this interface and think of better naming.
+// TODO(eshcherbin): Refactor this interface and maybe think of better naming.
 /*!
  *  \note Thread affinity: any
  */
@@ -24,7 +26,7 @@ struct ISchedulingOperationController
 
     //! Called during heartbeat processing to send a schedule allocation request to the controller.
     virtual TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const ISchedulingHeartbeatContextPtr& context,
+        const NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         const TString& treeId,
@@ -68,8 +70,8 @@ public:
         const TStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
-    void OnScheduleAllocationStarted(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
-    void OnScheduleAllocationFinished(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
+    void OnScheduleAllocationStarted(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
+    void OnScheduleAllocationFinished(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
 
     TControllerEpoch GetEpoch() const;
 
@@ -83,13 +85,13 @@ public:
 
     void UpdateConcurrentScheduleAllocationThrottlingLimits(const TStrategyOperationControllerConfigPtr& config);
     bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
-    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
+    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
+    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
     bool ScheduleAllocationBackoffObserved() const;
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,

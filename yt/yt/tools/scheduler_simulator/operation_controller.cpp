@@ -205,7 +205,7 @@ public:
 
     //! Called during heartbeat processing to request actions the node must perform.
     TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const NStrategy::ISchedulingHeartbeatContextPtr& context,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& nodeLimits,
         const TDiskResources& diskResourceLimits,
         const TString& /* treeId */,
@@ -446,7 +446,7 @@ bool TSimulatorOperationController::FindJobToSchedule(
 }
 
 TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::ScheduleAllocation(
-    const NStrategy::ISchedulingHeartbeatContextPtr& context,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
     const TJobResources& nodeLimits,
     const TDiskResources& /*diskResourceLimits*/,
     const TString& /* treeId */,

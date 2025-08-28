@@ -1,12 +1,17 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/operation_controller.h>
-
 #include <yt/yt/server/scheduler/strategy/operation.h>
 #include <yt/yt/server/scheduler/strategy/operation_state.h>
+#include <yt/yt/server/scheduler/strategy/operation_controller.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/resource_tree.h>
+
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
+
+#include <yt/yt/server/scheduler/common/public.h>
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
@@ -269,7 +274,7 @@ public:
     }
 
     MOCK_METHOD(TFuture<TControllerScheduleAllocationResultPtr>, ScheduleAllocation, (
-        const ISchedulingHeartbeatContextPtr& context,
+        const NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const TString& treeId,

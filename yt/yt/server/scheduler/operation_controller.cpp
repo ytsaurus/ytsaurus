@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 
+#include <yt/yt/server/scheduler/common/allocation.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 namespace NYT::NScheduler {
@@ -113,7 +115,6 @@ void FromProto(
             preemptionMode,
             allocationProto.tree_id(),
             NStrategy::NPolicy::UndefinedSchedulingIndex,
-            /*schedulingStage*/ std::nullopt,
             /*networkPriority*/ std::nullopt,
             FromProto<NNodeTrackerClient::TNodeId>(allocationProto.node_id()),
             allocationProto.node_address());

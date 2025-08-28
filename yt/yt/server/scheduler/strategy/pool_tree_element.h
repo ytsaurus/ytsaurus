@@ -5,8 +5,6 @@
 #include "resource_tree_element.h"
 #include "strategy.h"
 
-#include <yt/yt/server/scheduler/allocation.h>
-
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
@@ -887,12 +885,12 @@ public:
     // TODO(eshcherbin): Maybe expose controller itself in the API?
     TControllerEpoch GetControllerEpoch() const;
 
-    void OnScheduleAllocationStarted(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
-    void OnScheduleAllocationFinished(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
+    void OnScheduleAllocationStarted(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
+    void OnScheduleAllocationFinished(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
 
     bool IsMaxScheduleAllocationCallsViolated() const;
-    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
-    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
+    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
+    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
@@ -901,7 +899,7 @@ public:
 
     // TODO(eshcherbin): Rename?
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        const ISchedulingHeartbeatContextPtr& context,
+        const NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,

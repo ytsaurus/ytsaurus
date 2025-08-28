@@ -2,10 +2,12 @@
 
 #include <yt/yt/server/scheduler/strategy/operation.h>
 #include <yt/yt/server/scheduler/strategy/operation_controller.h>
+#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
-#include <yt/yt/server/scheduler/exec_node.h>
 #include <yt/yt/server/scheduler/operation.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
+
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
@@ -25,6 +27,7 @@ namespace NYT::NScheduler::NStrategy {
 
 namespace {
 
+using namespace NPolicy;
 using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////

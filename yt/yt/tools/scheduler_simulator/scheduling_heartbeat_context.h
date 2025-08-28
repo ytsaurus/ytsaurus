@@ -3,7 +3,8 @@
 #include "scheduling_strategy_host.h"
 
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context_detail.h>
-#include <yt/yt/server/scheduler/exec_node.h>
+
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 namespace NYT::NSchedulerSimulator {
 

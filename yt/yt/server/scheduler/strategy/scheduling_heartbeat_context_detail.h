@@ -1,17 +1,17 @@
 #pragma once
 
-#include "scheduling_heartbeat_context.h"
-
-#include <yt/yt/server/scheduler/exec_node.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+
+#include <yt/yt/core/misc/arithmetic_formula.h>
 
 namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulingHeartbeatContextBase
-    : public ISchedulingHeartbeatContext
+    : public NPolicy::ISchedulingHeartbeatContext
 {
 public:
     TSchedulingHeartbeatContextBase(
@@ -58,9 +58,9 @@ public:
     bool CanSchedule(const TSchedulingTagFilter& filter) const override;
     bool ShouldAbortAllocationsSinceResourcesOvercommit() const override;
 
-    const std::vector<TAllocationPtr>& StartedAllocations() const override;
+    const std::vector<NPolicy::TStartedAllocation>& StartedAllocations() const override;
     const std::vector<TAllocationPtr>& RunningAllocations() const override;
-    const std::vector<TPreemptedAllocation>& PreemptedAllocations() const override;
+    const std::vector<NPolicy::TPreemptedAllocation>& PreemptedAllocations() const override;
 
     void StartAllocation(
         const TString& treeId,
@@ -70,13 +70,13 @@ public:
         const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
         int schedulingIndex,
-        EAllocationSchedulingStage schedulingStage,
+        NPolicy::EAllocationSchedulingStage schedulingStage,
         std::optional<TNetworkPriority> networkPriority) override;
 
-    void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason) override;
+    void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, NPolicy::EAllocationPreemptionReason preemptionReason) override;
 
-    TScheduleAllocationsStatistics GetSchedulingStatistics() const override;
-    void SetSchedulingStatistics(TScheduleAllocationsStatistics statistics) override;
+    NPolicy::TScheduleAllocationsStatistics GetSchedulingStatistics() const override;
+    void SetSchedulingStatistics(NPolicy::TScheduleAllocationsStatistics statistics) override;
 
     void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
     TDuration ExtractScheduleAllocationExecDurationEstimate() override;
@@ -100,9 +100,9 @@ private:
     std::vector<TDiskQuota> DiskRequests_;
     THashMap<TAllocationId, int> DiskRequestIndexPerAllocationId_;
 
-    std::vector<TAllocationPtr> StartedAllocations_;
+    std::vector<NPolicy::TStartedAllocation> StartedAllocations_;
     std::vector<TAllocationPtr> RunningAllocations_;
-    std::vector<TPreemptedAllocation> PreemptedAllocations_;
+    std::vector<NPolicy::TPreemptedAllocation> PreemptedAllocations_;
 
     struct TJobResourcesWithQuotaDiscount
     {
@@ -115,7 +115,7 @@ private:
     TJobResourcesWithQuotaDiscount MaxConditionalDiscount_;
     std::vector<TJobResourcesWithQuotaDiscount> ConditionalDiscounts_;
 
-    TScheduleAllocationsStatistics SchedulingStatistics_;
+    NPolicy::TScheduleAllocationsStatistics SchedulingStatistics_;
 
     std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
 

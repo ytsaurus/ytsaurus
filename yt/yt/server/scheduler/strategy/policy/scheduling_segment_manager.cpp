@@ -1,9 +1,9 @@
 #include "scheduling_segment_manager.h"
 
+#include "public.h"
 #include "persistent_state.h"
 #include "pool_tree_snapshot_state.h"
 
-#include <yt/yt/server/scheduler/strategy/public.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 
 #include <yt/yt/core/logging/fluent_log.h>

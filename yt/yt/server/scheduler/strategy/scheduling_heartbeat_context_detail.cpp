@@ -1,11 +1,9 @@
 #include "scheduling_heartbeat_context_detail.h"
 
-#include "private.h"
-
 #include <yt/yt/server/scheduler/strategy/policy/public.h>
 
-#include <yt/yt/server/scheduler/exec_node.h>
-#include <yt/yt/server/scheduler/allocation.h>
+#include <yt/yt/server/scheduler/common/allocation.h>
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
@@ -17,8 +15,11 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
 using namespace NObjectClient;
 using namespace NControllerAgent;
 
@@ -207,7 +208,7 @@ bool TSchedulingHeartbeatContextBase::ShouldAbortAllocationsSinceResourcesOverco
     return resourcesOvercommitted && allowedOvercommitTimePassed;
 }
 
-const std::vector<TAllocationPtr>& TSchedulingHeartbeatContextBase::StartedAllocations() const
+const std::vector<TStartedAllocation>& TSchedulingHeartbeatContextBase::StartedAllocations() const
 {
     return StartedAllocations_;
 }
@@ -237,6 +238,7 @@ void TSchedulingHeartbeatContextBase::StartAllocation(
     if (startDescriptor.ResourceLimits.DiskQuota()) {
         DiskRequests_.push_back(startDescriptor.ResourceLimits.DiskQuota());
     }
+
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto allocation = New<TAllocation>(
         startDescriptor.Id,
@@ -249,9 +251,12 @@ void TSchedulingHeartbeatContextBase::StartAllocation(
         preemptionMode,
         treeId,
         schedulingIndex,
-        schedulingStage,
         networkPriority);
-    StartedAllocations_.push_back(std::move(allocation));
+
+    StartedAllocations_.push_back(TStartedAllocation{
+        .Allocation = std::move(allocation),
+        .SchedulingStage = schedulingStage,
+    });
 }
 
 void TSchedulingHeartbeatContextBase::PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason)

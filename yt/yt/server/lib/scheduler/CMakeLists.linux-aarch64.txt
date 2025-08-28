@@ -28,6 +28,8 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+add_subdirectory(unittests)
+
 add_library(server-lib-scheduler)
 
 

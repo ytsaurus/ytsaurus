@@ -1,8 +1,14 @@
 #include "packing.h"
 
 #include "packing_detail.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
+#include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy {
 

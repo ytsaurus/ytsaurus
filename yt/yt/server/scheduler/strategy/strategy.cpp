@@ -10,6 +10,8 @@
 #include "operation_state.h"
 #include "operation_controller.h"
 
+#include <yt/yt/server/scheduler/common/allocation.h>
+
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
@@ -2507,7 +2509,7 @@ private:
         { }
 
         TFuture<void> ProcessSchedulingHeartbeat(
-            const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+            const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
             bool skipScheduleAllocations) override
         {
             if (Tree_) {

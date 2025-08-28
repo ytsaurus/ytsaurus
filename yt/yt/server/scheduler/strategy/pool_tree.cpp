@@ -14,6 +14,9 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
+#include <yt/yt/server/scheduler/common/allocation.h>
+#include <yt/yt/server/scheduler/common/helpers.h>
+
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
@@ -50,6 +53,7 @@
 
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -2785,16 +2789,15 @@ private:
         TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> preemptedAllocationResourceTimes;
         TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources> improperlyPreemptedAllocationResources;
 
-        for (const auto& allocation : schedulingHeartbeatContext->StartedAllocations()) {
+        for (const auto& [allocation, schedulingStage] : schedulingHeartbeatContext->StartedAllocations()) {
             TOperationId operationId = allocation->GetOperationId();
             const TJobResources& scheduledResourcesDelta = allocation->ResourceLimits();
-            scheduledAllocationResources[allocation->GetSchedulingStage()][operationId] += scheduledResourcesDelta;
+            scheduledAllocationResources[schedulingStage][operationId] += scheduledResourcesDelta;
         }
-        for (const auto& preemptedAllocation : schedulingHeartbeatContext->PreemptedAllocations()) {
-            const TAllocationPtr& allocation = preemptedAllocation.Allocation;
+
+        for (const auto& [allocation, _, preemptionReason] : schedulingHeartbeatContext->PreemptedAllocations()) {
             TOperationId operationId = allocation->GetOperationId();
             const TJobResources& preemptedResourcesDelta = allocation->ResourceLimits();
-            EAllocationPreemptionReason preemptionReason = preemptedAllocation.PreemptionReason;
             preemptedAllocationResources[preemptionReason][operationId] += preemptedResourcesDelta;
 
             // NB(eshcherbin): This sensor for memory is easily overflown, so we decided not to compute it. See: YT-24236.

@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/scheduler/strategy/public.h>
 
+#include <yt/yt/server/scheduler/common/structs.h>
+
 #include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -18,13 +20,6 @@
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Information retrieved during scheduler-master handshake.
-struct TMasterHandshakeResult
-{
-    std::vector<TOperationPtr> Operations;
-    TInstant LastMeteringLogTime;
-};
 
 using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
 using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)>;

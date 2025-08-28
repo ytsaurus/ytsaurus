@@ -1,15 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "exec_node.h"
-
-#include <yt/yt/client/chunk_client/data_statistics.h>
-
-#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/server/lib/scheduler/structs.h>
-
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/core/actions/callback.h>
 
@@ -77,9 +70,6 @@ public:
     //! Index of operation when allocation was scheduled.
     DEFINE_BYVAL_RO_PROPERTY(int, SchedulingIndex);
 
-    //! Stage allocation was scheduled at.
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<NStrategy::EAllocationSchedulingStage>, SchedulingStage);
-
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
 
@@ -117,7 +107,6 @@ public:
         EPreemptionMode preemptionMode,
         TString treeId,
         int schedulingIndex,
-        std::optional<NStrategy::EAllocationSchedulingStage> schedulingStage = std::nullopt,
         std::optional<TNetworkPriority> networkPriority = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         std::string revivalNodeAddress = {});

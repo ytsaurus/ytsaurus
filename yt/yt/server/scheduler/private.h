@@ -20,16 +20,4 @@ static constexpr int CypressNodeLimit = 1'000'000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EUnutilizedResourceReason,
-    (Unknown)
-    (Timeout)
-    (Throttling)
-    (FinishedJobs)
-    (NodeHasWaitingAllocations)
-    (AcceptableFragmentation)
-    (ExcessiveFragmentation)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NScheduler

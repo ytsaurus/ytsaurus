@@ -2,14 +2,14 @@
 
 #include "private.h"
 #include "operation.h"
-#include "scheduling_heartbeat_context.h"
 
-#include <yt/yt/server/scheduler/operation_controller.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NControllerAgent;

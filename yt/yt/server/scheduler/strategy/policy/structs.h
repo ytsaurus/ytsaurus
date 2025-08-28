@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -52,6 +53,9 @@ struct TNodeState
 
     ESchedulingSegment SchedulingSegment = ESchedulingSegment::Default;
     std::optional<ESchedulingSegment> SpecifiedSchedulingSegment;
+
+    TScheduleAllocationsStatistics LastPreemptiveHeartbeatStatistics;
+    TScheduleAllocationsStatistics LastNonPreemptiveHeartbeatStatistics;
 
     TRunningAllocationStatistics RunningAllocationStatistics;
     std::optional<NProfiling::TCpuInstant> LastRunningAllocationStatisticsUpdateTime;

@@ -5,6 +5,7 @@
 #include "operation_shared_state.h"
 #include "pool_tree_snapshot_state.h"
 #include "persistent_state.h"
+#include "scheduling_heartbeat_context.h"
 #include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/scheduler/strategy/field_filter.h>

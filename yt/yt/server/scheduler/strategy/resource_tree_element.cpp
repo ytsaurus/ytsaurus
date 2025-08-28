@@ -2,6 +2,8 @@
 
 #include "resource_tree.h"
 
+#include <yt/yt/server/scheduler/strategy/helpers.h>
+
 namespace NYT::NScheduler::NStrategy {
 
 using namespace NConcurrency;

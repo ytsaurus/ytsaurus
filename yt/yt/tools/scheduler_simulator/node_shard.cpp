@@ -139,7 +139,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
     // Create events for all started jobs.
-    for (const auto& allocation : schedulingHeartbeatContext->StartedAllocations()) {
+    for (const auto& [allocation, _] : schedulingHeartbeatContext->StartedAllocations()) {
         const auto& duration = GetOrCrash(schedulingHeartbeatContext->GetStartedAllocationsDurations(), allocation->GetId());
 
         // Notify scheduler.

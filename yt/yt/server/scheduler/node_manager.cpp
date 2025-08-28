@@ -1,5 +1,7 @@
 #include "node_manager.h"
 
+#include <yt/yt/server/scheduler/common/allocation.h>
+
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
