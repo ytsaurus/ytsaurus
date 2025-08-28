@@ -1,0 +1,7 @@
+PROTO_LIBRARY()
+
+SRCS(api.proto)
+
+EXCLUDE_TAGS(GO_PROTO)
+
+END()

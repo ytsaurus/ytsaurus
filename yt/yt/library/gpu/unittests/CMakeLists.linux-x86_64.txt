@@ -52,6 +52,10 @@ target_link_options(library-gpu-unittest PRIVATE
   -lutil
 )
 
+target_sources(library-gpu-unittest PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/unittests/gpu_agent_gpu_info_provider_ut.cpp
+)
+
 
 add_test(
   NAME

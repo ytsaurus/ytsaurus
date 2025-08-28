@@ -194,12 +194,12 @@ protected:
 
 TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 {
-    auto config = New<TGpuInfoSourceConfig>();
-    config->NvGpuManagerServiceAddress = Address_;
-    config->NvGpuManagerServiceName = ServiceName;
-    config->NvGpuManagerChannel->RetryBackoffTime = TDuration::MilliSeconds(500);
-    config->Type = EGpuInfoSourceType::NvGpuManager;
-    config->GpuIndexesFromNvidiaSmi = false;
+    auto config = TGpuInfoSourceConfig(EGpuInfoSourceType::NvGpuManager);
+    auto nvManagerConfig = config.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+    nvManagerConfig->Address = Address_;
+    nvManagerConfig->ServiceName = ServiceName;
+    nvManagerConfig->Channel->RetryBackoffTime = TDuration::MilliSeconds(500);
+    nvManagerConfig->GpuIndexesFromNvidiaSmi = false;
 
     auto provider = CreateGpuInfoProvider(config);
 
@@ -263,11 +263,11 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 
 TEST_F(TNvManagerGpuInfoProviderTest, SimpleRdmaDeviceInfo)
 {
-    auto config = New<TGpuInfoSourceConfig>();
-    config->NvGpuManagerServiceAddress = Address_;
-    config->NvGpuManagerServiceName = ServiceName;
-    config->Type = EGpuInfoSourceType::NvGpuManager;
-    config->GpuIndexesFromNvidiaSmi = false;
+    auto config = TGpuInfoSourceConfig(EGpuInfoSourceType::NvGpuManager);
+    auto nvManagerConfig = config.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+    nvManagerConfig->Address = Address_;
+    nvManagerConfig->ServiceName = ServiceName;
+    nvManagerConfig->GpuIndexesFromNvidiaSmi = false;
 
     auto provider = CreateGpuInfoProvider(config);
     auto rdmaDeviceInfos = provider->GetRdmaDeviceInfos(TDuration::Max());
