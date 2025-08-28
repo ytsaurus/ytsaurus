@@ -2170,7 +2170,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationFairShareTreeRuntimeParameters
+struct TOperationPoolTreeRuntimeParameters
     : public NYTree::TYsonStruct
 {
     std::optional<double> Weight;
@@ -2185,12 +2185,12 @@ struct TOperationFairShareTreeRuntimeParameters
     bool Probing;
     bool Offloading;
 
-    REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParameters);
+    REGISTER_YSON_STRUCT(TOperationPoolTreeRuntimeParameters);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
+DEFINE_REFCOUNTED_TYPE(TOperationPoolTreeRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2220,7 +2220,7 @@ struct TOperationRuntimeParameters
     NSecurityClient::TSerializableAccessControlList Acl;
     std::optional<std::string> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
-    THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
+    THashMap<TString, TOperationPoolTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     TBooleanFormula SchedulingTagFilter;
     NYTree::IMapNodePtr Annotations;
     TString ControllerAgentTag;
@@ -2239,7 +2239,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParameters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationFairShareTreeRuntimeParametersUpdate
+struct TOperationPoolTreeRuntimeParametersUpdate
     : public NYTree::TYsonStruct
 {
     std::optional<double> Weight;
@@ -2248,12 +2248,12 @@ struct TOperationFairShareTreeRuntimeParametersUpdate
     // Can only be set by an administrator.
     std::optional<bool> EnableDetailedLogs;
 
-    REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParametersUpdate);
+    REGISTER_YSON_STRUCT(TOperationPoolTreeRuntimeParametersUpdate);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParametersUpdate)
+DEFINE_REFCOUNTED_TYPE(TOperationPoolTreeRuntimeParametersUpdate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2264,7 +2264,7 @@ struct TOperationRuntimeParametersUpdate
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     std::optional<std::string> AcoName;
-    THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
+    THashMap<TString, TOperationPoolTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
@@ -2288,9 +2288,9 @@ DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)
 //! |origin| can be |nullptr|, in this case an attempt
 //! to create a new parameters object from |update| will be taken.
 //! |origin| object is not changed.
-TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
-    const TOperationFairShareTreeRuntimeParametersPtr& origin,
-    const TOperationFairShareTreeRuntimeParametersUpdatePtr& update);
+TOperationPoolTreeRuntimeParametersPtr UpdatePoolTreeRuntimeParameters(
+    const TOperationPoolTreeRuntimeParametersPtr& origin,
+    const TOperationPoolTreeRuntimeParametersUpdatePtr& update);
 
 ////////////////////////////////////////////////////////////////////////////////
 

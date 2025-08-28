@@ -1,6 +1,6 @@
 #include "packing.h"
 
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 #include "private.h"
 #include "packing_detail.h"
 
@@ -69,7 +69,7 @@ void TPackingStatistics::RecordHeartbeat(
 }
 
 bool TPackingStatistics::CheckPacking(
-    const TSchedulerOperationElement* operationElement,
+    const TPoolTreeOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits,

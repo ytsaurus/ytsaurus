@@ -57,7 +57,7 @@ public:
         const TStrategyPackingConfigPtr& config);
 
     bool CheckPacking(
-        const TSchedulerOperationElement* operationElement,
+        const TPoolTreeOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& allocationResourcesWithQuota,
         const TJobResources& totalResourceLimits,

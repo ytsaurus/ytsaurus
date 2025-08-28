@@ -3,9 +3,9 @@
 #include "private.h"
 #include "scheduling_policy_structs.h"
 #include "scheduling_policy_operation_shared_state.h"
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 #include "scheduling_policy_pool_tree_snapshot_state.h"
-#include "fair_share_tree_snapshot.h"
+#include "pool_tree_snapshot.h"
 #include "fields_filter.h"
 #include "scheduling_policy_persistent_state.h"
 #include "scheduling_segment_manager.h"
@@ -41,27 +41,27 @@ class TSchedulableChildSet
 {
 public:
     TSchedulableChildSet(
-        const TSchedulerCompositeElement* owningElement,
+        const TPoolTreeCompositeElement* owningElement,
         TNonOwningElementList children,
         TDynamicAttributesList* dynamicAttributesList,
         bool useHeap);
 
     const TNonOwningElementList& GetChildren() const;
-    TSchedulerElement* GetBestActiveChild() const;
+    TPoolTreeElement* GetBestActiveChild() const;
 
-    void OnChildAttributesUpdated(const TSchedulerElement* child);
+    void OnChildAttributesUpdated(const TPoolTreeElement* child);
 
     // For testing purposes.
     bool UsesHeapInTest() const;
 
 private:
-    const TSchedulerCompositeElement* OwningElement_;
+    const TPoolTreeCompositeElement* OwningElement_;
     TDynamicAttributesList* const DynamicAttributesList_;
     const bool UseHeap_;
 
     TNonOwningElementList Children_;
 
-    bool Comparator(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
+    bool Comparator(const TPoolTreeElement* lhs, const TPoolTreeElement* rhs) const;
 
     void MoveBestChildToFront();
 
@@ -87,7 +87,7 @@ struct TDynamicAttributes
     //! Computed in preschedule allocation and updated when anything about the element changes.
     double SatisfactionRatio = 0.0;
     bool Active = false;
-    TSchedulerOperationElement* BestLeafDescendant = nullptr;
+    TPoolTreeOperationElement* BestLeafDescendant = nullptr;
     // Used only for pools.
     std::optional<TSchedulableChildSet> SchedulableChildSet;
     // Index of this element in its parent's schedulable child set.
@@ -102,8 +102,8 @@ class TDynamicAttributesList final
 public:
     explicit TDynamicAttributesList(int size = 0);
 
-    TDynamicAttributes& AttributesOf(const TSchedulerElement* element);
-    const TDynamicAttributes& AttributesOf(const TSchedulerElement* element) const;
+    TDynamicAttributes& AttributesOf(const TPoolTreeElement* element);
+    const TDynamicAttributes& AttributesOf(const TPoolTreeElement* element) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,7 +123,7 @@ class TDynamicAttributesManager
 {
 public:
     static TDynamicAttributesList BuildDynamicAttributesListFromSnapshot(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
         NProfiling::TCpuInstant now);
 
@@ -133,21 +133,21 @@ public:
 
     void SetAttributesList(TDynamicAttributesList attributesList);
 
-    const TDynamicAttributes& AttributesOf(const TSchedulerElement* element) const;
+    const TDynamicAttributes& AttributesOf(const TPoolTreeElement* element) const;
 
     void InitializeAttributesAtCompositeElement(
-        TSchedulerCompositeElement* element,
+        TPoolTreeCompositeElement* element,
         std::optional<TNonOwningElementList> consideredSchedulableChildren,
         bool useChildHeap = true);
-    void InitializeAttributesAtOperation(TSchedulerOperationElement* element, bool isActive = true);
+    void InitializeAttributesAtOperation(TPoolTreeOperationElement* element, bool isActive = true);
 
     // NB(eshcherbin): This is an ad-hoc way to initialize resource usage at a single place, where snapshot isn't ready yet.
-    void InitializeResourceUsageAtPostUpdate(const TSchedulerElement* element, const TJobResources& resourceUsage);
+    void InitializeResourceUsageAtPostUpdate(const TPoolTreeElement* element, const TJobResources& resourceUsage);
 
-    void ActivateOperation(TSchedulerOperationElement* element);
-    void DeactivateOperation(TSchedulerOperationElement* element);
+    void ActivateOperation(TPoolTreeOperationElement* element);
+    void DeactivateOperation(TPoolTreeOperationElement* element);
 
-    void UpdateOperationResourceUsage(TSchedulerOperationElement* element, NProfiling::TCpuInstant now);
+    void UpdateOperationResourceUsage(TPoolTreeOperationElement* element, NProfiling::TCpuInstant now);
 
     void Clear();
 
@@ -160,53 +160,53 @@ private:
 
     int CompositeElementDeactivationCount_ = 0;
 
-    TDynamicAttributes& AttributesOf(const TSchedulerElement* element);
+    TDynamicAttributes& AttributesOf(const TPoolTreeElement* element);
 
     bool ShouldCheckLiveness() const;
 
     void UpdateAttributesHierarchically(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         const TJobResources& resourceUsageDelta = {},
         bool checkAncestorsActiveness = true);
 
     // NB(eshcherbin): Should only use |UpdateAttributes| in order to update child heaps correctly.
     // The only exception is using |UpdateAttributesAtXxx| during initialization.
-    void UpdateAttributes(TSchedulerElement* element);
-    void UpdateAttributesAtCompositeElement(TSchedulerCompositeElement* element);
-    void UpdateAttributesAtOperation(TSchedulerOperationElement* element);
+    void UpdateAttributes(TPoolTreeElement* element);
+    void UpdateAttributesAtCompositeElement(TPoolTreeCompositeElement* element);
+    void UpdateAttributesAtOperation(TPoolTreeOperationElement* element);
 
-    TSchedulerElement* GetBestActiveChild(TSchedulerCompositeElement* element) const;
+    TPoolTreeElement* GetBestActiveChild(TPoolTreeCompositeElement* element) const;
 
     static void SetResourceUsage(
-        const TSchedulerElement* element,
+        const TPoolTreeElement* element,
         TDynamicAttributes* attributes,
         const TJobResources& resourceUsage,
         std::optional<NProfiling::TCpuInstant> updateTime = {});
     static void IncreaseResourceUsage(
-        const TSchedulerElement* element,
+        const TPoolTreeElement* element,
         TDynamicAttributes* attributes,
         const TJobResources& resourceUsageDelta,
         std::optional<NProfiling::TCpuInstant> updateTime = {});
 
     static void DoUpdateOperationResourceUsage(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         TDynamicAttributes* operationAttributes,
         const TSchedulingPolicyOperationSharedStatePtr& operationSharedState,
         TCpuInstant now);
 
     struct TFillResourceUsageContext
     {
-        const TFairShareTreeSnapshotPtr& TreeSnapshot;
+        const TPoolTreeSnapshotPtr& TreeSnapshot;
         const TResourceUsageSnapshotPtr& ResourceUsageSnapshot;
         const TCpuInstant Now;
         TDynamicAttributesList* AttributesList;
     };
-    static TJobResources FillResourceUsage(const TSchedulerElement* element, TFillResourceUsageContext* context);
+    static TJobResources FillResourceUsage(const TPoolTreeElement* element, TFillResourceUsageContext* context);
     static TJobResources FillResourceUsageAtCompositeElement(
-        const TSchedulerCompositeElement* element,
+        const TPoolTreeCompositeElement* element,
         TFillResourceUsageContext* context);
     static TJobResources FillResourceUsageAtOperation(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         TFillResourceUsageContext* context);
 };
 
@@ -254,7 +254,7 @@ struct TAllocationWithPreemptionInfo
 {
     TAllocationPtr Allocation;
     EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
-    TSchedulerOperationElement* OperationElement;
+    TPoolTreeOperationElement* OperationElement;
 
     bool operator ==(const TAllocationWithPreemptionInfo& other) const = default;
 };
@@ -285,7 +285,7 @@ class TScheduleAllocationsContext
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(ISchedulingHeartbeatContextPtr, SchedulingHeartbeatContext);
-    DEFINE_BYREF_RO_PROPERTY(TFairShareTreeSnapshotPtr, TreeSnapshot);
+    DEFINE_BYREF_RO_PROPERTY(TPoolTreeSnapshotPtr, TreeSnapshot);
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SsdPriorityPreemptionEnabled);
 
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
@@ -297,7 +297,7 @@ public:
 public:
     TScheduleAllocationsContext(
         ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
-        TFairShareTreeSnapshotPtr treeSnapshot,
+        TPoolTreeSnapshotPtr treeSnapshot,
         const TSchedulingPolicyNodeState* nodeState,
         bool schedulingInfoLoggingEnabled,
         IStrategyHost* strategyHost,
@@ -320,7 +320,7 @@ public:
     TFairShareScheduleAllocationResult ScheduleAllocation(bool ignorePacking);
 
     // NB(eshcherbin): For testing purposes only.
-    bool ScheduleAllocationInTest(TSchedulerOperationElement* element, bool ignorePacking);
+    bool ScheduleAllocationInTest(TPoolTreeOperationElement* element, bool ignorePacking);
 
     int GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const;
 
@@ -337,7 +337,7 @@ public:
     void AbortAllocationsSinceResourcesOvercommit() const;
     void PreemptAllocation(
         const TAllocationPtr& allocation,
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         EAllocationPreemptionReason preemptionReason) const;
 
     TNonOwningOperationElementList ExtractBadPackingOperations();
@@ -351,8 +351,8 @@ public:
     bool GetStagePrescheduleExecuted() const;
 
     // NB(eshcherbin): The following methods are public for testing purposes.
-    const TSchedulerElement* FindPreemptionBlockingAncestor(
-        const TSchedulerOperationElement* element,
+    const TPoolTreeElement* FindPreemptionBlockingAncestor(
+        const TPoolTreeOperationElement* element,
         EAllocationPreemptionLevel allocationPreemptionLevel,
         EOperationPreemptionPriority operationPreemptionPriority) const;
 
@@ -362,17 +362,17 @@ public:
         TJobResourcesWithQuota CurrentConditionalDiscount;
     };
     void PrepareConditionalUsageDiscounts(
-        const TSchedulerElement* element,
+        const TPoolTreeElement* element,
         TPrepareConditionalUsageDiscountsContext* context);
     const TAllocationWithPreemptionInfoSet& GetConditionallyPreemptibleAllocationsInPool(
-        const TSchedulerCompositeElement* element) const;
+        const TPoolTreeCompositeElement* element) const;
 
-    const TDynamicAttributes& DynamicAttributesOf(const TSchedulerElement* element) const;
+    const TDynamicAttributes& DynamicAttributesOf(const TPoolTreeElement* element) const;
 
     bool CheckScheduleAllocationTimeoutExpired() const;
 
     //! Testing.
-    void DeactivateOperationInTest(TSchedulerOperationElement* element);
+    void DeactivateOperationInTest(TPoolTreeOperationElement* element);
 
 private:
     const TCpuInstant SchedulingDeadline_;
@@ -432,35 +432,35 @@ private:
     TNonOwningOperationElementList BadPackingOperations_;
 
     //! Common element methods.
-    const TStaticAttributes& StaticAttributesOf(const TSchedulerElement* element) const;
-    bool IsActive(const TSchedulerElement* element) const;
+    const TStaticAttributes& StaticAttributesOf(const TPoolTreeElement* element) const;
+    bool IsActive(const TPoolTreeElement* element) const;
     // Returns resource usage observed in current heartbeat.
-    TJobResources GetCurrentResourceUsage(const TSchedulerElement* element) const;
+    TJobResources GetCurrentResourceUsage(const TPoolTreeElement* element) const;
 
-    TJobResources GetHierarchicalAvailableResources(const TSchedulerElement* element) const;
-    TJobResources GetLocalAvailableResourceLimits(const TSchedulerElement* element) const;
-    TJobResources GetLocalUnconditionalUsageDiscount(const TSchedulerElement* element) const;
+    TJobResources GetHierarchicalAvailableResources(const TPoolTreeElement* element) const;
+    TJobResources GetLocalAvailableResourceLimits(const TPoolTreeElement* element) const;
+    TJobResources GetLocalUnconditionalUsageDiscount(const TPoolTreeElement* element) const;
 
     void CollectConsideredSchedulableChildrenPerPool(
         const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations);
 
-    void PrescheduleAllocation(TSchedulerElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
+    void PrescheduleAllocation(TPoolTreeElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
     void PrescheduleAllocationAtCompositeElement(
-        TSchedulerCompositeElement* element,
+        TPoolTreeCompositeElement* element,
         EOperationPreemptionPriority targetOperationPreemptionPriority);
     void PrescheduleAllocationAtOperation(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         EOperationPreemptionPriority targetOperationPreemptionPriority);
 
-    TSchedulerOperationElement* FindBestOperationForScheduling();
+    TPoolTreeOperationElement* FindBestOperationForScheduling();
     //! Returns whether scheduling attempt was successful.
-    bool ScheduleAllocation(TSchedulerOperationElement* element, bool ignorePacking);
+    bool ScheduleAllocation(TPoolTreeOperationElement* element, bool ignorePacking);
 
     void PrepareConditionalUsageDiscountsAtCompositeElement(
-        const TSchedulerCompositeElement* element,
+        const TPoolTreeCompositeElement* element,
         TPrepareConditionalUsageDiscountsContext* context);
     void PrepareConditionalUsageDiscountsAtOperation(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         TPrepareConditionalUsageDiscountsContext* context);
 
     //! Pool methods.
@@ -468,56 +468,56 @@ private:
 
     //! Operation methods.
     std::optional<EDeactivationReason> TryStartScheduleAllocation(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         TJobResources* precommittedResourcesOutput,
         TJobResources* availableResourcesOutput,
         TDiskResources* availableDiskResourcesOutput);
     TControllerScheduleAllocationResultPtr DoScheduleAllocation(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TJobResources* precommittedResources);
-    void FinishScheduleAllocation(TSchedulerOperationElement* element);
+    void FinishScheduleAllocation(TPoolTreeOperationElement* element);
 
     EOperationPreemptionPriority GetOperationPreemptionPriority(
-        const TSchedulerOperationElement* operationElement,
+        const TPoolTreeOperationElement* operationElement,
         EOperationPreemptionPriorityScope scope = EOperationPreemptionPriorityScope::OperationAndAncestors) const;
 
-    bool CheckForDeactivation(TSchedulerOperationElement* element, EOperationPreemptionPriority operationPreemptionPriority);
-    void ActivateOperation(TSchedulerOperationElement* element);
-    void DeactivateOperation(TSchedulerOperationElement* element, EDeactivationReason reason);
+    bool CheckForDeactivation(TPoolTreeOperationElement* element, EOperationPreemptionPriority operationPreemptionPriority);
+    void ActivateOperation(TPoolTreeOperationElement* element);
+    void DeactivateOperation(TPoolTreeOperationElement* element, EDeactivationReason reason);
     void OnOperationDeactivated(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         EDeactivationReason reason,
         bool considerInOperationCounter = true);
 
-    std::optional<EDeactivationReason> CheckBlocked(const TSchedulerOperationElement* element) const;
+    std::optional<EDeactivationReason> CheckBlocked(const TPoolTreeOperationElement* element) const;
 
-    bool IsSchedulingSegmentCompatibleWithNode(const TSchedulerOperationElement* element) const;
+    bool IsSchedulingSegmentCompatibleWithNode(const TPoolTreeOperationElement* element) const;
 
-    bool IsOperationResourceUsageOutdated(const TSchedulerOperationElement* element) const;
-    void UpdateOperationResourceUsage(TSchedulerOperationElement* element);
+    bool IsOperationResourceUsageOutdated(const TPoolTreeOperationElement* element) const;
+    void UpdateOperationResourceUsage(TPoolTreeOperationElement* element);
 
     bool HasAllocationsSatisfyingResourceLimits(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const;
 
     TStrategyPackingConfigPtr GetPackingConfig() const;
-    bool CheckPacking(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
+    bool CheckPacking(const TPoolTreeOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
     void ReactivateBadPackingOperations();
 
     // Shared state methods.
-    void RecordPackingHeartbeat(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot);
-    bool IsAllocationKnown(const TSchedulerOperationElement* element, TAllocationId allocationId) const;
-    bool IsOperationEnabled(const TSchedulerOperationElement* element) const;
+    void RecordPackingHeartbeat(const TPoolTreeOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot);
+    bool IsAllocationKnown(const TPoolTreeOperationElement* element, TAllocationId allocationId) const;
+    bool IsOperationEnabled(const TPoolTreeOperationElement* element) const;
     void OnMinNeededResourcesUnsatisfied(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources) const;
     void UpdateOperationPreemptionStatusStatistics(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         EOperationPreemptionStatus status) const;
-    void IncrementOperationScheduleAllocationAttemptCount(const TSchedulerOperationElement* element) const;
-    int GetOperationRunningAllocationCount(const TSchedulerOperationElement* element) const;
+    void IncrementOperationScheduleAllocationAttemptCount(const TPoolTreeOperationElement* element) const;
+    int GetOperationRunningAllocationCount(const TPoolTreeOperationElement* element) const;
 
     //! Other methods.
     bool CanSchedule(int schedulingTagFilterIndex) const;
@@ -560,7 +560,7 @@ using TPreemptiveStageWithParametersList = TCompactVector<TPreemptiveStageWithPa
 
 struct TSchedulingPolicyPostUpdateContext
 {
-    TSchedulerRootElement* RootElement;
+    TPoolTreeRootElement* RootElement;
 
     THashSet<int> SsdPriorityPreemptionMedia;
     TOperationElementsBySchedulingPriority SchedulableOperationsPerPriority;
@@ -577,7 +577,7 @@ struct ISchedulingPolicyHost
     : public virtual TRefCounted
 {
     //! Thread affinity: Control.
-    virtual TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
+    virtual TPoolTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -590,7 +590,7 @@ public:
         TString treeId,
         NLogging::TLogger logger,
         TWeakPtr<ISchedulingPolicyHost> host,
-        IFairShareTreeHost* treeHost,
+        IPoolTreeHost* treeHost,
         IStrategyHost* strategyHost,
         TStrategyTreeConfigPtr config,
         NProfiling::TProfiler profiler);
@@ -602,25 +602,25 @@ public:
     //! Process scheduling heartbeat.
     void ProcessSchedulingHeartbeat(
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations);
 
     //! Operation management.
-    void RegisterOperation(const TSchedulerOperationElement* element);
-    void UnregisterOperation(const TSchedulerOperationElement* element);
+    void RegisterOperation(const TPoolTreeOperationElement* element);
+    void UnregisterOperation(const TPoolTreeOperationElement* element);
 
-    TError OnOperationMaterialized(const TSchedulerOperationElement* element);
-    TError CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const;
+    TError OnOperationMaterialized(const TPoolTreeOperationElement* element);
+    TError CheckOperationSchedulingInSeveralTreesAllowed(const TPoolTreeOperationElement* element) const;
 
-    void EnableOperation(const TSchedulerOperationElement* element) const;
-    void DisableOperation(TSchedulerOperationElement* element, bool markAsNonAlive) const;
+    void EnableOperation(const TPoolTreeOperationElement* element) const;
+    void DisableOperation(TPoolTreeOperationElement* element, bool markAsNonAlive) const;
 
     void RegisterAllocationsFromRevivedOperation(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         std::vector<TAllocationPtr> allocations) const;
     bool ProcessAllocationUpdate(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        TSchedulerOperationElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TPoolTreeOperationElement* element,
         TAllocationId allocationId,
         const TJobResources& allocationResources,
         bool resetPreemptibleProgress,
@@ -628,8 +628,8 @@ public:
         const std::optional<std::string>& allocationInfinibandCluster,
         std::optional<EAbortReason>* maybeAbortReason) const;
     bool ProcessFinishedAllocation(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        TSchedulerOperationElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TPoolTreeOperationElement* element,
         TAllocationId allocationId) const;
 
     //! Diagnostics.
@@ -638,50 +638,50 @@ public:
         TDelimitedStringBuilderWrapper& delimitedBuilder) const;
     void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const;
     void BuildSchedulingAttributesStringForOngoingAllocations(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const std::vector<TAllocationPtr>& allocations,
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const;
 
     static TError CheckOperationIsStuck(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const TSchedulerOperationElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeOperationElement* element,
         TInstant now,
         TInstant activationTime,
         const TOperationStuckCheckOptionsPtr& options);
 
     static void BuildOperationProgress(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const TSchedulerOperationElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeOperationElement* element,
         IStrategyHost* const strategyHost,
         NYTree::TFluentMap fluent);
     static void BuildElementYson(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const TSchedulerElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeElement* element,
         const TFieldsFilter& filter,
         NYTree::TFluentMap fluent);
 
     //! Post update.
-    TSchedulingPolicyPostUpdateContext CreatePostUpdateContext(TSchedulerRootElement* rootElement);
+    TSchedulingPolicyPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* rootElement);
     void PostUpdate(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
         TSchedulingPolicyPostUpdateContext* postUpdateContext);
     TSchedulingPolicyPoolTreeSnapshotStatePtr CreateSnapshotState(TSchedulingPolicyPostUpdateContext* postUpdateContext);
 
-    void OnResourceUsageSnapshotUpdate(const TFairShareTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const;
+    void OnResourceUsageSnapshotUpdate(const TPoolTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const;
 
     //! Tree profiling.
     void ProfileOperation(
-        const TSchedulerOperationElement* element,
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeOperationElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         NProfiling::ISensorWriter* writer) const;
 
     //! Miscellaneous.
     void UpdateConfig(TStrategyTreeConfigPtr config);
 
     void BuildElementLoggingStringAttributes(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const TSchedulerElement* element,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const;
 
     void InitPersistentState(NYTree::INodePtr persistentState);
@@ -694,15 +694,15 @@ public:
 
     //! Testing.
     void OnAllocationStartedInTest(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         TAllocationId allocationId,
         const TJobResourcesWithQuota& resourceUsage);
     void ProcessAllocationUpdateInTest(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         TAllocationId allocationId,
         const TJobResources& allocationResources);
     EAllocationPreemptionStatus GetAllocationPreemptionStatusInTest(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         TAllocationId allocationId) const;
 
     TFuture<void> Stop();
@@ -713,7 +713,7 @@ private:
     // NB(eshcherbin): While tree host and strategy host are singletons (strategy and scheduler respectively), allocation scheduler host (tree)
     // can be outlived by some asynchronous actions. Therefore, we store it as a weak pointer rather than a raw pointer.
     const TWeakPtr<ISchedulingPolicyHost> Host_;
-    IFairShareTreeHost* const TreeHost_;
+    IPoolTreeHost* const TreeHost_;
     IStrategyHost* const StrategyHost_;
 
     TStrategyTreeConfigPtr Config_;
@@ -772,9 +772,9 @@ private:
     TRunningAllocationStatistics ComputeRunningAllocationStatistics(
         const TSchedulingPolicyNodeState* nodeState,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        const TFairShareTreeSnapshotPtr& treeSnapshot);
+        const TPoolTreeSnapshotPtr& treeSnapshot);
 
-    void PreemptAllocationsGracefully(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
+    void PreemptAllocationsGracefully(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, const TPoolTreeSnapshotPtr& treeSnapshot) const;
     void ScheduleAllocations(TScheduleAllocationsContext* context);
 
     void DoRegularAllocationScheduling(TScheduleAllocationsContext* context);
@@ -805,23 +805,23 @@ private:
         TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
 
     void PublishFairShare(
-        TSchedulerElement* element,
+        TPoolTreeElement* element,
         TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
     void PublishFairShareAtCompositeElement(
-        TSchedulerCompositeElement* element,
+        TPoolTreeCompositeElement* element,
         TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
     void PublishFairShareAtOperation(
-        TSchedulerOperationElement* element,
+        TPoolTreeOperationElement* element,
         TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
 
     void UpdateEffectiveRecursiveAttributes(
-        const TSchedulerElement* element,
+        const TPoolTreeElement* element,
         TSchedulingPolicyPostUpdateContext* postUpdateContext);
     void UpdateEffectiveRecursiveAttributesAtCompositeElement(
-        const TSchedulerCompositeElement* element,
+        const TPoolTreeCompositeElement* element,
         TSchedulingPolicyPostUpdateContext* postUpdateContext);
     void UpdateEffectiveRecursiveAttributesAtOperation(
-        const TSchedulerOperationElement* element,
+        const TPoolTreeOperationElement* element,
         TSchedulingPolicyPostUpdateContext* postUpdateContext);
 
     void ProcessUpdatedStarvationStatuses(
@@ -844,12 +844,12 @@ private:
         TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
 
     void InitializeDynamicAttributesAtUpdateRecursively(
-        TSchedulerElement* element,
+        TPoolTreeElement* element,
         std::vector<TNonOwningElementList>* consideredSchedulableChildrenPerPool,
         TDynamicAttributesManager* dynamicAttributesManager) const;
 
     static void UpdateDynamicAttributesListSnapshot(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot);
 
     //! Miscellaneous

@@ -1,14 +1,14 @@
-#include "fair_share_tree_snapshot.h"
+#include "pool_tree_snapshot.h"
 
-#include "fair_share_tree.h"
+#include "pool_tree.h"
 
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeSnapshot::TFairShareTreeSnapshot(
+TPoolTreeSnapshot::TPoolTreeSnapshot(
     TTreeSnapshotId id,
-    TSchedulerRootElementPtr rootElement,
+    TPoolTreeRootElementPtr rootElement,
     TNonOwningOperationElementMap enabledOperationIdToElement,
     TNonOwningOperationElementMap disabledOperationIdToElement,
     TNonOwningPoolElementMap poolNameToElement,
@@ -33,28 +33,28 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     , ResourceLimitsByTagFilter_(std::move(resourceLimitsByTagFilter))
 { }
 
-TSchedulerPoolElement* TFairShareTreeSnapshot::FindPool(const TString& poolName) const
+TPoolTreePoolElement* TPoolTreeSnapshot::FindPool(const TString& poolName) const
 {
     auto it = PoolMap_.find(poolName);
     return it != PoolMap_.end() ? it->second : nullptr;
 }
 
-TSchedulerOperationElement* TFairShareTreeSnapshot::FindEnabledOperationElement(TOperationId operationId) const
+TPoolTreeOperationElement* TPoolTreeSnapshot::FindEnabledOperationElement(TOperationId operationId) const
 {
     auto it = EnabledOperationMap_.find(operationId);
     return it != EnabledOperationMap_.end() ? it->second : nullptr;
 }
 
-TSchedulerOperationElement* TFairShareTreeSnapshot::FindDisabledOperationElement(TOperationId operationId) const
+TPoolTreeOperationElement* TPoolTreeSnapshot::FindDisabledOperationElement(TOperationId operationId) const
 {
     auto it = DisabledOperationMap_.find(operationId);
     return it != DisabledOperationMap_.end() ? it->second : nullptr;
 }
 
-bool TFairShareTreeSnapshot::IsElementEnabled(const TSchedulerElement* element) const
+bool TPoolTreeSnapshot::IsElementEnabled(const TPoolTreeElement* element) const
 {
     if (element->IsOperation()) {
-        const auto* operationElement = static_cast<const TSchedulerOperationElement*>(element);
+        const auto* operationElement = static_cast<const TPoolTreeOperationElement*>(element);
         return static_cast<bool>(FindEnabledOperationElement(operationElement->GetOperationId()));
     }
     return true;
@@ -62,14 +62,14 @@ bool TFairShareTreeSnapshot::IsElementEnabled(const TSchedulerElement* element) 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeSetSnapshot::TFairShareTreeSetSnapshot(std::vector<IFairShareTreePtr> trees, int topologyVersion)
+TPoolTreeSetSnapshot::TPoolTreeSetSnapshot(std::vector<IPoolTreePtr> trees, int topologyVersion)
     : Trees_(std::move(trees))
     , TopologyVersion_(topologyVersion)
 { }
 
-THashMap<TString, IFairShareTreePtr> TFairShareTreeSetSnapshot::BuildIdToTreeMapping() const
+THashMap<TString, IPoolTreePtr> TPoolTreeSetSnapshot::BuildIdToTreeMapping() const
 {
-    THashMap<TString, IFairShareTreePtr> idToTree;
+    THashMap<TString, IPoolTreePtr> idToTree;
     idToTree.reserve(Trees_.size());
     for (const auto& tree : Trees_) {
         idToTree.emplace(tree->GetId(), tree);
@@ -79,7 +79,7 @@ THashMap<TString, IFairShareTreePtr> TFairShareTreeSetSnapshot::BuildIdToTreeMap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapshotPtr& treeSnapshot)
+TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TPoolTreeSnapshotPtr& treeSnapshot)
 {
     YT_VERIFY(treeSnapshot);
 
@@ -102,7 +102,7 @@ TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapsho
         operationResourceUsageMap[operationId] = resourceUsage;
         operationResourceUsageWithPrecommitMap[operationId] = resourceUsageWithPrecommit;
 
-        const TSchedulerCompositeElement* parentPool = element->GetParent();
+        const TPoolTreeCompositeElement* parentPool = element->GetParent();
         while (parentPool) {
             poolResourceUsageMap[parentPool->GetId()] += resourceUsage;
             poolResourceUsageWithPrecommitMap[parentPool->GetId()] += resourceUsageWithPrecommit;

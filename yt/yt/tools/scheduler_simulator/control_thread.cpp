@@ -4,8 +4,8 @@
 #include "node_shard.h"
 #include "node_worker.h"
 
+#include <yt/yt/server/scheduler/pool_tree.h>
 #include <yt/yt/server/scheduler/strategy.h>
-#include <yt/yt/server/scheduler/fair_share_tree.h>
 
 #include <yt/yt/client/security_client/acl.h>
 

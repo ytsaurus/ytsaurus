@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 

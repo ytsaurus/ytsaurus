@@ -215,7 +215,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op.wait_for_state("pending")
 
         with pytest.raises(YtError):
-            # core was in TFairShareTree::ChangeOperationPool.
+            # core was in TPoolTree::ChangeOperationPool.
             update_op_parameters(op.id, parameters={"pool": "parent"})
 
     @authors("renadeen")
@@ -243,7 +243,7 @@ class TestRuntimeParameters(YTEnvSetup):
         # 2. Change operation pool to pool with available running operation count.
         # 3. At the same time change max_running_operation_count in target pool to 0.
         # 4. Due to WaitFor`s after validation we can attach operation to pool with 0 limit.
-        # 5. Later in the TFairShareTree::ChangeOperationPool we crash as operation is supposed to run after change pool
+        # 5. Later in the TPoolTree::ChangeOperationPool we crash as operation is supposed to run after change pool
         # but cannot due to limit violation.
 
         create_pool("free")

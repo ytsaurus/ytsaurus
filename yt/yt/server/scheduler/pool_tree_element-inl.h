@@ -1,7 +1,7 @@
 #ifndef FAIR_SHARE_TREE_ELEMENT_INL_H_
-#error "Direct inclusion of this file is not allowed, include fair_share_tree_element.h"
+#error "Direct inclusion of this file is not allowed, include pool_tree_element.h"
 // For the sake of sane code completion.
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 #endif
 
 namespace NYT::NScheduler {
@@ -9,7 +9,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TAttributes>
-const TAttributes& GetSchedulerElementAttributesFromVector(const std::vector<TAttributes>& vector, const TSchedulerElement* element)
+const TAttributes& GetSchedulerElementAttributesFromVector(const std::vector<TAttributes>& vector, const TPoolTreeElement* element)
 {
     int index = element->GetTreeIndex();
     YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(vector));
@@ -17,7 +17,7 @@ const TAttributes& GetSchedulerElementAttributesFromVector(const std::vector<TAt
 }
 
 template <class TAttributes>
-TAttributes& GetSchedulerElementAttributesFromVector(std::vector<TAttributes>& vector, const TSchedulerElement* element)
+TAttributes& GetSchedulerElementAttributesFromVector(std::vector<TAttributes>& vector, const TPoolTreeElement* element)
 {
     int index = element->GetTreeIndex();
     YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(vector));

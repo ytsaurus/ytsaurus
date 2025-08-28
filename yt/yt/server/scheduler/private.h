@@ -13,17 +13,17 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(IFairShareTree)
-DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
+DECLARE_REFCOUNTED_STRUCT(IPoolTree)
+DECLARE_REFCOUNTED_STRUCT(IPoolTreeElementHost)
 
-struct IFairShareTreeHost;
+struct IPoolTreeHost;
 struct ISchedulingPolicyHost;
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
-DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)
-DECLARE_REFCOUNTED_CLASS(TSchedulerCompositeElement)
-DECLARE_REFCOUNTED_CLASS(TSchedulerPoolElement)
-DECLARE_REFCOUNTED_CLASS(TSchedulerRootElement)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeElement)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeOperationElement)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeCompositeElement)
+DECLARE_REFCOUNTED_CLASS(TPoolTreePoolElement)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeRootElement)
 
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
@@ -32,10 +32,10 @@ DECLARE_REFCOUNTED_CLASS(TScheduleAllocationsContext)
 
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationController)
 DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
-DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshot)
-DECLARE_REFCOUNTED_CLASS(TFairShareTreeSetSnapshot)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeSnapshot)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeSetSnapshot)
 DECLARE_REFCOUNTED_CLASS(TSchedulingPolicyPoolTreeSnapshotState)
-DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
+DECLARE_REFCOUNTED_CLASS(TPoolTreeProfileManager)
 
 DECLARE_REFCOUNTED_STRUCT(TGpuSchedulerAssignment)
 
@@ -48,15 +48,15 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TNonOwningElementList = std::vector<TSchedulerElement*>;
+using TNonOwningElementList = std::vector<TPoolTreeElement*>;
 
-using TNonOwningOperationElementList = std::vector<TSchedulerOperationElement*>;
-using TNonOwningOperationElementMap = THashMap<TOperationId, TSchedulerOperationElement*>;
-using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPtr>;
+using TNonOwningOperationElementList = std::vector<TPoolTreeOperationElement*>;
+using TNonOwningOperationElementMap = THashMap<TOperationId, TPoolTreeOperationElement*>;
+using TOperationElementMap = THashMap<TOperationId, TPoolTreeOperationElementPtr>;
 using TOperationIdToJobResources = THashMap<TOperationId, TJobResources>;
 
-using TNonOwningPoolElementMap = THashMap<TString, TSchedulerPoolElement*>;
-using TPoolElementMap = THashMap<TString, TSchedulerPoolElementPtr>;
+using TNonOwningPoolElementMap = THashMap<TString, TPoolTreePoolElement*>;
+using TPoolElementMap = THashMap<TString, TPoolTreePoolElementPtr>;
 
 using TNodeIdSet = THashSet<NNodeTrackerClient::TNodeId>;
 using TNodeYsonList = std::vector<std::pair<NNodeTrackerClient::TNodeId, NYson::TYsonString>>;

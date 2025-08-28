@@ -3,7 +3,7 @@
 #include "private.h"
 #include "scheduling_policy_persistent_state.h"
 #include "scheduling_policy_pool_tree_snapshot_state.h"
-#include "fair_share_tree_snapshot.h"
+#include "pool_tree_snapshot.h"
 
 #include <util/generic/algorithm.h>
 
@@ -264,7 +264,7 @@ void TSchedulingSegmentManager::Reset(TUpdateSchedulingSegmentsContext* context)
     }
 }
 
-void TSchedulingSegmentManager::ResetOperationModule(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const
+void TSchedulingSegmentManager::ResetOperationModule(const TPoolTreeOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const
 {
     auto& operation = context->OperationStates[operationElement->GetOperationId()];
     auto& operationModule = operation->SchedulingSegmentModule;
@@ -311,7 +311,7 @@ void TSchedulingSegmentManager::PreemptNonPriorityOperationsFromModuleForOperati
 }
 
 bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssignment(
-    const TSchedulerOperationElement* operationElement,
+    const TPoolTreeOperationElement* operationElement,
     TUpdateSchedulingSegmentsContext* context) const
 {
     const auto& treeSnapshot = context->TreeSnapshot;
@@ -324,7 +324,7 @@ bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssignment(
         context->Now > *failingToAssignToModuleSince + Config_->PriorityModuleAssignmentTimeout;
 }
 
-double TSchedulingSegmentManager::GetElementFairResourceAmount(const TSchedulerOperationElement* element, TUpdateSchedulingSegmentsContext* context) const
+double TSchedulingSegmentManager::GetElementFairResourceAmount(const TPoolTreeOperationElement* element, TUpdateSchedulingSegmentsContext* context) const
 {
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
     auto snapshotTotalKeyResourceLimit = GetResource(context->TreeSnapshot->ResourceLimits(), keyResource);
@@ -434,7 +434,7 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
     TNonOwningOperationElementList assignedOperationElements,
     TUpdateSchedulingSegmentsContext* context) const
 {
-    std::sort(assignedOperationElements.begin(), assignedOperationElements.end(), [&] (const TSchedulerOperationElement* lhs, const TSchedulerOperationElement* rhs) {
+    std::sort(assignedOperationElements.begin(), assignedOperationElements.end(), [&] (const TPoolTreeOperationElement* lhs, const TPoolTreeOperationElement* rhs) {
         return GetElementFairResourceAmount(lhs, context) > GetElementFairResourceAmount(rhs, context);
     });
 
@@ -639,7 +639,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
     {
         TOperationId OperationId;
         TSchedulingPolicyOperationState* Operation;
-        TSchedulerOperationElement* Element;
+        TPoolTreeOperationElement* Element;
         bool OperationHasPriority;
     };
     std::vector<TOperationStateWithElement> operationsToAssignToModule;

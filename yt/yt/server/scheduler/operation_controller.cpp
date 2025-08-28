@@ -2,7 +2,7 @@
 
 #include "bootstrap.h"
 #include "private.h"
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 

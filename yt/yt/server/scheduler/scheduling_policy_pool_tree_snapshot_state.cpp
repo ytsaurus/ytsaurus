@@ -4,14 +4,14 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStaticAttributes& TStaticAttributesList::AttributesOf(const TSchedulerElement* element)
+TStaticAttributes& TStaticAttributesList::AttributesOf(const TPoolTreeElement* element)
 {
     int index = element->GetTreeIndex();
     YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
     return (*this)[index];
 }
 
-const TStaticAttributes& TStaticAttributesList::AttributesOf(const TSchedulerElement* element) const
+const TStaticAttributes& TStaticAttributesList::AttributesOf(const TPoolTreeElement* element) const
 {
     int index = element->GetTreeIndex();
     YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
@@ -39,24 +39,24 @@ TSchedulingPolicyPoolTreeSnapshotState::TSchedulingPolicyPoolTreeSnapshotState(
     , OperationIdToSharedState_(std::move(operationIdToSharedState))
 { }
 
-const TSchedulingPolicyOperationStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetOperationState(const TSchedulerOperationElement* element) const
+const TSchedulingPolicyOperationStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetOperationState(const TPoolTreeOperationElement* element) const
 {
     return GetOrCrash(OperationIdToState_, element->GetOperationId());
 }
 
-const TSchedulingPolicyOperationSharedStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetOperationSharedState(const TSchedulerOperationElement* element) const
+const TSchedulingPolicyOperationSharedStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetOperationSharedState(const TPoolTreeOperationElement* element) const
 {
     return GetOrCrash(OperationIdToSharedState_, element->GetOperationId());
 }
 
-const TSchedulingPolicyOperationStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetEnabledOperationState(const TSchedulerOperationElement* element) const
+const TSchedulingPolicyOperationStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetEnabledOperationState(const TPoolTreeOperationElement* element) const
 {
     const auto& operationState = StaticAttributesList_.AttributesOf(element).OperationState;
     YT_ASSERT(operationState);
     return operationState;
 }
 
-const TSchedulingPolicyOperationSharedStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const
+const TSchedulingPolicyOperationSharedStatePtr& TSchedulingPolicyPoolTreeSnapshotState::GetEnabledOperationSharedState(const TPoolTreeOperationElement* element) const
 {
     const auto& operationSharedState = StaticAttributesList_.AttributesOf(element).OperationSharedState;
     YT_ASSERT(operationSharedState);

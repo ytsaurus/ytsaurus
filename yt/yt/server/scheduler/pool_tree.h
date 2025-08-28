@@ -64,7 +64,7 @@ void Serialize(const TAccumulatedResourceDistribution& volume, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulerElementStateSnapshot
+struct TPoolTreeElementStateSnapshot
 {
     TResourceVector DemandShare;
     TResourceVector EstimatedGuaranteeShare;
@@ -72,9 +72,9 @@ struct TSchedulerElementStateSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IFairShareTreeHost
+struct IPoolTreeHost
 {
-    virtual ~IFairShareTreeHost() = default;
+    virtual ~IPoolTreeHost() = default;
 
     virtual bool IsConnected() const = 0;
 
@@ -85,7 +85,7 @@ struct IFairShareTreeHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IFairShareTree
+struct IPoolTree
     : public virtual TRefCounted
 {
     //! Methods below rely on presence of snapshot.
@@ -101,7 +101,7 @@ struct IFairShareTree
 
     virtual TStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
     virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
-    virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
+    virtual std::optional<TPoolTreeElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
     virtual void BuildSchedulingAttributesStringForNode(NNodeTrackerClient::TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildSchedulingAttributesStringForOngoingAllocations(
@@ -127,7 +127,7 @@ struct IFairShareTree
     virtual TAccumulatedResourceDistribution ExtractAccumulatedResourceDistributionForLogging(TOperationId operationId) = 0;
 
     //! Updates fair share attributes of tree elements and saves it as tree snapshot.
-    virtual TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;
+    virtual TFuture<std::pair<IPoolTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;
     virtual void FinishFairShareUpdate() = 0;
 
     //! Methods below manipulate directly with tree structure and fields, it should be used in serialized manner.
@@ -150,7 +150,7 @@ struct IFairShareTree
     virtual TRegistrationResult RegisterOperation(
         const TStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
+        const TOperationPoolTreeRuntimeParametersPtr& runtimeParameters,
         const TOperationOptionsPtr& operationOptions) = 0;
     virtual void UnregisterOperation(const TStrategyOperationStatePtr& state) = 0;
 
@@ -165,7 +165,7 @@ struct IFairShareTree
     virtual void UpdateOperationRuntimeParameters(
         TOperationId operationId,
         TSchedulingTagFilter schedulingTagFilter,
-        const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
+        const TOperationPoolTreeRuntimeParametersPtr& runtimeParameters) = 0;
 
     virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, std::vector<TAllocationPtr> allocations) = 0;
 
@@ -219,14 +219,14 @@ struct IFairShareTree
     DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);
 };
 
-DEFINE_REFCOUNTED_TYPE(IFairShareTree)
+DEFINE_REFCOUNTED_TYPE(IPoolTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFairShareTreePtr CreateFairShareTree(
+IPoolTreePtr CreatePoolTree(
     TStrategyTreeConfigPtr config,
     TStrategyOperationControllerConfigPtr controllerConfig,
-    IFairShareTreeHost* host,
+    IPoolTreeHost* host,
     IStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId);
