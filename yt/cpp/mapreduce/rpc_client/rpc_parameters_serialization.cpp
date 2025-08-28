@@ -981,6 +981,34 @@ NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions&
     return result;
 }
 
+NApi::TTableWriterOptions SerializeOptionsForWriteTable(
+    const TTransactionId& transactionId,
+    const TTableWriterOptions& options)
+{
+    NApi::TTableWriterOptions result;
+    SetTransactionId(&result, transactionId);
+
+    result.Config = ConvertTo<NTableClient::TTableWriterConfigPtr>(
+        NYson::TYsonString(NodeToYsonString(*options.Config_.OrElse(TNode::CreateMap()), NYson::EYsonFormat::Binary)));
+
+    if (const auto& writerOptions = options.WriterOptions_) {
+        if (writerOptions->EnableEarlyFinish_) {
+            result.Config->EnableEarlyFinish = *writerOptions->EnableEarlyFinish_;
+        }
+        if (writerOptions->UploadReplicationFactor_) {
+            result.Config->UploadReplicationFactor = *writerOptions->UploadReplicationFactor_;
+        }
+        if (writerOptions->MinUploadReplicationFactor_) {
+            result.Config->MinUploadReplicationFactor = *writerOptions->MinUploadReplicationFactor_;
+        }
+        if (writerOptions->DesiredChunkSize_) {
+            result.Config->DesiredChunkSize = *writerOptions->DesiredChunkSize_;
+        }
+    }
+
+    return result;
+}
+
 NApi::TTableReaderOptions SerializeOptionsForReadTable(
     const TTransactionId& transactionId,
     const TTableReaderOptions& options)
