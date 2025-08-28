@@ -22,6 +22,7 @@ using namespace NConcurrency;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NTabletServer;
+using namespace NTracing;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +117,8 @@ void TCellTrackerImpl::ScanCells()
         YT_LOG_DEBUG("Cell balancer is not leading");
         return;
     }
+
+    auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CellTrackerPass"));
 
     UpdateDynamicConfig();
 
