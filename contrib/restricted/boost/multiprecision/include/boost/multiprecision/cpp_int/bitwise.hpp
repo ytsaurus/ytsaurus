@@ -563,7 +563,11 @@ inline BOOST_MP_CXX14_CONSTEXPR void right_shift_limb(Int& result, double_limb_t
       pr[i] = pr[i + offset];
    result.resize(rs, rs);
 }
-
+// see discussion at https://github.com/boostorg/multiprecision/issues/686 for logic in disabling this.
+#if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ >= 12)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
 template <class Int>
 inline BOOST_MP_CXX14_CONSTEXPR void right_shift_generic(Int& result, double_limb_type s)
 {
@@ -598,6 +602,9 @@ inline BOOST_MP_CXX14_CONSTEXPR void right_shift_generic(Int& result, double_lim
    pr[i] = pr[i + offset] >> shift;
    result.resize(rs, rs);
 }
+#if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ >= 12)
+#pragma GCC diagnostic pop
+#endif
 
 template <std::size_t MinBits1, std::size_t MaxBits1, cpp_int_check_type Checked1, class Allocator1>
 inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<!is_trivial_cpp_int<cpp_int_backend<MinBits1, MaxBits1, unsigned_magnitude, Checked1, Allocator1> >::value>::type
@@ -700,7 +707,7 @@ BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<is_trivial
 eval_left_shift(cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>& result, T s) noexcept((is_non_throwing_cpp_int<cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1> >::value))
 {
    is_valid_bitwise_op(result, typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::checked_type());
-   *result.limbs() = detail::checked_left_shift(*result.limbs(), s, typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::checked_type());
+   *result.limbs() = detail::checked_left_shift(*result.limbs(), static_cast<unsigned long long>(s), typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::checked_type());
    result.normalize();
 }
 
@@ -710,7 +717,7 @@ eval_right_shift(cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Alloca
 {
    // Nothing to check here... just make sure we don't invoke undefined behavior:
    is_valid_bitwise_op(result, typename cpp_int_backend<MinBits1, MaxBits1, SignType1, Checked1, Allocator1>::checked_type());
-   *result.limbs() = (static_cast<unsigned>(s) >= sizeof(*result.limbs()) * CHAR_BIT) ? 0 : (result.sign() ? ((--*result.limbs()) >> s) + 1 : *result.limbs() >> s);
+   *result.limbs() = (static_cast<std::size_t>(s) >= static_cast<std::size_t>(sizeof(*result.limbs()) * CHAR_BIT)) ? 0 : (result.sign() ? ((--*result.limbs()) >> s) + 1 : *result.limbs() >> s);
    if (result.sign() && (*result.limbs() == 0))
       result = static_cast<signed_limb_type>(-1);
 }

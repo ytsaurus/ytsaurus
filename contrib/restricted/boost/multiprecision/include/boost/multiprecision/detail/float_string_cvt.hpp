@@ -139,7 +139,7 @@ std::string convert_to_string(Backend b, std::streamsize digits, std::ios_base::
       //
       // Extract the digits one at a time:
       //
-      for (unsigned i = 0; i < digits; ++i)
+      for (std::streamsize i = 0; i < digits; ++i)
       {
          eval_floor(digit, t);
          eval_convert_to(&cdigit, digit);
