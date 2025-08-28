@@ -12,18 +12,4 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(build)
-add_subdirectory(client)
-add_subdirectory(core)
-add_subdirectory(library)
-add_subdirectory(ytlib)
-add_subdirectory(flow)
-add_subdirectory(benchmarks)
-add_subdirectory(server)
-add_subdirectory(contrib)
-add_subdirectory(go)
-add_subdirectory(orm)
-add_subdirectory(python)
-add_subdirectory(tools)
-add_subdirectory(tests)
-add_subdirectory(experiments)
+add_subdirectory(api)

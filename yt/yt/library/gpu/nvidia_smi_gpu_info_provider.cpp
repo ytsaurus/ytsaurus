@@ -1,8 +1,7 @@
 #include "nvidia_smi_gpu_info_provider.h"
 
-#include "gpu_info_provider.h"
+#include "gpu_info_provider_detail.h"
 #include "helpers.h"
-#include "private.h"
 
 #include <yt/yt/library/process/subprocess.h>
 
@@ -65,7 +64,7 @@ struct TGpuMetricsIndex
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNvidiaSmiGpuInfoProvider
-    : public IGpuInfoProvider
+    : public TGpuInfoProviderBase
 {
     std::vector<TGpuInfo> GetGpuInfos(TDuration timeout) const override
     {
@@ -145,17 +144,6 @@ class TNvidiaSmiGpuInfoProvider
         }
 
         return result;
-    }
-
-    std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration /*timeout*/) const override
-    {
-        // NB(omgronny): RDMA info is not supported in this build.
-        return {};
-    }
-
-    void ApplyNetworkServiceLevel(const std::vector<TString>& /*deviceIds*/, TNetworkPriority /*serviceLevel*/, TDuration /*timeout*/) override
-    {
-        // NB(renadeen): not supported for nvidia-smi.
     }
 };
 

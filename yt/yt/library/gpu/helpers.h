@@ -1,6 +1,8 @@
 #pragma once
 
-#include "public.h"
+#include <util/datetime/base.h>
+
+#include <util/generic/fwd.h>
 
 namespace NYT::NGpu {
 

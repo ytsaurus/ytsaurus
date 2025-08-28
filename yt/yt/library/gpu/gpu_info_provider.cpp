@@ -2,6 +2,7 @@
 
 #include "config.h"
 
+#include "gpu_agent_gpu_info_provider.h"
 #include "nvidia_smi_gpu_info_provider.h"
 #include "nv_manager_gpu_info_provider.h"
 
@@ -93,13 +94,15 @@ void Serialize(const TRdmaDeviceInfo& rdmaDevice, NYson::IYsonConsumer* consumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfigPtr config)
+IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfig config)
 {
-    switch (config->Type) {
+    switch (config.GetCurrentType()) {
     case EGpuInfoSourceType::NvGpuManager:
-        return CreateNvManagerGpuInfoProvider(std::move(config));
+        return CreateNvManagerGpuInfoProvider(config.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>());
     case EGpuInfoSourceType::NvidiaSmi:
         return CreateNvidiaSmiGpuInfoProvider();
+    case EGpuInfoSourceType::GpuAgent:
+        return CreateGpuAgentGpuInfoProvider(config.TryGetConcrete<EGpuInfoSourceType::GpuAgent>());
     default:
         YT_ABORT();
     }

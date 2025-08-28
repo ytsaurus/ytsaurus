@@ -5,7 +5,9 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     config.cpp
     gpu_info_provider.cpp
+    gpu_info_provider_detail.cpp
     helpers.cpp
+    gpu_agent_gpu_info_provider.cpp
     nv_manager_gpu_info_provider.cpp
     nvidia_smi_gpu_info_provider.cpp
 )
@@ -15,6 +17,8 @@ PEERDIR(
 
     yt/yt/core
     yt/yt/core/rpc/grpc
+
+    yt/yt/go/gpuagent/api
 
     library/cpp/protobuf/interop
 )
