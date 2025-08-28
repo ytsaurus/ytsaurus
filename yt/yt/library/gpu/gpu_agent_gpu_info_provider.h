@@ -6,7 +6,7 @@ namespace NYT::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGpuInfoProviderPtr CreateNvManagerGpuInfoProvider(TNvManagerGpuInfoProviderConfigPtr config);
+IGpuInfoProviderPtr CreateGpuAgentGpuInfoProvider(TGpuAgentGpuInfoProviderConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

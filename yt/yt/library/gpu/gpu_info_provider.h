@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <library/cpp/yt/yson/consumer.h>
 
@@ -77,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfigPtr config);
+IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfig config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
