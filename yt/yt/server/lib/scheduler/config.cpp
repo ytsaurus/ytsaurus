@@ -72,7 +72,7 @@ void TStrategyTestingOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategyControllerThrottling::Register(TRegistrar registrar)
+void TStrategyControllerThrottling::Register(TRegistrar registrar)
 {
     registrar.Parameter("schedule_allocation_start_backoff_time", &TThis::ScheduleAllocationStartBackoffTime)
         .Alias("schedule_job_start_backoff_time")
@@ -87,7 +87,7 @@ void TFairShareStrategyControllerThrottling::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
+void TStrategyOperationControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_controller_schedule_allocation_calls", &TThis::MaxConcurrentControllerScheduleAllocationCalls)
         .Alias("max_concurrent_controller_schedule_job_calls")
@@ -143,7 +143,7 @@ void TModuleShareAndNetworkPriority::Register(TRegistrar registrar)
 }
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
+void TStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
         .Default(ESegmentedSchedulingMode::Disabled);
@@ -206,7 +206,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
         .Default();
 
-    registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
+    registrar.Postprocessor([&] (TStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);
         }
@@ -225,7 +225,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
         }
     });
 
-    registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
+    registrar.Postprocessor([&] (TStrategySchedulingSegmentsConfig* config) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             if (!IsModuleAwareSchedulingSegment(segment)) {
                 auto value = config->ReserveFairResourceAmount.At(segment).GetOrDefault();
@@ -264,7 +264,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     });
 }
 
-const THashSet<std::string>& TFairShareStrategySchedulingSegmentsConfig::GetModules() const
+const THashSet<std::string>& TStrategySchedulingSegmentsConfig::GetModules() const
 {
     switch (ModuleType) {
         case ESchedulingSegmentModuleType::DataCenter:
@@ -305,7 +305,7 @@ void TGpuAllocationSchedulerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registrar)
+void TStrategySsdPriorityPreemptionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
@@ -316,7 +316,7 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
     registrar.Parameter("medium_names", &TThis::MediumNames)
         .Default();
 
-    registrar.Postprocessor([&] (TFairShareStrategySsdPriorityPreemptionConfig* config) {
+    registrar.Postprocessor([&] (TStrategySsdPriorityPreemptionConfig* config) {
         if (config->Enable && config->NodeTagFilter == EmptySchedulingTagFilter) {
             THROW_ERROR_EXCEPTION("SSD node tag filter must be non-empty when SSD priority preemption is enabled");
         }
@@ -348,7 +348,7 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
+void TStrategyTreeConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
@@ -642,7 +642,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
         .Default();
 
-    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+    registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
                 << TErrorAttribute("aggressive_threshold", config->AggressivePreemptionSatisfactionThreshold)
@@ -655,13 +655,13 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         }
     });
 
-    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+    registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         if (!config->NonPreemptibleResourceUsageThreshold) {
             THROW_ERROR_EXCEPTION("\"non_preemptible_resource_usage_threshold\" must not be null");
         }
     });
 
-    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+    registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         static const int MaxPerPoolProfilingQuantileCount = 20;
 
         int quantileCount = std::ssize(config->PerPoolSatisfactionProfilingQuantiles);
@@ -714,7 +714,7 @@ void TOperationStuckCheckOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategyConfig::Register(TRegistrar registrar)
+void TStrategyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fair_share_update_period", &TThis::FairShareUpdatePeriod)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
@@ -801,7 +801,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
         .ResetOnLoad();
 
-    registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
+    registrar.Postprocessor([&] (TStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
 
@@ -814,7 +814,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     });
 
     // COMPAT(eshcherbin)
-    registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
+    registrar.Postprocessor([&] (TStrategyConfig* config) {
         if (config->OperationHangupCheckPeriod) {
             config->OperationStuckCheck->Period = *config->OperationHangupCheckPeriod;
         }

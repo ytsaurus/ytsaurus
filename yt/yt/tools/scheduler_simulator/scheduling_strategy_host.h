@@ -7,8 +7,8 @@
 #include <yt/yt/server/scheduler/allocation.h>
 #include <yt/yt/server/scheduler/exec_node.h>
 #include <yt/yt/server/scheduler/operation.h>
-#include <yt/yt/server/scheduler/persistent_scheduler_state.h>
-#include <yt/yt/server/scheduler/scheduler_strategy.h>
+#include <yt/yt/server/scheduler/persistent_state.h>
+#include <yt/yt/server/scheduler/strategy.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 
@@ -22,12 +22,12 @@ namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerStrategyHost
-    : public NScheduler::ISchedulerStrategyHost
+class TStrategyHost
+    : public NScheduler::IStrategyHost
     , public NScheduler::TEventLogHostBase
 {
 public:
-    TSchedulerStrategyHost(
+    TStrategyHost(
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream,
         const TRemoteEventLogConfigPtr& remoteEventLogConfig,

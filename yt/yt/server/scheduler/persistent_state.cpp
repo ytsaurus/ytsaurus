@@ -1,4 +1,4 @@
-#include "persistent_scheduler_state.h"
+#include "persistent_state.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

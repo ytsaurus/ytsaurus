@@ -17,7 +17,7 @@ using namespace NThreading;
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceTree::TResourceTree(
-    const TFairShareStrategyTreeConfigPtr& config,
+    const TStrategyTreeConfigPtr& config,
     const std::vector<IInvokerPtr>& feasibleInvokers)
     : FeasibleInvokers_(feasibleInvokers)
 {
@@ -26,7 +26,7 @@ TResourceTree::TResourceTree(
     }
 }
 
-void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
+void TResourceTree::UpdateConfig(const TStrategyTreeConfigPtr& config)
 {
     YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 

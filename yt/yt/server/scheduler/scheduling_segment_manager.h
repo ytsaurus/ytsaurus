@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "persistent_scheduler_state.h"
-#include "scheduler_strategy.h"
+#include "persistent_state.h"
+#include "strategy.h"
 #include "fair_share_tree_allocation_scheduler_structs.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
@@ -94,7 +94,7 @@ public:
 
     TSchedulingSegmentManager(
         TString treeId,
-        TFairShareStrategySchedulingSegmentsConfigPtr config,
+        TStrategySchedulingSegmentsConfigPtr config,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler);
 
@@ -104,13 +104,13 @@ public:
         TOperationId operationId,
         const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const;
 
-    void UpdateConfig(TFairShareStrategySchedulingSegmentsConfigPtr config);
+    void UpdateConfig(TStrategySchedulingSegmentsConfigPtr config);
 
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;
 
-    TFairShareStrategySchedulingSegmentsConfigPtr Config_;
+    TStrategySchedulingSegmentsConfigPtr Config_;
 
     std::optional<TInstant> ImbalancedSince_;
     ESegmentedSchedulingMode PreviousMode_ = ESegmentedSchedulingMode::Disabled;

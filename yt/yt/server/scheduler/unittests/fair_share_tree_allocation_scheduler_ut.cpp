@@ -33,7 +33,7 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
 
 class TSchedulerStrategyHostMock
     : public TRefCounted
-    , public ISchedulerStrategyHost
+    , public IStrategyHost
     , public TEventLogHostBase
 {
 public:
@@ -310,11 +310,11 @@ using TFairShareTreeAllocationSchedulerHostMockPtr = TIntrusivePtr<TFairShareTre
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationControllerStrategyHostMock
-    : public IOperationControllerStrategyHost
+class TSchedulingOperationControllerMock
+    : public ISchedulingOperationController
 {
 public:
-    explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList allocationResourcesList)
+    explicit TSchedulingOperationControllerMock(TJobResourcesWithQuotaList allocationResourcesList)
         : AllocationResourcesList_(std::move(allocationResourcesList))
     { }
 
@@ -385,7 +385,7 @@ private:
     TJobResourcesWithQuotaList AllocationResourcesList_;
 };
 
-using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControllerStrategyHostMock>;
+using TSchedulingOperationControllerMockPtr = TIntrusivePtr<TSchedulingOperationControllerMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,7 +396,7 @@ public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& allocationResourcesList)
         : StartTime_(TInstant::Now())
         , Id_(TGuid::Create())
-        , Controller_(New<TOperationControllerStrategyHostMock>(allocationResourcesList))
+        , Controller_(New<TSchedulingOperationControllerMock>(allocationResourcesList))
     { }
 
     EOperationType GetType() const override
@@ -440,7 +440,7 @@ public:
         return Id_;
     }
 
-    IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
+    ISchedulingOperationControllerPtr GetControllerStrategyHost() const override
     {
         return Controller_;
     }
@@ -485,7 +485,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
+    TSchedulingOperationControllerMock& GetSchedulingOperationController()
     {
         return *Controller_.Get();
     }
@@ -505,7 +505,7 @@ private:
     TInstant StartTime_;
     NYson::TYsonString TrimmedAnnotations_;
     TOperationId Id_;
-    TOperationControllerStrategyHostMockPtr Controller_;
+    TSchedulingOperationControllerMockPtr Controller_;
 };
 
 using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
@@ -516,7 +516,7 @@ class TFairShareTreeElementHostMock
     : public IFairShareTreeElementHost
 {
 public:
-    explicit TFairShareTreeElementHostMock(const TFairShareStrategyTreeConfigPtr& treeConfig)
+    explicit TFairShareTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
         : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
@@ -567,7 +567,7 @@ public:
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareTreeHostMockPtr FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
-    TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
+    TStrategyTreeConfigPtr TreeConfig_ = New<TStrategyTreeConfig>();
     TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
     NConcurrency::TActionQueuePtr NodeShardActionQueue_ = New<NConcurrency::TActionQueue>("NodeShard");
 
@@ -588,7 +588,7 @@ protected:
         DisposablePtrToTreeAllocationScheduler_.Reset();
     }
 
-    TFairShareTreeAllocationSchedulerPtr CreateTestTreeScheduler(TWeakPtr<IFairShareTreeAllocationSchedulerHost> host, ISchedulerStrategyHost* strategyHost)
+    TFairShareTreeAllocationSchedulerPtr CreateTestTreeScheduler(TWeakPtr<IFairShareTreeAllocationSchedulerHost> host, IStrategyHost* strategyHost)
     {
         YT_VERIFY(!DisposablePtrToTreeAllocationScheduler_);
         DisposablePtrToTreeAllocationScheduler_ = New<TFairShareTreeAllocationScheduler>(
@@ -608,7 +608,7 @@ protected:
         return New<TFairShareTreeAllocationSchedulerHostMock>(std::move(strategyHost), FairShareTreeHostMock_);
     }
 
-    TSchedulerRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* strategyHost)
+    TSchedulerRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)
     {
         return New<TSchedulerRootElement>(
             strategyHost,
@@ -618,7 +618,7 @@ protected:
             SchedulerLogger());
     }
 
-    TSchedulerPoolElementPtr CreateTestPool(ISchedulerStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TSchedulerPoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
         return New<TSchedulerPoolElement>(
             strategyHost,
@@ -660,14 +660,14 @@ protected:
     }
 
     TSchedulerOperationElementPtr CreateTestOperationElement(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         const TFairShareTreeAllocationSchedulerPtr& treeScheduler,
         IOperationStrategyHostPtr operation,
         TSchedulerCompositeElement* parent,
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
-        auto operationController = New<TFairShareStrategyOperationController>(
+        auto operationController = New<TStrategyOperationController>(
             operation,
             SchedulerConfig_,
             strategyHost->GetNodeShardInvokers());
@@ -686,7 +686,7 @@ protected:
             runtimeParameters,
             operationController,
             SchedulerConfig_,
-            New<TFairShareStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),
+            New<TStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),
             strategyHost,
             FairShareTreeElementHostMock_.Get(),
             operation,
@@ -704,7 +704,7 @@ protected:
 
     std::pair<TSchedulerOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithAllocations(
         int allocationCount,
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         const TFairShareTreeAllocationSchedulerPtr& treeScheduler,
         TSchedulerCompositeElement* parent)
     {
@@ -809,7 +809,7 @@ protected:
     };
 
     TFairShareTreeSnapshotPtr DoFairShareUpdate(
-        const ISchedulerStrategyHost* strategyHost,
+        const IStrategyHost* strategyHost,
         const TFairShareTreeAllocationSchedulerPtr& treeScheduler,
         const TSchedulerRootElementPtr& rootElement,
         TInstant now = TInstant(),
@@ -1026,7 +1026,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DontSuggestMoreResourcesThanOperat
     // the third one must skip ScheduleAllocation call since resource usage precommit is limited by operation demand.
 
     auto readyToGo = NewPromise<void>();
-    auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
+    auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
     std::atomic<int> heartbeatsInScheduling(0);
     EXPECT_CALL(
         operationControllerStrategyHost,
@@ -1482,7 +1482,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
 
     // Expect 2 ScheduleAllocation calls for each operation.
     for (auto operation : operations) {
-        auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
+        auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
@@ -1690,7 +1690,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithoutBatc
 
     // Expect 2 ScheduleAllocation calls for each operation.
     for (auto operation : operations) {
-        auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
+        auto& operationControllerStrategyHost = operation->GetSchedulingOperationController();
         EXPECT_CALL(
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))

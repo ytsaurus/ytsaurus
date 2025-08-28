@@ -292,7 +292,7 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::op
     return std::nullopt;
 }
 
-IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+ISchedulingOperationControllerPtr TOperation::GetControllerStrategyHost() const
 {
     return Controller_;
 }

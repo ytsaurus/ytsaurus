@@ -10,8 +10,7 @@ SRCS(
     controller_agent_tracker.cpp
     controller_agent_tracker_service.cpp
     exec_node.cpp
-    fair_share_strategy.cpp
-    fair_share_strategy_operation_controller.cpp
+    strategy_operation_controller.cpp
     fair_share_tree.cpp
     fair_share_tree_allocation_scheduler.cpp
     fair_share_tree_allocation_scheduler_operation_shared_state.cpp
@@ -36,7 +35,7 @@ SRCS(
     packing.cpp
     packing_detail.cpp
     persistent_fair_share_tree_allocation_scheduler_state.cpp
-    persistent_scheduler_state.cpp
+    persistent_state.cpp
     pools_config_parser.cpp
     program.cpp
     resource_tree.cpp
@@ -47,6 +46,7 @@ SRCS(
     scheduling_context_detail.cpp
     scheduling_segment_manager.cpp
     serialize.cpp
+    strategy.cpp
 )
 
 PEERDIR(

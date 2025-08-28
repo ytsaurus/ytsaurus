@@ -1,8 +1,8 @@
 #pragma once
 
 #include "private.h"
-#include "scheduler_strategy.h"
-#include "persistent_scheduler_state.h"
+#include "strategy.h"
+#include "persistent_state.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
@@ -11,29 +11,29 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyOperationState
+class TStrategyOperationState
     : public TRefCounted
 {
 public:
     using TTreeIdToPoolNameMap = THashMap<TString, TPoolName>;
 
     DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHostPtr, Host);
-    DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
+    DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationControllerPtr, Controller);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
 public:
-    TFairShareStrategyOperationState(
+    TStrategyOperationState(
         IOperationStrategyHostPtr host,
-        const TFairShareStrategyOperationControllerConfigPtr& config,
+        const TStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
-    void UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
+    void UpdateConfig(const TStrategyOperationControllerConfigPtr& config);
 
     TPoolName GetPoolNameByTreeId(const TString& treeId) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationState)
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationState)
 
 THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
 
@@ -99,7 +99,7 @@ struct IFairShareTree
 
     virtual bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const = 0;
 
-    virtual TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
+    virtual TStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
     virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
     virtual void BuildSchedulingAttributesStringForNode(NNodeTrackerClient::TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
@@ -131,10 +131,10 @@ struct IFairShareTree
     virtual void FinishFairShareUpdate() = 0;
 
     //! Methods below manipulate directly with tree structure and fields, it should be used in serialized manner.
-    virtual TFairShareStrategyTreeConfigPtr GetConfig() const = 0;
-    virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
+    virtual TStrategyTreeConfigPtr GetConfig() const = 0;
+    virtual void UpdateControllerConfig(const TStrategyOperationControllerConfigPtr& config) = 0;
 
-    virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
+    virtual bool UpdateConfig(const TStrategyTreeConfigPtr& config) = 0;
 
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
 
@@ -148,14 +148,14 @@ struct IFairShareTree
     };
 
     virtual TRegistrationResult RegisterOperation(
-        const TFairShareStrategyOperationStatePtr& state,
+        const TStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters,
         const TOperationOptionsPtr& operationOptions) = 0;
-    virtual void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
+    virtual void UnregisterOperation(const TStrategyOperationStatePtr& state) = 0;
 
-    virtual void EnableOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
-    virtual void DisableOperation(const TFairShareStrategyOperationStatePtr& state) = 0;
+    virtual void EnableOperation(const TStrategyOperationStatePtr& state) = 0;
+    virtual void DisableOperation(const TStrategyOperationStatePtr& state) = 0;
 
     virtual void ChangeOperationPool(
         TOperationId operationId,
@@ -224,10 +224,10 @@ DEFINE_REFCOUNTED_TYPE(IFairShareTree)
 ////////////////////////////////////////////////////////////////////////////////
 
 IFairShareTreePtr CreateFairShareTree(
-    TFairShareStrategyTreeConfigPtr config,
-    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+    TStrategyTreeConfigPtr config,
+    TStrategyOperationControllerConfigPtr controllerConfig,
     IFairShareTreeHost* host,
-    ISchedulerStrategyHost* strategyHost,
+    IStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId);
 

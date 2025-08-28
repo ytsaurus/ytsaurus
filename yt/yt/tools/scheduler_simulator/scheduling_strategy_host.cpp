@@ -1,4 +1,4 @@
-#include "scheduler_strategy_host.h"
+#include "scheduling_strategy_host.h"
 
 #include "node_shard.h"
 
@@ -19,7 +19,7 @@ constinit const auto Logger = SchedulerSimulatorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerStrategyHost::TSchedulerStrategyHost(
+TStrategyHost::TStrategyHost(
     const std::vector<NScheduler::TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream,
     const TRemoteEventLogConfigPtr& remoteEventLogConfig,
@@ -42,57 +42,57 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     }
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQueue /*queue*/) const
+IInvokerPtr TStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQueue /*queue*/) const
 {
     return GetCurrentInvoker();
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetFairShareLoggingInvoker() const
+IInvokerPtr TStrategyHost::GetFairShareLoggingInvoker() const
 {
     return GetCurrentInvoker();
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetFairShareProfilingInvoker() const
+IInvokerPtr TStrategyHost::GetFairShareProfilingInvoker() const
 {
     return GetCurrentInvoker();
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
+IInvokerPtr TStrategyHost::GetFairShareUpdateInvoker() const
 {
     return GetCurrentInvoker();
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetBackgroundInvoker() const
+IInvokerPtr TStrategyHost::GetBackgroundInvoker() const
 {
     return GetCurrentInvoker();
 }
 
-IInvokerPtr TSchedulerStrategyHost::GetOrchidWorkerInvoker() const
+IInvokerPtr TStrategyHost::GetOrchidWorkerInvoker() const
 {
     return GetCurrentInvoker();
 }
 
-int TSchedulerStrategyHost::GetNodeShardId(TNodeId nodeId) const
+int TStrategyHost::GetNodeShardId(TNodeId nodeId) const
 {
     return TSimulatorNodeShard::GetNodeShardId(nodeId, std::ssize(NodeShardInvokers_));
 }
 
-const std::vector<IInvokerPtr>& TSchedulerStrategyHost::GetNodeShardInvokers() const
+const std::vector<IInvokerPtr>& TStrategyHost::GetNodeShardInvokers() const
 {
     return NodeShardInvokers_;
 }
 
-TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
+TFluentLogEvent TStrategyHost::LogFairShareEventFluently(TInstant now)
 {
     return LogEventFluently(GetEventLogger(), ELogEventType::FairShareInfo, now);
 }
 
-TFluentLogEvent TSchedulerStrategyHost::LogAccumulatedUsageEventFluently(TInstant /*now*/)
+TFluentLogEvent TStrategyHost::LogAccumulatedUsageEventFluently(TInstant /*now*/)
 {
     YT_UNIMPLEMENTED();
 }
 
-TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter) const
+TJobResources TStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
     auto it = FilterToAllocationResources_.find(filter);
     if (it != FilterToAllocationResources_.end()) {
@@ -111,22 +111,22 @@ TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilt
     return result;
 }
 
-TJobResources TSchedulerStrategyHost::GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const
+TJobResources TStrategyHost::GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const
 {
     return {};
 }
 
-void TSchedulerStrategyHost::Disconnect(const TError& /*error*/)
+void TStrategyHost::Disconnect(const TError& /*error*/)
 {
     YT_ABORT();
 }
 
-TInstant TSchedulerStrategyHost::GetConnectionTime() const
+TInstant TStrategyHost::GetConnectionTime() const
 {
     return TInstant();
 }
 
-TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
+TMemoryDistribution TStrategyHost::GetExecNodeMemoryDistribution(
     const TSchedulingTagFilter& filter) const
 {
     auto it = FilterToMemoryDistribution_.find(filter);
@@ -147,38 +147,38 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     return distribution;
 }
 
-void TSchedulerStrategyHost::AbortAllocationsAtNode(TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
+void TStrategyHost::AbortAllocationsAtNode(TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.
 }
 
-std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const std::string& /*mediumName*/) const
+std::optional<int> TStrategyHost::FindMediumIndexByName(const std::string& /*mediumName*/) const
 {
     return {};
 }
 
-const std::string& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
+const std::string& TStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
 {
     static const std::string defaultMediumName = "default";
     return defaultMediumName;
 }
 
-TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
+TString TStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return NScheduler::FormatResources(resources);
 }
 
-void TSchedulerStrategyHost::SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const
+void TStrategyHost::SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const
 {
     return NScheduler::SerializeJobResourcesWithQuota(resources, MediumDirectory_, consumer);
 }
 
-void TSchedulerStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const
+void TStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const
 {
     return NScheduler::SerializeDiskQuota(diskQuota, MediumDirectory_, consumer);
 }
 
-void TSchedulerStrategyHost::ValidatePoolPermission(
+void TStrategyHost::ValidatePoolPermission(
     const TString& /*treeId*/,
     TGuid /*poolObjectId*/,
     const TString& /*poolName*/,
@@ -186,28 +186,28 @@ void TSchedulerStrategyHost::ValidatePoolPermission(
     NYTree::EPermission /*permission*/) const
 { }
 
-void TSchedulerStrategyHost::MarkOperationAsRunningInStrategy(TOperationId /*operationId*/)
+void TStrategyHost::MarkOperationAsRunningInStrategy(TOperationId /*operationId*/)
 {
     // Nothing to do.
 }
 
-void TSchedulerStrategyHost::AbortOperation(TOperationId /*operationId*/, const TError& /*error*/)
+void TStrategyHost::AbortOperation(TOperationId /*operationId*/, const TError& /*error*/)
 {
     YT_ABORT();
 }
 
-void TSchedulerStrategyHost::FlushOperationNode(TOperationId /*operationId*/)
+void TStrategyHost::FlushOperationNode(TOperationId /*operationId*/)
 {
     YT_ABORT();
 }
 
-void TSchedulerStrategyHost::PreemptAllocation(const TAllocationPtr& allocation, TDuration /*interruptTimeout*/)
+void TStrategyHost::PreemptAllocation(const TAllocationPtr& allocation, TDuration /*interruptTimeout*/)
 {
     EraseOrCrash(allocation->GetNode()->Allocations(), allocation);
     allocation->SetState(EAllocationState::Finished);
 }
 
-NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()
+NYson::IYsonConsumer* TStrategyHost::GetEventLogConsumer()
 {
     YT_VERIFY(RemoteEventLogWriter_ || LocalEventLogWriter_);
     if (RemoteEventLogConsumer_) {
@@ -217,19 +217,19 @@ NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()
     }
 }
 
-const NLogging::TLogger* TSchedulerStrategyHost::GetEventLogger()
+const NLogging::TLogger* TStrategyHost::GetEventLogger()
 {
     return nullptr;
 }
 
-void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
+void TStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     if (!alert.IsOK()) {
         YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
     }
 }
 
-TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
+TFuture<void> TStrategyHost::SetOperationAlert(
     TOperationId /*operationId*/,
     EOperationAlertType /*alertType*/,
     const TError& /*alert*/,
@@ -238,7 +238,7 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
     return VoidFuture;
 }
 
-void TSchedulerStrategyHost::LogResourceMetering(
+void TStrategyHost::LogResourceMetering(
     const TMeteringKey& /*key*/,
     const TMeteringStatistics& /*statistics*/,
     const THashMap<TString, TString>& /*otherTags*/,
@@ -249,20 +249,20 @@ void TSchedulerStrategyHost::LogResourceMetering(
     // Skip!
 }
 
-int TSchedulerStrategyHost::GetDefaultAbcId() const
+int TStrategyHost::GetDefaultAbcId() const
 {
     return -1;
 }
 
-void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
+void TStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
 { }
 
-TFuture<void> TSchedulerStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)
+TFuture<void> TStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)
 {
     return VoidFuture;
 }
 
-void TSchedulerStrategyHost::CloseEventLogger()
+void TStrategyHost::CloseEventLogger()
 {
     if (RemoteEventLogWriter_) {
         WaitFor(RemoteEventLogWriter_->Close())
@@ -270,7 +270,7 @@ void TSchedulerStrategyHost::CloseEventLogger()
     }
 }
 
-const THashMap<std::string, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
+const THashMap<std::string, TString>& TStrategyHost::GetUserDefaultParentPoolMap() const
 {
     static const THashMap<std::string, TString> stub;
     return stub;

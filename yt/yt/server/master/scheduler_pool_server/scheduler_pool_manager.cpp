@@ -211,7 +211,7 @@ public:
 
     const THashSet<TInternedAttributeKey>& GetKnownPoolTreeAttributes() override
     {
-        return GetKnownAttributes<TFairShareStrategyTreeConfig>(KnownPoolTreeAttributes_);
+        return GetKnownAttributes<TStrategyTreeConfig>(KnownPoolTreeAttributes_);
     }
 
     template<class TConfig>

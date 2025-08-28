@@ -109,7 +109,7 @@ double PackingMetric(
     const TPackingNodeResourcesSnapshot& nodeResourcesSnapshot,
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits,
-    const TFairShareStrategyPackingConfigPtr& config)
+    const TStrategyPackingConfigPtr& config)
 {
     // NB: This function must be thread-safe.
 

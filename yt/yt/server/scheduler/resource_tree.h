@@ -28,10 +28,10 @@ class TResourceTree
 {
 public:
     TResourceTree(
-        const TFairShareStrategyTreeConfigPtr& config,
+        const TStrategyTreeConfigPtr& config,
         const std::vector<IInvokerPtr>& feasibleInvokers);
 
-    void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config);
+    void UpdateConfig(const TStrategyTreeConfigPtr& config);
 
     void IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
     void IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
