@@ -10,10 +10,7 @@ SRCS(
     controller_agent_tracker.cpp
     controller_agent_tracker_service.cpp
     exec_node.cpp
-    strategy_operation_controller.cpp
-    fields_filter.cpp
     helpers.cpp
-    job_resources_helpers.cpp
     master_connector.cpp
     node_manager.cpp
     node_shard.cpp
@@ -22,32 +19,38 @@ SRCS(
     operation_controller.cpp
     operation_controller_impl.cpp
     operations_cleaner.cpp
-    persistent_state.cpp
-    pool_tree.cpp
-    pool_tree_element.cpp
-    pool_tree_profile_manager.cpp
-    pool_tree_snapshot.cpp
-    pools_config_parser.cpp
     program.cpp
-    resource_tree.cpp
-    resource_tree_element.cpp
     scheduler.cpp
     scheduler_service.cpp
-    scheduling_heartbeat_context.cpp
-    scheduling_heartbeat_context_detail.cpp
-    serialize.cpp
-    strategy.cpp
 
-    policy/gpu_allocation_assignment_plan_update.cpp
-    policy/gpu_allocation_scheduler_structs.cpp
-    policy/operation_shared_state.cpp
-    policy/packing.cpp
-    policy/packing_detail.cpp
-    policy/persistent_state.cpp
-    policy/pool_tree_snapshot_state.cpp
-    policy/scheduling_policy.cpp
-    policy/scheduling_segment_manager.cpp
-    policy/structs.cpp
+    strategy/field_filter.cpp
+    strategy/helpers.cpp
+    strategy/job_resources_helpers.cpp
+    strategy/operation.cpp
+    strategy/operation_controller.cpp
+    strategy/operation_state.cpp
+    strategy/persistent_state.cpp
+    strategy/pool_tree.cpp
+    strategy/pool_tree_element.cpp
+    strategy/pool_tree_profile_manager.cpp
+    strategy/pool_tree_snapshot.cpp
+    strategy/pools_config_parser.cpp
+    strategy/resource_tree.cpp
+    strategy/resource_tree_element.cpp
+    strategy/scheduling_heartbeat_context.cpp
+    strategy/scheduling_heartbeat_context_detail.cpp
+    strategy/strategy.cpp
+
+    strategy/policy/gpu_allocation_assignment_plan_update.cpp
+    strategy/policy/gpu_allocation_scheduler_structs.cpp
+    strategy/policy/operation_shared_state.cpp
+    strategy/policy/packing.cpp
+    strategy/policy/packing_detail.cpp
+    strategy/policy/persistent_state.cpp
+    strategy/policy/pool_tree_snapshot_state.cpp
+    strategy/policy/scheduling_policy.cpp
+    strategy/policy/scheduling_segment_manager.cpp
+    strategy/policy/structs.cpp
 )
 
 PEERDIR(

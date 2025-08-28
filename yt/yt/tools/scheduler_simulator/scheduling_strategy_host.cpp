@@ -254,7 +254,7 @@ int TStrategyHost::GetDefaultAbcId() const
     return -1;
 }
 
-void TStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
+void TStrategyHost::InvokeStoringStrategyState(NStrategy::TPersistentStrategyStatePtr /*persistentStrategyState*/)
 { }
 
 TFuture<void> TStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)

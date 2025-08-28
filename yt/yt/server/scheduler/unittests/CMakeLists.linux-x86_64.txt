@@ -58,7 +58,7 @@ target_sources(unittester-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/packing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/pool_tree_element_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/scheduling_policy_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/strategy_operation_controller_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/operation_controller_ut.cpp
 )
 
 

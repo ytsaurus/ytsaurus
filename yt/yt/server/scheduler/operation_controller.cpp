@@ -2,7 +2,8 @@
 
 #include "bootstrap.h"
 #include "private.h"
-#include "pool_tree_element.h"
+
+#include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -111,7 +112,7 @@ void FromProto(
             },
             preemptionMode,
             allocationProto.tree_id(),
-            UndefinedSchedulingIndex,
+            NStrategy::NPolicy::UndefinedSchedulingIndex,
             /*schedulingStage*/ std::nullopt,
             /*networkPriority*/ std::nullopt,
             FromProto<NNodeTrackerClient::TNodeId>(allocationProto.node_id()),

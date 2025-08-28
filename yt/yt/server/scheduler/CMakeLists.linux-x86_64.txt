@@ -50,10 +50,7 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/exec_node.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy_operation_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/node_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/node_shard.cpp
@@ -62,30 +59,35 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operations_cleaner.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pool_tree.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pool_tree_element.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pool_tree_profile_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pool_tree_snapshot.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pools_config_parser.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/program.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree_element.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_heartbeat_context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_heartbeat_context_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/gpu_allocation_assignment_plan_update.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/gpu_allocation_scheduler_structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/operation_shared_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/packing.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/packing_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/persistent_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/pool_tree_snapshot_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/scheduling_policy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/scheduling_segment_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/structs.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/field_filter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/job_resources_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/operation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/operation_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/operation_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/persistent_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/pool_tree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/pool_tree_element.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/pool_tree_profile_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/pool_tree_snapshot.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/pools_config_parser.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/resource_tree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/resource_tree_element.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/scheduling_heartbeat_context_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/strategy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu_allocation_assignment_plan_update.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu_allocation_scheduler_structs.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/operation_shared_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/packing.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/packing_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/persistent_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/scheduling_policy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/scheduling_segment_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/structs.cpp
 )
 

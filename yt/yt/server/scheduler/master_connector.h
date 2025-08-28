@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/scheduler/strategy/public.h>
+
 #include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -94,7 +96,7 @@ public:
 
     TFuture<void> CheckTransactionAlive(NTransactionClient::TTransactionId transactionId);
 
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
+    void InvokeStoringStrategyState(NStrategy::TPersistentStrategyStatePtr strategyState);
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time);
 
