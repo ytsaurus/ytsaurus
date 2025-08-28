@@ -1,5 +1,6 @@
 from yt.common import wait, YtError
 
+from yt.environment.configs_provider import _init_logging
 from yt.environment import YTServerComponentBase, YTComponent
 
 import logging
@@ -36,9 +37,20 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 or "yql_plugin_shared_library" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
         
+<<<<<<< Updated upstream
         if "process_plugin_config" in config:
             enabled = config["process_plugin_config"].get("enabled", False)
             self.process_plugin_config = config["process_plugin_config"] if enabled else None
+=======
+        if "subprocesses_count" in config and config["subprocesses_count"] != 0:
+            logging_config = {}
+            _init_logging('/yt/plugin_slots/logs', 'yql-plugin', logging_config, env.yt_config)
+            self.process_plugin_config = {
+                "enabled": True,
+                "slot_count": config["subprocesses_count"],
+                "log_manager_template": logging_config
+            }
+>>>>>>> Stashed changes
 
         self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
 
@@ -141,6 +153,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "ui_origin": self.config.get("ui_origin", ""),
                 "yt_token_path": self.token_path,
                 "libraries": self.libraries,
+                "process_plugin_config": self.process_plugin_config,
             },
         }
 
