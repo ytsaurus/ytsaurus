@@ -42,6 +42,9 @@
 #include <yt/yt/server/master_cache/bootstrap.h>
 #include <yt/yt/server/master_cache/config.h>
 
+#include <yt/yt/server/chaos_cache/bootstrap.h>
+#include <yt/yt/server/chaos_cache/config.h>
+
 #include <yt/yt/server/queue_agent/bootstrap.h>
 #include <yt/yt/server/queue_agent/config.h>
 
@@ -148,6 +151,7 @@ const TDaemonTypeMap& GetDaemonTypeMap()
         .Add("discovery_server", NClusterDiscoveryServer::CreateDiscoveryServerBootstrap)
         .Add("kafka_proxy", NKafkaProxy::CreateKafkaProxyBootstrap)
         .Add("master_cache", NMasterCache::CreateMasterCacheBootstrap)
+        .Add("chaos_cache", NChaosCache::CreateChaosCacheBootstrap)
         .Add("queue_agent", NQueueAgent::CreateQueueAgentBootstrap)
         .Add("replicated_table_tracker", NReplicatedTableTracker::CreateReplicatedTableTrackerBootstrap)
         .Add("tablet_balancer", NTabletBalancer::CreateTabletBalancerBootstrap)
