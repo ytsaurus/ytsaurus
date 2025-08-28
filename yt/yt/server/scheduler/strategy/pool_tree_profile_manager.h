@@ -9,7 +9,7 @@ namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Manages profiling data of fair share tree.
+// Manages profiling data of a pool tree.
 class TPoolTreeProfileManager
     : public TRefCounted
 {

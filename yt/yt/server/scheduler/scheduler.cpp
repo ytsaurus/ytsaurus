@@ -1287,7 +1287,7 @@ public:
         // TODO(eshcherbin): Remove config option for this feature and move all logic inside strategy.
         auto scheduleOperationInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
         if (scheduleOperationInSingleTree) {
-            // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
+            // NB(eshcherbin): We need to make sure that all necessary information is in pool tree snapshots
             // before choosing the best single tree for this operation during |FinishOperationMaterialization| later.
             futures.push_back(Strategy_->GetFullFairShareUpdateFinished());
         }

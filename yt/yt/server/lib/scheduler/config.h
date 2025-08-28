@@ -65,7 +65,7 @@ DEFINE_ENUM(EDeactivationReason,
 struct TStrategyTestingOptions
     : public NYTree::TYsonStruct
 {
-    // Testing option that enables sleeping during fair share strategy update.
+    // Testing option that enables sleeping during strategy update.
     std::optional<TDuration> DelayInsideFairShareUpdate;
 
     REGISTER_YSON_STRUCT(TStrategyTestingOptions);
@@ -120,7 +120,7 @@ struct TStrategyOperationControllerConfig
     //! Timeout after which "schedule allocation timed out" alert is expired and unset.
     TDuration ScheduleAllocationTimeoutAlertResetTime;
 
-    //! Timeout for schedule allocations in fair share strategy.
+    //! Timeout for allocation scheduling in strategy.
     TDuration ScheduleAllocationsTimeout;
 
     //! Schedule allocation that longer this duration will be logged.
@@ -503,7 +503,7 @@ struct TPoolTreesTemplateConfig
     //! Tree name filter.
     NRe2::TRe2Ptr Filter;
 
-    //! Fair share strategy config for filter.
+    //! Tree config patch.
     NYTree::INodePtr Config;
 
     REGISTER_YSON_STRUCT(TPoolTreesTemplateConfig);
@@ -544,7 +544,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationStuckCheckOptions);
 struct TStrategyConfig
     : public TStrategyOperationControllerConfig
 {
-    //! How often to update, log, profile fair share in fair share trees.
+    //! How often to update, log, profile fair share in pool trees.
     TDuration FairShareUpdatePeriod;
     TDuration FairShareProfilingPeriod;
     TDuration FairShareLogPeriod;
@@ -964,7 +964,7 @@ struct TSchedulerConfig
     //! the scheduler's orchid.
     int OrchidWorkerThreadCount;
 
-    //! The number of threads in FSUpdatePool thread pool used for running fair share tree updates concurrently.
+    //! The number of threads in FSUpdatePool thread pool used for running pool tree updates concurrently.
     int FairShareUpdateThreadCount;
 
     //! The number of threads for background activity.
@@ -979,7 +979,7 @@ struct TSchedulerConfig
 
     int MaxEventLogNodeBatchSize;
 
-    //! Period of scanning node infos to check that it belongs to some fair share tree.
+    //! Period of scanning node infos to check that it belongs to some pool tree.
     TDuration ValidateNodeTagsPeriod;
 
     //! Enable immediate allocation abort if node reported zero number of user slots.
