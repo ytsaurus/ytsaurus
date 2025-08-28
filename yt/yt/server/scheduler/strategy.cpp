@@ -1,8 +1,8 @@
 #include "strategy.h"
 
-#include "fair_share_tree.h"
-#include "fair_share_tree_element.h"
-#include "fair_share_tree_snapshot.h"
+#include "pool_tree.h"
+#include "pool_tree_element.h"
+#include "pool_tree_snapshot.h"
 #include "persistent_state.h"
 #include "public.h"
 #include "scheduling_heartbeat_context.h"
@@ -49,7 +49,7 @@ using namespace NSecurityClient;
 
 class TStrategy
     : public IStrategy
-    , public IFairShareTreeHost
+    , public IPoolTreeHost
 {
 public:
     TStrategy(
@@ -445,7 +445,7 @@ public:
                             const auto& treeId = value.first;
                             const auto& tree = value.second;
                             fluent
-                                .Item(treeId).Do(BIND(&IFairShareTree::BuildStaticPoolsInformation, tree));
+                                .Item(treeId).Do(BIND(&IPoolTree::BuildStaticPoolsInformation, tree));
                         });
                 }
                 YT_LOG_INFO("Pool trees updated");
@@ -501,7 +501,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(&IFairShareTree::BuildOperationProgress, operationId, fluent);
+        DoBuildOperationProgress(&IPoolTree::BuildOperationProgress, operationId, fluent);
     }
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
@@ -512,7 +512,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(&IFairShareTree::BuildBriefOperationProgress, operationId, fluent);
+        DoBuildOperationProgress(&IPoolTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
     std::vector<std::pair<TOperationId, TError>> GetStuckOperations() override
@@ -599,7 +599,7 @@ public:
                 auto tree = GetTree(treeId);
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(std::bind(&IFairShareTree::BuildOperationAttributes, tree, operation->GetId(), std::placeholders::_1))
+                        .Do(std::bind(&IPoolTree::BuildOperationAttributes, tree, operation->GetId(), std::placeholders::_1))
                     .EndMap();
             })
             .Item("accumulated_resource_distribution_per_tree").Value(accumulatedResourceDistributionPerTree)
@@ -646,7 +646,7 @@ public:
 
         auto poolTrees = ParsePoolTrees(spec, operationType);
         for (const auto& poolTreeDescription : poolTrees) {
-            auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
+            auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Name);
             auto tree = GetTree(poolTreeDescription.Name);
             std::optional<TString> poolFromSpec;
@@ -701,7 +701,7 @@ public:
                             offloadingPoolSettings->Pool,
                             operationId);
                     } else {
-                        auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
+                        auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
                         const auto& poolName = offloadingPoolSettings->Pool.value_or(options->Pool.GetSpecifiedPoolName());
                         treeParams->Pool = tree->CreatePoolName(poolName, user);
@@ -727,7 +727,7 @@ public:
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
                 newPoolName = treeUpdateIt->second->Pool;
-                treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdateIt->second);
+                treeParams = UpdatePoolTreeRuntimeParameters(treeParams, treeUpdateIt->second);
             }
 
             // NB: root level attributes has higher priority.
@@ -845,7 +845,7 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        THashMap<TString, IFairShareTreePtr> idToTree;
+        THashMap<TString, IPoolTreePtr> idToTree;
         if (auto snapshot = TreeSetSnapshot_.Acquire()) {
             idToTree = snapshot->BuildIdToTreeMapping();
         } else {
@@ -924,7 +924,7 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        std::vector<std::pair<TString, IFairShareTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
+        std::vector<std::pair<TString, IPoolTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
         std::sort(
             idToTree.begin(),
             idToTree.end(),
@@ -932,7 +932,7 @@ public:
                 return lhs.second->GetOperationCount() > rhs.second->GetOperationCount();
             });
 
-        std::vector<TFuture<std::pair<IFairShareTreePtr, TError>>> futures;
+        std::vector<TFuture<std::pair<IPoolTreePtr, TError>>> futures;
         for (const auto& [treeId, tree] : idToTree) {
             futures.push_back(tree->OnFairShareUpdateAt(now));
         }
@@ -947,7 +947,7 @@ public:
             TDelayedExecutor::WaitForDuration(*delay);
         }
 
-        std::vector<IFairShareTreePtr> snapshottedTrees;
+        std::vector<IPoolTreePtr> snapshottedTrees;
         std::vector<TError> errors;
 
         const auto& results = resultsOrError.Value();
@@ -982,7 +982,7 @@ public:
                 TreeSetTopology_ = treeSetTopology;
             }
 
-            auto treeSetSnapshot = New<TFairShareTreeSetSnapshot>(
+            auto treeSetSnapshot = New<TPoolTreeSetSnapshot>(
                 std::move(snapshottedTrees),
                 TreeSetTopologyVersion_);
             TreeSetSnapshot_.Store(treeSetSnapshot);
@@ -1065,7 +1065,7 @@ public:
             allocationUpdatesPerTree[allocationUpdate.TreeId].push_back(allocationUpdate);
         }
 
-        THashMap<TString, IFairShareTreePtr> idToTree;
+        THashMap<TString, IPoolTreePtr> idToTree;
         if (auto snapshot = TreeSetSnapshot_.Acquire()) {
             idToTree = snapshot->BuildIdToTreeMapping();
         } else {
@@ -1179,14 +1179,14 @@ public:
             }));
     }
 
-    void RegisterNodeInTree(const IFairShareTreePtr& tree, TNodeId nodeId)
+    void RegisterNodeInTree(const IPoolTreePtr& tree, TNodeId nodeId)
     {
         auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, tree->GetId());
         InsertOrCrash(treeNodeIds, nodeId);
         tree->RegisterNode(nodeId);
     }
 
-    void UnregisterNodeInTree(const IFairShareTreePtr& tree, TNodeId nodeId)
+    void UnregisterNodeInTree(const IPoolTreePtr& tree, TNodeId nodeId)
     {
         auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, tree->GetId());
         EraseOrCrash(treeNodeIds, nodeId);
@@ -1566,8 +1566,8 @@ private:
 
     THashMap<TOperationId, TStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    using TFairShareTreeMap = THashMap<TString, IFairShareTreePtr>;
-    TFairShareTreeMap IdToTree_;
+    using TPoolTreeMap = THashMap<TString, IPoolTreePtr>;
+    TPoolTreeMap IdToTree_;
     bool Initialized_ = false;
 
     std::optional<TString> DefaultTreeId_;
@@ -1575,7 +1575,7 @@ private:
     // NB(eshcherbin): Note that these fair share tree mapping are only *snapshot* of actual mapping.
     // We should not expect that the set of trees or their structure in the snapshot are the same as
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
-    TAtomicIntrusivePtr<TFairShareTreeSetSnapshot> TreeSetSnapshot_;
+    TAtomicIntrusivePtr<TPoolTreeSetSnapshot> TreeSetSnapshot_;
 
     // Topology describes set of trees and their node filters.
     using TTreeSetTopology = std::vector<std::pair<TString, TSchedulingTagFilter>>;
@@ -1706,7 +1706,7 @@ private:
     }
 
     int FindTreeIndexForNode(
-        const std::vector<IFairShareTreePtr>& trees,
+        const std::vector<IPoolTreePtr>& trees,
         const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags) const
     {
@@ -1738,7 +1738,7 @@ private:
         return treeIndex;
     }
 
-    std::pair<IFairShareTreePtr, TMatchingTreeCookie> FindTreeForNodeWithCookie(
+    std::pair<IPoolTreePtr, TMatchingTreeCookie> FindTreeForNodeWithCookie(
         const std::string& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         TMatchingTreeCookie cookie) const
@@ -1765,7 +1765,7 @@ private:
         }
     }
 
-    IFairShareTreePtr FindTreeForNode(const std::string& nodeAddress, const TBooleanFormulaTags& nodeTags) const
+    IPoolTreePtr FindTreeForNode(const std::string& nodeAddress, const TBooleanFormulaTags& nodeTags) const
     {
         auto snapshot = TreeSetSnapshot_.Acquire();
         if (!snapshot) {
@@ -1821,13 +1821,13 @@ private:
         return GetOrCrash(OperationIdToOperationState_, operationId);
     }
 
-    IFairShareTreePtr FindTree(const TString& id) const
+    IPoolTreePtr FindTree(const TString& id) const
     {
         auto treeIt = IdToTree_.find(id);
         return treeIt != IdToTree_.end() ? treeIt->second : nullptr;
     }
 
-    IFairShareTreePtr GetTree(const TString& id) const
+    IPoolTreePtr GetTree(const TString& id) const
     {
         auto tree = FindTree(id);
         YT_VERIFY(tree);
@@ -1835,7 +1835,7 @@ private:
     }
 
     void DoBuildOperationProgress(
-        void (IFairShareTree::*method)(TOperationId operationId, TFluentMap fluent) const,
+        void (IPoolTree::*method)(TOperationId operationId, TFluentMap fluent) const,
         TOperationId operationId,
         TFluentMap fluent)
     {
@@ -1855,7 +1855,7 @@ private:
                 });
     }
 
-    void OnOperationRunningInTree(IFairShareTree* tree, TOperationId operationId) const
+    void OnOperationRunningInTree(IPoolTree* tree, TOperationId operationId) const
     {
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
@@ -1967,14 +1967,14 @@ private:
         }
     }
 
-    TFairShareTreeMap ConstructUpdatedTreeMap(
+    TPoolTreeMap ConstructUpdatedTreeMap(
         const IMapNodePtr& poolTreesMap,
         const THashSet<TString>& treesToAdd,
         const THashSet<TString>& treesToRemove,
         const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         std::vector<TError>* errors)
     {
-        TFairShareTreeMap trees;
+        TPoolTreeMap trees;
 
         for (const auto& treeId : treesToAdd) {
             TStrategyTreeConfigPtr treeConfig;
@@ -1988,7 +1988,7 @@ private:
                 continue;
             }
 
-            auto tree = CreateFairShareTree(treeConfig, Config_, this, Host_, FeasibleInvokers_, treeId);
+            auto tree = CreatePoolTree(treeConfig, Config_, this, Host_, FeasibleInvokers_, treeId);
             tree->SubscribeOperationRunning(BIND_NO_PROPAGATE(
                 &TStrategy::OnOperationRunningInTree,
                 Unretained(this),
@@ -2033,7 +2033,7 @@ private:
 
     void UpdateTreesConfigs(
         const IMapNodePtr& poolTreesMap,
-        const TFairShareTreeMap& trees,
+        const TPoolTreeMap& trees,
         const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         std::vector<TError>* errors,
         std::vector<TString>* updatedTreeIds) const
@@ -2199,7 +2199,7 @@ private:
         } else {
             auto& currentDescriptor = it->second;
             if (treeId != currentDescriptor.TreeId) {
-                OnNodeChangedFairShareTree(IdToTree_, nodeId, treeId);
+                OnNodeChangedPoolTree(IdToTree_, nodeId, treeId);
             }
 
             currentDescriptor.Tags = tags;
@@ -2216,7 +2216,7 @@ private:
     }
 
     void UpdateNodesOnChangedTrees(
-        const TFairShareTreeMap& newIdToTree,
+        const TPoolTreeMap& newIdToTree,
         const THashSet<TString> treeIdsToAdd,
         const THashSet<TString> treeIdsToRemove)
     {
@@ -2226,7 +2226,7 @@ private:
             EmplaceOrCrash(NodeIdsPerTree_, treeId, TNodeIdSet{});
         }
 
-        // NB(eshcherbin): |OnNodeChangedFairShareTree| requires both trees to be present in |NodeIdsPerTree_|.
+        // NB(eshcherbin): |OnNodeChangedPoolTree| requires both trees to be present in |NodeIdsPerTree_|.
         // This is why we add new trees before this cycle and remove old trees after it.
         for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
             std::optional<TString> newTreeId;
@@ -2242,7 +2242,7 @@ private:
                 NodeIdsWithoutTree_.insert(nodeId);
             }
             if (newTreeId != descriptor.TreeId) {
-                OnNodeChangedFairShareTree(newIdToTree, nodeId, newTreeId);
+                OnNodeChangedPoolTree(newIdToTree, nodeId, newTreeId);
             }
         }
 
@@ -2259,8 +2259,8 @@ private:
         ProcessNodesWithoutPoolTreeAlert();
     }
 
-    void OnNodeChangedFairShareTree(
-        const TFairShareTreeMap& idToTree,
+    void OnNodeChangedPoolTree(
+        const TPoolTreeMap& idToTree,
         TNodeId nodeId,
         const std::optional<TString>& newTreeId)
     {
@@ -2289,7 +2289,7 @@ private:
 
         currentDescriptor.TreeId = newTreeId;
 
-        Host_->AbortAllocationsAtNode(nodeId, EAbortReason::NodeFairShareTreeChanged);
+        Host_->AbortAllocationsAtNode(nodeId, EAbortReason::NodePoolTreeChanged);
     }
 
     void ProcessNodesWithoutPoolTreeAlert()
@@ -2321,12 +2321,12 @@ private:
     }
 
     void BuildTreeOrchid(
-        const IFairShareTreePtr& tree,
+        const IPoolTreePtr& tree,
         TFluentMap fluent)
     {
         const auto& nodeIds = NodeIdsPerTree_[tree->GetId()];
         fluent
-            .Item("user_to_ephemeral_pools").Do(BIND(&IFairShareTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
+            .Item("user_to_ephemeral_pools").Do(BIND(&IPoolTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("config").Value(tree->GetConfig())
             .Item("resource_limits").Value(Host_->GetResourceLimits(tree->GetNodesFilter()))
             .Item("resource_usage").Value(Host_->GetResourceUsage(tree->GetNodesFilter()))
@@ -2339,7 +2339,7 @@ private:
             .EndList()
             // This part is asynchronous.
             .Item("fair_share_info").BeginMap()
-                .Do(BIND(&IFairShareTree::BuildFairShareInfo, tree))
+                .Do(BIND(&IPoolTree::BuildFairShareInfo, tree))
             .EndMap();
     }
 
@@ -2497,7 +2497,7 @@ private:
         TNodeHeartbeatStrategyProxy(
             TNodeId nodeId,
             TStrategyConfigPtr config,
-            IFairShareTreePtr tree,
+            IPoolTreePtr tree,
             TMatchingTreeCookie cookie)
             : NodeId_(nodeId)
             , Config_(std::move(config))
@@ -2573,7 +2573,7 @@ private:
     private:
         const TNodeId NodeId_;
         const TStrategyConfigPtr Config_;
-        const IFairShareTreePtr Tree_;
+        const IPoolTreePtr Tree_;
         const TMatchingTreeCookie Cookie_;
     };
 };

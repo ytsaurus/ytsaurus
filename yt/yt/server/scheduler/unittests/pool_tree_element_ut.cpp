@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/fair_share_tree.h>
-#include <yt/yt/server/scheduler/fair_share_tree_element.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
+#include <yt/yt/server/scheduler/pool_tree.h>
+#include <yt/yt/server/scheduler/pool_tree_element.h>
 #include <yt/yt/server/scheduler/resource_tree.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
@@ -452,11 +452,11 @@ using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeElementHostMock
-    : public IFairShareTreeElementHost
+class TPoolTreeElementHostMock
+    : public IPoolTreeElementHost
 {
 public:
-    explicit TFairShareTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
+    explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
         : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
@@ -466,8 +466,8 @@ public:
     }
 
     void BuildElementLoggingStringAttributes(
-        const TFairShareTreeSnapshotPtr& /*treeSnapshot*/,
-        const TSchedulerElement* /*element*/,
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const TPoolTreeElement* /*element*/,
         TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
     {
         YT_UNIMPLEMENTED();
@@ -477,11 +477,11 @@ private:
     TResourceTreePtr ResourceTree_;
 };
 
-using TFairShareTreeElementHostMockPtr = TIntrusivePtr<TFairShareTreeElementHostMock>;
+using TPoolTreeElementHostMockPtr = TIntrusivePtr<TPoolTreeElementHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeElementTest
+class TPoolTreeElementTest
     : public testing::Test
 {
 public:
@@ -498,26 +498,26 @@ public:
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TStrategyTreeConfigPtr TreeConfig_ = New<TStrategyTreeConfig>();
-    TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
+    TPoolTreeElementHostMockPtr PoolTreeElementHostMock_ = New<TPoolTreeElementHostMock>(TreeConfig_);
 
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = NNodeTrackerClient::TNodeId(0);
 
-    TSchedulerRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)
+    TPoolTreeRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)
     {
-        return New<TSchedulerRootElement>(
+        return New<TPoolTreeRootElement>(
             strategyHost,
-            FairShareTreeElementHostMock_.Get(),
+            PoolTreeElementHostMock_.Get(),
             TreeConfig_,
             "default",
             SchedulerLogger());
     }
 
-    TSchedulerPoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TPoolTreePoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
-        return New<TSchedulerPoolElement>(
+        return New<TPoolTreePoolElement>(
             strategyHost,
-            FairShareTreeElementHostMock_.Get(),
+            PoolTreeElementHostMock_.Get(),
             name,
             /*objectId*/ NObjectClient::TObjectId(),
             std::move(config),
@@ -554,11 +554,11 @@ protected:
         return CreateIntegralPoolConfig(EIntegralGuaranteeType::Relaxed, flowCpu, 0.0, strongGuaranteeCpu, weight);
     }
 
-    TSchedulerOperationElementPtr CreateTestOperationElement(
+    TPoolTreeOperationElementPtr CreateTestOperationElement(
         IStrategyHost* strategyHost,
         IOperationStrategyHostPtr operation,
-        TSchedulerCompositeElement* parent,
-        TOperationFairShareTreeRuntimeParametersPtr runtimeParameters = nullptr,
+        TPoolTreeCompositeElement* parent,
+        TOperationPoolTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
         auto operationController = New<TStrategyOperationController>(
@@ -566,13 +566,13 @@ protected:
             SchedulerConfig_,
             strategyHost->GetNodeShardInvokers());
         if (!runtimeParameters) {
-            runtimeParameters = New<TOperationFairShareTreeRuntimeParameters>();
+            runtimeParameters = New<TOperationPoolTreeRuntimeParameters>();
             runtimeParameters->Weight = 1.0;
         }
         if (!operationSpec) {
             operationSpec = New<TStrategyOperationSpec>();
         }
-        auto operationElement = New<TSchedulerOperationElement>(
+        auto operationElement = New<TPoolTreeOperationElement>(
             TreeConfig_,
             operationSpec,
             New<TOperationOptions>(),
@@ -581,7 +581,7 @@ protected:
             SchedulerConfig_,
             New<TStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),
             strategyHost,
-            FairShareTreeElementHostMock_.Get(),
+            PoolTreeElementHostMock_.Get(),
             operation,
             "default",
             SchedulerLogger());
@@ -590,10 +590,10 @@ protected:
         return operationElement;
     }
 
-    std::pair<TSchedulerOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithAllocations(
+    std::pair<TPoolTreeOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithAllocations(
         int allocationCount,
         IStrategyHost* strategyHost,
-        TSchedulerCompositeElement* parent)
+        TPoolTreeCompositeElement* parent)
     {
         TJobResourcesWithQuota allocationResources;
         allocationResources.SetUserSlots(1);
@@ -648,14 +648,14 @@ protected:
         return New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
     }
 
-    void IncreaseOperationResourceUsage(const TSchedulerOperationElementPtr& operationElement, TJobResources resourceUsageDelta)
+    void IncreaseOperationResourceUsage(const TPoolTreeOperationElementPtr& operationElement, TJobResources resourceUsageDelta)
     {
         operationElement->CommitHierarchicalResourceUsage(resourceUsageDelta, /*precommittedResources*/ {});
     }
 
     void DoFairShareUpdate(
         const IStrategyHost* strategyHost,
-        const TSchedulerRootElementPtr& rootElement,
+        const TPoolTreeRootElementPtr& rootElement,
         TInstant now = TInstant(),
         std::optional<TInstant> previousUpdateTime = std::nullopt)
     {
@@ -692,11 +692,11 @@ protected:
     }
 
 private:
-    void ResetFairShareFunctionsRecursively(TSchedulerCompositeElement* compositeElement)
+    void ResetFairShareFunctionsRecursively(TPoolTreeCompositeElement* compositeElement)
     {
         compositeElement->ResetFairShareFunctions();
         for (const auto& child : compositeElement->EnabledChildren()) {
-            if (auto* childPool = dynamic_cast<TSchedulerCompositeElement*>(child.Get())) {
+            if (auto* childPool = dynamic_cast<TPoolTreeCompositeElement*>(child.Get())) {
                 ResetFairShareFunctionsRecursively(childPool);
             } else {
                 child->ResetFairShareFunctions();
@@ -749,7 +749,7 @@ MATCHER_P2(ResourceVolumeNear, vec, absError, "") {
 
 // Preupdate and postupdate tests.
 
-TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
+TEST_F(TPoolTreeElementTest, TestSatisfactionRatio)
 {
     constexpr int OperationCount = 4;
 
@@ -782,21 +782,21 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     poolD->AttachParent(rootElement.Get());
 
     std::array<TOperationStrategyHostMockPtr, OperationCount> operations;
-    std::array<TSchedulerOperationElementPtr, OperationCount> operationElements;
+    std::array<TPoolTreeOperationElementPtr, OperationCount> operationElements;
 
     for (auto& operation : operations) {
         operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
     }
 
     for (int i = 0; i < OperationCount; ++i) {
-        TSchedulerCompositeElement* parent = i < 2
+        TPoolTreeCompositeElement* parent = i < 2
             ? poolA.Get()
             : poolC.Get();
 
-        TOperationFairShareTreeRuntimeParametersPtr operationOptions;
+        TOperationPoolTreeRuntimeParametersPtr operationOptions;
         if (i == 2) {
             // We need this to ensure FIFO order of operations 2 and 3.
-            operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+            operationOptions = New<TOperationPoolTreeRuntimeParameters>();
             operationOptions->Weight = 10.0;
         }
 
@@ -862,7 +862,7 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestResourceLimits)
+TEST_F(TPoolTreeElementTest, TestResourceLimits)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -923,7 +923,7 @@ TEST_F(TFairShareTreeElementTest, TestResourceLimits)
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestSchedulingTagFilterResourceLimits)
+TEST_F(TPoolTreeElementTest, TestSchedulingTagFilterResourceLimits)
 {
     TJobResourcesWithQuota nodeResources1;
     nodeResources1.SetUserSlots(2);
@@ -986,7 +986,7 @@ TEST_F(TFairShareTreeElementTest, TestSchedulingTagFilterResourceLimits)
     auto poolE = CreateTestPool(strategyHost.Get(), "PoolE", configE);
     poolE->AttachParent(rootElement.Get());
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
     TJobResourcesWithQuota allocationResources;
@@ -1019,7 +1019,7 @@ TEST_F(TFairShareTreeElementTest, TestSchedulingTagFilterResourceLimits)
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestFractionalResourceLimits)
+TEST_F(TPoolTreeElementTest, TestFractionalResourceLimits)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -1055,7 +1055,7 @@ TEST_F(TFairShareTreeElementTest, TestFractionalResourceLimits)
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
+TEST_F(TPoolTreeElementTest, TestBestAllocationShare)
 {
     TJobResourcesWithQuota nodeResourcesA;
     nodeResourcesA.SetUserSlots(10);
@@ -1072,7 +1072,7 @@ TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
     allocationResources.SetCpu(1);
     allocationResources.SetMemory(150);
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
     auto execNodes = CreateTestExecNodeList(2, nodeResourcesA);
@@ -1095,12 +1095,12 @@ TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
     EXPECT_RV_NEAR(fairShare, operationElementX->Attributes().FairShare.Total);
 }
 
-TEST_F(TFairShareTreeElementTest, TestOperationCountLimits)
+TEST_F(TPoolTreeElementTest, TestOperationCountLimits)
 {
     auto strategyHost = New<TSchedulerStrategyHostMock>();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
-    TSchedulerPoolElementPtr pools[3];
+    TPoolTreePoolElementPtr pools[3];
     for (int i = 0; i < 3; ++i) {
         pools[i] = CreateTestPool(strategyHost.Get(), "pool" + ToString(i));
     }
@@ -1138,7 +1138,7 @@ TEST_F(TFairShareTreeElementTest, TestOperationCountLimits)
     EXPECT_EQ(0, rootElement->LightweightRunningOperationCount());
 }
 
-TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
+TEST_F(TPoolTreeElementTest, TestIncorrectStatusDueToPrecisionError)
 {
     // Test is based on real circumstances, all resource amounts are not random.
     TJobResourcesWithQuota nodeResources;
@@ -1191,7 +1191,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
 
 // Integral volume tests.
 
-TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionSimple)
+TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionSimple)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1228,7 +1228,7 @@ TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionSimple)
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolumeShares)
+TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolumeShares)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1272,7 +1272,7 @@ TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionWithMinimalVolum
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
+TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionIfPoolDoesNotAcceptIt)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1307,7 +1307,7 @@ TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionIfPoolDoesNotAcc
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionWithLimitedAcceptablePool)
+TEST_F(TPoolTreeElementTest, TestVolumeOverflowDistributionWithLimitedAcceptablePool)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1356,7 +1356,7 @@ TEST_F(TFairShareTreeElementTest, TestVolumeOverflowDistributionWithLimitedAccep
     }
 }
 
-TEST_F(TFairShareTreeElementTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)
+TEST_F(TPoolTreeElementTest, TestAccumulatedResourceVolumeRatioBeforeFairShareUpdate)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1366,7 +1366,7 @@ TEST_F(TFairShareTreeElementTest, TestAccumulatedResourceVolumeRatioBeforeFairSh
     EXPECT_EQ(0.0, relaxedPool->GetAccumulatedResourceRatioVolume());
 }
 
-TEST_F(TFairShareTreeElementTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume)
+TEST_F(TPoolTreeElementTest, TestPoolCapacityDoesntDecreaseExistingAccumulatedVolume)
 {
     auto strategyHost = CreateHostWith10NodesAnd10Cpu();
     auto rootElement = CreateTestRootElement(strategyHost.Get());
@@ -1398,7 +1398,7 @@ TEST_F(TFairShareTreeElementTest, TestPoolCapacityDoesntDecreaseExistingAccumula
 
 // Other tests.
 
-TEST_F(TFairShareTreeElementTest, TestGetPoolPath)
+TEST_F(TPoolTreeElementTest, TestGetPoolPath)
 {
     auto strategyHost = New<TSchedulerStrategyHostMock>();
     auto rootElement = CreateTestRootElement(strategyHost.Get());

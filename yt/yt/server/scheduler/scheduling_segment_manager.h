@@ -54,7 +54,7 @@ using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegme
 struct TUpdateSchedulingSegmentsContext
 {
     const TInstant Now;
-    const TFairShareTreeSnapshotPtr TreeSnapshot;
+    const TPoolTreeSnapshotPtr TreeSnapshot;
 
     // These are copies, it's safe to modify them.
     TSchedulingPolicyOperationStateMap OperationStates;
@@ -121,15 +121,15 @@ private:
     void DoUpdateSchedulingSegments(TUpdateSchedulingSegmentsContext* context);
     void Reset(TUpdateSchedulingSegmentsContext* context);
 
-    void ResetOperationModule(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
+    void ResetOperationModule(const TPoolTreeOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
     void PreemptNonPriorityOperationsFromModuleForOperation(
         TOperationId priorityOperationId,
         const TNonOwningOperationElementList& operations,
         TUpdateSchedulingSegmentsContext* context) const;
 
-    bool IsOperationEligibleForPriorityModuleAssignment(const TSchedulerOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
+    bool IsOperationEligibleForPriorityModuleAssignment(const TPoolTreeOperationElement* operationElement, TUpdateSchedulingSegmentsContext* context) const;
 
-    double GetElementFairResourceAmount(const TSchedulerOperationElement* element, TUpdateSchedulingSegmentsContext* context) const;
+    double GetElementFairResourceAmount(const TPoolTreeOperationElement* element, TUpdateSchedulingSegmentsContext* context) const;
 
     struct TOperationsToPreempt
     {

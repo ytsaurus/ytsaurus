@@ -85,7 +85,7 @@ void TSchedulingPolicyOperationSharedState::RecordPackingHeartbeat(
 }
 
 bool TSchedulingPolicyOperationSharedState::CheckPacking(
-    const TSchedulerOperationElement* operationElement,
+    const TPoolTreeOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& allocationResources,
     const TJobResources& totalResourceLimits,
@@ -100,7 +100,7 @@ bool TSchedulingPolicyOperationSharedState::CheckPacking(
 }
 
 bool TSchedulingPolicyOperationSharedState::ProcessAllocationUpdate(
-    TSchedulerOperationElement* operationElement,
+    TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
     const TJobResources& resources,
     bool resetPreemptibleProgress)
@@ -144,7 +144,7 @@ void TSchedulingPolicyOperationSharedState::PublishFairShare(const TResourceVect
 }
 
 bool TSchedulingPolicyOperationSharedState::OnAllocationStarted(
-    TSchedulerOperationElement* operationElement,
+    TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
     const TJobResourcesWithQuota& resourceUsage,
     const TJobResources& precommittedResources,
@@ -166,7 +166,7 @@ bool TSchedulingPolicyOperationSharedState::OnAllocationStarted(
 }
 
 bool TSchedulingPolicyOperationSharedState::OnAllocationFinished(
-    TSchedulerOperationElement* operationElement,
+    TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
     YT_ELEMENT_LOG_DETAILED(operationElement, "Removing allocation from strategy (AllocationId: %v)", allocationId);
@@ -181,7 +181,7 @@ bool TSchedulingPolicyOperationSharedState::OnAllocationFinished(
 }
 
 void TSchedulingPolicyOperationSharedState::ResetAllocationPreemptibleProgress(
-    TSchedulerOperationElement* operationElement,
+    TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
     YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
@@ -203,7 +203,7 @@ void TSchedulingPolicyOperationSharedState::ResetAllocationPreemptibleProgress(
 }
 
 void TSchedulingPolicyOperationSharedState::UpdatePreemptibleAllocationsList(
-    const TSchedulerOperationElement* element)
+    const TPoolTreeOperationElement* element)
 {
     TWallTimer timer;
 
@@ -217,7 +217,7 @@ void TSchedulingPolicyOperationSharedState::UpdatePreemptibleAllocationsList(
         moveCount);
 }
 
-void TSchedulingPolicyOperationSharedState::DoUpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element, int* moveCount)
+void TSchedulingPolicyOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOperationElement* element, int* moveCount)
 {
     auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
         return TResourceVector::FromJobResources(allocationResources, element->GetTotalResourceLimits());
@@ -619,7 +619,7 @@ TInstant TSchedulingPolicyOperationSharedState::GetLastScheduleAllocationSuccess
     return LastScheduleAllocationSuccessTime_;
 }
 
-std::optional<TString> TSchedulerOperationElement::GetCustomProfilingTag() const
+std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
 {
     auto tagName = Spec_->CustomProfilingTag;
     if (!tagName) {

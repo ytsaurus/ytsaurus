@@ -1,7 +1,7 @@
 #pragma once
 
 #include "private.h"
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 
@@ -13,12 +13,12 @@ using TTreeSnapshotId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeSnapshot
+class TPoolTreeSnapshot
     : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TTreeSnapshotId, Id);
 
-    DEFINE_BYREF_RO_PROPERTY(TSchedulerRootElementPtr, RootElement);
+    DEFINE_BYREF_RO_PROPERTY(TPoolTreeRootElementPtr, RootElement);
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, EnabledOperationMap);
     DEFINE_BYREF_RO_PROPERTY(TNonOwningOperationElementMap, DisabledOperationMap);
     DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolElementMap, PoolMap);
@@ -31,9 +31,9 @@ class TFairShareTreeSnapshot
     DEFINE_BYREF_RO_PROPERTY(TJobResourcesByTagFilter, ResourceLimitsByTagFilter);
 
 public:
-    TFairShareTreeSnapshot(
+    TPoolTreeSnapshot(
         TTreeSnapshotId id,
-        TSchedulerRootElementPtr rootElement,
+        TPoolTreeRootElementPtr rootElement,
         TNonOwningOperationElementMap enabledOperationIdToElement,
         TNonOwningOperationElementMap disabledOperationIdToElement,
         TNonOwningPoolElementMap poolNameToElement,
@@ -45,30 +45,30 @@ public:
         TSchedulingPolicyPoolTreeSnapshotStatePtr schedulingPolicyState,
         TJobResourcesByTagFilter resourceLimitsByTagFilter);
 
-    TSchedulerPoolElement* FindPool(const TString& poolName) const;
-    TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
-    TSchedulerOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
+    TPoolTreePoolElement* FindPool(const TString& poolName) const;
+    TPoolTreeOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
+    TPoolTreeOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
 
-    bool IsElementEnabled(const TSchedulerElement* element) const;
+    bool IsElementEnabled(const TPoolTreeElement* element) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshot)
+DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeSetSnapshot
+class TPoolTreeSetSnapshot
     : public TRefCounted
 {
 public:
-    TFairShareTreeSetSnapshot(std::vector<IFairShareTreePtr> trees, int topologyVersion);
+    TPoolTreeSetSnapshot(std::vector<IPoolTreePtr> trees, int topologyVersion);
 
-    THashMap<TString, IFairShareTreePtr> BuildIdToTreeMapping() const;
+    THashMap<TString, IPoolTreePtr> BuildIdToTreeMapping() const;
 
-    DEFINE_BYREF_RO_PROPERTY(std::vector<IFairShareTreePtr>, Trees);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<IPoolTreePtr>, Trees);
     DEFINE_BYVAL_RO_PROPERTY(int, TopologyVersion);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeSetSnapshot)
+DEFINE_REFCOUNTED_TYPE(TPoolTreeSetSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +89,7 @@ using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(eshcherbin): Maybe move to helpers.cpp or somewhere else?
-TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapshotPtr& treeSnapshot);
+TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TPoolTreeSnapshotPtr& treeSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include "packing.h"
-#include "fair_share_tree_element.h"
+#include "pool_tree_element.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
@@ -20,7 +20,7 @@ public:
 
     // Returns true if operation is enabled and false otherwise.
     bool ProcessAllocationUpdate(
-        TSchedulerOperationElement* operationElement,
+        TPoolTreeOperationElement* operationElement,
         TAllocationId allocationId,
         const TJobResources& resources,
         bool resetAllocationPreemptibleProgress);
@@ -30,15 +30,15 @@ public:
     void PublishFairShare(const TResourceVector& fairShare);
 
     bool OnAllocationStarted(
-        TSchedulerOperationElement* operationElement,
+        TPoolTreeOperationElement* operationElement,
         TAllocationId allocationId,
         const TJobResourcesWithQuota& resourceUsage,
         const TJobResources& precommittedResources,
         TControllerEpoch scheduleAllocationEpoch,
         bool force = false);
-    bool OnAllocationFinished(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
+    bool OnAllocationFinished(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
     void UpdatePreemptibleAllocationsList(
-        const TSchedulerOperationElement* element);
+        const TPoolTreeOperationElement* element);
 
     bool GetPreemptible() const;
     void SetPreemptible(bool value);
@@ -78,7 +78,7 @@ public:
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TStrategyPackingConfigPtr& config);
     bool CheckPacking(
-        const TSchedulerOperationElement* operationElement,
+        const TPoolTreeOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& allocationResources,
         const TJobResources& totalResourceLimits,
@@ -155,7 +155,7 @@ private:
 
     TPackingStatistics HeartbeatStatistics_;
 
-    void DoUpdatePreemptibleAllocationsList(const TSchedulerOperationElement* element, int* moveCount);
+    void DoUpdatePreemptibleAllocationsList(const TPoolTreeOperationElement* element, int* moveCount);
 
     void AddAllocation(TAllocationId allocationId, const TJobResourcesWithQuota& resourceUsage);
     std::optional<TJobResources> RemoveAllocation(TAllocationId allocationId);
@@ -170,7 +170,7 @@ private:
     // Collect up-to-date values from node shards local counters.
     void UpdateDiagnosticCounters();
 
-    void ResetAllocationPreemptibleProgress(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
+    void ResetAllocationPreemptibleProgress(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
 };
 
 using TSchedulingPolicyOperationSharedStatePtr = TIntrusivePtr<TSchedulingPolicyOperationSharedState>;

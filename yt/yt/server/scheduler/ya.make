@@ -11,10 +11,6 @@ SRCS(
     controller_agent_tracker_service.cpp
     exec_node.cpp
     strategy_operation_controller.cpp
-    fair_share_tree.cpp
-    fair_share_tree_element.cpp
-    fair_share_tree_profiling.cpp
-    fair_share_tree_snapshot.cpp
     fields_filter.cpp
     gpu_allocation_assignment_plan_update.cpp
     gpu_allocation_scheduler_structs.cpp
@@ -31,6 +27,10 @@ SRCS(
     packing.cpp
     packing_detail.cpp
     persistent_state.cpp
+    pool_tree.cpp
+    pool_tree_element.cpp
+    pool_tree_profile_manager.cpp
+    pool_tree_snapshot.cpp
     pools_config_parser.cpp
     program.cpp
     resource_tree.cpp
