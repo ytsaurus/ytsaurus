@@ -237,7 +237,7 @@ static const auto EmptyListYsonString = BuildYsonStringFluently()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This class represents fair share tree.
+//! This class represents a pool tree.
 //!
 //! We maintain following entities:
 //!
@@ -315,7 +315,7 @@ public:
 
         ProfileManager_->RegisterPool(RootElement_);
 
-        YT_LOG_INFO("Fair share tree created");
+        YT_LOG_INFO("Pool tree created");
     }
 
 
@@ -419,7 +419,7 @@ public:
 
         AtomicTreeSnapshot_ = TreeSnapshot_;
 
-        YT_LOG_DEBUG("Stored updated fair share tree snapshot");
+        YT_LOG_DEBUG("Stored updated pool tree snapshot");
 
         // Offload destroying previous tree snapshot.
         StrategyHost_->GetBackgroundInvoker()->Invoke(BIND([oldTreeSnapshot = std::move(oldTreeSnapshot)] { }));
@@ -1697,7 +1697,7 @@ private:
 
     void ThrowOrchidIsNotReady() const
     {
-        THROW_ERROR_EXCEPTION("Fair share tree orchid is not ready yet")
+        THROW_ERROR_EXCEPTION("Pool tree orchid is not ready yet")
             << TErrorAttribute("tree_id", TreeId_);
     }
 
@@ -1740,7 +1740,7 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_LOG_DEBUG("Preparing for fair share tree update");
+        YT_LOG_DEBUG("Preparing for pool tree fair share update");
 
         ResourceTree_->PerformPostponedActions();
 
@@ -1771,7 +1771,7 @@ private:
                 {
                     TEventTimerGuard timer(FairShareUpdateTimer_);
 
-                    YT_LOG_DEBUG("Fair share tree update started");
+                    YT_LOG_DEBUG("Pool tree fair share update started");
 
                     fairShareUpdateResult.ResourceUsage = StrategyHost_->GetResourceUsage(config->NodesFilter);
                     fairShareUpdateResult.ResourceLimits = StrategyHost_->GetResourceLimits(config->NodesFilter);
@@ -1815,7 +1815,7 @@ private:
                     fairShareUpdateResult.PoolNameToElement = std::move(fairSharePostUpdateContext.PoolNameToElement);
 
                     YT_LOG_DEBUG(
-                        "Fair share tree update finished "
+                        "Pool tree fair share update finished "
                         "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v)",
                         rootElement->GetTreeSize(),
                         rootElement->SchedulableElementCount(),
@@ -1831,7 +1831,7 @@ private:
         auto fairShareUpdateResult = WaitFor(asyncUpdate)
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Processing fair share tree update result and creating a tree snapshot");
+        YT_LOG_DEBUG("Processing pool tree fair share update result and creating a tree snapshot");
 
         TError error;
         if (!fairShareUpdateResult.Errors.empty()) {
@@ -1873,7 +1873,7 @@ private:
 
         SchedulingPolicy_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
 
-        YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
+        YT_LOG_DEBUG("Pool tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
 
         TreeSnapshotPrecommit_ = std::move(treeSnapshot);
         LastFairShareUpdateTime_ = now;
@@ -2897,7 +2897,7 @@ private:
 
         auto treeSnapshotId = treeSnapshot->GetId();
         if (treeSnapshotId == LastLoggedTreeSnapshotId_) {
-            YT_LOG_DEBUG("Skipping fair share tree logging since the tree snapshot is the same as before (TreeSnapshotId: %v)",
+            YT_LOG_DEBUG("Skipping pool tree logging since the tree snapshot is the same as before (TreeSnapshotId: %v)",
                 treeSnapshotId);
 
             return;

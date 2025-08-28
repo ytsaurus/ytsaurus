@@ -3053,7 +3053,7 @@ TOperationPoolTreeRuntimeParametersPtr UpdatePoolTreeRuntimeParameters(
         }
         return UpdateYsonStruct(origin, ConvertToNode(update));
     } catch (const std::exception& exception) {
-        THROW_ERROR_EXCEPTION("Error updating operation fair share tree runtime parameters")
+        THROW_ERROR_EXCEPTION("Error updating operation pool tree runtime parameters")
             << exception;
     }
 }

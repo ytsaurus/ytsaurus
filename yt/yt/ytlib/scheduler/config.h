@@ -2284,7 +2284,7 @@ struct TOperationRuntimeParametersUpdate
 
 DEFINE_REFCOUNTED_TYPE(TOperationRuntimeParametersUpdate)
 
-//! Return new fair share tree runtime parameters applying |update| to |origin|.
+//! Return new pool tree runtime parameters applying |update| to |origin|.
 //! |origin| can be |nullptr|, in this case an attempt
 //! to create a new parameters object from |update| will be taken.
 //! |origin| object is not changed.

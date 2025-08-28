@@ -361,7 +361,7 @@ public:
         std::vector<TOperationId> changedOperationIds;
         TError error;
         {
-            // No context switches allowed while fair share trees update.
+            // No context switches allowed during pool trees update.
             TForbidContextSwitchGuard contextSwitchGuard;
 
             YT_LOG_INFO("Updating pool trees");
@@ -988,7 +988,7 @@ public:
                 TreeSetTopologyVersion_);
             TreeSetSnapshot_.Store(treeSetSnapshot);
 
-            YT_LOG_DEBUG("Stored updated fair share tree snapshots");
+            YT_LOG_DEBUG("Stored updated pool tree snapshots");
         }
 
         if (!errors.empty()) {
@@ -1573,7 +1573,7 @@ private:
 
     std::optional<TString> DefaultTreeId_;
 
-    // NB(eshcherbin): Note that these fair share tree mapping are only *snapshot* of actual mapping.
+    // NB(eshcherbin): Note that these pool tree mapping are only *snapshot* of actual mapping.
     // We should not expect that the set of trees or their structure in the snapshot are the same as
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
     TAtomicIntrusivePtr<TPoolTreeSetSnapshot> TreeSetSnapshot_;
@@ -2166,7 +2166,7 @@ private:
             NodeIdsWithoutTree_.erase(nodeId);
             treeId = treeIds[0];
         } else {
-            THROW_ERROR_EXCEPTION("Node belongs to more than one fair share tree")
+            THROW_ERROR_EXCEPTION("Node belongs to more than one pool tree")
                     << TErrorAttribute("matched_pool_trees", treeIds);
         }
 
