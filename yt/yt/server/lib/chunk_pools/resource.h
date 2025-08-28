@@ -27,6 +27,8 @@ struct TResourceVector
     TResourceVector operator-(const TResourceVector& other) const;
     TResourceVector& operator-=(const TResourceVector& other);
 
+    bool operator==(const TResourceVector& other) const = default;
+
     TResourceVector operator*(double scale) const;
 
     TResourceVector& PartialMultiply(double scale, const std::vector<EResourceKind>& resourceKinds, i64 clampValue);

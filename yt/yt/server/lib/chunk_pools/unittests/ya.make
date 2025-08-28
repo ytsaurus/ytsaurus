@@ -22,6 +22,7 @@ SRCS(
     ordered_chunk_pool_ut.cpp
     sorted_chunk_pool_new_keys_ut.cpp
     sorted_chunk_pool_ut.cpp
+    sorted_staging_area_ut.cpp
     unordered_chunk_pool_ut.cpp
 )
 
