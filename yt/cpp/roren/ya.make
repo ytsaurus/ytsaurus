@@ -20,4 +20,9 @@ IF (NOT OPENSOURCE)
         yt/test_medium
         yt/ut
     )
+
+    RECURSE_FOR_TESTS(
+        flow/extensions/bigrt/test_medium
+        flow/extensions/logbroker/test_medium
+    )
 ENDIF()
