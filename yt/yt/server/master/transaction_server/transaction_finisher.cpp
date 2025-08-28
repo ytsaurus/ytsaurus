@@ -394,7 +394,7 @@ public:
             leasesState,
             MakeFinishRequestFormatter(request));
 
-        if (IsLeader()) {
+        if (inserted && IsLeader()) {
             auto activeRequestCount = GetActiveRequestCount(transaction);
             if (activeRequestCount == 0) {
                 ScheduleFinish(transaction);
