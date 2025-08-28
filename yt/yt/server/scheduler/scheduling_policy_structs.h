@@ -28,14 +28,14 @@ void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareTreeAllocationSchedulerAllocationState
+struct TSchedulingPolicyAllocationState
     : public NYTree::TYsonStructLite
 {
     TOperationId OperationId;
     TJobResources ResourceLimits;
     EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
 
-    REGISTER_YSON_STRUCT_LITE(TFairShareTreeAllocationSchedulerAllocationState);
+    REGISTER_YSON_STRUCT_LITE(TSchedulingPolicyAllocationState);
 
     static void Register(TRegistrar);
 };
@@ -43,7 +43,7 @@ struct TFairShareTreeAllocationSchedulerAllocationState
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(eshcherbin): Make this refcounted?
-struct TFairShareTreeAllocationSchedulerNodeState
+struct TSchedulingPolicyNodeState
 {
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     TExecNodeDescriptorPtr Descriptor;
@@ -55,14 +55,14 @@ struct TFairShareTreeAllocationSchedulerNodeState
     std::optional<NProfiling::TCpuInstant> LastRunningAllocationStatisticsUpdateTime;
     bool ForceRunningAllocationStatisticsUpdate = false;
 
-    THashMap<TAllocationId, TFairShareTreeAllocationSchedulerAllocationState> RunningAllocations;
+    THashMap<TAllocationId, TSchedulingPolicyAllocationState> RunningAllocations;
 };
 
-using TFairShareTreeAllocationSchedulerNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TFairShareTreeAllocationSchedulerNodeState>;
+using TSchedulingPolicyNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TSchedulingPolicyNodeState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareTreeAllocationSchedulerOperationState final
+struct TSchedulingPolicyOperationState final
 {
     const TStrategyOperationSpecPtr Spec;
     const bool IsGang;
@@ -78,13 +78,13 @@ struct TFairShareTreeAllocationSchedulerOperationState final
     std::optional<TInstant> FailingToScheduleAtModuleSince;
     std::optional<TInstant> FailingToAssignToModuleSince;
 
-    TFairShareTreeAllocationSchedulerOperationState(
+    TSchedulingPolicyOperationState(
         TStrategyOperationSpecPtr spec,
         bool isGang);
 };
 
-using TFairShareTreeAllocationSchedulerOperationStatePtr = TIntrusivePtr<TFairShareTreeAllocationSchedulerOperationState>;
-using TFairShareTreeAllocationSchedulerOperationStateMap = THashMap<TOperationId, TFairShareTreeAllocationSchedulerOperationStatePtr>;
+using TSchedulingPolicyOperationStatePtr = TIntrusivePtr<TSchedulingPolicyOperationState>;
+using TSchedulingPolicyOperationStateMap = THashMap<TOperationId, TSchedulingPolicyOperationStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

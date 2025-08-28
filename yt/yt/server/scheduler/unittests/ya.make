@@ -6,11 +6,11 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     fair_share_tree_element_ut.cpp
-    fair_share_tree_allocation_scheduler_ut.cpp
     gpu_allocation_assignment_plan_update_ut.cpp
     helpers_ut.cpp
     job_metrics_ut.cpp
     packing_ut.cpp
+    scheduling_policy_ut.cpp
     strategy_operation_controller_ut.cpp
 )
 

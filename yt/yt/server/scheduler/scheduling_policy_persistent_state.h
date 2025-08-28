@@ -57,17 +57,17 @@ DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPersistentFairShareTreeAllocationSchedulerState
+struct TSchedulingPolicyPersistentState
     : public NYTree::TYsonStruct
 {
     TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
 
-    REGISTER_YSON_STRUCT(TPersistentFairShareTreeAllocationSchedulerState);
+    REGISTER_YSON_STRUCT(TSchedulingPolicyPersistentState);
 
     static void Register(TRegistrar registrar);
 };
 
-using TPersistentFairShareTreeAllocationSchedulerStatePtr = TIntrusivePtr<TPersistentFairShareTreeAllocationSchedulerState>;
+using TSchedulingPolicyPersistentStatePtr = TIntrusivePtr<TSchedulingPolicyPersistentState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

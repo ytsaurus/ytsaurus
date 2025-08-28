@@ -1,8 +1,8 @@
 #include "scheduling_segment_manager.h"
 
 #include "private.h"
-#include "persistent_fair_share_tree_allocation_scheduler_state.h"
-#include "fair_share_tree_scheduling_snapshot.h"
+#include "scheduling_policy_persistent_state.h"
+#include "scheduling_policy_pool_tree_snapshot_state.h"
 #include "fair_share_tree_snapshot.h"
 
 #include <util/generic/algorithm.h>
@@ -26,7 +26,7 @@ inline constexpr double ResourceAmountPrecision = 1e-6;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double GetNodeResourceLimit(const TFairShareTreeAllocationSchedulerNodeState& node, EJobResourceType resourceType)
+double GetNodeResourceLimit(const TSchedulingPolicyNodeState& node, EJobResourceType resourceType)
 {
     return node.Descriptor->Online
         ? GetResource(node.Descriptor->ResourceLimits, resourceType)
@@ -44,7 +44,7 @@ EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode)
 }
 
 TNodeMovePenalty GetMovePenaltyForNode(
-    const TFairShareTreeAllocationSchedulerNodeState& node,
+    const TSchedulingPolicyNodeState& node,
     ESegmentedSchedulingMode mode)
 {
     auto keyResource = GetSegmentBalancingKeyResource(mode);
@@ -165,7 +165,7 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
 
 TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     TOperationId operationId,
-    const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState) const
+    const TSchedulingPolicyOperationStatePtr& operationState) const
 {
     TError error;
 
@@ -315,7 +315,7 @@ bool TSchedulingSegmentManager::IsOperationEligibleForPriorityModuleAssignment(
     TUpdateSchedulingSegmentsContext* context) const
 {
     const auto& treeSnapshot = context->TreeSnapshot;
-    const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(operationElement);
+    const auto& attributes = treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(operationElement);
     const auto& operation = context->OperationStates[operationElement->GetOperationId()];
     auto failingToAssignToModuleSince = operation->FailingToAssignToModuleSince;
 
@@ -348,7 +348,7 @@ THashMap<TSchedulingSegmentModule, TNonOwningOperationElementList> TSchedulingSe
             continue;
         }
 
-        const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element);
+        const auto& attributes = treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element);
         auto operationHasPriority = attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled;
         if (auto module = operation->SchedulingSegmentModule;
             module && !operationHasPriority)
@@ -638,7 +638,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
     struct TOperationStateWithElement
     {
         TOperationId OperationId;
-        TFairShareTreeAllocationSchedulerOperationState* Operation;
+        TSchedulingPolicyOperationState* Operation;
         TSchedulerOperationElement* Element;
         bool OperationHasPriority;
     };
@@ -1247,7 +1247,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
     }
 }
 
-const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TFairShareTreeAllocationSchedulerNodeState& node) const
+const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TSchedulingPolicyNodeState& node) const
 {
     YT_ASSERT(node.Descriptor);
 
@@ -1255,7 +1255,7 @@ const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const T
 }
 
 void TSchedulingSegmentManager::SetNodeSegment(
-    TFairShareTreeAllocationSchedulerNodeState* node,
+    TSchedulingPolicyNodeState* node,
     ESchedulingSegment segment,
     TUpdateSchedulingSegmentsContext* context) const
 {
@@ -1380,7 +1380,7 @@ TOneShotFluentLogEvent TSchedulingSegmentManager::LogStructuredGpuEventFluently(
 
 void TSchedulingSegmentManager::BuildGpuOperationInfo(
     TOperationId operationId,
-    const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState,
+    const TSchedulingPolicyOperationStatePtr& operationState,
     TFluentMap fluent) const
 {
     fluent
@@ -1396,7 +1396,7 @@ void TSchedulingSegmentManager::BuildGpuOperationInfo(
 }
 
 void TSchedulingSegmentManager::BuildGpuNodeInfo(
-    const TFairShareTreeAllocationSchedulerNodeState& nodeState,
+    const TSchedulingPolicyNodeState& nodeState,
     TFluentMap fluent) const
 {
     if (!nodeState.Descriptor) {
