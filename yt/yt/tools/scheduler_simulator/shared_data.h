@@ -198,11 +198,11 @@ class TSharedStrategy
 {
 public:
     TSharedStrategy(
-        const NScheduler::IStrategyPtr& schedulerStrategy,
+        const NScheduler::NStrategy::IStrategyPtr& schedulerStrategy,
         TStrategyHost& strategyHost,
         const IInvokerPtr& controlThreadInvoker);
 
-    NScheduler::INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
+    NScheduler::NStrategy::INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
         NNodeTrackerClient::TNodeId nodeId,
         const std::string& address,
         const TBooleanFormulaTags& tags,
@@ -211,11 +211,11 @@ public:
     void PreemptAllocation(const NScheduler::TAllocationPtr& allocation);
 
     void ProcessAllocationUpdates(
-        const std::vector<NScheduler::TAllocationUpdate>& allocationUpdates,
+        const std::vector<NScheduler::NStrategy::TAllocationUpdate>& allocationUpdates,
         THashSet<NScheduler::TAllocationId>* allocationsToPostpone,
         THashMap<NScheduler::TAllocationId, NScheduler::EAbortReason>* allocationsToAbort);
 
-    void UnregisterOperation(const NScheduler::IOperationStrategyHostPtr& operation);
+    void UnregisterOperation(const NScheduler::NStrategy::IOperationPtr& operation);
 
     void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,
@@ -224,7 +224,7 @@ public:
         NYTree::TFluentMap fluent) const;
 
 private:
-    NScheduler::IStrategyPtr Strategy_;
+    NScheduler::NStrategy::IStrategyPtr Strategy_;
     TStrategyHost& StrategyHost_;
     IInvokerPtr ControlThreadInvoker_;
 };

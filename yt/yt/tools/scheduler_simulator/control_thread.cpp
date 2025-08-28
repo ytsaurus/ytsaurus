@@ -4,8 +4,8 @@
 #include "node_shard.h"
 #include "node_worker.h"
 
-#include <yt/yt/server/scheduler/pool_tree.h>
-#include <yt/yt/server/scheduler/strategy.h>
+#include <yt/yt/server/scheduler/strategy/pool_tree.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <yt/yt/client/security_client/acl.h>
 
@@ -19,6 +19,7 @@
 namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
+using namespace NScheduler::NStrategy;
 using namespace NLogging;
 using namespace NConcurrency;
 using namespace NYTree;

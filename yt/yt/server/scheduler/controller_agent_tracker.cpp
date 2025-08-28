@@ -1,14 +1,15 @@
 #include "controller_agent_tracker.h"
 
 #include "scheduler.h"
-#include "strategy.h"
 #include "controller_agent.h"
 #include "operation.h"
 #include "node_manager.h"
 #include "operation_controller_impl.h"
-#include "scheduling_heartbeat_context.h"
 #include "master_connector.h"
 #include "bootstrap.h"
+
+#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
