@@ -1,7 +1,7 @@
 #include "fair_share_tree.h"
 
 #include "fair_share_tree_element.h"
-#include "fair_share_tree_allocation_scheduler.h"
+#include "scheduling_policy.h"
 #include "fair_share_tree_snapshot.h"
 #include "persistent_state.h"
 #include "public.h"
@@ -278,7 +278,7 @@ static const auto EmptyListYsonString = BuildYsonStringFluently()
 class TFairShareTree
     : public IFairShareTree
     , public IFairShareTreeElementHost
-    , public IFairShareTreeAllocationSchedulerHost
+    , public ISchedulingPolicyHost
 {
 public:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
@@ -298,29 +298,29 @@ public:
         , Host_(host)
         , StrategyHost_(strategyHost)
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
-        , TreeProfiler_(
+        , Profiler_(
             SchedulerProfiler()
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))
-        , TreeScheduler_(New<TFairShareTreeAllocationScheduler>(
+        , SchedulingPolicy_(New<TSchedulingPolicy>(
             TreeId_,
             Logger,
             MakeWeak(this),
             Host_,
             StrategyHost_,
             Config_,
-            TreeProfiler_))
-        , TreeProfileManager_(New<TFairShareTreeProfileManager>(
-            TreeProfiler_,
+            Profiler_))
+        , ProfileManager_(New<TFairShareTreeProfileManager>(
+            Profiler_,
             Config_->SparsifyFairShareProfiling,
             strategyHost->GetFairShareProfilingInvoker(),
-            TreeScheduler_))
+            SchedulingPolicy_))
         , FeasibleInvokers_(feasibleInvokers)
-        , FairSharePreUpdateTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_preupdate_time"))
-        , FairShareUpdateTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_update_time"))
-        , FairShareFluentLogTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_fluent_log_time"))
-        , FairShareTextLogTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_text_log_time"))
+        , FairSharePreUpdateTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_preupdate_time"))
+        , FairShareUpdateTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_update_time"))
+        , FairShareFluentLogTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_fluent_log_time"))
+        , FairShareTextLogTimer_(ProfileManager_->GetProfiler().Timer("/fair_share_text_log_time"))
         , AccumulatedPoolResourceUsageForMetering_(
             /*accumulateUsageForPools*/ true,
             /*accumulateUsageForOperations*/ false)
@@ -333,7 +333,7 @@ public:
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
-        TreeProfileManager_->RegisterPool(RootElement_);
+        ProfileManager_->RegisterPool(RootElement_);
 
         YT_LOG_INFO("Fair share tree created");
     }
@@ -389,7 +389,7 @@ public:
         RootElement_->UpdateTreeConfig(Config_);
         ResourceTree_->UpdateConfig(Config_);
 
-        TreeScheduler_->UpdateConfig(Config_);
+        SchedulingPolicy_->UpdateConfig(Config_);
 
         if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
@@ -491,7 +491,7 @@ public:
             TreeId_,
             Logger);
 
-        TreeScheduler_->RegisterOperation(operationElement.Get());
+        SchedulingPolicy_->RegisterOperation(operationElement.Get());
 
         YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);
 
@@ -528,15 +528,15 @@ public:
         auto* pool = operationElement->GetMutableParent();
 
         // Profile finished operation.
-        TreeProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
+        ProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
-        TreeScheduler_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
+        SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
         operationElement->DetachParent();
 
         ReleaseOperationSlotIndex(state, pool->GetId());
         OnOperationRemovedFromPool(state, operationElement, pool);
 
-        TreeScheduler_->UnregisterOperation(operationElement.Get());
+        SchedulingPolicy_->UnregisterOperation(operationElement.Get());
 
         EraseOrCrash(OperationIdToElement_, operationId);
 
@@ -554,7 +554,7 @@ public:
 
         operationElement->GetMutableParent()->EnableChild(operationElement);
 
-        TreeScheduler_->EnableOperation(operationElement.Get());
+        SchedulingPolicy_->EnableOperation(operationElement.Get());
     }
 
     void DisableOperation(const TStrategyOperationStatePtr& state) override
@@ -562,7 +562,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
-        TreeScheduler_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
+        SchedulingPolicy_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
 
@@ -628,7 +628,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
-        TreeScheduler_->RegisterAllocationsFromRevivedOperation(element.Get(), std::move(allocations));
+        SchedulingPolicy_->RegisterAllocationsFromRevivedOperation(element.Get(), std::move(allocations));
     }
 
     void RegisterNode(TNodeId nodeId) override
@@ -637,7 +637,7 @@ public:
 
         ++NodeCount_;
 
-        TreeScheduler_->RegisterNode(nodeId);
+        SchedulingPolicy_->RegisterNode(nodeId);
     }
 
     void UnregisterNode(TNodeId nodeId) override
@@ -646,7 +646,7 @@ public:
 
         --NodeCount_;
 
-        TreeScheduler_->UnregisterNode(nodeId);
+        SchedulingPolicy_->UnregisterNode(nodeId);
     }
 
     const TString& GetId() const override
@@ -732,14 +732,14 @@ public:
             }
         }
 
-        auto allocationSchedulerError = TFairShareTreeAllocationScheduler::CheckOperationIsStuck(
+        auto schedulingPolicyError = TSchedulingPolicy::CheckOperationIsStuck(
             GetTreeSnapshot(),
             element,
             now,
             activationTime,
             options);
-        if (!allocationSchedulerError.IsOK()) {
-            return allocationSchedulerError;
+        if (!schedulingPolicyError.IsOK()) {
+            return schedulingPolicyError;
         }
 
         return TError();
@@ -1049,7 +1049,7 @@ public:
             }
         }
 
-        result->AllocationSchedulerState = TreeScheduler_->BuildPersistentState();
+        result->SchedulingPolicyState = SchedulingPolicy_->BuildPersistentState();
 
         return result;
     }
@@ -1075,7 +1075,7 @@ public:
             }
         }
 
-        TreeScheduler_->InitPersistentState(persistentState->AllocationSchedulerState);
+        SchedulingPolicy_->InitPersistentState(persistentState->SchedulingPolicyState);
     }
 
     TError OnOperationMaterialized(TOperationId operationId) override
@@ -1083,7 +1083,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        return TreeScheduler_->OnOperationMaterialized(element.Get());
+        return SchedulingPolicy_->OnOperationMaterialized(element.Get());
     }
 
     TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
@@ -1109,7 +1109,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        return TreeScheduler_->CheckOperationSchedulingInSeveralTreesAllowed(element.Get());
+        return SchedulingPolicy_->CheckOperationSchedulingInSeveralTreesAllowed(element.Get());
     }
 
     std::vector<TString> GetAncestorPoolNames(const TSchedulerOperationElement* element) const
@@ -1290,7 +1290,7 @@ public:
             .EndMap();
         }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
-        TreeScheduler_->PopulateOrchidService(dynamicOrchidService);
+        SchedulingPolicy_->PopulateOrchidService(dynamicOrchidService);
 
         return dynamicOrchidService;
     }
@@ -1306,7 +1306,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return TreeProfileManager_.Get();
+        return ProfileManager_.Get();
     }
 
     void SetResourceUsageSnapshot(TResourceUsageSnapshotPtr snapshot)
@@ -1348,9 +1348,9 @@ private:
 
     TResourceTreePtr ResourceTree_;
 
-    const NProfiling::TProfiler TreeProfiler_;
-    TFairShareTreeAllocationSchedulerPtr TreeScheduler_;
-    TFairShareTreeProfileManagerPtr TreeProfileManager_;
+    const NProfiling::TProfiler Profiler_;
+    const TSchedulingPolicyPtr SchedulingPolicy_;
+    const TFairShareTreeProfileManagerPtr ProfileManager_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
 
@@ -1772,7 +1772,7 @@ private:
             rootElement->InitializeFairShareUpdate(now);
         }
 
-        auto allocationSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(rootElement.Get());
+        auto schedulingPolicyPostUpdateContext = SchedulingPolicy_->CreatePostUpdateContext(rootElement.Get());
 
         auto asyncUpdate =
             BIND([
@@ -1782,7 +1782,7 @@ private:
                 treeId = TreeId_,
                 config = Config_,
                 &rootElement,
-                &allocationSchedulerPostUpdateContext,
+                &schedulingPolicyPostUpdateContext,
                 lastFairShareUpdateTime = LastFairShareUpdateTime_
             ] () -> TFairShareUpdateResult {
                 TFairShareUpdateResult fairShareUpdateResult;
@@ -1828,7 +1828,7 @@ private:
                     rootElement->PostUpdate(&fairSharePostUpdateContext);
                     rootElement->UpdateStarvationStatuses(now, config->EnablePoolStarvation);
 
-                    TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &allocationSchedulerPostUpdateContext);
+                    SchedulingPolicy_->PostUpdate(&fairSharePostUpdateContext, &schedulingPolicyPostUpdateContext);
 
                     fairShareUpdateResult.EnabledOperationIdToElement = std::move(fairSharePostUpdateContext.EnabledOperationIdToElement);
                     fairShareUpdateResult.DisabledOperationIdToElement = std::move(fairSharePostUpdateContext.DisabledOperationIdToElement);
@@ -1876,7 +1876,7 @@ private:
         rootElement->MarkImmutable();
 
         auto treeSnapshotId = TTreeSnapshotId::Create();
-        auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(&allocationSchedulerPostUpdateContext);
+        auto schedulingPolicyState = SchedulingPolicy_->CreateSnapshotState(&schedulingPolicyPostUpdateContext);
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             treeSnapshotId,
             std::move(rootElement),
@@ -1888,10 +1888,10 @@ private:
             fairShareUpdateResult.ResourceUsage,
             fairShareUpdateResult.ResourceLimits,
             nodeCount,
-            std::move(treeSchedulingSnapshot),
+            std::move(schedulingPolicyState),
             std::move(fairShareUpdateResult.ResourceLimitsByTagFilter));
 
-        TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
+        SchedulingPolicy_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
 
         YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
 
@@ -1908,7 +1908,7 @@ private:
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
-        TreeProfileManager_->RegisterPool(pool);
+        ProfileManager_->RegisterPool(pool);
     }
 
     void RegisterPool(const TSchedulerPoolElementPtr& pool, const TSchedulerCompositeElementPtr& parent)
@@ -2009,7 +2009,7 @@ private:
         // Pool may be not presented in this map.
         PoolToSpareSlotIndices_.erase(pool->GetId());
 
-        TreeProfileManager_->UnregisterPool(pool);
+        ProfileManager_->UnregisterPool(pool);
 
         // We cannot use pool after erase because Pools may contain last alive reference to it.
         auto extractedPool = std::move(Pools_[pool->GetId()]);
@@ -2169,7 +2169,7 @@ private:
         const TSchedulerElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        TreeScheduler_->BuildElementLoggingStringAttributes(treeSnapshot, element, delimitedBuilder);
+        SchedulingPolicy_->BuildElementLoggingStringAttributes(treeSnapshot, element, delimitedBuilder);
     }
 
     void OnOperationRemovedFromPool(
@@ -2651,8 +2651,8 @@ private:
         YT_VERIFY(treeSnapshot);
 
         auto processSchedulingHeartbeatFuture = BIND(
-            &TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat,
-            TreeScheduler_,
+            &TSchedulingPolicy::ProcessSchedulingHeartbeat,
+            SchedulingPolicy_,
             schedulingHeartbeatContext,
             treeSnapshot,
             skipScheduleAllocations)
@@ -2727,7 +2727,7 @@ private:
                 allocationUpdate.OperationId,
                 allocationUpdate.AllocationId);
 
-            return TreeScheduler_->ProcessFinishedAllocation(
+            return SchedulingPolicy_->ProcessFinishedAllocation(
                 treeSnapshot,
                 operationElement,
                 allocationUpdate.AllocationId);
@@ -2743,7 +2743,7 @@ private:
             allocationUpdate.ResetPreemptibleProgress,
             allocationUpdate.AllocationResources);
 
-        return TreeScheduler_->ProcessAllocationUpdate(
+        return SchedulingPolicy_->ProcessAllocationUpdate(
             treeSnapshot,
             operationElement,
             allocationUpdate.AllocationId,
@@ -2785,7 +2785,7 @@ private:
 
         StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
             &TFairShareTreeProfileManager::ApplyJobMetricsDelta,
-            TreeProfileManager_,
+            ProfileManager_,
             treeSnapshot,
             Passed(std::move(jobMetricsPerOperation))));
     }
@@ -2833,7 +2833,7 @@ private:
 
         StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
             &TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta,
-            TreeProfileManager_,
+            ProfileManager_,
             treeSnapshot,
             Passed(std::move(scheduledAllocationResources)),
             Passed(std::move(preemptedAllocationResources)),
@@ -2882,12 +2882,12 @@ private:
 
     void BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        TreeScheduler_->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
+        SchedulingPolicy_->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
     }
 
     void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override
     {
-        TreeScheduler_->BuildSchedulingAttributesForNode(nodeId, fluent);
+        SchedulingPolicy_->BuildSchedulingAttributesForNode(nodeId, fluent);
     }
 
     void BuildSchedulingAttributesStringForOngoingAllocations(
@@ -2895,7 +2895,7 @@ private:
         TInstant now,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        TreeScheduler_->BuildSchedulingAttributesStringForOngoingAllocations(GetAtomicTreeSnapshot(), allocations, now, delimitedBuilder);
+        SchedulingPolicy_->BuildSchedulingAttributesStringForOngoingAllocations(GetAtomicTreeSnapshot(), allocations, now, delimitedBuilder);
     }
 
     void ProfileFairShare() const override
@@ -2904,7 +2904,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        TreeProfileManager_->ProfileTree(
+        ProfileManager_->ProfileTree(
             treeSnapshot,
             AccumulatedOperationsResourceDistributionForProfiling_.ExtractOperationResourceDistributionVolumes());
     }
@@ -3021,7 +3021,7 @@ private:
 
         YT_LOG_DEBUG("Updating resource usage snapshot");
 
-        TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, resourceUsageSnapshot);
+        SchedulingPolicy_->OnResourceUsageSnapshotUpdate(treeSnapshot, resourceUsageSnapshot);
         SetResourceUsageSnapshot(std::move(resourceUsageSnapshot));
     }
 
@@ -3400,7 +3400,7 @@ private:
             .Item("user").Value(element->GetUserName())
             .Item("type").Value(element->GetOperationType())
             .Item("title").Value(element->GetTitle())
-            .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&TSchedulingPolicy::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }
 
@@ -3523,7 +3523,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&TFairShareTreeAllocationScheduler::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&TSchedulingPolicy::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

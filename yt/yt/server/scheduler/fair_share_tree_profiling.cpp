@@ -1,6 +1,6 @@
 #include "fair_share_tree_profiling.h"
 
-#include "fair_share_tree_allocation_scheduler.h"
+#include "scheduling_policy.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -22,11 +22,11 @@ TFairShareTreeProfileManager::TFairShareTreeProfileManager(
     TProfiler profiler,
     bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker,
-    TFairShareTreeAllocationSchedulerPtr treeScheduler)
+    TSchedulingPolicyPtr schedulingPolicy)
     : Profiler_(std::move(profiler))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
-    , TreeScheduler_(std::move(treeScheduler))
+    , SchedulingPolicy_(std::move(schedulingPolicy))
     , NodeCountGauge_(Profiler_.Gauge("/node_count_per_tree"))
     , PoolCountGauge_(Profiler_.Gauge("/pools/pool_count"))
     , TotalElementCountGauge_(Profiler_.Gauge("/pools/total_element_count"))
@@ -402,7 +402,7 @@ void TFairShareTreeProfileManager::ProfileOperations(
             element,
             treeSnapshot->TreeConfig());
 
-        TreeScheduler_->ProfileOperation(element, treeSnapshot, &buffer);
+        SchedulingPolicy_->ProfileOperation(element, treeSnapshot, &buffer);
 
         auto& operationState = GetOrCrash(OperationIdToState_, operationId);
         if (auto it = operationIdToAccumulatedResourceDistributionDelta.find(operationId);

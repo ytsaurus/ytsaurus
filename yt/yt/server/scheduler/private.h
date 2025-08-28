@@ -17,7 +17,7 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareTree)
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
 
 struct IFairShareTreeHost;
-struct IFairShareTreeAllocationSchedulerHost;
+struct ISchedulingPolicyHost;
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)
@@ -31,10 +31,10 @@ DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
 DECLARE_REFCOUNTED_CLASS(TScheduleAllocationsContext)
 
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationController)
-DECLARE_REFCOUNTED_CLASS(TFairShareTreeAllocationScheduler)
+DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSetSnapshot)
-DECLARE_REFCOUNTED_CLASS(TFairShareTreeSchedulingSnapshot)
+DECLARE_REFCOUNTED_CLASS(TSchedulingPolicyPoolTreeSnapshotState)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
 
 DECLARE_REFCOUNTED_STRUCT(TGpuSchedulerAssignment)

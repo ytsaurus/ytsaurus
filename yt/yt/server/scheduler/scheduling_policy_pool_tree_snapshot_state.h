@@ -1,8 +1,8 @@
 #pragma once
 
 #include "private.h"
-#include "fair_share_tree_allocation_scheduler_structs.h"
-#include "fair_share_tree_allocation_scheduler_operation_shared_state.h"
+#include "scheduling_policy_structs.h"
+#include "scheduling_policy_operation_shared_state.h"
 
 namespace NYT::NScheduler {
 
@@ -23,8 +23,8 @@ struct TStaticAttributes
 
     // Only for operations.
     EOperationSchedulingPriority SchedulingPriority = EOperationSchedulingPriority::Medium;
-    TFairShareTreeAllocationSchedulerOperationStatePtr OperationState;
-    TFairShareTreeAllocationSchedulerOperationSharedStatePtr OperationSharedState;
+    TSchedulingPolicyOperationStatePtr OperationState;
+    TSchedulingPolicyOperationSharedStatePtr OperationSharedState;
     bool AreRegularAllocationsOnSsdNodesAllowed = true;
 };
 
@@ -40,7 +40,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeSchedulingSnapshot
+class TSchedulingPolicyPoolTreeSnapshotState
     : public TRefCounted
 {
 public:
@@ -52,22 +52,22 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOperationCountsByPreemptionPriorityParameters, OperationCountsByPreemptionPriorityParameters);
 
 public:
-    TFairShareTreeSchedulingSnapshot(
+    TSchedulingPolicyPoolTreeSnapshotState(
         TStaticAttributesList staticAttributesList,
         TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
         THashSet<int> ssdPriorityPreemptionMedia,
         TCachedAllocationPreemptionStatuses cachedAllocationPreemptionStatuses,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
         TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
-        TFairShareTreeAllocationSchedulerOperationStateMap operationIdToState,
-        TFairShareTreeAllocationSchedulerSharedOperationStateMap operationIdToSharedState);
+        TSchedulingPolicyOperationStateMap operationIdToState,
+        TSchedulingPolicySharedOperationStateMap operationIdToSharedState);
 
-    const TFairShareTreeAllocationSchedulerOperationStatePtr& GetOperationState(const TSchedulerOperationElement* element) const;
-    const TFairShareTreeAllocationSchedulerOperationSharedStatePtr& GetOperationSharedState(const TSchedulerOperationElement* element) const;
+    const TSchedulingPolicyOperationStatePtr& GetOperationState(const TSchedulerOperationElement* element) const;
+    const TSchedulingPolicyOperationSharedStatePtr& GetOperationSharedState(const TSchedulerOperationElement* element) const;
 
     //! Faster versions of |GetOperationState| and |GetOperationSharedState| which do not do an extra hashmap lookup and rely on tree indices instead.
-    const TFairShareTreeAllocationSchedulerOperationStatePtr& GetEnabledOperationState(const TSchedulerOperationElement* element) const;
-    const TFairShareTreeAllocationSchedulerOperationSharedStatePtr& GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const;
+    const TSchedulingPolicyOperationStatePtr& GetEnabledOperationState(const TSchedulerOperationElement* element) const;
+    const TSchedulingPolicyOperationSharedStatePtr& GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const;
 
     //! NB(eshcherbin): This is the only part of the snapshot, that isn't constant.
     // It's just much more convenient to store dynamic attributes list snapshot together with the tree snapshot.
@@ -75,17 +75,17 @@ public:
 
 private:
     // NB(eshcherbin): Enabled operations' states are also stored in static attributes to eliminate a hashmap lookup during scheduling.
-    TFairShareTreeAllocationSchedulerOperationStateMap OperationIdToState_;
-    TFairShareTreeAllocationSchedulerSharedOperationStateMap OperationIdToSharedState_;
+    TSchedulingPolicyOperationStateMap OperationIdToState_;
+    TSchedulingPolicySharedOperationStateMap OperationIdToSharedState_;
     TAtomicIntrusivePtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 
     void SetDynamicAttributesListSnapshot(const TDynamicAttributesListSnapshotPtr& dynamicAttributesListSnapshotPtr);
     void ResetDynamicAttributesListSnapshot();
 
-    friend class TFairShareTreeAllocationScheduler;
+    friend class TSchedulingPolicy;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeSchedulingSnapshot)
+DEFINE_REFCOUNTED_TYPE(TSchedulingPolicyPoolTreeSnapshotState)
 
 ////////////////////////////////////////////////////////////////////////////////
 

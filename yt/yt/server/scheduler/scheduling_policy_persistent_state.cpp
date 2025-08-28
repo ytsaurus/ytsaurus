@@ -1,4 +1,4 @@
-#include "persistent_fair_share_tree_allocation_scheduler_state.h"
+#include "scheduling_policy_persistent_state.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -70,7 +70,7 @@ void TPersistentSchedulingSegmentsState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPersistentFairShareTreeAllocationSchedulerState::Register(TRegistrar registrar)
+void TSchedulingPolicyPersistentState::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduling_segments_state", &TThis::SchedulingSegmentsState)
         .DefaultNew();

@@ -17,7 +17,7 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
     int nodeCount,
-    TFairShareTreeSchedulingSnapshotPtr schedulingSnapshot,
+    TSchedulingPolicyPoolTreeSnapshotStatePtr schedulingPolicyState,
     TJobResourcesByTagFilter resourceLimitsByTagFilter)
     : Id_(id)
     , RootElement_(std::move(rootElement))
@@ -29,7 +29,7 @@ TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     , ResourceUsage_(resourceUsage)
     , ResourceLimits_(resourceLimits)
     , NodeCount_(nodeCount)
-    , SchedulingSnapshot_(std::move(schedulingSnapshot))
+    , SchedulingPolicyState_(std::move(schedulingPolicyState))
     , ResourceLimitsByTagFilter_(std::move(resourceLimitsByTagFilter))
 { }
 

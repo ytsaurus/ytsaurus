@@ -27,7 +27,8 @@ void TPersistentTreeState::Register(TRegistrar registrar)
     registrar.Parameter("pool_states", &TThis::PoolStates)
         .Default();
 
-    registrar.Parameter("allocation_scheduler_state", &TThis::AllocationSchedulerState)
+    registrar.Parameter("scheduling_policy_state", &TThis::SchedulingPolicyState)
+        .Alias("allocation_scheduler_state")
         .Alias("job_scheduler_state")
         .Default();
 }
