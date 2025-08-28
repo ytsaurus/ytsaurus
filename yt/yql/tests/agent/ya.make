@@ -1,5 +1,9 @@
 PY3TEST()
 
+PY_SRCS(
+    common.py
+)
+
 TEST_SRCS(
     conftest.py
     test_simple.py
@@ -29,8 +33,10 @@ IF (NOT OPENSOURCE)
     INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
-IF (SANITIZER_TYPE == "address" OR SANITIZER_TYPE == "memory")
-    TAG(ya:not_autocheck)
+IF (SANITIZER_TYPE)
+    DEPENDS(
+        contrib/libs/llvm18/tools/llvm-symbolizer
+    )
 ENDIF()
 
 FORK_SUBTESTS()
