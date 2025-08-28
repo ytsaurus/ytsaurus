@@ -1,15 +1,15 @@
 #include "scheduling_segment_manager.h"
 
-#include "private.h"
-#include "scheduling_policy_persistent_state.h"
-#include "scheduling_policy_pool_tree_snapshot_state.h"
-#include "pool_tree_snapshot.h"
+#include "persistent_state.h"
+#include "pool_tree_snapshot_state.h"
 
-#include <util/generic/algorithm.h>
+#include <yt/yt/server/scheduler/pool_tree_snapshot.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-namespace NYT::NScheduler {
+#include <util/generic/algorithm.h>
+
+namespace NYT::NScheduler::NPolicy {
 
 using namespace NConcurrency;
 using namespace NLogging;
@@ -26,7 +26,7 @@ inline constexpr double ResourceAmountPrecision = 1e-6;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double GetNodeResourceLimit(const TSchedulingPolicyNodeState& node, EJobResourceType resourceType)
+double GetNodeResourceLimit(const TNodeState& node, EJobResourceType resourceType)
 {
     return node.Descriptor->Online
         ? GetResource(node.Descriptor->ResourceLimits, resourceType)
@@ -44,7 +44,7 @@ EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode)
 }
 
 TNodeMovePenalty GetMovePenaltyForNode(
-    const TSchedulingPolicyNodeState& node,
+    const TNodeState& node,
     ESegmentedSchedulingMode mode)
 {
     auto keyResource = GetSegmentBalancingKeyResource(mode);
@@ -165,7 +165,7 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
 
 TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     TOperationId operationId,
-    const TSchedulingPolicyOperationStatePtr& operationState) const
+    const TOperationStatePtr& operationState) const
 {
     TError error;
 
@@ -638,7 +638,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
     struct TOperationStateWithElement
     {
         TOperationId OperationId;
-        TSchedulingPolicyOperationState* Operation;
+        TOperationState* Operation;
         TPoolTreeOperationElement* Element;
         bool OperationHasPriority;
     };
@@ -1247,7 +1247,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
     }
 }
 
-const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TSchedulingPolicyNodeState& node) const
+const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TNodeState& node) const
 {
     YT_ASSERT(node.Descriptor);
 
@@ -1255,7 +1255,7 @@ const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const T
 }
 
 void TSchedulingSegmentManager::SetNodeSegment(
-    TSchedulingPolicyNodeState* node,
+    TNodeState* node,
     ESchedulingSegment segment,
     TUpdateSchedulingSegmentsContext* context) const
 {
@@ -1380,7 +1380,7 @@ TOneShotFluentLogEvent TSchedulingSegmentManager::LogStructuredGpuEventFluently(
 
 void TSchedulingSegmentManager::BuildGpuOperationInfo(
     TOperationId operationId,
-    const TSchedulingPolicyOperationStatePtr& operationState,
+    const TOperationStatePtr& operationState,
     TFluentMap fluent) const
 {
     fluent
@@ -1396,7 +1396,7 @@ void TSchedulingSegmentManager::BuildGpuOperationInfo(
 }
 
 void TSchedulingSegmentManager::BuildGpuNodeInfo(
-    const TSchedulingPolicyNodeState& nodeState,
+    const TNodeState& nodeState,
     TFluentMap fluent) const
 {
     if (!nodeState.Descriptor) {
@@ -1450,4 +1450,4 @@ void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsCo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

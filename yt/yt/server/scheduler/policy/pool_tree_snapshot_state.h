@@ -1,10 +1,10 @@
 #pragma once
 
 #include "private.h"
-#include "scheduling_policy_structs.h"
-#include "scheduling_policy_operation_shared_state.h"
+#include "structs.h"
+#include "operation_shared_state.h"
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,8 +23,8 @@ struct TStaticAttributes
 
     // Only for operations.
     EOperationSchedulingPriority SchedulingPriority = EOperationSchedulingPriority::Medium;
-    TSchedulingPolicyOperationStatePtr OperationState;
-    TSchedulingPolicyOperationSharedStatePtr OperationSharedState;
+    TOperationStatePtr OperationState;
+    TOperationSharedStatePtr OperationSharedState;
     bool AreRegularAllocationsOnSsdNodesAllowed = true;
 };
 
@@ -40,7 +40,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulingPolicyPoolTreeSnapshotState
+class TPoolTreeSnapshotState
     : public TRefCounted
 {
 public:
@@ -52,22 +52,22 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOperationCountsByPreemptionPriorityParameters, OperationCountsByPreemptionPriorityParameters);
 
 public:
-    TSchedulingPolicyPoolTreeSnapshotState(
+    TPoolTreeSnapshotState(
         TStaticAttributesList staticAttributesList,
         TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
         THashSet<int> ssdPriorityPreemptionMedia,
         TCachedAllocationPreemptionStatuses cachedAllocationPreemptionStatuses,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
         TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
-        TSchedulingPolicyOperationStateMap operationIdToState,
-        TSchedulingPolicySharedOperationStateMap operationIdToSharedState);
+        TOperationStateMap operationIdToState,
+        TSharedOperationStateMap operationIdToSharedState);
 
-    const TSchedulingPolicyOperationStatePtr& GetOperationState(const TPoolTreeOperationElement* element) const;
-    const TSchedulingPolicyOperationSharedStatePtr& GetOperationSharedState(const TPoolTreeOperationElement* element) const;
+    const TOperationStatePtr& GetOperationState(const TPoolTreeOperationElement* element) const;
+    const TOperationSharedStatePtr& GetOperationSharedState(const TPoolTreeOperationElement* element) const;
 
     //! Faster versions of |GetOperationState| and |GetOperationSharedState| which do not do an extra hashmap lookup and rely on tree indices instead.
-    const TSchedulingPolicyOperationStatePtr& GetEnabledOperationState(const TPoolTreeOperationElement* element) const;
-    const TSchedulingPolicyOperationSharedStatePtr& GetEnabledOperationSharedState(const TPoolTreeOperationElement* element) const;
+    const TOperationStatePtr& GetEnabledOperationState(const TPoolTreeOperationElement* element) const;
+    const TOperationSharedStatePtr& GetEnabledOperationSharedState(const TPoolTreeOperationElement* element) const;
 
     //! NB(eshcherbin): This is the only part of the snapshot, that isn't constant.
     // It's just much more convenient to store dynamic attributes list snapshot together with the tree snapshot.
@@ -75,8 +75,8 @@ public:
 
 private:
     // NB(eshcherbin): Enabled operations' states are also stored in static attributes to eliminate a hashmap lookup during scheduling.
-    TSchedulingPolicyOperationStateMap OperationIdToState_;
-    TSchedulingPolicySharedOperationStateMap OperationIdToSharedState_;
+    TOperationStateMap OperationIdToState_;
+    TSharedOperationStateMap OperationIdToSharedState_;
     TAtomicIntrusivePtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 
     void SetDynamicAttributesListSnapshot(const TDynamicAttributesListSnapshotPtr& dynamicAttributesListSnapshotPtr);
@@ -85,8 +85,8 @@ private:
     friend class TSchedulingPolicy;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchedulingPolicyPoolTreeSnapshotState)
+DEFINE_REFCOUNTED_TYPE(TPoolTreeSnapshotState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

@@ -1,7 +1,6 @@
 #include "pool_tree.h"
 
 #include "pool_tree_element.h"
-#include "scheduling_policy.h"
 #include "pool_tree_snapshot.h"
 #include "persistent_state.h"
 #include "public.h"
@@ -14,6 +13,8 @@
 #include "pool_tree_profile_manager.h"
 #include "fields_filter.h"
 #include "helpers.h"
+
+#include <yt/yt/server/scheduler/policy/scheduling_policy.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -278,7 +279,7 @@ static const auto EmptyListYsonString = BuildYsonStringFluently()
 class TPoolTree
     : public IPoolTree
     , public IPoolTreeElementHost
-    , public ISchedulingPolicyHost
+    , public NPolicy::ISchedulingPolicyHost
 {
 public:
     using TPoolTreePtr = TIntrusivePtr<TPoolTree>;
@@ -303,7 +304,7 @@ public:
                 .WithGlobal()
                 .WithProducerRemoveSupport()
                 .WithRequiredTag("tree", TreeId_))
-        , SchedulingPolicy_(New<TSchedulingPolicy>(
+        , SchedulingPolicy_(New<NPolicy::TSchedulingPolicy>(
             TreeId_,
             Logger,
             MakeWeak(this),
@@ -732,7 +733,7 @@ public:
             }
         }
 
-        auto schedulingPolicyError = TSchedulingPolicy::CheckOperationIsStuck(
+        auto schedulingPolicyError = NPolicy::TSchedulingPolicy::CheckOperationIsStuck(
             GetTreeSnapshot(),
             element,
             now,
@@ -1349,7 +1350,7 @@ private:
     TResourceTreePtr ResourceTree_;
 
     const NProfiling::TProfiler Profiler_;
-    const TSchedulingPolicyPtr SchedulingPolicy_;
+    const NPolicy::TSchedulingPolicyPtr SchedulingPolicy_;
     const TPoolTreeProfileManagerPtr ProfileManager_;
 
     const std::vector<IInvokerPtr> FeasibleInvokers_;
@@ -2651,7 +2652,7 @@ private:
         YT_VERIFY(treeSnapshot);
 
         auto processSchedulingHeartbeatFuture = BIND(
-            &TSchedulingPolicy::ProcessSchedulingHeartbeat,
+            &NPolicy::TSchedulingPolicy::ProcessSchedulingHeartbeat,
             SchedulingPolicy_,
             schedulingHeartbeatContext,
             treeSnapshot,
@@ -3400,7 +3401,7 @@ private:
             .Item("user").Value(element->GetUserName())
             .Item("type").Value(element->GetOperationType())
             .Item("title").Value(element->GetTitle())
-            .Do(BIND(&TSchedulingPolicy::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&NPolicy::TSchedulingPolicy::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TPoolTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }
 
@@ -3523,7 +3524,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
-            .Do(BIND(&TSchedulingPolicy::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
+            .Do(BIND(&NPolicy::TSchedulingPolicy::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TPoolTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

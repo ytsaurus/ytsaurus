@@ -1,10 +1,10 @@
 #include "packing.h"
 
-#include "pool_tree_element.h"
-#include "private.h"
 #include "packing_detail.h"
 
-namespace NYT::NScheduler {
+#include <yt/yt/server/scheduler/pool_tree_element.h>
+
+namespace NYT::NScheduler::NPolicy {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -128,4 +128,4 @@ bool TPackingStatistics::CheckPacking(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

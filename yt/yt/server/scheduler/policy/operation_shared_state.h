@@ -2,18 +2,19 @@
 
 #include "private.h"
 #include "packing.h"
-#include "pool_tree_element.h"
+
+#include <yt/yt/server/scheduler/pool_tree_element.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulingPolicyOperationSharedState final
+class TOperationSharedState final
 {
 public:
-    TSchedulingPolicyOperationSharedState(
+    TOperationSharedState(
         IStrategyHost* strategyHost,
         int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
@@ -173,9 +174,9 @@ private:
     void ResetAllocationPreemptibleProgress(TPoolTreeOperationElement* operationElement, TAllocationId allocationId);
 };
 
-using TSchedulingPolicyOperationSharedStatePtr = TIntrusivePtr<TSchedulingPolicyOperationSharedState>;
-using TSchedulingPolicySharedOperationStateMap = THashMap<TOperationId, TSchedulingPolicyOperationSharedStatePtr>;
+using TOperationSharedStatePtr = TIntrusivePtr<TOperationSharedState>;
+using TSharedOperationStateMap = THashMap<TOperationId, TOperationSharedStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

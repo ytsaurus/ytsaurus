@@ -1,10 +1,8 @@
 #include "config.h"
 
+#include "private.h"
 #include "experiments.h"
 #include "helpers.h"
-#include "public.h"
-
-#include <yt/yt/server/scheduler/private.h>
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 

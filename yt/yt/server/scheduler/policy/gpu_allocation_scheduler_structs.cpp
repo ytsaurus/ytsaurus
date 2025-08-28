@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,4 +160,4 @@ void TGpuSchedulerNode::PreemptAssignment(const TGpuSchedulerAssignmentPtr& assi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy
