@@ -324,7 +324,7 @@ public:
     }
 
     MOCK_METHOD(TFuture<TControllerScheduleAllocationResultPtr>, ScheduleAllocation, (
-        const ISchedulingContextPtr& context,
+        const ISchedulingHeartbeatContextPtr& context,
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const TString& treeId,
@@ -803,7 +803,7 @@ protected:
 
     struct TScheduleAllocationsContextWithDependencies
     {
-        ISchedulingContextPtr SchedulingContext;
+        ISchedulingHeartbeatContextPtr SchedulingHeartbeatContext;
         TFairShareTreeSnapshotPtr TreeSnapshot;
         TScheduleAllocationsContextPtr ScheduleAllocationsContext;
     };
@@ -873,7 +873,7 @@ protected:
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TExecNodePtr& execNode)
     {
-        auto schedulingContext = CreateSchedulingContext(
+        auto schedulingHeartbeatContext = CreateSchedulingHeartbeatContext(
             /*nodeShardId*/ 0,
             SchedulerConfig_,
             execNode,
@@ -882,7 +882,7 @@ protected:
             DefaultMinSpareResources_);
 
         auto scheduleAllocationsContext = New<TScheduleAllocationsContext>(
-            schedulingContext,
+            schedulingHeartbeatContext,
             treeSnapshot,
             strategyHost->GetNodeState(execNode),
             /*schedulingInfoLoggingEnabled*/ true,
@@ -891,7 +891,7 @@ protected:
             SchedulerLogger());
 
         return TScheduleAllocationsContextWithDependencies{
-            .SchedulingContext = std::move(schedulingContext),
+            .SchedulingHeartbeatContext = std::move(schedulingHeartbeatContext),
             .TreeSnapshot = std::move(treeSnapshot),
             .ScheduleAllocationsContext = std::move(scheduleAllocationsContext),
         };
@@ -1227,7 +1227,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
     auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);
     auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
 
-    EXPECT_EQ(0, context->SchedulingContext()->DiskResources().DefaultMediumIndex);
+    EXPECT_EQ(0, context->SchedulingHeartbeatContext()->DiskResources().DefaultMediumIndex);
 
     context->StartStage(EAllocationSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
     context->PrepareForScheduling();
@@ -1253,9 +1253,9 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
         });
     }
 
-    const auto& schedulingContext = scheduleAllocationsContextWithDependencies.SchedulingContext;
+    const auto& schedulingHeartbeatContext = scheduleAllocationsContextWithDependencies.SchedulingHeartbeatContext;
     {
-        schedulingContext->InitializeConditionalDiscounts(treeSnapshot->RootElement()->SchedulableElementCount());
+        schedulingHeartbeatContext->InitializeConditionalDiscounts(treeSnapshot->RootElement()->SchedulableElementCount());
 
         TScheduleAllocationsContext::TPrepareConditionalUsageDiscountsContext prepareConditionalUsageDiscountsContext{
             .TargetOperationPreemptionPriority = targetOperationPreemptionPriority,
@@ -1282,17 +1282,17 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
     expectedDiscount.SetCpu(5);
     expectedDiscount.SetMemory(50_MB);
 
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetMaxConditionalDiscount().ToJobResources());
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperationElement->GetTreeIndex()).ToJobResources());
+    EXPECT_EQ(expectedDiscount, schedulingHeartbeatContext->GetMaxConditionalDiscount().ToJobResources());
+    EXPECT_EQ(expectedDiscount, schedulingHeartbeatContext->GetConditionalDiscountForOperation(starvingOperationElement->GetTreeIndex()).ToJobResources());
     // It's a bit weird that a preemptible allocation's usage is added to the discount of its operation, but this is how we do it.
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperationElement->GetTreeIndex()).ToJobResources());
+    EXPECT_EQ(expectedDiscount, schedulingHeartbeatContext->GetConditionalDiscountForOperation(donorOperationElement->GetTreeIndex()).ToJobResources());
 
     TDiskQuota expectedDiskQuotaDiscount{.DiskSpacePerMedium = {{0, 50_MB}}};
 
-    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(starvingOperationElement->GetTreeIndex()).DiskQuota().DiskSpacePerMedium);
-    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingContext->GetConditionalDiscountForOperation(donorOperationElement->GetTreeIndex()).DiskQuota().DiskSpacePerMedium);
+    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingHeartbeatContext->GetConditionalDiscountForOperation(starvingOperationElement->GetTreeIndex()).DiskQuota().DiskSpacePerMedium);
+    EXPECT_EQ(expectedDiskQuotaDiscount.DiskSpacePerMedium, schedulingHeartbeatContext->GetConditionalDiscountForOperation(donorOperationElement->GetTreeIndex()).DiskQuota().DiskSpacePerMedium);
 
-    EXPECT_EQ(TJobResourcesWithQuota(), schedulingContext->GetConditionalDiscountForOperation(blockingOperationElement->GetTreeIndex()));
+    EXPECT_EQ(TJobResourcesWithQuota(), schedulingHeartbeatContext->GetConditionalDiscountForOperation(blockingOperationElement->GetTreeIndex()));
 }
 
 TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)
@@ -1560,7 +1560,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
 
             for (int iter = 0; iter < 2; ++iter) {
                 for (int i = 0; i < FirstBatchOperationCount; ++i) {
-                    EXPECT_TRUE(context->SchedulingContext()->CanStartMoreAllocations());
+                    EXPECT_TRUE(context->SchedulingHeartbeatContext()->CanStartMoreAllocations());
 
                     const auto& operationElement = sortedOperationElements[i];
                     bool scheduled = context->ScheduleAllocationInTest(operationElement.Get(), /*ignorePacking*/ true);
@@ -1606,8 +1606,8 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
 
             for (int iter = 0; iter < 2; ++iter) {
                 for (int i = FirstBatchOperationCount; i < OperationCount; ++i) {
-                    EXPECT_FALSE(context->SchedulingContext()->CanStartMoreAllocations(FallbackMinSpareResources));
-                    EXPECT_TRUE(context->SchedulingContext()->CanStartMoreAllocations());
+                    EXPECT_FALSE(context->SchedulingHeartbeatContext()->CanStartMoreAllocations(FallbackMinSpareResources));
+                    EXPECT_TRUE(context->SchedulingHeartbeatContext()->CanStartMoreAllocations());
 
                     const auto& operationElement = sortedOperationElements[i];
                     bool scheduled = context->ScheduleAllocationInTest(operationElement.Get(), /*ignorePacking*/ true);
@@ -1721,7 +1721,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithoutBatc
 
         for (int iter = 0; iter < 2; ++iter) {
             for (auto operationElement : operationElements) {
-                YT_VERIFY(context->SchedulingContext()->CanStartMoreAllocations());
+                YT_VERIFY(context->SchedulingHeartbeatContext()->CanStartMoreAllocations());
 
                 bool scheduled = context->ScheduleAllocationInTest(operationElement.Get(), /*ignorePacking*/ true);
                 EXPECT_TRUE(scheduled);

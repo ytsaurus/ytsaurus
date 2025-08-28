@@ -1,6 +1,6 @@
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 
-#include "scheduling_context_detail.h"
+#include "scheduling_heartbeat_context_detail.h"
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -14,18 +14,18 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulingContext
-    : public TSchedulingContextBase
+class TSchedulingHeartbeatContext
+    : public TSchedulingHeartbeatContextBase
 {
 public:
-    TSchedulingContext(
+    TSchedulingHeartbeatContext(
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
         const std::vector<TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
         const TJobResources& defaultMinSpareAllocationResources)
-        : TSchedulingContextBase(
+        : TSchedulingHeartbeatContextBase(
             nodeShardId,
             std::move(config),
             std::move(node),
@@ -93,7 +93,7 @@ TString FormatOperationCountByPreemptionPriorityCompact(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulingContextPtr CreateSchedulingContext(
+ISchedulingHeartbeatContextPtr CreateSchedulingHeartbeatContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
@@ -101,7 +101,7 @@ ISchedulingContextPtr CreateSchedulingContext(
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     const TJobResources& defaultMinSpareAllocationResources)
 {
-    return New<TSchedulingContext>(
+    return New<TSchedulingHeartbeatContext>(
         nodeShardId,
         std::move(config),
         std::move(node),

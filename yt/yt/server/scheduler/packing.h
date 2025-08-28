@@ -1,7 +1,7 @@
 #pragma once
 
 #include "private.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -45,7 +45,7 @@ public:
     bool CanSchedule(const TJobResourcesWithQuota& allocationResourcesWithQuota) const;
 };
 
-TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext);
+TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 

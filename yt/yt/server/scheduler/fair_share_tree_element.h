@@ -7,7 +7,7 @@
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "strategy.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "packing.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -888,12 +888,12 @@ public:
     // TODO(eshcherbin): Maybe expose controller itself in the API?
     TControllerEpoch GetControllerEpoch() const;
 
-    void OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext);
-    void OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext);
+    void OnScheduleAllocationStarted(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
+    void OnScheduleAllocationFinished(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
 
     bool IsMaxScheduleAllocationCallsViolated() const;
-    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
-    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
+    bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const;
     bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
@@ -902,7 +902,7 @@ public:
 
     // TODO(eshcherbin): Rename?
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        const ISchedulingContextPtr& context,
+        const ISchedulingHeartbeatContextPtr& context,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,

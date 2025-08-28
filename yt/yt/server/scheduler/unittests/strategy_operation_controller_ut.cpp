@@ -40,7 +40,7 @@ public:
     }
 
     MOCK_METHOD(TFuture<TControllerScheduleAllocationResultPtr>, ScheduleAllocation, (
-        const ISchedulingContextPtr& context,
+        const ISchedulingHeartbeatContextPtr& context,
         const TJobResources& jobLimits,
         const TDiskResources& diskResourceLimits,
         const TString& treeId,
@@ -294,9 +294,9 @@ protected:
         return execNode;
     }
 
-    ISchedulingContextPtr CreateTestSchedulingContext(TExecNodePtr execNode, int nodeShardId = 0)
+    ISchedulingHeartbeatContextPtr CreateTestSchedulingHeartbeatContext(TExecNodePtr execNode, int nodeShardId = 0)
     {
-        return CreateSchedulingContext(
+        return CreateSchedulingHeartbeatContext(
             nodeShardId,
             SchedulerConfig_,
             std::move(execNode),
@@ -338,11 +338,11 @@ TEST_F(TStrategyOperationControllerTest, TestConcurrentScheduleAllocationCallsTh
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
     std::vector<TFuture<TControllerScheduleAllocationResultPtr>> futures;
-    std::vector<ISchedulingContextPtr> contexts;
+    std::vector<ISchedulingHeartbeatContextPtr> contexts;
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
     for (int i = 0; i < 2 * JobCount; ++i) {
-        auto context = CreateTestSchedulingContext(execNode);
+        auto context = CreateTestSchedulingHeartbeatContext(execNode);
 
         if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {
             ++concurrentCallsThrottlingCount;
@@ -428,7 +428,7 @@ TEST_F(TStrategyOperationControllerTest, TestConcurrentScheduleAllocationExecDur
 
     // Execute one schedule job to get an estimate.
     {
-        auto context = CreateTestSchedulingContext(execNode);
+        auto context = CreateTestSchedulingHeartbeatContext(execNode);
 
         EXPECT_FALSE(controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context));
         EXPECT_FALSE(controller->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(context));
@@ -449,11 +449,11 @@ TEST_F(TStrategyOperationControllerTest, TestConcurrentScheduleAllocationExecDur
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
     std::vector<TFuture<TControllerScheduleAllocationResultPtr>> futures;
-    std::vector<ISchedulingContextPtr> contexts;
+    std::vector<ISchedulingHeartbeatContextPtr> contexts;
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
     for (int i = 0; i < 2 * JobCount; ++i) {
-        auto context = CreateTestSchedulingContext(execNode);
+        auto context = CreateTestSchedulingHeartbeatContext(execNode);
 
         if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {
             ++concurrentCallsThrottlingCount;
@@ -531,12 +531,12 @@ TEST_F(TStrategyOperationControllerTest, TestConcurrentControllerScheduleAllocat
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
     std::vector<TFuture<TControllerScheduleAllocationResultPtr>> futures;
-    std::vector<ISchedulingContextPtr> contexts;
+    std::vector<ISchedulingHeartbeatContextPtr> contexts;
     int concurrentCallsThrottlingCount = 0;
     int concurrentExecDurationThrottlingCount = 0;
     for (int i = 0; i < 2 * JobCount; ++i) {
         int nodeShardId = i % nodeShardCount;
-        auto context = CreateTestSchedulingContext(execNode, nodeShardId);
+        auto context = CreateTestSchedulingHeartbeatContext(execNode, nodeShardId);
 
         if (controller->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(context)) {
             ++concurrentCallsThrottlingCount;
@@ -638,7 +638,7 @@ TEST_F(TStrategyOperationControllerTest, TestScheduleAllocationTimeout)
     auto execNode = CreateTestExecNode(nodeResources);
 
     for (int i = 0; i < 2; ++i) {
-        auto context = CreateTestSchedulingContext(execNode);
+        auto context = CreateTestSchedulingHeartbeatContext(execNode);
         auto result = controller->ScheduleAllocation(
             context,
             nodeResources,
@@ -653,7 +653,7 @@ TEST_F(TStrategyOperationControllerTest, TestScheduleAllocationTimeout)
     }
 
     {
-        auto context = CreateTestSchedulingContext(execNode);
+        auto context = CreateTestSchedulingHeartbeatContext(execNode);
         auto result = controller->ScheduleAllocation(
             context,
             nodeResources,

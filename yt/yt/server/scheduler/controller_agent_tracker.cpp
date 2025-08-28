@@ -6,7 +6,7 @@
 #include "operation.h"
 #include "node_manager.h"
 #include "operation_controller_impl.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "master_connector.h"
 #include "bootstrap.h"
 

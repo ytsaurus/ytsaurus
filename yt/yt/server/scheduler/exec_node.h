@@ -3,7 +3,7 @@
 #include "public.h"
 #include "helpers.h"
 
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
