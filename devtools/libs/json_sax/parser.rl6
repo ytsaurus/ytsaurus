@@ -1,0 +1,108 @@
+#include <devtools/libs/json_sax/parser.h>
+
+namespace NYa::NJson {
+    // forward machine declaration
+    %%{
+        machine fastjson;
+        include fastjson;
+    }%%
+
+    %%{
+        write data noerror nofinal;
+    }%%
+
+    TParserCtx::TParserCtx(TJsonCallbacks& h, size_t initBufferSize)
+        : Handler(h)
+        , InputBuffer{initBufferSize}
+    {
+        %%{
+            write init;
+        }%%
+    }
+
+    bool TParserCtx::Execute(TStringBuf data, bool done) {
+        p = p0 = data.data();
+        pe = data.end();
+        eof = done ? pe : nullptr;
+
+        try {
+            %%{
+                write exec;
+            }%%
+
+            Y_UNUSED(fastjson_en_main);
+        } catch (const TFromStringException& e) {
+            return OnError(e.what());
+        }
+        return true;
+
+        TOKEN_ERROR:
+        return OnError("invalid syntax");
+    }
+}
+
+%%{
+machine fastjson;
+
+alphtype char;
+
+action OnNull  { if (Y_UNLIKELY(!OnNull()))  goto TOKEN_ERROR; }
+action OnTrue  { if (Y_UNLIKELY(!OnTrue()))  goto TOKEN_ERROR; }
+action OnFalse { if (Y_UNLIKELY(!OnFalse())) goto TOKEN_ERROR; }
+action OnPInt  { if (Y_UNLIKELY(!OnPInt()))  goto TOKEN_ERROR; }
+action OnNInt  { if (Y_UNLIKELY(!OnNInt()))  goto TOKEN_ERROR; }
+action OnFlt   { if (Y_UNLIKELY(!OnFlt()))   goto TOKEN_ERROR; }
+action OnStrQ  { if (Y_UNLIKELY(!OnStrQ()))  goto TOKEN_ERROR; }
+action OnStrE  { if (Y_UNLIKELY(!OnStrE()))  goto TOKEN_ERROR; }
+action OnDictO { if (Y_UNLIKELY(!OnMapOpen()))  goto TOKEN_ERROR; }
+action OnDictC { if (Y_UNLIKELY(!OnMapClose())) goto TOKEN_ERROR; }
+action OnArrO  { if (Y_UNLIKELY(!OnArrOpen()))  goto TOKEN_ERROR; }
+action OnArrC  { if (Y_UNLIKELY(!OnArrClose())) goto TOKEN_ERROR; }
+action OnComma { if (Y_UNLIKELY(!OnComma())) goto TOKEN_ERROR; }
+action OnColon { if (Y_UNLIKELY(!OnColon())) goto TOKEN_ERROR; }
+action OnError { goto TOKEN_ERROR; }
+
+pint = [0-9]+;
+nint = '-'[0-9]+;
+flt  = '-'?[0-9.][0-9.eE+\-]+;
+
+schar = [^"\\]; # simple char
+
+echar = "\\" any; # escaped char
+
+sechar = schar | echar;
+
+strQ = '"' schar* '"';
+
+strE = '"' sechar* '"';
+
+ws = (0x00 .. 0x20) | 0x7F;
+sp = ws+;
+
+main := |*
+    'null'  => OnNull;
+    'true'  => OnTrue;
+    'false' => OnFalse;
+
+    pint => OnPInt;
+    nint => OnNInt;
+    flt  => OnFlt;
+
+    strQ => OnStrQ;
+    strE => OnStrE;
+
+    ',' => OnComma;
+    ':' => OnColon;
+
+    '{' => OnDictO;
+    '}' => OnDictC;
+    '[' => OnArrO;
+    ']' => OnArrC;
+
+    sp;
+
+    (flt | pint | nint) ^(ws | ',' | '}' | ']') => OnError;
+
+    any => OnError;
+         *|;
+}%%
