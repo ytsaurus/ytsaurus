@@ -1,4 +1,4 @@
-from yt_queries import start_query
+from common import TestQueriesYqlBase
 
 from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
@@ -6,8 +6,6 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
                          get_operation)
-
-from yt_env_setup import YTEnvSetup
 
 from yt_helpers import profiler_factory
 
@@ -22,27 +20,13 @@ import pytest
 import re
 
 
-class TestQueriesYqlBase(YTEnvSetup):
-    NUM_YQL_AGENTS = 1
-    NUM_MASTERS = 1
-    NUM_QUERY_TRACKER = 1
-    ENABLE_HTTP_PROXY = True
-    ENABLE_RPC_PROXY = True
-    NUM_RPC_PROXIES = 1
-    USE_DYNAMIC_TABLES = True
-    NUM_SCHEDULERS = 1
-    CLASS_TEST_LIMIT = 960
-
-    DELTA_DRIVER_CONFIG = {
-        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
-    }
-
+class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
     def _run_simple_query(self, query, **kwargs):
         result_format_kwargs = {}
         if "result_output_format" in kwargs:
             result_format_kwargs["output_format"] = kwargs["result_output_format"]
 
-        query = start_query("yql", query, **kwargs)
+        query = self.start_query("yql", query, **kwargs)
         query.track()
         query_info = query.get()
         if query_info["result_count"] == 0:
@@ -69,7 +53,7 @@ class TestQueriesYqlBase(YTEnvSetup):
         return False
 
 
-class TestNotTableResult(TestQueriesYqlBase):
+class TestNotTableResult(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     def test_not_table_result(self, query_tracker, yql_agent):
         error = "Non-table results are not supported in Query Tracker. Expected List<Struct<…>> but found \"List<List<Struct<'a':Int32,'id':Uint32>>>"
@@ -90,7 +74,7 @@ class TestNotTableResult(TestQueriesYqlBase):
             """)
 
 
-class TestGetOperationLink(TestQueriesYqlBase):
+class TestGetOperationLink(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_operation_link(self, query_tracker, yql_agent):
@@ -99,7 +83,7 @@ class TestGetOperationLink(TestQueriesYqlBase):
         })
         rows = [{"a": 42}]
         write_table("//tmp/t", rows)
-        query = start_query("yql", 'select a+1 as result from primary.`//tmp/t`')
+        query = self.start_query("yql", 'select a+1 as result from primary.`//tmp/t`')
         query.track()
 
         op = list_operations()["operations"][0]["id"]
@@ -107,7 +91,7 @@ class TestGetOperationLink(TestQueriesYqlBase):
         assert str(op_url) == f"https://ui.test.ru/primary/queries/{query.id}"
 
 
-class TestMetrics(TestQueriesYqlBase):
+class TestMetrics(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_metrics(self, query_tracker, yql_agent):
@@ -121,7 +105,7 @@ class TestMetrics(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
-        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        query = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
         wait(lambda: self._exists_pending_stage_in_progress(query))
 
@@ -137,7 +121,7 @@ class TestMetrics(TestQueriesYqlBase):
         wait(lambda: active_queries_metric.get() == 0)
 
 
-class TestSimpleQueriesYql(TestQueriesYqlBase):
+class TestSimpleQueriesYql(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("max42")
@@ -201,7 +185,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         """, [[{"column0": 1}], [{"column0": 2}], [{"a": 1, "b": 2}]])
 
 
-class TestLibs(TestQueriesYqlBase):
+class TestLibs(TestQueriesYqlSimpleBase):
     YQL_TEST_LIBRARY = """
             $my_sqr = ($x)->($x * $x);
             export $my_sqr;
@@ -214,7 +198,7 @@ class TestLibs(TestQueriesYqlBase):
         """, [{"idx": 1, "sqr": 9}])
 
 
-class TestTypes(TestQueriesYqlBase):
+class TestTypes(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("a-romanov")
@@ -319,17 +303,17 @@ class TestTypes(TestQueriesYqlBase):
                'column5': [[None, None], [[None], None], [['abc'], None]]}])
 
 
-class TestYqlAgentBan(TestQueriesYqlBase):
+class TestYqlAgentBan(TestQueriesYqlSimpleBase):
     NUM_YQL_AGENTS = 1
     YQL_AGENT_DYNAMIC_CONFIG = {"state_check_period": 2000}
 
-    def _test_query_fails():
-        query = start_query("yql", 'select 1')
+    def _test_query_fails(self):
+        query = self.start_query("yql", 'select 1')
         query.track()
         return False
 
-    def _test_query_completes():
-        query = start_query("yql", 'select 1')
+    def _test_query_completes(self):
+        query = self.start_query("yql", 'select 1')
         try:
             query.track()
         except Exception:
@@ -343,12 +327,12 @@ class TestYqlAgentBan(TestQueriesYqlBase):
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
 
         with raises_yt_error(yt_error_codes.Unavailable) as err:
-            wait(TestYqlAgentBan._test_query_fails)
+            wait(self._test_query_fails)
         assert err[0].contains_text("No alive peers found")
 
         set(f"//sys/yql_agent/instances/{address}/@banned", False)
 
-        wait(TestYqlAgentBan._test_query_completes)
+        wait(self._test_query_completes)
 
     @authors("mpereskokova")
     def test_yql_agent_ban_on_existing_queries(self, query_tracker, yql_agent):
@@ -359,21 +343,21 @@ class TestYqlAgentBan(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
-        long_query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        long_query = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
         wait(lambda: long_query.get()["state"] == "running")
 
         address = yql_agent.yql_agent.addresses[0]
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
 
         with raises_yt_error(yt_error_codes.Unavailable) as err:
-            wait(TestYqlAgentBan._test_query_fails)
+            wait(self._test_query_fails)
         assert err[0].contains_text("No alive peers found")
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
         long_query.track()
 
 
-class TestYqlAgentDynConfig(TestQueriesYqlBase):
+class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 8
     CLASS_TEST_LIMIT = 30 * 60
     NUM_YQL_AGENTS = 1
@@ -542,7 +526,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         )
 
 
-class TestComplexQueriesYql(TestQueriesYqlBase):
+class TestComplexQueriesYql(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
@@ -607,7 +591,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         self._test_simple_query("select * from `//tmp/t1`", [{"a": 45}], settings={"random_attribute": 0})
 
 
-class TestExecutionModesYql(TestQueriesYqlBase):
+class TestExecutionModesYql(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 16
 
     @authors("aleksandr.gaev")
@@ -619,7 +603,7 @@ class TestExecutionModesYql(TestQueriesYqlBase):
         write_table("//tmp/t1", rows)
 
         for mode in ["validate", 0]:
-            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            query = self.start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
             query.track()
             result = query.get()
             assert result["result_count"] == 0
@@ -634,7 +618,7 @@ class TestExecutionModesYql(TestQueriesYqlBase):
         write_table("//tmp/t1", rows)
 
         for mode in ["optimize", 1]:
-            query = start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
+            query = self.start_query("yql", "select * from `//tmp/t1`", settings={"execution_mode": mode})
             query.track()
             result = query.get()
             assert result["result_count"] == 0
@@ -666,7 +650,7 @@ class TestExecutionModesYql(TestQueriesYqlBase):
             self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": 42})
 
 
-class TestYqlPlugin(TestQueriesYqlBase):
+class TestYqlPlugin(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
@@ -716,7 +700,7 @@ class TestYqlPlugin(TestQueriesYqlBase):
         """, [rows, [{"a": 42, "c": "test"}]])
 
 
-class TestDefaultCluster(TestQueriesYqlBase):
+class TestDefaultCluster(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_exists_cluster(self, query_tracker, yql_agent):
@@ -740,7 +724,7 @@ class TestDefaultCluster(TestQueriesYqlBase):
             self._run_simple_query("select a + 1 from primary.`//tmp/t`;", settings={"cluster": "unknown_cluster"})
 
 
-class TestAllYqlAgentsOverload(TestQueriesYqlBase):
+class TestAllYqlAgentsOverload(TestQueriesYqlSimpleBase):
     YQL_AGENT_DYNAMIC_CONFIG = {"max_simultaneous_queries": 1}
     NUM_YQL_AGENTS = 1
 
@@ -755,10 +739,10 @@ class TestAllYqlAgentsOverload(TestQueriesYqlBase):
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
 
-        q1 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        q1 = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
         wait(lambda: q1.get()["state"] == "running")
 
-        q2 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        q2 = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
         wait(lambda: q2.get()["state"] == "running")
         wait(lambda: q2.get()["state"] == "pending")
 
@@ -768,7 +752,7 @@ class TestAllYqlAgentsOverload(TestQueriesYqlBase):
         q2.track()
 
 
-class TestPartialYqlAgentsOverload(TestQueriesYqlBase):
+class TestPartialYqlAgentsOverload(TestQueriesYqlSimpleBase):
     YQL_AGENT_DYNAMIC_CONFIG = {"max_simultaneous_queries": 1}
     NUM_YQL_AGENTS = 2
 
@@ -783,8 +767,8 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlBase):
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
 
-        q1 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
-        q2 = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        q1 = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        q2 = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
         wait(lambda: q1.get()["state"] == "running")
         wait(lambda: q2.get()["state"] == "running")
@@ -795,7 +779,7 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlBase):
         q2.track()
 
 
-class TestYqlAgent(TestQueriesYqlBase):
+class TestYqlAgent(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
@@ -808,7 +792,7 @@ class TestYqlAgent(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
-        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        query = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
         wait(lambda: self._exists_pending_stage_in_progress(query))
 
@@ -880,7 +864,7 @@ def assert_full_result(query_result):
     assert isinstance(full_result["table_path"], str)
 
 
-class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
+class TestQueriesYqlLimitedResult(TestQueriesYqlSimpleBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"row_count_limit": 1}}
 
     @authors("mpereskokova")
@@ -892,27 +876,26 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
         rows = [{"a": 42}, {"a": 43}, {"a": 44}]
         write_table("//tmp/t1", rows)
 
-        query = start_query("yql", "select * from `//tmp/t1`")
+        query = self.start_query("yql", "select * from `//tmp/t1`")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert query.get_result(0)["is_truncated"]
 
-        query = start_query("yql", "select * from `//tmp/t1` limit 1")
+        query = self.start_query("yql", "select * from `//tmp/t1` limit 1")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert not query.get_result(0)["is_truncated"]
 
 
-class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
+class TestQueriesYqlResultTruncation(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
     CLASS_TEST_LIMIT = 1800
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
-    @staticmethod
-    def _assert_select_result(path, rows, is_truncated, has_full_result):
-        q = start_query("yql", f"select * from `{path}`")
+    def _assert_select_result(self, path, rows, is_truncated, has_full_result):
+        q = self.start_query("yql", f"select * from `{path}`")
         q.track()
         assert q.get()["result_count"] == 1
         assert_items_equal(q.read_result(0), rows)
@@ -992,7 +975,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         # 22 MB line
         rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(22 * 1024**2)])}]
         write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
-        q = start_query("yql", "select * from `//tmp/t`")
+        q = self.start_query("yql", "select * from `//tmp/t`")
         q.track()
         assert q.get()["result_count"] == 1
         with raises_yt_error("Failed to save rowset"):
@@ -1005,7 +988,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         assert "full_result" not in result
 
 
-class TestQueriesYqlAuth(TestQueriesYqlBase):
+class TestQueriesYqlAuth(TestQueriesYqlSimpleBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth" : {"enable_authentication": True}
     }
@@ -1036,7 +1019,7 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
         self._test_simple_query("select a + 1 as b from primary.`//tmp/t`;", [{"b": 43}], authenticated_user="allowed_user")
 
 
-class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlBase):
+class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlSimpleBase):
     @authors("gritukan", "mpereskokova")
     @pytest.mark.timeout(600)
     def test_aggregate_with_as(self, query_tracker, yql_agent):
@@ -1082,7 +1065,7 @@ class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlBase):
         """, [{"c_a": 43, "c_b": 45, "c_c": 42, "c_d": 44}])
 
 
-class TestYqlColumnOrderIssue707(TestQueriesYqlBase):
+class TestYqlColumnOrderIssue707(TestQueriesYqlSimpleBase):
     @authors("gritukan", "mpereskokova")
     @pytest.mark.timeout(600)
     def test_issue_707(self, query_tracker, yql_agent):
@@ -1108,7 +1091,7 @@ class TestYqlColumnOrderIssue707(TestQueriesYqlBase):
         """, [{"x": 1, "y": 2.0, "z": 42}])
 
 
-class TestYqlColumnOrderParametrize(TestQueriesYqlBase):
+class TestYqlColumnOrderParametrize(TestQueriesYqlSimpleBase):
     @authors("gritukan", "mpereskokova")
     @pytest.mark.parametrize("dynamic", [False, True])
     @pytest.mark.timeout(300)
@@ -1164,7 +1147,7 @@ class TestYqlColumnOrderParametrize(TestQueriesYqlBase):
         """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": 42, "b": "foo", "c": 2.0}]])
 
 
-class TestYqlColumnOrderSelectScalars(TestQueriesYqlBase):
+class TestYqlColumnOrderSelectScalars(TestQueriesYqlSimpleBase):
     @authors("gritukan", "mpereskokova")
     @pytest.mark.timeout(600)
     def test_select_scalars(self, query_tracker, yql_agent):
@@ -1193,7 +1176,7 @@ class TestYqlColumnOrderSelectScalars(TestQueriesYqlBase):
         """, [[{"a": 42, "b": "foo", "c": 2.0}], [{"a": "foo", "b": 2.0, "c": 42}]])
 
 
-class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
+class TestYqlColumnOrderDifferentSources(TestQueriesYqlSimpleBase):
     @authors("gritukan", "mpereskokova")
     @pytest.mark.timeout(300)
     def test_different_sources(self, query_tracker, yql_agent):
@@ -1258,7 +1241,7 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
         """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])
 
 
-class TestAssignedEngine(TestQueriesYqlBase):
+class TestAssignedEngine(TestQueriesYqlSimpleBase):
     NUM_YQL_AGENTS = 2
 
     @authors("kirsiv40")
@@ -1272,7 +1255,7 @@ class TestAssignedEngine(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
-        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        query = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
         wait(lambda: query.get_state() == "running")
 
@@ -1291,7 +1274,7 @@ class TestAssignedEngine(TestQueriesYqlBase):
         assert query_finished_info["annotations"]["assigned_engine"] in yqla_instances
 
 
-class TestAstReturns(TestQueriesYqlBase):
+class TestAstReturns(TestQueriesYqlSimpleBase):
     @authors("kirsiv40")
     @pytest.mark.timeout(90)
     def test_ast_attr_in_progress(self, query_tracker, yql_agent):
@@ -1302,7 +1285,7 @@ class TestAstReturns(TestQueriesYqlBase):
         write_table("//tmp/t", rows)
 
         create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
-        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+        query = self.start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
 
         wait(lambda: ("progress" in query.get() and "yql_ast" in query.get()["progress"]))
 
@@ -1325,46 +1308,46 @@ class TestAstReturns(TestQueriesYqlBase):
             assert (re.fullmatch(r"([()]*)|(^\(.*\)$)|(^\(.*\(block '\($)", line.strip()))
 
 
-class TestYqlVersionChanges(TestQueriesYqlBase):
+class TestYqlVersionChanges(TestQueriesYqlSimpleBase):
     NUM_YQL_AGENTS = 2
 
     @authors("kirsiv40")
     def test_yql_version_changes(self, query_tracker, yql_agent):
         settings = {"yql_version": "2025.01"}
 
-        query_old_version = start_query("yql", "select CurrentLanguageVersion() as result;", settings=settings)
+        query_old_version = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings=settings)
         query_old_version.track()
         assert_items_equal(query_old_version.read_result(0), [{"result": "2025.01"}])
 
-        query_old_udfs = start_query("yql", "select String::Reverse(\"abc\") as result;", settings=settings)
+        query_old_udfs = self.start_query("yql", "select String::Reverse(\"abc\") as result;", settings=settings)
         query_old_udfs.track()
         assert_items_equal(query_old_udfs.read_result(0), [{"result": "cba"}])
 
         settings["yql_version"] = "2025.02"
-        query_new_version = start_query("yql", "select CurrentLanguageVersion() as result;", settings=settings)
+        query_new_version = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings=settings)
         query_new_version.track()
         assert_items_equal(query_new_version.read_result(0), [{"result": "2025.02"}])
 
         with raises_yt_error() as err:
-            query_new_udfs = start_query("yql", "select String::Reverse(\"abc\");", settings=settings)
+            query_new_udfs = self.start_query("yql", "select String::Reverse(\"abc\");", settings=settings)
             query_new_udfs.track()
         assert err[0].contains_text("'String.Reverse' is not available")
 
     @authors("kirsiv40")
     def test_yql_versions_throws(self, query_tracker, yql_agent):
         with raises_yt_error() as err:
-            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
+            query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
             query.track()
         assert err[0].contains_text("Invalid YQL language version")
 
         with raises_yt_error() as err:
-            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "not a valid version"})
+            query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "not a valid version"})
             query.track()
         assert err[0].contains_text("Invalid YQL language version")
 
     @authors("kirsiv40")
     def test_default_yql_version(self, query_tracker, yql_agent):
-        query = start_query("yql", "select CurrentLanguageVersion() as result;")
+        query = self.start_query("yql", "select CurrentLanguageVersion() as result;")
         query.track()
         result_version = query.read_result(0)[0]["result"]
         assert re.fullmatch(r'\d\d\d\d\.\d\d', result_version)
@@ -1372,49 +1355,49 @@ class TestYqlVersionChanges(TestQueriesYqlBase):
         assert result_version <= "3000.00"
 
 
-class TestMaxYqlVersionConfigAttr(TestQueriesYqlBase):
+class TestMaxYqlVersionConfigAttr(TestQueriesYqlSimpleBase):
     MAX_YQL_VERSION = "2025.01"
 
     @authors("kirsiv40")
     def test_max_yql_version(self, query_tracker, yql_agent):
-        query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.01"})
+        query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.01"})
         query.track()
         assert_items_equal(query.read_result(0), [{"result": "2025.01"}])
 
         with raises_yt_error() as err:
-            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.02"})
+            query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.02"})
             query.track()
         assert err[0].contains_text("is not available, maximum version is")
 
     @authors("kirsiv40")
     def test_yql_versions_throws(self, query_tracker, yql_agent):
         with raises_yt_error() as err:
-            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
+            query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
             query.track()
         assert err[0].contains_text("Invalid YQL language version")
 
         with raises_yt_error() as err:
-            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "not a valid version"})
+            query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "not a valid version"})
             query.track()
         assert err[0].contains_text("Invalid YQL language version")
 
     @authors("kirsiv40")
     def test_default_yql_version(self, query_tracker, yql_agent):
-        query = start_query("yql", "select CurrentLanguageVersion() as result;")
+        query = self.start_query("yql", "select CurrentLanguageVersion() as result;")
         query.track()
         assert_items_equal(query.read_result(0), [{"result": "2025.01"}])
 
 
-class TestSimpleQueriesBase(TestQueriesYqlBase):
+class TestSimpleQueriesBase(TestQueriesYqlSimpleBase):
     def _test_simple_yql_query_versions(self, query_tracker, yql_agent):
-        query = start_query("yql", "select CurrentLanguageVersion() as result;")
+        query = self.start_query("yql", "select CurrentLanguageVersion() as result;")
         query.track()
         result_version = query.read_result(0)[0]["result"]
         assert re.fullmatch(r'\d\d\d\d\.\d\d', result_version)
         assert result_version >= "2025.01"
         assert result_version <= "3000.00"
 
-        query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.03"})
+        query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.03"})
         query.track()
         assert_items_equal(query.read_result(0), [{"result": "2025.03"}])
 
@@ -1435,7 +1418,7 @@ class TestAgentWithUndefinedMaxYqlVersion(TestSimpleQueriesBase):
         self._test_simple_yql_query_versions(query_tracker, yql_agent)
 
 
-class TestGetQueryTrackerInfoBase(TestQueriesYqlBase):
+class TestGetQueryTrackerInfoBase(TestQueriesYqlSimpleBase):
     NUM_YQL_AGENTS = 2
 
     def _check_qt_info(self, qt_info):
@@ -1515,6 +1498,9 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithMaxYqlVersion):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True
 
@@ -1522,6 +1508,9 @@ class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWi
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True
 
@@ -1529,5 +1518,8 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInf
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithInvalidMaxYqlVersion):
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True
