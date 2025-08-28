@@ -1189,11 +1189,11 @@ void TRpcRawClient::AlterTable(
     WaitAndProcess(future);
 }
 
-class TTableRowsStream
+class TDeserializingRowStream
     : public IAsyncZeroCopyInputStream
 {
 public:
-    TTableRowsStream(IAsyncZeroCopyInputStreamPtr stream)
+    TDeserializingRowStream(IAsyncZeroCopyInputStreamPtr stream)
         : Underlying_(std::move(stream))
     { }
 
@@ -1209,6 +1209,102 @@ public:
 private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
 };
+
+class TSerializingRowStream
+    : public IAsyncZeroCopyOutputStream
+{
+public:
+    TSerializingRowStream(IAsyncZeroCopyOutputStreamPtr stream)
+        : Underlying_(std::move(stream))
+    { }
+
+    TFuture<void> Write(const TSharedRef& data) override
+    {
+        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+        descriptor.set_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
+
+        auto [block, payloadRef] = NApi::NRpcProxy::SerializeRowStreamBlockEnvelope(
+            data.Size(),
+            descriptor,
+            nullptr);
+
+        std::copy(data.Begin(), data.End(), payloadRef.Begin());
+        return Underlying_->Write(block);
+    }
+
+    TFuture<void> Close() override
+    {
+        return Underlying_->Close();
+    }
+
+private:
+    const IAsyncZeroCopyOutputStreamPtr Underlying_;
+};
+
+class TSyncRpcOutputStream
+    : public IOutputStream
+{
+public:
+    TSyncRpcOutputStream(IAsyncZeroCopyOutputStreamPtr stream)
+        : Underlying_(std::move(stream))
+    { }
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        auto sharedBuffer = TSharedRef::MakeCopy<TDefaultSharedBlobTag>(TRef(buf, len));
+        WaitAndProcess(Underlying_->Write(sharedBuffer));
+    }
+
+    void DoFinish() override
+    {
+        WaitAndProcess(Underlying_->Close());
+    }
+
+private:
+    const IAsyncZeroCopyOutputStreamPtr Underlying_;
+};
+
+std::unique_ptr<IOutputStream> TRpcRawClient::WriteTable(
+    const TTransactionId& transactionId,
+    const TRichYPath& path,
+    const TMaybe<TFormat>& format,
+    const TTableWriterOptions& options)
+{
+    auto* clientBase = VerifyDynamicCast<NApi::NRpcProxy::TClientBase*>(Client_.Get());
+
+    auto apiOptions = SerializeOptionsForWriteTable(transactionId, options);
+
+    auto proxy = clientBase->CreateApiServiceProxy();
+
+    auto req = proxy.WriteTable();
+    clientBase->InitStreamingRequest(*req);
+
+    auto apiPath = ToApiRichPath(path);
+
+    ToProto(req->mutable_path(), apiPath);
+
+    if (apiOptions.Config) {
+        req->set_config(NYson::ConvertToYsonString(*apiOptions.Config).ToString());
+    }
+
+    if (format) {
+        req->set_format(NYson::TYsonString(NodeToYsonString(format->Config, NYson::EYsonFormat::Text)).ToString());
+    }
+
+    ToProto(req->mutable_transactional_options(), apiOptions);
+
+    auto future = NRpc::CreateRpcClientOutputStream(
+        std::move(req), BIND ([=](const TSharedRef& metaRef) {
+            NApi::NRpcProxy::NProto::TWriteTableMeta meta;
+            if (!TryDeserializeProto(&meta, metaRef)) {
+                THROW_ERROR_EXCEPTION("Failed to deserialize schema for table writer");
+            }
+    }));
+
+    auto stream = WaitAndProcess(future);
+    auto rowStream = New<TSerializingRowStream>(std::move(stream));
+    return std::make_unique<TSyncRpcOutputStream>(std::move(rowStream));
+}
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     const TTransactionId& transactionId,
@@ -1255,8 +1351,8 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
         THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
     }
 
-    auto rowsStream = New<TTableRowsStream>(std::move(stream));
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
+    auto rowStream = New<TDeserializingRowStream>(std::move(stream));
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowStream)));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadTablePartition(
@@ -1290,8 +1386,8 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTablePartition(
         THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
     }
 
-    auto rowsStream = New<TTableRowsStream>(std::move(stream));
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
+    auto rowStream = New<TDeserializingRowStream>(std::move(stream));
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowStream)));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
