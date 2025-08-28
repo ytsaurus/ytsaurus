@@ -53,7 +53,7 @@ class TestLayersBase(YTEnvSetup):
         set("//tmp/static_cat/@executable", True)
 
 
-class TestLayers(TestLayersBase):
+class TestPortoLayersBase(TestLayersBase):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
@@ -69,6 +69,8 @@ class TestLayers(TestLayersBase):
         }
     }
 
+
+class TestLayers(TestPortoLayersBase):
     @authors("ilpauzner")
     def test_disabled_layer_locations(self):
         for node in self.Env.configs["node"]:
@@ -335,7 +337,7 @@ class TestLayers(TestLayersBase):
             assert b"static-bin" in stderr
 
 
-class TestProbingLayer(TestLayers):
+class TestProbingLayer(TestPortoLayersBase):
     NUM_TEST_PARTITIONS = 5
 
     INPUT_TABLE = "//tmp/input_table"
@@ -580,7 +582,7 @@ class TestProbingLayer(TestLayers):
         self.run_sort(user_slots=job_count)
 
 
-class TestDockerImage(TestLayers):
+class TestDockerImage(TestPortoLayersBase):
     INPUT_TABLE = "//tmp/input_table"
     OUTPUT_TABLE = "//tmp/output_table"
     COMMAND = "test -e $YT_ROOT_FS/test && test -e $YT_ROOT_FS/static-bin"
