@@ -518,7 +518,8 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("driver_version", &TThis::DriverVersion)
         .Default();
 
-    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
+    registrar.Parameter("gpu_info_provider", &TThis::GpuInfoProvider)
+        .Alias("gpu_info_source")
         .Default();
 
     registrar.Parameter("testing", &TThis::Testing)
@@ -553,7 +554,8 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
         .Default();
 
-    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
+    registrar.Parameter("gpu_info_provider", &TThis::GpuInfoProvider)
+        .Alias("gpu_info_source")
         .Default();
 
     registrar.Parameter("default_nvidia_driver_capabilities", &TThis::DefaultNvidiaDriverCapabilities)
