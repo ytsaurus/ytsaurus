@@ -417,7 +417,7 @@ struct TGpuManagerConfig
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
     std::optional<TString> DriverVersion;
 
-    NGpu::TGpuInfoSourceConfig GpuInfoSource;
+    NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     TGpuManagerTestingConfigPtr Testing;
 
@@ -446,7 +446,7 @@ struct TGpuManagerDynamicConfig
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
-    NGpu::TGpuInfoSourceConfig GpuInfoSource;
+    NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     //! This option is specific to nvidia-container-runtime.
     TString DefaultNvidiaDriverCapabilities;

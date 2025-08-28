@@ -136,8 +136,8 @@ protected:
 
 TEST_F(TGpuAgentGpuInfoProviderTest, SimpleGpuInfo)
 {
-    auto config = TGpuInfoSourceConfig(EGpuInfoSourceType::GpuAgent);
-    auto gpuAgentConfig = config.TryGetConcrete<EGpuInfoSourceType::GpuAgent>();
+    auto config = TGpuInfoProviderConfig(EGpuInfoProviderType::GpuAgent);
+    auto gpuAgentConfig = config.TryGetConcrete<EGpuInfoProviderType::GpuAgent>();
     gpuAgentConfig->Address = Address_;
     gpuAgentConfig->ServiceName = ServiceName;
     gpuAgentConfig->Channel->RetryBackoffTime = TDuration::MilliSeconds(500);

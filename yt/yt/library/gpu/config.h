@@ -9,7 +9,7 @@ namespace NYT::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EGpuInfoSourceType,
+DEFINE_ENUM(EGpuInfoProviderType,
     (Base)
     (NvidiaSmi)
     (NvGpuManager)
@@ -18,20 +18,20 @@ DEFINE_ENUM(EGpuInfoSourceType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGpuInfoSourceConfigBase
+struct TGpuInfoProviderConfigBase
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TGpuInfoSourceConfigBase);
+    REGISTER_YSON_STRUCT(TGpuInfoProviderConfigBase);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfigBase)
+DEFINE_REFCOUNTED_TYPE(TGpuInfoProviderConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNvidiaSmiGpuInfoProviderConfig
-    : public TGpuInfoSourceConfigBase
+    : public TGpuInfoProviderConfigBase
 {
     REGISTER_YSON_STRUCT(TNvidiaSmiGpuInfoProviderConfig);
 
@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TNvidiaSmiGpuInfoProviderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGrpcGpuInfoProviderConfigBase
-    : public TGpuInfoSourceConfigBase
+    : public TGpuInfoProviderConfigBase
 {
     std::string Address;
     std::string ServiceName;
@@ -86,8 +86,8 @@ DEFINE_REFCOUNTED_TYPE(TGpuAgentGpuInfoProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(GpuInfoSourceConfig, EGpuInfoSourceType, NvidiaSmi,
-    ((Base)         (TGpuInfoSourceConfigBase))
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(GpuInfoProviderConfig, EGpuInfoProviderType, NvidiaSmi,
+    ((Base)         (TGpuInfoProviderConfigBase))
     ((NvidiaSmi)    (TNvidiaSmiGpuInfoProviderConfig))
     ((NvGpuManager) (TNvManagerGpuInfoProviderConfig))
     ((GpuAgent)     (TGpuAgentGpuInfoProviderConfig))
