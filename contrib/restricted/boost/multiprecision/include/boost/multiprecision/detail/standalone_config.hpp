@@ -144,9 +144,13 @@ namespace boost { namespace multiprecision {
 #define BOOST_MP_NO_CONSTEXPR_DETECTION
 #endif
 
-#ifdef __has_attribute
-#  if __has_attribute(fallthrough)
-#    define BOOST_MP_FALLTHROUGH [[fallthrough]]
+// Compilers should ignore unknown attributes,
+// but this doesn't stop them from issuing warnings
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L) || (defined(__cplusplus) && __cplusplus >= 201703L)
+#  ifdef __has_attribute
+#    if __has_attribute(fallthrough)
+#      define BOOST_MP_FALLTHROUGH [[fallthrough]]
+#    endif
 #  endif
 #endif
 

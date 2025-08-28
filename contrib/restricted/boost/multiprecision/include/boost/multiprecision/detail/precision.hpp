@@ -136,7 +136,7 @@ inline constexpr unsigned current_precision_of(const expression<tag, Arg1, Arg2,
 #endif
 
 template <class R, bool = boost::multiprecision::detail::is_variable_precision<R>::value>
-struct scoped_default_precision
+struct BOOST_ATTRIBUTE_UNUSED scoped_default_precision
 {
    template <class T>
    constexpr scoped_default_precision(const T&) {}

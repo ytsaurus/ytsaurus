@@ -2843,7 +2843,7 @@ template <class tag, class A1, class A2, class A3, class A4, class Policy>
 inline BOOST_MP_CXX14_CONSTEXPR typename detail::expression<tag, A1, A2, A3, A4>::result_type trunc(const detail::expression<tag, A1, A2, A3, A4>& v, const Policy& pol)
 {
    using number_type = typename detail::expression<tag, A1, A2, A3, A4>::result_type;
-   return std::move(trunc(number_type(v), pol));
+   return trunc(number_type(v), pol);
 }
 
 template <class Backend, expression_template_option ExpressionTemplates, class Policy>
@@ -2943,7 +2943,7 @@ template <class tag, class A1, class A2, class A3, class A4, class Policy>
 inline BOOST_MP_CXX14_CONSTEXPR typename detail::expression<tag, A1, A2, A3, A4>::result_type round(const detail::expression<tag, A1, A2, A3, A4>& v, const Policy& pol)
 {
    using number_type = typename detail::expression<tag, A1, A2, A3, A4>::result_type;
-   return std::move(round(static_cast<number_type>(v), pol));
+   return round(static_cast<number_type>(v), pol);
 }
 template <class T, expression_template_option ExpressionTemplates, class Policy>
 inline BOOST_MP_CXX14_CONSTEXPR number<T, ExpressionTemplates> round(const number<T, ExpressionTemplates>& v, const Policy&)
@@ -3057,7 +3057,7 @@ inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<typename
 frexp(const detail::expression<tag, A1, A2, A3, A4>& v, short* pint)
 {
    using number_type = typename detail::expression<tag, A1, A2, A3, A4>::result_type;
-   return std::move(frexp(static_cast<number_type>(v), pint));
+   return frexp(static_cast<number_type>(v), pint);
 }
 template <class T, expression_template_option ExpressionTemplates>
 inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<T>::value == number_kind_floating_point, number<T, ExpressionTemplates> >::type frexp(const number<T, ExpressionTemplates>& v, int* pint)
@@ -3073,7 +3073,7 @@ inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<typename
 frexp(const detail::expression<tag, A1, A2, A3, A4>& v, int* pint)
 {
    using number_type = typename detail::expression<tag, A1, A2, A3, A4>::result_type;
-   return std::move(frexp(static_cast<number_type>(v), pint));
+   return frexp(static_cast<number_type>(v), pint);
 }
 template <class T, expression_template_option ExpressionTemplates>
 inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<T>::value == number_kind_floating_point, number<T, ExpressionTemplates> >::type frexp(const number<T, ExpressionTemplates>& v, long* pint)
@@ -3089,7 +3089,7 @@ inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<typename
 frexp(const detail::expression<tag, A1, A2, A3, A4>& v, long* pint)
 {
    using number_type = typename detail::expression<tag, A1, A2, A3, A4>::result_type;
-   return std::move(frexp(static_cast<number_type>(v), pint));
+   return frexp(static_cast<number_type>(v), pint);
 }
 template <class T, expression_template_option ExpressionTemplates>
 inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<T>::value == number_kind_floating_point, number<T, ExpressionTemplates> >::type frexp(const number<T, ExpressionTemplates>& v, long long* pint)
@@ -3105,7 +3105,7 @@ inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<number_category<typename
 frexp(const detail::expression<tag, A1, A2, A3, A4>& v, long long* pint)
 {
    using number_type = typename detail::expression<tag, A1, A2, A3, A4>::result_type;
-   return std::move(frexp(static_cast<number_type>(v), pint));
+   return frexp(static_cast<number_type>(v), pint);
 }
 //
 // modf does not return an expression template since we require the
