@@ -4,12 +4,13 @@
 #include "config.h"
 
 #include <yt/yt/server/scheduler/helpers.h>
-#include <yt/yt/server/scheduler/allocation.h>
-#include <yt/yt/server/scheduler/exec_node.h>
 #include <yt/yt/server/scheduler/operation.h>
 
 #include <yt/yt/server/scheduler/strategy/persistent_state.h>
 #include <yt/yt/server/scheduler/strategy/strategy.h>
+
+#include <yt/yt/server/scheduler/common/allocation.h>
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 

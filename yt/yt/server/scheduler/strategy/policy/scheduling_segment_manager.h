@@ -3,8 +3,6 @@
 #include "private.h"
 #include "structs.h"
 
-#include <yt/yt/server/scheduler/public.h>
-
 #include <yt/yt/server/scheduler/strategy/persistent_state.h>
 #include <yt/yt/server/scheduler/strategy/strategy.h>
 

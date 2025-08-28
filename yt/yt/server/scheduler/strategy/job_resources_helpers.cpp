@@ -4,6 +4,8 @@
 
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobResources GetAdjustedResourceLimits(

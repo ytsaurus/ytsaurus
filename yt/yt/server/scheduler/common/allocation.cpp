@@ -1,9 +1,8 @@
 #include "allocation.h"
 
-#include "private.h"
 #include "exec_node.h"
-#include "helpers.h"
-#include "operation.h"
+
+#include <yt/yt/client/scheduler/private.h>
 
 namespace NYT::NScheduler {
 
@@ -22,7 +21,7 @@ TAllocation::TAllocation(
     EPreemptionMode preemptionMode,
     TString treeId,
     int schedulingIndex,
-    std::optional<NStrategy::EAllocationSchedulingStage> schedulingStage,
+    // std::optional<NStrategy::NPolicy::EAllocationSchedulingStage> schedulingStage,
     std::optional<TNetworkPriority> networkPriority,
     NNodeTrackerClient::TNodeId revivalNodeId,
     std::string revivalNodeAddress)
@@ -41,7 +40,7 @@ TAllocation::TAllocation(
     , AllocationAttributes_(startDescriptor.AllocationAttributes)
     , PreemptionMode_(preemptionMode)
     , SchedulingIndex_(schedulingIndex)
-    , SchedulingStage_(schedulingStage)
+    // , SchedulingStage_(schedulingStage)
     , NetworkPriority_(networkPriority)
     , Logger_(CreateLogger())
     , Codicil_(Format("AllocationId: %v, OperationId: %v",

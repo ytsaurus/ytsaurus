@@ -43,10 +43,10 @@ public:
     // Thread affinity: Profiler thread.
     void ApplyScheduledAndPreemptedResourcesDelta(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledAllocationResourcesDeltas,
-        const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourcesDeltas,
-        const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
-        const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedAllocationResourcesDeltas);
+        const THashMap<std::optional<NPolicy::EAllocationSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledAllocationResourcesDeltas,
+        const TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourcesDeltas,
+        const TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
+        const TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToImproperlyPreemptedAllocationResourcesDeltas);
 
 private:
     const NProfiling::TProfiler Profiler_;
@@ -106,10 +106,10 @@ private:
     NProfiling::TGauge PoolCountGauge_;
     NProfiling::TGauge TotalElementCountGauge_;
 
-    THashMap<std::optional<EAllocationSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
-    TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
-    TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
-    TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
+    THashMap<std::optional<NPolicy::EAllocationSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
+    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
+    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
+    TEnumIndexedArray<NPolicy::EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
 
     NProfiling::TBufferedProducerPtr DistributedResourcesBufferedProducer_;
 

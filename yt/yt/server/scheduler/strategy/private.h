@@ -44,19 +44,6 @@ DEFINE_ENUM(EResourceTreeElementKind,
     (Root)
 );
 
-DEFINE_ENUM(EOperationSchedulingPriority,
-    (High)
-    (Medium)
-);
-
-DEFINE_ENUM(EOperationPreemptionPriority,
-    (None)
-    (Normal)
-    (Aggressive)
-    (SsdNormal)
-    (SsdAggressive)
-);
-
 DEFINE_ENUM(EOperationPreemptionStatus,
     (AllowedUnconditionally)
     (AllowedConditionally)
@@ -73,17 +60,6 @@ DEFINE_ENUM(EAllocationPreemptionLevel,
     (Preemptible)
 );
 
-DEFINE_ENUM(EAllocationSchedulingStage,
-    (RegularHighPriority)
-    (RegularMediumPriority)
-    (RegularPackingFallback)
-
-    (PreemptiveNormal)
-    (PreemptiveAggressive)
-    (PreemptiveSsdNormal)
-    (PreemptiveSsdAggressive)
-);
-
 DEFINE_ENUM(EGpuSchedulingLogEventType,
     (FairShareInfo)
     (OperationRegistered)
@@ -96,12 +72,6 @@ DEFINE_ENUM(EGpuSchedulingLogEventType,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using TOperationElementsBySchedulingPriority = TEnumIndexedArray<EOperationSchedulingPriority, TNonOwningOperationElementList>;
-
-using TOperationCountByPreemptionPriority = TEnumIndexedArray<EOperationPreemptionPriority, int>;
-using TOperationPreemptionPriorityParameters = std::pair<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool>;
-using TOperationCountsByPreemptionPriorityParameters = THashMap<TOperationPreemptionPriorityParameters, TOperationCountByPreemptionPriority>;
 
 using TPreemptionStatusStatisticsVector = TEnumIndexedArray<EOperationPreemptionStatus, int>;
 

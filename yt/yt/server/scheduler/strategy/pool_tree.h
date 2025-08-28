@@ -3,8 +3,6 @@
 #include "private.h"
 #include "strategy.h"
 
-#include <yt/yt/server/scheduler/public.h>
-
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
@@ -68,7 +66,7 @@ struct IPoolTree
     : public virtual TRefCounted
 {
     //! Methods below rely on presence of snapshot.
-    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, bool skipScheduleAllocations) = 0;
+    virtual TFuture<void> ProcessSchedulingHeartbeat(const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, bool skipScheduleAllocations) = 0;
     virtual void ProcessAllocationUpdates(
         const std::vector<TAllocationUpdate>& allocationUpdates,
         THashSet<TAllocationId>* allocationsToPostpone,

@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
+#include "public.h"
+
+#include <yt/yt/server/scheduler/strategy/public.h>
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
