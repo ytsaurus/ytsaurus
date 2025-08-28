@@ -10,10 +10,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeAllocationSchedulerOperationSharedState final
+class TSchedulingPolicyOperationSharedState final
 {
 public:
-    TFairShareTreeAllocationSchedulerOperationSharedState(
+    TSchedulingPolicyOperationSharedState(
         IStrategyHost* strategyHost,
         int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
@@ -173,8 +173,8 @@ private:
     void ResetAllocationPreemptibleProgress(TSchedulerOperationElement* operationElement, TAllocationId allocationId);
 };
 
-using TFairShareTreeAllocationSchedulerOperationSharedStatePtr = TIntrusivePtr<TFairShareTreeAllocationSchedulerOperationSharedState>;
-using TFairShareTreeAllocationSchedulerSharedOperationStateMap = THashMap<TOperationId, TFairShareTreeAllocationSchedulerOperationSharedStatePtr>;
+using TSchedulingPolicyOperationSharedStatePtr = TIntrusivePtr<TSchedulingPolicyOperationSharedState>;
+using TSchedulingPolicySharedOperationStateMap = THashMap<TOperationId, TSchedulingPolicyOperationSharedStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -32,7 +32,7 @@ struct TPersistentTreeState
 {
     THashMap<TString, TPersistentPoolStatePtr> PoolStates;
 
-    NYTree::INodePtr AllocationSchedulerState;
+    NYTree::INodePtr SchedulingPolicyState;
 
     REGISTER_YSON_STRUCT(TPersistentTreeState);
 

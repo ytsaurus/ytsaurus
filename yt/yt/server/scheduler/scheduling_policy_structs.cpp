@@ -1,4 +1,4 @@
-#include "fair_share_tree_allocation_scheduler_structs.h"
+#include "scheduling_policy_structs.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -41,7 +41,7 @@ void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeAllocationSchedulerOperationState::TFairShareTreeAllocationSchedulerOperationState(
+TSchedulingPolicyOperationState::TSchedulingPolicyOperationState(
     TStrategyOperationSpecPtr spec,
     bool isGang)
     : Spec(std::move(spec))
@@ -50,7 +50,7 @@ TFairShareTreeAllocationSchedulerOperationState::TFairShareTreeAllocationSchedul
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareTreeAllocationSchedulerAllocationState::Register(TRegistrar registrar)
+void TSchedulingPolicyAllocationState::Register(TRegistrar registrar)
 {
     registrar.Parameter("operation_id", &TThis::OperationId)
         .Default();
