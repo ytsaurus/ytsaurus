@@ -29,8 +29,8 @@ public:
     // NB: Exception is raised upon validation fails. Caller is obliged to restore correct state.
     void FullValidate();
     void ValidateChildrenCompatibility();
-    void ValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
-    void ValidateStrongGuaranteesRecursively(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;
+    void ValidateStrongGuarantees(const NScheduler::TStrategyTreeConfigPtr& poolTreeConfig) const;
+    void ValidateStrongGuaranteesRecursively(const NScheduler::TStrategyTreeConfigPtr& poolTreeConfig) const;
 
     template<class TResource>
     void ValidateChildrenGuaranteeSum(
@@ -68,8 +68,8 @@ public:
 private:
     using TBase = NObjectServer::TNonversionedMapObjectBase<TSchedulerPool>;
 
-    NScheduler::TFairShareStrategyTreeConfigPtr GetPoolTreeConfig() const;
-    void DoValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const;
+    NScheduler::TStrategyTreeConfigPtr GetPoolTreeConfig() const;
+    void DoValidateStrongGuarantees(const NScheduler::TStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSchedulerPool)
@@ -98,12 +98,12 @@ public:
     void UpdateSpecifiedConfig(NYson::TYsonString newConfig);
 
     // Throws an error if we fail to deserialize the specified config.
-    NScheduler::TFairShareStrategyTreeConfigPtr GetDeserializedConfigOrThrow() const;
+    NScheduler::TStrategyTreeConfigPtr GetDeserializedConfigOrThrow() const;
 
 private:
     using TBase = NObjectServer::TObject;
 
-    mutable NScheduler::TFairShareStrategyTreeConfigPtr MemoizedDeserializedPoolTreeConfig_;
+    mutable NScheduler::TStrategyTreeConfigPtr MemoizedDeserializedPoolTreeConfig_;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TSchedulerPoolTree)

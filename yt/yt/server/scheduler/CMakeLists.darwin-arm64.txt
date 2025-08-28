@@ -45,8 +45,7 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/exec_node.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy_operation_controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy_operation_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_allocation_scheduler_operation_shared_state.cpp
@@ -71,7 +70,7 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/packing.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/packing_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_fair_share_tree_allocation_scheduler_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_scheduler_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pools_config_parser.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree.cpp
@@ -82,5 +81,6 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy.cpp
 )
 

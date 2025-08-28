@@ -1,13 +1,12 @@
-#include "fair_share_strategy.h"
+#include "strategy.h"
 
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"
-#include "persistent_scheduler_state.h"
+#include "persistent_state.h"
 #include "public.h"
-#include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "fair_share_strategy_operation_controller.h"
+#include "strategy_operation_controller.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
@@ -48,14 +47,14 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategy
-    : public ISchedulerStrategy
+class TStrategy
+    : public IStrategy
     , public IFairShareTreeHost
 {
 public:
-    TFairShareStrategy(
-        TFairShareStrategyConfigPtr config,
-        ISchedulerStrategyHost* host,
+    TStrategy(
+        TStrategyConfigPtr config,
+        IStrategyHost* host,
         std::vector<IInvokerPtr> feasibleInvokers)
         : Config_(std::move(config))
         , AtomicConfig_(Config_)
@@ -66,42 +65,42 @@ public:
         // TODO(eshcherbin): Use BIND_NO_PROPAGATE for all periodic executors.
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareProfilingInvoker(),
-            BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
+            BIND(&TStrategy::OnFairShareProfiling, MakeWeak(this)),
             Config_->FairShareProfilingPeriod);
 
         FairShareUpdateExecutor_ = New<TPeriodicExecutor>(
-            Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
-            BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
+            Host_->GetControlInvoker(EControlQueue::Strategy),
+            BIND(&TStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config_->FairShareUpdatePeriod);
 
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareLoggingInvoker(),
-            BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
+            BIND(&TStrategy::OnFairShareLogging, MakeWeak(this)),
             Config_->FairShareLogPeriod);
 
         AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareLoggingInvoker(),
-            BIND(&TFairShareStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
+            BIND(&TStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
             Config_->AccumulatedUsageLogPeriod);
 
         GroupedNeededResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-            Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
-            BIND(&TFairShareStrategy::OnGroupedNeededResourcesUpdate, MakeWeak(this)),
+            Host_->GetControlInvoker(EControlQueue::Strategy),
+            BIND(&TStrategy::OnGroupedNeededResourcesUpdate, MakeWeak(this)),
             Config_->MinNeededResourcesUpdatePeriod);
 
         ResourceMeteringExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::Metering),
-            BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
+            BIND(&TStrategy::OnBuildResourceMetering, MakeWeak(this)),
             Config_->ResourceMeteringPeriod);
 
         ResourceUsageUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareUpdateInvoker(),
-            BIND(&TFairShareStrategy::OnUpdateResourceUsages, MakeWeak(this)),
+            BIND(&TStrategy::OnUpdateResourceUsages, MakeWeak(this)),
             Config_->ResourceUsageSnapshotUpdatePeriod);
 
         SchedulerTreeAlertsUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::CommonPeriodicActivity),
-            BIND(&TFairShareStrategy::UpdateSchedulerTreeAlerts, MakeWeak(this)),
+            BIND(&TStrategy::UpdateSchedulerTreeAlerts, MakeWeak(this)),
             Config_->SchedulerTreeAlertsUpdatePeriod);
 
         EphemeralPoolNameRegex_.emplace(Config_->EphemeralPoolNameRegex);
@@ -247,7 +246,7 @@ public:
         for (const auto& treeId : *unknownTreeIds) {
             treeIdToPoolNameMap.erase(treeId);
         }
-        auto state = New<TFairShareStrategyOperationState>(operation, Config_, Host_->GetNodeShardInvokers());
+        auto state = New<TStrategyOperationState>(operation, Config_, Host_->GetNodeShardInvokers());
         state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
@@ -304,7 +303,7 @@ public:
         YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
 
-    void DoUnregisterOperationFromTree(const TFairShareStrategyOperationStatePtr& operationState, const TString& treeId)
+    void DoUnregisterOperationFromTree(const TStrategyOperationStatePtr& operationState, const TString& treeId)
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
@@ -548,7 +547,7 @@ public:
         return result;
     }
 
-    void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
+    void UpdateConfig(const TStrategyConfigPtr& config) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -835,7 +834,7 @@ public:
 
                 fluent
                     .Item(treeId).BeginMap()
-                        .Do(BIND(&TFairShareStrategy::BuildTreeOrchid, MakeStrong(this), tree))
+                        .Do(BIND(&TStrategy::BuildTreeOrchid, MakeStrong(this), tree))
                     .EndMap();
             });
     }
@@ -1145,7 +1144,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return BIND(&TFairShareStrategy::DoRegisterOrUpdateNode, MakeStrong(this))
+        return BIND(&TStrategy::DoRegisterOrUpdateNode, MakeStrong(this))
             .AsyncVia(Host_->GetControlInvoker(EControlQueue::NodeTracker))
             .Run(nodeId, nodeAddress, tags);
     }
@@ -1544,11 +1543,11 @@ private:
     friend class TPoolTreeService;
 
     // Thread affinity: Control.
-    TFairShareStrategyConfigPtr Config_;
+    TStrategyConfigPtr Config_;
     // Thread affinity: any.
-    TAtomicIntrusivePtr<TFairShareStrategyConfig> AtomicConfig_;
+    TAtomicIntrusivePtr<TStrategyConfig> AtomicConfig_;
 
-    ISchedulerStrategyHost* const Host_;
+    IStrategyHost* const Host_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1565,7 +1564,7 @@ private:
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
     TPeriodicExecutorPtr SchedulerTreeAlertsUpdateExecutor_;
 
-    THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
+    THashMap<TOperationId, TStrategyOperationStatePtr> OperationIdToOperationState_;
 
     using TFairShareTreeMap = THashMap<TString, IFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
@@ -1808,7 +1807,7 @@ private:
         return *EphemeralPoolNameRegex_;
     }
 
-    TFairShareStrategyOperationStatePtr FindOperationState(TOperationId operationId) const
+    TStrategyOperationStatePtr FindOperationState(TOperationId operationId) const
     {
         auto it = OperationIdToOperationState_.find(operationId);
         if (it == OperationIdToOperationState_.end()) {
@@ -1817,7 +1816,7 @@ private:
         return it->second;
     }
 
-    TFairShareStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
+    TStrategyOperationStatePtr GetOperationState(TOperationId operationId) const
     {
         return GetOrCrash(OperationIdToOperationState_, operationId);
     }
@@ -1868,7 +1867,7 @@ private:
         }
     }
 
-    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(
+    TStrategyTreeConfigPtr ParsePoolTreeConfig(
         const INodePtr& poolTreeNode,
         const INodePtr& patchConfigNode = nullptr) const
     {
@@ -1881,11 +1880,11 @@ private:
         }
 
         return patchConfigNode
-            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(patchConfigNode, ConvertToNode(configYson)))
-            : ConvertTo<TFairShareStrategyTreeConfigPtr>(configYson);
+            ? ConvertTo<TStrategyTreeConfigPtr>(PatchNode(patchConfigNode, ConvertToNode(configYson)))
+            : ConvertTo<TStrategyTreeConfigPtr>(configYson);
     }
 
-    TFairShareStrategyTreeConfigPtr BuildConfig(
+    TStrategyTreeConfigPtr BuildConfig(
         const IMapNodePtr& poolTreesMap,
         const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         const TString& treeId) const
@@ -1978,7 +1977,7 @@ private:
         TFairShareTreeMap trees;
 
         for (const auto& treeId : treesToAdd) {
-            TFairShareStrategyTreeConfigPtr treeConfig;
+            TStrategyTreeConfigPtr treeConfig;
             try {
                 treeConfig = BuildConfig(poolTreesMap, templatePoolTreeConfigMap, treeId);
             } catch (const std::exception& ex) {
@@ -1991,7 +1990,7 @@ private:
 
             auto tree = CreateFairShareTree(treeConfig, Config_, this, Host_, FeasibleInvokers_, treeId);
             tree->SubscribeOperationRunning(BIND_NO_PROPAGATE(
-                &TFairShareStrategy::OnOperationRunningInTree,
+                &TStrategy::OnOperationRunningInTree,
                 Unretained(this),
                 Unretained(tree.Get())));
 
@@ -2447,12 +2446,12 @@ private:
         : public TVirtualMapBase
     {
     public:
-        explicit TPoolTreeService(TIntrusivePtr<TFairShareStrategy> strategy)
+        explicit TPoolTreeService(TIntrusivePtr<TStrategy> strategy)
             : Strategy_{std::move(strategy)}
         { }
 
     private:
-        const TIntrusivePtr<TFairShareStrategy> Strategy_;
+        const TIntrusivePtr<TStrategy> Strategy_;
 
         i64 GetSize() const final
         {
@@ -2497,7 +2496,7 @@ private:
     public:
         TNodeHeartbeatStrategyProxy(
             TNodeId nodeId,
-            TFairShareStrategyConfigPtr config,
+            TStrategyConfigPtr config,
             IFairShareTreePtr tree,
             TMatchingTreeCookie cookie)
             : NodeId_(nodeId)
@@ -2573,7 +2572,7 @@ private:
 
     private:
         const TNodeId NodeId_;
-        const TFairShareStrategyConfigPtr Config_;
+        const TStrategyConfigPtr Config_;
         const IFairShareTreePtr Tree_;
         const TMatchingTreeCookie Cookie_;
     };
@@ -2581,12 +2580,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulerStrategyPtr CreateFairShareStrategy(
-    TFairShareStrategyConfigPtr config,
-    ISchedulerStrategyHost* host,
+IStrategyPtr CreateStrategy(
+    TStrategyConfigPtr config,
+    IStrategyHost* host,
     std::vector<IInvokerPtr> feasibleInvokers)
 {
-    return New<TFairShareStrategy>(std::move(config), host, std::move(feasibleInvokers));
+    return New<TStrategy>(std::move(config), host, std::move(feasibleInvokers));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

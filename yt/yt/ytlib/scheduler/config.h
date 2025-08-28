@@ -390,7 +390,7 @@ DEFINE_ENUM(EPackingMetricType,
     ((AngleLength) (1))
 );
 
-struct TFairShareStrategyPackingConfig
+struct TStrategyPackingConfig
     : public virtual NYTree::TYsonStruct
 {
     bool Enable;
@@ -404,12 +404,12 @@ struct TFairShareStrategyPackingConfig
     int MaxHeartbeatWindowSize;
     TDuration MaxHeartbeatAge;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategyPackingConfig);
+    REGISTER_YSON_STRUCT(TStrategyPackingConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
+DEFINE_REFCOUNTED_TYPE(TStrategyPackingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

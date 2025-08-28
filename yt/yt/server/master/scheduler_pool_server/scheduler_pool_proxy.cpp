@@ -105,7 +105,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
     if (schedulerPool->IsRoot()) {
         if (key == EInternedAttributeKey::Config) {
             auto schedulerPoolTree = schedulerPool->GetMaybePoolTree();
-            auto treeConfig = New<NScheduler::TFairShareStrategyTreeConfig>();
+            auto treeConfig = New<NScheduler::TStrategyTreeConfig>();
             treeConfig->Load(ConvertToNode(value));
             schedulerPool->ValidateStrongGuaranteesRecursively(treeConfig);
             schedulerPoolTree->UpdateSpecifiedConfig(value);
@@ -128,7 +128,7 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
     auto schedulerPool = GetThisImpl();
     if (schedulerPool->IsRoot()) {
         if (key == EInternedAttributeKey::Config) {
-            auto defaultPoolTreeConfig = New<TFairShareStrategyTreeConfig>();
+            auto defaultPoolTreeConfig = New<TStrategyTreeConfig>();
             schedulerPool->ValidateStrongGuaranteesRecursively(defaultPoolTreeConfig);
             schedulerPool->GetMaybePoolTree()->UpdateSpecifiedConfig(ConvertToYsonString(EmptyAttributes()));
             return true;

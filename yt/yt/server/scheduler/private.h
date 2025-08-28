@@ -30,7 +30,7 @@ DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
 
 DECLARE_REFCOUNTED_CLASS(TScheduleAllocationsContext)
 
-DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
+DECLARE_REFCOUNTED_CLASS(TStrategyOperationController)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeAllocationScheduler)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSetSnapshot)

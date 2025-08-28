@@ -3,7 +3,7 @@
 #include "operation.h"
 #include "operation_controller.h"
 #include "operation_description.h"
-#include "scheduler_strategy_host.h"
+#include "scheduling_strategy_host.h"
 #include "shared_data.h"
 #include "node_shard.h"
 #include "control_thread.h"

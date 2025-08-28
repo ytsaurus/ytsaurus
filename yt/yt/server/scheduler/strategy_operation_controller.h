@@ -10,13 +10,13 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyOperationController
+class TStrategyOperationController
     : public TRefCounted
 {
 public:
-    TFairShareStrategyOperationController(
+    TStrategyOperationController(
         const IOperationStrategyHostPtr& operation,
-        const TFairShareStrategyOperationControllerConfigPtr& config,
+        const TStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
     void OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext);
@@ -32,7 +32,7 @@ public:
 
     void UpdateGroupedNeededResources();
 
-    void UpdateConcurrentScheduleAllocationThrottlingLimits(const TFairShareStrategyOperationControllerConfigPtr& config);
+    void UpdateConcurrentScheduleAllocationThrottlingLimits(const TStrategyOperationControllerConfigPtr& config);
     bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
     bool IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
@@ -64,19 +64,19 @@ public:
         const TString& treeId,
         TDuration saturationDeactivationTimeout) const;
 
-    void UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
-    TFairShareStrategyOperationControllerConfigPtr GetConfig();
+    void UpdateConfig(const TStrategyOperationControllerConfigPtr& config);
+    TStrategyOperationControllerConfigPtr GetConfig();
 
     void SetDetailedLogsEnabled(bool enabled);
 
 private:
-    const IOperationControllerStrategyHostPtr Controller_;
+    const ISchedulingOperationControllerPtr Controller_;
     const TOperationId OperationId_;
 
     const NLogging::TLogger Logger;
 
     NThreading::TReaderWriterSpinLock ConfigLock_;
-    TAtomicIntrusivePtr<TFairShareStrategyOperationControllerConfig> Config_;
+    TAtomicIntrusivePtr<TStrategyOperationControllerConfig> Config_;
 
     struct alignas(CacheLineSize) TStateShard
     {
@@ -111,7 +111,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationController)
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 

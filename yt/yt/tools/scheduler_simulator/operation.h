@@ -33,7 +33,7 @@ public:
     void SetSlotIndex(const TString& treeId, int index) override;
     void ReleaseSlotIndex(const TString& treeId) override;
 
-    NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    NScheduler::ISchedulingOperationControllerPtr GetControllerStrategyHost() const override;
 
     NScheduler::TStrategyOperationSpecPtr GetStrategySpec() const override;
     NScheduler::TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;

@@ -300,7 +300,7 @@ public:
         TFairShareTreeSnapshotPtr treeSnapshot,
         const TFairShareTreeAllocationSchedulerNodeState* nodeState,
         bool schedulingInfoLoggingEnabled,
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         const NProfiling::TCounter& scheduleAllocationsDeadlineReachedCounter,
         const NLogging::TLogger& logger);
 
@@ -381,7 +381,7 @@ private:
     const THashSet<int> SsdPriorityPreemptionMedia_;
     const TDynamicAttributesListSnapshotPtr DynamicAttributesListSnapshot_;
 
-    ISchedulerStrategyHost* const StrategyHost_;
+    IStrategyHost* const StrategyHost_;
     const NProfiling::TCounter ScheduleAllocationsDeadlineReachedCounter_;
     const NLogging::TLogger Logger;
 
@@ -502,7 +502,7 @@ private:
         const TSchedulerOperationElement* element,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const;
 
-    TFairShareStrategyPackingConfigPtr GetPackingConfig() const;
+    TStrategyPackingConfigPtr GetPackingConfig() const;
     bool CheckPacking(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
     void ReactivateBadPackingOperations();
 
@@ -591,8 +591,8 @@ public:
         NLogging::TLogger logger,
         TWeakPtr<IFairShareTreeAllocationSchedulerHost> host,
         IFairShareTreeHost* treeHost,
-        ISchedulerStrategyHost* strategyHost,
-        TFairShareStrategyTreeConfigPtr config,
+        IStrategyHost* strategyHost,
+        TStrategyTreeConfigPtr config,
         NProfiling::TProfiler profiler);
 
     //! Node management.
@@ -653,7 +653,7 @@ public:
     static void BuildOperationProgress(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerOperationElement* element,
-        ISchedulerStrategyHost* const strategyHost,
+        IStrategyHost* const strategyHost,
         NYTree::TFluentMap fluent);
     static void BuildElementYson(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
@@ -677,7 +677,7 @@ public:
         NProfiling::ISensorWriter* writer) const;
 
     //! Miscellaneous.
-    void UpdateConfig(TFairShareStrategyTreeConfigPtr config);
+    void UpdateConfig(TStrategyTreeConfigPtr config);
 
     void BuildElementLoggingStringAttributes(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
@@ -687,7 +687,7 @@ public:
     void InitPersistentState(NYTree::INodePtr persistentState);
     NYTree::INodePtr BuildPersistentState() const;
 
-    static bool IsGpuTree(const TFairShareStrategyTreeConfigPtr& config);
+    static bool IsGpuTree(const TStrategyTreeConfigPtr& config);
     bool IsGpuTree() const;
 
     void PopulateOrchidService(const NYTree::TCompositeMapServicePtr& orchidService) const;
@@ -714,9 +714,9 @@ private:
     // can be outlived by some asynchronous actions. Therefore, we store it as a weak pointer rather than a raw pointer.
     const TWeakPtr<IFairShareTreeAllocationSchedulerHost> Host_;
     IFairShareTreeHost* const TreeHost_;
-    ISchedulerStrategyHost* const StrategyHost_;
+    IStrategyHost* const StrategyHost_;
 
-    TFairShareStrategyTreeConfigPtr Config_;
+    TStrategyTreeConfigPtr Config_;
 
     NProfiling::TProfiler Profiler_;
 

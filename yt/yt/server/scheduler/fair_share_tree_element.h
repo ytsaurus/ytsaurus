@@ -1,12 +1,12 @@
 #pragma once
 
-#include "fair_share_strategy_operation_controller.h"
+#include "strategy_operation_controller.h"
 #include "helpers.h"
 #include "allocation.h"
 #include "private.h"
 #include "resource_tree.h"
 #include "resource_tree_element.h"
-#include "scheduler_strategy.h"
+#include "strategy.h"
 #include "scheduling_context.h"
 #include "packing.h"
 
@@ -108,7 +108,7 @@ struct TFairSharePreUpdateContext
 
 struct TFairSharePostUpdateContext
 {
-    const TFairShareStrategyTreeConfigPtr& TreeConfig;
+    const TStrategyTreeConfigPtr& TreeConfig;
     const TInstant Now;
 
     TEnumIndexedArray<EUnschedulableReason, int> UnschedulableReasons;
@@ -150,7 +150,7 @@ class TSchedulerElementFixedState
 {
 public:
     // Tree config.
-    DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyTreeConfigPtr, TreeConfig);
+    DEFINE_BYREF_RO_PROPERTY(TStrategyTreeConfigPtr, TreeConfig);
 
     // Flag indicates that we can change fields of scheduler elements.
     DEFINE_BYVAL_RO_PROPERTY(bool, Mutable, true);
@@ -195,12 +195,12 @@ public:
 
 protected:
     TSchedulerElementFixedState(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
-        TFairShareStrategyTreeConfigPtr treeConfig,
+        TStrategyTreeConfigPtr treeConfig,
         TString treeId);
 
-    ISchedulerStrategyHost* const StrategyHost_;
+    IStrategyHost* const StrategyHost_;
     IFairShareTreeElementHost* const TreeElementHost_;
 
     // These fields calculated in preupdate and used for update.
@@ -272,7 +272,7 @@ public:
 
     //! Trunk node interface.
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
-    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
+    virtual void UpdateTreeConfig(const TStrategyTreeConfigPtr& config);
 
     //! Fair share update initialization method.
     // At this stage we prepare attributes that need to be computed in the control thread
@@ -338,9 +338,9 @@ protected:
     NLogging::TLogger Logger;
 
     TSchedulerElement(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
-        TFairShareStrategyTreeConfigPtr treeConfig,
+        TStrategyTreeConfigPtr treeConfig,
         TString treeId,
         TString id,
         EResourceTreeElementKind elementKind,
@@ -349,7 +349,7 @@ protected:
         const TSchedulerElement& other,
         TSchedulerCompositeElement* clonedParent);
 
-    ISchedulerStrategyHost* GetHost() const;
+    IStrategyHost* GetHost() const;
 
     void SetOperationAlert(
         TOperationId operationId,
@@ -438,9 +438,9 @@ class TSchedulerCompositeElement
 {
 public:
     TSchedulerCompositeElement(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
-        TFairShareStrategyTreeConfigPtr treeConfig,
+        TStrategyTreeConfigPtr treeConfig,
         const TString& treeId,
         const TString& id,
         EResourceTreeElementKind elementKind,
@@ -456,7 +456,7 @@ public:
     void RemoveChild(TSchedulerElement* child);
     bool IsEnabledChild(TSchedulerElement* child);
 
-    void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
+    void UpdateTreeConfig(const TStrategyTreeConfigPtr& config) override;
 
     const std::vector<TSchedulerElementPtr>& EnabledChildren() const;
 
@@ -605,13 +605,13 @@ class TSchedulerPoolElement
 {
 public:
     TSchedulerPoolElement(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
         const TString& id,
         TGuid objectId,
         TPoolConfigPtr config,
         bool defaultConfigured,
-        TFairShareStrategyTreeConfigPtr treeConfig,
+        TStrategyTreeConfigPtr treeConfig,
         const TString& treeId,
         const NLogging::TLogger& logger);
     TSchedulerPoolElement(
@@ -760,13 +760,13 @@ public:
 protected:
     TSchedulerOperationElementFixedState(
         IOperationStrategyHostPtr operation,
-        TFairShareStrategyOperationControllerConfigPtr controllerConfig,
+        TStrategyOperationControllerConfigPtr controllerConfig,
         TSchedulingTagFilter schedulingTagFilter);
 
     const TOperationId OperationId_;
 
     IOperationStrategyHostPtr OperationHost_;
-    TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
+    TStrategyOperationControllerConfigPtr ControllerConfig_;
 
     // Used only in trunk version.
     std::string UserName_;
@@ -801,14 +801,14 @@ public:
 
 public:
     TSchedulerOperationElement(
-        TFairShareStrategyTreeConfigPtr treeConfig,
+        TStrategyTreeConfigPtr treeConfig,
         TStrategyOperationSpecPtr spec,
         TOperationOptionsPtr operationOptions,
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters,
-        TFairShareStrategyOperationControllerPtr controller,
-        TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-        TFairShareStrategyOperationStatePtr state,
-        ISchedulerStrategyHost* strategyHost,
+        TStrategyOperationControllerPtr controller,
+        TStrategyOperationControllerConfigPtr controllerConfig,
+        TStrategyOperationStatePtr state,
+        IStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
         IOperationStrategyHostPtr operation,
         const TString& treeId,
@@ -836,12 +836,12 @@ public:
 
     ESchedulableStatus GetStatus() const override;
 
-    void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
+    void UpdateControllerConfig(const TStrategyOperationControllerConfigPtr& config);
 
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
     TResourceVector GetMaxShare() const override;
 
-    const TFairShareStrategyOperationStatePtr& GetFairShareStrategyOperationState() const;
+    const TStrategyOperationStatePtr& GetStrategyOperationState() const;
 
     //! Trunk node interface.
     int GetSlotIndex() const;
@@ -958,8 +958,8 @@ protected:
 private:
     TOperationFairShareTreeRuntimeParametersPtr RuntimeParameters_;
 
-    const TFairShareStrategyOperationControllerPtr Controller_;
-    const TFairShareStrategyOperationStatePtr FairShareStrategyOperationState_;
+    const TStrategyOperationControllerPtr Controller_;
+    const TStrategyOperationStatePtr StrategyOperationState_;
 
     std::optional<double> GetSpecifiedWeight() const override;
 
@@ -993,9 +993,9 @@ class TSchedulerRootElement
 {
 public:
     TSchedulerRootElement(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
-        TFairShareStrategyTreeConfigPtr treeConfig,
+        TStrategyTreeConfigPtr treeConfig,
         const TString& treeId,
         const NLogging::TLogger& logger);
     TSchedulerRootElement(const TSchedulerRootElement& other);

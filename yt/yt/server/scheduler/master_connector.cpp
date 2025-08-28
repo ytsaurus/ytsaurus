@@ -2,11 +2,11 @@
 
 #include "helpers.h"
 #include "scheduler.h"
-#include "scheduler_strategy.h"
+#include "strategy.h"
 #include "operation.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
-#include "persistent_scheduler_state.h"
+#include "persistent_state.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>

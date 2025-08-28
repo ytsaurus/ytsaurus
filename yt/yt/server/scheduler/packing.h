@@ -54,14 +54,14 @@ class TPackingStatistics
 public:
     void RecordHeartbeat(
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-        const TFairShareStrategyPackingConfigPtr& config);
+        const TStrategyPackingConfigPtr& config);
 
     bool CheckPacking(
         const TSchedulerOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& allocationResourcesWithQuota,
         const TJobResources& totalResourceLimits,
-        const TFairShareStrategyPackingConfigPtr& config) const;
+        const TStrategyPackingConfigPtr& config) const;
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);

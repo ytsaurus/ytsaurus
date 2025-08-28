@@ -58,7 +58,7 @@ TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& s
 
 void TPackingStatistics::RecordHeartbeat(
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-    const TFairShareStrategyPackingConfigPtr& config)
+    const TStrategyPackingConfigPtr& config)
 {
     auto guard = Guard(Lock_);
 
@@ -73,7 +73,7 @@ bool TPackingStatistics::CheckPacking(
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
     const TJobResources& totalResourceLimits,
-    const TFairShareStrategyPackingConfigPtr& config) const
+    const TStrategyPackingConfigPtr& config) const
 {
     auto metric = [&] (const auto& snapshot, const auto& allocationResources) -> double {
         return PackingMetric(snapshot.Resources(), allocationResources, totalResourceLimits, config);

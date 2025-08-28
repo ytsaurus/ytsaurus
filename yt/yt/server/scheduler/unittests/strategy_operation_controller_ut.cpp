@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/fair_share_strategy_operation_controller.h>
+#include <yt/yt/server/scheduler/strategy_operation_controller.h>
 #include <yt/yt/server/scheduler/operation.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
 
@@ -26,11 +26,11 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationControllerStrategyHostMock
-    : public IOperationControllerStrategyHost
+class TSchedulingOperationControllerMock
+    : public ISchedulingOperationController
 {
 public:
-    explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList jobResourcesList)
+    explicit TSchedulingOperationControllerMock(TJobResourcesWithQuotaList jobResourcesList)
         : JobResourcesList_(std::move(jobResourcesList))
     { }
 
@@ -101,7 +101,7 @@ private:
     TJobResourcesWithQuotaList JobResourcesList_;
 };
 
-using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControllerStrategyHostMock>;
+using TSchedulingOperationControllerMockPtr = TIntrusivePtr<TSchedulingOperationControllerMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +112,7 @@ public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
         : StartTime_(TInstant::Now())
         , Id_(TGuid::Create())
-        , Controller_(New<TOperationControllerStrategyHostMock>(jobResourcesList))
+        , Controller_(New<TSchedulingOperationControllerMock>(jobResourcesList))
     { }
 
     EOperationType GetType() const override
@@ -161,7 +161,7 @@ public:
         return Id_;
     }
 
-    IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override
+    ISchedulingOperationControllerPtr GetControllerStrategyHost() const override
     {
         return Controller_;
     }
@@ -201,7 +201,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
+    TSchedulingOperationControllerMock& GetSchedulingOperationController()
     {
         return *Controller_.Get();
     }
@@ -221,18 +221,18 @@ private:
     TInstant StartTime_;
     NYson::TYsonString TrimmedAnnotations_;
     TOperationId Id_;
-    TOperationControllerStrategyHostMockPtr Controller_;
+    TSchedulingOperationControllerMockPtr Controller_;
 };
 
 using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyOperationControllerTest
+class TStrategyOperationControllerTest
     : public testing::Test
 {
 public:
-    TFairShareStrategyOperationControllerTest()
+    TStrategyOperationControllerTest()
     {
         NChunkClient::NProto::TMediumDirectory protoDirectory;
         auto* item = protoDirectory.add_items();
@@ -254,12 +254,12 @@ protected:
 
     NNodeTrackerClient::TNodeId ExecNodeId_ = NNodeTrackerClient::TNodeId(1);
 
-    TFairShareStrategyOperationControllerPtr CreateTestOperationController(
+    TStrategyOperationControllerPtr CreateTestOperationController(
         IOperationStrategyHost* operation,
         int nodeShardCount = 1)
     {
         std::vector<IInvokerPtr> nodeShardsInvokers(nodeShardCount, GetCurrentInvoker());
-        auto controller = New<TFairShareStrategyOperationController>(
+        auto controller = New<TStrategyOperationController>(
             operation,
             SchedulerConfig_,
             nodeShardsInvokers);
@@ -308,7 +308,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling)
+TEST_F(TStrategyOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling)
 {
     const int JobCount = 10;
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
@@ -320,7 +320,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocati
     auto readyToGo = NewPromise<void>();
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
-        operation->GetOperationControllerStrategyHost(),
+        operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount)
         .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
@@ -389,7 +389,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocati
     }
 }
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThrottling)
+TEST_F(TStrategyOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThrottling)
 {
     const int JobCount = 10;
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationExecDuration = TDuration::Seconds(1);
@@ -402,7 +402,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocati
     auto readyToGo = NewPromise<void>();
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
-        operation->GetOperationControllerStrategyHost(),
+        operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount + 1)
         .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
@@ -500,7 +500,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentScheduleAllocati
     }
 }
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerScheduleAllocationCallsRegularization)
+TEST_F(TStrategyOperationControllerTest, TestConcurrentControllerScheduleAllocationCallsRegularization)
 {
     const int JobCount = 10;
     SchedulerConfig_->MaxConcurrentControllerScheduleAllocationCalls = JobCount;
@@ -513,7 +513,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     auto readyToGo = NewPromise<void>();
     std::atomic<int> concurrentScheduleAllocationCalls = 0;
     EXPECT_CALL(
-        operation->GetOperationControllerStrategyHost(),
+        operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2 * JobCount)
         .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
@@ -583,7 +583,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestConcurrentControllerSchedu
     }
 }
 
-TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
+TEST_F(TStrategyOperationControllerTest, TestScheduleAllocationTimeout)
 {
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto controller = CreateTestOperationController(operation.Get());
@@ -593,7 +593,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
     auto firstAllocationId = TAllocationId(TGuid::Create());
     auto secondAllocationId = TAllocationId(TGuid::Create());
     EXPECT_CALL(
-        operation->GetOperationControllerStrategyHost(),
+        operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/) {
             return BIND([&] {
@@ -627,7 +627,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
                 .Run();
         }));
     EXPECT_CALL(
-        operation->GetOperationControllerStrategyHost(),
+        operation->GetSchedulingOperationController(),
         OnNonscheduledAllocationAborted(firstAllocationId, EAbortReason::SchedulingTimeout, testing::_))
         .Times(1);
 

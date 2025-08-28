@@ -14,7 +14,7 @@ class TFairShareTreeAllocationSchedulerOperationSharedState final
 {
 public:
     TFairShareTreeAllocationSchedulerOperationSharedState(
-        ISchedulerStrategyHost* strategyHost,
+        IStrategyHost* strategyHost,
         int updatePreemptibleAllocationsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
@@ -76,16 +76,16 @@ public:
 
     void RecordPackingHeartbeat(
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-        const TFairShareStrategyPackingConfigPtr& config);
+        const TStrategyPackingConfigPtr& config);
     bool CheckPacking(
         const TSchedulerOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& allocationResources,
         const TJobResources& totalResourceLimits,
-        const TFairShareStrategyPackingConfigPtr& config);
+        const TStrategyPackingConfigPtr& config);
 
 private:
-    const ISchedulerStrategyHost* StrategyHost_;
+    const IStrategyHost* StrategyHost_;
 
     // This value is read and modified only during post update in fair share update invoker.
     EStarvationStatus StarvationStatusAtLastUpdate_ = EStarvationStatus::NonStarving;

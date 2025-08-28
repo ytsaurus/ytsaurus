@@ -77,7 +77,7 @@ DEFINE_REFCOUNTED_TYPE(TStrategyTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyControllerThrottling
+class TStrategyControllerThrottling
     : public virtual NYTree::TYsonStruct
 {
 public:
@@ -85,17 +85,17 @@ public:
     TDuration ScheduleAllocationMaxBackoffTime;
     double ScheduleAllocationBackoffMultiplier;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategyControllerThrottling);
+    REGISTER_YSON_STRUCT(TStrategyControllerThrottling);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyControllerThrottling)
+DEFINE_REFCOUNTED_TYPE(TStrategyControllerThrottling)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(ignat): move it to subconfig.
-struct TFairShareStrategyOperationControllerConfig
+struct TStrategyOperationControllerConfig
     : public virtual NYTree::TYsonStruct
 {
     //! Limits on the number and total duration of concurrent schedule allocation calls to a single controller.
@@ -115,7 +115,7 @@ struct TFairShareStrategyOperationControllerConfig
     TDuration ScheduleAllocationFailBackoffTime;
 
     //! Configuration of schedule allocation backoffs in case of throttling from controller.
-    TFairShareStrategyControllerThrottlingPtr ControllerThrottling;
+    TStrategyControllerThrottlingPtr ControllerThrottling;
 
     //! Timeout after which "schedule allocation timed out" alert is expired and unset.
     TDuration ScheduleAllocationTimeoutAlertResetTime;
@@ -126,12 +126,12 @@ struct TFairShareStrategyOperationControllerConfig
     //! Schedule allocation that longer this duration will be logged.
     TDuration LongScheduleAllocationLoggingThreshold;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategyOperationControllerConfig);
+    REGISTER_YSON_STRUCT(TStrategyOperationControllerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
+DEFINE_REFCOUNTED_TYPE(TStrategyOperationControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +170,7 @@ struct TModuleShareAndNetworkPriority
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareStrategySchedulingSegmentsConfig
+struct TStrategySchedulingSegmentsConfig
     : public NYTree::TYsonStruct
 {
     ESegmentedSchedulingMode Mode;
@@ -213,12 +213,12 @@ struct TFairShareStrategySchedulingSegmentsConfig
 
     const THashSet<std::string>& GetModules() const;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
+    REGISTER_YSON_STRUCT(TStrategySchedulingSegmentsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
+DEFINE_REFCOUNTED_TYPE(TStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,7 +244,7 @@ DEFINE_REFCOUNTED_TYPE(TGpuAllocationSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareStrategySsdPriorityPreemptionConfig
+struct TStrategySsdPriorityPreemptionConfig
     : public NYTree::TYsonStruct
 {
     bool Enable;
@@ -253,12 +253,12 @@ struct TFairShareStrategySsdPriorityPreemptionConfig
 
     std::vector<std::string> MediumNames;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig);
+    REGISTER_YSON_STRUCT(TStrategySsdPriorityPreemptionConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
+DEFINE_REFCOUNTED_TYPE(TStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,7 +294,7 @@ DEFINE_REFCOUNTED_TYPE(TTreeTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareStrategyTreeConfig
+struct TStrategyTreeConfig
     : virtual public NYTree::TYsonStruct
 {
     // Specifies nodes that are served by this tree.
@@ -368,7 +368,7 @@ struct TFairShareStrategyTreeConfig
     //! inferred weight is this number multiplied by dominant strong guarantee share.
     std::optional<double> InferWeightFromGuaranteesShareMultiplier;
 
-    TFairShareStrategyPackingConfigPtr Packing;
+    TStrategyPackingConfigPtr Packing;
 
     //! List of operation types which should not be run in that tree as tentative.
     std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
@@ -395,7 +395,7 @@ struct TFairShareStrategyTreeConfig
     // Allocation graceful preemption timeout.
     TDuration AllocationGracefulPreemptionTimeout;
 
-    TFairShareStrategySchedulingSegmentsConfigPtr SchedulingSegments;
+    TStrategySchedulingSegmentsConfigPtr SchedulingSegments;
 
     bool EnablePoolsVectorProfiling;
     bool EnableOperationsVectorProfiling;
@@ -443,7 +443,7 @@ struct TFairShareStrategyTreeConfig
     bool FailRemoteCopyOnMissingResourceLimits;
     TJobResourcesConfigPtr RequiredResourceLimitsForRemoteCopy;
 
-    TFairShareStrategySsdPriorityPreemptionConfigPtr SsdPriorityPreemption;
+    TStrategySsdPriorityPreemptionConfigPtr SsdPriorityPreemption;
 
     //! Enables profiling of scheduled and preempted resources in strategy.
     bool EnableScheduledAndPreemptedResourcesProfiling;
@@ -485,12 +485,12 @@ struct TFairShareStrategyTreeConfig
 
     TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
+    REGISTER_YSON_STRUCT(TStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
+DEFINE_REFCOUNTED_TYPE(TStrategyTreeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -541,8 +541,8 @@ DEFINE_REFCOUNTED_TYPE(TOperationStuckCheckOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareStrategyConfig
-    : public TFairShareStrategyOperationControllerConfig
+struct TStrategyConfig
+    : public TStrategyOperationControllerConfig
 {
     //! How often to update, log, profile fair share in fair share trees.
     TDuration FairShareUpdatePeriod;
@@ -597,12 +597,12 @@ struct TFairShareStrategyConfig
     //! Minimum amount of resources to continue schedule allocation attempts.
     TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
-    REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
+    REGISTER_YSON_STRUCT(TStrategyConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
+DEFINE_REFCOUNTED_TYPE(TStrategyConfig)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -831,7 +831,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceMeteringConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulerConfig
-    : public TFairShareStrategyConfig
+    : public TStrategyConfig
     , public TSingletonsDynamicConfig
 {
     //! Number of shards the nodes are split into.

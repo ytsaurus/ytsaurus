@@ -43,7 +43,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    ISchedulerStrategyPtr GetStrategy() const;
+    IStrategyPtr GetStrategy() const;
 
     /*!
      *  \note Thread affinity: any

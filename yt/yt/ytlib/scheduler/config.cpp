@@ -2701,7 +2701,7 @@ void TPoolConfig::Validate(const TString& poolName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategyPackingConfig::Register(TRegistrar registrar)
+void TStrategyPackingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);

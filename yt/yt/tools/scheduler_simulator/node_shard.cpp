@@ -47,8 +47,8 @@ std::unique_ptr<TCompletedJobSummary> BuildCompletedJobSummary(const TAllocation
 TSimulatorNodeShard::TSimulatorNodeShard(
     int shardId,
     TSharedEventQueue* events,
-    TSchedulerStrategyHost* strategyHost,
-    TSharedSchedulerStrategy* schedulingStrategy,
+    TStrategyHost* strategyHost,
+    TSharedStrategy* schedulingStrategy,
     TSharedOperationStatistics* operationStatistics,
     IOperationStatisticsOutput* operationStatisticsOutput,
     TSharedRunningOperationsMap* runningOperationsMap,
@@ -59,7 +59,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     : Id_(shardId)
     , Events_(events)
     , StrategyHost_(strategyHost)
-    , SchedulingStrategy_(schedulingStrategy)
+    , Strategy_(schedulingStrategy)
     , OperationStatistics_(operationStatistics)
     , OperationStatisticsOutput_(operationStatisticsOutput)
     , RunningOperationsMap_(runningOperationsMap)
@@ -112,7 +112,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         node->DiskResources(),
         node->Allocations().size());
 
-    auto strategyProxy = SchedulingStrategy_->CreateNodeHeartbeatStrategyProxy(
+    auto strategyProxy = Strategy_->CreateNodeHeartbeatStrategyProxy(
         node->GetId(),
         node->GetDefaultAddress(),
         node->Tags(),
@@ -273,7 +273,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
     {
         THashSet<TAllocationId> allocationsToPostpone;
         THashMap<TAllocationId, EAbortReason> allocationsToAbort;
-        SchedulingStrategy_->ProcessAllocationUpdates(
+        Strategy_->ProcessAllocationUpdates(
             allocationUpdates,
             &allocationsToPostpone,
             &allocationsToAbort);
@@ -293,7 +293,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 
     if (operation->GetState() == EOperationState::Completed && operation->SetCompleting()) {
         // Notify scheduler.
-        SchedulingStrategy_->UnregisterOperation(operation.Get());
+        Strategy_->UnregisterOperation(operation.Get());
 
         RunningOperationsMap_->Erase(operation->GetId());
 
@@ -336,14 +336,14 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
                 node->BuildAttributes(fluent);
             })
             .Do([&] (TFluentMap fluent) {
-                SchedulingStrategy_->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
+                Strategy_->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
             })
         .EndMap();
 }
 
 void TSimulatorNodeShard::PreemptAllocation(const NScheduler::TAllocationPtr& allocation, bool shouldLogEvent)
 {
-    SchedulingStrategy_->PreemptAllocation(allocation);
+    Strategy_->PreemptAllocation(allocation);
 
     if (shouldLogEvent) {
         auto fluent = LogFinishedAllocationFluently(ELogEventType::JobAborted, allocation);

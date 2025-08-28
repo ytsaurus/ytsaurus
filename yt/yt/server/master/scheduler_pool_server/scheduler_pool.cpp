@@ -21,7 +21,7 @@ using namespace NYson;
 using namespace NServer;
 
 using NScheduler::TPoolConfigPtr;
-using NScheduler::TFairShareStrategyTreeConfigPtr;
+using NScheduler::TStrategyTreeConfigPtr;
 using NVectorHdrf::ESchedulingMode;
 using NVectorHdrf::EJobResourceType;
 using NVectorHdrf::TJobResources;
@@ -113,17 +113,17 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     }
 }
 
-void TSchedulerPool::ValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
+void TSchedulerPool::ValidateStrongGuarantees(const TStrategyTreeConfigPtr& poolTreeConfig) const
 {
     DoValidateStrongGuarantees(poolTreeConfig, /*recursive*/ false);
 }
 
-void TSchedulerPool::ValidateStrongGuaranteesRecursively(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
+void TSchedulerPool::ValidateStrongGuaranteesRecursively(const TStrategyTreeConfigPtr& poolTreeConfig) const
 {
     DoValidateStrongGuarantees(poolTreeConfig, /*recursive*/ true);
 }
 
-void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const
+void TSchedulerPool::DoValidateStrongGuarantees(const TStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const
 {
     bool hasMainResourceGuarantee = false;
     bool hasAnyResourceGuarantee = false;
@@ -149,7 +149,7 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConf
     }
 }
 
-TFairShareStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
+TStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
 {
     const TSchedulerPool* schedulerPool = this;
     while (auto parent = schedulerPool->GetParent()) {
@@ -372,11 +372,11 @@ void TSchedulerPoolTree::UpdateSpecifiedConfig(TYsonString newConfig)
     MemoizedDeserializedPoolTreeConfig_.Reset();
 }
 
-TFairShareStrategyTreeConfigPtr TSchedulerPoolTree::GetDeserializedConfigOrThrow() const
+TStrategyTreeConfigPtr TSchedulerPoolTree::GetDeserializedConfigOrThrow() const
 {
     if (!MemoizedDeserializedPoolTreeConfig_) {
         try {
-            MemoizedDeserializedPoolTreeConfig_ = ConvertTo<TFairShareStrategyTreeConfigPtr>(SpecifiedConfig_);
+            MemoizedDeserializedPoolTreeConfig_ = ConvertTo<TStrategyTreeConfigPtr>(SpecifiedConfig_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Invalid pool tree config")
                     << TErrorAttribute("pool_tree", GetTreeName())

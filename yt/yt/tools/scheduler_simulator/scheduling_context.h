@@ -1,6 +1,6 @@
 #pragma once
 
-#include "scheduler_strategy_host.h"
+#include "scheduling_strategy_host.h"
 
 #include <yt/yt/server/scheduler/scheduling_context_detail.h>
 #include <yt/yt/server/scheduler/exec_node.h>

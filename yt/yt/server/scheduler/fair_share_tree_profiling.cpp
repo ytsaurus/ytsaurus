@@ -240,7 +240,7 @@ void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
 void TFairShareTreeProfileManager::ProfileElement(
     ISensorWriter* writer,
     const TSchedulerElement* element,
-    const TFairShareStrategyTreeConfigPtr& treeConfig)
+    const TStrategyTreeConfigPtr& treeConfig)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -437,7 +437,7 @@ void TFairShareTreeProfileManager::ProfileOperations(
 
 void TFairShareTreeProfileManager::ProfilePool(
     const TSchedulerCompositeElement* element,
-    const TFairShareStrategyTreeConfigPtr& treeConfig,
+    const TStrategyTreeConfigPtr& treeConfig,
     const NProfiling::TBufferedProducerPtr& producer)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);

@@ -91,7 +91,7 @@ std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
     return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
-NScheduler::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+NScheduler::ISchedulingOperationControllerPtr TOperation::GetControllerStrategyHost() const
 {
     return Controller_;
 }

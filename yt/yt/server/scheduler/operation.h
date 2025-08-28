@@ -147,7 +147,7 @@ struct IOperationStrategyHost
 
     virtual TOperationId GetId() const = 0;
 
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
+    virtual ISchedulingOperationControllerPtr GetControllerStrategyHost() const = 0;
 
     virtual TStrategyOperationSpecPtr GetStrategySpec() const = 0;
 
@@ -172,7 +172,7 @@ struct IOperationStrategyHost
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
 protected:
-    friend class TFairShareStrategyOperationState;
+    friend class TStrategyOperationState;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationStrategyHost)
@@ -372,7 +372,7 @@ public:
     //! Checks whether current operation state doesn't allow starting new allocations.
     std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
 
-    IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    ISchedulingOperationControllerPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
