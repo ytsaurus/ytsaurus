@@ -372,7 +372,7 @@ public:
         return replicationCard;
     }
 
-    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) override
+    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated = false) override
     {
         auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
 
