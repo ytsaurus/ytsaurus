@@ -1,10 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/packing_detail.h>
+#include <yt/yt/server/scheduler/policy/packing_detail.h>
 
 #include <yt/yt/core/profiling/public.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,4 +140,4 @@ TEST_F(TPackingAnglePackingMetricTest, TestCompareDifferentAngles)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

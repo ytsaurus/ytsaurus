@@ -3,7 +3,7 @@
 #include "private.h"
 #include "packing.h"
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,4 +64,4 @@ double PackingMetric(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

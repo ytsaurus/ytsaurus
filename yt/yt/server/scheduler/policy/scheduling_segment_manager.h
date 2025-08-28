@@ -1,9 +1,11 @@
 #pragma once
 
-#include "public.h"
-#include "persistent_state.h"
-#include "strategy.h"
-#include "scheduling_policy_structs.h"
+#include "private.h"
+#include "structs.h"
+
+#include <yt/yt/server/scheduler/public.h>
+#include <yt/yt/server/scheduler/persistent_state.h>
+#include <yt/yt/server/scheduler/strategy.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
@@ -12,7 +14,7 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +33,7 @@ void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, T
 
 struct TNodeWithMovePenalty
 {
-    TSchedulingPolicyNodeState* Node = nullptr;
+    TNodeState* Node = nullptr;
     TNodeMovePenalty MovePenalty;
 };
 
@@ -57,8 +59,8 @@ struct TUpdateSchedulingSegmentsContext
     const TPoolTreeSnapshotPtr TreeSnapshot;
 
     // These are copies, it's safe to modify them.
-    TSchedulingPolicyOperationStateMap OperationStates;
-    TSchedulingPolicyNodeStateMap NodeStates;
+    TOperationStateMap OperationStates;
+    TNodeStateMap NodeStates;
 
     double NodesTotalKeyResourceLimit = 0.0;
     THashMap<TSchedulingSegmentModule, double> TotalCapacityPerModule;
@@ -102,7 +104,7 @@ public:
 
     TError InitOrUpdateOperationSchedulingSegment(
         TOperationId operationId,
-        const TSchedulingPolicyOperationStatePtr& operationState) const;
+        const TOperationStatePtr& operationState) const;
 
     void UpdateConfig(TStrategySchedulingSegmentsConfigPtr config);
 
@@ -168,8 +170,8 @@ private:
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* movableNodesPerModule,
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerModule) const;
 
-    const TSchedulingSegmentModule& GetNodeModule(const TSchedulingPolicyNodeState& node) const;
-    void SetNodeSegment(TSchedulingPolicyNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
+    const TSchedulingSegmentModule& GetNodeModule(const TNodeState& node) const;
+    void SetNodeSegment(TNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
 
     void LogAndProfileSegments(const TUpdateSchedulingSegmentsContext* context) const;
     NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const;
@@ -177,10 +179,10 @@ private:
     NYson::TYsonString GetSerializedSchedulingSegmentsInfo(const TUpdateSchedulingSegmentsContext* context) const;
     void BuildGpuOperationInfo(
         TOperationId operationId,
-        const TSchedulingPolicyOperationStatePtr& operationState,
+        const TOperationStatePtr& operationState,
         NYTree::TFluentMap fluent) const;
     void BuildGpuNodeInfo(
-        const TSchedulingPolicyNodeState& nodeState,
+        const TNodeState& nodeState,
         NYTree::TFluentMap fluent) const;
 
     void BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const;
@@ -190,4 +192,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

@@ -2,9 +2,11 @@
 
 #include "public.h"
 
+#include <yt/yt/server/scheduler/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,18 +59,18 @@ DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulingPolicyPersistentState
+struct TPersistentState
     : public NYTree::TYsonStruct
 {
     TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
 
-    REGISTER_YSON_STRUCT(TSchedulingPolicyPersistentState);
+    REGISTER_YSON_STRUCT(TPersistentState);
 
     static void Register(TRegistrar registrar);
 };
 
-using TSchedulingPolicyPersistentStatePtr = TIntrusivePtr<TSchedulingPolicyPersistentState>;
+using TPersistentStatePtr = TIntrusivePtr<TPersistentState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

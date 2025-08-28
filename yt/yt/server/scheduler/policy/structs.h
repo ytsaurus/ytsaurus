@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,14 +28,14 @@ void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulingPolicyAllocationState
+struct TAllocationState
     : public NYTree::TYsonStructLite
 {
     TOperationId OperationId;
     TJobResources ResourceLimits;
     EAllocationPreemptionStatus PreemptionStatus = EAllocationPreemptionStatus::NonPreemptible;
 
-    REGISTER_YSON_STRUCT_LITE(TSchedulingPolicyAllocationState);
+    REGISTER_YSON_STRUCT_LITE(TAllocationState);
 
     static void Register(TRegistrar);
 };
@@ -43,7 +43,7 @@ struct TSchedulingPolicyAllocationState
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(eshcherbin): Make this refcounted?
-struct TSchedulingPolicyNodeState
+struct TNodeState
 {
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     TExecNodeDescriptorPtr Descriptor;
@@ -55,14 +55,14 @@ struct TSchedulingPolicyNodeState
     std::optional<NProfiling::TCpuInstant> LastRunningAllocationStatisticsUpdateTime;
     bool ForceRunningAllocationStatisticsUpdate = false;
 
-    THashMap<TAllocationId, TSchedulingPolicyAllocationState> RunningAllocations;
+    THashMap<TAllocationId, TAllocationState> RunningAllocations;
 };
 
-using TSchedulingPolicyNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TSchedulingPolicyNodeState>;
+using TNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TNodeState>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulingPolicyOperationState final
+struct TOperationState final
 {
     const TStrategyOperationSpecPtr Spec;
     const bool IsGang;
@@ -78,14 +78,14 @@ struct TSchedulingPolicyOperationState final
     std::optional<TInstant> FailingToScheduleAtModuleSince;
     std::optional<TInstant> FailingToAssignToModuleSince;
 
-    TSchedulingPolicyOperationState(
+    TOperationState(
         TStrategyOperationSpecPtr spec,
         bool isGang);
 };
 
-using TSchedulingPolicyOperationStatePtr = TIntrusivePtr<TSchedulingPolicyOperationState>;
-using TSchedulingPolicyOperationStateMap = THashMap<TOperationId, TSchedulingPolicyOperationStatePtr>;
+using TOperationStatePtr = TIntrusivePtr<TOperationState>;
+using TOperationStateMap = THashMap<TOperationId, TOperationStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

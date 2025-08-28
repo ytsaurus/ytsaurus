@@ -4,7 +4,8 @@
 #include <yt/yt/server/scheduler/pool_tree.h>
 #include <yt/yt/server/scheduler/pool_tree_element.h>
 #include <yt/yt/server/scheduler/resource_tree.h>
-#include <yt/yt/server/scheduler/scheduling_policy.h>
+
+#include <yt/yt/server/scheduler/policy/scheduling_policy.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
@@ -16,7 +17,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 namespace {
 
 using namespace NControllerAgent;
@@ -50,7 +51,7 @@ public:
         MediumDirectory_->LoadFrom(protoDirectory);
 
         for (const auto& node : ExecNodes_) {
-            NodeToState_.emplace(node, TSchedulingPolicyNodeState{});
+            NodeToState_.emplace(node, TNodeState{});
         }
     }
 
@@ -243,7 +244,7 @@ public:
         return stub;
     }
 
-    TSchedulingPolicyNodeState* GetNodeState(const TExecNodePtr node)
+    TNodeState* GetNodeState(const TExecNodePtr node)
     {
         return &GetOrCrash(NodeToState_, node);
     }
@@ -251,7 +252,7 @@ public:
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
-    THashMap<TExecNodePtr, TSchedulingPolicyNodeState> NodeToState_;
+    THashMap<TExecNodePtr, TNodeState> NodeToState_;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 
@@ -2281,7 +2282,4 @@ TEST_F(TSchedulingPolicyTest, TestBuildDynamicAttributesListFromSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NScheduler

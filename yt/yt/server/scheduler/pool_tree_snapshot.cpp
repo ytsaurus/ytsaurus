@@ -17,7 +17,7 @@ TPoolTreeSnapshot::TPoolTreeSnapshot(
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
     int nodeCount,
-    TSchedulingPolicyPoolTreeSnapshotStatePtr schedulingPolicyState,
+    NPolicy::TPoolTreeSnapshotStatePtr schedulingPolicyState,
     TJobResourcesByTagFilter resourceLimitsByTagFilter)
     : Id_(id)
     , RootElement_(std::move(rootElement))

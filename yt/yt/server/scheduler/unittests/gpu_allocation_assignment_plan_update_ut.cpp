@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/gpu_allocation_assignment_plan_update.h>
+#include <yt/yt/server/scheduler/policy/gpu_allocation_assignment_plan_update.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -15,10 +15,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
+namespace NYT::NScheduler::NPolicy {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1799,7 +1796,4 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "private.h"
-#include "scheduling_heartbeat_context.h"
+
+#include <yt/yt/server/scheduler/scheduling_heartbeat_context.h>
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -9,7 +10,7 @@
 
 #include <deque>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,4 +71,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

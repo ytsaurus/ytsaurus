@@ -1,6 +1,6 @@
 #include "pool_tree_profile_manager.h"
 
-#include "scheduling_policy.h"
+#include <yt/yt/server/scheduler/policy/scheduling_policy.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -22,7 +22,7 @@ TPoolTreeProfileManager::TPoolTreeProfileManager(
     TProfiler profiler,
     bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker,
-    TSchedulingPolicyPtr schedulingPolicy)
+    NPolicy::TSchedulingPolicyPtr schedulingPolicy)
     : Profiler_(std::move(profiler))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)

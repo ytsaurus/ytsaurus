@@ -12,8 +12,6 @@ SRCS(
     exec_node.cpp
     strategy_operation_controller.cpp
     fields_filter.cpp
-    gpu_allocation_assignment_plan_update.cpp
-    gpu_allocation_scheduler_structs.cpp
     helpers.cpp
     job_resources_helpers.cpp
     master_connector.cpp
@@ -24,8 +22,6 @@ SRCS(
     operation_controller.cpp
     operation_controller_impl.cpp
     operations_cleaner.cpp
-    packing.cpp
-    packing_detail.cpp
     persistent_state.cpp
     pool_tree.cpp
     pool_tree_element.cpp
@@ -39,14 +35,19 @@ SRCS(
     scheduler_service.cpp
     scheduling_heartbeat_context.cpp
     scheduling_heartbeat_context_detail.cpp
-    scheduling_policy.cpp
-    scheduling_policy_operation_shared_state.cpp
-    scheduling_policy_persistent_state.cpp
-    scheduling_policy_pool_tree_snapshot_state.cpp
-    scheduling_policy_structs.cpp
-    scheduling_segment_manager.cpp
     serialize.cpp
     strategy.cpp
+
+    policy/gpu_allocation_assignment_plan_update.cpp
+    policy/gpu_allocation_scheduler_structs.cpp
+    policy/operation_shared_state.cpp
+    policy/packing.cpp
+    policy/packing_detail.cpp
+    policy/persistent_state.cpp
+    policy/pool_tree_snapshot_state.cpp
+    policy/scheduling_policy.cpp
+    policy/scheduling_segment_manager.cpp
+    policy/structs.cpp
 )
 
 PEERDIR(

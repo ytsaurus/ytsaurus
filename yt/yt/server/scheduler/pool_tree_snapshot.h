@@ -27,7 +27,7 @@ class TPoolTreeSnapshot
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(int, NodeCount);
-    DEFINE_BYREF_RO_PROPERTY(TSchedulingPolicyPoolTreeSnapshotStatePtr, SchedulingPolicyState);
+    DEFINE_BYREF_RO_PROPERTY(NPolicy::TPoolTreeSnapshotStatePtr, SchedulingPolicyState);
     DEFINE_BYREF_RO_PROPERTY(TJobResourcesByTagFilter, ResourceLimitsByTagFilter);
 
 public:
@@ -42,7 +42,7 @@ public:
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
         int nodeCount,
-        TSchedulingPolicyPoolTreeSnapshotStatePtr schedulingPolicyState,
+        NPolicy::TPoolTreeSnapshotStatePtr schedulingPolicyState,
         TJobResourcesByTagFilter resourceLimitsByTagFilter);
 
     TPoolTreePoolElement* FindPool(const TString& poolName) const;

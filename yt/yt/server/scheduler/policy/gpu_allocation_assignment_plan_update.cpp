@@ -9,7 +9,7 @@
 
 #include <library/cpp/yt/yson/consumer.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 using namespace NLogging;
 using namespace NYTree;
@@ -934,4 +934,4 @@ TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAlloca
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

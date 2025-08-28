@@ -1,8 +1,8 @@
-#include "scheduling_policy_structs.h"
+#include "structs.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 using namespace NNodeTrackerClient;
 
@@ -41,7 +41,7 @@ void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulingPolicyOperationState::TSchedulingPolicyOperationState(
+TOperationState::TOperationState(
     TStrategyOperationSpecPtr spec,
     bool isGang)
     : Spec(std::move(spec))
@@ -50,7 +50,7 @@ TSchedulingPolicyOperationState::TSchedulingPolicyOperationState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSchedulingPolicyAllocationState::Register(TRegistrar registrar)
+void TAllocationState::Register(TRegistrar registrar)
 {
     registrar.Parameter("operation_id", &TThis::OperationId)
         .Default();
@@ -64,4 +64,4 @@ void TSchedulingPolicyAllocationState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

@@ -1,14 +1,15 @@
 #pragma once
 
 #include "private.h"
-#include "scheduling_policy_structs.h"
-#include "scheduling_policy_operation_shared_state.h"
-#include "pool_tree_element.h"
-#include "scheduling_policy_pool_tree_snapshot_state.h"
-#include "pool_tree_snapshot.h"
-#include "fields_filter.h"
-#include "scheduling_policy_persistent_state.h"
+#include "structs.h"
+#include "operation_shared_state.h"
+#include "pool_tree_snapshot_state.h"
+#include "persistent_state.h"
 #include "scheduling_segment_manager.h"
+
+#include <yt/yt/server/scheduler/pool_tree_element.h>
+#include <yt/yt/server/scheduler/pool_tree_snapshot.h>
+#include <yt/yt/server/scheduler/fields_filter.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
@@ -16,7 +17,7 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,7 +130,7 @@ public:
 
     //! If |snapshotState| is null, all liveness checks will be disabled.
     //! This is used for dynamic attributes computation at post update.
-    explicit TDynamicAttributesManager(TSchedulingPolicyPoolTreeSnapshotStatePtr snapshotState = {}, int size = 0);
+    explicit TDynamicAttributesManager(TPoolTreeSnapshotStatePtr snapshotState = {}, int size = 0);
 
     void SetAttributesList(TDynamicAttributesList attributesList);
 
@@ -155,7 +156,7 @@ public:
     int GetCompositeElementDeactivationCount() const;
 
 private:
-    const TSchedulingPolicyPoolTreeSnapshotStatePtr SnapshotState_;
+    const TPoolTreeSnapshotStatePtr SnapshotState_;
     TDynamicAttributesList AttributesList_;
 
     int CompositeElementDeactivationCount_ = 0;
@@ -191,7 +192,7 @@ private:
     static void DoUpdateOperationResourceUsage(
         const TPoolTreeOperationElement* element,
         TDynamicAttributes* operationAttributes,
-        const TSchedulingPolicyOperationSharedStatePtr& operationSharedState,
+        const TOperationSharedStatePtr& operationSharedState,
         TCpuInstant now);
 
     struct TFillResourceUsageContext
@@ -264,18 +265,18 @@ void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInf
 using TAllocationWithPreemptionInfoSet = THashSet<TAllocationWithPreemptionInfo>;
 using TAllocationWithPreemptionInfoSetMap = THashMap<int, TAllocationWithPreemptionInfoSet>;
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy
 
 template <>
-struct THash<NYT::NScheduler::TAllocationWithPreemptionInfo>
+struct THash<NYT::NScheduler::NPolicy::TAllocationWithPreemptionInfo>
 {
-    inline size_t operator ()(const NYT::NScheduler::TAllocationWithPreemptionInfo& allocationInfo) const
+    inline size_t operator ()(const NYT::NScheduler::NPolicy::TAllocationWithPreemptionInfo& allocationInfo) const
     {
         return THash<NYT::NScheduler::TAllocationPtr>()(allocationInfo.Allocation);
     }
 };
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -298,7 +299,7 @@ public:
     TScheduleAllocationsContext(
         ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
         TPoolTreeSnapshotPtr treeSnapshot,
-        const TSchedulingPolicyNodeState* nodeState,
+        const TNodeState* nodeState,
         bool schedulingInfoLoggingEnabled,
         IStrategyHost* strategyHost,
         const NProfiling::TCounter& scheduleAllocationsDeadlineReachedCounter,
@@ -558,15 +559,15 @@ using TPreemptiveStageWithParametersList = TCompactVector<TPreemptiveStageWithPa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulingPolicyPostUpdateContext
+struct TPostUpdateContext
 {
     TPoolTreeRootElement* RootElement;
 
     THashSet<int> SsdPriorityPreemptionMedia;
     TOperationElementsBySchedulingPriority SchedulableOperationsPerPriority;
     TStaticAttributesList StaticAttributesList;
-    TSchedulingPolicyOperationStateMap OperationIdToState;
-    TSchedulingPolicySharedOperationStateMap OperationIdToSharedState;
+    TOperationStateMap OperationIdToState;
+    TSharedOperationStateMap OperationIdToSharedState;
     std::vector<TSchedulingTagFilter> KnownSchedulingTagFilters;
     TOperationCountsByPreemptionPriorityParameters OperationCountsByPreemptionPriorityParameters;
 };
@@ -662,11 +663,11 @@ public:
         NYTree::TFluentMap fluent);
 
     //! Post update.
-    TSchedulingPolicyPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* rootElement);
+    TPostUpdateContext CreatePostUpdateContext(TPoolTreeRootElement* rootElement);
     void PostUpdate(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext);
-    TSchedulingPolicyPoolTreeSnapshotStatePtr CreateSnapshotState(TSchedulingPolicyPostUpdateContext* postUpdateContext);
+        TPostUpdateContext* postUpdateContext);
+    TPoolTreeSnapshotStatePtr CreateSnapshotState(TPostUpdateContext* postUpdateContext);
 
     void OnResourceUsageSnapshotUpdate(const TPoolTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const;
 
@@ -725,8 +726,8 @@ private:
 
     TEnumIndexedArray<EAllocationSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
 
-    TSchedulingPolicyOperationStateMap OperationIdToState_;
-    TSchedulingPolicySharedOperationStateMap OperationIdToSharedState_;
+    TOperationStateMap OperationIdToState_;
+    TSharedOperationStateMap OperationIdToSharedState_;
 
     NProfiling::TTimeCounter CumulativeScheduleAllocationsTime_;
     NProfiling::TEventTimer ScheduleAllocationsTime_;
@@ -749,7 +750,7 @@ private:
     // TODO(eshcherbin): Add generic data structure for state sharding.
     struct alignas(CacheLineSize) TNodeStateShard
     {
-        TSchedulingPolicyNodeStateMap NodeIdToState;
+        TNodeStateMap NodeIdToState;
         THashMap<NNodeTrackerClient::TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime;
     };
     std::array<TNodeStateShard, MaxNodeShardCount> NodeStateShards_;
@@ -757,8 +758,8 @@ private:
     // NB(eshcherbin): Used only as a value to store until the initialization deadline passes
     // and we start building up-to-date persistent state.
     TInstant SchedulingSegmentsInitializationDeadline_;
-    TSchedulingPolicyPersistentStatePtr InitialPersistentState_ = New<TSchedulingPolicyPersistentState>();
-    TSchedulingPolicyPersistentStatePtr PersistentState_;
+    TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
+    TPersistentStatePtr PersistentState_;
 
     TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
     TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
@@ -770,7 +771,7 @@ private:
 
     //! Process node heartbeat, including allocation scheduling.
     TRunningAllocationStatistics ComputeRunningAllocationStatistics(
-        const TSchedulingPolicyNodeState* nodeState,
+        const TNodeState* nodeState,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot);
 
@@ -785,8 +786,8 @@ private:
     void RunRegularSchedulingStage(const TRegularSchedulingParameters& parameters, TScheduleAllocationsContext* context);
     void RunPreemptiveSchedulingStage(const TPreemptiveSchedulingParameters& parameters, TScheduleAllocationsContext* context);
 
-    const TSchedulingPolicyOperationStatePtr& GetOperationState(TOperationId operationId) const;
-    const TSchedulingPolicyOperationSharedStatePtr& GetOperationSharedState(TOperationId operationId) const;
+    const TOperationStatePtr& GetOperationState(TOperationId operationId) const;
+    const TOperationSharedStatePtr& GetOperationSharedState(TOperationId operationId) const;
 
     //! Node management.
     std::optional<TPersistentNodeSchedulingSegmentState> FindInitialNodePersistentState(NNodeTrackerClient::TNodeId nodeId);
@@ -799,49 +800,49 @@ private:
 
     void InitializeStaticAttributes(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
     void CollectSchedulableOperationsPerPriority(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
 
     void PublishFairShare(
         TPoolTreeElement* element,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
     void PublishFairShareAtCompositeElement(
         TPoolTreeCompositeElement* element,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
     void PublishFairShareAtOperation(
         TPoolTreeOperationElement* element,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
 
     void UpdateEffectiveRecursiveAttributes(
         const TPoolTreeElement* element,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext);
+        TPostUpdateContext* postUpdateContext);
     void UpdateEffectiveRecursiveAttributesAtCompositeElement(
         const TPoolTreeCompositeElement* element,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext);
+        TPostUpdateContext* postUpdateContext);
     void UpdateEffectiveRecursiveAttributesAtOperation(
         const TPoolTreeOperationElement* element,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext);
+        TPostUpdateContext* postUpdateContext);
 
     void ProcessUpdatedStarvationStatuses(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext);
+        TPostUpdateContext* postUpdateContext);
     void UpdateCachedAllocationPreemptionStatuses(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext);
+        TPostUpdateContext* postUpdateContext);
     void ComputeOperationSchedulingIndexes(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* context);
+        TPostUpdateContext* context);
     void CollectKnownSchedulingTagFilters(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
     void UpdateSsdNodeSchedulingAttributes(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
     void CountOperationsByPreemptionPriority(
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
-        TSchedulingPolicyPostUpdateContext* postUpdateContext) const;
+        TPostUpdateContext* postUpdateContext) const;
 
     void InitializeDynamicAttributesAtUpdateRecursively(
         TPoolTreeElement* element,
@@ -853,13 +854,13 @@ private:
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot);
 
     //! Miscellaneous
-    const TSchedulingPolicyNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
-    TSchedulingPolicyNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId);
+    const TNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
+    TNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId);
 
-    TSchedulingPolicyOperationStateMap GetOperationStateMapSnapshot() const;
-    TSchedulingPolicyNodeStateMap GetNodeStateMapSnapshot() const;
+    TOperationStateMap GetOperationStateMapSnapshot() const;
+    TNodeStateMap GetNodeStateMapSnapshot() const;
 
-    void ApplyOperationSchedulingSegmentsChanges(const TSchedulingPolicyOperationStateMap& changedOperationStates);
+    void ApplyOperationSchedulingSegmentsChanges(const TOperationStateMap& changedOperationStates);
     void ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
 
     void ManageSchedulingSegments();
@@ -871,4 +872,4 @@ DEFINE_REFCOUNTED_TYPE(TSchedulingPolicy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

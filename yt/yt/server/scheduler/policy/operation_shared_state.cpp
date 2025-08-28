@@ -1,6 +1,6 @@
-#include "scheduling_policy_operation_shared_state.h"
+#include "operation_shared_state.h"
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 using namespace NProfiling;
 
@@ -20,15 +20,11 @@ inline void IncrementAtomicCounterUnsafely(std::atomic<T>* counter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString InvalidCustomProfilingTag("invalid");
-
-////////////////////////////////////////////////////////////////////////////////
-
 static const TJobResourcesConfigPtr EmptyAllocationResourcesConfig = New<TJobResourcesConfig>();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulingPolicyOperationSharedState::TSchedulingPolicyOperationSharedState(
+TOperationSharedState::TOperationSharedState(
     IStrategyHost* strategyHost,
     int updatePreemptibleAllocationsListLoggingPeriod,
     const NLogging::TLogger& logger)
@@ -37,7 +33,7 @@ TSchedulingPolicyOperationSharedState::TSchedulingPolicyOperationSharedState(
     , Logger(logger)
 { }
 
-TJobResources TSchedulingPolicyOperationSharedState::Disable()
+TJobResources TOperationSharedState::Disable()
 {
     YT_LOG_DEBUG("Operation element disabled in strategy");
 
@@ -61,7 +57,7 @@ TJobResources TSchedulingPolicyOperationSharedState::Disable()
     return resourceUsage;
 }
 
-void TSchedulingPolicyOperationSharedState::Enable()
+void TOperationSharedState::Enable()
 {
     YT_LOG_DEBUG("Operation element enabled in strategy");
 
@@ -71,20 +67,20 @@ void TSchedulingPolicyOperationSharedState::Enable()
     Enabled_ = true;
 }
 
-bool TSchedulingPolicyOperationSharedState::IsEnabled()
+bool TOperationSharedState::IsEnabled()
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
     return Enabled_;
 }
 
-void TSchedulingPolicyOperationSharedState::RecordPackingHeartbeat(
+void TOperationSharedState::RecordPackingHeartbeat(
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TStrategyPackingConfigPtr& packingConfig)
 {
     HeartbeatStatistics_.RecordHeartbeat(heartbeatSnapshot, packingConfig);
 }
 
-bool TSchedulingPolicyOperationSharedState::CheckPacking(
+bool TOperationSharedState::CheckPacking(
     const TPoolTreeOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& allocationResources,
@@ -99,7 +95,7 @@ bool TSchedulingPolicyOperationSharedState::CheckPacking(
         packingConfig);
 }
 
-bool TSchedulingPolicyOperationSharedState::ProcessAllocationUpdate(
+bool TOperationSharedState::ProcessAllocationUpdate(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
     const TJobResources& resources,
@@ -132,18 +128,18 @@ bool TSchedulingPolicyOperationSharedState::ProcessAllocationUpdate(
     return true;
 }
 
-TDiskQuota TSchedulingPolicyOperationSharedState::GetTotalDiskQuota() const
+TDiskQuota TOperationSharedState::GetTotalDiskQuota() const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
     return TotalDiskQuota_;
 }
 
-void TSchedulingPolicyOperationSharedState::PublishFairShare(const TResourceVector& fairShare)
+void TOperationSharedState::PublishFairShare(const TResourceVector& fairShare)
 {
     FairShare_.Store(fairShare);
 }
 
-bool TSchedulingPolicyOperationSharedState::OnAllocationStarted(
+bool TOperationSharedState::OnAllocationStarted(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId,
     const TJobResourcesWithQuota& resourceUsage,
@@ -165,7 +161,7 @@ bool TSchedulingPolicyOperationSharedState::OnAllocationStarted(
     return true;
 }
 
-bool TSchedulingPolicyOperationSharedState::OnAllocationFinished(
+bool TOperationSharedState::OnAllocationFinished(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
@@ -180,7 +176,7 @@ bool TSchedulingPolicyOperationSharedState::OnAllocationFinished(
     return false;
 }
 
-void TSchedulingPolicyOperationSharedState::ResetAllocationPreemptibleProgress(
+void TOperationSharedState::ResetAllocationPreemptibleProgress(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
@@ -202,7 +198,7 @@ void TSchedulingPolicyOperationSharedState::ResetAllocationPreemptibleProgress(
     properties->PreemptionStatus = EAllocationPreemptionStatus::Preemptible;
 }
 
-void TSchedulingPolicyOperationSharedState::UpdatePreemptibleAllocationsList(
+void TOperationSharedState::UpdatePreemptibleAllocationsList(
     const TPoolTreeOperationElement* element)
 {
     TWallTimer timer;
@@ -217,7 +213,7 @@ void TSchedulingPolicyOperationSharedState::UpdatePreemptibleAllocationsList(
         moveCount);
 }
 
-void TSchedulingPolicyOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOperationElement* element, int* moveCount)
+void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOperationElement* element, int* moveCount)
 {
     auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
         return TResourceVector::FromJobResources(allocationResources, element->GetTotalResourceLimits());
@@ -374,7 +370,7 @@ void TSchedulingPolicyOperationSharedState::DoUpdatePreemptibleAllocationsList(c
         FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]));
 }
 
-void TSchedulingPolicyOperationSharedState::SetPreemptible(bool value)
+void TOperationSharedState::SetPreemptible(bool value)
 {
     bool oldValue = Preemptible_;
     if (oldValue != value) {
@@ -384,19 +380,19 @@ void TSchedulingPolicyOperationSharedState::SetPreemptible(bool value)
     }
 }
 
-bool TSchedulingPolicyOperationSharedState::GetPreemptible() const
+bool TOperationSharedState::GetPreemptible() const
 {
     return Preemptible_;
 }
 
-bool TSchedulingPolicyOperationSharedState::IsAllocationKnown(TAllocationId allocationId) const
+bool TOperationSharedState::IsAllocationKnown(TAllocationId allocationId) const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
     return AllocationPropertiesMap_.find(allocationId) != AllocationPropertiesMap_.end();
 }
 
-EAllocationPreemptionStatus TSchedulingPolicyOperationSharedState::GetAllocationPreemptionStatus(TAllocationId allocationId) const
+EAllocationPreemptionStatus TOperationSharedState::GetAllocationPreemptionStatus(TAllocationId allocationId) const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
@@ -407,26 +403,26 @@ EAllocationPreemptionStatus TSchedulingPolicyOperationSharedState::GetAllocation
     return GetAllocationProperties(allocationId)->PreemptionStatus;
 }
 
-int TSchedulingPolicyOperationSharedState::GetRunningAllocationCount() const
+int TOperationSharedState::GetRunningAllocationCount() const
 {
     return RunningAllocationCount_;
 }
 
-int TSchedulingPolicyOperationSharedState::GetPreemptibleAllocationCount() const
+int TOperationSharedState::GetPreemptibleAllocationCount() const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
     return AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible].size();
 }
 
-int TSchedulingPolicyOperationSharedState::GetAggressivelyPreemptibleAllocationCount() const
+int TOperationSharedState::GetAggressivelyPreemptibleAllocationCount() const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
     return AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible].size();
 }
 
-void TSchedulingPolicyOperationSharedState::AddAllocation(
+void TOperationSharedState::AddAllocation(
     TAllocationId allocationId,
     const TJobResourcesWithQuota& resourceUsage)
 {
@@ -454,7 +450,7 @@ void TSchedulingPolicyOperationSharedState::AddAllocation(
     TotalDiskQuota_ += resourceUsage.DiskQuota();
 }
 
-std::optional<TJobResources> TSchedulingPolicyOperationSharedState::RemoveAllocation(TAllocationId allocationId)
+std::optional<TJobResources> TOperationSharedState::RemoveAllocation(TAllocationId allocationId)
 {
     auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
@@ -479,21 +475,21 @@ std::optional<TJobResources> TSchedulingPolicyOperationSharedState::RemoveAlloca
     return resourceUsage;
 }
 
-void TSchedulingPolicyOperationSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
+void TOperationSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
 {
     auto guard = Guard(PreemptionStatusStatisticsLock_);
 
     ++PreemptionStatusStatistics_[status];
 }
 
-TPreemptionStatusStatisticsVector TSchedulingPolicyOperationSharedState::GetPreemptionStatusStatistics() const
+TPreemptionStatusStatisticsVector TOperationSharedState::GetPreemptionStatusStatistics() const
 {
     auto guard = Guard(PreemptionStatusStatisticsLock_);
 
     return PreemptionStatusStatistics_;
 }
 
-TAllocationPreemptionStatusMap TSchedulingPolicyOperationSharedState::GetAllocationPreemptionStatusMap() const
+TAllocationPreemptionStatusMap TOperationSharedState::GetAllocationPreemptionStatusMap() const
 {
     TAllocationPreemptionStatusMap allocationPreemptionStatuses;
 
@@ -507,7 +503,7 @@ TAllocationPreemptionStatusMap TSchedulingPolicyOperationSharedState::GetAllocat
     return allocationPreemptionStatuses;
 }
 
-void TSchedulingPolicyOperationSharedState::OnMinNeededResourcesUnsatisfied(
+void TOperationSharedState::OnMinNeededResourcesUnsatisfied(
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources)
 {
@@ -519,49 +515,49 @@ void TSchedulingPolicyOperationSharedState::OnMinNeededResourcesUnsatisfied(
     }
 }
 
-TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TSchedulingPolicyOperationSharedState::GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount()
+TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TOperationSharedState::GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount()
 {
     UpdateDiagnosticCounters();
 
     return MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
 }
 
-void TSchedulingPolicyOperationSharedState::OnOperationDeactivated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, EDeactivationReason reason)
+void TOperationSharedState::OnOperationDeactivated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, EDeactivationReason reason)
 {
     auto& shard = StateShards_[schedulingHeartbeatContext->GetNodeShardId()];
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasons[reason]);
     IncrementAtomicCounterUnsafely(&shard.DeactivationReasonsFromLastNonStarvingTime[reason]);
 }
 
-TEnumIndexedArray<EDeactivationReason, int> TSchedulingPolicyOperationSharedState::GetDeactivationReasons()
+TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivationReasons()
 {
     UpdateDiagnosticCounters();
 
     return DeactivationReasons_;
 }
 
-TEnumIndexedArray<EDeactivationReason, int> TSchedulingPolicyOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
+TEnumIndexedArray<EDeactivationReason, int> TOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
 {
     UpdateDiagnosticCounters();
 
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
-void TSchedulingPolicyOperationSharedState::IncrementOperationScheduleAllocationAttemptCount(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
+void TOperationSharedState::IncrementOperationScheduleAllocationAttemptCount(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
     auto& shard = StateShards_[schedulingHeartbeatContext->GetNodeShardId()];
 
     IncrementAtomicCounterUnsafely(&shard.ScheduleAllocationAttemptCount);
 }
 
-int TSchedulingPolicyOperationSharedState::GetOperationScheduleAllocationAttemptCount()
+int TOperationSharedState::GetOperationScheduleAllocationAttemptCount()
 {
     UpdateDiagnosticCounters();
 
     return ScheduleAllocationAttemptCount_;
 }
 
-void TSchedulingPolicyOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
+void TOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
         std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
@@ -582,7 +578,7 @@ void TSchedulingPolicyOperationSharedState::ProcessUpdatedStarvationStatus(EStar
     StarvationStatusAtLastUpdate_ = status;
 }
 
-void TSchedulingPolicyOperationSharedState::UpdateDiagnosticCounters()
+void TOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
     if (now < LastDiagnosticCountersUpdateTime_ + UpdateStateShardsBackoff_) {
@@ -612,44 +608,14 @@ void TSchedulingPolicyOperationSharedState::UpdateDiagnosticCounters()
     LastDiagnosticCountersUpdateTime_ = now;
 }
 
-TInstant TSchedulingPolicyOperationSharedState::GetLastScheduleAllocationSuccessTime() const
+TInstant TOperationSharedState::GetLastScheduleAllocationSuccessTime() const
 {
     auto guard = ReaderGuard(AllocationPropertiesMapLock_);
 
     return LastScheduleAllocationSuccessTime_;
 }
 
-std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
-{
-    auto tagName = Spec_->CustomProfilingTag;
-    if (!tagName) {
-        return {};
-    }
-
-    if (!GetParent()) {
-        return {};
-    }
-
-    THashSet<TString> allowedProfilingTags;
-    const auto* parent = GetParent();
-    while (parent) {
-        for (const auto& tag : parent->GetAllowedProfilingTags()) {
-            allowedProfilingTags.insert(tag);
-        }
-        parent = parent->GetParent();
-    }
-
-    if (allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
-        (TreeConfig_->CustomProfilingTagFilter &&
-            NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter)))
-    {
-        tagName = InvalidCustomProfilingTag;
-    }
-
-    return tagName;
-}
-
-TJobResources TSchedulingPolicyOperationSharedState::SetAllocationResourceUsage(
+TJobResources TOperationSharedState::SetAllocationResourceUsage(
     TAllocationProperties* properties,
     const TJobResources& resources)
 {
@@ -662,16 +628,16 @@ TJobResources TSchedulingPolicyOperationSharedState::SetAllocationResourceUsage(
     return delta;
 }
 
-TSchedulingPolicyOperationSharedState::TAllocationProperties*
-TSchedulingPolicyOperationSharedState::GetAllocationProperties(TAllocationId allocationId)
+TOperationSharedState::TAllocationProperties*
+TOperationSharedState::GetAllocationProperties(TAllocationId allocationId)
 {
     auto it = AllocationPropertiesMap_.find(allocationId);
     YT_ASSERT(it != AllocationPropertiesMap_.end());
     return &it->second;
 }
 
-const TSchedulingPolicyOperationSharedState::TAllocationProperties*
-TSchedulingPolicyOperationSharedState::GetAllocationProperties(TAllocationId allocationId) const
+const TOperationSharedState::TAllocationProperties*
+TOperationSharedState::GetAllocationProperties(TAllocationId allocationId) const
 {
     auto it = AllocationPropertiesMap_.find(allocationId);
     YT_ASSERT(it != AllocationPropertiesMap_.end());
@@ -680,4 +646,4 @@ TSchedulingPolicyOperationSharedState::GetAllocationProperties(TAllocationId all
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy

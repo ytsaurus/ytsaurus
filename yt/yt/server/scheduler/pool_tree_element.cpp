@@ -35,6 +35,10 @@ using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString InvalidCustomProfilingTag("invalid");
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPersistentAttributes::ResetOnElementEnabled()
 {
     // NB: We don't want to reset all attributes.
@@ -2413,6 +2417,36 @@ void TPoolTreeOperationElement::MarkPendingBy(TPoolTreeCompositeElement* violate
         OperationId_,
         violatedPool->GetId(),
         violatedPool->GetMaxRunningOperationCount());
+}
+
+std::optional<TString> TPoolTreeOperationElement::GetCustomProfilingTag() const
+{
+    auto tagName = Spec_->CustomProfilingTag;
+    if (!tagName) {
+        return {};
+    }
+
+    if (!GetParent()) {
+        return {};
+    }
+
+    THashSet<TString> allowedProfilingTags;
+    const auto* parent = GetParent();
+    while (parent) {
+        for (const auto& tag : parent->GetAllowedProfilingTags()) {
+            allowedProfilingTags.insert(tag);
+        }
+        parent = parent->GetParent();
+    }
+
+    if (allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
+        (TreeConfig_->CustomProfilingTagFilter &&
+            NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter)))
+    {
+        tagName = InvalidCustomProfilingTag;
+    }
+
+    return tagName;
 }
 
 bool TPoolTreeOperationElement::IsLimitingAncestorCheckEnabled() const

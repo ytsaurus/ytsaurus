@@ -47,8 +47,6 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/exec_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy_operation_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_assignment_plan_update.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/gpu_allocation_scheduler_structs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp
@@ -59,8 +57,6 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/operations_cleaner.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/packing.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/packing_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/persistent_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pool_tree.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/pool_tree_element.cpp
@@ -74,13 +70,17 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_heartbeat_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_heartbeat_context_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_policy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_policy_operation_shared_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_policy_persistent_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_policy_pool_tree_snapshot_state.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_policy_structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/gpu_allocation_assignment_plan_update.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/gpu_allocation_scheduler_structs.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/operation_shared_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/packing.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/packing_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/persistent_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/pool_tree_snapshot_state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/scheduling_policy.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/scheduling_segment_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/policy/structs.cpp
 )
 

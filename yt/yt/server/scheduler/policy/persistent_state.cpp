@@ -1,8 +1,8 @@
-#include "scheduling_policy_persistent_state.h"
+#include "persistent_state.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 using namespace NYson;
 using namespace NYTree;
@@ -70,7 +70,7 @@ void TPersistentSchedulingSegmentsState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSchedulingPolicyPersistentState::Register(TRegistrar registrar)
+void TPersistentState::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduling_segments_state", &TThis::SchedulingSegmentsState)
         .DefaultNew();
@@ -78,4 +78,4 @@ void TSchedulingPolicyPersistentState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy
