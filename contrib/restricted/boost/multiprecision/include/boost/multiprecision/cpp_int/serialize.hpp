@@ -19,8 +19,6 @@ class binary_iarchive;
 
 namespace serialization {
 
-namespace mp = boost::multiprecision;
-
 namespace cpp_int_detail {
 
 using namespace boost::multiprecision;
@@ -191,12 +189,12 @@ void do_serialize(Archive& ar, Int& val, std::integral_constant<bool, true> cons
 
 } // namespace cpp_int_detail
 
-template <class Archive, std::size_t MinBits, std::size_t MaxBits, mp::cpp_integer_type SignType, mp::cpp_int_check_type Checked, class Allocator>
-void serialize(Archive& ar, mp::cpp_int_backend<MinBits, MaxBits, SignType, Checked, Allocator>& val, const unsigned int /*version*/)
+template <class Archive, std::size_t MinBits, std::size_t MaxBits, multiprecision::cpp_integer_type SignType, multiprecision::cpp_int_check_type Checked, class Allocator>
+void serialize(Archive& ar, multiprecision::cpp_int_backend<MinBits, MaxBits, SignType, Checked, Allocator>& val, const unsigned int /*version*/)
 {
    using archive_save_tag = typename Archive::is_saving                                ;
    using save_tag = std::integral_constant<bool, archive_save_tag::value>      ;
-   using trivial_tag = std::integral_constant<bool, mp::backends::is_trivial_cpp_int<mp::cpp_int_backend<MinBits, MaxBits, SignType, Checked, Allocator> >::value>;
+   using trivial_tag = std::integral_constant<bool, multiprecision::backends::is_trivial_cpp_int<multiprecision::cpp_int_backend<MinBits, MaxBits, SignType, Checked, Allocator> >::value>;
    using binary_tag = typename cpp_int_detail::is_binary_archive<Archive>::type  ;
 
    // Just dispatch to the correct method:

@@ -11,19 +11,15 @@
 #ifndef BOOST_MP_CPP_INT_MISC_HPP
 #define BOOST_MP_CPP_INT_MISC_HPP
 
-#include <boost/multiprecision/detail/standalone_config.hpp>
-#include <boost/multiprecision/detail/number_base.hpp>
 #include <boost/multiprecision/cpp_int/cpp_int_config.hpp>
-#include <boost/multiprecision/detail/float128_functions.hpp>
 #include <boost/multiprecision/detail/assert.hpp>
-#include <boost/multiprecision/detail/constexpr.hpp>
 #include <boost/multiprecision/detail/bitscan.hpp> // lsb etc
+#include <boost/multiprecision/detail/constexpr.hpp>
+#include <boost/multiprecision/detail/float128_functions.hpp>
 #include <boost/multiprecision/detail/hash.hpp>
 #include <boost/multiprecision/detail/no_exceptions_support.hpp>
-#include <numeric> // std::gcd
-#include <type_traits>
-#include <stdexcept>
-#include <cmath>
+#include <boost/multiprecision/detail/number_base.hpp>
+#include <boost/multiprecision/detail/standalone_config.hpp>
 
 #ifndef BOOST_MP_STANDALONE
 #include <boost/integer/common_factor_rt.hpp>
@@ -32,6 +28,15 @@
 #ifdef BOOST_MP_MATH_AVAILABLE
 #include <boost/math/special_functions/next.hpp>
 #endif
+
+#if ((defined(__cpp_lib_gcd_lcm) && (__cpp_lib_gcd_lcm >= 201606L)) && (!defined(BOOST_HAS_INT128) || !defined(__STRICT_ANSI__)))
+#define BOOST_MP_LIB_GCD_LCM_AVAILABLE
+#endif
+
+#include <cmath>
+#include <numeric>
+#include <stdexcept>
+#include <type_traits>
 
 #ifdef BOOST_MSVC
 #pragma warning(push)
@@ -517,7 +522,7 @@ BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR limb_type eval_gcd(limb_type u, li
    // boundary cases
    if (!u || !v)
       return u | v;
-#if (defined(__cpp_lib_gcd_lcm) && (__cpp_lib_gcd_lcm >= 201606L))
+#if defined(BOOST_MP_LIB_GCD_LCM_AVAILABLE)
    return std::gcd(u, v);
 #else
    std::size_t shift = boost::multiprecision::detail::find_lsb(u | v);
@@ -535,7 +540,7 @@ BOOST_MP_FORCEINLINE BOOST_MP_CXX14_CONSTEXPR limb_type eval_gcd(limb_type u, li
 
 inline BOOST_MP_CXX14_CONSTEXPR double_limb_type eval_gcd(double_limb_type u, double_limb_type v)
 {
-#if (defined(__cpp_lib_gcd_lcm) && (__cpp_lib_gcd_lcm >= 201606L)) && (!defined(BOOST_HAS_INT128) || !defined(__STRICT_ANSI__))
+#if defined(BOOST_MP_LIB_GCD_LCM_AVAILABLE)
    return std::gcd(u, v);
 #else
    if (u == 0)
