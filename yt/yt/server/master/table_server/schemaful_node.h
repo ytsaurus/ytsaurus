@@ -18,6 +18,7 @@ class TSchemafulNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SchemaRevision, NHydra::NullRevision);
     DEFINE_BYVAL_RW_PROPERTY(TMasterTableSchemaRawPtr, Schema);
 
 public:
