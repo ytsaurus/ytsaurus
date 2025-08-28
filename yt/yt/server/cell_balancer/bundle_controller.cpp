@@ -29,6 +29,7 @@ using namespace NCypressClient;
 using namespace NProfiling;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
 
@@ -225,6 +226,8 @@ private:
             YT_LOG_DEBUG("Bundle controller is not leading");
             return;
         }
+
+        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerScanPass"));
 
         ScanTabletCellBundles(dryRun, ignoreGlobalDisabledSwitch);
         ScanChaosCellBundles(dryRun, ignoreGlobalDisabledSwitch);
