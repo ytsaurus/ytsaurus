@@ -56,14 +56,14 @@ public:
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
     void OnMinNeededResourcesUnsatisfied(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources);
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
 
-    void IncrementOperationScheduleAllocationAttemptCount(const ISchedulingContextPtr& schedulingContext);
+    void IncrementOperationScheduleAllocationAttemptCount(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext);
     int GetOperationScheduleAllocationAttemptCount();
 
-    void OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason);
+    void OnOperationDeactivated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, EDeactivationReason reason);
     TEnumIndexedArray<EDeactivationReason, int> GetDeactivationReasons();
     void ProcessUpdatedStarvationStatus(EStarvationStatus status);
     TEnumIndexedArray<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime();

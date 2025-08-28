@@ -82,8 +82,8 @@ target_sources(yt-server-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree_element.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduler_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context_detail.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_heartbeat_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_heartbeat_context_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy.cpp

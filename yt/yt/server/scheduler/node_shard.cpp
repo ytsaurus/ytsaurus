@@ -2,7 +2,7 @@
 
 #include "node_shard.h"
 #include "strategy.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "operation_controller.h"
 #include "controller_agent.h"
 #include "bootstrap.h"
@@ -634,7 +634,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         ->GetNativeConnection()
         ->GetMediumDirectory();
     auto minSpareResources = strategyProxy->GetMinSpareResourcesForScheduling();
-    auto schedulingContext = CreateSchedulingContext(
+    auto schedulingHeartbeatContext = CreateSchedulingHeartbeatContext(
         Id_,
         Config_,
         node,
@@ -642,10 +642,10 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         mediumDirectory,
         minSpareResources);
 
-    Y_UNUSED(WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleAllocations)));
+    Y_UNUSED(WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, skipScheduleAllocations)));
 
     ProcessScheduledAndPreemptedAllocations(
-        schedulingContext,
+        schedulingHeartbeatContext,
         response);
 
     ProcessOperationInfoHeartbeat(request, response);
@@ -653,7 +653,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     ToProto(response->mutable_min_spare_resources(), minSpareResources);
 
     UpdateUnutilizedResourcesOnHeartbeatEnd(
-        schedulingContext,
+        schedulingHeartbeatContext,
         node,
         minSpareResources,
         isThrottlingActive,
@@ -687,9 +687,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (!skipScheduleAllocations) {
         HeartbeatWithScheduleAllocationsCounter_.Increment();
 
-        node->ResourceUsage() = schedulingContext->ResourceUsage();
+        node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
-        const auto& statistics = schedulingContext->GetSchedulingStatistics();
+        const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
         if (statistics.ScheduleWithPreemption) {
             node->SetLastPreemptiveHeartbeatStatistics(statistics);
         } else {
@@ -705,16 +705,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             "StartedAllocations: {All: %v, ByPreemption: %v}, PreemptedAllocations: %v, "
             "PreemptibleInfo: %v, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
             "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
-            schedulingContext->StartedAllocations().size(),
+            schedulingHeartbeatContext->StartedAllocations().size(),
             statistics.ScheduledDuringPreemption,
-            schedulingContext->PreemptedAllocations().size(),
+            schedulingHeartbeatContext->PreemptedAllocations().size(),
             FormatPreemptibleInfoCompact(statistics),
             statistics.SsdPriorityPreemptionEnabled,
             statistics.SsdPriorityPreemptionMedia,
             FormatScheduleAllocationAttemptsCompact(statistics),
             FormatOperationCountByPreemptionPriorityCompact(statistics.OperationCountByPreemptionPriority));
     } else {
-        context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingContext->PreemptedAllocations().size());
+        context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingHeartbeatContext->PreemptedAllocations().size());
     }
 
     context->Reply();
@@ -2090,11 +2090,11 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 }
 
 void TNodeShard::ProcessScheduledAndPreemptedAllocations(
-    const ISchedulingContextPtr& schedulingContext,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     NProto::NNode::TRspHeartbeat* response)
 {
     std::vector<TAllocationId> startedAllocations;
-    for (const auto& allocation : schedulingContext->StartedAllocations()) {
+    for (const auto& allocation : schedulingHeartbeatContext->StartedAllocations()) {
         auto* operationState = FindOperationState(allocation->GetOperationId());
         if (!operationState) {
             YT_LOG_DEBUG(
@@ -2159,7 +2159,7 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         SetControllerAgentIncarnationId(agent, startInfo->mutable_controller_agent_descriptor());
     }
 
-    for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+    for (const auto& preemptedAllocation : schedulingHeartbeatContext->PreemptedAllocations()) {
         auto& allocation = preemptedAllocation.Allocation;
         auto preemptionTimeout = preemptedAllocation.PreemptionTimeout;
         if (!FindOperationState(allocation->GetOperationId()) || allocation->GetUnregistered()) {
@@ -2407,7 +2407,7 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatStart(
 }
 
 void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
-    const ISchedulingContextPtr& schedulingContext,
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TExecNodePtr& node,
     const TJobResources& minSpareResources,
     bool isThrottlingActive,
@@ -2420,14 +2420,14 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
     node->UnutilizedResourcesByReason() = {};
 
     // Prepare unutilized resources for the next heartbeat.
-    auto nodeFreeResources = schedulingContext->GetNodeFreeResourcesWithoutDiscount();
+    auto nodeFreeResources = schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount();
     EUnutilizedResourceReason reason;
     if (Dominates(nodeFreeResources, minSpareResources)) {
         if (isThrottlingActive) {
             reason = EUnutilizedResourceReason::Throttling;
         } else if (hasWaitingAllocations) {
             reason = EUnutilizedResourceReason::NodeHasWaitingAllocations;
-        } else if (schedulingContext->IsHeartbeatTimeoutExpired()) {
+        } else if (schedulingHeartbeatContext->IsHeartbeatTimeoutExpired()) {
             reason = EUnutilizedResourceReason::Timeout;
         } else {
             reason = EUnutilizedResourceReason::Unknown;

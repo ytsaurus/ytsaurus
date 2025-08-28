@@ -42,8 +42,8 @@ SRCS(
     resource_tree_element.cpp
     scheduler.cpp
     scheduler_service.cpp
-    scheduling_context.cpp
-    scheduling_context_detail.cpp
+    scheduling_heartbeat_context.cpp
+    scheduling_heartbeat_context_detail.cpp
     scheduling_segment_manager.cpp
     serialize.cpp
     strategy.cpp

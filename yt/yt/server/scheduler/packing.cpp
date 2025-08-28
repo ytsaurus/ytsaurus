@@ -32,10 +32,10 @@ bool TPackingHeartbeatSnapshot::CanSchedule(const TJobResourcesWithQuota& alloca
     return Dominates(Resources().Free(), allocationResourcesWithQuota);
 }
 
-TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext)
+TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
     TDiskQuota diskQuota;
-    for (const auto& locationResources : schedulingContext->DiskResources().DiskLocationResources) {
+    for (const auto& locationResources : schedulingHeartbeatContext->DiskResources().DiskLocationResources) {
         int mediumIndex = locationResources.MediumIndex;
         i64 freeDiskSpace = locationResources.Limit - locationResources.Usage;
         auto it = diskQuota.DiskSpacePerMedium.find(mediumIndex);
@@ -47,11 +47,11 @@ TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& s
     }
 
     auto resourcesSnapshot = TPackingNodeResourcesSnapshot(
-        schedulingContext->ResourceUsage(),
-        schedulingContext->ResourceLimits(),
+        schedulingHeartbeatContext->ResourceUsage(),
+        schedulingHeartbeatContext->ResourceLimits(),
         diskQuota);
 
-    return TPackingHeartbeatSnapshot(schedulingContext->GetNow(), resourcesSnapshot);
+    return TPackingHeartbeatSnapshot(schedulingHeartbeatContext->GetNow(), resourcesSnapshot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include "shared_data.h"
 #include "config.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "control_thread.h"
 
 #include <yt/yt/server/scheduler/public.h>

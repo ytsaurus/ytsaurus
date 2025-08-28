@@ -284,7 +284,7 @@ class TScheduleAllocationsContext
     : public TRefCounted
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
+    DEFINE_BYREF_RO_PROPERTY(ISchedulingHeartbeatContextPtr, SchedulingHeartbeatContext);
     DEFINE_BYREF_RO_PROPERTY(TFairShareTreeSnapshotPtr, TreeSnapshot);
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SsdPriorityPreemptionEnabled);
 
@@ -296,7 +296,7 @@ public:
 
 public:
     TScheduleAllocationsContext(
-        ISchedulingContextPtr schedulingContext,
+        ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
         TFairShareTreeSnapshotPtr treeSnapshot,
         const TFairShareTreeAllocationSchedulerNodeState* nodeState,
         bool schedulingInfoLoggingEnabled,
@@ -601,7 +601,7 @@ public:
 
     //! Process scheduling heartbeat.
     void ProcessSchedulingHeartbeat(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         bool skipScheduleAllocations);
 
@@ -771,10 +771,10 @@ private:
     //! Process node heartbeat, including allocation scheduling.
     TRunningAllocationStatistics ComputeRunningAllocationStatistics(
         const TFairShareTreeAllocationSchedulerNodeState* nodeState,
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TFairShareTreeSnapshotPtr& treeSnapshot);
 
-    void PreemptAllocationsGracefully(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
+    void PreemptAllocationsGracefully(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
     void ScheduleAllocations(TScheduleAllocationsContext* context);
 
     void DoRegularAllocationScheduling(TScheduleAllocationsContext* context);

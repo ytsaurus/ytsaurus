@@ -5,7 +5,7 @@
 #include "fair_share_tree_snapshot.h"
 #include "persistent_state.h"
 #include "public.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "strategy_operation_controller.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -2506,11 +2506,11 @@ private:
         { }
 
         TFuture<void> ProcessSchedulingHeartbeat(
-            const ISchedulingContextPtr& schedulingContext,
+            const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
             bool skipScheduleAllocations) override
         {
             if (Tree_) {
-                return Tree_->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleAllocations);
+                return Tree_->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, skipScheduleAllocations);
             }
             return VoidFuture;
         }

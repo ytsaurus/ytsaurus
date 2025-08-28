@@ -141,7 +141,7 @@ struct INodeHeartbeatStrategyProxy
 {
     //! Processes running allocations and schedules new allocations.
     virtual TFuture<void> ProcessSchedulingHeartbeat(
-        const ISchedulingContextPtr& schedulingContext,
+        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         bool skipScheduleAllocations) = 0;
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;

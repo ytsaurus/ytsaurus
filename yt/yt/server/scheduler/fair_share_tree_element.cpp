@@ -3,7 +3,7 @@
 #include "fair_share_tree.h"
 #include "helpers.h"
 #include "resource_tree_element.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -2153,14 +2153,14 @@ TControllerEpoch TSchedulerOperationElement::GetControllerEpoch() const
     return Controller_->GetEpoch();
 }
 
-void TSchedulerOperationElement::OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext)
+void TSchedulerOperationElement::OnScheduleAllocationStarted(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
-    Controller_->OnScheduleAllocationStarted(schedulingContext);
+    Controller_->OnScheduleAllocationStarted(schedulingHeartbeatContext);
 }
 
-void TSchedulerOperationElement::OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext)
+void TSchedulerOperationElement::OnScheduleAllocationFinished(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
-    Controller_->OnScheduleAllocationFinished(schedulingContext);
+    Controller_->OnScheduleAllocationFinished(schedulingHeartbeatContext);
 }
 
 bool TSchedulerOperationElement::IsMaxScheduleAllocationCallsViolated() const
@@ -2171,15 +2171,15 @@ bool TSchedulerOperationElement::IsMaxScheduleAllocationCallsViolated() const
 }
 
 bool TSchedulerOperationElement::IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(
-    const ISchedulingContextPtr& schedulingContext) const
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
-    return Controller_->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(schedulingContext);
+    return Controller_->IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(schedulingHeartbeatContext);
 }
 
 bool TSchedulerOperationElement::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(
-    const ISchedulingContextPtr& schedulingContext) const
+    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
-    return Controller_->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(schedulingContext);
+    return Controller_->IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(schedulingHeartbeatContext);
 }
 
 bool TSchedulerOperationElement::HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const
@@ -2196,7 +2196,7 @@ bool TSchedulerOperationElement::IsSaturatedInTentativeTree(
 }
 
 TControllerScheduleAllocationResultPtr TSchedulerOperationElement::ScheduleAllocation(
-    const ISchedulingContextPtr& context,
+    const ISchedulingHeartbeatContextPtr& context,
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,

@@ -35,15 +35,15 @@ TControllerEpoch TStrategyOperationController::GetEpoch() const
     return Controller_->GetEpoch();
 }
 
-void TStrategyOperationController::OnScheduleAllocationStarted(const ISchedulingContextPtr& schedulingContext)
+void TStrategyOperationController::OnScheduleAllocationStarted(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
-    auto nodeShardId = schedulingContext->GetNodeShardId();
+    auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
     ++shard.ConcurrentScheduleAllocationCalls;
     shard.ScheduleAllocationCallsSinceLastUpdate.fetch_add(1, std::memory_order::relaxed);
     shard.ConcurrentScheduleAllocationExecDuration += shard.ScheduleAllocationExecDurationEstimate;
 
-    schedulingContext->StoreScheduleAllocationExecDurationEstimate(shard.ScheduleAllocationExecDurationEstimate);
+    schedulingHeartbeatContext->StoreScheduleAllocationExecDurationEstimate(shard.ScheduleAllocationExecDurationEstimate);
 
     YT_LOG_DEBUG_IF(
         DetailedLogsEnabled_,
@@ -56,12 +56,12 @@ void TStrategyOperationController::OnScheduleAllocationStarted(const IScheduling
         nodeShardId);
 }
 
-void TStrategyOperationController::OnScheduleAllocationFinished(const ISchedulingContextPtr& schedulingContext)
+void TStrategyOperationController::OnScheduleAllocationFinished(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
-    auto nodeShardId = schedulingContext->GetNodeShardId();
+    auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
     --shard.ConcurrentScheduleAllocationCalls;
-    shard.ConcurrentScheduleAllocationExecDuration -= schedulingContext->ExtractScheduleAllocationExecDurationEstimate();
+    shard.ConcurrentScheduleAllocationExecDuration -= schedulingHeartbeatContext->ExtractScheduleAllocationExecDurationEstimate();
 
     YT_LOG_DEBUG_IF(
         DetailedLogsEnabled_,
@@ -170,9 +170,9 @@ bool TStrategyOperationController::CheckMaxScheduleAllocationCallsOverdraft(int 
     return ScheduleAllocationCallsOverdraft_ > 0;
 }
 
-bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
+bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationCallsPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
-    auto nodeShardId = schedulingContext->GetNodeShardId();
+    auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
     bool limitViolated = shard.ConcurrentScheduleAllocationCalls >= shard.MaxConcurrentControllerScheduleAllocationCalls;
 
@@ -186,13 +186,13 @@ bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationCallsPerNode
     return limitViolated;
 }
 
-bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const
+bool TStrategyOperationController::IsMaxConcurrentScheduleAllocationExecDurationPerNodeShardViolated(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext) const
 {
     if (!EnableConcurrentScheduleAllocationExecDurationThrottling_.load(std::memory_order::acquire)) {
         return false;
     }
 
-    auto nodeShardId = schedulingContext->GetNodeShardId();
+    auto nodeShardId = schedulingHeartbeatContext->GetNodeShardId();
     auto& shard = StateShards_[nodeShardId];
     bool limitViolated = shard.ConcurrentScheduleAllocationExecDuration >= shard.MaxConcurrentControllerScheduleAllocationExecDuration;
 
@@ -225,7 +225,7 @@ void TStrategyOperationController::AbortAllocation(TAllocationId allocationId, E
 }
 
 TControllerScheduleAllocationResultPtr TStrategyOperationController::ScheduleAllocation(
-    const ISchedulingContextPtr& context,
+    const ISchedulingHeartbeatContextPtr& context,
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,

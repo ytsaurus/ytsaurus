@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include "operation_description.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/scheduler/operation.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
