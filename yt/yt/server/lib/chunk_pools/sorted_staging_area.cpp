@@ -281,15 +281,14 @@ public:
         TComparator foreignComparator,
         TRowBufferPtr rowBuffer,
         const TLogger& logger)
-        : EnableKeyGuarantee_(enableKeyGuarantee)
-        , PrimaryComparator_(std::move(primaryComparator))
+        : PrimaryComparator_(std::move(primaryComparator))
         , ForeignComparator_(std::move(foreignComparator))
         , RowBuffer_(std::move(rowBuffer))
         , Logger(logger)
         , MainDomain_("Main", logger, PrimaryComparator_)
         , BufferDomain_("Buffer", logger, PrimaryComparator_)
         , ForeignDomain_(ForeignComparator_)
-        , SolidDomain_(!EnableKeyGuarantee_
+        , SolidDomain_(!enableKeyGuarantee
             ? std::make_optional<TPrimaryDomain>("Solid", Logger, PrimaryComparator_)
             : std::nullopt)
     {
@@ -320,6 +319,13 @@ public:
                 BufferDomain_.PushBack(std::move(dataSlice));
                 break;
             case ESliceType::Solid:
+                CurrentJobContainsSolidSlices_ = true;
+                // TODO(apollo1321): Simplify this code later, see YT-26022.
+                // YT_VERIFY for Buffer and Solid should be the same.
+
+                // NB(apollo1321): Solid slice boundary matching rules:
+                // - UpperBound "]" accepts solid slices with "[" or "(",
+                // - UpperBound ")" accepts only solid slices with "[".
                 YT_VERIFY(
                     dataSlice->LowerLimit().KeyBound == UpperBound_.Invert() ||
                     (dataSlice->LowerLimit().KeyBound.IsInclusive &&
@@ -408,7 +414,6 @@ public:
     }
 
 private:
-    const bool EnableKeyGuarantee_;
     const TComparator PrimaryComparator_;
     const TComparator ForeignComparator_;
     const TRowBufferPtr RowBuffer_;
@@ -426,6 +431,7 @@ private:
 
     //! These flags are used only for internal sanity check.
     bool PreviousJobContainedSolidSlices_ = false;
+    bool CurrentJobContainsSolidSlices_ = false;
 
     //! Previous job upper bound, used for internal sanity check.
     TKeyBound PreviousJobUpperBound_ = TKeyBound::MakeEmpty(/*isUpper*/ true);
@@ -469,8 +475,6 @@ private:
             YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound));
             YT_VERIFY(PrimaryComparator_.CompareKeyBounds(dataSlice->LowerLimit().KeyBound, UpperBound_) <= 0);
 
-            TLegacyDataSlicePtr restDataSlice;
-
             if (!PrimaryComparator_.IsRangeEmpty(UpperBound_.Invert(), dataSlice->UpperLimit().KeyBound)) {
                 // Right part of the data slice goes to Buffer domain.
                 auto restDataSlice = CreateInputDataSlice(dataSlice, PrimaryComparator_, UpperBound_.Invert(), dataSlice->UpperLimit().KeyBound);
@@ -491,7 +495,7 @@ private:
         NonSolidMainDataSlices_.clear();
 
         for (auto& dataSlice : Reversed(toBuffer)) { // line (2)
-            auto& destinationDomain = PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) && !EnableKeyGuarantee_
+            auto& destinationDomain = PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) && SolidDomain_.has_value()
                 ? *SolidDomain_
                 : BufferDomain_;
             destinationDomain.PushFront(std::move(dataSlice)); // line (1)
@@ -502,8 +506,7 @@ private:
     {
         // NB: It is important to transfer singletons before non-singletons;
         // otherwise we would violate slice order guarantee.
-        auto dataSlices = BufferDomain_.ExtractDataSlicesAndClear();
-        for (auto& dataSlice : dataSlices) {
+        for (auto& dataSlice : BufferDomain_.ExtractDataSlicesAndClear()) {
             YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
             NonSolidMainDataSlices_.push_back(dataSlice);
             MainDomain_.PushBack(std::move(dataSlice));
@@ -515,8 +518,7 @@ private:
         if (!SolidDomain_.has_value()) {
             return;
         }
-        auto dataSlices = SolidDomain_->ExtractDataSlicesAndClear();
-        for (const auto& dataSlice : dataSlices) {
+        for (auto& dataSlice : SolidDomain_->ExtractDataSlicesAndClear()) {
             YT_VERIFY(
                 dataSlice->LowerLimit().KeyBound == UpperBound_.Invert() ||
                 (dataSlice->LowerLimit().KeyBound.IsInclusive &&
@@ -554,7 +556,19 @@ private:
         // current one unless previous job contained solid slices.
 
         if (!PreviousJobContainedSolidSlices_) {
-            YT_VERIFY(PrimaryComparator_.CompareKeyBounds(actualLowerBound, PreviousJobUpperBound_) >= 0);
+            if (CurrentJobContainsSolidSlices_) {
+                // Remove this branch and CurrentJobContainsSolidSlices_ after "Weird max42 case"
+                // is removed, see YT-26022.
+
+                // NB(apollo1321): Solid slice with lower bound ">= K" can be added even if staging area
+                // upper boundary is "<= K". As bound ordering logic requires that '>= K' < '<= K', we
+                // need to handle this case manually.
+                YT_VERIFY(
+                    PrimaryComparator_.CompareKeyBounds(actualLowerBound, PreviousJobUpperBound_) >= 0 ||
+                    actualLowerBound == PreviousJobUpperBound_.Invert().ToggleInclusiveness());
+            } else {
+                YT_VERIFY(PrimaryComparator_.CompareKeyBounds(actualLowerBound, PreviousJobUpperBound_) >= 0);
+            }
         }
     }
 
@@ -599,11 +613,11 @@ private:
                 YT_VERIFY(dataSlice->Tag);
                 const auto& Logger = domain.Logger;
                 if (!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
-                    auto tag = *dataSlice->Tag;
-                    job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
                     YT_LOG_TRACE(
                         "Adding primary data slice to job (DataSlice: %v)",
                         GetDataSliceDebugString(dataSlice));
+                    auto tag = *dataSlice->Tag;
+                    job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
                 } else {
                     YT_LOG_TRACE(
                         "Not adding empty data slice to job (DataSlice: %v)",
@@ -619,8 +633,8 @@ private:
 
         if (job.GetPrimarySliceCount() == 0) {
             YT_VERIFY(PrimaryComparator_.IsRangeEmpty(actualLowerBound, actualUpperBound));
-            PreparedJobs_.pop_back();
             YT_LOG_TRACE("Dropping empty job (DataSlices: %v)", job.GetDebugString());
+            PreparedJobs_.pop_back();
             return;
         }
         job.SetPrimaryLowerBound(actualLowerBound);
@@ -629,7 +643,8 @@ private:
         // Perform sanity checks and prepare information for the next sanity check.
         ValidateCurrentJobBounds(actualLowerBound, actualUpperBound);
         PreviousJobUpperBound_ = UpperBound_;
-        PreviousJobContainedSolidSlices_ = SolidDomain_.has_value() ? SolidDomain_->IsEmpty() : false;
+        PreviousJobContainedSolidSlices_ = CurrentJobContainsSolidSlices_;
+        CurrentJobContainsSolidSlices_ = false;
 
         // Now trim foreign data slices. First of all, shorten actual lower and upper bounds
         // in order to respect the foreign comparator length.

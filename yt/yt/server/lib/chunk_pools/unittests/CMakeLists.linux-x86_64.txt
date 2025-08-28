@@ -64,6 +64,7 @@ target_sources(unittester-chunk-pools PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/ordered_chunk_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_chunk_pool_new_keys_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_chunk_pool_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/sorted_staging_area_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/unittests/unordered_chunk_pool_ut.cpp
 )
 
