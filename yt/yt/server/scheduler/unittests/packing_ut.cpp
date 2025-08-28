@@ -9,11 +9,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairSharePackingTest
+class TPackingTest
     : public testing::Test
 {
 protected:
-    TFairSharePackingTest() = default;
+    TPackingTest() = default;
 
     TDiskQuota CreateDiskQuota(i64 diskSpace)
     {
@@ -27,11 +27,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairSharePackingJobResourcesRatioTest
-    : public TFairSharePackingTest
+class TPackingJobResourcesRatioTest
+    : public TPackingTest
 { };
 
-TEST_F(TFairSharePackingJobResourcesRatioTest, TestConstructor)
+TEST_F(TPackingJobResourcesRatioTest, TestConstructor)
 {
     TJobResources resources;
     resources.SetCpu(TCpuResource(40L));
@@ -50,13 +50,13 @@ TEST_F(TFairSharePackingJobResourcesRatioTest, TestConstructor)
     EXPECT_NEAR(5e-4, ratio.GetMemoryRatio(), ABS_ERROR);
 }
 
-TEST_F(TFairSharePackingJobResourcesRatioTest, TestOnes)
+TEST_F(TPackingJobResourcesRatioTest, TestOnes)
 {
     EXPECT_NEAR(1, TJobResourcesRatio::Ones().GetCpuRatio(), ABS_ERROR);
     EXPECT_NEAR(1, TJobResourcesRatio::Ones().GetMemoryRatio(), ABS_ERROR);
 }
 
-TEST_F(TFairSharePackingJobResourcesRatioTest, TestZeros)
+TEST_F(TPackingJobResourcesRatioTest, TestZeros)
 {
     EXPECT_NEAR(0, TJobResourcesRatio::Zeros().GetCpuRatio(), ABS_ERROR);
     EXPECT_NEAR(0, TJobResourcesRatio::Zeros().GetMemoryRatio(), ABS_ERROR);
@@ -64,8 +64,8 @@ TEST_F(TFairSharePackingJobResourcesRatioTest, TestZeros)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairSharePackingAnglePackingMetricTest
-    : public TFairSharePackingTest
+class TPackingAnglePackingMetricTest
+    : public TPackingTest
 {
 protected:
     static TJobResources CreateResourceVector(TCpuResource cpu, i64 memory, int network, int userSlots)
@@ -86,7 +86,7 @@ protected:
     }
 };
 
-TEST_F(TFairSharePackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue)
+TEST_F(TPackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue)
 {
     auto totalResources = CreateResourceVector(TCpuResource(1000L), 2000_GB, /*network*/ 10000, /*userSlots*/ 10000);
 
@@ -103,7 +103,7 @@ TEST_F(TFairSharePackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue
     EXPECT_NEAR(0, AnglePackingMetric(nodeResourcesSnapshot, jobResources, totalResources), ABS_ERROR);
 }
 
-TEST_F(TFairSharePackingAnglePackingMetricTest, TestCompareDifferentAngles)
+TEST_F(TPackingAnglePackingMetricTest, TestCompareDifferentAngles)
 {
     auto totalResources = CreateResourceVector(TCpuResource(1000L), 2000_GB, /*network*/ 10000, /*userSlots*/ 10000);
 
