@@ -128,7 +128,7 @@ struct IChaosManager
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCard, TReplicationCard);
-    virtual TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) = 0;
+    virtual TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated = false) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ReplicationCardCollocation, TReplicationCardCollocation);
     virtual TReplicationCardCollocation* GetReplicationCardCollocationOrThrow(TReplicationCardCollocationId colocationId) = 0;
