@@ -388,4 +388,6 @@
   { "include": ["\"__tree\"", "private", "<map>", "public"] },
   { "include": ["\"__undef_macros\"", "private", "<any>", "public"] },
   { "include": ["\"__verbose_abort\"", "private", "<any>", "public"] },
+  { "include": ["@\"Eigen/src/plugins/.*\"", "private", "<Eigen/Core>", "public"] },
+  { "include": ["@\"Eigen/src/Core/.*\"", "private", "<Eigen/Core>", "public"] },
 ]
