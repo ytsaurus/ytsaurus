@@ -3,11 +3,11 @@
 #include "public.h"
 #include "operation.h"
 
-#include <yt/yt/core/logging/log.h>
-
 #include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NScheduler {
 
@@ -17,7 +17,6 @@ DECLARE_REFCOUNTED_STRUCT(IPoolTree)
 DECLARE_REFCOUNTED_STRUCT(IPoolTreeElementHost)
 
 struct IPoolTreeHost;
-struct ISchedulingPolicyHost;
 
 DECLARE_REFCOUNTED_CLASS(TPoolTreeElement)
 DECLARE_REFCOUNTED_CLASS(TPoolTreeOperationElement)
@@ -28,23 +27,10 @@ DECLARE_REFCOUNTED_CLASS(TPoolTreeRootElement)
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
 
-DECLARE_REFCOUNTED_CLASS(TScheduleAllocationsContext)
-
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationController)
-DECLARE_REFCOUNTED_CLASS(TSchedulingPolicy)
 DECLARE_REFCOUNTED_CLASS(TPoolTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TPoolTreeSetSnapshot)
-DECLARE_REFCOUNTED_CLASS(TSchedulingPolicyPoolTreeSnapshotState)
 DECLARE_REFCOUNTED_CLASS(TPoolTreeProfileManager)
-
-DECLARE_REFCOUNTED_STRUCT(TGpuSchedulerAssignment)
-
-DECLARE_REFCOUNTED_CLASS(TGpuSchedulerOperation)
-DECLARE_REFCOUNTED_CLASS(TGpuSchedulerNode)
-
-class TAllocationMetrics;
-
-DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,12 +95,6 @@ DEFINE_ENUM(EAllocationPreemptionLevel,
     (Preemptible)
 );
 
-DEFINE_ENUM(EAllocationPreemptionStatus,
-    (NonPreemptible)
-    (AggressivelyPreemptible)
-    (Preemptible)
-);
-
 DEFINE_ENUM(EAllocationSchedulingStage,
     (RegularHighPriority)
     (RegularMediumPriority)
@@ -124,20 +104,6 @@ DEFINE_ENUM(EAllocationSchedulingStage,
     (PreemptiveAggressive)
     (PreemptiveSsdNormal)
     (PreemptiveSsdAggressive)
-);
-
-DEFINE_ENUM(EAllocationPreemptionReason,
-    (Preemption)
-    (AggressivePreemption)
-    (SsdPreemption)
-    (SsdAggressivePreemption)
-    (GracefulPreemption)
-    (ResourceOvercommit)
-    (ResourceLimitsViolated)
-    (IncompatibleSchedulingSegment)
-    (FullHostAggressivePreemption)
-    (EvictionFromSchedulingModule)
-    (OperationBoundToOtherModule)
 );
 
 DEFINE_ENUM(EGpuSchedulingLogEventType,
@@ -193,8 +159,6 @@ inline const std::string EventLogPoolTreeKey{"tree_id"};
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, StrategyLogger, "Strategy");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeShardLogger, "NodeShard");
-
-inline constexpr char DefaultOperationTag[] = "default";
 
 constexpr int UndefinedSchedulingIndex = -1;
 

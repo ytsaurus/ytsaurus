@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/scheduler/policy/public.h>
+
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -52,12 +54,33 @@ DECLARE_REFCOUNTED_CLASS(TBootstrap)
 DECLARE_REFCOUNTED_STRUCT(TPersistentStrategyState)
 DECLARE_REFCOUNTED_STRUCT(TPersistentTreeState)
 DECLARE_REFCOUNTED_STRUCT(TPersistentPoolState)
-DECLARE_REFCOUNTED_STRUCT(TPersistentSchedulingSegmentsState)
 
 // TODO(mrkastep) Move to private.h
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationState)
 
 DECLARE_REFCOUNTED_CLASS(TControllerRuntimeData)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAllocationPreemptionStatus,
+    (NonPreemptible)
+    (AggressivelyPreemptible)
+    (Preemptible)
+);
+
+DEFINE_ENUM(EAllocationPreemptionReason,
+    (Preemption)
+    (AggressivePreemption)
+    (SsdPreemption)
+    (SsdAggressivePreemption)
+    (GracefulPreemption)
+    (ResourceOvercommit)
+    (ResourceLimitsViolated)
+    (IncompatibleSchedulingSegment)
+    (FullHostAggressivePreemption)
+    (EvictionFromSchedulingModule)
+    (OperationBoundToOtherModule)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

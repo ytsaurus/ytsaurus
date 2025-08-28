@@ -8,7 +8,6 @@
 #include "resource_tree_element.h"
 #include "strategy.h"
 #include "scheduling_heartbeat_context.h"
-#include "packing.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>

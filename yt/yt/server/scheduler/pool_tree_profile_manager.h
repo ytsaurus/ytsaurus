@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-
 #include "pool_tree.h"
+
+#include <yt/yt/server/scheduler/policy/public.h>
 
 namespace NYT::NScheduler {
 
@@ -17,7 +18,7 @@ public:
         NProfiling::TProfiler profiler,
         bool sparsifyMetrics,
         const IInvokerPtr& profilingInvoker,
-        TSchedulingPolicyPtr schedulingPolicy);
+        NPolicy::TSchedulingPolicyPtr schedulingPolicy);
 
     // Thread affinity: Control thread.
     NProfiling::TProfiler GetProfiler() const;
@@ -51,7 +52,7 @@ private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
     const IInvokerPtr ProfilingInvoker_;
-    const TSchedulingPolicyPtr SchedulingPolicy_;
+    const NPolicy::TSchedulingPolicyPtr SchedulingPolicy_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

@@ -9,7 +9,7 @@
 #include <library/cpp/yt/compact_containers/compact_set.h>
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,4 +142,4 @@ DEFINE_REFCOUNTED_TYPE(TGpuSchedulerNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NPolicy
