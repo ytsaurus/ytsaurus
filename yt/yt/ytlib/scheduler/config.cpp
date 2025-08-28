@@ -2841,7 +2841,7 @@ void TOperationJobShellRuntimeParameters::Register(TRegistrar registrar)
         .Default();
 }
 
-void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
+void TOperationPoolTreeRuntimeParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()
@@ -2908,7 +2908,7 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     if (auto acl = mapNode->FindChild("acl")) {
         Deserialize(parameters.Acl, acl);
     }
-    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
+    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationPoolTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
     if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
         Deserialize(parameters.SchedulingTagFilter, child);
@@ -2947,7 +2947,7 @@ void Deserialize(TOperationRuntimeParameters& parameters, TYsonPullParserCursor*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registrar)
+void TOperationPoolTreeRuntimeParametersUpdate::Register(TRegistrar registrar)
 {
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()
@@ -3043,13 +3043,13 @@ EPermissionSet TOperationRuntimeParametersUpdate::GetRequiredPermissions() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
-    const TOperationFairShareTreeRuntimeParametersPtr& origin,
-    const TOperationFairShareTreeRuntimeParametersUpdatePtr& update)
+TOperationPoolTreeRuntimeParametersPtr UpdatePoolTreeRuntimeParameters(
+    const TOperationPoolTreeRuntimeParametersPtr& origin,
+    const TOperationPoolTreeRuntimeParametersUpdatePtr& update)
 {
     try {
         if (!origin) {
-            return NYTree::ConvertTo<TOperationFairShareTreeRuntimeParametersPtr>(ConvertToNode(update));
+            return NYTree::ConvertTo<TOperationPoolTreeRuntimeParametersPtr>(ConvertToNode(update));
         }
         return UpdateYsonStruct(origin, ConvertToNode(update));
     } catch (const std::exception& exception) {

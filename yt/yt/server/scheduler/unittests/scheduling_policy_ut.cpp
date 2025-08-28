@@ -1,10 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/fair_share_tree.h>
-#include <yt/yt/server/scheduler/fair_share_tree_element.h>
-#include <yt/yt/server/scheduler/scheduling_policy.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
+#include <yt/yt/server/scheduler/pool_tree.h>
+#include <yt/yt/server/scheduler/pool_tree_element.h>
 #include <yt/yt/server/scheduler/resource_tree.h>
+#include <yt/yt/server/scheduler/scheduling_policy.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
@@ -259,9 +259,9 @@ using TSchedulerStrategyHostMockPtr = TIntrusivePtr<TSchedulerStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeHostMock
+class TPoolTreeHostMock
     : public TRefCounted
-    , public IFairShareTreeHost
+    , public IPoolTreeHost
 {
 public:
 
@@ -282,7 +282,7 @@ private:
     re2::RE2 RegexStub_ = re2::RE2(".*");
 };
 
-using TFairShareTreeHostMockPtr = TIntrusivePtr<TFairShareTreeHostMock>;
+using TPoolTreeHostMockPtr = TIntrusivePtr<TPoolTreeHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,19 +291,19 @@ class TSchedulingPolicyHostMock
 {
 public:
     // NB(eshcherbin): This is a little hack to ensure that periodic actions of the tree allocation scheduler do not outlive hosts.
-    TSchedulingPolicyHostMock(TSchedulerStrategyHostMockPtr strategyHost, TFairShareTreeHostMockPtr treeHost)
+    TSchedulingPolicyHostMock(TSchedulerStrategyHostMockPtr strategyHost, TPoolTreeHostMockPtr treeHost)
         : StrategyHost_(std::move(strategyHost))
         , TreeHost_(std::move(treeHost))
     { }
 
-    TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
+    TPoolTreeSnapshotPtr GetTreeSnapshot() const noexcept override
     {
         return nullptr;
     }
 
 private:
     TSchedulerStrategyHostMockPtr StrategyHost_;
-    TFairShareTreeHostMockPtr TreeHost_;
+    TPoolTreeHostMockPtr TreeHost_;
 };
 
 using TSchedulingPolicyHostMockPtr = TIntrusivePtr<TSchedulingPolicyHostMock>;
@@ -512,11 +512,11 @@ using TOperationStrategyHostMockPtr = TIntrusivePtr<TOperationStrategyHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeElementHostMock
-    : public IFairShareTreeElementHost
+class TPoolTreeElementHostMock
+    : public IPoolTreeElementHost
 {
 public:
-    explicit TFairShareTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
+    explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
         : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
@@ -526,8 +526,8 @@ public:
     }
 
     void BuildElementLoggingStringAttributes(
-        const TFairShareTreeSnapshotPtr& /*treeSnapshot*/,
-        const TSchedulerElement* /*element*/,
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        const TPoolTreeElement* /*element*/,
         TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
     {
         YT_UNIMPLEMENTED();
@@ -537,7 +537,7 @@ private:
     TResourceTreePtr ResourceTree_;
 };
 
-using TFairShareTreeElementHostMockPtr = TIntrusivePtr<TFairShareTreeElementHostMock>;
+using TPoolTreeElementHostMockPtr = TIntrusivePtr<TPoolTreeElementHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -566,9 +566,9 @@ public:
 
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
-    TFairShareTreeHostMockPtr FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
+    TPoolTreeHostMockPtr PoolTreeHostMock_ = New<TPoolTreeHostMock>();
     TStrategyTreeConfigPtr TreeConfig_ = New<TStrategyTreeConfig>();
-    TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
+    TPoolTreeElementHostMockPtr PoolTreeElementHostMock_ = New<TPoolTreeElementHostMock>(TreeConfig_);
     NConcurrency::TActionQueuePtr NodeShardActionQueue_ = New<NConcurrency::TActionQueue>("NodeShard");
 
     TSchedulingStageProfilingCounters RegularSchedulingProfilingCounters_{NProfiling::TProfiler("/regular_test_scheduling_stage")};
@@ -597,32 +597,32 @@ protected:
         YT_VERIFY(!SchedulingPolicyHostMock_);
         YT_VERIFY(!SchedulingPolicy_);
 
-        SchedulingPolicyHostMock_ = New<TSchedulingPolicyHostMock>(strategyHost, FairShareTreeHostMock_);
+        SchedulingPolicyHostMock_ = New<TSchedulingPolicyHostMock>(strategyHost, PoolTreeHostMock_);
         SchedulingPolicy_ = New<TSchedulingPolicy>(
             /*treeId*/ "default",
             StrategyLogger(),
             SchedulingPolicyHostMock_,
-            FairShareTreeHostMock_.Get(),
+            PoolTreeHostMock_.Get(),
             strategyHost.Get(),
             TreeConfig_,
             NProfiling::TProfiler());
     }
 
-    TSchedulerRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)
+    TPoolTreeRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)
     {
-        return New<TSchedulerRootElement>(
+        return New<TPoolTreeRootElement>(
             strategyHost,
-            FairShareTreeElementHostMock_.Get(),
+            PoolTreeElementHostMock_.Get(),
             TreeConfig_,
             "default",
             SchedulerLogger());
     }
 
-    TSchedulerPoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
+    TPoolTreePoolElementPtr CreateTestPool(IStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
-        return New<TSchedulerPoolElement>(
+        return New<TPoolTreePoolElement>(
             strategyHost,
-            FairShareTreeElementHostMock_.Get(),
+            PoolTreeElementHostMock_.Get(),
             name,
             /*objectId*/ NObjectClient::TObjectId(),
             std::move(config),
@@ -659,11 +659,11 @@ protected:
         return CreateIntegralPoolConfig(EIntegralGuaranteeType::Relaxed, flowCpu, 0.0, strongGuaranteeCpu, weight);
     }
 
-    TSchedulerOperationElementPtr CreateTestOperationElement(
+    TPoolTreeOperationElementPtr CreateTestOperationElement(
         IStrategyHost* strategyHost,
         IOperationStrategyHostPtr operation,
-        TSchedulerCompositeElement* parent,
-        TOperationFairShareTreeRuntimeParametersPtr runtimeParameters = nullptr,
+        TPoolTreeCompositeElement* parent,
+        TOperationPoolTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
         auto operationController = New<TStrategyOperationController>(
@@ -672,13 +672,13 @@ protected:
             strategyHost->GetNodeShardInvokers());
 
         if (!runtimeParameters) {
-            runtimeParameters = New<TOperationFairShareTreeRuntimeParameters>();
+            runtimeParameters = New<TOperationPoolTreeRuntimeParameters>();
             runtimeParameters->Weight = 1.0;
         }
         if (!operationSpec) {
             operationSpec = New<TStrategyOperationSpec>();
         }
-        auto operationElement = New<TSchedulerOperationElement>(
+        auto operationElement = New<TPoolTreeOperationElement>(
             TreeConfig_,
             operationSpec,
             New<TOperationOptions>(),
@@ -687,7 +687,7 @@ protected:
             SchedulerConfig_,
             New<TStrategyOperationState>(operation, SchedulerConfig_, strategyHost->GetNodeShardInvokers()),
             strategyHost,
-            FairShareTreeElementHostMock_.Get(),
+            PoolTreeElementHostMock_.Get(),
             operation,
             "default",
             SchedulerLogger());
@@ -702,10 +702,10 @@ protected:
         return operationElement;
     }
 
-    std::pair<TSchedulerOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithAllocations(
+    std::pair<TPoolTreeOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithAllocations(
         int allocationCount,
         IStrategyHost* strategyHost,
-        TSchedulerCompositeElement* parent)
+        TPoolTreeCompositeElement* parent)
     {
         TJobResourcesWithQuota allocationResources;
         allocationResources.SetUserSlots(1);
@@ -803,13 +803,13 @@ protected:
     struct TScheduleAllocationsContextWithDependencies
     {
         ISchedulingHeartbeatContextPtr SchedulingHeartbeatContext;
-        TFairShareTreeSnapshotPtr TreeSnapshot;
+        TPoolTreeSnapshotPtr TreeSnapshot;
         TScheduleAllocationsContextPtr ScheduleAllocationsContext;
     };
 
-    TFairShareTreeSnapshotPtr DoFairShareUpdate(
+    TPoolTreeSnapshotPtr DoFairShareUpdate(
         const IStrategyHost* strategyHost,
-        const TSchedulerRootElementPtr& rootElement,
+        const TPoolTreeRootElementPtr& rootElement,
         TInstant now = TInstant(),
         std::optional<TInstant> previousUpdateTime = {})
     {
@@ -852,7 +852,7 @@ protected:
 
         // Resource usage and limits and node count are only used for diagnostics, so we don't provide them here.
         auto schedulingPolicyState = SchedulingPolicy_->CreateSnapshotState(&schedulingPolicyPostUpdateContext);
-        return New<TFairShareTreeSnapshot>(
+        return New<TPoolTreeSnapshot>(
             TTreeSnapshotId::Create(),
             rootElement,
             std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
@@ -869,7 +869,7 @@ protected:
 
     TScheduleAllocationsContextWithDependencies PrepareScheduleAllocationsContext(
         TSchedulerStrategyHostMock* strategyHost,
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const TExecNodePtr& execNode)
     {
         auto schedulingHeartbeatContext = CreateSchedulingHeartbeatContext(
@@ -898,9 +898,9 @@ protected:
 
     void DoTestSchedule(
         TSchedulerStrategyHostMock* strategyHost,
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const TExecNodePtr& execNode,
-        const TSchedulerOperationElementPtr& operationElement)
+        const TPoolTreeOperationElementPtr& operationElement)
     {
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost, treeSnapshot, execNode);
         auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
@@ -915,11 +915,11 @@ protected:
     }
 
 private:
-    void ResetFairShareFunctionsRecursively(TSchedulerCompositeElement* compositeElement)
+    void ResetFairShareFunctionsRecursively(TPoolTreeCompositeElement* compositeElement)
     {
         compositeElement->ResetFairShareFunctions();
         for (const auto& child : compositeElement->EnabledChildren()) {
-            if (auto* childPool = dynamic_cast<TSchedulerCompositeElement*>(child.Get())) {
+            if (auto* childPool = dynamic_cast<TPoolTreeCompositeElement*>(child.Get())) {
                 ResetFairShareFunctionsRecursively(childPool);
             } else {
                 child->ResetFairShareFunctions();
@@ -953,7 +953,7 @@ TEST_F(TSchedulingPolicyTest, TestUpdatePreemptibleAllocationsList)
     allocationResources.SetCpu(1);
     allocationResources.SetMemory(10);
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
     auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(10, nodeResources));
@@ -1011,7 +1011,7 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
     operationAllocationResources.SetMemory(10);
     operationAllocationResources.DiskQuota() = CreateDiskQuota(0);
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationAllocationResources));
     auto operationElement = CreateTestOperationElement(strategyHost.Get(), operation, rootElement.Get(), operationOptions);
@@ -1077,7 +1077,7 @@ TEST_F(TSchedulingPolicyTest, DoNotPreemptAllocationsIfFairShareEqualsDemandShar
     allocationResources.SetMemory(10);
     allocationResources.DiskQuota() = CreateDiskQuota(0);
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    auto operationOptions = New<TOperationPoolTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
     auto operationElement = CreateTestOperationElement(strategyHost.Get(), operation, rootElement.Get(), operationOptions);
@@ -1318,7 +1318,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
     constexpr int OperationCount = 10;
     static const std::vector<int> ExpectedOperationIndices{7, 0, 8, 1, 5, 2, 9, 4, 6, 3};
     std::vector<TOperationStrategyHostMockPtr> operations;
-    std::vector<TSchedulerOperationElementPtr> operationElements;
+    std::vector<TPoolTreeOperationElementPtr> operationElements;
     TNonOwningOperationElementList nonOwningOperationElements;
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
         operations.push_back(New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, operationAllocationResources)));
@@ -1366,7 +1366,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
                 context->FinishStage();
             });
 
-            THashMap<TSchedulerElement*, int> operationToIndex;
+            THashMap<TPoolTreeElement*, int> operationToIndex;
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
                 auto* element = getBestOperation(context->DynamicAttributesOf(pool.Get()));
 
@@ -1377,7 +1377,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
                     element,
                     opIndex);
 
-                context->DeactivateOperationInTest(static_cast<TSchedulerOperationElement*>(element));
+                context->DeactivateOperationInTest(static_cast<TPoolTreeOperationElement*>(element));
             }
 
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
@@ -1461,7 +1461,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
     // Create 5 operations, each with 2 allocations.
     constexpr int OperationCount = 5;
     std::vector<TOperationStrategyHostMockPtr> operations(OperationCount);
-    std::vector<TSchedulerOperationElementPtr> operationElements(OperationCount);
+    std::vector<TPoolTreeOperationElementPtr> operationElements(OperationCount);
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
         operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationAllocationResources));
         operationElements[opIndex] = CreateTestOperationElement(
@@ -1513,7 +1513,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
         auto context = scheduleAllocationsContextWithDependencies.ScheduleAllocationsContext;
 
         auto sortedOperationElements = operationElements;
-        SortBy(sortedOperationElements, [&] (const TSchedulerOperationElementPtr& element) {
+        SortBy(sortedOperationElements, [&] (const TPoolTreeOperationElementPtr& element) {
             return treeSnapshot->SchedulingPolicyState()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex;
         });
 
@@ -1667,7 +1667,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
     // Create 5 operations, each with 2 allocations.
     constexpr int OperationCount = 5;
     std::vector<TOperationStrategyHostMockPtr> operations(OperationCount);
-    std::vector<TSchedulerOperationElementPtr> operationElements(OperationCount);
+    std::vector<TPoolTreeOperationElementPtr> operationElements(OperationCount);
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
         operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationAllocationResources));
         operationElements[opIndex] = CreateTestOperationElement(
@@ -1812,29 +1812,29 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
     auto operationBY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementBY = CreateTestOperationElement(strategyHost.Get(), operationBY, poolBY.Get());
 
-    const std::vector<TSchedulerElement*> treeElements{
-        static_cast<TSchedulerElement*>(rootElement.Get()),
-        static_cast<TSchedulerElement*>(poolA.Get()),
-        static_cast<TSchedulerElement*>(poolB.Get()),
-        static_cast<TSchedulerElement*>(poolBX.Get()),
-        static_cast<TSchedulerElement*>(poolBY.Get()),
-        static_cast<TSchedulerElement*>(operationElementRoot.Get()),
-        static_cast<TSchedulerElement*>(operationElementA.Get()),
-        static_cast<TSchedulerElement*>(operationElementB.Get()),
-        static_cast<TSchedulerElement*>(operationElementBX.Get()),
-        static_cast<TSchedulerElement*>(operationElementBY.Get()),
+    const std::vector<TPoolTreeElement*> treeElements{
+        static_cast<TPoolTreeElement*>(rootElement.Get()),
+        static_cast<TPoolTreeElement*>(poolA.Get()),
+        static_cast<TPoolTreeElement*>(poolB.Get()),
+        static_cast<TPoolTreeElement*>(poolBX.Get()),
+        static_cast<TPoolTreeElement*>(poolBY.Get()),
+        static_cast<TPoolTreeElement*>(operationElementRoot.Get()),
+        static_cast<TPoolTreeElement*>(operationElementA.Get()),
+        static_cast<TPoolTreeElement*>(operationElementB.Get()),
+        static_cast<TPoolTreeElement*>(operationElementBX.Get()),
+        static_cast<TPoolTreeElement*>(operationElementBY.Get()),
     };
 
     auto doTestCase = [&] (
-        const THashSet<TSchedulerOperationElement*>& consideredOperations,
-        const THashSet<TSchedulerCompositeElement*>& expectedActivePools)
+        const THashSet<TPoolTreeOperationElement*>& consideredOperations,
+        const THashSet<TPoolTreeCompositeElement*>& expectedActivePools)
     {
-        THashSet<TSchedulerElement*> expectedActiveElements;
+        THashSet<TPoolTreeElement*> expectedActiveElements;
         for (auto* pool : expectedActivePools) {
             expectedActiveElements.insert(pool);
         }
 
-        std::vector<TSchedulerOperationElement*> consideredOperationsList;
+        std::vector<TPoolTreeOperationElement*> consideredOperationsList;
         for (auto* operation : consideredOperations) {
             consideredOperationsList.push_back(operation);
             expectedActiveElements.insert(operation);
@@ -1859,7 +1859,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
 
             EXPECT_EQ(expectedActiveElements.contains(element), context->DynamicAttributesOf(element).Active);
 
-            if (auto* pool = dynamic_cast<TSchedulerCompositeElement*>(element)) {
+            if (auto* pool = dynamic_cast<TPoolTreeCompositeElement*>(element)) {
                 YT_LOG_INFO("Testing pool's child set presence: (ExpectedPresent: %v, ActualPresent: %v)",
                     expectedActiveElements.contains(pool),
                     context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
@@ -1872,7 +1872,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
 
         for (auto* pool : expectedActivePools) {
             const auto& childSet = context->DynamicAttributesOf(pool).SchedulableChildSet;
-            auto isChildInSet = [&childSet] (TSchedulerElement* child) {
+            auto isChildInSet = [&childSet] (TPoolTreeElement* child) {
                 const auto& children = childSet->GetChildren();
                 return std::find(children.begin(), children.end(), child) != children.end();
             };
@@ -2087,8 +2087,8 @@ TEST_F(TSchedulingPolicyTest, TestGuaranteePriorityScheduling)
 
     auto doTestCase = [&] (
         bool enableGuaranteePriorityScheduling,
-        const std::vector<TSchedulerOperationElementPtr> expectedHighPriorityOperations,
-        const std::vector<TSchedulerOperationElementPtr> expectedMediumPriorityOperations)
+        const std::vector<TPoolTreeOperationElementPtr> expectedHighPriorityOperations,
+        const std::vector<TPoolTreeOperationElementPtr> expectedMediumPriorityOperations)
     {
         TreeConfig_->EnableGuaranteePriorityScheduling = enableGuaranteePriorityScheduling;
 
@@ -2173,7 +2173,7 @@ TEST_F(TSchedulingPolicyTest, TestBuildDynamicAttributesListFromSnapshot)
         const TUsageWithSatisfactions& expectedPool,
         const TUsageWithSatisfactions& expectedOperationA,
         const TUsageWithSatisfactions& expectedOperationB,
-        TFairShareTreeSnapshotPtr treeSnapshot = {},
+        TPoolTreeSnapshotPtr treeSnapshot = {},
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot = {})
     {
         if (!treeSnapshot) {

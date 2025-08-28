@@ -51,11 +51,11 @@ target_link_options(unittester-scheduler PRIVATE
 )
 
 target_sources(unittester-scheduler PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/fair_share_tree_element_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/gpu_allocation_assignment_plan_update_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/job_metrics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/packing_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/pool_tree_element_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/scheduling_policy_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/unittests/strategy_operation_controller_ut.cpp
 )

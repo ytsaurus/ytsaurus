@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include "fair_share_tree.h"
+#include "pool_tree.h"
 
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Manages profiling data of fair share tree.
-class TFairShareTreeProfileManager
+class TPoolTreeProfileManager
     : public TRefCounted
 {
 public:
-    TFairShareTreeProfileManager(
+    TPoolTreeProfileManager(
         NProfiling::TProfiler profiler,
         bool sparsifyMetrics,
         const IInvokerPtr& profilingInvoker,
@@ -23,25 +23,25 @@ public:
     NProfiling::TProfiler GetProfiler() const;
 
     // Thread affinity: Control thread.
-    void ProfileOperationUnregistration(const TSchedulerCompositeElement* pool, EOperationState state);
+    void ProfileOperationUnregistration(const TPoolTreeCompositeElement* pool, EOperationState state);
 
     // Thread affinity: Control thread.
-    void RegisterPool(const TSchedulerCompositeElementPtr& element);
-    void UnregisterPool(const TSchedulerCompositeElementPtr& element);
+    void RegisterPool(const TPoolTreeCompositeElementPtr& element);
+    void UnregisterPool(const TPoolTreeCompositeElementPtr& element);
 
     // Thread affinity: Profiler thread.
     void ProfileTree(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistribution);
 
     // Thread affinity: Profiler thread.
     void ApplyJobMetricsDelta(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const THashMap<TOperationId, TJobMetrics>& allocationMetricsPerOperation);
 
     // Thread affinity: Profiler thread.
     void ApplyScheduledAndPreemptedResourcesDelta(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& operationIdWithStageToScheduledAllocationResourcesDeltas,
         const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourcesDeltas,
         const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& operationIdWithReasonToPreemptedAllocationResourceTimeDeltas,
@@ -114,29 +114,29 @@ private:
 
     void RegisterPoolProfiler(const TString& poolName);
 
-    void PrepareOperationProfilingEntries(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void PrepareOperationProfilingEntries(const TPoolTreeSnapshotPtr& treeSnapshot);
 
     void CleanupPoolProfilingEntries();
 
     void ProfileOperations(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistribution);
-    void ProfilePools(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void ProfilePools(const TPoolTreeSnapshotPtr& treeSnapshot);
 
     void ProfilePool(
-        const TSchedulerCompositeElement* element,
+        const TPoolTreeCompositeElement* element,
         const TStrategyTreeConfigPtr& treeConfig,
         const NProfiling::TBufferedProducerPtr& producer);
 
     void ProfileElement(
         NProfiling::ISensorWriter* writer,
-        const TSchedulerElement* element,
+        const TPoolTreeElement* element,
         const TStrategyTreeConfigPtr& treeConfig);
 
-    void ProfileDistributedResources(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void ProfileDistributedResources(const TPoolTreeSnapshotPtr& treeSnapshot);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeProfileManager)
+DEFINE_REFCOUNTED_TYPE(TPoolTreeProfileManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

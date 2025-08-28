@@ -34,8 +34,8 @@ class TStaticAttributesList final
     : public std::vector<TStaticAttributes>
 {
 public:
-    TStaticAttributes& AttributesOf(const TSchedulerElement* element);
-    const TStaticAttributes& AttributesOf(const TSchedulerElement* element) const;
+    TStaticAttributes& AttributesOf(const TPoolTreeElement* element);
+    const TStaticAttributes& AttributesOf(const TPoolTreeElement* element) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,12 +62,12 @@ public:
         TSchedulingPolicyOperationStateMap operationIdToState,
         TSchedulingPolicySharedOperationStateMap operationIdToSharedState);
 
-    const TSchedulingPolicyOperationStatePtr& GetOperationState(const TSchedulerOperationElement* element) const;
-    const TSchedulingPolicyOperationSharedStatePtr& GetOperationSharedState(const TSchedulerOperationElement* element) const;
+    const TSchedulingPolicyOperationStatePtr& GetOperationState(const TPoolTreeOperationElement* element) const;
+    const TSchedulingPolicyOperationSharedStatePtr& GetOperationSharedState(const TPoolTreeOperationElement* element) const;
 
     //! Faster versions of |GetOperationState| and |GetOperationSharedState| which do not do an extra hashmap lookup and rely on tree indices instead.
-    const TSchedulingPolicyOperationStatePtr& GetEnabledOperationState(const TSchedulerOperationElement* element) const;
-    const TSchedulingPolicyOperationSharedStatePtr& GetEnabledOperationSharedState(const TSchedulerOperationElement* element) const;
+    const TSchedulingPolicyOperationStatePtr& GetEnabledOperationState(const TPoolTreeOperationElement* element) const;
+    const TSchedulingPolicyOperationSharedStatePtr& GetEnabledOperationSharedState(const TPoolTreeOperationElement* element) const;
 
     //! NB(eshcherbin): This is the only part of the snapshot, that isn't constant.
     // It's just much more convenient to store dynamic attributes list snapshot together with the tree snapshot.

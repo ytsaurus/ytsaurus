@@ -1,4 +1,4 @@
-#include "fair_share_tree_profiling.h"
+#include "pool_tree_profile_manager.h"
 
 #include "scheduling_policy.h"
 
@@ -18,7 +18,7 @@ static constexpr auto PoolKeepAlivePeriod = TDuration::Minutes(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeProfileManager::TFairShareTreeProfileManager(
+TPoolTreeProfileManager::TPoolTreeProfileManager(
     TProfiler profiler,
     bool sparsifyMetrics,
     const IInvokerPtr& profilingInvoker,
@@ -37,12 +37,12 @@ TFairShareTreeProfileManager::TFairShareTreeProfileManager(
     Profiler_.AddProducer("", DistributedResourcesBufferedProducer_);
 }
 
-NProfiling::TProfiler TFairShareTreeProfileManager::GetProfiler() const
+NProfiling::TProfiler TPoolTreeProfileManager::GetProfiler() const
 {
     return Profiler_;
 }
 
-void TFairShareTreeProfileManager::ProfileOperationUnregistration(const TSchedulerCompositeElement* pool, EOperationState state)
+void TPoolTreeProfileManager::ProfileOperationUnregistration(const TPoolTreeCompositeElement* pool, EOperationState state)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -60,14 +60,14 @@ void TFairShareTreeProfileManager::ProfileOperationUnregistration(const TSchedul
     }
 }
 
-void TFairShareTreeProfileManager::RegisterPool(const TSchedulerCompositeElementPtr& element)
+void TPoolTreeProfileManager::RegisterPool(const TPoolTreeCompositeElementPtr& element)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     RegisterPoolProfiler(element->GetId());
 }
 
-void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeElementPtr& element)
+void TPoolTreeProfileManager::UnregisterPool(const TPoolTreeCompositeElementPtr& element)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -76,8 +76,8 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
     GetOrCrash(PoolNameToState_, element->GetId()).RemoveTime = TInstant::Now();
 }
 
-void TFairShareTreeProfileManager::ProfileTree(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
+void TPoolTreeProfileManager::ProfileTree(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
     const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistributionDelta)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
@@ -97,7 +97,7 @@ void TFairShareTreeProfileManager::ProfileTree(
     ProfilePools(treeSnapshot);
 }
 
-void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TPoolTreeProfileManager::PrepareOperationProfilingEntries(const TPoolTreeSnapshotPtr& treeSnapshot)
 {
     for (auto [operationId, element] : treeSnapshot->EnabledOperationMap()) {
         auto slotIndex = element->GetSlotIndex();
@@ -111,7 +111,7 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
             while (parent != nullptr) {
                 bool enableProfiling = false;
                 if (!parent->IsRoot()) {
-                    const auto* pool = static_cast<const TSchedulerPoolElement*>(parent);
+                    const auto* pool = static_cast<const TPoolTreePoolElement*>(parent);
                     enableProfiling = pool->GetConfig()->EnableByUserProfiling.value_or(enableByUserProfiling);
                 } else {
                     enableProfiling = enableByUserProfiling;
@@ -176,7 +176,7 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
     }
 }
 
-void TFairShareTreeProfileManager::CleanupPoolProfilingEntries()
+void TPoolTreeProfileManager::CleanupPoolProfilingEntries()
 {
     auto now = TInstant::Now();
 
@@ -195,7 +195,7 @@ void TFairShareTreeProfileManager::CleanupPoolProfilingEntries()
     }
 }
 
-void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
+void TPoolTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -237,9 +237,9 @@ void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
     poolProfiler.AddProducer("/pools", poolState.BufferedProducer);
 }
 
-void TFairShareTreeProfileManager::ProfileElement(
+void TPoolTreeProfileManager::ProfileElement(
     ISensorWriter* writer,
-    const TSchedulerElement* element,
+    const TPoolTreeElement* element,
     const TStrategyTreeConfigPtr& treeConfig)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
@@ -385,8 +385,8 @@ void TFairShareTreeProfileManager::ProfileElement(
     }
 }
 
-void TFairShareTreeProfileManager::ProfileOperations(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
+void TPoolTreeProfileManager::ProfileOperations(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
     const THashMap<TOperationId, TAccumulatedResourceDistribution>& operationIdToAccumulatedResourceDistributionDelta)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
@@ -435,8 +435,8 @@ void TFairShareTreeProfileManager::ProfileOperations(
     }
 }
 
-void TFairShareTreeProfileManager::ProfilePool(
-    const TSchedulerCompositeElement* element,
+void TPoolTreeProfileManager::ProfilePool(
+    const TPoolTreeCompositeElement* element,
     const TStrategyTreeConfigPtr& treeConfig,
     const NProfiling::TBufferedProducerPtr& producer)
 {
@@ -502,7 +502,7 @@ void TFairShareTreeProfileManager::ProfilePool(
     producer->Update(std::move(buffer));
 }
 
-void TFairShareTreeProfileManager::ProfilePools(const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TPoolTreeProfileManager::ProfilePools(const TPoolTreeSnapshotPtr& treeSnapshot)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -538,7 +538,7 @@ void TFairShareTreeProfileManager::ProfilePools(const TFairShareTreeSnapshotPtr&
         findPoolBufferedProducer(RootPoolName));
 }
 
-void TFairShareTreeProfileManager::ProfileDistributedResources(const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TPoolTreeProfileManager::ProfileDistributedResources(const TPoolTreeSnapshotPtr& treeSnapshot)
 {
     TSensorBuffer buffer;
 
@@ -554,8 +554,8 @@ void TFairShareTreeProfileManager::ProfileDistributedResources(const TFairShareT
     DistributedResourcesBufferedProducer_->Update(std::move(buffer));
 }
 
-void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
+void TPoolTreeProfileManager::ApplyJobMetricsDelta(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
     const THashMap<TOperationId, TJobMetrics>& jobMetricsPerOperation)
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
@@ -579,8 +579,8 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
     }
 }
 
-void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
+void TPoolTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
     const THashMap<std::optional<EAllocationSchedulingStage>, TOperationIdToJobResources>& scheduledAllocationResources,
     const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResources,
     const TEnumIndexedArray<EAllocationPreemptionReason, TOperationIdToJobResources>& preemptedAllocationResourceTimes,
@@ -590,7 +590,7 @@ void TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta(
 
     auto applyDeltas = [&] (const auto& operationIdToDeltas, auto& operationIdToValues) {
         for (const auto& [operationId, delta]: operationIdToDeltas) {
-            const TSchedulerElement* currentElement = treeSnapshot->FindEnabledOperationElement(operationId);
+            const TPoolTreeElement* currentElement = treeSnapshot->FindEnabledOperationElement(operationId);
             if (!currentElement) {
                 currentElement = treeSnapshot->FindDisabledOperationElement(operationId);
             }
