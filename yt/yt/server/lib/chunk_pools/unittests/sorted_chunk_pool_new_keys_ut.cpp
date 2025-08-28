@@ -68,7 +68,7 @@ public:
     }
 
 private:
-    TRowBufferPtr RowBuffer_;
+    const TRowBufferPtr RowBuffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ bool IsNonEmptyIntersection(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolNewKeysTest
-    : public TChunkPoolTestBase
+    : public TSortedChunkPoolTestBase
 {
 protected:
     void SetUp() override
@@ -99,7 +99,6 @@ protected:
         CreatedUnversionedForeignDataSlices_.clear();
         ActiveChunks_.clear();
         InputCookieToChunkIds_.clear();
-        RowBuffer_ = New<TRowBuffer>();
         InputTables_.clear();
         OutputCookies_.clear();
         UnversionedTableRowCounts_.clear();
@@ -233,28 +232,6 @@ protected:
         return *MockBuilder_;
     }
 
-    // In this test we will only deal with integral rows as
-    // all the logic inside sorted chunk pool does not depend on
-    // actual type of values in keys.
-    TLegacyKey BuildRow(std::vector<i64> values)
-    {
-        auto row = RowBuffer_->AllocateUnversioned(values.size());
-        for (int index = 0; index < std::ssize(values); ++index) {
-            row[index] = MakeUnversionedInt64Value(values[index], index);
-        }
-        return row;
-    }
-
-    //! Helper for building key bound. #boolOperator must be one of
-    //! {"<", "<=", ">", ">="}.
-    TKeyBound BuildBound(const char* boolOperator, std::vector<i64> values)
-    {
-        return TKeyBound::FromRow(
-            BuildRow(values),
-            /*isInclusive*/ boolOperator[1] == '=',
-            /*isUpper*/ boolOperator[0] == '<');
-    }
-
     TInputChunkPtr CreateChunk(
         const TLegacyKey& minBoundaryKey,
         const TLegacyKey& maxBoundaryKey,
@@ -289,10 +266,10 @@ protected:
         owningMinBoundaryKey = TLegacyOwningKey(minBoundaryKey.FirstNElements(prefixLength));
         owningMaxBoundaryKey = TLegacyOwningKey(maxBoundaryKey.FirstNElements(prefixLength));
 
-        inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
+        inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(
             std::move(owningMinBoundaryKey),
             std::move(owningMaxBoundaryKey)
-        });
+        );
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;
@@ -993,8 +970,6 @@ protected:
     THashSet<TChunkId> ActiveChunks_;
 
     THashMap<IChunkPoolInput::TCookie, std::vector<TChunkId>> InputCookieToChunkIds_;
-
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     std::vector<TInputStreamDescriptor> InputTables_;
 

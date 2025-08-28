@@ -854,6 +854,9 @@ private:
 
         auto lowerBound = endpoints[0].KeyBound;
 
+        // TODO(apollo1321): This code seems useless. It should be removed later, see YT-26022.
+        // Moreover, this code complicates TSortedStagingArea and allows upper bound "<= K" accept
+        // solids with lower bound "=> K".
         // TODO(coteeq): Do Max's todo.
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(Options_.PrimaryComparator.GetLength())) {
@@ -976,6 +979,7 @@ private:
             }
             if (!inLong) {
                 auto vector = TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
+                // XXX(apollo1321): Is it really safe to dereference JobSizeTracker_ here?
                 auto overflowToken = JobSizeTracker_->CheckOverflow(vector);
                 if (overflowToken) {
                     Flush(overflowToken);
@@ -994,8 +998,7 @@ private:
 
         auto tryFlush = [&] {
             if (JobSizeTracker_) {
-                auto overflowToken = JobSizeTracker_->CheckOverflow();
-                if (overflowToken) {
+                if (auto overflowToken = JobSizeTracker_->CheckOverflow()) {
                     Flush(overflowToken);
                 }
             }
