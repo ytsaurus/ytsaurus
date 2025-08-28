@@ -11,7 +11,7 @@ SRCS(
     packing_ut.cpp
     pool_tree_element_ut.cpp
     scheduling_policy_ut.cpp
-    strategy_operation_controller_ut.cpp
+    operation_controller_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

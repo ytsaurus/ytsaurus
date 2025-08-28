@@ -258,7 +258,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         operation->SetState(EOperationState::Completed);
     }
 
-    TAllocationUpdate allocationUpdatesElement{
+    NStrategy::TAllocationUpdate allocationUpdatesElement{
         .OperationId = allocation->GetOperationId(),
         .AllocationId = allocation->GetId(),
         .TreeId = allocation->GetTreeId(),
@@ -268,7 +268,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         .Finished = true,
     };
 
-    std::vector<TAllocationUpdate> allocationUpdates{std::move(allocationUpdatesElement)};
+    std::vector<NStrategy::TAllocationUpdate> allocationUpdates{std::move(allocationUpdatesElement)};
 
     {
         THashSet<TAllocationId> allocationsToPostpone;

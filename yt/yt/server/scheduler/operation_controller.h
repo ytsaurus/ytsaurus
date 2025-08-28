@@ -1,7 +1,11 @@
 #pragma once
 
-#include "allocation.h"
-#include "operation.h"
+#include "public.h"
+
+#include <yt/yt/server/scheduler/strategy/public.h>
+#include <yt/yt/server/scheduler/strategy/operation_controller.h>
+
+#include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
@@ -23,53 +27,6 @@ public:
 DEFINE_REFCOUNTED_TYPE(TControllerRuntimeData)
 
 TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(eshcherbin): Refactor this interface and think of better naming.
-/*!
- *  \note Thread affinity: any
- */
-struct ISchedulingOperationController
-    : public virtual TRefCounted
-{
-    //! Returns epoch of the controller.
-    virtual TControllerEpoch GetEpoch() const = 0;
-
-    //! Called during heartbeat processing to send a schedule allocation request to the controller.
-    virtual TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const ISchedulingHeartbeatContextPtr& context,
-        const TJobResources& availableResources,
-        const TDiskResources& availableDiskResources,
-        const TString& treeId,
-        const TString& poolPath,
-        std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
-
-    //! Called during scheduling to notify the controller that a (nonscheduled) allocation has been aborted.
-    virtual void OnNonscheduledAllocationAborted(
-        TAllocationId allocationId,
-        EAbortReason abortReason,
-        TControllerEpoch allocationEpoch) = 0;
-
-    //! Returns the total resources that are additionally needed.
-    virtual TCompositeNeededResources GetNeededResources() const = 0;
-
-    //! Initiates updating min needed resources estimates.
-    //! Note that the actual update may happen in background.
-    virtual void UpdateGroupedNeededResources() = 0;
-
-    //! Returns the latest grouped needed resources.
-    virtual TAllocationGroupResourcesMap GetGroupedNeededResources() const = 0;
-
-    //! Returns initial grouped needed resources (right after materialization).
-    virtual TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const = 0;
-
-    // TODO(eshcherbin): Move it to some other place.
-    //! Returns the mode which says how to preempt allocations of this operation.
-    virtual EPreemptionMode GetPreemptionMode() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ISchedulingOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,7 +102,7 @@ struct TOperationControllerUnregisterResult
  *  \note Thread affinity: Control unless noted otherwise
  */
 struct IOperationController
-    : public ISchedulingOperationController
+    : public NStrategy::ISchedulingOperationController
 {
     //! Assigns the agent to the operation controller.
     virtual void AssignAgent(const TControllerAgentPtr& agent, TControllerEpoch epoch) = 0;

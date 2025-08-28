@@ -2,7 +2,7 @@
 
 #include "scheduling_strategy_host.h"
 
-#include <yt/yt/server/scheduler/scheduling_heartbeat_context_detail.h>
+#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context_detail.h>
 #include <yt/yt/server/scheduler/exec_node.h>
 
 namespace NYT::NSchedulerSimulator {
@@ -11,7 +11,7 @@ namespace NYT::NSchedulerSimulator {
 
 // TODO(eshcherbin): Split into header and implementation.
 class TSchedulingHeartbeatContext
-    : public NScheduler::TSchedulingHeartbeatContextBase
+    : public NScheduler::NStrategy::TSchedulingHeartbeatContextBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, Now);

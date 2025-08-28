@@ -1,12 +1,14 @@
 #include "master_connector.h"
 
+#include "private.h"
 #include "helpers.h"
 #include "scheduler.h"
-#include "strategy.h"
 #include "operation.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
-#include "persistent_state.h"
+
+#include <yt/yt/server/scheduler/strategy/persistent_state.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
@@ -537,7 +539,7 @@ public:
         }));
     }
 
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)
+    void InvokeStoringStrategyState(NStrategy::TPersistentStrategyStatePtr strategyState)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
@@ -546,7 +548,7 @@ public:
             ->Invoke(BIND(&TImpl::StorePersistentStrategyState, MakeStrong(this), Passed(std::move(strategyState))));
     }
 
-    void StorePersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
+    void StorePersistentStrategyState(const NStrategy::TPersistentStrategyStatePtr& persistentStrategyState)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
@@ -1403,7 +1405,7 @@ private:
                 attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}),
                 attributes.Find<INodePtr>("cumulative_spec_patch"));
 
-            auto schedulingAttributesMap = attributes.Find<THashMap<TString, TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
+            auto schedulingAttributesMap = attributes.Find<THashMap<TString, NStrategy::TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
             if (schedulingAttributesMap) {
                 for (const auto& [treeId, schedulingInfo] : *schedulingAttributesMap) {
                     if (auto slotIndex = schedulingInfo.SlotIndex) {
@@ -1449,13 +1451,13 @@ private:
                 THROW_ERROR(rspOrError.Wrap(NScheduler::EErrorCode::WatcherHandlerFailed, "Error fetching strategy state"));
             }
 
-            TPersistentStrategyStatePtr strategyState;
+            NStrategy::TPersistentStrategyStatePtr strategyState;
             {
-                strategyState = New<TPersistentStrategyState>();
+                strategyState = New<NStrategy::TPersistentStrategyState>();
                 if (rspOrError.IsOK()) {
                     auto value = rspOrError.ValueOrThrow()->value();
                     try {
-                        strategyState = ConvertTo<TPersistentStrategyStatePtr>(TYsonString(value));
+                        strategyState = ConvertTo<NStrategy::TPersistentStrategyStatePtr>(TYsonString(value));
                         YT_LOG_INFO("Successfully fetched strategy state");
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(
@@ -2283,7 +2285,7 @@ TFuture<void> TMasterConnector::CheckTransactionAlive(TTransactionId transaction
     return Impl_->CheckTransactionAlive(transactionId);
 }
 
-void TMasterConnector::InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)
+void TMasterConnector::InvokeStoringStrategyState(NStrategy::TPersistentStrategyStatePtr strategyState)
 {
     Impl_->InvokeStoringStrategyState(std::move(strategyState));
 }

@@ -22,7 +22,7 @@ TAllocation::TAllocation(
     EPreemptionMode preemptionMode,
     TString treeId,
     int schedulingIndex,
-    std::optional<EAllocationSchedulingStage> schedulingStage,
+    std::optional<NStrategy::EAllocationSchedulingStage> schedulingStage,
     std::optional<TNetworkPriority> networkPriority,
     NNodeTrackerClient::TNodeId revivalNodeId,
     std::string revivalNodeAddress)

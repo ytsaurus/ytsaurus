@@ -1,11 +1,16 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/operation_controller.h>
-#include <yt/yt/server/scheduler/pool_tree.h>
-#include <yt/yt/server/scheduler/pool_tree_element.h>
-#include <yt/yt/server/scheduler/resource_tree.h>
+
+#include <yt/yt/server/scheduler/strategy/operation.h>
+#include <yt/yt/server/scheduler/strategy/operation_state.h>
+#include <yt/yt/server/scheduler/strategy/pool_tree.h>
+#include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
+#include <yt/yt/server/scheduler/strategy/resource_tree.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+
+#include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -17,7 +22,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,7 +335,7 @@ using TSchedulingOperationControllerMockPtr = TIntrusivePtr<TSchedulingOperation
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationStrategyHostMock
-    : public IOperationStrategyHost
+    : public IOperation
 {
 public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& allocationResourcesList)
@@ -556,12 +561,12 @@ protected:
 
     TPoolTreeOperationElementPtr CreateTestOperationElement(
         IStrategyHost* strategyHost,
-        IOperationStrategyHostPtr operation,
+        IOperationPtr operation,
         TPoolTreeCompositeElement* parent,
         TOperationPoolTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
     {
-        auto operationController = New<TStrategyOperationController>(
+        auto operationController = New<TOperationController>(
             operation,
             SchedulerConfig_,
             strategyHost->GetNodeShardInvokers());
@@ -1431,4 +1436,4 @@ TEST_F(TPoolTreeElementTest, TestGetPoolPath)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NStrategy

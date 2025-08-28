@@ -74,7 +74,7 @@ private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
 
     TStrategyHost StrategyHost_;
-    NScheduler::IStrategyPtr Strategy_;
+    NScheduler::NStrategy::IStrategyPtr Strategy_;
     TSharedStrategy SharedStrategy_;
 
     TSharedOperationStatistics OperationStatistics_;

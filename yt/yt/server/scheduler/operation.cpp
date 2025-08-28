@@ -1,11 +1,9 @@
 #include "operation.h"
 
 #include "operation_controller.h"
-#include "exec_node.h"
 #include "helpers.h"
-#include "allocation.h"
-#include "controller_agent.h"
 
+#include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 
@@ -14,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -35,25 +35,13 @@ using namespace NYson;
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NStrategy::EUnschedulableReason;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int MaxAnnotationValueLength = 128;
 
 constinit const auto Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TOperationPoolTreeAttributes::Register(TRegistrar registrar)
-{
-    registrar.Parameter("slot_index", &TThis::SlotIndex)
-        .Default();
-
-    registrar.Parameter("running_in_ephemeral_pool", &TThis::RunningInEphemeralPool)
-        .Default();
-
-    registrar.Parameter("running_in_lightweight_pool", &TThis::RunningInLightweightPool)
-        .Default();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -274,6 +262,7 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::op
         return EUnschedulableReason::Suspended;
     }
 
+    // TODO(eshcherbin): NoPendingAllocations should be checked within strategy.
     if (treeId) {
         if (Controller_->GetNeededResources().GetNeededResourcesForTree(treeId.value()).GetUserSlots() == 0) {
             return EUnschedulableReason::NoPendingAllocations;
@@ -289,10 +278,10 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::op
         }
     }
 
-    return std::nullopt;
+    return {};
 }
 
-ISchedulingOperationControllerPtr TOperation::GetControllerStrategyHost() const
+NStrategy::ISchedulingOperationControllerPtr TOperation::GetControllerStrategyHost() const
 {
     return Controller_;
 }
@@ -348,7 +337,7 @@ std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
     return it != SchedulingAttributesPerPoolTree_.end() ? it->second.SlotIndex : std::nullopt;
 }
 
-const THashMap<TString, TOperationPoolTreeAttributes>& TOperation::GetSchedulingAttributesPerPoolTree() const
+const THashMap<TString, NStrategy::TOperationPoolTreeAttributes>& TOperation::GetSchedulingAttributesPerPoolTree() const
 {
     return SchedulingAttributesPerPoolTree_;
 }
@@ -372,7 +361,7 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 
 void TOperation::UpdatePoolAttributes(
     const TString& treeId,
-    const TOperationPoolTreeAttributes& operationPoolTreeAttributes)
+    const NStrategy::TOperationPoolTreeAttributes& operationPoolTreeAttributes)
 {
     auto& schedulingAttributes = GetOrCrash(SchedulingAttributesPerPoolTree_, treeId);
 

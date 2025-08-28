@@ -1,8 +1,7 @@
 #include "helpers.h"
 
 #include "public.h"
-#include "exec_node.h"
-#include "allocation.h"
+#include "private.h"
 #include "operation.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -192,13 +191,6 @@ TJobResources ComputeAvailableResources(
     const TJobResources& resourceDiscount)
 {
     return resourceLimits - resourceUsage + resourceDiscount;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationPoolTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId)
-{
-    return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -512,13 +504,6 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
     }
 
     return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsFullHostGpuAllocation(const TJobResources& allocationResources)
-{
-    return allocationResources.GetGpu() == FullHostGpuAllocationGpuDemand;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

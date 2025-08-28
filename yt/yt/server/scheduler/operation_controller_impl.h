@@ -64,7 +64,7 @@ public:
     TFuture<void> GetFullHeartbeatProcessed() override;
 
     TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const ISchedulingHeartbeatContextPtr& context,
+        const NStrategy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const TString& treeId,

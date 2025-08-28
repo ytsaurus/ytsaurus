@@ -7,8 +7,9 @@
 #include <yt/yt/server/scheduler/allocation.h>
 #include <yt/yt/server/scheduler/exec_node.h>
 #include <yt/yt/server/scheduler/operation.h>
-#include <yt/yt/server/scheduler/persistent_state.h>
-#include <yt/yt/server/scheduler/strategy.h>
+
+#include <yt/yt/server/scheduler/strategy/persistent_state.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 
@@ -23,7 +24,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStrategyHost
-    : public NScheduler::IStrategyHost
+    : public NScheduler::NStrategy::IStrategyHost
     , public NScheduler::TEventLogHostBase
 {
 public:
@@ -99,7 +100,7 @@ public:
 
     int GetDefaultAbcId() const override;
 
-    void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
+    void InvokeStoringStrategyState(NScheduler::NStrategy::TPersistentStrategyStatePtr persistentStrategyState) override;
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time) override;
 

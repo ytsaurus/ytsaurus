@@ -1,12 +1,14 @@
 #pragma once
 
-#include <yt/yt/server/scheduler/policy/public.h>
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/core/actions/callback.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/yt/string/format.h>
 
@@ -16,8 +18,6 @@ namespace NYT::NScheduler {
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TAllocation)
-
-using TAllocationList = std::list<TAllocationPtr>;
 
 struct INodeManagerHost;
 
@@ -32,15 +32,6 @@ DECLARE_REFCOUNTED_CLASS(TScheduler)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentTracker)
 
 struct IEventLogHost;
-
-DECLARE_REFCOUNTED_STRUCT(INodeHeartbeatStrategyProxy)
-
-DECLARE_REFCOUNTED_STRUCT(IStrategy)
-struct IStrategyHost;
-DECLARE_REFCOUNTED_STRUCT(IOperationStrategyHost)
-
-DECLARE_REFCOUNTED_STRUCT(ISchedulingHeartbeatContext)
-DECLARE_REFCOUNTED_STRUCT(ISchedulingOperationController)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 struct TOperationControllerInitializeResult;
@@ -51,22 +42,25 @@ class TMasterConnector;
 
 DECLARE_REFCOUNTED_CLASS(TBootstrap)
 
-DECLARE_REFCOUNTED_STRUCT(TPersistentStrategyState)
-DECLARE_REFCOUNTED_STRUCT(TPersistentTreeState)
-DECLARE_REFCOUNTED_STRUCT(TPersistentPoolState)
-
-// TODO(mrkastep) Move to private.h
-DECLARE_REFCOUNTED_CLASS(TStrategyOperationState)
-
 DECLARE_REFCOUNTED_CLASS(TControllerRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAllocationPreemptionStatus,
-    (NonPreemptible)
-    (AggressivelyPreemptible)
-    (Preemptible)
-);
+using TAllocationList = std::list<TAllocationPtr>;
+
+// For each memory capacity gives the number of nodes with this much memory.
+using TMemoryDistribution = THashMap<i64, int>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerEventLogger, NLogging::TLogger("SchedulerEventLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerStructuredLogger, NLogging::TLogger("SchedulerStructuredLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerGpuEventLogger, NLogging::TLogger("SchedulerGpuStructuredLog").WithEssential());
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerResourceMeteringLogger, NLogging::TLogger("SchedulerResourceMetering").WithEssential());
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SchedulerProfiler, "/scheduler");
+
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EAllocationPreemptionReason,
     (Preemption)

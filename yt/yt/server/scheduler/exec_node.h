@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
 #include "helpers.h"
 
-#include "scheduling_heartbeat_context.h"
+#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
@@ -124,8 +125,8 @@ public:
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
-    DEFINE_BYVAL_RW_PROPERTY(TScheduleAllocationsStatistics, LastPreemptiveHeartbeatStatistics);
-    DEFINE_BYVAL_RW_PROPERTY(TScheduleAllocationsStatistics, LastNonPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(NStrategy::TScheduleAllocationsStatistics, LastPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(NStrategy::TScheduleAllocationsStatistics, LastNonPreemptiveHeartbeatStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, InfinibandCluster);
 

@@ -73,11 +73,12 @@ public:
     //! Preemption mode which says how to preempt allocation.
     DEFINE_BYVAL_RO_PROPERTY(EPreemptionMode, PreemptionMode);
 
+    // TODO(eshcherbin): Refactor these strategy-specific scheduling attributes out TAllocation.
     //! Index of operation when allocation was scheduled.
     DEFINE_BYVAL_RO_PROPERTY(int, SchedulingIndex);
 
     //! Stage allocation was scheduled at.
-    DEFINE_BYVAL_RO_PROPERTY(std::optional<EAllocationSchedulingStage>, SchedulingStage);
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<NStrategy::EAllocationSchedulingStage>, SchedulingStage);
 
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
@@ -116,7 +117,7 @@ public:
         EPreemptionMode preemptionMode,
         TString treeId,
         int schedulingIndex,
-        std::optional<EAllocationSchedulingStage> schedulingStage = std::nullopt,
+        std::optional<NStrategy::EAllocationSchedulingStage> schedulingStage = std::nullopt,
         std::optional<TNetworkPriority> networkPriority = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         std::string revivalNodeAddress = {});

@@ -2,7 +2,7 @@
 
 #include "node_shard.h"
 
-#include <yt/yt/server/scheduler/strategy.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <random>
 
@@ -11,6 +11,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NScheduler;
+using namespace NScheduler::NStrategy;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
@@ -337,14 +338,14 @@ void TSharedStrategy::PreemptAllocation(const TAllocationPtr& allocation)
 }
 
 void TSharedStrategy::ProcessAllocationUpdates(
-    const std::vector<TAllocationUpdate>& allocationUpdates,
+    const std::vector<NStrategy::TAllocationUpdate>& allocationUpdates,
     THashSet<TAllocationId>* allocationsToPostpone,
     THashMap<TAllocationId, EAbortReason>* allocationsToAbort)
 {
     Strategy_->ProcessAllocationUpdates(allocationUpdates, allocationsToPostpone, allocationsToAbort);
 }
 
-void TSharedStrategy::UnregisterOperation(const NYT::NScheduler::IOperationStrategyHostPtr& operation)
+void TSharedStrategy::UnregisterOperation(const NYT::NScheduler::NStrategy::IOperationPtr& operation)
 {
     WaitFor(
         BIND(&IStrategy::UnregisterOperation, Strategy_, operation)

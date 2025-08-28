@@ -1,8 +1,8 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
-#include "operation.h"
+#include <yt/yt/server/scheduler/strategy/public.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -14,6 +14,8 @@
 #include <yt/yt/core/yson/forwarding_consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/misc/codicil.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
@@ -47,10 +49,6 @@ TJobResources ComputeAvailableResources(
     const TJobResources& resourceLimits,
     const TJobResources& resourceUsage,
     const TJobResources& resourceDiscount);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationPoolTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,10 +138,6 @@ struct TMatchingTreeCookie
     int TreeSetTopologyVersion = InvalidTreeSetTopologyVersion;
     int TreeIndex = InvalidTreeIndex;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsFullHostGpuAllocation(const TJobResources& allocationResources);
 
 ////////////////////////////////////////////////////////////////////////////////
 
