@@ -3297,7 +3297,7 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
 
 
 @pytest.mark.enabled_multidaemon
-class TestMergeJobSizeAdjuster(YTEnvSetup):
+class TestReduceJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
