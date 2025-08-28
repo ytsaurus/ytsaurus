@@ -8,6 +8,7 @@
 
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;

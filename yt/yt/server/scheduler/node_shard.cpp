@@ -10,6 +10,8 @@
 #include <yt/yt/server/scheduler/strategy/strategy.h>
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
+#include <yt/yt/server/scheduler/common/allocation.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
@@ -691,11 +693,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
         const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
-        if (statistics.ScheduleWithPreemption) {
-            node->SetLastPreemptiveHeartbeatStatistics(statistics);
-        } else {
-            node->SetLastNonPreemptiveHeartbeatStatistics(statistics);
-        }
 
         // NB: Some allocations maybe considered aborted after processing scheduled allocations.
         SubmitAllocationsToStrategy();
@@ -2089,11 +2086,11 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 }
 
 void TNodeShard::ProcessScheduledAndPreemptedAllocations(
-    const NStrategy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     NProto::NNode::TRspHeartbeat* response)
 {
     std::vector<TAllocationId> startedAllocations;
-    for (const auto& allocation : schedulingHeartbeatContext->StartedAllocations()) {
+    for (const auto& [allocation, _] : schedulingHeartbeatContext->StartedAllocations()) {
         auto* operationState = FindOperationState(allocation->GetOperationId());
         if (!operationState) {
             YT_LOG_DEBUG(
@@ -2406,7 +2403,7 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatStart(
 }
 
 void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
-    const NStrategy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TExecNodePtr& node,
     const TJobResources& minSpareResources,
     bool isThrottlingActive,

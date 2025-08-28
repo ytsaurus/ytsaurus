@@ -3,9 +3,9 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/yt/server/scheduler/public.h>
-#include <yt/yt/server/scheduler/master_connector.h>
-#include <yt/yt/server/scheduler/allocation.h>
+#include <yt/yt/server/scheduler/common/helpers.h>
+#include <yt/yt/server/scheduler/common/public.h>
+#include <yt/yt/server/scheduler/common/structs.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -142,7 +142,7 @@ struct INodeHeartbeatStrategyProxy
 {
     //! Processes running allocations and schedules new allocations.
     virtual TFuture<void> ProcessSchedulingHeartbeat(
-        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         bool skipScheduleAllocations) = 0;
 
     virtual int GetSchedulingHeartbeatComplexity() const = 0;

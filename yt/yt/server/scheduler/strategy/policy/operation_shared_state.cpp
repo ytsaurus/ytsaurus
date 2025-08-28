@@ -1,5 +1,7 @@
 #include "operation_shared_state.h"
 
+#include "scheduling_heartbeat_context.h"
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 using namespace NProfiling;

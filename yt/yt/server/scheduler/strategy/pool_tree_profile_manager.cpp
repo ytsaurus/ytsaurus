@@ -9,6 +9,7 @@
 
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
 using namespace NProfiling;
 
 using NVectorHdrf::ToJobResources;
@@ -277,7 +278,7 @@ void TPoolTreeProfileManager::ProfileElement(
     for (const auto& [schedulingStage, scheduledResourcesMap] : ScheduledResourcesByStageMap_) {
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
         if (scheduledResourcesIt != scheduledResourcesMap.end()) {
-            static_assert(CFormattable<std::optional<EAllocationSchedulingStage>>);
+            static_assert(CFormattable<std::optional<NPolicy::EAllocationSchedulingStage>>);
             TWithTagGuard guard(
                 writer,
                 "scheduling_stage",

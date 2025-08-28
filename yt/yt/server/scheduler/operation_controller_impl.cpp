@@ -2,10 +2,12 @@
 
 #include "bootstrap.h"
 #include "controller_agent_tracker.h"
-#include "helpers.h"
 #include "node_manager.h"
-#include "private.h"
 #include "scheduler.h"
+
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_heartbeat_context.h>
+
+#include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
@@ -674,7 +676,7 @@ TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 }
 
 TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::ScheduleAllocation(
-    const NStrategy::ISchedulingHeartbeatContextPtr& context,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
     const TJobResources& allocationLimits,
     const TDiskResources& diskResourceLimits,
     const TString& treeId,

@@ -10,6 +10,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Rename to TOperationController?
 class TOperationControllerImpl
     : public IOperationController
 {
@@ -64,7 +65,7 @@ public:
     TFuture<void> GetFullHeartbeatProcessed() override;
 
     TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const NStrategy::ISchedulingHeartbeatContextPtr& context,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
         const TString& treeId,

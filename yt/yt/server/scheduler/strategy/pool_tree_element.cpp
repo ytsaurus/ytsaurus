@@ -24,6 +24,7 @@
 
 namespace NYT::NScheduler::NStrategy {
 
+using namespace NPolicy;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NYson;

@@ -1,9 +1,12 @@
 #pragma once
 
 #include "private.h"
+#include "helpers.h"
 #include "scheduler.h"
 
 #include <yt/yt/server/scheduler/strategy/strategy.h>
+
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
@@ -359,7 +362,7 @@ private:
     void SubmitAllocationsToStrategy();
 
     void ProcessScheduledAndPreemptedAllocations(
-        const NStrategy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NProto::NNode::TRspHeartbeat* response);
 
     void OnAllocationFinished(const TAllocationPtr& allocation);
@@ -425,7 +428,7 @@ private:
     void UpdateUnutilizedResourcesOnHeartbeatStart(
         const TExecNodePtr& node);
     void UpdateUnutilizedResourcesOnHeartbeatEnd(
-        const NStrategy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TExecNodePtr& node,
         const TJobResources& minSpareResources,
         bool isThrottlingActive,

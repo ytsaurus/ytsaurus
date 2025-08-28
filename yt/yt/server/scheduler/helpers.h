@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/scheduler/strategy/public.h>
 
+#include <yt/yt/server/scheduler/common/helpers.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -45,13 +47,6 @@ TListOperationsResult ListOperations(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResources ComputeAvailableResources(
-    const TJobResources& resourceLimits,
-    const TJobResources& resourceUsage,
-    const TJobResources& resourceDiscount);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void BuildSupportedFeatures(NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,57 +81,6 @@ struct TAllocationDescription
     };
 
     std::optional<TAllocationProperties> Properties;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYsonMapFragmentBatcher final
-    : public NYson::TForwardingYsonConsumer
-    , public NYson::IFlushableYsonConsumer
-    , private TNonCopyable
-{
-public:
-    TYsonMapFragmentBatcher(
-        std::vector<NYson::TYsonString>* batchOutput,
-        int maxBatchSize,
-        NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
-
-    //! Flushes current batch if it's non-empty.
-    void Flush() override;
-
-protected:
-    void OnMyKeyedItem(TStringBuf key) override;
-
-private:
-    std::vector<NYson::TYsonString>* const BatchOutput_;
-    const int MaxBatchSize_;
-
-    int BatchSize_ = 0;
-    TStringStream BatchStream_;
-    std::unique_ptr<NYson::IFlushableYsonConsumer> BatchWriter_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSchedulerTreeAlertDescriptor
-{
-    ESchedulerAlertType Type;
-    TString Message;
-};
-
-const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescriptors();
-
-bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType);
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int InvalidTreeSetTopologyVersion = -1;
-static constexpr int InvalidTreeIndex = -1;
-
-struct TMatchingTreeCookie
-{
-    int TreeSetTopologyVersion = InvalidTreeSetTopologyVersion;
-    int TreeIndex = InvalidTreeIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

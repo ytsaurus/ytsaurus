@@ -87,9 +87,7 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
         .Item("disk_resources").Value(DiskResources_)
         .Item("tags").Value(Tags_)
         .Item("data_center").Value(NodeDescriptor_.GetDataCenter())
-        .Item("infiniband_cluster").Value(InfinibandCluster_)
-        .Item("last_non_preemptive_heartbeat_statistics").Value(LastNonPreemptiveHeartbeatStatistics_)
-        .Item("last_preemptive_heartbeat_statistics").Value(LastPreemptiveHeartbeatStatistics_);
+        .Item("infiniband_cluster").Value(InfinibandCluster_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

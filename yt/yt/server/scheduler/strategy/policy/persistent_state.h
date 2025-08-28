@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/scheduler/public.h>
+#include <yt/yt/ytlib/scheduler/public.h>
+
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 

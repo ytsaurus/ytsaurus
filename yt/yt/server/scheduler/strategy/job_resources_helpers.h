@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/yt/server/scheduler/public.h>
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
+
+#include <yt/yt/server/scheduler/common/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 

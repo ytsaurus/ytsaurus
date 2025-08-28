@@ -1,14 +1,18 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
-
 #include <yt/yt/server/scheduler/strategy/operation.h>
 #include <yt/yt/server/scheduler/strategy/operation_state.h>
+#include <yt/yt/server/scheduler/strategy/operation_controller.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/resource_tree.h>
+#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
 
-#include <yt/yt/server/scheduler/operation_controller.h>
+#include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
+
+#include <yt/yt/server/scheduler/common/public.h>
+#include <yt/yt/server/scheduler/common/exec_node.h>
+#include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 

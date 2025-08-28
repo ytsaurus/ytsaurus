@@ -1,7 +1,13 @@
 #include "scheduling_policy.h"
 
+#include "helpers.h"
+
+#include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
 #include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
+
+#include <yt/yt/server/scheduler/common/allocation.h>
+#include <yt/yt/server/scheduler/common/helpers.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -2631,6 +2637,17 @@ void TSchedulingPolicy::ProcessSchedulingHeartbeat(
             ScheduleAllocationsDeadlineReachedCounter_,
             Logger);
         ScheduleAllocations(context.Get());
+
+        // NB(eshcherbin): This is a hot fix of a memory leak caused by iterator invalidation.
+        // The true fix will come shortly.
+        if ((nodeState = FindNodeState(nodeId))) {
+            const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
+            if (statistics.ScheduleWithPreemption) {
+                nodeState->LastPreemptiveHeartbeatStatistics = statistics;
+            } else {
+                nodeState->LastNonPreemptiveHeartbeatStatistics = statistics;
+            }
+        }
     }
 }
 
@@ -2662,10 +2679,10 @@ void TSchedulingPolicy::ScheduleAllocations(TScheduleAllocationsContext* context
     CumulativeScheduleAllocationsTime_.Add(elapsedTime);
     ScheduleAllocationsTime_.Record(elapsedTime);
 
-    auto computeTotalAllocationResources = [] (const auto& allocations, auto getAllocation) {
+    auto computeTotalAllocationResources = [] (const auto& allocations) {
         TJobResources totalResources;
         for (const auto& allocation : allocations) {
-            totalResources += getAllocation(allocation)->ResourceLimits();
+            totalResources += allocation.Allocation->ResourceLimits();
         }
         return totalResources;
     };
@@ -2679,8 +2696,8 @@ void TSchedulingPolicy::ScheduleAllocations(TScheduleAllocationsContext* context
         schedulingHeartbeatContext->ResourceUsage(),
         schedulingHeartbeatContext->ResourceLimits(),
         schedulingHeartbeatContext->IsHeartbeatTimeoutExpired(),
-        computeTotalAllocationResources(schedulingHeartbeatContext->StartedAllocations(), std::identity{}),
-        computeTotalAllocationResources(schedulingHeartbeatContext->PreemptedAllocations(), [] (const auto& allocation) { return allocation.Allocation; }),
+        computeTotalAllocationResources(schedulingHeartbeatContext->StartedAllocations()),
+        computeTotalAllocationResources(schedulingHeartbeatContext->PreemptedAllocations()),
         elapsedTime);
 }
 
@@ -2902,7 +2919,9 @@ void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluent
     fluent
         .Item("scheduling_segment").Value(nodeState->SchedulingSegment)
         .Item("running_job_statistics").Value(nodeState->RunningAllocationStatistics)
-        .Item("running_allocations").Value(nodeState->RunningAllocations);
+        .Item("running_allocations").Value(nodeState->RunningAllocations)
+        .Item("last_non_preemptive_heartbeat_statistics").Value(nodeState->LastNonPreemptiveHeartbeatStatistics)
+        .Item("last_preemptive_heartbeat_statistics").Value(nodeState->LastPreemptiveHeartbeatStatistics);
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
@@ -3607,7 +3626,7 @@ void TSchedulingPolicy::RunPreemptiveSchedulingStage(
 
             auto scheduleAllocationResult = context->ScheduleAllocation(/*ignorePacking*/ true);
             if (scheduleAllocationResult.Scheduled) {
-                allocationStartedUsingPreemption = context->SchedulingHeartbeatContext()->StartedAllocations().back();
+                allocationStartedUsingPreemption = context->SchedulingHeartbeatContext()->StartedAllocations().back().Allocation;
                 break;
             }
             if (scheduleAllocationResult.Finished) {
