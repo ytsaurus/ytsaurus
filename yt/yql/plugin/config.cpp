@@ -147,11 +147,6 @@ IListNodePtr MergeDefaultSettings(const IListNodePtr& settings, const auto& defa
     return result;
 }
 
-IListNodePtr MergeClusterDefaultSettings(const IListNodePtr& clusterConfigSettings)
-{
-    return MergeDefaultSettings(clusterConfigSettings, DefaultClusterSettings);
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,6 +160,8 @@ void TVanillaJobFile::Register(TRegistrar registrar)
     registrar.Parameter("local_path", &TThis::LocalPath)
         .NonEmpty();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TDQYTBackend::Register(TRegistrar registrar)
 {
@@ -217,6 +214,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default({});
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TDQYTCoordinator::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_name", &TThis::ClusterName)
@@ -230,6 +229,8 @@ void TDQYTCoordinator::Register(TRegistrar registrar)
     registrar.Parameter("debug_log_file", &TThis::DebugLogFile)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TDQManagerConfig::Register(TRegistrar registrar)
 {
@@ -253,6 +254,7 @@ void TDQManagerConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 void TAdditionalSystemLib::Register(TRegistrar registrar)
 {
     registrar.Parameter("file", &TThis::File)
@@ -275,6 +277,13 @@ void TYqlProcessPluginConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IListNodePtr TYqlPluginConfig::MergeClusterDefaultSettings(const IListNodePtr& clusterConfigSettings)
+{
+    return MergeDefaultSettings(clusterConfigSettings, DefaultClusterSettings);
 }
 
 void TYqlPluginConfig::Register(TRegistrar registrar)

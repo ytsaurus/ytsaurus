@@ -12,29 +12,6 @@
 namespace NYT::NYqlPlugin::NProcess {
 
 ////////////////////////////////////////////////////////////////////////////////
-struct TYqlProcessPluginOptions
-    : public NYTree::TYsonStruct
-{
-    NYson::TYsonString SingletonsConfig;
-    NYson::TYsonString GatewayConfig;
-    std::optional<NYson::TYsonString> DqGatewayConfig;
-    std::optional<NYson::TYsonString> DqManagerConfig;
-    NYson::TYsonString FileStorageConfig;
-    NYson::TYsonString OperationAttributes;
-    NYson::TYsonString Libraries;
-
-    TString YTTokenPath;
-
-    std::optional<TString> YqlPluginSharedLibrary;
-
-    REGISTER_YSON_STRUCT(TYqlProcessPluginOptions);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TYqlProcessPluginOptions)
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct TYqlPluginProcessInternalConfig
     : public NServer::TNativeServerBootstrapConfig
