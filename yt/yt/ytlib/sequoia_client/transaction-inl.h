@@ -27,6 +27,22 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
     }));
 }
 
+template <class TRecordKey>
+TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecordPartial>>>
+ISequoiaTransaction::LookupRowsPartial(
+    const std::vector<TRecordKey>& recordKeys,
+    const NTableClient::TColumnFilter& columnFilter)
+{
+    auto keys = FromRecordKeys<TRecordKey>(recordKeys, GetRowBuffer().Get());
+    auto rowsetFuture = LookupRows(
+        TRecordKey::Table,
+        keys,
+        columnFilter);
+    return rowsetFuture.Apply(BIND([] (const NApi::TUnversionedLookupRowsResult& result) {
+        return NTableClient::ToOptionalRecords<typename TRecordKey::TRecordDescriptor::TRecordPartial>(result.Rowset);
+    }));
+}
+
 template <class TRecord>
 TFuture<std::vector<TRecord>> ISequoiaTransaction::SelectRows(
     const TSelectRowsQuery& query)

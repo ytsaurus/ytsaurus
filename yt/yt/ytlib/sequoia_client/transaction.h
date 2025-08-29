@@ -41,6 +41,13 @@ struct ISequoiaTransaction
         const std::vector<TRecordKey>& keys,
         const NTableClient::TColumnFilter& columnFilter = {});
 
+
+    template <class TRecordKey>
+    TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecordPartial>>>
+    LookupRowsPartial(
+        const std::vector<TRecordKey>& keys,
+        const NTableClient::TColumnFilter& columnFilter = {});
+
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
         const TSelectRowsQuery& query) = 0;
