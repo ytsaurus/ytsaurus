@@ -160,12 +160,19 @@ private:
         const TAllocationGroupResources& AllocationGroupResources_;
         TGpuAllocationAssignmentPlanUpdateExecutor* const Host_;
 
-        bool CanAddAssignmentToNode(TGpuSchedulerNode* node, const TJobResources& discount = {}) const;
+        bool CanAddAssignmentToNode(
+            TGpuSchedulerNode* node,
+            const TJobResources& discount = {}) const;
         virtual void AddAssignmentToNode(TGpuSchedulerNode* node);
 
     private:
         //! Returns |nullptr| if there are no available nodes.
-        virtual TGpuSchedulerNode* GetBestAvailableNode() = 0;
+        virtual TGpuSchedulerNode* FindBestAvailableNode() = 0;
+
+        virtual bool ShouldConsiderDiskUsage() const;
+
+        bool CanSatisfyResourceRequest(TGpuSchedulerNode* node, const TJobResources& discount) const;
+        bool CanSatisfyDiskRequest(TGpuSchedulerNode* node) const;
     };
 
     class TAllocationGroupPlanner
@@ -183,7 +190,7 @@ private:
         std::vector<TGpuSchedulerNode*>* AvailableNodes_;
         std::vector<TGpuSchedulerNode*>::iterator NextNodeIt_;
 
-        virtual TGpuSchedulerNode* GetBestAvailableNode() override;
+        virtual TGpuSchedulerNode* FindBestAvailableNode() override;
     };
 
     class TPreemptiveAllocationGroupPlanner
@@ -228,7 +235,9 @@ private:
 
         void AddAssignmentToNode(TGpuSchedulerNode* node) override;
 
-        TGpuSchedulerNode* GetBestAvailableNode() override;
+        TGpuSchedulerNode* FindBestAvailableNode() override;
+
+        bool ShouldConsiderDiskUsage() const override;
     };
 };
 

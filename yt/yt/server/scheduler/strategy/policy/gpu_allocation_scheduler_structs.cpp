@@ -1,5 +1,7 @@
 #include "gpu_allocation_scheduler_structs.h"
 
+#include "gpu_allocation_scheduler_helpers.h"
+
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -16,7 +18,7 @@ TGpuSchedulerAssignment::TGpuSchedulerAssignment(
     : AllocationGroupName(std::move(allocationGroupName))
     , Operation(operation)
     , Node(node)
-    , ResourceUsage(resourceUsage)
+    , ResourceUsage(std::move(resourceUsage))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +66,7 @@ int TGpuSchedulerOperation::GetReadyToAssignNeededAllocationCount() const
 
 void TGpuSchedulerOperation::AddAssignment(const TGpuSchedulerAssignmentPtr& assignment)
 {
-    YT_ASSERT(assignment->Operation == this);
+    YT_VERIFY(assignment->Operation == this);
 
     InsertOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ += assignment->ResourceUsage;
@@ -76,7 +78,7 @@ void TGpuSchedulerOperation::AddAssignment(const TGpuSchedulerAssignmentPtr& ass
 
 void TGpuSchedulerOperation::RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment)
 {
-    YT_ASSERT(assignment->Operation == this);
+    YT_VERIFY(assignment->Operation == this);
 
     EraseOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ -= assignment->ResourceUsage;
@@ -134,9 +136,23 @@ void TGpuSchedulerNode::UpdateDescriptor(TExecNodeDescriptorPtr descriptor)
     Descriptor_ = std::move(descriptor);
 }
 
+std::vector<TDiskQuota> TGpuSchedulerNode::GetPreliminaryAssignedDiskRequests() const
+{
+    std::vector<TDiskQuota> result;
+    result.reserve(size(Assignments_));
+    for (const auto& assignment : Assignments_) {
+        const auto& diskRequest = assignment->ResourceUsage.DiskQuota();
+        if (IsAssignmentPreliminary(assignment) && diskRequest) {
+            result.push_back(diskRequest);
+        }
+    }
+
+    return result;
+}
+
 void TGpuSchedulerNode::AddAssignment(const TGpuSchedulerAssignmentPtr& assignment)
 {
-    YT_ASSERT(assignment->Node == this);
+    YT_VERIFY(assignment->Node == this);
 
     InsertOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ += assignment->ResourceUsage;
@@ -144,7 +160,7 @@ void TGpuSchedulerNode::AddAssignment(const TGpuSchedulerAssignmentPtr& assignme
 
 void TGpuSchedulerNode::RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment)
 {
-    YT_ASSERT(assignment->Node == this);
+    YT_VERIFY(assignment->Node == this);
 
     EraseOrCrash(Assignments_, assignment);
     AssignedResourceUsage_ -= assignment->ResourceUsage;

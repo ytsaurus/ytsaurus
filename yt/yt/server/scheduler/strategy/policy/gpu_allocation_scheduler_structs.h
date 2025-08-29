@@ -46,6 +46,7 @@ class TGpuSchedulerOperation final
 public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
+    // TODO(eshcherbin): What if some allocations complete successfully?
     DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, InitialGroupedNeededResources);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<TGpuSchedulerAssignmentPtr>, Assignments);
@@ -129,6 +130,8 @@ public:
 
     void SetSchedulingModule(std::string schedulingModule);
     void UpdateDescriptor(TExecNodeDescriptorPtr descriptor);
+
+    std::vector<TDiskQuota> GetPreliminaryAssignedDiskRequests() const;
 
     void AddAssignment(const TGpuSchedulerAssignmentPtr& assignment);
     void RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment);

@@ -89,6 +89,7 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Support opportunistic jobs.
 TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateExecutor(
     const TGpuSchedulerOperationMap& operations,
     const TGpuSchedulerNodeMap& nodes,
@@ -120,6 +121,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
     }
 
     // Initialize nodes.
+    // TODO(eshcherbin): Add validation that nodes are consistent with previous assignments.
     std::vector<std::pair<std::string, std::optional<std::string>>> nodesWithUnknownModule;
     for (const auto& [_, node] : Nodes_) {
         if (!node->Descriptor() || !node->SchedulingModule()) {
@@ -756,7 +758,7 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::TAlloca
 void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Run()
 {
     while (PlannedAssignmentCount_ < AllocationGroupResources_.AllocationCount) {
-        auto* node = GetBestAvailableNode();
+        auto* node = FindBestAvailableNode();
         if (!node) {
             break;
         }
@@ -766,7 +768,16 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ru
     }
 }
 
+// TODO(eshcherbin): Support genuine disk usage discount.
 bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanAddAssignmentToNode(
+    TGpuSchedulerNode* node,
+    const TJobResources& discount) const
+{
+    // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
+    return CanSatisfyResourceRequest(node, discount) && CanSatisfyDiskRequest(node);
+}
+
+bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyResourceRequest(
     TGpuSchedulerNode* node,
     const TJobResources& discount) const
 {
@@ -775,8 +786,26 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
         (node->AssignedResourceUsage() - discount) + AllocationGroupResources_.MinNeededResources.ToJobResources());
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(
-    TGpuSchedulerNode* node)
+bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyDiskRequest(TGpuSchedulerNode* node) const
+{
+    const auto& diskRequest = AllocationGroupResources_.MinNeededResources.DiskQuota();
+    if (!diskRequest) {
+        return true;
+    }
+
+    std::vector<TDiskQuota> diskRequests;
+    if (ShouldConsiderDiskUsage()) {
+        diskRequests = node->GetPreliminaryAssignedDiskRequests();
+    }
+    diskRequests.push_back(diskRequest);
+
+    return CanSatisfyDiskQuotaRequests(
+        node->Descriptor()->DiskResources,
+        diskRequests,
+        ShouldConsiderDiskUsage());
+}
+
+void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(TGpuSchedulerNode* node)
 {
     auto assignment = New<TGpuSchedulerAssignment>(
         AllocationGroupName_,
@@ -784,6 +813,11 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ad
         Operation_.Get(),
         node);
     Host_->AddAssignment(assignment);
+}
+
+bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::ShouldConsiderDiskUsage() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -805,7 +839,7 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::TAllocation
     NextNodeIt_ = AvailableNodes_->begin();
 }
 
-TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::GetBestAvailableNode()
+TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::FindBestAvailableNode()
 {
     while (NextNodeIt_ != AvailableNodes_->end()) {
         if (CanAddAssignmentToNode(*NextNodeIt_)) {
@@ -903,7 +937,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
 
     TAllocationGroupPlannerBase::AddAssignmentToNode(node);
 
-    if (CanAddAssignmentToNode(node, nodeState.PreemptibleResourceUsage)) {
+    if (CanAddAssignmentToNode(node, /*discount*/ nodeState.PreemptibleResourceUsage)) {
         NodeHeap_.push_back(TNodeWithPenalty{
             .Node = node,
             .Penalty = GetNextPreemptionPenaltyForNode(node),
@@ -915,7 +949,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
     }
 }
 
-TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::GetBestAvailableNode()
+TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::FindBestAvailableNode()
 {
     if (NodeHeap_.empty()) {
         return {};
@@ -930,6 +964,11 @@ TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAlloca
     NodeHeap_.pop_back();
 
     return node;
+}
+
+bool TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::ShouldConsiderDiskUsage() const
+{
+    return !UseFullHostAggressivePreemption_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
