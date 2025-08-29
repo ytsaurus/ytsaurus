@@ -46,6 +46,11 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 **A:** The client sent a query to a cluster node no longer serving the cell tablet. This usually happens when cells are rebalanced. You need to resend the query to make the error disappear after a cache update.
 
 ------
+#### **Q: When querying a dynamic table, I get the error "Invalid mount revision of tablet"** {#invalid-mount-revision}
+
+**A:** The client sent a query to a cluster node that has an updated tablet revision. This can happen if the table was explicitly remounted or if the tablet was moved as a result of [automatic balancing](../user-guide/dynamic-tables/tablet-balancing) (the tablet may have remained on the same node but changed its tablet cell). Send another query — the error will disappear once the cache is updated. Alternatively, you can reconfigure the balancing settings.
+
+------
 #### **Q: When querying a dynamic table, I get the "Chunk data is not preloaded yet" error.** {#chunk-data-not-preloaded}
 
 **A:** The message is specific to a table with the `in_memory_mode` parameter at other than `none`. Such a table is always in memory in a mounted state. In order to read from such a table, all data must be loaded into memory. If the table was recently mounted, the tablet was moved to a different cell, or the {{product-name}} process restarted, the data is no longer in memory, which will generate this type of error. You need to wait for the background process to load data into memory.
