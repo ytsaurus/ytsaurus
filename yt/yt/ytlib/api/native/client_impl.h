@@ -1531,7 +1531,8 @@ private:
         TStringBuf action,
         const std::string& user,
         const TString& passwordSha256,
-        const TTimeoutOptions& options);
+        const TTimeoutOptions& options,
+        bool requireAdminister);
 
     //
     // Flow
