@@ -164,6 +164,11 @@ bool TGetJobStderrCommand::HasResponseParameters() const
     return true;
 }
 
+NScheduler::TJobId TGetJobStderrCommand::GetJobId() const
+{
+    return JobId;
+}
+
 void TGetJobStderrCommand::DoExecute(ICommandContextPtr context)
 {
     auto result = WaitFor(context->GetClient()->GetJobStderr(OperationIdOrAlias, JobId, Options))
@@ -240,6 +245,11 @@ void TGetJobFailContextCommand::DoExecute(ICommandContextPtr context)
     auto output = context->Request().OutputStream;
     WaitFor(output->Write(result))
         .ThrowOnError();
+}
+
+NScheduler::TJobId TGetJobFailContextCommand::GetJobId() const
+{
+    return JobId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -681,6 +691,11 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     context->ProduceOutputValue(result);
+}
+
+NScheduler::TJobId TGetJobCommand::GetJobId() const
+{
+    return JobId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
