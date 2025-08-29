@@ -222,6 +222,7 @@ private:
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
             ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+            Connection_->GetChannelFactory(),
             NativeAuthenticator_));
 
         auto restartManager = New<TRestartManager>(GetControlInvoker());

@@ -356,6 +356,7 @@ public:
         REGISTER_ALL(TDestroyChunkLocationsCommand,        "destroy_chunk_locations",         Null,       Structured, true,  false);
         REGISTER_ALL(TResurrectChunkLocationsCommand,      "resurrect_chunk_locations",       Null,       Structured, true,  false);
         REGISTER_ALL(TRequestRestartCommand,               "request_restart",                 Null,       Structured, true,  false);
+        REGISTER    (TPingNodeCommand,                     "ping_node",                       Null,       Structured, false, false, ApiVersion4);
 
         REGISTER_ALL(TGetCurrentUserCommand,               "get_current_user",                Null,       Structured, false, false);
 
