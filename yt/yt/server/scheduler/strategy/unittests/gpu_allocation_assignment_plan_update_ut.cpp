@@ -37,6 +37,86 @@ static const TJobResources UnitResources = [] {
 
 static const TJobResources TestNodeResources = UnitResources * 8;
 
+static inline constexpr i64 UnitDiskSpace = 100 * GB;
+
+static const TDiskResources TestSingleMediumDiskResources{
+    .DiskLocationResources = {
+        TDiskResources::TDiskLocationResources{
+            .Limit = UnitDiskSpace * 10,
+        },
+        TDiskResources::TDiskLocationResources{
+            .Limit = UnitDiskSpace * 20,
+        },
+    },
+};
+
+static const TDiskResources TestTwoMediaDiskResources{
+    .DiskLocationResources = {
+        TDiskResources::TDiskLocationResources{
+            .Limit = UnitDiskSpace * 10,
+            .MediumIndex = 0,
+        },
+        TDiskResources::TDiskLocationResources{
+            .Limit = UnitDiskSpace * 20,
+            .MediumIndex = 1,
+        },
+    },
+    .DefaultMediumIndex = 0,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskRequest
+{
+    i64 DiskSpace = 0;
+    std::optional<int> MediumIndex;
+
+    TDiskRequest(i64 diskSpace = 0, std::optional<int> mediumIndex = {})
+        : DiskSpace(diskSpace)
+        , MediumIndex(mediumIndex)
+    { }
+
+    auto operator <=>(const TDiskRequest& other) const = default;
+
+    TDiskRequest operator +(const TDiskRequest& other) const
+    {
+        return TDiskRequest{DiskSpace + other.DiskSpace, MediumIndex};
+    }
+
+    TDiskRequest operator *(auto multiplier) const
+    {
+        return TDiskRequest{DiskSpace * multiplier, MediumIndex};
+    }
+
+    explicit operator bool() const
+    {
+        return DiskSpace != 0 || MediumIndex.has_value();
+    }
+};
+
+TDiskRequest ToDiskRequest(const TDiskQuota& diskQuota)
+{
+    if (diskQuota.DiskSpaceWithoutMedium) {
+        return *diskQuota.DiskSpaceWithoutMedium;
+    }
+
+    if (!diskQuota.DiskSpacePerMedium.empty()) {
+        const auto& [mediumIndex, diskSpace] = *diskQuota.DiskSpacePerMedium.begin();
+        return TDiskRequest{diskSpace, mediumIndex};
+    }
+
+    return {};
+}
+
+TDiskQuota ToDiskQuota(const TDiskRequest& diskRequest)
+{
+    if (diskRequest.MediumIndex) {
+        return CreateDiskQuota(*diskRequest.MediumIndex, diskRequest.DiskSpace);
+    }
+
+    return CreateDiskQuotaWithoutMedium(diskRequest.DiskSpace);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGpuAllocationAssignmentPlanUpdateTest
@@ -61,7 +141,8 @@ protected:
 
     TGpuSchedulerNodePtr CreateTestNode(
         std::string module,
-        const TJobResources& nodeResources)
+        const TJobResources& nodeResources,
+        TDiskResources diskResources = TestSingleMediumDiskResources)
     {
         auto node = New<TGpuSchedulerNode>();
         node->SetSchedulingModule(std::move(module));
@@ -71,6 +152,7 @@ protected:
         descriptor->Addresses.emplace(NNodeTrackerClient::DefaultNetworkName, Format("node-%v", NextAvailableNodeId_));
         descriptor->Online = true;
         descriptor->ResourceLimits = nodeResources;
+        descriptor->DiskResources = std::move(diskResources);
         node->UpdateDescriptor(std::move(descriptor));
 
         ++NextAvailableNodeId_;
@@ -78,26 +160,29 @@ protected:
         return node;
     }
 
-    std::vector<TGpuSchedulerNodePtr> CreateSingleModuleTestNodes(int nodeCount = 1)
+    std::vector<TGpuSchedulerNodePtr> CreateSingleModuleTestNodes(
+        int nodeCount = 1,
+        const TDiskResources& diskResources = TestSingleMediumDiskResources)
     {
         std::vector<TGpuSchedulerNodePtr> nodes;
         nodes.reserve(nodeCount);
 
         const auto& module = *TestModules.begin();
         for (int i = 0; i < nodeCount; ++i) {
-            nodes.push_back(CreateTestNode(module, TestNodeResources));
+            nodes.push_back(CreateTestNode(module, TestNodeResources, diskResources));
         }
 
         return nodes;
     }
 
     std::vector<TGpuSchedulerNodePtr> CreateMultiModuleTestNodes(
-        const THashMap<std::string, int>& nodeCountPerModule)
+        const THashMap<std::string, int>& nodeCountPerModule,
+        const TDiskResources& diskResources = TestSingleMediumDiskResources)
     {
         std::vector<TGpuSchedulerNodePtr> nodes;
         for (const auto& [module, nodeCount] : nodeCountPerModule) {
             for (int i = 0; i < nodeCount; ++i) {
-                nodes.push_back(CreateTestNode(module, TestNodeResources));
+                nodes.push_back(CreateTestNode(module, TestNodeResources, diskResources));
             }
         }
 
@@ -178,6 +263,21 @@ protected:
             gang);
     }
 
+    TGpuSchedulerOperationPtr CreateFullHostTestOperationWithDisk(
+        TDiskRequest diskRequest = UnitDiskSpace,
+        int allocationCount = 1,
+        EOperationType type = EOperationType::Vanilla,
+        std::optional<bool> gang = {},
+        std::optional<THashSet<std::string>> specifiedSchedulingModules = {})
+    {
+        return CreateSingleGroupTestOperation(
+            TJobResourcesWithQuota(TestNodeResources, ToDiskQuota(diskRequest)),
+            allocationCount,
+            type,
+            std::move(specifiedSchedulingModules),
+            gang);
+    }
+
     TGpuSchedulerOperationPtr CreateSimpleTestOperation(
         int gpuCount = 1,
         int allocationCount = 1,
@@ -188,6 +288,22 @@ protected:
 
         return CreateSingleGroupTestOperation(
             UnitResources * gpuCount,
+            allocationCount,
+            type,
+            std::move(specifiedSchedulingModules));
+    }
+
+    TGpuSchedulerOperationPtr CreateSimpleTestOperationWithDisk(
+        TDiskRequest diskRequest = UnitDiskSpace,
+        int gpuCount = 1,
+        int allocationCount = 1,
+        EOperationType type = EOperationType::Vanilla,
+        std::optional<THashSet<std::string>> specifiedSchedulingModules = {})
+    {
+        YT_VERIFY(1 <= gpuCount && gpuCount <= 8);
+
+        return CreateSingleGroupTestOperation(
+            TJobResourcesWithQuota(UnitResources * gpuCount, ToDiskQuota(diskRequest)),
             allocationCount,
             type,
             std::move(specifiedSchedulingModules));
@@ -256,6 +372,18 @@ protected:
                 EXPECT_EQ(module, assignment->Node->SchedulingModule());
             }
         }
+    }
+
+    bool CheckNodePreliminaryAssignedDiskRequests(const TGpuSchedulerNodePtr& node, std::vector<TDiskRequest> expectedDiskRequests)
+    {
+        std::vector<TDiskRequest> actualDiskRequests;
+        for (const auto& diskRequest : node->GetPreliminaryAssignedDiskRequests()) {
+            actualDiskRequests.push_back(ToDiskRequest(diskRequest));
+        }
+
+        std::ranges::sort(expectedDiskRequests);
+        std::ranges::sort(actualDiskRequests);
+        return expectedDiskRequests == actualDiskRequests;
     }
 
 private:
@@ -790,6 +918,97 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestHeterogeneousNodes)
     EXPECT_EQ(skewedAllocationResources * 13, operations[0]->AssignedResourceUsage());
     EXPECT_EQ(3, operations[0]->GetReadyToAssignNeededAllocationCount());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Disk tests.
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDiskSimple)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TGpuSchedulerOperationPtr> operations{
+        CreateSimpleTestOperationWithDisk(),
+        CreateSimpleTestOperation(),
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    const auto& node = *nodes.begin();
+    EXPECT_TRUE(CheckNodePreliminaryAssignedDiskRequests(node, {UnitDiskSpace}));
+
+    ASSERT_EQ(1, std::ssize(operations[0]->Assignments()));
+    ASSERT_EQ(1, std::ssize(operations[1]->Assignments()));
+
+    const auto& assignmentWithDisk = *begin(operations[0]->Assignments());
+    EXPECT_EQ(UnitDiskSpace, ToDiskRequest(assignmentWithDisk->ResourceUsage.DiskQuota()));
+
+    const auto& assignmentWithoutDisk = *begin(operations[1]->Assignments());
+    EXPECT_FALSE(assignmentWithoutDisk->ResourceUsage.DiskQuota());
+    EXPECT_FALSE(ToDiskRequest(assignmentWithoutDisk->ResourceUsage.DiskQuota()));
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestLargeDiskRequest)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TGpuSchedulerOperationPtr> operations{
+        CreateSimpleTestOperationWithDisk(
+            /*diskRequest*/ UnitDiskSpace * 10,
+            /*gpuCount*/ 1,
+            /*allocationCount*/ 8),
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    const auto& node = *nodes.begin();
+    EXPECT_EQ(UnitResources * 3, node->AssignedResourceUsage());
+    EXPECT_TRUE(CheckNodePreliminaryAssignedDiskRequests(
+        node,
+        {UnitDiskSpace * 10, UnitDiskSpace * 10, UnitDiskSpace * 10}));
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestImpossibleDiskRequest)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TGpuSchedulerOperationPtr> operations{
+        CreateSimpleTestOperationWithDisk(/*diskRequest*/ UnitDiskSpace * 30),
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    const auto& node = *nodes.begin();
+    EXPECT_EQ(TJobResources(), node->AssignedResourceUsage());
+    EXPECT_TRUE(CheckNodePreliminaryAssignedDiskRequests(node, {}));
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestMediumIndex)
+{
+    auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 1, /*diskResources*/ TestTwoMediaDiskResources);
+    std::vector<TGpuSchedulerOperationPtr> operations{
+        CreateSimpleTestOperationWithDisk(TDiskRequest(UnitDiskSpace * 10, /*mediumIndex*/ 0), /*gpuCount*/ 2),
+        CreateSimpleTestOperationWithDisk(),
+        CreateSimpleTestOperationWithDisk(TDiskRequest(UnitDiskSpace * 10, /*mediumIndex*/ 1)),
+        CreateSimpleTestOperationWithDisk(TDiskRequest(UnitDiskSpace * 5, /*mediumIndex*/ 1)),
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    const auto& node = *nodes.begin();
+    EXPECT_EQ(UnitResources * 4, node->AssignedResourceUsage());
+    EXPECT_TRUE(CheckNodePreliminaryAssignedDiskRequests(node, {
+        TDiskRequest(UnitDiskSpace * 10, /*mediumIndex*/ 0),
+        TDiskRequest(UnitDiskSpace * 10, /*mediumIndex*/ 1),
+        TDiskRequest(UnitDiskSpace * 5, /*mediumIndex*/ 1),
+    }));
+
+    EXPECT_EQ(UnitResources * 2, operations[0]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources, operations[2]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources, operations[3]->AssignedResourceUsage());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Preemption tests.
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
 {
@@ -1326,6 +1545,70 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
 
     EXPECT_TRUE(smallAssignment->Preempted);
     EXPECT_EQ(EAllocationPreemptionReason::FullHostAggressivePreemption, smallAssignment->PreemptionReason);
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRegularPreemptionDoesNotConsiderDiskUsage)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TGpuSchedulerOperationPtr> operations{
+        CreateSimpleTestOperationWithDisk(UnitDiskSpace * 10, /*gpuCount*/ 6),
+        CreateSimpleTestOperationWithDisk(UnitDiskSpace * 20, /*gpuCount*/ 2),
+        CreateSimpleTestOperationWithDisk(/*gpuCount*/ 1),
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+
+    operations[2]->SetStarving(true);
+
+    auto preemptibleAssignment = *operations[1]->Assignments().begin();
+    preemptibleAssignment->Preemptible = true;
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionConsidersDiskUsage)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    std::vector<TGpuSchedulerOperationPtr> operations{
+        CreateSimpleTestOperationWithDisk(UnitDiskSpace * 10, /*gpuCount*/ 6),
+        CreateSimpleTestOperationWithDisk(UnitDiskSpace * 20, /*gpuCount*/ 2),
+    };
+
+    DoAllocationAssignmentPlanUpdate(operations, nodes);
+
+    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+
+    for (const auto& operation : operations) {
+        auto preemptibleAssignment = *operation->Assignments().begin();
+        preemptibleAssignment->Preemptible = true;
+    }
+
+    operations.push_back(CreateFullHostTestOperationWithDisk());
+    operations[2]->SetStarving(true);
+
+    auto config = GetTestConfig();
+    TInstant now;
+    DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
+
+    EXPECT_EQ(UnitResources * 6, operations[0]->AssignedResourceUsage());
+    EXPECT_EQ(UnitResources * 2, operations[1]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[2]->AssignedResourceUsage());
+
+    now += config->FullHostAggressivePreemptionTimeout + TDuration::Seconds(1);
+    DoAllocationAssignmentPlanUpdate(operations, nodes, config, now);
+
+    EXPECT_EQ(TJobResources(), operations[0]->AssignedResourceUsage());
+    EXPECT_EQ(TJobResources(), operations[1]->AssignedResourceUsage());
+    EXPECT_EQ(TestNodeResources, operations[2]->AssignedResourceUsage());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
