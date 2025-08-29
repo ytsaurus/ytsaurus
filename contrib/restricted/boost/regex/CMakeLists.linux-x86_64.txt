@@ -40,9 +40,6 @@ target_link_libraries(restricted-boost-regex PUBLIC
 
 target_sources(restricted-boost-regex PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/posix_api.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/regex.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/regex_debug.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/static_mutex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/wide_posix_api.cpp
 )
 
