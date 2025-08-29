@@ -45,8 +45,7 @@ struct TAllocationState
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Make this refcounted?
-struct TNodeState
+struct TNodeState final
 {
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     TExecNodeDescriptorPtr Descriptor;
@@ -64,7 +63,8 @@ struct TNodeState
     THashMap<TAllocationId, TAllocationState> RunningAllocations;
 };
 
-using TNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TNodeState>;
+using TNodeStatePtr = TIntrusivePtr<TNodeState>;
+using TNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TNodeStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

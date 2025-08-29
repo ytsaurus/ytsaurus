@@ -300,7 +300,7 @@ public:
     TScheduleAllocationsContext(
         ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
         TPoolTreeSnapshotPtr treeSnapshot,
-        const TNodeState* nodeState,
+        const TNodeStatePtr& nodeState,
         bool schedulingInfoLoggingEnabled,
         IStrategyHost* strategyHost,
         const NProfiling::TCounter& scheduleAllocationsDeadlineReachedCounter,
@@ -772,7 +772,7 @@ private:
 
     //! Process node heartbeat, including allocation scheduling.
     TRunningAllocationStatistics ComputeRunningAllocationStatistics(
-        const TNodeState* nodeState,
+        const TNodeStatePtr& nodeState,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TPoolTreeSnapshotPtr& treeSnapshot);
 
@@ -855,8 +855,7 @@ private:
         const TResourceUsageSnapshotPtr& resourceUsageSnapshot);
 
     //! Miscellaneous
-    const TNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
-    TNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId);
+    TNodeStatePtr FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
 
     TOperationStateMap GetOperationStateMapSnapshot() const;
     TNodeStateMap GetNodeStateMapSnapshot() const;
