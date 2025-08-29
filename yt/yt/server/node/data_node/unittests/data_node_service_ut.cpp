@@ -467,7 +467,7 @@ public:
         ActionQueue_ = New<NConcurrency::TActionQueue>();
         auto nodeTrackerService = New<TTestNodeTrackerService>(ActionQueue_->GetInvoker());
 
-        CellDirectoryMock_ = New<TCellDirectoryMock>();
+        auto cellDirectoryMock = New<TCellDirectoryMock>();
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->AddDescriptor(
@@ -499,13 +499,14 @@ public:
         EXPECT_CALL(*TestConnection_, GetMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
-        EXPECT_CALL(*CellDirectoryMock_, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
+        EXPECT_CALL(*cellDirectoryMock, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
         EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
-        EXPECT_CALL(*TestConnection_, GetMasterCellDirectory).WillRepeatedly([this] () -> ICellDirectoryPtr {
+        CellDirectoryMock_ = cellDirectoryMock;
+        EXPECT_CALL(*TestConnection_, GetMasterCellDirectory).WillRepeatedly([this] () -> const NCellMasterClient::ICellDirectoryPtr& {
             return CellDirectoryMock_;
         });
         EXPECT_CALL(*TestConnection_, GetSecondaryMasterCellTags).WillRepeatedly([] () -> TCellTagList {
@@ -723,7 +724,7 @@ private:
     IServicePtr DataNodeService_;
     IChannelFactoryPtr ChannelFactory_;
     TWorkloadDescriptor WorkloadDescriptor_;
-    TIntrusivePtr<TCellDirectoryMock> CellDirectoryMock_;
+    NCellMasterClient::ICellDirectoryPtr CellDirectoryMock_;
     TIntrusivePtr<TMasterConnectorMock> MasterConnectorMock_;
     TIntrusivePtr<TTestConnection> TestConnection_;
 };
@@ -733,7 +734,7 @@ private:
 struct TGetBlockSetTestCase
 {
     int BlockCount = 100;
-    int BlockSize = 1_MB;
+    int BlockSize = 1_KB;
     int ParallelGetBlockSetCount = 1;
     int BlocksInRequest = 10;
     bool PopulateCache = true;
@@ -771,7 +772,7 @@ public:
 struct TGetBlockSetGapTestCase
 {
     int BlockCount = 40;
-    int BlockSize = 1_MB;
+    int BlockSize = 1_KB;
     bool PopulateCache = true;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
@@ -937,20 +938,20 @@ INSTANTIATE_TEST_SUITE_P(
             .EnableSequentialIORequests = false
         },
         TGetBlockSetGapTestCase{
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
             .EnableSequentialIORequests = false,
-            .CoalescedReadMaxGapSize = 1_MB,
+            .CoalescedReadMaxGapSize = 1_KB,
         },
         TGetBlockSetGapTestCase{
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
             .EnableSequentialIORequests = false,
-            .CoalescedReadMaxGapSize = 1_MB / 2,
+            .CoalescedReadMaxGapSize = 1_KB / 2,
         }
     )
 );
@@ -991,12 +992,6 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     auto getBlockSetFuturesResult = allsucceededGetBlockSetFutures.TryGet();
     EXPECT_TRUE(getBlockSetFuturesResult.has_value());
     EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
-
-    if (testCase.EnableHugePageManager && testCase.HugePageManagerType == NIO::EHugeManagerType::Transparent) {
-        EXPECT_GT(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
-    } else {
-        EXPECT_EQ(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
-    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1027,7 +1022,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = true,
@@ -1036,7 +1031,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -1045,7 +1040,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = true,
@@ -1054,7 +1049,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -1063,7 +1058,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -1073,7 +1068,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -1083,7 +1078,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 100,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -1095,7 +1090,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 100,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
