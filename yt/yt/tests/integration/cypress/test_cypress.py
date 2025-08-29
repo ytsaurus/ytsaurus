@@ -2950,14 +2950,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/1/@path", tx=tx) == "//tmp/a/1"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
-    def test_broken_node_path1(self):
+    def test_broken_node_path(self):
         set("//tmp/a", 123)
         tx = start_transaction()
         node_id = get("//tmp/a/@id")
         lock("//tmp/a", tx=tx, mode="snapshot")
         remove("//tmp/a")
-        assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
+        path = get(f"#{node_id}/@path", tx=tx)
+        # TODO(babenko): Cypress currently returns #-paths; see YT-26041.
+        assert path == f"#{node_id}" or path == "//tmp/a"
 
     @authors("ignat")
     @not_implemented_in_sequoia
