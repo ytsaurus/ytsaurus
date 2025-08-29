@@ -5,6 +5,7 @@
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard_path.h>
+#include <contrib/ydb/core/protos/schemeshard/operations.pb.h>
 #include <contrib/ydb/core/tx/tx_proxy/proxy.h>
 #include <yql/essentials/public/issue/yql_issue_message.h>
 #include <contrib/ydb/public/api/protos/ydb_issue_message.pb.h>
