@@ -39,7 +39,7 @@ public:
 
     TErrorOr<bool> Match(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        TRowBufferPtr rowBuffer) override
+        TRowBufferPtr rowBuffer) const override
     {
         if (!rowBuffer) {
             rowBuffer = New<TRowBuffer>(TRowBufferTag());
@@ -54,7 +54,7 @@ public:
         return resultValue.Type == EValueType::Boolean && resultValue.Data.Boolean;
     }
 
-    TErrorOr<bool> Match(const TNonOwningAttributePayload& attributePayload, TRowBufferPtr rowBuffer) override
+    TErrorOr<bool> Match(const TNonOwningAttributePayload& attributePayload, TRowBufferPtr rowBuffer) const override
     {
         return Match(std::vector<TNonOwningAttributePayload>{attributePayload}, std::move(rowBuffer));
     }
@@ -78,12 +78,14 @@ public:
 
     TErrorOr<bool> Match(
         const std::vector<TNonOwningAttributePayload>& /*attributePayloads*/,
-        TRowBufferPtr /*rowBuffer*/) override
+        TRowBufferPtr /*rowBuffer*/) const override
     {
         return Constant_;
     }
 
-    TErrorOr<bool> Match(const TNonOwningAttributePayload& /*attributePayload*/, TRowBufferPtr /*rowBuffer*/) override
+    TErrorOr<bool> Match(
+        const TNonOwningAttributePayload& /*attributePayload*/,
+        TRowBufferPtr /*rowBuffer*/) const override
     {
         return Constant_;
     }
@@ -125,8 +127,7 @@ IFilterMatcherPtr CreateFilterMatcher(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFilterMatcherPtr CreateConstantFilterMatcher(
-    bool constant)
+IFilterMatcherPtr CreateConstantFilterMatcher(bool constant)
 {
     return New<TConstantFilterMatcher>(constant);
 }
