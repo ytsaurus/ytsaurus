@@ -96,7 +96,7 @@ public:
         auto it = BannedReplicas_.find(replicaId);
         bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
 
-        YT_LOG_DEBUG("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
+        YT_LOG_TRACE("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
             replicaId,
             result);
 
