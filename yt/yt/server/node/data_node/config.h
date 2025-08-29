@@ -593,6 +593,10 @@ struct TDataNodeTestingOptions
     //! Test data node intermediate state at master during full hearbteat session.
     std::optional<TDuration> FullHeartbeatSessionSleepDuration;
 
+    // For testing purposes.
+    // Delay before execution of ProbeBlockSet RPC.
+    std::optional<TDuration> DelayBeforeProbeBlockSetExecution;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
