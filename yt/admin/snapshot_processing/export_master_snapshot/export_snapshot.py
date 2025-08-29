@@ -185,6 +185,8 @@ class MasterSnapshotExporter():
                 "--export-snapshot", input_yson["snapshot_name"],
                 "--export-config", export_config
             ]
+            if self._skip_invariants_check:
+                command_line.append("--skip-invariants-check")
 
             proc = subprocess.Popen(command_line, stderr=subprocess.PIPE, close_fds=False)
             _, stderr = proc.communicate()
@@ -358,6 +360,7 @@ def run():
     parser.add_argument("--wait-lock-for", type=int, default=60 * 1000)
     parser.add_argument("--unified-export-subpath", type=str, default="snapshot_exports")
     parser.add_argument("--users-export-subpath", type=str, default="user_exports")
+    parser.add_argument("--skip-invariants-check", action="store_true")
 
     args = parser.parse_args()
 
@@ -428,13 +431,15 @@ def run():
         max_failed_job_count=args.max_failed_job_count,
         number_of_considered_snapshots=args.number_of_considered_snapshots,
         unified_export_path=unified_export_path,
-        user_export_path=user_export_path)
+        user_export_path=user_export_path,
+        skip_invariants_check=args.skip_invariants_check)
 
     with yt_client.Transaction(timeout=args.transaction_timeout):
         try:
             # TODO(akozhikhov): use shared locks for each cell
             yt_client.lock(export_paths[primary_cell_id], mode="exclusive", waitable=True, wait_for=args.wait_lock_for)
         except YtError:
+            logger.info("Failed to lock {}".format(export_paths[primary_cell_id]))
             return
         except Exception as e:
             raise e
