@@ -60,7 +60,7 @@ public:
         MediumDirectory_->LoadFrom(protoDirectory);
 
         for (const auto& node : ExecNodes_) {
-            NodeToState_.emplace(node, TNodeState{});
+            NodeToState_.emplace(node, New<TNodeState>());
         }
     }
 
@@ -253,15 +253,15 @@ public:
         return stub;
     }
 
-    TNodeState* GetNodeState(const TExecNodePtr node)
+    const TNodeStatePtr& GetNodeState(const TExecNodePtr node)
     {
-        return &GetOrCrash(NodeToState_, node);
+        return GetOrCrash(NodeToState_, node);
     }
 
 private:
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
-    THashMap<TExecNodePtr, TNodeState> NodeToState_;
+    THashMap<TExecNodePtr, TNodeStatePtr> NodeToState_;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 

@@ -27,10 +27,10 @@ inline constexpr double ResourceAmountPrecision = 1e-6;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double GetNodeResourceLimit(const TNodeState& node, EJobResourceType resourceType)
+double GetNodeResourceLimit(const TNodeStatePtr& node, EJobResourceType resourceType)
 {
-    return node.Descriptor->Online
-        ? GetResource(node.Descriptor->ResourceLimits, resourceType)
+    return node->Descriptor->Online
+        ? GetResource(node->Descriptor->ResourceLimits, resourceType)
         : 0.0;
 }
 
@@ -45,22 +45,22 @@ EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode)
 }
 
 TNodeMovePenalty GetMovePenaltyForNode(
-    const TNodeState& node,
+    const TNodeStatePtr& node,
     ESegmentedSchedulingMode mode)
 {
     auto keyResource = GetSegmentBalancingKeyResource(mode);
     switch (keyResource) {
         case EJobResourceType::Gpu:
             return TNodeMovePenalty{
-                .PriorityPenalty = node.RunningAllocationStatistics.TotalGpuTime -
-                    node.RunningAllocationStatistics.PreemptibleGpuTime,
-                .RegularPenalty = node.RunningAllocationStatistics.TotalGpuTime
+                .PriorityPenalty = node->RunningAllocationStatistics.TotalGpuTime -
+                    node->RunningAllocationStatistics.PreemptibleGpuTime,
+                .RegularPenalty = node->RunningAllocationStatistics.TotalGpuTime
             };
         default:
             return TNodeMovePenalty{
-                .PriorityPenalty = node.RunningAllocationStatistics.TotalCpuTime -
-                    node.RunningAllocationStatistics.PreemptibleCpuTime,
-                .RegularPenalty = node.RunningAllocationStatistics.TotalCpuTime
+                .PriorityPenalty = node->RunningAllocationStatistics.TotalCpuTime -
+                    node->RunningAllocationStatistics.PreemptibleCpuTime,
+                .RegularPenalty = node->RunningAllocationStatistics.TotalCpuTime
             };
     }
 }
@@ -261,7 +261,7 @@ void TSchedulingSegmentManager::Reset(TUpdateSchedulingSegmentsContext* context)
         operation->FailingToScheduleAtModuleSince.reset();
     }
     for (auto& [_, node] : context->NodeStates) {
-        SetNodeSegment(&node, ESchedulingSegment::Default, context);
+        SetNodeSegment(node, ESchedulingSegment::Default, context);
     }
 }
 
@@ -478,15 +478,15 @@ void TSchedulingSegmentManager::CollectCurrentResourceAmountPerSegment(TUpdateSc
 {
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
     for (const auto& [_, node] : context->NodeStates) {
-        if (!node.Descriptor) {
+        if (!node->Descriptor) {
             continue;
         }
 
         auto nodeKeyResourceLimit = GetNodeResourceLimit(node, keyResource);
         const auto& nodeModule = GetNodeModule(node);
-        auto& currentResourceAmount = IsModuleAwareSchedulingSegment(node.SchedulingSegment)
-            ? context->CurrentResourceAmountPerSegment.At(node.SchedulingSegment).MutableAt(nodeModule)
-            : context->CurrentResourceAmountPerSegment.At(node.SchedulingSegment).Mutable();
+        auto& currentResourceAmount = IsModuleAwareSchedulingSegment(node->SchedulingSegment)
+            ? context->CurrentResourceAmountPerSegment.At(node->SchedulingSegment).MutableAt(nodeModule)
+            : context->CurrentResourceAmountPerSegment.At(node->SchedulingSegment).Mutable();
         currentResourceAmount += nodeKeyResourceLimit;
         context->TotalCapacityPerModule[nodeModule] += nodeKeyResourceLimit;
         context->NodesTotalKeyResourceLimit += nodeKeyResourceLimit;
@@ -866,9 +866,9 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
     };
 
     for (const auto& [nodeId, node] : context->NodeStates) {
-        auto error = validateNodeDescriptor(*node.Descriptor);
+        auto error = validateNodeDescriptor(*node->Descriptor);
         if (!error.IsOK()) {
-            error = error << TErrorAttribute("node_address", NNodeTrackerClient::GetDefaultAddress(node.Descriptor->Addresses));
+            error = error << TErrorAttribute("node_address", NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses));
             context->Error = TError("Node's infiniband cluster tags validation failed in tree %Qv", TreeId_)
                 << std::move(error);
             break;
@@ -879,8 +879,8 @@ void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingS
 void TSchedulingSegmentManager::ApplySpecifiedSegments(TUpdateSchedulingSegmentsContext* context) const
 {
     for (auto& [nodeId, node] : context->NodeStates) {
-        if (auto segment = node.SpecifiedSchedulingSegment) {
-            SetNodeSegment(&node, *segment, context);
+        if (auto segment = node->SpecifiedSchedulingSegment) {
+            SetNodeSegment(node, *segment, context);
         }
     }
 }
@@ -976,14 +976,14 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
             auto [nextAvailableNode, nextAvailableNodeMovePenalty] = availableNodes.back();
             availableNodes.pop_back();
 
-            auto resourceAmountOnNode = GetNodeResourceLimit(*nextAvailableNode, keyResource);
+            auto resourceAmountOnNode = GetNodeResourceLimit(nextAvailableNode, keyResource);
             auto oldSegment = nextAvailableNode->SchedulingSegment;
 
             YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Module: %v, Penalty: %v)",
                 NNodeTrackerClient::GetDefaultAddress(nextAvailableNode->Descriptor->Addresses),
                 nextAvailableNode->SchedulingSegment,
                 newSegment,
-                GetNodeModule(*nextAvailableNode),
+                GetNodeModule(nextAvailableNode),
                 nextAvailableNodeMovePenalty);
 
             SetNodeSegment(nextAvailableNode, newSegment, context);
@@ -992,7 +992,7 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
                 newSegment);
             totalPenalty += nextAvailableNodeMovePenalty;
 
-            const auto& schedulingSegmentModule = GetNodeModule(*nextAvailableNode);
+            const auto& schedulingSegmentModule = GetNodeModule(nextAvailableNode);
             if (IsModuleAwareSchedulingSegment(newSegment)) {
                 context->CurrentResourceAmountPerSegment.At(newSegment).MutableAt(schedulingSegmentModule) += resourceAmountOnNode;
                 ++addedNodeCountPerSegment.At(newSegment).MutableAt(schedulingSegmentModule);
@@ -1113,8 +1113,8 @@ void TSchedulingSegmentManager::GetMovableNodes(
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
     TSchedulingSegmentMap<std::vector<TNodeId>> nodeIdsPerSegment;
     for (const auto& [nodeId, node] : context->NodeStates) {
-        auto& nodeIds = nodeIdsPerSegment.At(node.SchedulingSegment);
-        if (IsModuleAwareSchedulingSegment(node.SchedulingSegment)) {
+        auto& nodeIds = nodeIdsPerSegment.At(node->SchedulingSegment);
+        if (IsModuleAwareSchedulingSegment(node->SchedulingSegment)) {
             nodeIds.MutableAt(GetNodeModule(node)).push_back(nodeId);
         } else {
             nodeIds.Mutable().push_back(nodeId);
@@ -1127,7 +1127,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
         for (auto nodeId : nodeIds) {
             auto& node = GetOrCrash(context->NodeStates, nodeId);
             segmentNodes.push_back(TNodeWithMovePenalty{
-                .Node = &node,
+                .Node = node,
                 .MovePenalty = GetMovePenaltyForNode(node, Config_->Mode),
             });
         }
@@ -1135,13 +1135,13 @@ void TSchedulingSegmentManager::GetMovableNodes(
         SortByPenalty(segmentNodes);
 
         for (const auto& nodeWithMovePenalty : segmentNodes) {
-            const auto* node = nodeWithMovePenalty.Node;
+            const auto& node = nodeWithMovePenalty.Node;
             if (node->SpecifiedSchedulingSegment) {
                 continue;
             }
 
-            const auto& schedulingSegmentModule = GetNodeModule(*node);
-            auto resourceAmountOnNode = GetNodeResourceLimit(*node, keyResource);
+            const auto& schedulingSegmentModule = GetNodeModule(node);
+            auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
             currentResourceAmount -= resourceAmountOnNode;
             if (currentResourceAmount + ResourceAmountPrecision > fairResourceAmount) {
                 (*movableNodesPerModule)[schedulingSegmentModule].push_back(nodeWithMovePenalty);
@@ -1214,7 +1214,7 @@ void TSchedulingSegmentManager::GetMovableNodes(
         auto getNodeLogOrderKey = [&] (TNodeId nodeId) {
             const auto& node = GetOrCrash(context->NodeStates, nodeId);
             return TNodeLogOrderKey{
-                node.SchedulingSegment,
+                node->SchedulingSegment,
                 GetNodeModule(node),
                 GetMovePenaltyForNode(node, Config_->Mode),
                 getNodeMovableIndex(nodeId),
@@ -1234,29 +1234,29 @@ void TSchedulingSegmentManager::GetMovableNodes(
                 "RunningAllocationIds: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
                 "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
                 nodeId,
-                NNodeTrackerClient::GetDefaultAddress(node.Descriptor->Addresses),
-                node.SchedulingSegment,
-                node.SpecifiedSchedulingSegment,
+                NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses),
+                node->SchedulingSegment,
+                node->SpecifiedSchedulingSegment,
                 GetNodeModule(node),
                 GetMovePenaltyForNode(node, Config_->Mode),
-                GetKeys(node.RunningAllocations),
-                node.RunningAllocationStatistics,
-                CpuInstantToInstant(node.LastRunningAllocationStatisticsUpdateTime.value_or(0)),
+                GetKeys(node->RunningAllocations),
+                node->RunningAllocationStatistics,
+                CpuInstantToInstant(node->LastRunningAllocationStatisticsUpdateTime.value_or(0)),
                 getNodeMovableIndex(nodeId),
                 getNodeAggressivelyMovableIndex(nodeId));
         }
     }
 }
 
-const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TNodeState& node) const
+const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TNodeStatePtr& node) const
 {
-    YT_ASSERT(node.Descriptor);
+    YT_ASSERT(node->Descriptor);
 
-    return GetNodeModule(node.Descriptor, Config_->ModuleType);
+    return GetNodeModule(node->Descriptor, Config_->ModuleType);
 }
 
 void TSchedulingSegmentManager::SetNodeSegment(
-    TNodeState* node,
+    const TNodeStatePtr& node,
     ESchedulingSegment segment,
     TUpdateSchedulingSegmentsContext* context) const
 {
@@ -1397,25 +1397,25 @@ void TSchedulingSegmentManager::BuildGpuOperationInfo(
 }
 
 void TSchedulingSegmentManager::BuildGpuNodeInfo(
-    const TNodeState& nodeState,
+    const TNodeStatePtr& nodeState,
     TFluentMap fluent) const
 {
-    if (!nodeState.Descriptor) {
+    if (!nodeState->Descriptor) {
         return;
     }
 
     fluent
-        .Item(NNodeTrackerClient::GetDefaultAddress(nodeState.Descriptor->Addresses)).BeginMap()
-            .Item("id").Value(nodeState.Descriptor->Id)
-            .Item("scheduling_segment").Value(nodeState.SchedulingSegment)
-            .Item("specified_scheduling_segment").Value(nodeState.SpecifiedSchedulingSegment)
+        .Item(NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses)).BeginMap()
+            .Item("id").Value(nodeState->Descriptor->Id)
+            .Item("scheduling_segment").Value(nodeState->SchedulingSegment)
+            .Item("specified_scheduling_segment").Value(nodeState->SpecifiedSchedulingSegment)
             .Item("scheduling_segment_module").Value(GetNodeModule(nodeState))
-            .Item("resource_usage").Value(nodeState.Descriptor->ResourceUsage)
-            .Item("resource_limits").Value(nodeState.Descriptor->ResourceLimits)
-            .Item("disk_resources").Value(nodeState.Descriptor->DiskResources)
-            .Item("online").Value(nodeState.Descriptor->Online)
-            .Item("running_allocations").Value(nodeState.RunningAllocations)
-            .Item("running_allocation_statistics").Value(nodeState.RunningAllocationStatistics)
+            .Item("resource_usage").Value(nodeState->Descriptor->ResourceUsage)
+            .Item("resource_limits").Value(nodeState->Descriptor->ResourceLimits)
+            .Item("disk_resources").Value(nodeState->Descriptor->DiskResources)
+            .Item("online").Value(nodeState->Descriptor->Online)
+            .Item("running_allocations").Value(nodeState->RunningAllocations)
+            .Item("running_allocation_statistics").Value(nodeState->RunningAllocationStatistics)
         .EndMap();
 }
 
@@ -1424,7 +1424,7 @@ void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsCo
     context->PersistentState = New<TPersistentSchedulingSegmentsState>();
 
     for (auto [nodeId, node] : context->NodeStates) {
-        if (node.SchedulingSegment == ESchedulingSegment::Default) {
+        if (node->SchedulingSegment == ESchedulingSegment::Default) {
             continue;
         }
 
@@ -1432,8 +1432,8 @@ void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsCo
             context->PersistentState->NodeStates,
             nodeId,
             TPersistentNodeSchedulingSegmentState{
-                .Segment = node.SchedulingSegment,
-                .Address = NNodeTrackerClient::GetDefaultAddress(node.Descriptor->Addresses),
+                .Segment = node->SchedulingSegment,
+                .Address = NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses),
             });
     }
 

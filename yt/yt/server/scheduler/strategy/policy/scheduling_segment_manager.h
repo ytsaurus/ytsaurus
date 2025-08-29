@@ -32,7 +32,7 @@ void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, T
 
 struct TNodeWithMovePenalty
 {
-    TNodeState* Node = nullptr;
+    TNodeStatePtr Node;
     TNodeMovePenalty MovePenalty;
 };
 
@@ -169,8 +169,8 @@ private:
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* movableNodesPerModule,
         THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>* aggressivelyMovableNodesPerModule) const;
 
-    const TSchedulingSegmentModule& GetNodeModule(const TNodeState& node) const;
-    void SetNodeSegment(TNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
+    const TSchedulingSegmentModule& GetNodeModule(const TNodeStatePtr& node) const;
+    void SetNodeSegment(const TNodeStatePtr& node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
 
     void LogAndProfileSegments(const TUpdateSchedulingSegmentsContext* context) const;
     NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const;
@@ -181,7 +181,7 @@ private:
         const TOperationStatePtr& operationState,
         NYTree::TFluentMap fluent) const;
     void BuildGpuNodeInfo(
-        const TNodeState& nodeState,
+        const TNodeStatePtr& nodeState,
         NYTree::TFluentMap fluent) const;
 
     void BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const;

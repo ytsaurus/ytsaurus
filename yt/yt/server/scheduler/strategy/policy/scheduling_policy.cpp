@@ -886,7 +886,7 @@ void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInf
 TScheduleAllocationsContext::TScheduleAllocationsContext(
     ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
     TPoolTreeSnapshotPtr treeSnapshot,
-    const TNodeState* nodeState,
+    const TNodeStatePtr& nodeState,
     bool schedulingInfoLoggingEnabled,
     IStrategyHost* strategyHost,
     const NProfiling::TCounter& scheduleAllocationsDeadlineReachedCounter,
@@ -2524,12 +2524,13 @@ void TSchedulingPolicy::RegisterNode(TNodeId nodeId)
     auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
     const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
     nodeShardInvoker->Invoke(BIND([this, this_ = MakeStrong(this), nodeId, nodeShardId, initialSchedulingSegment] {
+        auto node = New<TNodeState>();
+        node->SchedulingSegment = initialSchedulingSegment;
+
         EmplaceOrCrash(
             NodeStateShards_[nodeShardId].NodeIdToState,
             nodeId,
-            TNodeState{
-                .SchedulingSegment = initialSchedulingSegment,
-            });
+            std::move(node));
     }));
 }
 
@@ -2550,7 +2551,7 @@ void TSchedulingPolicy::ProcessSchedulingHeartbeat(
     bool skipScheduleAllocations)
 {
     auto nodeId = schedulingHeartbeatContext->GetNodeDescriptor()->Id;
-    auto* nodeState = FindNodeState(nodeId);
+    auto nodeState = FindNodeState(nodeId);
     if (!nodeState) {
         YT_LOG_DEBUG("Skipping scheduling heartbeat because node is not registered in tree (NodeId: %v, NodeAddress: %v)",
             nodeId,
@@ -2638,15 +2639,11 @@ void TSchedulingPolicy::ProcessSchedulingHeartbeat(
             Logger);
         ScheduleAllocations(context.Get());
 
-        // NB(eshcherbin): This is a hot fix of a memory leak caused by iterator invalidation.
-        // The true fix will come shortly.
-        if ((nodeState = FindNodeState(nodeId))) {
-            const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
-            if (statistics.ScheduleWithPreemption) {
-                nodeState->LastPreemptiveHeartbeatStatistics = statistics;
-            } else {
-                nodeState->LastNonPreemptiveHeartbeatStatistics = statistics;
-            }
+        const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
+        if (statistics.ScheduleWithPreemption) {
+            nodeState->LastPreemptiveHeartbeatStatistics = statistics;
+        } else {
+            nodeState->LastNonPreemptiveHeartbeatStatistics = statistics;
         }
     }
 }
@@ -2898,7 +2895,7 @@ bool TSchedulingPolicy::ProcessFinishedAllocation(
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
-    const auto* nodeState = FindNodeState(nodeId);
+    auto nodeState = FindNodeState(nodeId);
     if (!nodeState) {
         return;
     }
@@ -2911,7 +2908,7 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(TNodeId nodeId, T
 
 void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
 {
-    const auto* nodeState = FindNodeState(nodeId);
+    auto nodeState = FindNodeState(nodeId);
     if (!nodeState) {
         return;
     }
@@ -3331,7 +3328,7 @@ void TSchedulingPolicy::InitSchedulingProfilingCounters()
 }
 
 TRunningAllocationStatistics TSchedulingPolicy::ComputeRunningAllocationStatistics(
-    const TNodeState* nodeState,
+    const TNodeStatePtr& nodeState,
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TPoolTreeSnapshotPtr& treeSnapshot)
 {
@@ -4050,12 +4047,7 @@ void TSchedulingPolicy::CountOperationsByPreemptionPriority(
     postUpdateContext->OperationCountsByPreemptionPriorityParameters = std::move(operationCountsByPreemptionPriorityParameters);
 }
 
-const TNodeState* TSchedulingPolicy::FindNodeState(TNodeId nodeId) const
-{
-    return const_cast<const TNodeState*>(const_cast<TSchedulingPolicy*>(this)->FindNodeState(nodeId));
-}
-
-TNodeState* TSchedulingPolicy::FindNodeState(TNodeId nodeId)
+TNodeStatePtr TSchedulingPolicy::FindNodeState(TNodeId nodeId) const
 {
     auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
 
@@ -4063,7 +4055,7 @@ TNodeState* TSchedulingPolicy::FindNodeState(TNodeId nodeId)
 
     auto& nodeStates = NodeStateShards_[nodeShardId].NodeIdToState;
     auto it = nodeStates.find(nodeId);
-    return it != nodeStates.end() ? &it->second : nullptr;
+    return it != nodeStates.end() ? it->second : nullptr;
 }
 
 TOperationStateMap TSchedulingPolicy::GetOperationStateMapSnapshot() const
@@ -4087,7 +4079,15 @@ TNodeStateMap TSchedulingPolicy::GetNodeStateMapSnapshot() const
         const auto& invoker = nodeShardInvokers[shardId];
         futures.push_back(
             BIND([&, this_ = MakeStrong(this), shardId] {
-                return NodeStateShards_[shardId].NodeIdToState;
+                const auto& nodeStateMap = NodeStateShards_[shardId].NodeIdToState;
+
+                TNodeStateMap nodeStateMapSnapshot;
+                nodeStateMapSnapshot.reserve(nodeStateMap.size());
+                for (const auto& [nodeId, nodeState] : nodeStateMap) {
+                    nodeStateMapSnapshot.emplace(nodeId, New<TNodeState>(*nodeState));
+                }
+
+                return nodeStateMapSnapshot;
             })
             .AsyncVia(invoker)
             .Run());
@@ -4099,7 +4099,7 @@ TNodeStateMap TSchedulingPolicy::GetNodeStateMapSnapshot() const
     for (auto&& shardNodeStates : shardResults) {
         for (auto&& [nodeId, nodeState] : shardNodeStates) {
             // NB(eshcherbin): Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
-            if (nodeState.Descriptor) {
+            if (nodeState->Descriptor) {
                 EmplaceOrCrash(nodeStates, nodeId, std::move(nodeState));
             }
         }
@@ -4153,16 +4153,16 @@ void TSchedulingPolicy::ApplyNodeSchedulingSegmentsChanges(const TSetNodeSchedul
                         missingNodeAddressesWithSegments.emplace_back(nodeAddress, newSegment);
                         continue;
                     }
-                    auto& node = it->second;
+                    const auto& node = it->second;
 
-                    YT_VERIFY(node.SchedulingSegment != newSegment);
+                    YT_VERIFY(node->SchedulingSegment != newSegment);
 
                     YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
                         nodeAddress,
                         newSegment);
 
-                    node.SchedulingSegment = newSegment;
-                    node.ForceRunningAllocationStatisticsUpdate = true;
+                    node->SchedulingSegment = newSegment;
+                    node->ForceRunningAllocationStatisticsUpdate = true;
                 }
 
                 YT_LOG_DEBUG_UNLESS(missingNodeAddressesWithSegments.empty(),
@@ -4187,12 +4187,12 @@ void TSchedulingPolicy::CheckMinNodeResourceLimits()
 
     std::vector<std::string> violatingNodes;
     for (const auto& [nodeId, state] : GetNodeStateMapSnapshot()) {
-        if (!state.Descriptor) {
+        if (!state->Descriptor) {
             continue;
         }
 
-        if (!Dominates(state.Descriptor->ResourceLimits, ToJobResources(Config_->MinNodeResourceLimits, TJobResources()))) {
-            violatingNodes.push_back(state.Descriptor->GetDefaultAddress());
+        if (!Dominates(state->Descriptor->ResourceLimits, ToJobResources(Config_->MinNodeResourceLimits, TJobResources()))) {
+            violatingNodes.push_back(state->Descriptor->GetDefaultAddress());
         }
     }
 
