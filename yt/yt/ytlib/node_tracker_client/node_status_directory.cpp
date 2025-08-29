@@ -1,6 +1,17 @@
 #include "node_status_directory.h"
 
+#include <yt/yt/client/chunk_client/public.h>
+
 namespace NYT::NNodeTrackerClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsSuspiciousNodeError(const TError& error)
+{
+    return
+        error.FindMatching(NRpc::EErrorCode::TransportError) ||
+        error.FindMatching(NChunkClient::EErrorCode::MasterNotConnected);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

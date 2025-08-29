@@ -2406,6 +2406,28 @@ class YTEnvSetup(object):
             t.wait()
         del self._additional_threads
 
+    def _update_specific_nodes_dynamic_config(self, nodes, config):
+        new_config = yt_commands.get("//sys/cluster_nodes/@config")
+        common_node_config = None
+        for key, value in new_config.items():
+            if "%true" in key:
+                assert common_node_config is None
+                common_node_config = copy.deepcopy(value)
+        assert common_node_config is not None
+
+        if any(node not in new_config for node in nodes):
+            new_config = {}
+            for node in nodes:
+                new_config[node] = copy.deepcopy(common_node_config)
+            other_nodes = "%true & " + " & ".join(["!{}".format(node) for node in nodes])
+            new_config[other_nodes] = copy.deepcopy(common_node_config)
+
+        for node in nodes:
+            new_config[node].update(config)
+        yt_commands.set("//sys/cluster_nodes/@config", new_config)
+        for node in nodes:
+            wait(lambda: yt_commands.get_applied_node_dynamic_config(node) == new_config[node])
+
 
 def get_custom_rootfs_delta_node_config():
     return {

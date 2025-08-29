@@ -725,6 +725,76 @@ class TestLookup(TestSortedDynamicTablesBase):
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
+    @authors("akozhikhov")
+    def test_adaptive_probing(self):
+        self._separate_tablet_and_data_nodes()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_reader", {
+            "prefer_local_replicas": False,
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+            "probe_rpc_timeout": 60000,
+        })
+        set("//tmp/t/@chunk_writer", {
+            "min_upload_replication_factor": 3,
+            "upload_replication_factor": 3,
+        })
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        chunk_id = get("//tmp/t/@chunk_ids")
+        assert len(chunk_id) == 1
+        chunk_id = chunk_id[0]
+        replicas = get(f"#{chunk_id}/@stored_replicas")
+        assert len(replicas) == 3
+
+        node_dyn_config = {
+            "data_node": {
+                "testing_options": {
+                    "delay_before_probe_block_set_execution": 60000,
+                }
+            }
+        }
+        self._update_specific_nodes_dynamic_config([str(replicas[0])], node_dyn_config)
+        with raises_yt_error(yt_error_codes.Timeout):
+            assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
+
+        set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000)])
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
+
+        node_dyn_config = {
+            "data_node": {
+                "testing_options": {
+                    "delay_before_probe_block_set_execution": 60000,
+                }
+            }
+        }
+        self._update_specific_nodes_dynamic_config([str(replicas[0]), str(replicas[1])], node_dyn_config)
+        with raises_yt_error(yt_error_codes.Timeout):
+            assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
+
+        set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(2, 1000), (1, 1100)])
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
+
+        set("//tmp/t/@chunk_reader/partial_peer_probing_timeouts", [(1, 1000)])
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 1}], timeout=5000) == row
+
+        node_dyn_config["data_node"]["testing_options"] = {}
+        self._update_specific_nodes_dynamic_config([str(replicas[0]), str(replicas[1])], node_dyn_config)
+
     def _get_key_filter_lookup_checker(self, table):
         self_ = self
 

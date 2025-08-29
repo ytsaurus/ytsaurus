@@ -611,6 +611,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
         .Default();
+
+    registrar.Parameter("delay_before_probe_block_set_execution", &TThis::DelayBeforeProbeBlockSetExecution)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

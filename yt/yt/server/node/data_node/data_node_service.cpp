@@ -925,6 +925,10 @@ private:
 
         ValidateOnline();
 
+        if (auto executionDelay = GetDynamicConfig()->TestingOptions->DelayBeforeProbeBlockSetExecution) {
+            TDelayedExecutor::WaitForDuration(*executionDelay);
+        }
+
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
