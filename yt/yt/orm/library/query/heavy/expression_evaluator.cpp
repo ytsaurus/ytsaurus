@@ -154,7 +154,7 @@ public:
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        const TRowBufferPtr& rowBuffer) override
+        const TRowBufferPtr& rowBuffer) const override
     {
         try {
             if (attributePayloads.size() != Columns_.size()) {
@@ -186,7 +186,7 @@ public:
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const TNonOwningAttributePayload& attributePayload,
-        const TRowBufferPtr& rowBuffer) override
+        const TRowBufferPtr& rowBuffer) const override
     {
         return Evaluate(std::vector<TNonOwningAttributePayload>{attributePayload}, rowBuffer);
     }

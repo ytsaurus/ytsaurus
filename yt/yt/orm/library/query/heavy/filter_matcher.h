@@ -24,12 +24,12 @@ struct IFilterMatcher
 {
     virtual TErrorOr<bool> Match(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
+        NTableClient::TRowBufferPtr rowBuffer = nullptr) const = 0;
 
     //! Shortcut for the input vector of size 1.
     virtual TErrorOr<bool> Match(
         const TNonOwningAttributePayload& attributePayload,
-        NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
+        NTableClient::TRowBufferPtr rowBuffer = nullptr) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFilterMatcher)
@@ -48,8 +48,7 @@ IFilterMatcherPtr CreateFilterMatcher(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFilterMatcherPtr CreateConstantFilterMatcher(
-    bool constant);
+IFilterMatcherPtr CreateConstantFilterMatcher(bool constant);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,12 +17,12 @@ struct IExpressionEvaluator
 {
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        const NTableClient::TRowBufferPtr& rowBuffer) = 0;
+        const NTableClient::TRowBufferPtr& rowBuffer) const = 0;
 
     //! Shortcut for the input vector of size 1.
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
         const TNonOwningAttributePayload& attributePayload,
-        const NTableClient::TRowBufferPtr& rowBuffer) = 0;
+        const NTableClient::TRowBufferPtr& rowBuffer) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator)
