@@ -53,7 +53,7 @@ def get_first_job_node(op):
 
 
 def get_persistent_node_segment_states_path(tree="default"):
-    return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
+    return "//sys/scheduler/strategy_state/tree_states/{}/scheduling_policy_state/scheduling_segments_state/node_states".format(tree)
 
 ##################################################################
 
@@ -1123,7 +1123,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
 
     def _get_persistent_operation_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/operation_states".format(tree)
+        return "//sys/scheduler/strategy_state/tree_states/{}/scheduling_policy_state/scheduling_segments_state/operation_states".format(tree)
 
     def setup_method(self, method):
         super(BaseTestSchedulingSegmentsMultiModule, self).setup_method(method)

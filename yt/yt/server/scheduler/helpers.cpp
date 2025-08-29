@@ -1,8 +1,7 @@
 #include "helpers.h"
 
 #include "public.h"
-#include "exec_node.h"
-#include "allocation.h"
+#include "private.h"
 #include "operation.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -182,23 +181,6 @@ TListOperationsResult ListOperations(
     }
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources ComputeAvailableResources(
-    const TJobResources& resourceLimits,
-    const TJobResources& resourceUsage,
-    const TJobResources& resourceDiscount)
-{
-    return resourceLimits - resourceUsage + resourceDiscount;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId)
-{
-    return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,46 +461,6 @@ void TYsonMapFragmentBatcher::OnMyKeyedItem(TStringBuf key)
                 Flush();
             }
         });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescriptors()
-{
-    static const std::vector<TSchedulerTreeAlertDescriptor> SchedulerTreeAlertDescriptors = {
-        TSchedulerTreeAlertDescriptor{
-            .Type = ESchedulerAlertType::ManageSchedulingSegments,
-            .Message = "Found errors during node scheduling segments management",
-        },
-        TSchedulerTreeAlertDescriptor{
-            .Type = ESchedulerAlertType::UnrecognizedPoolTreeConfigOptions,
-            .Message = "Pool tree configs contain unrecognized options",
-        },
-        TSchedulerTreeAlertDescriptor{
-            .Type = ESchedulerAlertType::NodesWithInsufficientResourceLimits,
-            .Message = "Found nodes with insufficient resource limits",
-        },
-    };
-
-    return SchedulerTreeAlertDescriptors;
-}
-
-bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
-{
-    for (const auto& [type, _] : GetSchedulerTreeAlertDescriptors()) {
-        if (type == alertType) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsFullHostGpuAllocation(const TJobResources& allocationResources)
-{
-    return allocationResources.GetGpu() == FullHostGpuAllocationGpuDemand;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

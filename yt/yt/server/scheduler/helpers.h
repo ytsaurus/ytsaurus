@@ -1,8 +1,10 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
-#include "operation.h"
+#include <yt/yt/server/scheduler/strategy/public.h>
+
+#include <yt/yt/server/scheduler/common/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -14,6 +16,8 @@
 #include <yt/yt/core/yson/forwarding_consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/misc/codicil.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
@@ -40,17 +44,6 @@ struct TListOperationsResult
 
 TListOperationsResult ListOperations(
     TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources ComputeAvailableResources(
-    const TJobResources& resourceLimits,
-    const TJobResources& resourceUsage,
-    const TJobResources& resourceDiscount);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,61 +82,6 @@ struct TAllocationDescription
 
     std::optional<TAllocationProperties> Properties;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYsonMapFragmentBatcher final
-    : public NYson::TForwardingYsonConsumer
-    , public NYson::IFlushableYsonConsumer
-    , private TNonCopyable
-{
-public:
-    TYsonMapFragmentBatcher(
-        std::vector<NYson::TYsonString>* batchOutput,
-        int maxBatchSize,
-        NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
-
-    //! Flushes current batch if it's non-empty.
-    void Flush() override;
-
-protected:
-    void OnMyKeyedItem(TStringBuf key) override;
-
-private:
-    std::vector<NYson::TYsonString>* const BatchOutput_;
-    const int MaxBatchSize_;
-
-    int BatchSize_ = 0;
-    TStringStream BatchStream_;
-    std::unique_ptr<NYson::IFlushableYsonConsumer> BatchWriter_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSchedulerTreeAlertDescriptor
-{
-    ESchedulerAlertType Type;
-    TString Message;
-};
-
-const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescriptors();
-
-bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType);
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int InvalidTreeSetTopologyVersion = -1;
-static constexpr int InvalidTreeIndex = -1;
-
-struct TMatchingTreeCookie
-{
-    int TreeSetTopologyVersion = InvalidTreeSetTopologyVersion;
-    int TreeIndex = InvalidTreeIndex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsFullHostGpuAllocation(const TJobResources& allocationResources);
 
 ////////////////////////////////////////////////////////////////////////////////
 

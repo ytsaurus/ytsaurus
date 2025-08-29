@@ -47,8 +47,8 @@ std::unique_ptr<TCompletedJobSummary> BuildCompletedJobSummary(const TAllocation
 TSimulatorNodeShard::TSimulatorNodeShard(
     int shardId,
     TSharedEventQueue* events,
-    TSchedulerStrategyHost* strategyHost,
-    TSharedSchedulerStrategy* schedulingStrategy,
+    TStrategyHost* strategyHost,
+    TSharedStrategy* schedulingStrategy,
     TSharedOperationStatistics* operationStatistics,
     IOperationStatisticsOutput* operationStatisticsOutput,
     TSharedRunningOperationsMap* runningOperationsMap,
@@ -59,7 +59,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     : Id_(shardId)
     , Events_(events)
     , StrategyHost_(strategyHost)
-    , SchedulingStrategy_(schedulingStrategy)
+    , Strategy_(schedulingStrategy)
     , OperationStatistics_(operationStatistics)
     , OperationStatisticsOutput_(operationStatisticsOutput)
     , RunningOperationsMap_(runningOperationsMap)
@@ -112,7 +112,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         node->DiskResources(),
         node->Allocations().size());
 
-    auto strategyProxy = SchedulingStrategy_->CreateNodeHeartbeatStrategyProxy(
+    auto strategyProxy = Strategy_->CreateNodeHeartbeatStrategyProxy(
         node->GetId(),
         node->GetDefaultAddress(),
         node->Tags(),
@@ -124,23 +124,23 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
     // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
     auto minSpareResources = strategyProxy->GetMinSpareResourcesForScheduling();
-    auto schedulingContext = New<TSchedulingContext>(
+    auto schedulingHeartbeatContext = New<TSchedulingHeartbeatContext>(
         Id_,
         SchedulerConfig_,
         node,
         nodeAllocations,
         MediumDirectory_,
         minSpareResources);
-    schedulingContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
+    schedulingHeartbeatContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
-    WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, /*skipScheduleJobs*/ false))
+    WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, /*skipScheduleJobs*/ false))
         .ThrowOnError();
 
-    node->ResourceUsage() = schedulingContext->ResourceUsage();
+    node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
     // Create events for all started jobs.
-    for (const auto& allocation : schedulingContext->StartedAllocations()) {
-        const auto& duration = GetOrCrash(schedulingContext->GetStartedAllocationsDurations(), allocation->GetId());
+    for (const auto& [allocation, _] : schedulingHeartbeatContext->StartedAllocations()) {
+        const auto& duration = GetOrCrash(schedulingHeartbeatContext->GetStartedAllocationsDurations(), allocation->GetId());
 
         // Notify scheduler.
         allocation->SetState(EAllocationState::Running);
@@ -168,7 +168,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     }
 
     // Process all preempted allocations.
-    for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+    for (const auto& preemptedAllocation : schedulingHeartbeatContext->PreemptedAllocations()) {
         auto& allocation = preemptedAllocation.Allocation;
         auto duration = event.Time - allocation->GetStartTime();
 
@@ -193,7 +193,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
     strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
 
-    const auto& statistics = schedulingContext->GetSchedulingStatistics();
+    const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
     YT_LOG_DEBUG(
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
@@ -205,8 +205,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
-        schedulingContext->StartedAllocations().size(),
-        schedulingContext->PreemptedAllocations().size(),
+        schedulingHeartbeatContext->StartedAllocations().size(),
+        schedulingHeartbeatContext->PreemptedAllocations().size(),
         statistics.ScheduledDuringPreemption,
         statistics.UnconditionallyPreemptibleAllocationCount,
         FormatResources(statistics.UnconditionalResourceUsageDiscount),
@@ -258,7 +258,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         operation->SetState(EOperationState::Completed);
     }
 
-    TAllocationUpdate allocationUpdatesElement{
+    NStrategy::TAllocationUpdate allocationUpdatesElement{
         .OperationId = allocation->GetOperationId(),
         .AllocationId = allocation->GetId(),
         .TreeId = allocation->GetTreeId(),
@@ -268,12 +268,12 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
         .Finished = true,
     };
 
-    std::vector<TAllocationUpdate> allocationUpdates{std::move(allocationUpdatesElement)};
+    std::vector<NStrategy::TAllocationUpdate> allocationUpdates{std::move(allocationUpdatesElement)};
 
     {
         THashSet<TAllocationId> allocationsToPostpone;
         THashMap<TAllocationId, EAbortReason> allocationsToAbort;
-        SchedulingStrategy_->ProcessAllocationUpdates(
+        Strategy_->ProcessAllocationUpdates(
             allocationUpdates,
             &allocationsToPostpone,
             &allocationsToAbort);
@@ -293,7 +293,7 @@ void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 
     if (operation->GetState() == EOperationState::Completed && operation->SetCompleting()) {
         // Notify scheduler.
-        SchedulingStrategy_->UnregisterOperation(operation.Get());
+        Strategy_->UnregisterOperation(operation.Get());
 
         RunningOperationsMap_->Erase(operation->GetId());
 
@@ -336,14 +336,14 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
                 node->BuildAttributes(fluent);
             })
             .Do([&] (TFluentMap fluent) {
-                SchedulingStrategy_->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
+                Strategy_->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
             })
         .EndMap();
 }
 
 void TSimulatorNodeShard::PreemptAllocation(const NScheduler::TAllocationPtr& allocation, bool shouldLogEvent)
 {
-    SchedulingStrategy_->PreemptAllocation(allocation);
+    Strategy_->PreemptAllocation(allocation);
 
     if (shouldLogEvent) {
         auto fluent = LogFinishedAllocationFluently(ELogEventType::JobAborted, allocation);

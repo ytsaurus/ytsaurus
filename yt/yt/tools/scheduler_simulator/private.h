@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/scheduler/allocation.h>
+#include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/log_manager.h>

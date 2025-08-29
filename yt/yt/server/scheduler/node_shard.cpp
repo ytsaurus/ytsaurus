@@ -1,13 +1,16 @@
-#include "node_manager.h"
-
 #include "node_shard.h"
-#include "scheduler_strategy.h"
-#include "scheduling_context.h"
+
+#include "node_manager.h"
 #include "operation_controller.h"
 #include "controller_agent.h"
 #include "bootstrap.h"
 #include "helpers.h"
-#include "persistent_scheduler_state.h"
+
+#include <yt/yt/server/scheduler/strategy/persistent_state.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
+#include <yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.h>
+
+#include <yt/yt/server/scheduler/common/allocation.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
@@ -634,7 +637,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         ->GetNativeConnection()
         ->GetMediumDirectory();
     auto minSpareResources = strategyProxy->GetMinSpareResourcesForScheduling();
-    auto schedulingContext = CreateSchedulingContext(
+    auto schedulingHeartbeatContext = NStrategy::CreateSchedulingHeartbeatContext(
         Id_,
         Config_,
         node,
@@ -642,10 +645,10 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         mediumDirectory,
         minSpareResources);
 
-    Y_UNUSED(WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleAllocations)));
+    Y_UNUSED(WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingHeartbeatContext, skipScheduleAllocations)));
 
     ProcessScheduledAndPreemptedAllocations(
-        schedulingContext,
+        schedulingHeartbeatContext,
         response);
 
     ProcessOperationInfoHeartbeat(request, response);
@@ -653,7 +656,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     ToProto(response->mutable_min_spare_resources(), minSpareResources);
 
     UpdateUnutilizedResourcesOnHeartbeatEnd(
-        schedulingContext,
+        schedulingHeartbeatContext,
         node,
         minSpareResources,
         isThrottlingActive,
@@ -687,14 +690,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (!skipScheduleAllocations) {
         HeartbeatWithScheduleAllocationsCounter_.Increment();
 
-        node->ResourceUsage() = schedulingContext->ResourceUsage();
+        node->ResourceUsage() = schedulingHeartbeatContext->ResourceUsage();
 
-        const auto& statistics = schedulingContext->GetSchedulingStatistics();
-        if (statistics.ScheduleWithPreemption) {
-            node->SetLastPreemptiveHeartbeatStatistics(statistics);
-        } else {
-            node->SetLastNonPreemptiveHeartbeatStatistics(statistics);
-        }
+        const auto& statistics = schedulingHeartbeatContext->GetSchedulingStatistics();
 
         // NB: Some allocations maybe considered aborted after processing scheduled allocations.
         SubmitAllocationsToStrategy();
@@ -705,16 +703,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             "StartedAllocations: {All: %v, ByPreemption: %v}, PreemptedAllocations: %v, "
             "PreemptibleInfo: %v, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
             "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
-            schedulingContext->StartedAllocations().size(),
+            schedulingHeartbeatContext->StartedAllocations().size(),
             statistics.ScheduledDuringPreemption,
-            schedulingContext->PreemptedAllocations().size(),
+            schedulingHeartbeatContext->PreemptedAllocations().size(),
             FormatPreemptibleInfoCompact(statistics),
             statistics.SsdPriorityPreemptionEnabled,
             statistics.SsdPriorityPreemptionMedia,
             FormatScheduleAllocationAttemptsCompact(statistics),
             FormatOperationCountByPreemptionPriorityCompact(statistics.OperationCountByPreemptionPriority));
     } else {
-        context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingContext->PreemptedAllocations().size());
+        context->SetIncrementalResponseInfo("PreemptedAllocations: %v", schedulingHeartbeatContext->PreemptedAllocations().size());
     }
 
     context->Reply();
@@ -1444,15 +1442,15 @@ void TNodeShard::UpdateAllocationPreemptibleProgressStartTime(const TAllocationP
     }
 }
 
-TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
+NStrategy::TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
     const TAllocationPtr& allocation,
     TNonNullPtr<TOperationState> operationState)
 {
-    auto [it, inserted] = AllocationsToSubmitToStrategy_.try_emplace(allocation->GetId(), TAllocationUpdate{});
+    auto [it, inserted] = AllocationsToSubmitToStrategy_.try_emplace(allocation->GetId(), NStrategy::TAllocationUpdate{});
     auto& allocationToSubmitToStrategy = it->second;
 
     if (inserted) {
-        allocationToSubmitToStrategy = TAllocationUpdate{
+        allocationToSubmitToStrategy = NStrategy::TAllocationUpdate{
             .OperationId = allocation->GetOperationId(),
             .AllocationId = allocation->GetId(),
             .TreeId = allocation->GetTreeId(),
@@ -1462,11 +1460,9 @@ TAllocationUpdate& TNodeShard::AddAllocationUpdateToSubmitToStrategy(
         };
 
         operationState->AllocationsToSubmitToStrategy.insert(allocation->GetId());
-
-        return allocationToSubmitToStrategy;
+    } else {
+        allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
     }
-
-    allocationToSubmitToStrategy.AllocationResources = allocation->ResourceUsage();
 
     return allocationToSubmitToStrategy;
 }
@@ -1635,7 +1631,7 @@ void TNodeShard::ProcessHeartbeatAllocations(
     TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
     TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
     const TExecNodePtr& node,
-    const INodeHeartbeatStrategyProxyPtr& strategyProxy,
+    const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy,
     std::vector<TAllocationPtr>* runningAllocations,
     bool* hasWaitingAllocations)
 {
@@ -1747,7 +1743,7 @@ void TNodeShard::ProcessHeartbeatAllocations(
 
 void TNodeShard::FillNodeProfilingTags(
     TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
-    const INodeHeartbeatStrategyProxyPtr& strategyProxy)
+    const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy)
 {
     auto* mutableTags = response->mutable_profiling_tags();
 
@@ -1765,7 +1761,7 @@ void TNodeShard::FillNodeProfilingTags(
 }
 
 void TNodeShard::LogOngoingAllocationsOnHeartbeat(
-    const INodeHeartbeatStrategyProxyPtr& strategyProxy,
+    const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy,
     TInstant now,
     const TStateToAllocationList& ongoingAllocationsByState,
     const TExecNodePtr& node) const
@@ -1948,7 +1944,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
 
 bool TNodeShard::IsHeartbeatThrottlingWithComplexity(
     const TExecNodePtr& node,
-    const INodeHeartbeatStrategyProxyPtr& strategyProxy)
+    const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy)
 {
     int schedulingHeartbeatComplexity = strategyProxy->GetSchedulingHeartbeatComplexity();
     node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
@@ -2090,11 +2086,11 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 }
 
 void TNodeShard::ProcessScheduledAndPreemptedAllocations(
-    const ISchedulingContextPtr& schedulingContext,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     NProto::NNode::TRspHeartbeat* response)
 {
     std::vector<TAllocationId> startedAllocations;
-    for (const auto& allocation : schedulingContext->StartedAllocations()) {
+    for (const auto& [allocation, _] : schedulingHeartbeatContext->StartedAllocations()) {
         auto* operationState = FindOperationState(allocation->GetOperationId());
         if (!operationState) {
             YT_LOG_DEBUG(
@@ -2159,7 +2155,7 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         SetControllerAgentIncarnationId(agent, startInfo->mutable_controller_agent_descriptor());
     }
 
-    for (const auto& preemptedAllocation : schedulingContext->PreemptedAllocations()) {
+    for (const auto& preemptedAllocation : schedulingHeartbeatContext->PreemptedAllocations()) {
         auto& allocation = preemptedAllocation.Allocation;
         auto preemptionTimeout = preemptedAllocation.PreemptionTimeout;
         if (!FindOperationState(allocation->GetOperationId()) || allocation->GetUnregistered()) {
@@ -2407,7 +2403,7 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatStart(
 }
 
 void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
-    const ISchedulingContextPtr& schedulingContext,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     const TExecNodePtr& node,
     const TJobResources& minSpareResources,
     bool isThrottlingActive,
@@ -2420,14 +2416,14 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
     node->UnutilizedResourcesByReason() = {};
 
     // Prepare unutilized resources for the next heartbeat.
-    auto nodeFreeResources = schedulingContext->GetNodeFreeResourcesWithoutDiscount();
+    auto nodeFreeResources = schedulingHeartbeatContext->GetNodeFreeResourcesWithoutDiscount();
     EUnutilizedResourceReason reason;
     if (Dominates(nodeFreeResources, minSpareResources)) {
         if (isThrottlingActive) {
             reason = EUnutilizedResourceReason::Throttling;
         } else if (hasWaitingAllocations) {
             reason = EUnutilizedResourceReason::NodeHasWaitingAllocations;
-        } else if (schedulingContext->IsHeartbeatTimeoutExpired()) {
+        } else if (schedulingHeartbeatContext->IsHeartbeatTimeoutExpired()) {
             reason = EUnutilizedResourceReason::Timeout;
         } else {
             reason = EUnutilizedResourceReason::Unknown;

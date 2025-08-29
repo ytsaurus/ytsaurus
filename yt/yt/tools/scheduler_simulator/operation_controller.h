@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include "operation_description.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 
 #include <yt/yt/server/scheduler/operation.h>
 #include <yt/yt/server/scheduler/operation_controller.h>
@@ -19,7 +19,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISimulatorOperationController
-    : public NScheduler::IOperationControllerStrategyHost
+    : public NScheduler::NStrategy::ISchedulingOperationController
 {
     virtual void OnJobCompleted(std::unique_ptr<NControllerAgent::TCompletedJobSummary> jobSummary) = 0;
 

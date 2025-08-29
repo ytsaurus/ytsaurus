@@ -3,6 +3,8 @@
 #include "private.h"
 #include "operation_description.h"
 
+#include <yt/yt/server/scheduler/strategy/operation.h>
+
 #include <yt/yt/server/scheduler/public.h>
 #include <yt/yt/server/scheduler/operation.h>
 
@@ -11,7 +13,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public NScheduler::IOperationStrategyHost
+    : public NScheduler::NStrategy::IOperation
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ISimulatorOperationControllerPtr, Controller);
@@ -24,7 +26,7 @@ public:
     NScheduler::TOperationId GetId() const override;
     NScheduler::EOperationType GetType() const override;
     NScheduler::EOperationState GetState() const override;
-    std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
+    std::optional<NScheduler::NStrategy::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
     TInstant GetStartTime() const override;
     std::string GetAuthenticatedUser() const override;
     std::optional<std::string> GetTitle() const override;
@@ -33,7 +35,7 @@ public:
     void SetSlotIndex(const TString& treeId, int index) override;
     void ReleaseSlotIndex(const TString& treeId) override;
 
-    NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    NScheduler::NStrategy::ISchedulingOperationControllerPtr GetControllerStrategyHost() const override;
 
     NScheduler::TStrategyOperationSpecPtr GetStrategySpec() const override;
     NScheduler::TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;
@@ -44,7 +46,7 @@ public:
 
     NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
-    void UpdatePoolAttributes(const TString& /*treeId*/, const NScheduler::TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/) override;
+    void UpdatePoolAttributes(const TString& /*treeId*/, const NScheduler::NStrategy::TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/) override;
 
     bool IsTreeErased(const TString& treeId) const override;
 

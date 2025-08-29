@@ -2,7 +2,7 @@
 
 #include "node_shard.h"
 
-#include <yt/yt/server/scheduler/fair_share_strategy.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <random>
 
@@ -11,6 +11,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NScheduler;
+using namespace NScheduler::NStrategy;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
@@ -313,53 +314,53 @@ void TSharedOperationStatisticsOutput::PrintEntry(TOperationId id, TOperationSta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedSchedulerStrategy::TSharedSchedulerStrategy(
-    const ISchedulerStrategyPtr& schedulerStrategy,
-    TSchedulerStrategyHost& strategyHost,
+TSharedStrategy::TSharedStrategy(
+    const IStrategyPtr& schedulerStrategy,
+    TStrategyHost& strategyHost,
     const IInvokerPtr& controlThreadInvoker)
-    : SchedulerStrategy_(schedulerStrategy)
+    : Strategy_(schedulerStrategy)
     , StrategyHost_(strategyHost)
     , ControlThreadInvoker_(controlThreadInvoker)
 { }
 
-INodeHeartbeatStrategyProxyPtr TSharedSchedulerStrategy::CreateNodeHeartbeatStrategyProxy(
+INodeHeartbeatStrategyProxyPtr TSharedStrategy::CreateNodeHeartbeatStrategyProxy(
     TNodeId nodeId,
     const std::string& address,
     const TBooleanFormulaTags& tags,
     TMatchingTreeCookie cookie) const
 {
-    return SchedulerStrategy_->CreateNodeHeartbeatStrategyProxy(nodeId, address, tags, cookie);
+    return Strategy_->CreateNodeHeartbeatStrategyProxy(nodeId, address, tags, cookie);
 }
 
-void TSharedSchedulerStrategy::PreemptAllocation(const TAllocationPtr& allocation)
+void TSharedStrategy::PreemptAllocation(const TAllocationPtr& allocation)
 {
     StrategyHost_.PreemptAllocation(allocation, TDuration::Zero());
 }
 
-void TSharedSchedulerStrategy::ProcessAllocationUpdates(
-    const std::vector<TAllocationUpdate>& allocationUpdates,
+void TSharedStrategy::ProcessAllocationUpdates(
+    const std::vector<NStrategy::TAllocationUpdate>& allocationUpdates,
     THashSet<TAllocationId>* allocationsToPostpone,
     THashMap<TAllocationId, EAbortReason>* allocationsToAbort)
 {
-    SchedulerStrategy_->ProcessAllocationUpdates(allocationUpdates, allocationsToPostpone, allocationsToAbort);
+    Strategy_->ProcessAllocationUpdates(allocationUpdates, allocationsToPostpone, allocationsToAbort);
 }
 
-void TSharedSchedulerStrategy::UnregisterOperation(const NYT::NScheduler::IOperationStrategyHostPtr& operation)
+void TSharedStrategy::UnregisterOperation(const NYT::NScheduler::NStrategy::IOperationPtr& operation)
 {
     WaitFor(
-        BIND(&ISchedulerStrategy::UnregisterOperation, SchedulerStrategy_, operation)
+        BIND(&IStrategy::UnregisterOperation, Strategy_, operation)
             .AsyncVia(ControlThreadInvoker_)
             .Run())
         .ThrowOnError();
 }
 
-void TSharedSchedulerStrategy::BuildSchedulingAttributesForNode(
+void TSharedStrategy::BuildSchedulingAttributesForNode(
     TNodeId nodeId,
     const std::string& nodeAddress,
     const TBooleanFormulaTags& nodeTags,
     TFluentMap fluent) const
 {
-    return SchedulerStrategy_->BuildSchedulingAttributesForNode(nodeId, nodeAddress, nodeTags, fluent);
+    return Strategy_->BuildSchedulingAttributesForNode(nodeId, nodeAddress, nodeTags, fluent);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

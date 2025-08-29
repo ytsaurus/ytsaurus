@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/server/scheduler/strategy/operation.h>
+#include <yt/yt/server/scheduler/strategy/operation_controller.h>
+
 #include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/transactions.h>
 
@@ -33,20 +36,6 @@
 #include <library/cpp/yt/compact_containers/compact_flat_map.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOperationPoolTreeAttributes
-    : public NYTree::TYsonStructLite
-{
-    std::optional<int> SlotIndex;
-    bool RunningInEphemeralPool;
-    bool RunningInLightweightPool;
-
-    REGISTER_YSON_STRUCT_LITE(TOperationPoolTreeAttributes);
-
-    static void Register(TRegistrar);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,86 +85,11 @@ using TOperationAlertMap = TCompactFlatMap<
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBriefVanillaTaskSpec
-{
-    int JobCount;
-};
-
-using TBriefVanillaTaskSpecMap = THashMap<std::string, TBriefVanillaTaskSpec>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPatchSpecInProgressInfo
 {
     std::string User;
     TInstant StartTime;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EUnschedulableReason,
-    (IsNotRunning)
-    (Suspended)
-    (NoPendingAllocations)
-
-    // NB(eshcherbin): This is not exactly an "unschedulable" reason, but it is
-    // reasonable in our architecture to put it here anyway.
-    (MaxScheduleAllocationCallsViolated)
-    (FifoSchedulableElementCountLimitReached)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IOperationStrategyHost
-    : public TRefCounted
-{
-    virtual EOperationType GetType() const = 0;
-
-    virtual EOperationState GetState() const = 0;
-
-    virtual std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId = std::nullopt) const = 0;
-
-    virtual TInstant GetStartTime() const = 0;
-
-    virtual std::optional<int> FindSlotIndex(const TString& treeId) const = 0;
-    virtual void SetSlotIndex(const TString& treeId, int index) = 0;
-    virtual void ReleaseSlotIndex(const TString& treeId) = 0;
-
-    virtual std::string GetAuthenticatedUser() const = 0;
-
-    virtual std::optional<std::string> GetTitle() const = 0;
-
-    virtual TOperationId GetId() const = 0;
-
-    virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
-
-    virtual TStrategyOperationSpecPtr GetStrategySpec() const = 0;
-
-    virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const = 0;
-
-    virtual const NYson::TYsonString& GetSpecString() const = 0;
-
-    virtual const NYson::TYsonString& GetTrimmedAnnotations() const = 0;
-
-    virtual const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const = 0;
-
-    virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
-
-    virtual const TOperationOptionsPtr& GetOperationOptions() const = 0;
-
-    virtual void UpdatePoolAttributes(
-        const TString& treeId,
-        const TOperationPoolTreeAttributes& operationPoolTreeAttributes) = 0;
-
-    virtual bool IsTreeErased(const TString& treeId) const = 0;
-
-    virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
-
-protected:
-    friend class TFairShareStrategyOperationState;
-};
-
-DEFINE_REFCOUNTED_TYPE(IOperationStrategyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,7 +130,7 @@ public: \
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public IOperationStrategyHost
+    : public NStrategy::IOperation
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -370,9 +284,9 @@ public:
     bool IsFinishingState() const;
 
     //! Checks whether current operation state doesn't allow starting new allocations.
-    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
+    std::optional<NStrategy::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
 
-    IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
+    NStrategy::ISchedulingOperationControllerPtr GetControllerStrategyHost() const override;
 
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
@@ -391,13 +305,13 @@ public:
     void SetSlotIndex(const TString& treeId, int value) override;
     void ReleaseSlotIndex(const TString& treeId) override;
     THashMap<TString, int> GetSlotIndices() const;
-    const THashMap<TString, TOperationPoolTreeAttributes>& GetSchedulingAttributesPerPoolTree() const;
+    const THashMap<TString, NStrategy::TOperationPoolTreeAttributes>& GetSchedulingAttributesPerPoolTree() const;
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
     void UpdatePoolAttributes(
         const TString& treeId,
-        const TOperationPoolTreeAttributes& operationPoolTreeAttributes) override;
+        const NStrategy::TOperationPoolTreeAttributes& operationPoolTreeAttributes) override;
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
@@ -497,7 +411,7 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    THashMap<TString, TOperationPoolTreeAttributes> SchedulingAttributesPerPoolTree_;
+    THashMap<TString, NStrategy::TOperationPoolTreeAttributes> SchedulingAttributesPerPoolTree_;
 
     TOperationRuntimeParametersPtr RuntimeParameters_;
 

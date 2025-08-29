@@ -1,8 +1,12 @@
 #pragma once
 
 #include "private.h"
+#include "helpers.h"
 #include "scheduler.h"
-#include "scheduler_strategy.h"
+
+#include <yt/yt/server/scheduler/strategy/strategy.h>
+
+#include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
@@ -236,7 +240,7 @@ private:
 
     TEnumIndexedArray<EUnutilizedResourceReason, TJobResourcesProfiler> UnutilizedResourcesCounterByReason_;
 
-    THashMap<TAllocationId, TAllocationUpdate> AllocationsToSubmitToStrategy_;
+    THashMap<TAllocationId, NStrategy::TAllocationUpdate> AllocationsToSubmitToStrategy_;
     std::atomic<int> SubmitToStrategyAllocationCount_;
 
     struct TScheduleAllocationEntry
@@ -319,13 +323,13 @@ private:
         TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
         const TExecNodePtr& node,
-        const INodeHeartbeatStrategyProxyPtr& strategyProxy,
+        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy,
         std::vector<TAllocationPtr>* runningAllocations,
         bool* hasWaitingAllocations);
 
     void FillNodeProfilingTags(
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
-        const INodeHeartbeatStrategyProxyPtr& strategyProxy);
+        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy);
 
     TAllocationPtr ProcessAllocationHeartbeat(
         const TExecNodePtr& node,
@@ -334,12 +338,12 @@ private:
 
     bool IsHeartbeatThrottlingWithComplexity(
         const TExecNodePtr& node,
-        const INodeHeartbeatStrategyProxyPtr& strategyProxy);
+        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy);
     bool IsHeartbeatThrottlingWithCount(const TExecNodePtr& node);
 
     using TStateToAllocationList = TEnumIndexedArray<EAllocationState, std::vector<TAllocationPtr>>;
     void LogOngoingAllocationsOnHeartbeat(
-        const INodeHeartbeatStrategyProxyPtr& strategyProxy,
+        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy,
         TInstant now,
         const TStateToAllocationList& ongoingAllocationsByState,
         const TExecNodePtr& node) const;
@@ -358,7 +362,7 @@ private:
     void SubmitAllocationsToStrategy();
 
     void ProcessScheduledAndPreemptedAllocations(
-        const ISchedulingContextPtr& schedulingContext,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NProto::NNode::TRspHeartbeat* response);
 
     void OnAllocationFinished(const TAllocationPtr& allocation);
@@ -424,7 +428,7 @@ private:
     void UpdateUnutilizedResourcesOnHeartbeatStart(
         const TExecNodePtr& node);
     void UpdateUnutilizedResourcesOnHeartbeatEnd(
-        const ISchedulingContextPtr& schedulingContext,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TExecNodePtr& node,
         const TJobResources& minSpareResources,
         bool isThrottlingActive,
@@ -435,7 +439,7 @@ private:
 
     void UpdateAllocationPreemptibleProgressStartTime(const TAllocationPtr& allocation, TInstant newPreemptibleProgressStartTime);
 
-    TAllocationUpdate& AddAllocationUpdateToSubmitToStrategy(
+    NStrategy::TAllocationUpdate& AddAllocationUpdateToSubmitToStrategy(
         const TAllocationPtr& allocation,
         TNonNullPtr<TOperationState> operationState);
 };
