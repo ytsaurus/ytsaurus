@@ -4,6 +4,7 @@ RECURSE(
     client
     core
     experiments
+    go
     library
     python
     scripts

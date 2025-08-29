@@ -70,6 +70,18 @@ jobs:
           export HOME=${RUNNER_WORKSPACE}
           /opt/go/bin/go build
 
+  gpuagent:
+    needs: venv
+    runs-on: ${{ inputs.runs-on-value }}
+    if: ${{ inputs.build-ytsaurus }}
+    timeout-minutes: 480
+    steps:
+      - name: Build GPU Agent
+        run: |
+          cd ../ytsaurus/ytsaurus/yt/yt/go/gpuagent
+          export HOME=${RUNNER_WORKSPACE}
+          /opt/go/bin/go build -o gpuagent ./cmd/agent
+
   cmake_build:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
