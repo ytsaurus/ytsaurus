@@ -7,21 +7,14 @@
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/key_bound.h>
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/private.h>
-
-#include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
-
-#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
-
-#include <cmath>
 
 namespace NYT::NTableClient {
 
