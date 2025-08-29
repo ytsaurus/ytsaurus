@@ -1046,6 +1046,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             move("//sys/pool_trees/my_tree/b", "//sys/pool_trees/my_tree/a/ab")
         move("//sys/pool_trees/my_tree/b/ba", "//sys/pool_trees/my_tree/a/ab")
 
+    # COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
     def test_min_share_and_strong_guarantee_resources_aliasing(self):
         create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)

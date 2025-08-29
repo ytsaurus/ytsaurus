@@ -112,7 +112,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def test_root_pool(self):
         wait(
             lambda: are_almost_equal(
-                get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/fair_share_ratio"),
+                get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/detailed_dominant_fair_share/total"),
                 0.0,
             )
         )
@@ -3050,13 +3050,13 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         for i in range(num_children):
             create_pool("child" + str(i + 1), parent_name="parent")
 
-    def _get_pool_fair_share_ratio(self, pool):
+    def _get_pool_dominant_fair_share(self, pool):
         try:
-            return get(scheduler_orchid_pool_path(pool) + "/dominant_fair_share/total")
+            return get(scheduler_orchid_pool_path(pool) + "/detailed_dominant_fair_share/total")
         except YtError:
             return 0.0
 
-    def _get_pool_usage_ratio(self, pool):
+    def _get_pool_dominant_usage_share(self, pool):
         try:
             return get(scheduler_orchid_pool_path(pool) + "/dominant_usage_share")
         except YtError:
@@ -3070,7 +3070,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         wait(
             lambda: are_almost_equal(
-                self._get_pool_usage_ratio("child1"),
+                self._get_pool_dominant_usage_share("child1"),
                 min(num_jobs_op1 / self.NUM_SLOTS_PER_NODE, 1.0),
             )
         )
@@ -3112,7 +3112,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         op1_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
         op1 = vanilla(spec={"pool": "child1", "tasks": op1_tasks_spec}, track=False)
 
-        wait(lambda: are_almost_equal(self._get_pool_usage_ratio("child1"), 1.0))
+        wait(lambda: are_almost_equal(self._get_pool_dominant_usage_share("child1"), 1.0))
 
         # give some time for historic usage to accumulate
         time.sleep(2)

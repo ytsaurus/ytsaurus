@@ -454,7 +454,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         # NB: Some explanation of possible non-zero error count:
         # 1. Scheduler simulator are running by 2 (default value) thread in this test.
         # 2. One thread may simulate job start, while another thread perform logging.
-        # 3. Update of usage_ratio goes from bottom to up, some at some point we can have non-zero resource usage
+        # 3. Update of dominant_usage_share goes from bottom to up, some at some point we can have non-zero resource usage
         #    in operation but still have zero resource usage in pool while update is going on.
         assert self.fair_share_info_error_count <= 1
 
@@ -490,8 +490,8 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         ]
 
     def _parse_fair_share_info(self, item, operation_id):
-        usage_pools = extract_metric_distribution(item, "usage_ratio", "pools")
-        usage_operations = extract_metric_distribution(item, "usage_ratio", "operations")
+        usage_pools = extract_metric_distribution(item, "dominant_usage_share", "pools")
+        usage_operations = extract_metric_distribution(item, "dominant_usage_share", "operations")
         if (
             usage_pools is not None
             and "test_pool" in usage_pools["pools"]

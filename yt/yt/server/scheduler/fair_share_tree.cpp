@@ -1160,10 +1160,11 @@ public:
         fluent
             .Item("pool").Value(parent->GetId())
             .Item("weight").Value(element->GetWeight())
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
+            // Do we even need these values?? They are always zero because |element| is not taken from snapshot.
             .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
             .Item("dominant_fair_share").Value(MaxComponent(attributes.FairShare.Total));
     }
-
 
     void BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent) const override
     {
@@ -3457,18 +3458,19 @@ private:
                 fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lowest_starving_ancestor", element->GetLowestStarvingAncestor()->GetId());
             })
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "weight", element->GetWeight())
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_share_ratio", element->GetMaxShareRatio())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_resource", attributes.DominantResource)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_usage", element->GetResourceUsageAtUpdate())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "usage_share", attributes.UsageShare)
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "usage_ratio", element->GetResourceDominantUsageShareAtUpdate())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate())
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_demand", element->GetResourceDemand())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "demand_share", attributes.DemandShare)
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "demand_ratio", MaxComponent(attributes.DemandShare))
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_demand_share", MaxComponent(attributes.DemandShare))
 
@@ -3481,19 +3483,21 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limited_demand_share", element->LimitedDemandShare())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_limited_demand_share", MaxComponent(element->LimitedDemandShare()))
 
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share_by_tier", attributes.StrongGuaranteeShareByTier)
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_resources", element->GetSpecifiedStrongGuaranteeResources())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_resources", element->GetSpecifiedStrongGuaranteeResources())
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_min_share_resources", element->GetTotalResourceLimits() * attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_strong_guarantee_resources", element->GetTotalResourceLimits() * attributes.StrongGuaranteeShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "inferred_strong_guarantee_resources", attributes.InferredStrongGuaranteeResources)
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_ratio", MaxComponent(attributes.StrongGuaranteeShare))
 
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fair_share_ratio", MaxComponent(attributes.FairShare.Total))
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "detailed_fair_share", attributes.FairShare)
             .ITEM_DO_IF_SUITABLE_FOR_FILTER(
@@ -3571,13 +3575,13 @@ private:
         const auto& attributes = element->Attributes();
 
         fluent
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .Item("usage_ratio").Value(element->GetResourceDominantUsageShareAtUpdate())
             .Item("dominant_usage_share").Value(element->GetResourceDominantUsageShareAtUpdate())
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .Item("demand_ratio").Value(MaxComponent(attributes.DemandShare))
             .Item("dominant_demand_share").Value(MaxComponent(attributes.DemandShare))
-            // COMPAT(ignat): remove it after UI and other tools migration.
+            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
             .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
             .Item("dominant_fair_share").Value(MaxComponent(attributes.FairShare.Total))
             .Item("satisfaction_ratio").Value(element->PostUpdateAttributes().SatisfactionRatio)
