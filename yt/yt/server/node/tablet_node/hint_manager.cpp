@@ -165,9 +165,7 @@ public:
 
     bool ShouldMarkNodeSuspicious(const TError& error) const override
     {
-        return
-            error.FindMatching(NRpc::EErrorCode::TransportError) ||
-            error.FindMatching(NChunkClient::EErrorCode::MasterNotConnected);
+        return IsSuspiciousNodeError(error);
     }
 
 private:
