@@ -31,7 +31,7 @@ target_link_libraries(yt-library-gpu PUBLIC
   yt-library-process
   yt-yt-core
   core-rpc-grpc
-  go-gpuagent-api
+  yt-gpuagent-api
   cpp-protobuf-interop
 )
 

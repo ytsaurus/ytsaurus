@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package NYT.NGpuAgent.NProto;
 
-option go_package = "go.ytsaurus.tech/yt/yt/go/gpuagent/internal/pb";
+option go_package = "go.ytsaurus.tech/yt/yt/gpuagent/internal/pb";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

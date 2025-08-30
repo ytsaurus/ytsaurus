@@ -4,7 +4,7 @@ SRCS(main.go)
 
 PEERDIR(
     yt/go/ytlog
-    yt/yt/go/gpuagent/internal/pb
+    yt/yt/gpuagent/internal/pb
 )
 
 END()

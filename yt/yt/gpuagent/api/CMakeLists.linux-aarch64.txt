@@ -28,31 +28,31 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_library(go-gpuagent-api)
+add_library(yt-gpuagent-api)
 
 
-target_link_libraries(go-gpuagent-api PUBLIC
+target_link_libraries(yt-gpuagent-api PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
 
-target_proto_messages(go-gpuagent-api PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/go/gpuagent/api/api.proto
+target_proto_messages(yt-gpuagent-api PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/gpuagent/api/api.proto
 )
 
-target_sources(go-gpuagent-api PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/go/gpuagent/api/api.pb.h
+target_sources(yt-gpuagent-api PRIVATE
+  ${PROJECT_BINARY_DIR}/yt/yt/gpuagent/api/api.pb.h
 )
 
 
-target_proto_outs(go-gpuagent-api
+target_proto_outs(yt-gpuagent-api
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 
-target_proto_addincls(go-gpuagent-api
+target_proto_addincls(yt-gpuagent-api
   ./
   ${PROJECT_SOURCE_DIR}/
   ${PROJECT_BINARY_DIR}

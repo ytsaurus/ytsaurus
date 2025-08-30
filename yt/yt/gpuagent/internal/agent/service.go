@@ -4,7 +4,7 @@ import (
 	"context"
 
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
-	"go.ytsaurus.tech/yt/yt/go/gpuagent/internal/pb"
+	"go.ytsaurus.tech/yt/yt/gpuagent/internal/pb"
 )
 
 type GPUAgentService interface {

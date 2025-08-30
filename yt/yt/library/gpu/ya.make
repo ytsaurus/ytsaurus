@@ -18,7 +18,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/core/rpc/grpc
 
-    yt/yt/go/gpuagent/api
+    yt/yt/gpuagent/api
 
     library/cpp/protobuf/interop
 )
