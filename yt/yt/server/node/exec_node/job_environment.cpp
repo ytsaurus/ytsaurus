@@ -688,10 +688,10 @@ private:
 
     std::atomic<bool> ShouldCloseDescriptors_;
 
-    double CpuLimit_;
-    double IdleCpuLimit_;
-    double IdleCpuFraction_;
-    int SlotCount_;
+    double CpuLimit_ = 0.0;
+    double IdleCpuLimit_ = 0.0;
+    double IdleCpuFraction_ = 0.0;
+    int SlotCount_ = 0;
 
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
