@@ -1650,7 +1650,16 @@ private:
     {
         auto executorConfig = New<TUserJobExecutorConfig>();
 
-        executorConfig->Command = UserJobSpec_.shell_command();
+        if (UserJobSpec_.append_debug_options()) {
+            executorConfig->Command = Format(
+                "%v --job-id %v --operation-id %v",
+                UserJobSpec_.shell_command(),
+                JobId_,
+                Host_->GetOperationId());
+        } else {
+            executorConfig->Command = UserJobSpec_.shell_command();
+        }
+
         executorConfig->JobId = ToString(JobId_);
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
