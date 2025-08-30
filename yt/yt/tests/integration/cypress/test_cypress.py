@@ -806,7 +806,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_removed_bundle(self):
         create_tablet_cell_bundle("b")
         create("map_node", "//tmp/p1")
