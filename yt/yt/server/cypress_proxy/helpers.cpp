@@ -498,13 +498,15 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
     TVersionedObjectId objectId,
     const TAttributeFilter& attributeFilter)
 {
-    auto request = TYPathProxy::Get();
-
+    // Form a template.
+    auto requestTemplate = TYPathProxy::Get();
     if (attributeFilter) {
-        ToProto(request->mutable_attributes(), attributeFilter);
+        ToProto(requestTemplate->mutable_attributes(), attributeFilter);
     }
+    SetSuppressAccessTracking(requestTemplate, true);
+    SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
 
-    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, request, {objectId.ObjectId}, objectId.TransactionId);
+    auto batcher = TMasterYPathProxy::CreateGetBatcher(client, requestTemplate, {objectId.ObjectId}, objectId.TransactionId);
 
     return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
         return ConvertToNode(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));

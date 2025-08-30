@@ -113,6 +113,7 @@ void FromProto(
 
 //! Fetches single object from follower using vectorized read. Therefore, there
 //! is no resolve step on master.
+//! All access/expiration tracking is suppressed.
 TFuture<NYTree::INodePtr> FetchSingleObject(
     const NApi::NNative::IClientPtr& client,
     NCypressClient::TVersionedObjectId objectId,

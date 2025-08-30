@@ -1712,7 +1712,6 @@ class TestCypress(YTEnvSetup):
         assert c2 == c1
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat2(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1754,7 +1753,6 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat6(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
@@ -1765,7 +1763,6 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_access_stat7(self):
         create("map_node", "//tmp/d")
         time.sleep(1)
