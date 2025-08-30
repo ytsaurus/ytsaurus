@@ -3469,6 +3469,18 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructDefault)
 {
     TMyPolyDefault poly;
 
+    auto empty = BuildYsonNodeFluently()
+        .BeginMap()
+        .EndMap();
+
+    Deserialize(poly, empty->AsMap());
+    EXPECT_EQ(poly.GetCurrentType(), EMyPolyDefaultType::Drv1);
+
+    auto drv1Ptr = poly.TryGetConcrete<TPolyDerived1>();
+    EXPECT_TRUE(drv1Ptr.operator bool());
+
+    ///////////////
+
     auto node = BuildYsonNodeFluently()
         .BeginMap()
             .Item("base_field").Value(11)
@@ -3478,10 +3490,12 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructDefault)
     Deserialize(poly, node->AsMap());
     EXPECT_EQ(poly.GetCurrentType(), EMyPolyDefaultType::Drv1);
 
-    auto drv1Ptr = poly.TryGetConcrete<TPolyDerived1>();
+    drv1Ptr = poly.TryGetConcrete<TPolyDerived1>();
     EXPECT_TRUE(drv1Ptr.operator bool());
     EXPECT_EQ(drv1Ptr->BaseField, 11);
     EXPECT_EQ(drv1Ptr->Field1, 123);
+
+    ///////////////
 
     node = BuildYsonNodeFluently()
         .BeginMap()
@@ -3492,6 +3506,8 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructDefault)
 
     Deserialize(poly, node->AsMap());
     EXPECT_EQ(poly.GetCurrentType(), EMyPolyDefaultType::Drv2);
+
+    ///////////////
 
     node = BuildYsonNodeFluently()
     .BeginMap()
@@ -3519,6 +3535,18 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructDefaultEnum)
 {
     TMyPolyDefaultEnum poly;
 
+    auto empty = BuildYsonNodeFluently()
+        .BeginMap()
+        .EndMap();
+
+    Deserialize(poly, empty->AsMap());
+
+    EXPECT_EQ(poly.GetCurrentType(), EMyPolyDefaultEnum::Base);
+    auto basePtr = poly.TryGetConcrete<TPolyBase>();
+    EXPECT_TRUE(basePtr.operator bool());
+
+    ///////////////
+
     auto node = BuildYsonNodeFluently()
         .BeginMap()
             .Item("base_field").Value(11)
@@ -3528,9 +3556,11 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructDefaultEnum)
     Deserialize(poly, node->AsMap());
     EXPECT_EQ(poly.GetCurrentType(), EMyPolyDefaultEnum::Base);
 
-    auto basePtr = poly.TryGetConcrete<TPolyBase>();
+    basePtr = poly.TryGetConcrete<TPolyBase>();
     EXPECT_TRUE(basePtr.operator bool());
     EXPECT_EQ(basePtr->BaseField, 11);
+
+    ///////////////
 
     node = BuildYsonNodeFluently()
         .BeginMap()
@@ -3541,6 +3571,8 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructDefaultEnum)
 
     Deserialize(poly, node->AsMap());
     EXPECT_EQ(poly.GetCurrentType(), EMyPolyDefaultEnum::Drv1);
+
+    ///////////////
 
     node = BuildYsonNodeFluently()
     .BeginMap()
@@ -3576,7 +3608,8 @@ TEST(TYsonStructTest, TestPolymorphicYsonStructSerializeEmpty)
 
     auto node = ConvertToNode(holder);
 
-    Deserialize(holder, node->AsMap());
+    // Field `type` is mandatory for structs without configured default type.
+    EXPECT_THROW(Deserialize(holder, node->AsMap()), std::exception);
 }
 
 TEST(TYsonStructTest, TestPolymorphicYsonStructAsField)

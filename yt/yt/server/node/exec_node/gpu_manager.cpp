@@ -247,8 +247,10 @@ void TGpuManager::OnDynamicConfigChanged(
     FetchDriverLayerExecutor_->SetOptions(newConfig->DriverLayerFetching);
     if (newConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
-        if (!newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
-            newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = StaticConfig_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
+        auto nvManagerDynamicConfig = newConfig->GpuInfoSource.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+        auto nvManagerStaticConfig = StaticConfig_->GpuInfoSource.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+        if (nvManagerStaticConfig && nvManagerDynamicConfig && !nvManagerDynamicConfig->DevicesCgroupPath) {
+            nvManagerDynamicConfig->DevicesCgroupPath = nvManagerStaticConfig->DevicesCgroupPath;
         }
         GpuInfoProvider_.Store(CreateGpuInfoProvider(newConfig->GpuInfoSource));
     } else {

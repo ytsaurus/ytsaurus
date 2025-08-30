@@ -6,7 +6,7 @@ namespace NYT::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK IGpuInfoProviderPtr CreateNvManagerGpuInfoProvider(TGpuInfoSourceConfigPtr /*config*/)
+Y_WEAK IGpuInfoProviderPtr CreateNvManagerGpuInfoProvider(TNvManagerGpuInfoProviderConfigPtr /*config*/)
 {
     THROW_ERROR_EXCEPTION("NvManager GPU info provider is not supported in this build");
 }

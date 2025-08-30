@@ -516,7 +516,7 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
-        .DefaultNew();
+        .Default();
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
