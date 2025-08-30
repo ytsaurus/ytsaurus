@@ -16,7 +16,7 @@
 
 #include <library/cpp/protobuf/interop/cast.h>
 
-#include <yt/yt/go/gpuagent/api/api.pb.h>
+#include <yt/yt/gpuagent/api/api.pb.h>
 
 namespace NYT::NGpu {
 
