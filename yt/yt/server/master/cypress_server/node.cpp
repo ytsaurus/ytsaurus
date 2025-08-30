@@ -30,6 +30,10 @@ using NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = CypressServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TNullVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& /*context*/)
 { }
 
@@ -247,15 +251,31 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
 {
     TObject::CheckInvariants(bootstrap);
 
-    if (IsSequoia() && IsNative()) {
-        YT_VERIFY(MutableSequoiaProperties());
-        YT_VERIFY(MutableSequoiaProperties()->BeingCreated || ImmutableSequoiaProperties());
-    } else {
-        // TODO(aleksandra-zh)
-        if (GetType() != EObjectType::Link) {
-            YT_VERIFY(!ImmutableSequoiaProperties());
+    // NB: Half-constructed nodes may be abandonded as zombies and violate these invariants.
+    if (IsObjectAlive(this)) {
+        if (IsSequoia() && IsNative()) {
+            if (!MutableSequoiaProperties()) {
+                YT_LOG_ALERT("Sequoia node lacks mutable Sequoia properties (NodeId: %v)",
+                    GetVersionedId());
+            }
+            if (MutableSequoiaProperties() &&
+               !MutableSequoiaProperties()->BeingCreated &&
+               !ImmutableSequoiaProperties())
+            {
+                YT_LOG_ALERT("Sequoia node is not being created and lacks immmutable Sequoia properties (NodeId: %v)",
+                    GetVersionedId());
+            }
+        } else {
+            if (MutableSequoiaProperties()) {
+                YT_LOG_ALERT("Non-sequoia node has mutable Sequoia properties (NodeId: %v)",
+                    GetVersionedId());
+            }
+            // TODO(aleksandra-zh): links should not be a special case here
+            if (ImmutableSequoiaProperties() && GetType() != EObjectType::Link) {
+                YT_LOG_ALERT("Non-sequoia node has mutable Sequoia properties (NodeId: %v)",
+                    GetVersionedId());
+            }
         }
-        YT_VERIFY(!MutableSequoiaProperties());
     }
 }
 
