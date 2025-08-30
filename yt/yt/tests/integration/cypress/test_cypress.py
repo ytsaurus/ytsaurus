@@ -4407,7 +4407,6 @@ class TestCypressMulticell(TestCypress):
             create("table", "//tmp/t", attributes={"external_cell_bias": 100.0})
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_multiset_attributes_external(self):
         set("//sys/accounts/tmp/@resource_limits/tablet_count", 10)
         schema = make_schema(
@@ -4416,7 +4415,7 @@ class TestCypressMulticell(TestCypress):
                 {"name": "value", "type": "string"},
             ]
         )
-        table_id = create_dynamic_table("//tmp/t", schema=schema, external_cell_tag=12)
+        table_id = create_dynamic_table("//tmp/t", schema=schema, external_cell_tag=11)
 
         assert get("//tmp/t/@vital")
         assert get("//tmp/t/@enable_dynamic_store_read")
@@ -4426,9 +4425,9 @@ class TestCypressMulticell(TestCypress):
         assert not get("//tmp/t/@vital")
         assert not get("//tmp/t/@enable_dynamic_store_read")
 
-        assert not get(f"#{table_id}/@vital", driver=get_driver(2))
+        assert not get(f"#{table_id}/@vital", driver=get_driver(1))
         # The attribute is external but let's check anyway.
-        assert not get(f"#{table_id}/@enable_dynamic_store_read", driver=get_driver(2))
+        assert not get(f"#{table_id}/@enable_dynamic_store_read", driver=get_driver(1))
 
     @authors("babenko", "shakurov")
     @not_implemented_in_sequoia
