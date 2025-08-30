@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package yt.gpuagent;
+package NYT.NGpuAgent.NProto;
 
 option go_package = "go.ytsaurus.tech/yt/yt/go/gpuagent/internal/pb";
 
