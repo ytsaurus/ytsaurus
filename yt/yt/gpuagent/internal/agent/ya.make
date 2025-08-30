@@ -7,7 +7,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/go/gpuagent/internal/pb
+    yt/yt/gpuagent/internal/pb
 )
 
 END()
