@@ -333,7 +333,7 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := NewDecoder(tc.nameTable)
+			d := NewDecoder(tc.nameTable, nil)
 
 			out := reflect.New(reflect.TypeOf(tc.expected).Elem()).Interface()
 			err := d.UnmarshalRow(tc.in, out)
@@ -348,8 +348,873 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 	}
 }
 
-func TestDecoder_nilRow(t *testing.T) {
-	d := NewDecoder(nil)
-	var out any
-	require.NoError(t, d.UnmarshalRow(nil, &out))
+func TestDecoder_CompositeTypes(t *testing.T) {
+	tests := []struct {
+		name      string
+		schema    *schema.Schema
+		nameTable NameTable
+		testData  []byte
+		expected  any
+		isErr     bool
+	}{
+		{
+			name: "struct_simple",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "person",
+						ComplexType: schema.Struct{
+							Members: []schema.StructMember{
+								{Name: "id", Type: schema.TypeInt64},
+								{Name: "name", Type: schema.TypeString},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "person"}},
+			testData:  []byte(`[123;"alice"]`),
+			expected: map[string]any{
+				"person": map[string]any{
+					"id":   int64(123),
+					"name": "alice",
+				},
+			},
+		},
+		{
+			name: "list_of_structs",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "people",
+						ComplexType: schema.List{
+							Item: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "id", Type: schema.TypeInt64},
+									{Name: "name", Type: schema.TypeString},
+								},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "people"}},
+			testData:  []byte(`[[123;"alice"];[456;"bob"]]`),
+			expected: map[string]any{
+				"people": []any{
+					map[string]any{
+						"id":   int64(123),
+						"name": "alice",
+					},
+					map[string]any{
+						"id":   int64(456),
+						"name": "bob",
+					},
+				},
+			},
+		},
+		{
+			name: "list_of_primitives",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "numbers",
+						ComplexType: schema.List{
+							Item: schema.TypeInt64,
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "numbers"}},
+			testData:  []byte(`[1;2;3;4;5]`),
+			expected: map[string]any{
+				"numbers": []any{int64(1), int64(2), int64(3), int64(4), int64(5)},
+			},
+		},
+		{
+			name: "tuple_simple",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "coordinates",
+						ComplexType: schema.Tuple{
+							Elements: []schema.TupleElement{
+								{Type: schema.TypeInt64},
+								{Type: schema.TypeFloat64},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "coordinates"}},
+			testData:  []byte(`[10;3.14]`),
+			expected: map[string]any{
+				"coordinates": []any{int64(10), 3.14},
+			},
+		},
+		{
+			name: "tuple_with_structs",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "pair",
+						ComplexType: schema.Tuple{
+							Elements: []schema.TupleElement{
+								{Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "id", Type: schema.TypeInt64},
+									},
+								}},
+								{Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "name", Type: schema.TypeString},
+									},
+								}},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "pair"}},
+			testData:  []byte(`[[42];[test]]`),
+			expected: map[string]any{
+				"pair": []any{
+					map[string]any{"id": int64(42)},
+					map[string]any{"name": "test"},
+				},
+			},
+		},
+		{
+			name: "dict_simple",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "config",
+						ComplexType: schema.Dict{
+							Key:   schema.TypeString,
+							Value: schema.TypeInt64,
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "config"}},
+			testData:  []byte(`[["key1";1];["key2";2]]`),
+			expected: map[string]any{
+				"config": []any{
+					[]any{"key1", int64(1)},
+					[]any{"key2", int64(2)},
+				},
+			},
+		},
+		{
+			name: "dict_with_complex_values",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "users",
+						ComplexType: schema.Dict{
+							Key: schema.TypeString,
+							Value: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "age", Type: schema.TypeInt64},
+									{Name: "active", Type: schema.TypeBoolean},
+								},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "users"}},
+			testData:  []byte(`[["alice";[25;%true]];["bob";[30;%false]]]`),
+			expected: map[string]any{
+				"users": []any{
+					[]any{"alice", map[string]any{"age": int64(25), "active": true}},
+					[]any{"bob", map[string]any{"age": int64(30), "active": false}},
+				},
+			},
+		},
+		{
+			name: "optional_with_value",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "maybe_string",
+						ComplexType: schema.Optional{
+							Item: schema.TypeString,
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "maybe_string"}},
+			testData:  []byte(`"hello"`),
+			expected: map[string]any{
+				"maybe_string": "hello",
+			},
+		},
+		{
+			name: "optional_with_null",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "maybe_string",
+						ComplexType: schema.Optional{
+							Item: schema.TypeString,
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "maybe_string"}},
+			testData:  []byte(`#`),
+			expected: map[string]any{
+				"maybe_string": nil,
+			},
+		},
+		{
+			name: "optional_with_struct",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "maybe_person",
+						ComplexType: schema.Optional{
+							Item: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "id", Type: schema.TypeInt64},
+									{Name: "name", Type: schema.TypeString},
+								},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "maybe_person"}},
+			testData:  []byte(`[123;"alice"]`),
+			expected: map[string]any{
+				"maybe_person": map[string]any{
+					"id":   int64(123),
+					"name": "alice",
+				},
+			},
+		},
+		{
+			name: "tagged_simple",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "user_id",
+						ComplexType: schema.Tagged{
+							Tag:  "user_id",
+							Item: schema.TypeInt64,
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "user_id"}},
+			testData:  []byte(`123`),
+			expected: map[string]any{
+				"user_id": int64(123),
+			},
+		},
+		{
+			name: "tagged_with_struct",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "user_data",
+						ComplexType: schema.Tagged{
+							Tag: "user_data",
+							Item: schema.Struct{
+								Members: []schema.StructMember{
+									{Name: "id", Type: schema.TypeInt64},
+									{Name: "name", Type: schema.TypeString},
+								},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "user_data"}},
+			testData:  []byte(`[123;"alice"]`),
+			expected: map[string]any{
+				"user_data": map[string]any{
+					"id":   int64(123),
+					"name": "alice",
+				},
+			},
+		},
+		{
+			name: "variant_struct",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "shape",
+						ComplexType: schema.Variant{
+							Members: []schema.StructMember{
+								{Name: "circle", Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "radius", Type: schema.TypeFloat64},
+									},
+								}},
+								{Name: "rectangle", Type: schema.Struct{
+									Members: []schema.StructMember{
+										{Name: "width", Type: schema.TypeFloat64},
+										{Name: "height", Type: schema.TypeFloat64},
+									},
+								}},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "shape"}},
+			testData:  []byte(`["circle";[5.0]]`),
+			expected: map[string]any{
+				"shape": []any{"circle", map[string]any{"radius": 5.0}},
+			},
+		},
+		{
+			name: "variant_tuple",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "value",
+						ComplexType: schema.Variant{
+							Elements: []schema.TupleElement{
+								{Type: schema.TypeInt64},
+								{Type: schema.TypeString},
+								{Type: schema.TypeFloat64},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "value"}},
+			testData:  []byte(`[1;"hello"]`),
+			expected: map[string]any{
+				"value": []any{int64(1), "hello"},
+			},
+		},
+		{
+			name: "nested_complex_types",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "complex",
+						ComplexType: schema.List{
+							Item: schema.Optional{
+								Item: schema.Dict{
+									Key:   schema.TypeString,
+									Value: schema.TypeInt64,
+								},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "complex"}},
+			testData:  []byte(`[[["key1";1]];#;[["key2";2]]]`),
+			expected: map[string]any{
+				"complex": []any{
+					[]any{[]any{"key1", int64(1)}},
+					nil,
+					[]any{[]any{"key2", int64(2)}},
+				},
+			},
+		},
+		{
+			name: "decimal_type",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "price",
+						ComplexType: schema.Decimal{
+							Precision: 10,
+							Scale:     2,
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "price"}},
+			testData:  []byte(`"123.45"`),
+			expected: map[string]any{
+				"price": "123.45",
+			},
+		},
+		{
+			name: "list_of_optional_primitives",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "nullable_numbers",
+						ComplexType: schema.List{
+							Item: schema.Optional{
+								Item: schema.TypeInt64,
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "nullable_numbers"}},
+			testData:  []byte(`[1;#;3;#;5]`),
+			expected: map[string]any{
+				"nullable_numbers": []any{int64(1), nil, int64(3), nil, int64(5)},
+			},
+		},
+		{
+			name: "struct_with_optional_fields",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "user",
+						ComplexType: schema.Struct{
+							Members: []schema.StructMember{
+								{Name: "id", Type: schema.TypeInt64},
+								{Name: "name", Type: schema.Optional{
+									Item: schema.TypeString,
+								}},
+								{Name: "email", Type: schema.Optional{
+									Item: schema.TypeString,
+								}},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "user"}},
+			testData:  []byte(`[123;"alice";#]`),
+			expected: map[string]any{
+				"user": map[string]any{
+					"id":    int64(123),
+					"name":  "alice",
+					"email": nil,
+				},
+			},
+		},
+		{
+			name: "dict_with_list_values",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "categories",
+						ComplexType: schema.Dict{
+							Key: schema.TypeString,
+							Value: schema.List{
+								Item: schema.TypeString,
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "categories"}},
+			testData:  []byte(`[["fruits";["apple";"banana"]];["vegetables";["carrot";"lettuce"]]]`),
+			expected: map[string]any{
+				"categories": []any{
+					[]any{"fruits", []any{"apple", "banana"}},
+					[]any{"vegetables", []any{"carrot", "lettuce"}},
+				},
+			},
+		},
+		{
+			name: "tuple_with_optional_elements",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "mixed_tuple",
+						ComplexType: schema.Tuple{
+							Elements: []schema.TupleElement{
+								{Type: schema.TypeInt64},
+								{Type: schema.Optional{
+									Item: schema.TypeString,
+								}},
+								{Type: schema.TypeFloat64},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "mixed_tuple"}},
+			testData:  []byte(`[10;"hello";3.14]`),
+			expected: map[string]any{
+				"mixed_tuple": []any{int64(10), "hello", 3.14},
+			},
+		},
+		{
+			name: "error_invalid_schema",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name:        "invalid",
+						ComplexType: nil, // This should cause the decoder to fall back to YSON unmarshaling
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "invalid"}},
+			testData:  []byte(`"test"`),
+			isErr:     false, // This should not be an error, it should fall back to YSON unmarshaling
+			expected: map[string]any{
+				"invalid": "test",
+			},
+		},
+		{
+			name: "struct_with_date_types",
+			schema: &schema.Schema{
+				Columns: []schema.Column{
+					{
+						Name: "event",
+						ComplexType: schema.Struct{
+							Members: []schema.StructMember{
+								{Name: "date", Type: schema.TypeDate},
+								{Name: "datetime", Type: schema.TypeDatetime},
+								{Name: "timestamp", Type: schema.TypeTimestamp},
+							},
+						},
+					},
+				},
+			},
+			nameTable: NameTable{{Name: "event"}},
+			testData:  []byte(`[12345u;1234567890u;1234567890123u]`),
+			expected: map[string]any{
+				"event": map[string]any{
+					"date":      uint64(12345),
+					"datetime":  uint64(1234567890),
+					"timestamp": uint64(1234567890123),
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewDecoder(tc.nameTable, tc.schema)
+
+			var result map[string]any
+			err := d.UnmarshalRow(Row{NewComposite(0, tc.testData)}, &result)
+
+			if !tc.isErr {
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, result)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
+func TestDecodeDecimalFromBinary(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      []byte
+		precision int
+		scale     int
+		expected  string
+		expectErr bool
+	}{
+		{
+			name:      "3.1415 with precision=5, scale=4",
+			data:      []byte{0x80, 0x00, 0x7A, 0xB7},
+			precision: 5,
+			scale:     4,
+			expected:  "3.1415",
+		},
+		{
+			name:      "-2.7182 with precision=5, scale=4",
+			data:      []byte{0x7F, 0xFF, 0x95, 0xD2},
+			precision: 5,
+			scale:     4,
+			expected:  "-2.7182",
+		},
+		{
+			name:      "NaN (32-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF},
+			precision: 5,
+			scale:     4,
+			expected:  "nan",
+		},
+		{
+			name:      "+Inf (32-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFE},
+			precision: 5,
+			scale:     4,
+			expected:  "+inf",
+		},
+		{
+			name:      "-Inf (32-bit)",
+			data:      []byte{0x00, 0x00, 0x00, 0x02},
+			precision: 5,
+			scale:     4,
+			expected:  "-inf",
+		},
+		{
+			name:      "Invalid length",
+			data:      []byte{0x80, 0x00, 0x7A},
+			precision: 5,
+			scale:     4,
+			expectErr: true,
+		},
+		// 64-bit tests (precision 10-18)
+		{
+			name:      "Large positive 64-bit with precision=15, scale=2",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B},
+			precision: 15,
+			scale:     2,
+			expected:  "1.23",
+		},
+		{
+			name:      "Large negative 64-bit with precision=15, scale=2",
+			data:      []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x85},
+			precision: 15,
+			scale:     2,
+			expected:  "-1.23",
+		},
+		{
+			name:      "64-bit with high precision=18, scale=10",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 18,
+			scale:     10,
+			expected:  "0.0000000001",
+		},
+		{
+			name:      "64-bit with precision=12, scale=0",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64},
+			precision: 12,
+			scale:     0,
+			expected:  "100",
+		},
+		// 128-bit tests (precision 19-38) - now working with big.Int
+		{
+			name:      "128-bit positive with precision=25, scale=5",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B},
+			precision: 25,
+			scale:     5,
+			expected:  "0.00123",
+		},
+		{
+			name:      "128-bit negative with precision=25, scale=5",
+			data:      []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x85},
+			precision: 25,
+			scale:     5,
+			expected:  "-0.00123",
+		},
+		{
+			name:      "128-bit with precision=30, scale=15",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 30,
+			scale:     15,
+			expected:  "0.000000000000001",
+		},
+		{
+			name:      "128-bit with precision=38, scale=0",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64},
+			precision: 38,
+			scale:     0,
+			expected:  "100",
+		},
+		// 256-bit tests (precision 39-76) - now working with big.Int
+		{
+			name:      "256-bit positive with precision=50, scale=10",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B},
+			precision: 50,
+			scale:     10,
+			expected:  "0.0000000123",
+		},
+		{
+			name:      "256-bit negative with precision=50, scale=10",
+			data:      []byte{0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x85},
+			precision: 50,
+			scale:     10,
+			expected:  "-0.0000000123",
+		},
+		{
+			name:      "256-bit with precision=76, scale=20",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 76,
+			scale:     20,
+			expected:  "0.00000000000000000001",
+		},
+		{
+			name:      "256-bit with precision=40, scale=0",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64},
+			precision: 40,
+			scale:     0,
+			expected:  "100",
+		},
+		// Edge cases with large scale
+		{
+			name:      "32-bit with maximum scale for precision=9, scale=9",
+			data:      []byte{0x80, 0x00, 0x00, 0x01},
+			precision: 9,
+			scale:     9,
+			expected:  "0.000000001",
+		},
+		{
+			name:      "64-bit with large scale=18, precision=18",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 18,
+			scale:     18,
+			expected:  "0.000000000000000001",
+		},
+		{
+			name:      "128-bit with large scale=38, precision=38",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			precision: 38,
+			scale:     38,
+			expected:  "0.00000000000000000000000000000000000001",
+		},
+		// Special values for larger precision
+		{
+			name:      "NaN (64-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			precision: 15,
+			scale:     2,
+			expected:  "nan",
+		},
+		{
+			name:      "+Inf (64-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
+			precision: 15,
+			scale:     2,
+			expected:  "+inf",
+		},
+		{
+			name:      "-Inf (64-bit)",
+			data:      []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+			precision: 15,
+			scale:     2,
+			expected:  "-inf",
+		},
+		{
+			name:      "NaN (128-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
+			precision: 25,
+			scale:     5,
+			expected:  "nan",
+		},
+		{
+			name:      "+Inf (128-bit)",
+			data:      []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
+			precision: 25,
+			scale:     5,
+			expected:  "+inf",
+		},
+		{
+			name:      "-Inf (128-bit)",
+			data:      []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+			precision: 25,
+			scale:     5,
+			expected:  "-inf",
+		},
+		// Large value tests - now working with big.Int
+		{
+			name:      "128-bit large positive value",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			precision: 25,
+			scale:     5,
+			expected:  "92233720368547.75808",
+		},
+		{
+			name:      "256-bit large positive value",
+			data:      []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+			precision: 50,
+			scale:     10,
+			expected:  "922337203.6854775808",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := decodeDecimalFromBinary(tt.data, tt.precision, tt.scale)
+
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDecoder_decodeReflect(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "composite_field"},
+		{Name: "list_field"},
+		{Name: "timestamp_field"},
+	}
+
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "composite_field", ComplexType: schema.Struct{
+			Members: []schema.StructMember{
+				{Name: "id", Type: schema.TypeInt64},
+				{Name: "name", Type: schema.TypeString},
+			},
+		}},
+		{Name: "list_field", ComplexType: schema.List{
+			Item: schema.TypeInt64,
+		}},
+		{Name: "timestamp_field", ComplexType: schema.TypeTimestamp},
+	}})
+
+	type testStruct struct {
+		CompositeField map[string]any   `yson:"composite_field"`
+		ListField      []any            `yson:"list_field"`
+		TimestampField schema.Timestamp `yson:"timestamp_field"`
+	}
+
+	var result testStruct
+	err := d.UnmarshalRow(Row{
+		NewComposite(0, []byte(`[123;"test"]`)),
+		NewComposite(1, []byte(`[1;2;3;4;5]`)),
+		NewUint64(2, 1234567890123),
+	}, &result)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.CompositeField)
+	require.NotNil(t, result.ListField)
+
+	require.Equal(t, int64(123), result.CompositeField["id"])
+	require.Equal(t, "test", result.CompositeField["name"])
+}
+
+func TestDecoder_decodeReflectTypeError(t *testing.T) {
+	nameTable := NameTable{
+		{Name: "struct_field"},
+	}
+
+	d := NewDecoder(nameTable, &schema.Schema{Columns: []schema.Column{
+		{Name: "struct_field", ComplexType: schema.Struct{
+			Members: []schema.StructMember{
+				{Name: "id", Type: schema.TypeInt64},
+				{Name: "name", Type: schema.TypeString},
+			},
+		}},
+	}})
+
+	type StructField struct {
+		Id   int64  `yson:"id"`
+		Name string `yson:"name"`
+	}
+
+	type testStruct struct {
+		StructField StructField `yson:"struct_field"`
+	}
+
+	var result testStruct
+	err := d.UnmarshalRow(Row{
+		NewComposite(0, []byte(`[123;"test"]`)),
+	}, &result)
+
+	require.Error(t, err)
+
+	require.Contains(t, err.Error(), "type mismatch")
+	require.Contains(t, err.Error(), "cannot decode")
+	require.Contains(t, err.Error(), "map[string]interface {}")
+	require.Contains(t, err.Error(), "wire.StructField")
 }
