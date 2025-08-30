@@ -390,16 +390,22 @@ private:
 
         auto it = Shortcuts_.find(replicationCardId);
         if (it == Shortcuts_.end()) {
-            THROW_ERROR_EXCEPTION("Shortcut for replication card is not found")
+            THROW_ERROR_EXCEPTION(
+                NChaosClient::EErrorCode::ShortcutNotFound,
+                "Shortcut for replication card is not found")
                 << TErrorAttribute("replication_card_id", replicationCardId);
         }
         if (it->second.State != EShortcutState::Granted) {
-            THROW_ERROR_EXCEPTION("Shortcut for replication card has been revoked")
+            THROW_ERROR_EXCEPTION(
+                NChaosClient::EErrorCode::ShortcutRevoked,
+                "Shortcut for replication card has been revoked")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("shortcut_state", it->second.State);
         }
         if (it->second.Era != era) {
-            THROW_ERROR_EXCEPTION("Shortcut for replication card has different era")
+            THROW_ERROR_EXCEPTION(
+                NChaosClient::EErrorCode::ShortcutHasDifferentEra,
+                "Shortcut for replication card has different era")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("shortcut_era", it->second.Era)
                 << TErrorAttribute("replication_card_era", era);
