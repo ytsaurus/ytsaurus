@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/fix-java-sdk-ci
 
 jobs:
   check:
