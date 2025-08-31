@@ -67,14 +67,6 @@ func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop fu
 	rotateOptions := defaultRotationOptions
 	rotateOptions.Name = logPath
 
-	w, err := selfrotate.New(rotateOptions)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	encoder := zap.NewProductionEncoderConfig()
-	encoder.EncodeTime = zapcore.ISO8601TimeEncoder
-
 	level := zap.DebugLevel
 	for _, opt := range options {
 		switch v := opt.(type) {
@@ -84,6 +76,14 @@ func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop fu
 			rotateOptions.MinFreeSpace = float64(opt.(minFreeSpace))
 		}
 	}
+
+	w, err := selfrotate.New(rotateOptions)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	encoder := zap.NewProductionEncoderConfig()
+	encoder.EncodeTime = zapcore.ISO8601TimeEncoder
 
 	core := asynczap.NewCore(zapcore.NewJSONEncoder(encoder), w, level, asynczap.Options{})
 
