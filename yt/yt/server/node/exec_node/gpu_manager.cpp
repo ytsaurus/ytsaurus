@@ -90,7 +90,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         "CumulativeUtilizationClocksSM: %v, CumulativeSMClocks: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
         "NvlinkRxBytes: %v, NvlinkTxBytes: %v, PcieRxBytes: %v, PcieTxBytes: %v, "
         "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, "
-        "CumulativeSwThermalSlowdown: %v, CumulativeHwThermalSlowdown: %v, CumulativeHwPowerBrakeSlowdown: %v, CumulativeHwSlowdown: %v, "
+        "Slowdowns: %v, "
         "MaxStuckDuration: %v}",
         gpuStatistics.CumulativeUtilizationGpu,
         gpuStatistics.CumulativeUtilizationMemory,
@@ -110,10 +110,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.PcieTxBytes,
         gpuStatistics.CumulativeTensorActivity,
         gpuStatistics.CumulativeDramActivity,
-        gpuStatistics.CumulativeSwThermalSlowdown,
-        gpuStatistics.CumulativeHwThermalSlowdown,
-        gpuStatistics.CumulativeHwPowerBrakeSlowdown,
-        gpuStatistics.CumulativeHwSlowdown,
+        gpuStatistics.CumulativeSlowdowns,
         gpuStatistics.MaxStuckDuration);
 }
 
@@ -245,8 +242,10 @@ void TGpuManager::OnDynamicConfigChanged(
     FetchDriverLayerExecutor_->SetOptions(newConfig->DriverLayerFetching);
     if (newConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
-        if (!newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
-            newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = StaticConfig_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
+        auto nvManagerDynamicConfig = newConfig->GpuInfoSource.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+        auto nvManagerStaticConfig = StaticConfig_->GpuInfoSource.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+        if (nvManagerStaticConfig && nvManagerDynamicConfig && !nvManagerDynamicConfig->DevicesCgroupPath) {
+            nvManagerDynamicConfig->DevicesCgroupPath = nvManagerStaticConfig->DevicesCgroupPath;
         }
         GpuInfoProvider_.Store(CreateGpuInfoProvider(newConfig->GpuInfoSource));
     } else {

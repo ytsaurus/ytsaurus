@@ -69,10 +69,7 @@ struct TGpuStatistics
     i64 MaxStuckDuration = 0;
     i64 CumulativeTensorActivity = 0;
     i64 CumulativeDramActivity = 0;
-    i64 CumulativeSwThermalSlowdown = 0;
-    i64 CumulativeHwThermalSlowdown = 0;
-    i64 CumulativeHwPowerBrakeSlowdown = 0;
-    i64 CumulativeHwSlowdown = 0;
+    TEnumIndexedArray<NGpu::ESlowdownType, i64> CumulativeSlowdowns;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/);

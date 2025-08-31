@@ -194,12 +194,12 @@ protected:
 
 TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 {
-    auto config = New<TGpuInfoSourceConfig>();
-    config->NvGpuManagerServiceAddress = Address_;
-    config->NvGpuManagerServiceName = ServiceName;
-    config->NvGpuManagerChannel->RetryBackoffTime = TDuration::MilliSeconds(500);
-    config->Type = EGpuInfoSourceType::NvGpuManager;
-    config->GpuIndexesFromNvidiaSmi = false;
+    auto config = TGpuInfoSourceConfig(EGpuInfoSourceType::NvGpuManager);
+    auto nvManagerConfig = config.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+    nvManagerConfig->Address = Address_;
+    nvManagerConfig->ServiceName = ServiceName;
+    nvManagerConfig->Channel->RetryBackoffTime = TDuration::MilliSeconds(500);
+    nvManagerConfig->GpuIndexesFromNvidiaSmi = false;
 
     auto provider = CreateGpuInfoProvider(config);
 
@@ -226,10 +226,10 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
             EXPECT_EQ(gpuInfo.PcieTxByteRate, 500.0);
             EXPECT_NEAR(gpuInfo.TensorActivityRate, 0.2, Epsilon);
             EXPECT_NEAR(gpuInfo.DramActivityRate, 0.3, Epsilon);
-            EXPECT_TRUE(gpuInfo.IsSWThermalSlowdown);
-            EXPECT_TRUE(gpuInfo.IsHWThermalSlowdown);
-            EXPECT_FALSE(gpuInfo.IsHWPowerBrakeSlowdown);
-            EXPECT_FALSE(gpuInfo.IsHWSlowdown);
+            EXPECT_FALSE(gpuInfo.Slowdowns[ESlowdownType::HW]);
+            EXPECT_FALSE(gpuInfo.Slowdowns[ESlowdownType::HWPowerBrake]);
+            EXPECT_TRUE(gpuInfo.Slowdowns[ESlowdownType::HWThermal]);
+            EXPECT_TRUE(gpuInfo.Slowdowns[ESlowdownType::SWThermal]);
             EXPECT_FALSE(gpuInfo.Stuck.Status);
         }
 
@@ -252,10 +252,10 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
             EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
             EXPECT_NEAR(gpuInfo.TensorActivityRate, 0.3, Epsilon);
             EXPECT_NEAR(gpuInfo.DramActivityRate, 0.2, Epsilon);
-            EXPECT_FALSE(gpuInfo.IsSWThermalSlowdown);
-            EXPECT_FALSE(gpuInfo.IsHWThermalSlowdown);
-            EXPECT_TRUE(gpuInfo.IsHWPowerBrakeSlowdown);
-            EXPECT_TRUE(gpuInfo.IsHWSlowdown);
+            EXPECT_TRUE(gpuInfo.Slowdowns[ESlowdownType::HW]);
+            EXPECT_TRUE(gpuInfo.Slowdowns[ESlowdownType::HWPowerBrake]);
+            EXPECT_FALSE(gpuInfo.Slowdowns[ESlowdownType::HWThermal]);
+            EXPECT_FALSE(gpuInfo.Slowdowns[ESlowdownType::SWThermal]);
             EXPECT_TRUE(gpuInfo.Stuck.Status);
         }
     }
@@ -263,11 +263,11 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
 
 TEST_F(TNvManagerGpuInfoProviderTest, SimpleRdmaDeviceInfo)
 {
-    auto config = New<TGpuInfoSourceConfig>();
-    config->NvGpuManagerServiceAddress = Address_;
-    config->NvGpuManagerServiceName = ServiceName;
-    config->Type = EGpuInfoSourceType::NvGpuManager;
-    config->GpuIndexesFromNvidiaSmi = false;
+    auto config = TGpuInfoSourceConfig(EGpuInfoSourceType::NvGpuManager);
+    auto nvManagerConfig = config.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>();
+    nvManagerConfig->Address = Address_;
+    nvManagerConfig->ServiceName = ServiceName;
+    nvManagerConfig->GpuIndexesFromNvidiaSmi = false;
 
     auto provider = CreateGpuInfoProvider(config);
     auto rdmaDeviceInfos = provider->GetRdmaDeviceInfos(TDuration::Max());

@@ -14,34 +14,50 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(unittests)
-
-add_library(yt-library-gpu)
-
-
-target_compile_options(yt-library-gpu PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
 )
 
-target_link_libraries(yt-library-gpu PUBLIC
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
+add_library(go-gpuagent-api)
+
+
+target_link_libraries(go-gpuagent-api PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-library-process
-  yt-yt-core
-  core-rpc-grpc
-  go-gpuagent-api
-  cpp-protobuf-interop
+  contrib-libs-protobuf
 )
 
-target_sources(yt-library-gpu PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider_detail.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_agent_gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nv_manager_gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nvidia_smi_gpu_info_provider.cpp
+target_proto_messages(go-gpuagent-api PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/go/gpuagent/api/api.proto
 )
 
+target_sources(go-gpuagent-api PRIVATE
+  ${PROJECT_BINARY_DIR}/yt/yt/go/gpuagent/api/api.pb.h
+)
+
+
+target_proto_outs(go-gpuagent-api
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+)
+
+target_proto_addincls(go-gpuagent-api
+  ./
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+)

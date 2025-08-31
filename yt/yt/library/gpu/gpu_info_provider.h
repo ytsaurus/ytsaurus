@@ -1,12 +1,19 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <library/cpp/yt/yson/consumer.h>
 
 namespace NYT::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESlowdownType,
+    (HW)
+    (HWPowerBrake)
+    (HWThermal)
+    (SWThermal));
 
 struct TGpuInfo
 {
@@ -31,10 +38,7 @@ struct TGpuInfo
     double PcieTxByteRate = 0.0;
     double TensorActivityRate = 0.0;
     double DramActivityRate = 0.0;
-    bool IsSWThermalSlowdown = false;
-    bool IsHWThermalSlowdown = false;
-    bool IsHWPowerBrakeSlowdown = false;
-    bool IsHWSlowdown = false;
+    TEnumIndexedArray<ESlowdownType, bool> Slowdowns;
 
     struct
     {
@@ -68,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfigPtr config);
+IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfig config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

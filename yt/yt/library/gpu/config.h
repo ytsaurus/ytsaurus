@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/core/ytree/polymorphic_yson_struct.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NGpu {
@@ -9,31 +10,88 @@ namespace NYT::NGpu {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EGpuInfoSourceType,
-    (NvGpuManager)
+    (Base)
     (NvidiaSmi)
+    (NvGpuManager)
+    (GpuAgent)
 );
 
-class TGpuInfoSourceConfig
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuInfoSourceConfigBase
     : public NYTree::TYsonStruct
 {
-public:
-    //! Type of the GPU info source for use.
-    EGpuInfoSourceType Type;
-
-    // TODO(eshcherbin): Extract this to a subconfig which would not be present in OS build?
-    // The following fields are used for NvManager info source only.
-    TString NvGpuManagerServiceAddress;
-    TString NvGpuManagerServiceName;
-    NRpc::TRetryingChannelConfigPtr NvGpuManagerChannel;
-    std::optional<TString> NvGpuManagerDevicesCgroupPath;
-    bool GpuIndexesFromNvidiaSmi;
-
-    REGISTER_YSON_STRUCT(TGpuInfoSourceConfig);
+    REGISTER_YSON_STRUCT(TGpuInfoSourceConfigBase);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfig)
+DEFINE_REFCOUNTED_TYPE(TGpuInfoSourceConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNvidiaSmiGpuInfoProviderConfig
+    : public TGpuInfoSourceConfigBase
+{
+    REGISTER_YSON_STRUCT(TNvidiaSmiGpuInfoProviderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNvidiaSmiGpuInfoProviderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGrpcGpuInfoProviderConfigBase
+    : public TGpuInfoSourceConfigBase
+{
+    std::string Address;
+    std::string ServiceName;
+    NRpc::TRetryingChannelConfigPtr Channel;
+
+    REGISTER_YSON_STRUCT(TGrpcGpuInfoProviderConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGrpcGpuInfoProviderConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO: Hide this config in OS version.
+struct TNvManagerGpuInfoProviderConfig
+    : public TGrpcGpuInfoProviderConfigBase
+{
+    std::optional<TString> DevicesCgroupPath;
+    bool GpuIndexesFromNvidiaSmi;
+
+    REGISTER_YSON_STRUCT(TNvManagerGpuInfoProviderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNvManagerGpuInfoProviderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuAgentGpuInfoProviderConfig
+    : public TGrpcGpuInfoProviderConfigBase
+{
+    REGISTER_YSON_STRUCT(TGpuAgentGpuInfoProviderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuAgentGpuInfoProviderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(GpuInfoSourceConfig, EGpuInfoSourceType, NvidiaSmi,
+    ((Base)         (TGpuInfoSourceConfigBase))
+    ((NvidiaSmi)    (TNvidiaSmiGpuInfoProviderConfig))
+    ((NvGpuManager) (TNvManagerGpuInfoProviderConfig))
+    ((GpuAgent)     (TGpuAgentGpuInfoProviderConfig))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
