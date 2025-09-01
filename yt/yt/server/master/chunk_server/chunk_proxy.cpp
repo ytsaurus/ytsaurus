@@ -1133,7 +1133,7 @@ private:
                 }
 
                 auto chunkId = chunk->GetId();
-                return chunkReplicaFetcher->GetOnlySequoiaChunkReplicas({chunk->GetId()})
+                return chunkReplicaFetcher->GetOnlySequoiaChunkReplicas({chunk->GetId()}, /*unapproved*/ true, /*force*/ true)
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>& replicas) {
                         auto it = replicas.find(chunkId);
                         const auto& chunkReplicas = it != replicas.end() ? it->second : TChunkLocationPtrWithReplicaInfoList();

@@ -342,7 +342,8 @@ public:
 
     TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> GetOnlySequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,
-        bool includeUnapproved) const override
+        bool includeUnapproved,
+        bool force) const override
     {
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
@@ -355,7 +356,7 @@ public:
         }
         SortUnique(sequoiaChunkIds);
 
-        return DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved);
+        return DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved, force);
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const override
@@ -438,7 +439,8 @@ private:
 
     TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> DoGetOnlySequoiaChunkReplicas(
         const std::vector<TChunkId>& sequoiaChunkIds,
-        bool includeUnapproved) const
+        bool includeUnapproved,
+        bool force = false) const
     {
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
@@ -448,7 +450,8 @@ private:
             result[chunkId] = TChunkLocationPtrWithReplicaInfoList();
         }
 
-        if (!GetDynamicConfig()->FetchReplicasFromSequoia) {
+        // Force is used for chunk attributes.
+        if (!GetDynamicConfig()->FetchReplicasFromSequoia && !force) {
             return MakeFuture(std::move(result));
         }
 
