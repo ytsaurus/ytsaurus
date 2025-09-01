@@ -1051,6 +1051,11 @@ private:
                 // Calculate new member limit.
                 auto newLimit = weight * totalLimit;
 
+                // If new limit is lower than one make it zero. This avoids rather little limit problem.
+                if (newLimit < 1) {
+                    newLimit = 0;
+                }
+
                 YT_LOG_TRACE(
                     "Updating throttler limit (ThrottlerId: %v, MemberId: %v, Rate: %v, OldLimit: %v, NewLimit: %v)",
                     throttlerId,
@@ -1130,6 +1135,11 @@ private:
 
                 // Calculate new member limit.
                 auto newLimit = Min(localUsage.Rate, memberLimitThreshold) + freeLimit;
+
+                // If new limit is lower than one make it zero. This avoids rather little limit problem.
+                if (newLimit < 1) {
+                    newLimit = 0;
+                }
 
                 YT_LOG_TRACE(
                     "Updating throttler limit (ThrottlerId: %v, MemberId: %v, Rate: %v, OldLimit: %v, NewLimit: %v, FreeLimit: %v)",
