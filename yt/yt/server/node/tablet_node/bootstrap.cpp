@@ -708,7 +708,9 @@ private:
         ErrorManager_->Reconfigure(newConfig);
 
         if (ReplicationCardUpdatesBatcher_) {
-            ReplicationCardUpdatesBatcher_->Reconfigure(tabletNodeConfig->ChaosReplicationCardUpdatesBatcher);
+            ReplicationCardUpdatesBatcher_->Reconfigure(
+                GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
+                    tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
     }
 

@@ -72,9 +72,36 @@ void TReplicationCardsWatcherConfig::Register(TRegistrar registrar)
 void TChaosReplicationCardUpdatesBatcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
-        .Optional();
+        .Default(true);
     registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::Seconds(1));
+}
+
+
+void TChaosReplicationCardUpdatesBatcherConfig::ApplyDynamicInplace(
+    const TChaosReplicationCardUpdatesBatcherDynamicConfigPtr& dynamicConfig)
+{
+    UpdateYsonStructField(Enable, dynamicConfig->Enable);
+    UpdateYsonStructField(FlushPeriod, dynamicConfig->FlushPeriod);
+}
+
+TChaosReplicationCardUpdatesBatcherConfigPtr TChaosReplicationCardUpdatesBatcherConfig::ApplyDynamic(
+    const TChaosReplicationCardUpdatesBatcherDynamicConfigPtr& dynamicConfig) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    config->ApplyDynamicInplace(dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosReplicationCardUpdatesBatcherDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Optional();
+    registrar.Parameter("flush_period", &TThis::FlushPeriod)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
