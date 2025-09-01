@@ -10,7 +10,8 @@ from yt_commands import (
     unfreeze_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
     sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, sync_remove_tablet_cells,
-    sync_reshard_table_automatic, sync_balance_tablet_cells, raises_yt_error)
+    sync_reshard_table_automatic, sync_balance_tablet_cells, raises_yt_error,
+    update_nodes_dynamic_config)
 
 from yt.common import YtError
 
@@ -775,6 +776,55 @@ class TestTabletActions(TabletActionsBase):
             },
         )
 
+    @authors("ifsmirnov")
+    def test_unflushed_timestamp_preserved(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "master_connector": {
+                    "heartbeat_executor": {
+                        "period": 1000000000,
+                    }
+                }
+            }
+        })
+
+        unflushed_timestamp = get("//tmp/t/@unflushed_timestamp")
+
+        action_id = create("tablet_action", "", attributes={
+            "kind": "move",
+            "keep_finished": True,
+            "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+            "cell_ids": [cell_ids[1]]})
+        wait(lambda: get(f"#{action_id}/@state") == "completed")
+        assert get("//tmp/t/@unflushed_timestamp") == unflushed_timestamp
+
+        action_id = create("tablet_action", "", attributes={
+            "kind": "reshard",
+            "keep_finished": True,
+            "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+            "pivot_keys": [[], [1], [2]]})
+        wait(lambda: get(f"#{action_id}/@state") == "completed")
+        assert get("//tmp/t/@unflushed_timestamp") == unflushed_timestamp
+
+        sync_unmount_table("//tmp/t")
+        for i in range(3):
+            sync_mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i)
+        unflushed_timestamps = [
+            get(f"#{tablet['tablet_id']}/@unflushed_timestamp")
+            for tablet in get("//tmp/t/@tablets")]
+        assert len(builtins.set(unflushed_timestamps)) == 3
+
+        action_id = create("tablet_action", "", attributes={
+            "kind": "reshard",
+            "keep_finished": True,
+            "tablet_ids": [get("//tmp/t/@tablets/0/tablet_id")],
+            "tablet_count": 1})
+        wait(lambda: get(f"#{action_id}/@state") == "completed")
+        assert get("//tmp/t/@unflushed_timestamp") == min(unflushed_timestamps)
 
 ##################################################################
 
