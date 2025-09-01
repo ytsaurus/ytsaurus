@@ -639,7 +639,7 @@ def build_rpc_message_size_stats_per_host(
 ):
     s = (sensor_class("yt.rpc.{}.{{}}.rate".format(client_or_server))
         .all(MonitoringTag("host"))
-        .aggr("method", "yt_service", "user", "queue")
+        .aggr("method", "yt_service", "user", "queue", "recognized")
         .stack(False)
         .top()
         .unit("UNIT_BYTES_SI"))
