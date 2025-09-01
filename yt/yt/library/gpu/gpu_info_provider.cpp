@@ -81,15 +81,15 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfig config)
+IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoProviderConfig config)
 {
     switch (config.GetCurrentType()) {
-    case EGpuInfoSourceType::NvGpuManager:
-        return CreateNvManagerGpuInfoProvider(config.TryGetConcrete<EGpuInfoSourceType::NvGpuManager>());
-    case EGpuInfoSourceType::NvidiaSmi:
+    case EGpuInfoProviderType::NvGpuManager:
+        return CreateNvManagerGpuInfoProvider(config.TryGetConcrete<EGpuInfoProviderType::NvGpuManager>());
+    case EGpuInfoProviderType::NvidiaSmi:
         return CreateNvidiaSmiGpuInfoProvider();
-    case EGpuInfoSourceType::GpuAgent:
-        return CreateGpuAgentGpuInfoProvider(config.TryGetConcrete<EGpuInfoSourceType::GpuAgent>());
+    case EGpuInfoProviderType::GpuAgent:
+        return CreateGpuAgentGpuInfoProvider(config.TryGetConcrete<EGpuInfoProviderType::GpuAgent>());
     default:
         YT_ABORT();
     }
