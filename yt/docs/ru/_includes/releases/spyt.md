@@ -8,6 +8,15 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.7.2**" %}
+
+Maintenance release with minor enhancements
+
+- Improving YTsaurus shuffle service integration
+- Spark connect server wrapper for SPYT
+
+{% endcut %}
+
 {% cut "**2.7.1**" %}
 
 **Release date:** 2025-08-15
