@@ -2105,7 +2105,7 @@ class TestRowAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
-    def _make_rlace(self, users, expression=None, mode=None, permission="read"):
+    def _make_rl_ace(self, users, expression=None, mode=None, permission="read"):
         ace = make_ace("allow", users, permission)
         if expression is not None:
             ace["expression"] = expression
@@ -2113,8 +2113,34 @@ class TestRowAcls(YTEnvSetup):
             ace["inapplicable_expression_mode"] = mode
         return ace
 
+    def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True):
+        return read_table(path, authenticated_user=user, omit_inaccessible_rows=omit_inaccessible_rows)
+
+    def _rows(self, *int_seq):
+        return [
+            {"col1": i, "col2": f"val_{i}"}
+            for i in int_seq
+        ]
+
+    def _create_and_write_table(self, acl, optimize_for="scan", schema=None):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+                "acl": acl,
+                "schema": schema or [
+                    {"name": "col1", "type": "int64"},
+                    {"name": "col2", "type": "string"},
+                ],
+                "optimize_for": optimize_for,
+            },
+        )
+        write_table("//tmp/t", self._rows(*range(2, 10)))
+
     @authors("coteeq")
-    def test_row_ace(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_row_ace(self, optimize_for):
         create_user("prime_manager")
         create_user("even_manager")
         create_user("everything_manager")
@@ -2123,27 +2149,16 @@ class TestRowAcls(YTEnvSetup):
         create_user("no_read")
 
         acl = [
-            self._make_rlace("prime_manager", "col1 in (2, 3, 5, 7)"),
-            self._make_rlace("even_manager", "col1 % 2 = 0"),
+            self._make_rl_ace("prime_manager", "col1 in (2, 3, 5, 7)"),
+            self._make_rl_ace("even_manager", "col1 % 2 = 0"),
             make_ace("allow", "everything_manager", "full_read"),
-            self._make_rlace("everything_manager_via_expression", "true"),
-            self._make_rlace(["prime_manager", "even_manager", "only_generic_read"]),
+            self._make_rl_ace("everything_manager_via_expression", "true"),
+            self._make_rl_ace(["prime_manager", "even_manager", "only_generic_read", "everything_manager_via_expression"]),
         ]
 
-        create(
-            "table",
-            "//tmp/t",
-            attributes={
-                "inherit_acl": False,
-                "acl": acl,
-                "schema": [
-                    {"name": "col1", "type": "int64"},
-                    {"name": "col2", "type": "string"},
-                ],
-            },
-        )
+        self._create_and_write_table(acl, optimize_for)
 
-        for user in ["prime_manager", "even_manager", "everything_manager", "only_generic_read"]:
+        for user in ["prime_manager", "even_manager", "everything_manager", "everything_manager_via_expression", "only_generic_read"]:
             get("//tmp/t/@optimize_for", authenticated_user=user)
 
         with raises_yt_error("Access denied for user"):
@@ -2157,6 +2172,16 @@ class TestRowAcls(YTEnvSetup):
 
         copy("//tmp/t", "//tmp/t2_copy", authenticated_user="everything_manager")
         concatenate(["//tmp/t"], "//tmp/t2_copy", authenticated_user="everything_manager")
+
+        assert self._read("prime_manager") == self._rows(2, 3, 5, 7)
+        assert self._read("even_manager") == self._rows(2, 4, 6, 8)
+        assert self._read("everything_manager") == self._rows(*range(2, 10))
+        assert self._read("everything_manager_via_expression") == self._rows(*range(2, 10))
+        assert self._read("only_generic_read") == []
+
+        # Just check for sanity.
+        with raises_yt_error():
+            self._read("no_read")
 
     @authors("coteeq")
     def test_row_ace_validation(self):
@@ -2203,11 +2228,11 @@ class TestRowAcls(YTEnvSetup):
         create_user("u3")
 
         acl = [
-            self._make_rlace("u0", "a < 3"),
-            self._make_rlace(["u0", "u1"], "b == 2"),
-            self._make_rlace(["u0", "u1"], "c == \"asdf\"", "ignore"),
+            self._make_rl_ace("u0", "a < 3"),
+            self._make_rl_ace(["u0", "u1"], "b == 2"),
+            self._make_rl_ace(["u0", "u1"], "c == \"asdf\"", "ignore"),
             make_ace("allow", ["u2"], "full_read"),
-            self._make_rlace(["u3"]),
+            self._make_rl_ace(["u3"]),
         ]
 
         create("table", "//tmp/t", attributes={"acl": acl})
@@ -2216,36 +2241,203 @@ class TestRowAcls(YTEnvSetup):
     @authors("coteeq")
     def test_check_permission_u0(self):
         response = self._prepare_check_permission("u0")
-        response["rlaces"].sort(key=lambda descriptor: descriptor.get("expression", ""))
+        response["rl_acl"].sort(key=lambda descriptor: descriptor.get("expression", ""))
 
-        assert response["rlaces"][0]["expression"] == "a < 3"
-        assert response["rlaces"][1]["expression"] == "b == 2"
-        assert response["rlaces"][2]["expression"] == "c == \"asdf\""
+        assert response["rl_acl"][0]["expression"] == "a < 3"
+        assert response["rl_acl"][1]["expression"] == "b == 2"
+        assert response["rl_acl"][2]["expression"] == "c == \"asdf\""
 
-        assert "inapplicable_expression_mode" not in response["rlaces"][0]
-        assert "inapplicable_expression_mode" not in response["rlaces"][1]
-        assert response["rlaces"][2]["inapplicable_expression_mode"] == "ignore"
+        assert "inapplicable_expression_mode" not in response["rl_acl"][0]
+        assert "inapplicable_expression_mode" not in response["rl_acl"][1]
+        assert response["rl_acl"][2]["inapplicable_expression_mode"] == "ignore"
 
     @authors("coteeq")
     def test_check_permission_u1(self):
         response = self._prepare_check_permission("u1")
-        response["rlaces"].sort(key=lambda descriptor: descriptor["expression"])
+        response["rl_acl"].sort(key=lambda descriptor: descriptor["expression"])
 
-        assert response["rlaces"][0]["expression"] == "b == 2"
-        assert response["rlaces"][1]["expression"] == "c == \"asdf\""
+        assert response["rl_acl"][0]["expression"] == "b == 2"
+        assert response["rl_acl"][1]["expression"] == "c == \"asdf\""
 
-        assert "inapplicable_expression_mode" not in response["rlaces"][0]
-        assert response["rlaces"][1]["inapplicable_expression_mode"] == "ignore"
+        assert "inapplicable_expression_mode" not in response["rl_acl"][0]
+        assert response["rl_acl"][1]["inapplicable_expression_mode"] == "ignore"
 
     @authors("coteeq")
     def test_check_permission_u2(self):
         response = self._prepare_check_permission("u2")
-        assert "rlaces" not in response
+        assert "rl_acl" not in response
 
     @authors("coteeq")
     def test_check_permission_u3(self):
         response = self._prepare_check_permission("u3")
-        assert response["rlaces"] == []
+        assert response["rl_acl"] == []
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["ignore", "deny"])
+    @pytest.mark.parametrize("invalid_reason", ["non_existent_column", "column_type_invalid", "not_boolean", "syntax"])
+    def test_invalid_expression(self, mode, invalid_reason):
+        create_user("u")
+
+        expression = None
+        error = None
+        if invalid_reason == "non_existent_column":
+            expression = "non_existent = 2"
+            error = "Undefined reference"
+        elif invalid_reason == "column_type_invalid":
+            expression = "col1 = \"str\""
+            error = "Type mismatch in expression"
+        elif invalid_reason == "not_boolean":
+            expression = "col1 + 1"
+            error = "result type to be boolean"
+        else:
+            expression = ")col1 == 2("
+            error = "syntax error"
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", expression, mode=mode),
+            ],
+        )
+
+        if mode == "deny":
+            with raises_yt_error(error):
+                assert self._read("u")
+        else:
+            assert self._read("u") == []
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_adjust_columns(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 < 5"),
+            ],
+            optimize_for,
+        )
+
+        assert self._read("u", path="//tmp/t{col2}") == [{"col2": row["col2"]} for row in self._rows(2, 3, 4)]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_missing_in_chunk_column(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [],
+            optimize_for,
+        )
+
+        new_schema = [
+            {"name": "col1", "type": "int64"},
+            {"name": "col2", "type": "string"},
+            {"name": "new_col", "type": "string"},
+        ]
+
+        alter_table("//tmp/t", schema=new_schema)
+
+        set("//tmp/t/@acl/end", self._make_rl_ace("u"))
+        set("//tmp/t/@acl/end", self._make_rl_ace("u", "is_null(new_col) and col1 < 5"))
+
+        assert self._read("u") == self._rows(2, 3, 4)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 < 5"),
+            ],
+            optimize_for,
+        )
+
+        new_schema_1 = [
+            {"name": "forget_me", "type": "int64", "stable_name": "col1"},
+            {"name": "col2", "type": "string"},
+            {"name": "col1", "type": "string", "stable_name": "new_col"},
+        ]
+
+        alter_table("//tmp/t", schema=new_schema_1)
+
+        # col1 is now string and expression is not applicable.
+        with raises_yt_error():
+            assert self._read("u")
+
+        new_schema_2 = [
+            {"name": "forget_me", "type": "int64", "stable_name": "col1"},
+            {"name": "col2", "type": "string"},
+            {"name": "new_col", "type": "string", "stable_name": "new_col"},
+            {"name": "col1", "type": "int64", "stable_name": "even_newer_col"},
+        ]
+        alter_table("//tmp/t", schema=new_schema_2)
+
+        write_table("<append=%true>//tmp/t", {"col1": 12, "col2": "12"})
+
+        # col1 is now null for the first chunk and `null < 5` is always true.
+        assert self._read("u") == [
+            {"forget_me": stable["col1"], "col2": stable["col2"]}
+            for stable in self._rows(*range(2, 10))
+        ]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.xfail(reason="This will be kinda hard :(")
+    def test_read_ranges_index(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 % 2 = 0"),
+            ],
+            optimize_for,
+        )
+
+        assert self._read("u", "//tmp/t[#2]") == self._rows(6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_ranges_keys(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 % 2 = 0"),
+            ],
+            optimize_for,
+            schema=[
+                {"name": "col1", "type": "int64", "sort_order": "ascending"},
+                {"name": "col2", "type": "string"},
+            ]
+        )
+
+        assert self._read("u", "//tmp/t[4]") == self._rows(4)
+        assert self._read("u", "//tmp/t[5]") == []
+        assert self._read("u", "//tmp/t[4:8]") == self._rows(4, 6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_multiple_aces(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 = 4"),
+                self._make_rl_ace("u", "col1 = 5"),
+                self._make_rl_ace("u", "col1 = 6"),
+            ],
+            optimize_for,
+        )
+
+        assert self._read("u") == self._rows(4, 5, 6)
 
 
 ##################################################################
