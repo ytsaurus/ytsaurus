@@ -1258,8 +1258,6 @@ private:
         }
 
         ToProto(request.mutable_transaction_id(), ReplaceTypeInId(transaction->GetId(), newType));
-
-        // Tablet id is an externalization token for itself.
         ToProto(request.mutable_externalization_token(), token);
 
         if constexpr (!std::is_same_v<TOptions, std::monostate>) {
