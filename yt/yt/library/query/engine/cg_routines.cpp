@@ -2977,8 +2977,20 @@ void AnyToYsonString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString NumericToStringImpl(TValue* valueAtHost)
+extern "C" void NumericToString(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* value)
 {
+    auto* compartment = GetCurrentCompartment();
+    auto* resultAtHost = PtrFromVM(compartment, result);
+    auto* valueAtHost = PtrFromVM(compartment, value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
     // TODO(sabdenovch): migrate to std::string.
     auto resultYson = TString();
     auto output = TStringOutput(resultYson);
@@ -2998,44 +3010,7 @@ TString NumericToStringImpl(TValue* valueAtHost)
             YT_ABORT();
     }
 
-    return resultYson;
-}
-
-extern "C" void NumericToString(
-    TExpressionContext* context,
-    TValue* result,
-    TValue* value)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto* resultAtHost = PtrFromVM(compartment, result);
-    auto* valueAtHost = PtrFromVM(compartment, value);
-
-    if (valueAtHost->Type == EValueType::Null) {
-        resultAtHost->Type = EValueType::Null;
-        return;
-    }
-
-    auto resultYson = NumericToStringImpl(valueAtHost);
-
     NDetail::CopyString(context, result, resultYson);
-}
-
-extern "C" void NumericToStringPI(
-    TExpressionContext* context,
-    TPIValue* positionIndependentResult,
-    TPIValue* positionIndependentValue)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto valueAtHost = TValue{};
-    MakeUnversionedFromPositionIndependent(&valueAtHost, *PtrFromVM(compartment, positionIndependentValue));
-
-    if (valueAtHost.Type == EValueType::Null) {
-        PtrFromVM(compartment, positionIndependentResult)->Type = EValueType::Null;
-        return;
-    }
-
-    auto resultYson = NumericToStringImpl(&valueAtHost);
-    NDetail::CopyString(context, positionIndependentResult, resultYson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3070,37 +3045,6 @@ extern "C" void NumericToStringPI(
 DEFINE_CONVERT_STRING(Int64)
 DEFINE_CONVERT_STRING(Uint64)
 DEFINE_CONVERT_STRING(Double)
-
-#define DEFINE_CONVERT_STRING_PI(TYPE) \
-    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* /*context*/, TPIValue* pIResult, TPIValue* pIValue) \
-    { \
-        auto* compartment = GetCurrentCompartment(); \
-        auto* resultAtHost = PtrFromVM(compartment, pIResult); \
-        auto* valueAtHost = PtrFromVM(compartment, pIValue); \
-        if (valueAtHost->Type == EValueType::Null) { \
-            MakePositionIndependentNullValue(resultAtHost); \
-            return; \
-        } \
-        NYson::TToken token; \
-        NYson::TStatelessLexer lexer; \
-        auto valueString = valueAtHost->AsStringBuf(); \
-        lexer.ParseToken(valueString, &token); \
-        if (token.GetType() == NYson::ETokenType::Int64) { \
-            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetInt64Value()); \
-        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetUint64Value()); \
-        } else if (token.GetType() == NYson::ETokenType::Double) { \
-            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetDoubleValue()); \
-        } else { \
-            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
-                valueString, \
-                EValueType::TYPE); \
-        } \
-    }
-
-DEFINE_CONVERT_STRING_PI(Int64)
-DEFINE_CONVERT_STRING_PI(Uint64)
-DEFINE_CONVERT_STRING_PI(Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4323,13 +4267,9 @@ REGISTER_ROUTINE(ListContains);
 REGISTER_ROUTINE(ListHasIntersection);
 REGISTER_ROUTINE(AnyToYsonString);
 REGISTER_ROUTINE(NumericToString);
-REGISTER_ROUTINE(NumericToStringPI);
 REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
-REGISTER_ROUTINE(StringToInt64PI);
-REGISTER_ROUTINE(StringToUint64PI);
-REGISTER_ROUTINE(StringToDoublePI);
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);

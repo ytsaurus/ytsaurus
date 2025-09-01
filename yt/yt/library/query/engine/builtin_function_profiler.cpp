@@ -424,17 +424,19 @@ class TUserCastCodegen
     : public IFunctionCodegen
 {
 public:
-    TUserCastCodegen() = default;
+    explicit TUserCastCodegen(TWeakPtr<TFunctionProfilerMap> functionProfilers)
+        : FunctionProfilers_(std::move(functionProfilers))
+    { }
 
     TCodegenExpression Profile(
         TCGVariables* variables,
         std::vector<size_t> argIds,
-        std::unique_ptr<bool[]> /*literalArgs*/,
+        std::unique_ptr<bool[]> literalArgs,
         const std::vector<TLogicalTypePtr>& argumentTypes,
         const TLogicalTypePtr& targetType,
-        const std::string& /*name*/,
-        NCodegen::EExecutionBackend /*executionBackend*/,
-        llvm::FoldingSetNodeID* /*id*/) const override
+        const std::string& name,
+        NCodegen::EExecutionBackend executionBackend,
+        llvm::FoldingSetNodeID* id) const override
     {
         YT_VERIFY(argIds.size() == 1);
 
@@ -481,25 +483,44 @@ public:
             };
         };
 
+        auto codegenCastViaFunction = [&] (const std::string& functionName) {
+            return GetProfilersOrThrow()
+                ->GetFunction(functionName)
+                ->Profile(
+                    variables,
+                    std::move(argIds),
+                    std::move(literalArgs),
+                    argumentTypes,
+                    targetType,
+                    name,
+                    executionBackend,
+                    id);
+        };
+
         if (sourceSimpleType == ESimpleLogicalValueType::Any) {
             switch (targetSimpleType) {
                 case ESimpleLogicalValueType::Any:
+                    codegenCast = std::bind(CodegenFragment, std::placeholders::_1, argIds[0]);
+
                     if (wireTargetType == EValueType::Any) {
-                        codegenCast = [=, argId = argIds[0]] (TCGExprContext& builder) {
-                            auto value = CodegenFragment(builder, argId);
-                            if (wireSourceType == EValueType::Composite) {
-                                value = TCGValue::Create(
+                        if (wireSourceType == EValueType::Composite) {
+                            codegenCast = [=] (TCGExprContext& builder) {
+                                auto value = codegenCast(builder);
+                                return TCGValue::Create(
                                     builder,
                                     value.GetIsNull(builder),
                                     value.GetLength(),
                                     value.GetData(),
                                     EValueType::Any);
-                            }
-                            return value;
-                        };
+                            };
+                        }
                     } else {
-                        codegenCast = CodegenCastToV3TypeWithValidation(variables, argIds[0], targetType);
+                        codegenCast = CodegenCastToV3TypeWithValidation(
+                            variables,
+                            codegenCast,
+                            targetType);
                     }
+
                     break;
 
                 case ESimpleLogicalValueType::Int64:
@@ -528,15 +549,15 @@ public:
         } else if (sourceSimpleType == ESimpleLogicalValueType::String) {
             switch (targetSimpleType) {
                 case ESimpleLogicalValueType::Int64:
-                    codegenCast = codegenCastViaRoutine("StringToInt64PI");
+                    codegenCast = codegenCastViaFunction("parse_int64");
                     break;
 
                 case ESimpleLogicalValueType::Uint64:
-                    codegenCast = codegenCastViaRoutine("StringToUint64PI");
+                    codegenCast = codegenCastViaFunction("parse_uint64");
                     break;
 
                 case ESimpleLogicalValueType::Double:
-                    codegenCast = codegenCastViaRoutine("StringToDoublePI");
+                    codegenCast = codegenCastViaFunction("parse_double");
                     break;
 
                 case ESimpleLogicalValueType::String:
@@ -545,9 +566,17 @@ public:
                     };
                     break;
 
+                case ESimpleLogicalValueType::Any:
+                    if (wireTargetType == EValueType::Composite) {
+                        throwBadCast();
+                    }
+                    codegenCast = codegenCastViaFunction("to_any");
+                    break;
+
                 default:
                     throwBadCast();
             }
+
         } else {
             switch (targetSimpleType) {
                 case ESimpleLogicalValueType::Int64:
@@ -572,12 +601,36 @@ public:
                         case ESimpleLogicalValueType::Uint8:
                         case ESimpleLogicalValueType::Double:
                         case ESimpleLogicalValueType::Float:
-                            codegenCast = codegenCastViaRoutine("NumericToStringPI");
+                        case ESimpleLogicalValueType::Null:
+                            codegenCast = codegenCastViaFunction("numeric_to_string");
                             break;
 
                         default:
                             throwBadCast();
                     }
+                    break;
+
+                case ESimpleLogicalValueType::Any:
+                    switch (sourceSimpleType) {
+                        case ESimpleLogicalValueType::Boolean:
+                        case ESimpleLogicalValueType::Int64:
+                        case ESimpleLogicalValueType::Int32:
+                        case ESimpleLogicalValueType::Int16:
+                        case ESimpleLogicalValueType::Int8:
+                        case ESimpleLogicalValueType::Uint64:
+                        case ESimpleLogicalValueType::Uint32:
+                        case ESimpleLogicalValueType::Uint16:
+                        case ESimpleLogicalValueType::Uint8:
+                        case ESimpleLogicalValueType::Double:
+                        case ESimpleLogicalValueType::Float:
+                        case ESimpleLogicalValueType::Null:
+                            codegenCast = codegenCastViaFunction("to_any");
+                            break;
+
+                        default:
+                            throwBadCast();
+                    }
+
                     break;
 
                 default:
@@ -605,7 +658,7 @@ public:
 
     TCodegenExpression CodegenCastToV3TypeWithValidation(
         TCGVariables* variables,
-        size_t argumentFragmentId,
+        TCodegenExpression codegenArgument,
         const TLogicalTypePtr& logicalType) const
     {
         int opaqueTypeIndex = variables->AddOpaque<TLogicalTypePtr>(logicalType);
@@ -616,7 +669,7 @@ public:
             auto resultPtr = builder->CreateAlloca(unversionedValueType, nullptr, "resultPtr");
             auto valuePtr = builder->CreateAlloca(unversionedValueType);
 
-            auto cgValue = CodegenFragment(builder, argumentFragmentId);
+            auto cgValue = codegenArgument(builder);
             cgValue.StoreToValue(builder, valuePtr);
 
             builder->CreateCall(
@@ -638,6 +691,19 @@ public:
     {
         YT_VERIFY(nullableArgs.size() == 1);
         return nullableArgs[0];
+    }
+
+private:
+    TWeakPtr<TFunctionProfilerMap> FunctionProfilers_;
+
+    TFunctionProfilerMapPtr GetProfilersOrThrow() const
+    {
+        auto functionProfilers = FunctionProfilers_.Lock();
+
+        THROW_ERROR_EXCEPTION_UNLESS(functionProfilers,
+            "Could not acquire function profilers, the program must be terminating");
+
+        return functionProfilers;
     }
 
 };
@@ -1565,14 +1631,16 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
         GetCallingConvention(ECallingConvention::Simple),
         TSharedRef()));
 
+    auto userCastCodegen = New<NBuiltins::TUserCastCodegen>(MakeWeak(result));
+
     result->emplace("is_null", New<NBuiltins::TIsNullCodegen>());
     result->emplace("is_nan", New<NBuiltins::TIsNaNCodegen>());
-    result->emplace("int64", New<NBuiltins::TUserCastCodegen>());
-    result->emplace("uint64", New<NBuiltins::TUserCastCodegen>());
-    result->emplace("double", New<NBuiltins::TUserCastCodegen>());
-    result->emplace("boolean", New<NBuiltins::TUserCastCodegen>());
-    result->emplace("string", New<NBuiltins::TUserCastCodegen>());
-    result->emplace("cast_operator", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("int64", userCastCodegen);
+    result->emplace("uint64", userCastCodegen);
+    result->emplace("double", userCastCodegen);
+    result->emplace("boolean", userCastCodegen);
+    result->emplace("string", userCastCodegen);
+    result->emplace("cast_operator", userCastCodegen);
     result->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
     result->emplace("coalesce", New<NBuiltins::TCoalesceCodegen>());
 
