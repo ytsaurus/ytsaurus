@@ -353,6 +353,8 @@ class TVersionedValueReader
     : public TScanVersionExtractor<Aggregate>
     , public TScanDataExtractor<Type>
 {
+    using TDataExtractor = TScanDataExtractor<Type>;
+
 public:
     static constexpr bool Aggregate_ = Aggregate;
     static constexpr EValueType Type_ = Type;
@@ -360,7 +362,7 @@ public:
     void Init(const TValueMeta<Type>* meta, const ui64* ptr, TTmpBuffers* tmpBuffers, bool newMeta)
     {
         ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, newMeta);
-        TScanDataExtractor<Type>::InitData(meta, ptr, tmpBuffers, newMeta);
+        TDataExtractor::InitData(meta, ptr, tmpBuffers, newMeta);
     }
 
     void Init(
@@ -372,7 +374,7 @@ public:
         bool newMeta)
     {
         ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, spans, batchSize, newMeta);
-        TScanDataExtractor<Type>::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount, newMeta);
+        TDataExtractor::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount, newMeta);
     }
 };
 
@@ -381,6 +383,8 @@ class TVersionedValueLookuper
     : public TLookupVersionExtractor<Aggregate>
     , public TLookupDataExtractor<Type>
 {
+    using TDataExtractor = TLookupDataExtractor<Type>;
+
 public:
     static constexpr bool Aggregate_ = Aggregate;
     static constexpr EValueType Type_ = Type;
@@ -389,13 +393,13 @@ public:
     Y_FORCE_INLINE void Init(const TValueMeta<Type>* meta, const ui64* ptr)
     {
         ptr = TLookupVersionExtractor<Aggregate>::template InitVersion<NewMeta>(meta, ptr);
-        TLookupDataExtractor<Type>::template InitData<NewMeta>(meta, ptr);
+        TDataExtractor::template InitData<NewMeta>(meta, ptr);
     }
 
     Y_FORCE_INLINE void Prefetch(ui32 valueIdx) const
     {
         TLookupVersionExtractor<Aggregate>::Prefetch(valueIdx);
-        TLookupDataExtractor<Type>::Prefetch(valueIdx);
+        TDataExtractor::Prefetch(valueIdx);
     }
 };
 
@@ -463,6 +467,7 @@ struct TSpecializedVersionedValueLookuper
     : public TVersionedValueLookuper<Type, Aggregate>
 {
     using TBase = TVersionedValueLookuper<Type, Aggregate>;
+
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const
     {
         if constexpr (Direct) {
@@ -608,7 +613,7 @@ class TVersionedValueColumn<ui32, Type, Aggregate, ProduceAll>
 public:
     using TVersionedValueBase = TVersionedValueLookuper<Type, Aggregate>;
 
-    TVersionedValueColumn(const TColumnBase* columnBase)
+    explicit TVersionedValueColumn(const TColumnBase* columnBase)
         : TValueColumnBase<ui32>(columnBase, Aggregate)
     { }
 
@@ -847,7 +852,7 @@ public:
 
     using TValueColumnBase<TReadSpan>::SkipTo;
 
-    TVersionedValueColumn(const TColumnBase* columnBase)
+    explicit TVersionedValueColumn(const TColumnBase* columnBase)
         : TValueColumnBase<TReadSpan>(columnBase, Aggregate)
     { }
 
@@ -975,7 +980,6 @@ struct TTimestampExtractor<TReadSpan>
         }
         return GetSegmentRowLimit();
     }
-
 };
 
 template <>
@@ -999,7 +1003,6 @@ struct TTimestampExtractor<ui32>
         }
         return GetSegmentRowLimit();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1250,34 +1253,25 @@ public:
     template <EValueType Type>
     struct TCreateVersionedValueColumn
     {
-        template <bool Aggregate>
-        static TValueColumnHolder DoInner(
-            char** memoryArea,
-            const TColumnBase* columnBase,
-            bool produceAll)
+        template <bool Aggregate, bool ProduceAll>
+        static TValueColumnHolder DoWithAggregateAndProduceAll(char** memoryArea, const TColumnBase* columnBase)
         {
-            if (produceAll) {
-                return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, true>>(
-                    memoryArea,
-                    columnBase)};
-            } else {
-                return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, false>>(
-                    memoryArea,
-                    columnBase)};
-            }
+            return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, ProduceAll>>(memoryArea, columnBase)};
         }
 
-        static TValueColumnHolder Do(
-            char** memoryArea,
-            const TColumnBase* columnBase,
-            bool aggregate,
-            bool produceAll)
+        template <bool Aggregate>
+        static TValueColumnHolder DoWithAggregate(char** memoryArea, const TColumnBase* columnBase, bool produceAll)
         {
-            if (aggregate) {
-                return DoInner<true>(memoryArea, columnBase, produceAll);
-            } else {
-                return DoInner<false>(memoryArea, columnBase, produceAll);
-            }
+            return produceAll
+                ? DoWithAggregateAndProduceAll<Aggregate, true>(memoryArea, columnBase)
+                : DoWithAggregateAndProduceAll<Aggregate, false>(memoryArea, columnBase);
+        }
+
+        static TValueColumnHolder Do(char** memoryArea, const TColumnBase* columnBase, bool aggregate, bool produceAll)
+        {
+            return aggregate
+                ? DoWithAggregate<true>(memoryArea, columnBase, produceAll)
+                : DoWithAggregate<false>(memoryArea, columnBase, produceAll);
         }
     };
 
@@ -1324,7 +1318,7 @@ public:
         EValueType::Composite
     >();
 
-    explicit TRowsetBuilder(TRowsetBuilderParams params, ECreateKeyReadersMode createKeyReadersMode)
+    TRowsetBuilder(const TRowsetBuilderParams& params, ECreateKeyReadersMode createKeyReadersMode)
         : TBase(
             // Init timestamp column.
             params.ColumnInfos.Back(),
