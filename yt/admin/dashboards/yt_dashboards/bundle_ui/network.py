@@ -16,7 +16,7 @@ def build_tablet_network():
 
     # TODO: show per-user lines with host=Aggr and per-host with host=!Aggr.
     return (Rowset()
-        .aggr("table_tag", "table_path")
+        .aggr("table_tag", "table_path", "medium")
         .all("#UB")
         .top()
         .stack(True)
@@ -113,7 +113,7 @@ def build_rpc_message_size_stats_per_host(
     sensor_class, client_or_server, name_prefix, name_suffix=""
 ):
     s = (sensor_class("yt.rpc.{}.{{}}.rate".format(client_or_server))
-         .aggr("method", "yt_service", "user")
+         .aggr("method", "yt_service", "user", "recognized")
          .stack(False)
          .top())
     if name_suffix:
