@@ -3881,10 +3881,13 @@ private:
             newTabletCount,
             pivotKeys);
 
-        // Calculate retained timestamp for removed tablets.
+        // Calculate retained and unflushed timestamp for removed tablets.
         auto retainedTimestamp = MinTimestamp;
+        auto unflushedTimestamp = MaxTimestamp;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            retainedTimestamp = std::max(retainedTimestamp, tablets[index]->As<TTablet>()->GetRetainedTimestamp());
+            auto* tablet = tablets[index]->As<TTablet>();
+            retainedTimestamp = std::max(retainedTimestamp, tablet->GetRetainedTimestamp());
+            unflushedTimestamp = std::min(unflushedTimestamp, tablet->NodeStatistics().unflushed_timestamp());
         }
 
         // Save eden stores of removed tablets.
@@ -3919,6 +3922,7 @@ private:
                 }
             }
             newTablet->SetRetainedTimestamp(retainedTimestamp);
+            newTablet->NodeStatistics().set_unflushed_timestamp(unflushedTimestamp);
             newTablets.push_back(newTablet);
 
             if (table->IsReplicated()) {
@@ -5665,7 +5669,13 @@ private:
     {
         auto tabletStatistics = tablet->GetTabletStatistics();
         tablet->GetOwner()->DiscountTabletStatistics(tabletStatistics);
+
+        // Remember unflushed timestamp for unmounted tablets so we could get a better estimate
+        // when they are mounted back with a tablet action.
+        auto unflushedTimestamp = tablet->NodeStatistics().unflushed_timestamp();
         tablet->NodeStatistics().Clear();
+        tablet->NodeStatistics().set_unflushed_timestamp(unflushedTimestamp);
+
         tablet->AuxiliaryNodeStatistics().Clear();
         tablet->PerformanceCounters() = {};
         tablet->SetTabletErrorCount(0);
