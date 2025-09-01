@@ -16,6 +16,7 @@ message TSubquerySpec
     optional string initial_query = 10;
     optional bytes table_reader_config = 11; // YSON-serialized TTableReaderConfig
     optional bytes query_settings = 12; // YSON-serialized TQuerySettings
+    optional NYT.NTableClient.NProto.TColumnarStatisticsExt table_stats = 13;
 };
 
 message TSecondaryQueryReadTask

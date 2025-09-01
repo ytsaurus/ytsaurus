@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
@@ -30,6 +31,7 @@ struct TQueryAnalysisResult
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
     bool JoinedByKeyColumns;
+    bool EnableMinMaxOptimization = false;
 };
 
 struct TSecondaryQuery
@@ -100,8 +102,7 @@ public:
     void Prepare();
 
     //! Prepare method should be called before GetSecondaryQueryBuilder.
-    std::shared_ptr<TSecondaryQueryBuilder> GetSecondaryQueryBuilder(
-        TSubquerySpec specTemplate);
+    std::shared_ptr<TSecondaryQueryBuilder> GetSecondaryQueryBuilder(TSubquerySpec specTemplate);
 
     //! Prepare method should be called before GetOptimizedQueryProcessingStage.
     DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage() const;
@@ -143,6 +144,8 @@ private:
     bool HasInOperator_ = false;
     //! If the query needs only distinct values of one column for execution.
     bool NeedOnlyDistinct_ = false;
+    //! If the query can be done using only min/max column statistics.
+    bool EnableMinMaxOptimization_ = false;
 
     bool Prepared_ = false;
     bool OnlyAnalyze_;
