@@ -620,9 +620,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TTabletDistributedThrottlersVector, DistributedThrottlers);
 
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastFullStructuredHeartbeatTime);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastIncrementalStructuredHeartbeatTime);
-
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::IChunkFragmentReaderPtr, ChunkFragmentReader);
 
     // The number of in-flight write mutations issued by normal users.

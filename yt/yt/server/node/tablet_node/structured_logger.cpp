@@ -82,27 +82,13 @@ public:
             incrementalHeartbeatPeriod = Config_->IncrementalStructuredTabletHeartbeatPeriod;
         }
 
-        auto now = TInstant::Now();
-
         for (auto [tabletId, tablet] : tabletManager->Tablets()) {
             if (initial) {
-                tablet->GetStructuredLogger()->OnFullHeartbeat();
-                tablet->SetLastFullStructuredHeartbeatTime(
-                    now - RandomDuration(fullHeartbeatPeriod));
-                tablet->SetLastIncrementalStructuredHeartbeatTime(
-                    now - RandomDuration(incrementalHeartbeatPeriod));
+                tablet->GetStructuredLogger()->Initialize(fullHeartbeatPeriod, incrementalHeartbeatPeriod);
                 break;
             }
 
-            auto lastFull = tablet->GetLastFullStructuredHeartbeatTime();
-            auto lastIncremental = tablet->GetLastIncrementalStructuredHeartbeatTime();
-            lastIncremental = std::max(lastIncremental, lastFull);
-
-            if (now - lastFull > fullHeartbeatPeriod) {
-                tablet->GetStructuredLogger()->OnFullHeartbeat();
-            } else if (now - lastIncremental > incrementalHeartbeatPeriod) {
-                tablet->GetStructuredLogger()->OnIncrementalHeartbeat();
-            }
+            tablet->GetStructuredLogger()->ExecuteHeartbeatsIfNeeded(fullHeartbeatPeriod, incrementalHeartbeatPeriod);
         }
     }
 
@@ -192,6 +178,41 @@ public:
             .Item("tablet_id").Value(TabletId_);
     }
 
+    void Initialize(TDuration fullHeartbeatPeriod, TDuration incrementalHeartbeatPeriod) override
+    {
+        FullHeartbeatPeriod_ = fullHeartbeatPeriod;
+        IncrementalHeartbeatPeriod_ = incrementalHeartbeatPeriod;
+
+        OnFullHeartbeat();
+
+        auto now = TInstant::Now();
+        LastFullHeartbeatTime_ = now - RandomDuration(FullHeartbeatPeriod_);
+        LastIncrementalHeartbeatTime_ = now - RandomDuration(IncrementalHeartbeatPeriod_);
+    }
+
+    void ExecuteHeartbeatsIfNeeded(TDuration fullHeartbeatPeriod, TDuration incrementalHeartbeatPeriod) override
+    {
+        auto now = TInstant::Now();
+
+        if (FullHeartbeatPeriod_ != fullHeartbeatPeriod) {
+            FullHeartbeatPeriod_ = fullHeartbeatPeriod;
+            LastFullHeartbeatTime_ = now - RandomDuration(FullHeartbeatPeriod_);
+        }
+
+        if (IncrementalHeartbeatPeriod_ != incrementalHeartbeatPeriod) {
+            IncrementalHeartbeatPeriod_ = incrementalHeartbeatPeriod;
+            LastIncrementalHeartbeatTime_ = now - RandomDuration(IncrementalHeartbeatPeriod_);
+        }
+
+        auto lastIncremental = std::max(LastIncrementalHeartbeatTime_, LastFullHeartbeatTime_);
+
+        if (now - LastFullHeartbeatTime_ > FullHeartbeatPeriod_) {
+            OnFullHeartbeat();
+        } else if (now - lastIncremental > IncrementalHeartbeatPeriod_) {
+            OnIncrementalHeartbeat();
+        }
+    }
+
     void OnFullHeartbeat() override
     {
         if (!Enabled_) {
@@ -238,7 +259,7 @@ public:
             })
             .Item("dynamic_store_id_pool").List(Tablet_->DynamicStoreIdPool());
 
-        Tablet_->SetLastFullStructuredHeartbeatTime(TInstant::Now());
+        LastFullHeartbeatTime_ = TInstant::Now();
     }
 
     void OnIncrementalHeartbeat() override
@@ -282,7 +303,7 @@ public:
                     });
         }
 
-        Tablet_->SetLastIncrementalStructuredHeartbeatTime(TInstant::Now());
+        LastIncrementalHeartbeatTime_ = TInstant::Now();
     }
 
     void OnStoreRotated(
@@ -507,6 +528,12 @@ private:
     TTablet* const Tablet_;
     const TTabletId TabletId_;
     std::atomic<bool> Enabled_;
+
+    TDuration FullHeartbeatPeriod_;
+    TDuration IncrementalHeartbeatPeriod_;
+
+    TInstant LastFullHeartbeatTime_;
+    TInstant LastIncrementalHeartbeatTime_;
 
     template <class T>
     TGuid GetObjectId(const T& object)
