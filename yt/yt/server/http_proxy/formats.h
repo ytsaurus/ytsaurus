@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/misc/public.h>
 
+#include <yt/yt/core/http/public.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +36,17 @@ TString FormatToMime(const NFormats::TFormat& format);
 
 NYTree::INodePtr ConvertBytesToNode(
     TStringBuf bytes,
+    const NFormats::TFormat& format);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillFormattedYTErrorHeaders(
+    const NHttp::IResponseWriterPtr& rsp,
+    const TError& error,
+    const NFormats::TFormat& format);
+void FillFormattedYTErrorTrailers(
+    const NHttp::IResponseWriterPtr& rsp,
+    const TError& error,
     const NFormats::TFormat& format);
 
 ////////////////////////////////////////////////////////////////////////////////
