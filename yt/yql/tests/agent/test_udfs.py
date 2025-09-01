@@ -11,6 +11,7 @@ class TestUdfs(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("max42")
+    @pytest.mark.timeout(120)
     def test_simple_udf(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
         write_table("//tmp/t", [
@@ -25,6 +26,7 @@ class TestUdfs(TestQueriesYqlBase):
         assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
 
     @authors("max42")
+    @pytest.mark.timeout(120)
     def test_folder(self, query_tracker, yql_agent):
         create(
             "table", "//tmp/folder/t",
@@ -49,6 +51,7 @@ class TestUdfs(TestQueriesYqlBase):
         assert_items_equal(result, expected_result)
 
     @authors("max42")
+    @pytest.mark.timeout(120)
     def test_rename_members(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
