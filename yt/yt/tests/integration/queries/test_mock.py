@@ -757,6 +757,29 @@ class TestShare(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
+class TestSecrets(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+    ENABLE_MULTIDAEMON = True
+
+    @authors("mpereskokova")
+    def test_secrets(self, query_tracker):
+        secrets = [{'category': '', 'id': 'geheim', 'subcategory': '', 'ypath': '//tmp/secret_path_to_secret_value'}]
+
+        q1 = start_query("mock", "complete_after", settings={"duration": 1000}, secrets=secrets)
+        q1.track()
+        q1_info = q1.get()
+        assert q1_info["secrets"] == secrets
+
+        q2 = start_query("mock", "fail", secrets=secrets)
+        with raises_yt_error("failed"):
+            q2.track()
+        q2_info = q2.get()
+        assert q2_info["secrets"] == secrets
+
+
+@pytest.mark.enabled_multidaemon
 class TestIndexTables(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -1104,6 +1127,15 @@ class TestAccessControlRpcProxy(TestAccessControl):
 @authors("mpereskokova")
 @pytest.mark.enabled_multidaemon
 class TestShareRpcProxy(TestShare):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
+class TestSecretsRpcProxy(TestSecrets):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1

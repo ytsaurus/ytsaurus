@@ -1323,6 +1323,9 @@ void ToProto(
     if (query.OtherAttributes) {
         ToProto(protoQuery->mutable_other_attributes(), *query.OtherAttributes);
     }
+    if (query.Secrets) {
+        protoQuery->set_secrets(query.Secrets->ToString());
+    }
 }
 
 void FromProto(
@@ -1361,6 +1364,11 @@ void FromProto(
         query->OtherAttributes = NYTree::FromProto(protoQuery.other_attributes());
     } else if (query->OtherAttributes) {
         query->OtherAttributes->Clear();
+    }
+    if (protoQuery.has_secrets()) {
+        query->Secrets = TYsonString(protoQuery.secrets());
+    } else if (query->Secrets) {
+        query->Secrets = TYsonString{};
     }
 }
 
