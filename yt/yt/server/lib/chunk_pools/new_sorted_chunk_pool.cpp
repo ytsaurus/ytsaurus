@@ -361,12 +361,12 @@ private:
         WaitFor(chunkSliceFetcher->Fetch())
             .ThrowOnError();
 
-        for (const auto& chunkSlice : chunkSliceFetcher->GetChunkSlices()) {
+        for (auto& chunkSlice : chunkSliceFetcher->GetChunkSlices()) {
             YT_VERIFY(!chunkSlice->IsLegacy);
             auto* originalDataSliceAndInputCookie = inputChunkToOwningDataSlice.FindPtr(chunkSlice->GetInputChunk());
             YT_VERIFY(originalDataSliceAndInputCookie);
             const auto& [originalDataSlice, inputCookie] = *originalDataSliceAndInputCookie;
-            auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+            auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
             dataSlice->CopyPayloadFrom(*originalDataSlice);
 
             const auto& comparator = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary()
