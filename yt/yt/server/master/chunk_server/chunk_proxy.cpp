@@ -1017,10 +1017,9 @@ private:
                 }
 
                 return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
-                    .Apply(BIND([=, this_ = MakeStrong(this)] (TChunkLocationPtrWithReplicaInfoList replicas) {
-                        RemoveDeadReplicas(replicas);
-
-                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, replicas);
+                    .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
+                        auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
+                        auto statuses = chunkReplicator->ComputeChunkStatuses(chunk, aliveReplicas);
 
                         return BuildYsonStringFluently().DoMapFor(
                             statuses.begin(),
@@ -1121,10 +1120,11 @@ private:
 
                 auto chunkId = chunk->GetId();
                 return chunkReplicaFetcher->GetChunkReplicasAsync({TEphemeralObjectPtr<TChunk>(chunk)})
-                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TChunkLocationPtrWithReplicaInfoList& replicas) {
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& replicas) {
+                        auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
-                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, replicas);
+                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, aliveReplicas);
                             });
                     }));
             }
@@ -1136,9 +1136,11 @@ private:
 
                 auto chunkId = chunk->GetId();
                 return chunkReplicaFetcher->GetOnlySequoiaChunkReplicas({chunk->GetId()}, /*unapproved*/ true, /*force*/ true)
-                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>& replicas) {
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>& replicas) {
                         auto it = replicas.find(chunkId);
-                        const auto& chunkReplicas = it != replicas.end() ? it->second : TChunkLocationPtrWithReplicaInfoList();
+                        const auto& chunkReplicas = it != replicas.end()
+                            ? chunkReplicaFetcher->FilterAliveReplicas(it->second)
+                            : TChunkLocationPtrWithReplicaInfoList();
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
                                 BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, chunkReplicas);
