@@ -22,6 +22,7 @@ enum class EValueType : uint8_t
     Boolean = 0x06,
     String = 0x10,
     Any = 0x11,
+    Composite = 0x12,
     Max = 0xef
 };
 
