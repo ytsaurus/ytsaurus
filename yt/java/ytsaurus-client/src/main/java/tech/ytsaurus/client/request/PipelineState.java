@@ -2,7 +2,7 @@ package tech.ytsaurus.client.request;
 
 /**
  * Flow Pipeline state. NYT::NFlow::EPipelineState
- * </p>
+ * <p>
  * 1) Stopped - everything stopped and all internal queues is empty.
  * 2) Paused - everything stopped but some internal queues may not be empty.
  * 3) Working - usual work.
