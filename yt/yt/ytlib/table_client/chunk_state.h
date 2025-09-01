@@ -26,6 +26,7 @@ struct TChunkState final
     TTableSchemaPtr TableSchema;
     std::optional<NChunkClient::TDataSource> DataSource;
     TChunkColumnMappingPtr ChunkColumnMapping;
+    IRlsCheckerPtr RlsChecker;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkState)

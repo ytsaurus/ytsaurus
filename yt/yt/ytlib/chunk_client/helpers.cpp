@@ -36,6 +36,8 @@
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
+#include <yt/yt/ytlib/security_client/acl.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/helpers.h>
@@ -164,6 +166,7 @@ void GetUserObjectBasicAttributes(
         auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetObjectIdPathIfAvailable());
         req->set_permission(ToProto(permission));
         req->set_omit_inaccessible_columns(options.OmitInaccessibleColumns);
+        req->set_omit_inaccessible_rows(options.OmitInaccessibleRows);
         req->set_populate_security_tags(options.PopulateSecurityTags);
         if (auto optionalColumns = userObject->Path.GetColumns()) {
             auto* protoColumns = req->mutable_columns();
@@ -206,6 +209,11 @@ void GetUserObjectBasicAttributes(
         userObject->ExternalTransactionId = rsp->has_external_transaction_id()
             ? FromProto<TTransactionId>(rsp->external_transaction_id())
             : userObject->TransactionId.value_or(defaultTransactionId);
+
+        if (rsp->has_rl_acl()) {
+            userObject->RlAcl.emplace();
+            FromProto(&*userObject->RlAcl, rsp->rl_acl().items());
+        }
     }
 
     YT_LOG_DEBUG("Basic attributes received (Attributes: %v)",
