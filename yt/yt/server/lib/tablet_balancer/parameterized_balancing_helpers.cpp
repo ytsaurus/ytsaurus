@@ -57,8 +57,7 @@ double Sqr(double x)
 
 bool IsTableMovable(TTableId tableId)
 {
-    auto type = TypeFromId(tableId);
-    return type == EObjectType::Table || type == EObjectType::ReplicatedTable;
+    return IsTableType(TypeFromId(tableId));
 }
 
 TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith(
@@ -70,7 +69,7 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
         maxMoveActionCount = std::min(maxMoveActionCount, *maxMoveActionHardLimit);
     }
 
-    // Temporary. Verify that if uniform is enable then factors was changed properly.
+    // Temporary. Verify that if uniform is enabled then factors were changed properly.
     auto factors = Factors->MergeWith(groupConfig->Factors);
     YT_VERIFY(!groupConfig->PerTableUniform.value_or(false) ||
         factors->TableCell > 0.0 && factors->TableNode > 0.0);
