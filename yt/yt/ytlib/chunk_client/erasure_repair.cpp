@@ -784,12 +784,10 @@ TFuture<void> AdaptiveRepairErasedParts(
                 readOptions,
                 writeOptions);
 
-            return future.Apply(BIND([=/*, writers = std::move(writers)*/] (const TError& repairError) {
+            return future.Apply(BIND([=] (const TError& repairError) {
                 if (repairError.IsOK()) {
                     return VoidFuture;
                 }
-
-                Cerr << "Failed to repair erased parts: " << ToString(repairError) << Endl;
 
                 return CancelWriters(writers)
                     .Apply(BIND([=] (const TError& cancelError) {
