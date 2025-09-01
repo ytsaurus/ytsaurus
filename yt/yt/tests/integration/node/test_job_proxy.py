@@ -629,3 +629,20 @@ class TestJobProxySignatures(YTEnvSetup):
         new_config["validation"]["cypress_key_reader"]["path"] = new_path
         update_nodes_dynamic_config(path="exec_node/signature_components", value=new_config)
         wait(lambda: ls(new_path))
+
+
+@authors("khlebnikov")
+class TestJobProxyTls(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    ENABLE_TLS = True
+
+    def test_smoke(self):
+        run_test_vanilla("true", track=True)
+
+
+@authors("khlebnikov")
+class TestJobProxyTlsCri(TestJobProxyTls):
+    JOB_ENVIRONMENT_TYPE = "cri"
