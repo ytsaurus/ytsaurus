@@ -509,6 +509,9 @@ public:
                 SortUnique(hunkTabletTrailingChunks, TObjectIdComparer());
                 auto* newLastHunkTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
                 chunkManager->AttachToChunkList(newLastHunkTabletChunkList, hunkTabletTrailingChunks);
+                // TODO(babenko): fix properly in YT-26056
+                objectManager->RefObject(newTabletChunkLists[EChunkListContentType::Hunk].back());
+                objectManager->UnrefObject(newTabletChunkLists[EChunkListContentType::Hunk].back());
                 newTabletChunkLists[EChunkListContentType::Hunk].back() = newLastHunkTabletChunkList;
             } else {
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
