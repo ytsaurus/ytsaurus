@@ -159,6 +159,9 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(1.5);
     registrar.Parameter("enable_input_specs_pulling", &TThis::EnableInputSpecsPulling)
         .Default(false);
+
+    registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
+        .Default(false);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -266,6 +269,9 @@ void TQuerySettings::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("need_only_distinct", &TThis::NeedOnlyDistinct)
+        .Default(false);
+
+    registrar.Parameter("enable_min_max_optimization", &TThis::EnableMinMaxOptimization)
         .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {

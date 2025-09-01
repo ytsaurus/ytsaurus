@@ -30,6 +30,7 @@ struct TQueryInput
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
     NChunkPools::TInputStreamDirectory InputStreamDirectory;
     std::vector<std::shared_ptr<IChytIndexStat>> IndexStats;
+    std::optional<NTableClient::TColumnarStatistics> TableStatistics;
 };
 
 //! Fetch data slices for given input tables.
