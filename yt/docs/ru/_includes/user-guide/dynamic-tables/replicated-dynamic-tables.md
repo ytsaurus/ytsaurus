@@ -344,7 +344,7 @@ yt set //tmp/replicated_table/@mount_config/replication_throttler '{period=1000;
 | state                | TableReplicaState | Состояние реплики                                        |
 | mode                 | TableReplicaMode  | Режим работы реплики: `async` или `sync`                    |
 | replication_lag_time | Duration          | Оценка лага реплики                                         |
-| errors               | Error[*](**)           | Список ошибок при репликации на данную реплику              |
+| errors               | Error[*](*error)           | Список ошибок при репликации на данную реплику              |
 | preserve_timestamps  | bool              | Сохранять исходные `timestamp` ? По умолчанию `true`. Имеет смысл только для асинхронных реплик |
 | atomicity            | EAtomicity        | `full` или `none`. Имеет смысл только для асинхронных реплик |
 
@@ -543,4 +543,4 @@ yt get '#730e-8611b-3ff02c5-f647333f/@tablets'
 # Видно, что значения flushed_row_count и current_replication_row_index одинаковы, т. е. обе реплики полностью отреплицированы.
 ```
 
-[**]: Параметр встречается в ответе несколько раз.
+[*error]: Параметр встречается в ответе несколько раз.
