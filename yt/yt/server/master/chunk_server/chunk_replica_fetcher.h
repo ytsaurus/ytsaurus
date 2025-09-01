@@ -25,6 +25,8 @@ struct IChunkReplicaFetcher
     virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const = 0;
     virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocation* location) const = 0;
 
+    virtual TChunkLocationPtrWithReplicaInfoList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const = 0;
+
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
         NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
@@ -40,23 +42,22 @@ struct IChunkReplicaFetcher
         bool includeUnapproved = false) const = 0;
 
     // Do not apply anything to these futures using AsyncVia, it will break everything!
-    virtual TFuture<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
+    virtual TFuture<std::vector<TSequoiaChunkReplica>> GetChunkReplicasAsync(
         NObjectServer::TEphemeralObjectPtr<TChunk> chunk,
         bool includeUnapproved = false) const = 0;
-    virtual TFuture<TChunkToLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
+    virtual TFuture<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>> GetChunkReplicasAsync(
         std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>> chunks,
         bool includeUnapproved = false) const = 0;
 
     virtual TFuture<std::vector<TNodeId>> GetLastSeenReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
 
-    virtual TFuture<std::vector<TSequoiaChunkReplica>> GetSequoiaChunkReplicas(
-        const std::vector<TChunkId>& chunkIds) const = 0;
-    virtual TFuture<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>> GetOnlySequoiaChunkReplicas(
+    virtual TFuture<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>> GetOnlySequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds,
         bool includeUnapproved = false,
         bool force = false) const = 0;
-
+    virtual TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
+        const std::vector<TChunkId>& chunkIds) const = 0;
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds) const = 0;
 
