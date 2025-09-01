@@ -114,7 +114,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
             Response_.RlAcl->emplace_back(
                 *ace.Expression,
                 ace.InapplicableExpressionMode
-                    .value_or(NSecurityClient::EInapplicableExpressionMode::Deny));
+                    .value_or(NSecurityClient::EInapplicableExpressionMode::Fail));
         } else {
             ProcessMatchingAceAction(
                 &Response_,

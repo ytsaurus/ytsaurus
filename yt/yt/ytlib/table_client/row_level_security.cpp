@@ -53,11 +53,11 @@ bool ValidateRlAceApplicability(
                 YT_LOG_INFO(ex, "Ignored expression (Expression: %v)", rlAce.Expression);
                 return false;
             }
-            case EInapplicableExpressionMode::Deny: {
+            case EInapplicableExpressionMode::Fail: {
                 auto error = TError(
                     "One of row-level ACE's expression is inapplicable to the table schema "
                     "and ACE has inapplicable_expression_mode=%v",
-                    EInapplicableExpressionMode::Deny)
+                    EInapplicableExpressionMode::Fail)
                     << ex;
 
                 THROW_ERROR std::move(error);
