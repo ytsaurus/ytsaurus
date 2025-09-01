@@ -390,21 +390,21 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
         BuildBound("<=", {5})),
         ESliceType::Foreign);
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(1, 1000, 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
 
     StagingArea_->PromoteUpperBound(BuildBound("<=", {2}));
     FlushAndValidateStatistics({.ExpectedJobCount = 1, .ExpectedDataSliceCount = 2});
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(1, 1000, 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
 
     StagingArea_->PromoteUpperBound(BuildBound("<=", {3}));
     FlushAndValidateStatistics({.ExpectedJobCount = 1, .ExpectedDataSliceCount = 2});
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(1, 1000, 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
 
     StagingArea_->PromoteUpperBound(BuildBound("<", {4}));
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(1, 1000, 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
 
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(3),
@@ -469,7 +469,7 @@ TEST_F(TSortedStagingAreaTest, ForeignResourceVectorTracksAddAndTrimOnFlush)
         ESliceType::Foreign); // F_right
 
     // Verify aggregated foreign resources: 4 slices, total foreign weight = 700+800+500+600 = 2600.
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*count*/ 4, /*dataWeight*/ 2600, /*primaryDataWeight*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 4, /*DW*/ 2600, /*PDW*/ 0));
 
     // Add a primary slice so that a job is built on flush with lower bound at >= 0.
     StagingArea_->Put(CreateDataSlice(
@@ -484,7 +484,7 @@ TEST_F(TSortedStagingAreaTest, ForeignResourceVectorTracksAddAndTrimOnFlush)
     FlushAndValidateStatistics({.ExpectedJobCount = 1, .ExpectedDataSliceCount = 3});
 
     // Remaining foreign slices: F_touch (upper=0 inclusive) and F_right. Total weight = 500 + 600 = 1100.
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*count*/ 2, /*dataWeight*/ 1100, /*primaryDataWeight*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 2, /*DW*/ 1100, /*PDW*/ 0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
