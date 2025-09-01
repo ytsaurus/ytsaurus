@@ -5706,7 +5706,7 @@ private:
             }
         }
 
-        auto replicasOrError = WaitFor(ChunkReplicaFetcher_->GetSequoiaChunkReplicas(chunkIds));
+        auto replicasOrError = WaitFor(ChunkReplicaFetcher_->GetApprovedSequoiaChunkReplicas(chunkIds));
         if (!replicasOrError.IsOK()) {
             YT_LOG_ERROR(replicasOrError, "Error getting Sequoia chunk replicas");
             return;
