@@ -10196,6 +10196,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
+    jobSpec->set_append_debug_options(jobSpecConfig->AppendDebugOptions);
 
     auto specifiedCpuLimit = GetCpuLimit(jobSpecConfig);
     // This is common policy for all operations of given type.

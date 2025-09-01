@@ -4563,3 +4563,41 @@ class TestJobSetupCommandCri(YTEnvSetup):
         err = op.get_error()
         assert err.contains_code(10000)
         assert err.find_matching_error(10000).attributes.get("exit_code") == 1
+
+
+##################################################################
+
+
+@authors("rp-1")
+class TestUserJobDebugOptions(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @pytest.mark.parametrize("should_append", [True, False, None])
+    def test_append_debug_options(self, should_append: bool | None):
+        command = with_breakpoint("BREAKPOINT; echo here are debug options:")
+        task_patch = {"append_debug_options": should_append} if should_append is not None else {}
+
+        run_test_vanilla(
+            command=command,
+            task_patch=task_patch
+        )
+
+        wait_breakpoint()
+
+        output = subprocess.check_output(["ps", "aux"]).decode("utf-8")
+
+        for line in output.split('\n'):
+            if "echo here are debug options:" in line:
+                if should_append:
+                    assert "--job-id" in line
+                    assert "--operation-id" in line
+                else:
+                    assert "--job-id" not in line
+                    assert "--operation-id" not in line
+                break
+        else:
+            assert False, "Process not found"
+
+        release_breakpoint()

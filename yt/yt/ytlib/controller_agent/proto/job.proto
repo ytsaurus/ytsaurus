@@ -347,6 +347,8 @@ message TUserJobSpec
     optional bool enable_fixed_user_id = 83;
 
     map<string, TSidecarJobSpec> sidecars = 84;
+
+    optional bool append_debug_options = 85 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
