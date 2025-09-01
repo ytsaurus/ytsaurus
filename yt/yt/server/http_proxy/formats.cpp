@@ -7,12 +7,17 @@
 
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHttpProxy {
 
 using namespace NFormats;
+using namespace NHttp;
+using namespace NHttp::NHeaders;
 using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
@@ -190,6 +195,46 @@ NYTree::INodePtr ConvertBytesToNode(
         format,
         EDataType::Structured,
         &stream));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillFormattedYTError(
+    const THeadersPtr& headers,
+    const TError& error,
+    const TFormat& format)
+{
+    TString errorString;
+    TStringOutput errorStringOutput(errorString);
+
+    auto consumer = CreateConsumerForFormat(
+        format,
+        EDataType::Structured,
+        &errorStringOutput);
+
+    Serialize(error, consumer.get());
+    consumer->Flush();
+
+    headers->Add(XYTErrorHeaderName, errorString);
+    headers->Add(XYTErrorContentTypeHeaderName, FormatToMime(format));
+}
+
+void FillFormattedYTErrorHeaders(
+    const IResponseWriterPtr& rsp,
+    const TError& error,
+    const TFormat& format)
+{
+    FillFormattedYTError(rsp->GetHeaders(), error, format);
+    FillYTErrorResponseHeaders(rsp, error);
+}
+
+void FillFormattedYTErrorTrailers(
+    const IResponseWriterPtr& rsp,
+    const TError& error,
+    const TFormat& format)
+{
+    FillFormattedYTError(rsp->GetTrailers(), error, format);
+    FillYTErrorResponseTrailers(rsp, error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

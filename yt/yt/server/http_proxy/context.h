@@ -106,7 +106,6 @@ private:
     std::optional<NHttp::TContentEncoding> OutputContentEncoding_;
 
     std::optional<NFormats::TFormat> ErrorFormat_;
-    NFormats::IFormatFactoryPtr ErrorFormatFactory_;
 
     std::optional<NDriver::TEtag> IfNoneMatch_;
 
