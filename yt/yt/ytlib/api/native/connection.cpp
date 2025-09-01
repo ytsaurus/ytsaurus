@@ -1213,7 +1213,7 @@ private:
                     effectiveError = &error.InnerErrors().front();
                 }
 
-                if (effectiveError->GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+                if (effectiveError->GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
                     return true;
                 }
 

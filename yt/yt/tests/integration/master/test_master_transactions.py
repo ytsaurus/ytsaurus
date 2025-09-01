@@ -259,7 +259,7 @@ class TestMasterTransactions(YTEnvSetup):
         sleep(3.0)
         assert exists("//sys/transactions/{}".format(tx))
 
-        # check that transaction is expired after 3 seconds
+        # check that transaction is expired after 8 seconds
         sleep(8.0)
         assert not exists("//sys/transactions/{}".format(tx))
 
