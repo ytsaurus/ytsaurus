@@ -785,10 +785,7 @@ public:
 
     void Reconfigure(const TChaosReplicationCardUpdatesBatcherConfigPtr& config) override
     {
-        if (const auto enableOptional = config->Enable) {
-            Enabled_ = *enableOptional;
-        }
-
+        Enabled_ = config->Enable;
         SetPeriod(config->FlushPeriod);
     }
 

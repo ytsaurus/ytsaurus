@@ -100,15 +100,37 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardsWatcherConfig)
 struct TChaosReplicationCardUpdatesBatcherConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<bool> Enable;
+    bool Enable;
     TDuration FlushPeriod;
+
+    TChaosReplicationCardUpdatesBatcherConfigPtr ApplyDynamic(
+        const TChaosReplicationCardUpdatesBatcherDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TChaosReplicationCardUpdatesBatcherConfig);
 
     static void Register(TRegistrar registrar);
+
+protected:
+    void ApplyDynamicInplace(const TChaosReplicationCardUpdatesBatcherDynamicConfigPtr& dynamicConfig);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosReplicationCardUpdatesBatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosReplicationCardUpdatesBatcherDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<bool> Enable;
+    std::optional<TDuration> FlushPeriod;
+
+    REGISTER_YSON_STRUCT(TChaosReplicationCardUpdatesBatcherDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosReplicationCardUpdatesBatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

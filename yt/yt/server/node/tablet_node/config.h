@@ -648,7 +648,7 @@ struct TTabletNodeDynamicConfig
     bool EnableCollocatedDatNodeThrottling;
     bool EnableSnapshotNetworkThrottling;
 
-    NChaosClient::TChaosReplicationCardUpdatesBatcherConfigPtr ChaosReplicationCardUpdatesBatcher;
+    NChaosClient::TChaosReplicationCardUpdatesBatcherDynamicConfigPtr ChaosReplicationCardUpdatesBatcher;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
