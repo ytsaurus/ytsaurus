@@ -105,8 +105,6 @@ public:
             }
         }
 
-        OnSizeUpdated();
-
         return replicas;
     }
 
@@ -137,8 +135,6 @@ public:
                     futures[index] = entry.Future;
                 }
             }
-
-            OnSizeUpdated();
         }
 
         std::vector<int> stillMissingIndices;
@@ -737,10 +733,6 @@ private:
             for (auto chunkId : expiredChunkIds) {
                 Entries_.erase(chunkId);
             }
-        }
-
-        {
-            auto entriesGuard = ReaderGuard(EntriesLock_);
             OnSizeUpdated();
         }
 
@@ -919,7 +911,7 @@ private:
 
     void OnSizeUpdated()
     {
-        YT_ASSERT_SPINLOCK_AFFINITY(EntriesLock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(EntriesLock_);
 
         // Here size estimation relies on the fact that TCompactVector in TAllyReplicasInfo
         // does not stray too much from its specified expected size.
