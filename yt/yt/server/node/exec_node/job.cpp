@@ -3199,10 +3199,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
-    // TODO(pavook): configure this dynamically (YT-25354).
-    proxyInternalConfig->EnableSignatureGeneration = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureComponents->Generation);
-    proxyInternalConfig->EnableSignatureValidation = static_cast<bool>(Bootstrap_->GetConfig()->ExecNode->SignatureComponents->Validation);
-
     if (auto proxyDynamicConfig = Bootstrap_->GetJobController()->GetJobProxyDynamicConfig()) {
         if (auto jaegerConfig = proxyInternalConfig->TryGetSingletonConfig<NTracing::TJaegerTracerConfig>()) {
             proxyInternalConfig->SetSingletonConfig(jaegerConfig->ApplyDynamic(proxyDynamicConfig->Jaeger));
