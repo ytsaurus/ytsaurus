@@ -171,6 +171,9 @@ DEFINE_ENUM(EPerformanceCountedRequestType,
     (Read)
 );
 
+DECLARE_REFCOUNTED_STRUCT(IRlsCheckerFactory)
+DECLARE_REFCOUNTED_STRUCT(IRlsChecker)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

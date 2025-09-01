@@ -11,6 +11,7 @@
 #include "hunks.h"
 #include "overlapping_reader.h"
 #include "remote_dynamic_store_reader.h"
+#include "row_level_security.h"
 #include "row_merger.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
@@ -161,11 +162,23 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 {
     THashMap<TClusterName, IChunkFragmentReaderPtr> chunkFragmentReaders;
     std::vector<IReaderFactoryPtr> factories;
+    std::vector<IRlsCheckerFactoryPtr> rlsCheckerFactories;
+    rlsCheckerFactories.resize(dataSourceDirectory->DataSources().size());
+
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
+        auto& rlsCheckerFactory = rlsCheckerFactories[dataSliceDescriptor.GetDataSourceIndex()];
+        if (!rlsCheckerFactory && dataSource.GetRlsReadSpec()) {
+            if (dataSource.GetRlsReadSpec()->IsTrivialDeny()) {
+                // Short-circuit to not reading any remote data at all.
+                continue;
+            }
+            rlsCheckerFactory = CreateRlsCheckerFactory(
+                dataSource.Schema(),
+                *dataSource.GetRlsReadSpec());
+        }
         auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource.GetClusterName());
         auto perClusterChunkReadOptions = chunkReaderHost->AdjustClientChunkReadOptions(dataSource.GetClusterName(), chunkReadOptions);
-
         auto performanceCounters = New<TTabletPerformanceCounters>();
 
         auto& chunkFragmentReader = chunkFragmentReaders[dataSource.GetClusterName()];
@@ -252,6 +265,9 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             .VirtualValueDirectory = dataSource.GetVirtualValueDirectory(),
                             .TableSchema = dataSource.Schema(),
                             .DataSource = dataSource,
+                            .RlsChecker = rlsCheckerFactory
+                                ? rlsCheckerFactory->CreateCheckerForChunk(chunkMeta->ChunkNameTable())
+                                : nullptr,
                         });
 
                         YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
@@ -517,7 +533,10 @@ IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOpt
         return CreateEmptyUnversionedRowBatch();
     }
 
-    if (Finished_) {
+    // NB(coteeq): CurrentReader_ may be null if none of data slices were allowed by RLACEs
+    // and reader manager is left in semi-open state.
+    // TODO(coteeq): This is hacky.
+    if (Finished_ || !CurrentReader_) {
         RowCount_ = RowIndex_.load();
         return nullptr;
     }
@@ -663,6 +682,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 interruptionOptions.InterruptDescriptorKeyLength),
             multiReaderMemoryManager),
         nameTable,
+        // TODO(coteeq): dataSliceDescriptors are used to count rows in reader. It _will_ be wrong in case of RLS,
+        // but it _may_ be the right behaviour (because of the secrecy around row counts).
         dataSliceDescriptors,
         interruptionOptions.IsInterruptible);
 }

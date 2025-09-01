@@ -3,6 +3,7 @@ package NYT.NChunkClient.NProto;
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_client/proto/versioned_io_options.proto";
 import "yt/ytlib/table_client/proto/virtual_value_directory.proto";
+import "yt/ytlib/table_client/proto/row_level_security.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,8 @@ message TDataSource
     optional string account = 17;
 
     optional string cluster_name = 18;
+
+    optional NTableClient.NProto.TRlsReadSpec rls_read_spec = 21;
 
     reserved 5, 6, 19, 20;
 }

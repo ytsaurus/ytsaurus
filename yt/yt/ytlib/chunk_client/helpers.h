@@ -16,6 +16,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -186,6 +187,8 @@ struct TUserObject
 
     std::optional<std::string> Account;
 
+    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RlAcl;
+
     virtual ~TUserObject() = default;
 
     //! Returns |true| if TUserObject::ObjectId is non-null.
@@ -210,6 +213,7 @@ struct TGetUserObjectBasicAttributesOptions
     bool SuppressAccessTracking = false;
     bool SuppressExpirationTimeoutRenewal = false;
     bool OmitInaccessibleColumns = false;
+    bool OmitInaccessibleRows = false;
     bool PopulateSecurityTags = false;
 };
 

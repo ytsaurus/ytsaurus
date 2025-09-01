@@ -173,6 +173,13 @@ TTableReadSpec FetchRegularTableReadSpec(
             dataSliceDescriptors.emplace_back(std::move(chunkSpec));
         }
     }
+    if (userObject->RlAcl) {
+        dataSource.SetRlsReadSpec(
+            TRlsReadSpec::BuildFromRlAcl(
+                schema,
+                *userObject->RlAcl,
+                Logger));
+    }
 
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().emplace_back(std::move(dataSource));

@@ -56,6 +56,7 @@ using namespace NYTree;
 using namespace NRpc;
 using namespace NTracing;
 using namespace NQueryClient;
+using namespace NSecurityClient;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
@@ -233,6 +234,10 @@ static bool HasColumnsInMapping(TRange<int> schemalessIdMapping)
     return false;
 }
 
+//! Remap value ids and "squeeze" values to the left.
+//! {first,last}IndexToSkip is needed not to remap widened key (see TKeyWideningOptions).
+//! prefixToRemapSize is needed not to remap system columns (see AddExtraValues).
+//! If chunkToReaderIdMapping remaps value to -1, value is simply dropped.
 static void ApplyColumnIdMapping(
     TMutableUnversionedRow& row,
     const std::vector<int>& chunkToReaderIdMapping,
@@ -241,9 +246,9 @@ static void ApplyColumnIdMapping(
     ui32 lastIndexToSkip)
 {
     int valueCount = 0;
-    for (ui32 rowIndex = 0; rowIndex < row.GetCount(); ++rowIndex) {
-        auto value = std::move(row[rowIndex]);
-        auto skipRemapping = ((firstIndexToSkip <= rowIndex && rowIndex <= lastIndexToSkip) || rowIndex >= prefixToRemapSize);
+    for (ui32 columnIndex = 0; columnIndex < row.GetCount(); ++columnIndex) {
+        auto value = std::move(row[columnIndex]);
+        auto skipRemapping = ((firstIndexToSkip <= columnIndex && columnIndex <= lastIndexToSkip) || columnIndex >= prefixToRemapSize);
         auto remappedId = skipRemapping ? value.Id : chunkToReaderIdMapping[value.Id];
         if (remappedId >= 0) {
             row[valueCount] = std::move(value);
@@ -562,6 +567,7 @@ public:
         , SortOrders_(sortOrders.begin(), sortOrders.end())
         , CommonKeyPrefix_(commonKeyPrefix)
         , UnpackAny_(unpackAny)
+        , RlsChecker_(chunkState->RlsChecker)
     {
         YT_VERIFY(CommonKeyPrefix_ <= std::ssize(SortOrders_));
 
@@ -605,21 +611,30 @@ protected:
     const TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
     TColumnEvaluatorPtr ColumnEvaluator_;
 
+    const IRlsCheckerPtr RlsChecker_;
+
     int GetChunkKeyColumnCount() const
     {
         return ChunkMeta_->ChunkSchema()->GetKeyColumnCount();
     }
 
-    void FinalizeRow(TMutableUnversionedRow& row, ui32 prefixToRemapSize) const
+    [[nodiscard]] ESecurityAction FinalizeRow(TMutableUnversionedRow& row, ui32 prefixToRemapSize) const
     {
         if (ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns()) {
             YT_VERIFY(ColumnEvaluator_);
             ColumnEvaluator_->EvaluateKeys(row, EphemeralRowBuffer_, /*preserveColumnsIds*/ true);
         }
 
+        auto action = ESecurityAction::Allow;
+        if (RlsChecker_) {
+            action = RlsChecker_->Check(row, EphemeralRowBuffer_);
+        }
+
         auto firstIndexToSkip = GetFirstIndexToSkipRemappingInRow(row.GetCount());
         auto lastIndexToSkip = GetLastIndexToSkipRemappingInRow(row.GetCount());
         ApplyColumnIdMapping(row, ChunkToReaderIdMapping_, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
+
+        return action;
     }
 
     TFuture<void> InitBlockFetcher();
@@ -895,9 +910,10 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
             auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
             auto prefixToRemapSize = row.GetCount();
             AddExtraValues(row, GetTableRowIndex());
-            FinalizeRow(row, prefixToRemapSize);
-            rows.push_back(row);
-            dataWeight += GetDataWeight(row);
+            if (FinalizeRow(row, prefixToRemapSize) == ESecurityAction::Allow) {
+                rows.push_back(row);
+                dataWeight += GetDataWeight(row);
+            }
         }
         ++RowIndex_;
 
@@ -1410,7 +1426,10 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
 
             if (key == BlockReader_->GetLegacyKey()) {
                 auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
-                FinalizeRow(row, row.GetCount());
+                // RLS is not supported for dynamic tables yet.
+                YT_VERIFY(!RlsChecker_);
+                auto action = FinalizeRow(row, row.GetCount());
+                YT_VERIFY(action == ESecurityAction::Allow);
                 rows.push_back(row);
                 dataWeight += GetDataWeight(row);
 
@@ -1516,10 +1535,11 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
                 auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
                 auto prefixToRemapSize = row.GetCount();
                 AddExtraValues(row, GetTableRowIndex());
-                FinalizeRow(row, prefixToRemapSize);
-                rows.push_back(row);
+                if (FinalizeRow(row, prefixToRemapSize) == ESecurityAction::Allow) {
+                    rows.push_back(row);
+                    dataWeight += GetDataWeight(row);
+                }
                 ++RowCount_;
-                dataWeight += GetDataWeight(row);
             }
 
             if (!BlockReader_->NextRow()) {
@@ -1559,8 +1579,11 @@ public:
         int chunkKeyColumnCount,
         const std::vector<int>& columnIdMapping,
         const TKeyWideningOptions& keyWideningOptions,
-        TRange<ESortOrder> sortOrders)
+        TRange<ESortOrder> sortOrders,
+        IRlsCheckerPtr rlsChecker)
     {
+        RlsChecker_ = std::move(rlsChecker);
+
         const auto& chunkSchema = *ChunkMeta_->ChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
@@ -1609,8 +1632,14 @@ public:
 
         auto pushRegularValue = [&] (int columnIndex) {
             auto remappedId = columnIdMapping[columnIndex];
-            // NB: If non-materialized columns are present they must be evaluated before filtering out columns.
-            if (!chunkSchema.HasNonMaterializedComputedColumns() && remappedId == -1) {
+            bool columnNeeded = (
+                remappedId != -1 ||
+                // NB: If non-materialized columns are present they must be evaluated before filtering out columns.
+                chunkSchema.HasNonMaterializedComputedColumns() ||
+                (RlsChecker_ && RlsChecker_->IsColumnNeeded(columnIndex))
+            );
+
+            if (!columnNeeded) {
                 return;
             }
 
@@ -1665,7 +1694,7 @@ public:
         }
     }
 
-    void FinalizeRow(
+    [[nodiscard]] ESecurityAction FinalizeRow(
         TMutableUnversionedRow& row,
         const std::vector<int>& chunkToReaderIdMapping,
         ui32 prefixToRemapSize,
@@ -1677,7 +1706,14 @@ public:
             ColumnEvaluator_->EvaluateKeys(row, EphemeralRowBuffer_, /*preserveColumnsIds*/ true);
         }
 
+        auto action = ESecurityAction::Allow;
+        if (RlsChecker_) {
+            action = RlsChecker_->Check(row, EphemeralRowBuffer_);
+        }
+
         ApplyColumnIdMapping(row, chunkToReaderIdMapping, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
+
+        return action;
     }
 
 protected:
@@ -1688,6 +1724,8 @@ protected:
     // TODO(coteeq): Include this in reader memory estimation.
     const TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
     TColumnEvaluatorPtr ColumnEvaluator_;
+
+    IRlsCheckerPtr RlsChecker_;
 
     TChunkedMemoryPool MemoryPool_;
 };
@@ -1767,7 +1805,8 @@ public:
             CommonKeyPrefix_,
             ChunkToReaderIdMapping_,
             KeyWideningOptions_,
-            SortOrders_);
+            SortOrders_,
+            chunkState->RlsChecker);
 
         YT_VERIFY(std::ssize(KeyColumnReaders_) == std::ssize(SortOrders_));
 
@@ -1843,7 +1882,7 @@ public:
 
         // NB: To process non-materialized computed columns it is needed to have full row for evaluation, which is impossible in current columnar api,
         // so horizontal format is prefered in this case.
-        return CanReadColumnarBatch(options) && !ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns()
+        return CanReadColumnarBatch(options) && !ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns() && !RlsChecker_
             ? ReadColumnarBatch(options)
             : ReadNonColumnarBatch(options);
     }
@@ -2049,6 +2088,7 @@ private:
 
     IUnversionedRowBatchPtr ReadColumnarBatch(const TRowBatchReadOptions& options)
     {
+        YT_VERIFY(!RlsChecker_);
         PendingUnmaterializedRowCount_ = ReadPrologue(options.MaxRowsPerRead);
         return New<TColumnarRowBatch>(this, PendingUnmaterializedRowCount_);
     }
@@ -2192,8 +2232,9 @@ private:
             rowsDataWeight < options.MaxDataWeightPerRead)
         {
             i64 rowCount = ReadPrologue(rows.capacity() - rows.size());
+            auto oldRowsSize = rows.size();
             ReadRows(rowCount, &rows);
-            for (i64 rowIndex = std::ssize(rows) - rowCount; rowIndex < std::ssize(rows); ++rowIndex) {
+            for (i64 rowIndex = oldRowsSize; rowIndex < std::ssize(rows); ++rowIndex) {
                 rowsDataWeight += GetDataWeight(rows[rowIndex]);
             }
             if (Completed_ || !TryFetchNextRow()) {
@@ -2283,13 +2324,33 @@ private:
         }
 
         // Evaluate non-materialized columns, apply column id mapping and filter some columns out.
+        std::vector<ESecurityAction> rlsDecisions(rowRange.size(), ESecurityAction::Undefined);
+        i64 index = 0;
+        i64 allowedRowCount = 0;
         for (auto& row : rowRange) {
-            FinalizeRow(
+            rlsDecisions[index] = FinalizeRow(
                 row,
                 ChunkToReaderIdMapping_,
                 RowColumnReaders_.size(),
                 GetFirstIndexToSkipRemappingInRow(row.GetCount()),
                 GetLastIndexToSkipRemappingInRow(row.GetCount()));
+
+            allowedRowCount += rlsDecisions[index] == ESecurityAction::Allow;
+            ++index;
+        }
+
+        if (allowedRowCount < std::ssize(rowRange)) {
+            auto* firstRowIt = rowRange.begin();
+            auto end = std::remove_if(
+                rowRange.begin(),
+                rowRange.end(),
+                [&] (const auto& row) {
+                    auto rowIndex = &row - firstRowIt;
+                    return rlsDecisions[rowIndex] == ESecurityAction::Deny;
+                });
+
+            YT_VERIFY(allowedRowCount == end - firstRowIt);
+            rows->resize(rows->size() - rowCount + allowedRowCount);
         }
 
         MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
@@ -2369,7 +2430,8 @@ public:
             CommonKeyPrefix_,
             ChunkToReaderIdMapping_,
             KeyWideningOptions_,
-            SortOrders_);
+            SortOrders_,
+            chunkState->RlsChecker);
 
         Initialize();
 
@@ -2483,13 +2545,17 @@ private:
             SchemalessReader_->ReadValues(rowRange);
         }
 
+        // RLS is not supported for dynamic tables yet.
+        YT_VERIFY(!RlsChecker_);
         // Evaluate non-materialized columns, apply column id mapping and filter some columns out.
-        FinalizeRow(
+        auto action = FinalizeRow(
             row,
             ChunkToReaderIdMapping_,
             RowColumnReaders_.size(),
             GetFirstIndexToSkipRemappingInRow(row.GetCount()),
             GetLastIndexToSkipRemappingInRow(row.GetCount()));
+
+        YT_VERIFY(action == ESecurityAction::Allow);
 
         MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
 

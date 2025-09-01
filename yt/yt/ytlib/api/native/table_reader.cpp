@@ -190,6 +190,7 @@ private:
                 .SuppressAccessTracking = tableReaderConfig->SuppressAccessTracking || Options_.SuppressAccessTracking,
                 .SuppressExpirationTimeoutRenewal = tableReaderConfig->SuppressExpirationTimeoutRenewal || Options_.SuppressExpirationTimeoutRenewal,
                 .OmitInaccessibleColumns = Options_.OmitInaccessibleColumns,
+                .OmitInaccessibleRows = Options_.OmitInaccessibleRows,
             },
             .FetchChunkSpecConfig = Config_,
             .FetchParityReplicas = tableReaderConfig->EnableAutoRepair,
