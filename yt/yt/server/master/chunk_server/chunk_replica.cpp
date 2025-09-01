@@ -125,20 +125,6 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RemoveDeadReplicas(TChunkLocationPtrWithReplicaInfoList& replicas)
-{
-    replicas.erase(
-        std::remove_if(
-            replicas.begin(),
-            replicas.end(),
-            [] (const auto& replica) {
-                return !IsObjectAlive(replica.GetPtr());
-            }),
-        replicas.end());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TSequoiaChunkReplica::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
