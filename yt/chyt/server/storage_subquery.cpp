@@ -9,6 +9,7 @@
 #include "storage_base.h"
 #include "subquery_spec.h"
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/virtual_value_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -225,6 +226,29 @@ public:
             // As part of the native clickhouse protocol, tcp handler hooks a callback to the context,
             // which sends a Protocol::Server::ReadTaskRequest packet to the coordinator
             QueryContext_->SetReadTaskCallback(context->getReadTaskCallback());
+        }
+
+        if (SubquerySpec_.QuerySettings->EnableMinMaxOptimization && SubquerySpec_.TableStatistics.has_value()) {
+            YT_VERIFY(readPlan->Steps.size() == 1);
+            TUnversionedRowsBuilder rowsBuilder;
+            auto addValues = [&rowsBuilder, &readPlan](const std::vector<TUnversionedOwningValue>& values) {
+                TUnversionedRowBuilder rowBuilder;
+                for (const auto& [nameTableIndex, column] : Enumerate(readPlan->Steps[0].Columns)) {
+                    TUnversionedValue value = values[nameTableIndex];
+                    value.Id = nameTableIndex;
+                    rowBuilder.AddValue(value);
+                }
+                rowsBuilder.AddRow(rowBuilder.GetRow());
+            };
+            addValues(SubquerySpec_.TableStatistics->ColumnMinValues);
+            addValues(SubquerySpec_.TableStatistics->ColumnMaxValues);
+            auto sourcePtr = CreateSingleBatchSource(StorageContext_,
+                traceContext,
+                readPlan,
+                statisticsCallback,
+                CreateBatchFromUnversionedRows(rowsBuilder.Build()),
+                "Min/max table statistics");
+            pipes.emplace_back(sourcePtr);
         }
 
         for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {

@@ -11,6 +11,7 @@
 
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/ytree/public.h>
+#include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
@@ -43,6 +44,7 @@ struct TSubquerySpec
     int TableIndex;
     NTableClient::TTableReaderConfigPtr TableReaderConfig;
     TQuerySettingsPtr QuerySettings;
+    std::optional<NTableClient::TColumnarStatistics> TableStatistics;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

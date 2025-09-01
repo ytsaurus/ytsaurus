@@ -541,6 +541,7 @@ private:
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
         SpecTemplate_.QuerySettings->NeedOnlyDistinct = QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.QuerySettings->EnableMinMaxOptimization = QueryAnalysisResult_->EnableMinMaxOptimization;
 
         QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
         QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);
@@ -558,6 +559,7 @@ private:
 
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = QueryInput_.DataSourceDirectory;
+        SpecTemplate_.TableStatistics = std::move(QueryInput_.TableStatistics);
 
         const auto& selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery&>();
         if (auto selectSampleSize = selectQuery.sampleSize()) {

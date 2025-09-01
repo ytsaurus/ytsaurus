@@ -18,6 +18,7 @@
 
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -168,46 +169,39 @@ using TReaderFactoryPtr = std::unique_ptr<TReaderFactory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecondaryQuerySource
+class TSecondaryQuerySourceBase
     : public DB::ISource
 {
 public:
-    TSecondaryQuerySource(
-        ISchemalessMultiChunkReaderPtr reader,
+    TSecondaryQuerySourceBase(
         TReadPlanWithFilterPtr readPlan,
         TTraceContextPtr traceContext,
         THost* host,
         TQuerySettingsPtr settings,
         TLogger logger,
-        TChunkReaderStatisticsPtr chunkReaderStatistics,
         TCallback<void(const TStatistics&)> statisticsCallback,
-        bool needOnlyDistinct,
-        TReaderFactoryPtr readerFactory = nullptr)
+        bool needOnlyDistinct = false,
+        TNameTablePtr nameTable = nullptr)
         : DB::ISource(
             DeriveHeaderBlockFromReadPlan(readPlan, settings->Composite),
             /*enable_auto_progress*/ false)
-        , CurrentReader_(std::move(reader))
-        , ReaderFactory_(std::move(readerFactory))
         , ReadPlan_(std::move(readPlan))
         , TraceContext_(std::move(traceContext))
         , Host_(host)
         , Settings_(std::move(settings))
         , Logger(std::move(logger))
-        , NeedOnlyDistinct_(needOnlyDistinct)
-        , ChunkReaderStatistics_(std::move(chunkReaderStatistics))
         , StatisticsCallback_(std::move(statisticsCallback))
-    {
-        Initialize();
-    }
+        , NameTable_(std::move(nameTable))
+        , NeedOnlyDistinct_(needOnlyDistinct)
+    { }
 
-    DB::String getName() const override
-    {
-        std::string name = "SecondaryQuerySource";
-        if (NeedOnlyDistinct_) {
-            name += " (Distinct values optimized)";
-        }
-        return name;
-    }
+
+    virtual bool CanReadBatch() const = 0;
+
+    virtual IUnversionedRowBatchPtr ReadBatch() = 0;
+
+    virtual TFuture<void> GetReadyEvent() const = 0;
+
 
     Status prepare() override
     {
@@ -227,86 +221,12 @@ public:
         }
     }
 
-    ~TSecondaryQuerySource()
+    ~TSecondaryQuerySourceBase()
     {
         if (IsFinished_) {
             return;
         }
         Finish();
-    }
-
-private:
-    ISchemalessMultiChunkReaderPtr CurrentReader_;
-    TReaderFactoryPtr ReaderFactory_;
-    const TReadPlanWithFilterPtr ReadPlan_;
-    TTraceContextPtr TraceContext_;
-    THost* const Host_;
-    const TQuerySettingsPtr Settings_;
-    const TLogger Logger;
-
-    bool NeedOnlyDistinct_;
-
-    //! Converters for every step from the read plan.
-    //! Every converter converts only additional columns required by corresponding step.
-    std::vector<TYTToCHBlockConverter> Converters_;
-
-    TDuration ColumnarConversionCpuTime_;
-    TDuration NonColumnarConversionCpuTime_;
-    TDuration ConversionSyncWaitTime_;
-    TDuration TotalGenerateTime_;
-    TDuration WaitReadyEventTime_;
-
-    TWallTimer IdleTimer_ = TWallTimer(/*start*/ false);
-
-    int ReadCount_ = 0;
-    int ReadersProcessed_ = 0;
-
-    bool IsFinished_ = false;
-
-    TChunkReaderStatisticsPtr ChunkReaderStatistics_;
-    NChunkClient::NProto::TDataStatistics DataStatistics_;
-    TCodecStatistics CodecStatistics_;
-    TTimingStatistics TimingStatistics_;
-
-    TStatistics Statistics_;
-    TCallback<void(const TStatistics&)> StatisticsCallback_;
-
-private:
-    void Initialize()
-    {
-        if (!CurrentReader_) {
-            YT_VERIFY(ReaderFactory_);
-            CurrentReader_ = ReaderFactory_->CreateReader();
-        }
-
-        // There may be a situation where all the coordinator's tasks are already taken
-        // and we can't create a reader.
-        if (CurrentReader_) {
-            auto nameTable = CurrentReader_->GetNameTable();
-            Converters_.reserve(ReadPlan_->Steps.size());
-            for (const auto& step : ReadPlan_->Steps) {
-                Converters_.emplace_back(step.Columns, nameTable, Settings_->Composite, NeedOnlyDistinct_);
-            }
-
-            Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
-        } else {
-            YT_LOG_DEBUG(
-                "Secondary source reader was not created because the coordinator ran out of reading tasks");
-        }
-
-        YT_LOG_DEBUG("Secondary query source was initialized");
-
-        IdleTimer_.Start();
-    }
-
-    void OnReaderFinish()
-    {
-        DataStatistics_ += CurrentReader_->GetDataStatistics();
-        CodecStatistics_ += CurrentReader_->GetDecompressionStatistics();
-        TimingStatistics_ += CurrentReader_->GetTimingStatistics();
-
-        CurrentReader_ = ReaderFactory_ ? ReaderFactory_->CreateReader() : nullptr;
-        ++ReadersProcessed_;
     }
 
     DB::Chunk generate() override
@@ -327,22 +247,17 @@ private:
         TWallTimer totalWallTimer;
         YT_LOG_TRACE("Started reading ClickHouse block");
 
-        TRowBatchReadOptions options{
-            .Columnar = Settings_->EnableColumnarRead,
-        };
-
         i64 readRows = 0;
         DB::Block resultBlock;
-        while (CurrentReader_ && resultBlock.rows() == 0) {
+        while (CanReadBatch() && resultBlock.rows() == 0) {
             YT_LOG_TRACE("Started reading loop iteration");
-            auto batch = CurrentReader_->Read(options);
+            auto batch = ReadBatch();
             if (!batch) {
-                OnReaderFinish();
                 continue;
             }
             if (batch->IsEmpty()) {
                 NProfiling::TWallTimer wallTimer;
-                WaitFor(CurrentReader_->GetReadyEvent())
+                WaitFor(GetReadyEvent())
                     .ThrowOnError();
 
                 auto elapsed = wallTimer.GetElapsedTime();
@@ -421,7 +336,54 @@ private:
         return DB::Chunk(resultBlock.getColumns(), resultBlock.rows());
     }
 
-    void Finish()
+protected:
+    const TReadPlanWithFilterPtr ReadPlan_;
+    TTraceContextPtr TraceContext_;
+    THost* const Host_;
+    const TQuerySettingsPtr Settings_;
+    const TLogger Logger;
+
+    //! Converters for every step from the read plan.
+    //! Every converter converts only additional columns required by corresponding step.
+    std::vector<TYTToCHBlockConverter> Converters_;
+
+    TDuration ColumnarConversionCpuTime_;
+    TDuration NonColumnarConversionCpuTime_;
+    TDuration ConversionSyncWaitTime_;
+    TDuration TotalGenerateTime_;
+    TDuration WaitReadyEventTime_;
+
+    int ReadCount_ = 0;
+    int ReadersProcessed_ = 0;
+
+    TWallTimer IdleTimer_ = TWallTimer(/*start*/ false);
+    bool IsFinished_ = false;
+
+    NChunkClient::NProto::TDataStatistics DataStatistics_;
+    TCodecStatistics CodecStatistics_;
+    TTimingStatistics TimingStatistics_;
+
+    TStatistics Statistics_;
+    TCallback<void(const TStatistics&)> StatisticsCallback_;
+    TNameTablePtr NameTable_;
+
+    bool NeedOnlyDistinct_;
+
+    virtual void Initialize()
+    {
+        Converters_.reserve(ReadPlan_->Steps.size());
+        for (const auto& step : ReadPlan_->Steps) {
+            Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, NeedOnlyDistinct_);
+        }
+
+        Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
+
+        YT_LOG_DEBUG("Secondary query source was initialized");
+
+        IdleTimer_.Start();
+    }
+
+    virtual void Finish()
     {
         TCurrentTraceContextGuard guard(TraceContext_);
 
@@ -430,16 +392,6 @@ private:
         IsFinished_ = true;
 
         Statistics_.AddSample("/secondary_query_source/idle_time_us"_SP, lastIdleDuration.MicroSeconds());
-        Statistics_.AddSample("/secondary_query_source/read_count"_SP, ReadCount_);
-        Statistics_.AddSample("/secondary_query_source/processed_reader_count"_SP, ReadersProcessed_);
-
-        if (ChunkReaderStatistics_) {
-            Statistics_.AddSample("/secondary_query_source/chunk_reader/data_bytes_read_from_disk"_SP, ChunkReaderStatistics_->DataBytesReadFromDisk);
-            Statistics_.AddSample("/secondary_query_source/chunk_reader/data_io_requests"_SP, ChunkReaderStatistics_->DataIORequests);
-            Statistics_.AddSample("/secondary_query_source/chunk_reader/data_bytes_transmitted"_SP, ChunkReaderStatistics_->DataBytesTransmitted);
-            Statistics_.AddSample("/secondary_query_source/chunk_reader/data_bytes_read_from_cache"_SP, ChunkReaderStatistics_->DataBytesReadFromCache);
-            Statistics_.AddSample("/secondary_query_source/chunk_reader/meta_bytes_read_from_disk"_SP, ChunkReaderStatistics_->MetaBytesReadFromDisk);
-        }
 
         if (StatisticsCallback_) {
             StatisticsCallback_(Statistics_);
@@ -456,9 +408,6 @@ private:
             ReadCount_);
 
         if (TraceContext_ && TraceContext_->IsRecorded()) {
-            TraceContext_->AddTag("chyt.reader.data_statistics", DataStatistics_);
-            TraceContext_->AddTag("chyt.reader.codec_statistics", CodecStatistics_);
-            TraceContext_->AddTag("chyt.reader.timing_statistics", TimingStatistics_);
             TraceContext_->AddTag("chyt.reader.idle_time", IdleTimer_.GetElapsedTime());
             if (ColumnarConversionCpuTime_ != TDuration::Zero()) {
                 TraceContext_->AddTag("chyt.reader.columnar_conversion_cpu_time", ColumnarConversionCpuTime_);
@@ -489,7 +438,7 @@ private:
         if (Settings_->ConvertRowBatchesInWorkerThreadPool) {
             auto start = TInstant::Now();
             block = WaitFor(BIND(
-                    &TSecondaryQuerySource::DoConvertStepColumns,
+                    &TSecondaryQuerySourceBase::DoConvertStepColumns,
                     this,
                     stepIndex,
                     batch,
@@ -533,6 +482,180 @@ private:
 
         return block;
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSecondaryQuerySource
+    : public TSecondaryQuerySourceBase
+{
+public:
+    TSecondaryQuerySource(
+        ISchemalessMultiChunkReaderPtr reader,
+        TReadPlanWithFilterPtr readPlan,
+        TTraceContextPtr traceContext,
+        THost* host,
+        TQuerySettingsPtr settings,
+        TLogger logger,
+        TChunkReaderStatisticsPtr chunkReaderStatistics,
+        TCallback<void(const TStatistics&)> statisticsCallback,
+        bool needOnlyDistinct,
+        std::shared_ptr<TReaderFactory> readerFactory = nullptr)
+        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback, needOnlyDistinct)
+        , CurrentReader_(std::move(reader))
+        , ReaderFactory_(std::move(readerFactory))
+        , ChunkReaderStatistics_(std::move(chunkReaderStatistics))
+    {
+        Initialize();
+    }
+
+    DB::String getName() const override
+    {
+        std::string name = "SecondaryQuerySource";
+        if (NeedOnlyDistinct_) {
+            name += " (Distinct values optimized)";
+        }
+        return name;
+    }
+
+    bool CanReadBatch() const override
+    {
+        return CurrentReader_ != nullptr;
+    }
+
+    IUnversionedRowBatchPtr ReadBatch() override
+    {
+        auto batch = CurrentReader_->Read(Options_);
+        if (!batch) {
+            OnReaderFinish();
+        }
+        return batch;
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return CurrentReader_->GetReadyEvent();
+    }
+
+private:
+    ISchemalessMultiChunkReaderPtr CurrentReader_;
+    std::shared_ptr<TReaderFactory> ReaderFactory_;
+    TChunkReaderStatisticsPtr ChunkReaderStatistics_;
+
+    const TRowBatchReadOptions Options_{
+            .Columnar = Settings_->EnableColumnarRead,
+    };
+
+    void Initialize() override
+    {
+        if (!CurrentReader_) {
+            YT_VERIFY(ReaderFactory_);
+            CurrentReader_ = ReaderFactory_->CreateReader();
+        }
+        // There may be a situation where all the coordinator's tasks are already taken
+        // and we can't create a reader.
+        if (CurrentReader_) {
+            NameTable_ = CurrentReader_->GetNameTable();
+            Converters_.reserve(ReadPlan_->Steps.size());
+            for (const auto& step : ReadPlan_->Steps) {
+                Converters_.emplace_back(step.Columns, NameTable_, Settings_->Composite, NeedOnlyDistinct_);
+            }
+
+            Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
+
+            TSecondaryQuerySourceBase::Initialize();
+        } else {
+            YT_LOG_DEBUG(
+                "Secondary source reader was not created because the coordinator ran out of reading tasks");
+        }
+
+        YT_LOG_DEBUG("Secondary query source was initialized");
+
+        IdleTimer_.Start();
+    }
+
+    void OnReaderFinish()
+    {
+        DataStatistics_ += CurrentReader_->GetDataStatistics();
+        CodecStatistics_ += CurrentReader_->GetDecompressionStatistics();
+        TimingStatistics_ += CurrentReader_->GetTimingStatistics();
+
+        CurrentReader_ = ReaderFactory_ ? ReaderFactory_->CreateReader() : nullptr;
+        ++ReadersProcessed_;
+    }
+
+    void Finish() override
+    {
+        Statistics_.AddSample("/secondary_query_source/read_count"_SP, ReadCount_);
+        Statistics_.AddSample("/secondary_query_source/processed_reader_count"_SP, ReadersProcessed_);
+        {
+            TCurrentTraceContextGuard guard(TraceContext_);
+            if (TraceContext_ && TraceContext_->IsRecorded()) {
+                TraceContext_->AddTag("chyt.reader.data_statistics", DataStatistics_);
+                TraceContext_->AddTag("chyt.reader.codec_statistics", CodecStatistics_);
+                TraceContext_->AddTag("chyt.reader.timing_statistics", TimingStatistics_);
+            }
+
+            if (ChunkReaderStatistics_) {
+                Statistics_.AddSample("/secondary_query_source/chunk_reader/data_bytes_read_from_disk"_SP, ChunkReaderStatistics_->DataBytesReadFromDisk);
+                Statistics_.AddSample("/secondary_query_source/chunk_reader/data_io_requests"_SP, ChunkReaderStatistics_->DataIORequests);
+                Statistics_.AddSample("/secondary_query_source/chunk_reader/data_bytes_transmitted"_SP, ChunkReaderStatistics_->DataBytesTransmitted);
+                Statistics_.AddSample("/secondary_query_source/chunk_reader/data_bytes_read_from_cache"_SP, ChunkReaderStatistics_->DataBytesReadFromCache);
+                Statistics_.AddSample("/secondary_query_source/chunk_reader/meta_bytes_read_from_disk"_SP, ChunkReaderStatistics_->MetaBytesReadFromDisk);
+            }
+        }
+        TSecondaryQuerySourceBase::Finish();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSingleBatchSource
+    : public TSecondaryQuerySourceBase
+{
+public:
+    TSingleBatchSource(
+        TReadPlanWithFilterPtr readPlan,
+        TTraceContextPtr traceContext,
+        THost* host,
+        TQuerySettingsPtr settings,
+        TLogger logger,
+        TCallback<void(const TStatistics&)> statisticsCallback,
+        TNameTablePtr nameTable,
+        IUnversionedRowBatchPtr batch,
+        std::string batchDescription = "")
+        : TSecondaryQuerySourceBase(readPlan, traceContext, host, settings, logger, statisticsCallback, false, nameTable)
+        , Batch_(std::move(batch))
+        , BatchDescription_(std::move(batchDescription))
+    {
+        Initialize();
+    }
+
+    DB::String getName() const override
+    {
+        return "SingleBatchSource(" + BatchDescription_ + ")";
+    }
+
+    bool CanReadBatch() const override
+    {
+        return Batch_ != nullptr;
+    }
+
+    IUnversionedRowBatchPtr ReadBatch() override
+    {
+        auto batch = std::move(Batch_);
+        Batch_ = nullptr;
+        return batch;
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return VoidFuture;
+    }
+
+private:
+    IUnversionedRowBatchPtr Batch_;
+    const std::string BatchDescription_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -641,6 +764,32 @@ DB::SourcePtr CreateSecondaryQuerySource(
         std::move(statisticsCallback),
         subquerySpec.QuerySettings->NeedOnlyDistinct,
         std::move(readerFactory));
+}
+
+DB::SourcePtr CreateSingleBatchSource(
+    TStorageContext* storageContext,
+    const TTraceContextPtr& traceContext,
+    TReadPlanWithFilterPtr readPlan,
+    TCallback<void(const TStatistics&)> statisticsCallback,
+    IUnversionedRowBatchPtr batch,
+    std::string batchDescription)
+{
+    auto* queryContext = storageContext->QueryContext;
+    TTraceContextPtr sourceTraceContext;
+    if (traceContext) {
+        sourceTraceContext = traceContext->CreateChild("ClickHouseYt.SingleBatchSource");
+    }
+    TCurrentTraceContextGuard guard(sourceTraceContext);
+    return std::make_shared<TSingleBatchSource>(
+        std::move(readPlan),
+        sourceTraceContext,
+        queryContext->Host,
+        storageContext->Settings,
+        queryContext->Logger,
+        std::move(statisticsCallback),
+        GetPlanNameTable(readPlan),
+        std::move(batch),
+        std::move(batchDescription));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

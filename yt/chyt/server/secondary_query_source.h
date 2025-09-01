@@ -52,6 +52,14 @@ DB::SourcePtr CreateSecondaryQuerySource(
     NTableClient::IGranuleFilterPtr granuleFilter,
     TCallback<void(const TStatistics&)> statisticsCallback);
 
+DB::SourcePtr CreateSingleBatchSource(
+    TStorageContext* storageContext,
+    const NTracing::TTraceContextPtr& traceContext,
+    TReadPlanWithFilterPtr readPlan,
+    TCallback<void(const TStatistics&)> statisticsCallback,
+    NTableClient::IUnversionedRowBatchPtr batch,
+    std::string batchDescription);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

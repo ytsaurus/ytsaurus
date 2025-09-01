@@ -238,6 +238,9 @@ public:
     //! Count of input specifications for the pull model is generated based on the TaskCountIncreaseFactor parameter.
     bool EnableInputSpecsPulling;
 
+    //! Allow to use minmax optimization for strings (answer can be corrupted for string with max_chars).
+    bool AllowStringMinMaxOptimization;
+
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
     static void Register(TRegistrar registrar);
@@ -381,6 +384,8 @@ public:
     TPrewhereSettingsPtr Prewhere;
 
     bool NeedOnlyDistinct;
+
+    bool EnableMinMaxOptimization;
 
     REGISTER_YSON_STRUCT(TQuerySettings);
 

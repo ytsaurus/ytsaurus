@@ -124,6 +124,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, OperandCount, 0);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTablePtr>, InputTables);
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::shared_ptr<IChytIndexStat>>, IndexStats);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TColumnarStatistics>, TableStatistics);
 
 public:
     TInputFetcher(
@@ -140,6 +141,7 @@ public:
         , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
         , OperandSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
+        , NeedTableStatistics_(queryAnalysisResult.EnableMinMaxOptimization)
         , RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
         , IndexBuilder_(indexBuilder)
@@ -180,6 +182,8 @@ private:
 
     std::vector<TTableSchemaPtr> OperandSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
+
+    bool NeedTableStatistics_ = false;
 
     std::vector<std::string> RealColumnNames_;
     std::vector<std::string> VirtualColumnNames_;
@@ -224,7 +228,9 @@ private:
                 Client_,
                 TColumnarStatisticsFetcher::TOptions{
                     .Config = Config_->ColumnarStatisticsFetcher,
-                    .Mode = EColumnarStatisticsFetcherMode::FromMaster,
+                    .NodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(),
+                    .Mode = (NeedTableStatistics_ ? EColumnarStatisticsFetcherMode::FromNodes : EColumnarStatisticsFetcherMode::FromMaster),
+                    .AggregatePerTableStatistics = NeedTableStatistics_,
                     .Logger = Logger,
                 });
 
@@ -244,6 +250,30 @@ private:
             WaitFor(columnarStatisticsFetcher->Fetch())
                 .ThrowOnError();
             columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+            if (NeedTableStatistics_) {
+                TableStatistics_.emplace();
+                for (const auto& tableStatistics : columnarStatisticsFetcher->GetTableStatistics()) {
+                    (*TableStatistics_) += tableStatistics;
+                }
+                bool allowString = QueryContext_->Settings->Execution->AllowStringMinMaxOptimization;
+                auto checkValues = [allowString = allowString](const std::vector<TUnversionedOwningValue>& values) {
+                    for (const auto& owningValue : values) {
+                        TUnversionedValue value = owningValue;
+                        if (value.Type == EValueType::String && (!allowString || value.Length == TColumnarStatistics::MaxStringValueLength) ||
+                            value.Type == EValueType::Max ||
+                            value.Type == EValueType::Min ||
+                            value.Type == EValueType::Null)
+                            {
+                            // We can't get correct answer from minmax statistics.
+                            return false;
+                        }
+                    }
+                    return true;
+                };
+                if (!checkValues(TableStatistics_->ColumnMinValues) || !checkValues(TableStatistics_->ColumnMaxValues)) {
+                    TableStatistics_ = std::nullopt;
+                }
+            }
         }
 
         i64 totalFilteredRowCount = 0;
@@ -878,6 +908,7 @@ TQueryInput FetchInput(
         .DataSourceDirectory = std::move(inputFetcher->DataSourceDirectory()),
         .InputStreamDirectory = std::move(inputFetcher->InputStreamDirectory()),
         .IndexStats = std::move(inputFetcher->IndexStats()),
+        .TableStatistics = std::move(inputFetcher->TableStatistics()),
     };
 }
 

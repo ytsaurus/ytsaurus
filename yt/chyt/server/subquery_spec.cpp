@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <DataTypes/DataTypeFactory.h>
 
@@ -85,6 +86,9 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     protoSpec->set_initial_query(spec.InitialQuery);
     protoSpec->set_table_reader_config(ConvertToYsonString(spec.TableReaderConfig).ToString());
     protoSpec->set_query_settings(ConvertToYsonString(spec.QuerySettings).ToString());
+    if (spec.TableStatistics.has_value()) {
+        ToProto(protoSpec->mutable_table_stats(), *spec.TableStatistics);
+    }
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -111,6 +115,10 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     spec->TableReaderConfig = ConvertTo<TTableReaderConfigPtr>(tableReaderConfigYson);
     auto querySettingsYson = TYsonString(protoSpec.query_settings());
     spec->QuerySettings = ConvertTo<TQuerySettingsPtr>(querySettingsYson);
+    if (protoSpec.has_table_stats()) {
+        spec->TableStatistics.emplace();
+        FromProto(&spec->TableStatistics.value(), protoSpec.table_stats(), nullptr, protoSpec.table_stats().chunk_row_count());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -86,7 +86,9 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Find the longest prefix of key columns from the schema used in keyNode.
+namespace {
+
+    //! Find the longest prefix of key columns from the schema used in keyNode.
 int GetUsedKeyPrefixSize(const DB::QueryTreeNodePtr& keyNode, const TTableSchemaPtr& schema)
 {
     if (!schema->IsSorted()) {
@@ -374,6 +376,169 @@ JoinKeyLists ParseJoinKeyColumns(const DB::QueryTreeNodePtr& queryNode, const DB
     return lists;
 }
 
+class TCheckInFunctionExistsVisitor
+    : public DB::InDepthQueryTreeVisitor<TCheckInFunctionExistsVisitor>
+{
+public:
+    TCheckInFunctionExistsVisitor(const DB::QueryTreeNodePtr& joinTree)
+        : JoinTree_(joinTree)
+    { }
+
+    void visitImpl(const DB::QueryTreeNodePtr& node)
+    {
+        auto* functionNode = node->as<DB::FunctionNode>();
+        if (!functionNode) {
+            return;
+        }
+
+        if (!DB::functionIsInOrGlobalInOperator(functionNode->getFunctionName())) {
+            return;
+        }
+        if (functionNode->getArguments().getNodes().size() != 2) {
+            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
+                functionNode->getFunctionName(),
+                functionNode->getArguments().getNodes().size());
+        }
+
+        auto rhs = functionNode->getArguments().getNodes()[1];
+        if (rhs->getNodeType() == DB::QueryTreeNodeType::QUERY || rhs->getNodeType() == DB::QueryTreeNodeType::TABLE) {
+            HasInOperator_ = true;
+            return;
+        }
+
+        // CH deduplicates QueryTree nodes, making pointers to a single QueryTreeNode.
+        // In case of IN function for secondary queries to work correctly, we must duplicate them back.
+        for (auto& arg : functionNode->getArguments()) {
+            if (DB::isNodePartOfTree(arg.get(), JoinTree_.get())) {
+                arg = arg->clone();
+            }
+        }
+    }
+
+    bool needChildVisit(const DB::QueryTreeNodePtr&, const DB::QueryTreeNodePtr& childNode) const
+    {
+        if (HasInOperator_) {
+            return false;
+        }
+
+        auto childNodeType = childNode->getNodeType();
+        return !(childNodeType == DB::QueryTreeNodeType::QUERY || childNodeType == DB::QueryTreeNodeType::UNION);
+    }
+
+    bool HasInOperator() const
+    {
+        return HasInOperator_;
+    }
+
+private:
+    const DB::QueryTreeNodePtr& JoinTree_;
+    bool HasInOperator_ = false;
+};
+
+class TCheckSimpleDistinctVisitor
+    : public DB::InDepthQueryTreeVisitor<TCheckSimpleDistinctVisitor>
+{
+public:
+    TCheckSimpleDistinctVisitor(bool isDistinct)
+        :  IsDistinct_(isDistinct)
+    { }
+
+    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
+    {
+        return (
+            node.getFunctionName() == "min" ||
+            node.getFunctionName() == "max" ||
+            node.getFunctionName() == "uniq" ||
+            node.getFunctionName() == "uniqExact" ||
+            node.getFunctionName() == "uniqCombined"
+        );
+    }
+
+     void visitImpl(const DB::QueryTreeNodePtr& node)
+    {
+        if (auto* functionNode = node->as<DB::FunctionNode>()) {
+            if (functionNode->isAggregateFunction()) {
+                IsAggregated_ = true;
+                OnlyAllowedAggregationFunctions_ &= IsAllowedAggregationFunction(*functionNode);
+            } else if (auto function = functionNode->getFunction()) {
+                OnlyDeterministicFunctions_ &= function->isDeterministic();
+            }
+        }
+        if (auto* columnNode = node->as<DB::ColumnNode>()) {
+            Columns_.insert(columnNode->getColumnName());
+        }
+        if (node->getNodeType() == DB::QueryTreeNodeType::JOIN || node->getNodeType() == DB::QueryTreeNodeType::ARRAY_JOIN) {
+            HasJoin_ = true;
+        }
+    }
+
+    bool needChildVisit(VisitQueryTreeNodeType& /*parent*/, VisitQueryTreeNodeType& /*child*/)
+    {
+        return Columns_.size() <= 1 && OnlyDeterministicFunctions_ && OnlyAllowedAggregationFunctions_ && !HasJoin_;
+    }
+
+    bool IsSimpleDistinctCase() const
+    {
+        return Columns_.size() == 1 &&
+            (IsDistinct_ || IsAggregated_) &&
+            OnlyDeterministicFunctions_ &&
+            OnlyAllowedAggregationFunctions_ &&
+            !HasJoin_;
+    }
+
+private:
+    bool IsDistinct_;
+
+    THashSet<std::string> Columns_;
+    bool IsAggregated_ = false;
+    bool OnlyDeterministicFunctions_ = true;
+    bool OnlyAllowedAggregationFunctions_ = true;
+    bool HasJoin_ = false;
+};
+
+class TCheckMinMaxOptimizationVisitor
+    : public DB::InDepthQueryTreeVisitor<TCheckMinMaxOptimizationVisitor>
+{
+public:
+    TCheckMinMaxOptimizationVisitor() = default;
+
+    void visitImpl(const DB::QueryTreeNodePtr& node)
+    {
+        if (auto* functionNode = node->as<DB::FunctionNode>()) {
+            if (functionNode->getFunctionName() != "min" && functionNode->getFunctionName() != "max") {
+                HasOnlyMinMax_ = false;
+            } else {
+                HasMinMax_ = true;
+                auto arguments = functionNode->getArguments();
+                if (arguments.getNodes().size() == 1 && arguments.getNodes()[0]->getNodeType() != DB::QueryTreeNodeType::COLUMN) {
+                    OnlySimpleMinMax_ = false;
+                }
+            }
+        }
+        if (auto* columnNode = node->as<DB::ColumnNode>()) {
+            // If we meet a column, it is outside of any function, see needChildVisit.
+            HasOnlyMinMax_ = false;
+        }
+    }
+
+    bool needChildVisit(const DB::QueryTreeNodePtr& parent, const DB::QueryTreeNodePtr& /*childNode*/) const
+    {
+        return HasOnlyMinMax_ && OnlySimpleMinMax_ && !parent->as<DB::FunctionNode>();
+    }
+
+    bool EnableMinMaxOptimization() const
+    {
+        return HasOnlyMinMax_ && HasMinMax_ && OnlySimpleMinMax_;
+    }
+
+private:
+    bool HasOnlyMinMax_ = true;
+    bool OnlySimpleMinMax_ = true;
+    bool HasMinMax_ = false;
+};
+
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSecondaryQueryBuilder::TSecondaryQueryBuilder(
@@ -396,7 +561,9 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(int inputStreamsPer
     DB::Scalars scalars;
     for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
         auto spec = OperandSpecs_[index];
-        spec.DataSliceDescriptors.resize(inputStreamsPerSecondaryQuery);
+        if (!spec.QuerySettings->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
+            spec.DataSliceDescriptors.resize(inputStreamsPerSecondaryQuery);
+        }
 
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = protoSpec.SerializeAsString();
@@ -456,7 +623,9 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         auto spec = OperandSpecs_[index];
         spec.SubqueryIndex = subqueryIndex;
 
-        FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
+        if (!spec.QuerySettings->EnableMinMaxOptimization || !spec.TableStatistics.has_value()) {
+            FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
+        }
 
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = protoSpec.SerializeAsString();
@@ -822,126 +991,6 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     }
 }
 
-class TCheckInFunctionExistsVisitor
-    : public DB::InDepthQueryTreeVisitor<TCheckInFunctionExistsVisitor>
-{
-public:
-    TCheckInFunctionExistsVisitor(const DB::QueryTreeNodePtr& joinTree)
-        : JoinTree_(joinTree)
-    { }
-
-    void visitImpl(const DB::QueryTreeNodePtr& node)
-    {
-        auto* functionNode = node->as<DB::FunctionNode>();
-        if (!functionNode) {
-            return;
-        }
-
-        if (!DB::functionIsInOrGlobalInOperator(functionNode->getFunctionName())) {
-            return;
-        }
-        if (functionNode->getArguments().getNodes().size() != 2) {
-            THROW_ERROR_EXCEPTION("Wrong number of arguments passed to function (FunctionName: %v, NumberOfArguments: %v)",
-                functionNode->getFunctionName(),
-                functionNode->getArguments().getNodes().size());
-        }
-
-        auto rhs = functionNode->getArguments().getNodes()[1];
-        if (rhs->getNodeType() == DB::QueryTreeNodeType::QUERY || rhs->getNodeType() == DB::QueryTreeNodeType::TABLE) {
-            HasInOperator_ = true;
-            return;
-        }
-
-        // CH deduplicates QueryTree nodes, making pointers to a single QueryTreeNode.
-        // In case of IN function for secondary queries to work correctly, we must duplicate them back.
-        for (auto& arg : functionNode->getArguments()) {
-            if (DB::isNodePartOfTree(arg.get(), JoinTree_.get())) {
-                arg = arg->clone();
-            }
-        }
-    }
-
-    bool needChildVisit(const DB::QueryTreeNodePtr&, const DB::QueryTreeNodePtr& childNode) const
-    {
-        if (HasInOperator_) {
-            return false;
-        }
-
-        auto childNodeType = childNode->getNodeType();
-        return !(childNodeType == DB::QueryTreeNodeType::QUERY || childNodeType == DB::QueryTreeNodeType::UNION);
-    }
-
-    bool HasInOperator() const
-    {
-        return HasInOperator_;
-    }
-
-private:
-    const DB::QueryTreeNodePtr& JoinTree_;
-    bool HasInOperator_ = false;
-};
-
-class TCheckSimpleDistinctVisitor
-    : public DB::InDepthQueryTreeVisitor<TCheckSimpleDistinctVisitor>
-{
-public:
-    TCheckSimpleDistinctVisitor(bool isDistinct)
-        :  IsDistinct_(isDistinct)
-    { }
-
-    static bool IsAllowedAggregationFunction(const DB::FunctionNode& node)
-    {
-        return (
-            node.getFunctionName() == "min" ||
-            node.getFunctionName() == "max" ||
-            node.getFunctionName() == "uniq" ||
-            node.getFunctionName() == "uniqExact" ||
-            node.getFunctionName() == "uniqCombined"
-        );
-    }
-
-     void visitImpl(const DB::QueryTreeNodePtr& node)
-    {
-        if (auto* functionNode = node->as<DB::FunctionNode>()) {
-            if (functionNode->isAggregateFunction()) {
-                IsAggregated_ = true;
-                OnlyAllowedAggregationFunctions_ &= IsAllowedAggregationFunction(*functionNode);
-            } else if (auto function = functionNode->getFunction()) {
-                OnlyDeterministicFunctions_ &= function->isDeterministic();
-            }
-        }
-        if (auto* columnNode = node->as<DB::ColumnNode>()) {
-            Columns_.insert(columnNode->getColumnName());
-        }
-        if (node->getNodeType() == DB::QueryTreeNodeType::JOIN || node->getNodeType() == DB::QueryTreeNodeType::ARRAY_JOIN) {
-            HasJoin_ = true;
-        }
-    }
-
-    bool needChildVisit(VisitQueryTreeNodeType& /*parent*/, VisitQueryTreeNodeType& /*child*/)
-    {
-        return Columns_.size() <= 1 && OnlyDeterministicFunctions_ && OnlyAllowedAggregationFunctions_ && !HasJoin_;
-    }
-
-    bool IsSimpleDistinctCase() const
-    {
-        return Columns_.size() == 1 &&
-            (IsDistinct_ || IsAggregated_) &&
-            OnlyDeterministicFunctions_ &&
-            OnlyAllowedAggregationFunctions_ &&
-            !HasJoin_;
-    }
-
-private:
-    bool IsDistinct_;
-
-    THashSet<std::string> Columns_;
-    bool IsAggregated_ = false;
-    bool OnlyDeterministicFunctions_ = true;
-    bool OnlyAllowedAggregationFunctions_ = true;
-    bool HasJoin_ = false;
-};
-
 void TQueryAnalyzer::ParseQuery()
 {
     YT_LOG_DEBUG("Analyzing query (Query: %v)", QueryInfo_.query_tree->toAST());
@@ -972,6 +1021,13 @@ void TQueryAnalyzer::ParseQuery()
     NeedOnlyDistinct_ = simpleDistinctVisitor.IsSimpleDistinctCase();
 
     auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
+
+    if (tableExpressionsStack.size() == 1) {
+        TCheckMinMaxOptimizationVisitor minMaxVisitor;
+        minMaxVisitor.visit(QueryInfo_.query_tree);
+        EnableMinMaxOptimization_ = minMaxVisitor.EnableMinMaxOptimization();
+    }
+
     for (int index = 0; index < std::ssize(tableExpressionsStack); ++index) {
         auto tableExpression = tableExpressionsStack[index];
         auto tableExpressionNodeType = tableExpression->getNodeType();
@@ -1382,11 +1438,12 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     }
     result.JoinedByKeyColumns = JoinedByKeyColumns_;
 
+    result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
+
     return result;
 }
 
-std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder(
-    TSubquerySpec specTemplate)
+std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder(TSubquerySpec specTemplate)
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetSecondaryQueryBuilder method is already called; "
