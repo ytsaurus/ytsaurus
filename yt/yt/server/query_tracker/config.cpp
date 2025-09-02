@@ -35,6 +35,8 @@ void TYqlEngineConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("start_query_attempt_period", &TThis::StartQueryAttemptPeriod)
         .Default(TDuration::Seconds(2));
+    registrar.Parameter("start_query_rpc_timeout", &TThis::StartQueryRpcTimeout)
+        .Default(TDuration::Days(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

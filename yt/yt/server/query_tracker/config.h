@@ -48,6 +48,7 @@ struct TYqlEngineConfig
     std::string Stage;
     TDuration QueryProgressGetPeriod;
     TDuration StartQueryAttemptPeriod;
+    TDuration StartQueryRpcTimeout;
 
     REGISTER_YSON_STRUCT(TYqlEngineConfig);
 
