@@ -13,12 +13,12 @@
 
 ## Scheduler
 - [X] Operation access control via ACOs (24.2).
-- [ ] Gang operations support for distributed ML workloads (25.1).
-- [ ] Jobs Timeline UI for Vanilla operations (25.1).
-- [ ] New allocation scheduling strategy for ML workloads (25.2+).
+- [X] Gang operations support for distributed ML workloads (25.1).
+- [X] Jobs Timeline UI for Vanilla operations (25.1, UI 1.94.0+).
+- [X] Improved fair share distribution algorithm for gang operations (25.3).
+- [ ] New allocation scheduling strategy for ML workloads (25.3+).
 - [ ] Flexible ACL management for pools.
 - [ ] Renewal of documentation.
-- [ ] Improved fair share distribution algorithm for gang operations.
 
 ## MapReduce
 - [ ] API for Modifying Operation Parameters: Develop an API that allows for the modification of operation parameters during execution, enhancing flexibility and control over dynamic operations.
