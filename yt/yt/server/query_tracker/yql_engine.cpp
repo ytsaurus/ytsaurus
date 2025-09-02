@@ -172,7 +172,7 @@ private:
             .ValueOrThrow();
 
         // TODO(max42, gritukan): Implement long polling for YQL queries.
-        auto yqlServiceChannelWithBigTimeout = CreateDefaultTimeoutChannel(yqlServiceChannel, TDuration::Days(1));
+        auto yqlServiceChannelWithBigTimeout = CreateDefaultTimeoutChannel(yqlServiceChannel, Config_->StartQueryRpcTimeout);
 
         TYqlServiceProxy proxy(yqlServiceChannelWithBigTimeout);
         auto startQueryReq = proxy.StartQuery();
