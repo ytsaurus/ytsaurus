@@ -1,5 +1,6 @@
 #pragma once
 
+#include "hunk_chunk.h"
 #include "public.h"
 
 #include <yt/yt/core/misc/public.h>
@@ -59,6 +60,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastCompactionTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(i64, BackingStoreMemoryUsage);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<THunkChunk*>, HunkChunks);
 
     // Sorted stores.
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, MinKey);
