@@ -413,7 +413,6 @@ bool TContext::TryGetErrorFormat()
         /*mimeHeader*/ nullptr,
         EFormatTarget::Error,
         EDataType::Structured);
-    ErrorFormatFactory_ = CreateFactoryForFormat(*ErrorFormat_, EDataType::Structured);
     return true;
 }
 
@@ -1090,24 +1089,22 @@ void TContext::Finalize()
             Response_->GetHeaders()->Remove("Vary");
             Response_->GetHeaders()->Remove("X-YT-Framing");
 
-            if (ErrorFormat_) {
-                FillYTErrorHeaders(Response_, Error_, ErrorFormatFactory_);
-                Response_->GetHeaders()->Add("X-YT-Error-Content-Type", FormatToMime(*ErrorFormat_));
-            } else {
-                FillYTErrorHeaders(Response_, Error_);
-            }
+            FillFormattedYTErrorHeaders(
+                Response_,
+                Error_,
+                ErrorFormat_.value_or(EFormatType::Json));
+
             DispatchJson([&] (auto producer) {
                 BuildYsonFluently(producer).Value(Error_);
             });
         }
     } else {
         if (!Error_.IsOK()) {
-            if (ErrorFormat_) {
-                FillYTErrorTrailers(Response_, Error_, ErrorFormatFactory_);
-                Response_->GetHeaders()->Add("X-YT-Error-Content-Type", FormatToMime(*ErrorFormat_));
-            } else {
-                FillYTErrorTrailers(Response_, Error_);
-            }
+            FillFormattedYTErrorTrailers(
+                Response_,
+                Error_,
+                ErrorFormat_.value_or(EFormatType::Json));
+
             Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
