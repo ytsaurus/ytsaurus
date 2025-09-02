@@ -59,6 +59,11 @@ i64 TDiskHealthChecker::GetTestSize() const
     return Config_.Acquire()->TestSize;
 }
 
+int TDiskHealthChecker::GetCheckRetryCount() const
+{
+    return Config_.Acquire()->CheckRetryCount;
+}
+
 void TDiskHealthChecker::Start()
 {
     PeriodicExecutor_->Start();
@@ -78,10 +83,26 @@ void TDiskHealthChecker::RunCheck()
 
 TError TDiskHealthChecker::RunCheckWithDeadline()
 {
-    return WaitFor(BIND_NO_PROPAGATE(&TDiskHealthChecker::RunCheckWithTimeout, MakeStrong(this))
+    return WaitFor(BIND_NO_PROPAGATE(&TDiskHealthChecker::RunCheckWithRetries, MakeStrong(this))
         .AsyncVia(CheckInvoker_)
         .Run()
         .WithDeadline(TInstant::Now() + GetWaitTimeout() + GetExecTimeout()));
+}
+
+void TDiskHealthChecker::RunCheckWithRetries()
+{
+    TError lastError;
+
+    for (int i = 0; i < GetCheckRetryCount(); ++i) {
+        try {
+            RunCheckWithTimeout();
+            return;
+        } catch (const TErrorException& ex) {
+            lastError = ex.Error();
+        }
+    }
+
+    lastError.ThrowOnError();
 }
 
 void TDiskHealthChecker::RunCheckWithTimeout()

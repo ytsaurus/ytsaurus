@@ -57,6 +57,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     TError RunCheckWithDeadline();
+    void RunCheckWithRetries();
     void RunCheckWithTimeout();
 
     void OnCheck();
@@ -67,6 +68,7 @@ private:
     TDuration GetWaitTimeout() const;
     TDuration GetExecTimeout() const;
     i64 GetTestSize() const;
+    int GetCheckRetryCount() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskHealthChecker)
