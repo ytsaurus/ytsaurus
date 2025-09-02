@@ -45,7 +45,12 @@ uint64_t TRoutineRegistry::GetAddress(const std::string& symbol) const
 
 TRoutineRegistry::TValueTypeBuilder TRoutineRegistry::GetTypeBuilder(const std::string& symbol) const
 {
-    return GetOrCrash(SymbolToTypeBuilder_, MangleSymbol(symbol));
+    auto mangledSymbol = MangleSymbol(symbol);
+    auto it = SymbolToTypeBuilder_.find(mangledSymbol);
+    if (it == SymbolToTypeBuilder_.end()) {
+        THROW_ERROR_EXCEPTION("Type for symbol %Qv was not found", symbol);
+    }
+    return it->second;
 }
 
 void TRoutineRegistry::RegisterRoutineImpl(
