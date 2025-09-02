@@ -341,11 +341,18 @@ void TGarbageCollector::DestroyZombie(TObject* object)
     }
 }
 
-const THashSet<TObjectRawPtr>& TGarbageCollector::GetZombies() const
+bool TGarbageCollector::IsRegisteredZombie(TObject* object) const
 {
     VerifyPersistentStateRead();
 
-    return Zombies_;
+    return Zombies_.contains(object);
+}
+
+bool TGarbageCollector::IsEphemeralGhost(TObject* object) const
+{
+    VerifyPersistentStateRead();
+
+    return EphemeralGhosts_.contains(object);
 }
 
 void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagList& cellTags)

@@ -54,7 +54,8 @@ public:
     void RegisterZombie(TObject* object);
     void UnregisterZombie(TObject* object);
     void DestroyZombie(TObject* object);
-    const THashSet<TObjectRawPtr>& GetZombies() const;
+    bool IsRegisteredZombie(TObject* object) const;
+    bool IsEphemeralGhost(TObject* object) const;
 
     void RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagList& cellTags);
     void UnregisterRemovalAwaitingCellsSyncObject(TObject* object);
