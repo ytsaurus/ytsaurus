@@ -1,9 +1,11 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create_user, issue_token, revoke_token, list_user_tokens,
-    wait, get, set, set_user_password, create, remove
+    wait, get, set, set_user_password, create, raises_yt_error, remove
 )
 from yt.environment.helpers import assert_items_equal
+
+import yt_error_codes
 
 import pytest
 
@@ -137,6 +139,11 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         _, token_usual_hash = issue_token("u1")
 
         assert_items_equal(list_user_tokens("u1"), [token_manual_hash, token_usual_hash])
+
+    @authors("ermolovd")
+    def test_issue_token_to_missing_user(self):
+        with raises_yt_error(yt_error_codes.NoSuchUser):
+            issue_token("missing_user")
 
 
 @pytest.mark.enabled_multidaemon

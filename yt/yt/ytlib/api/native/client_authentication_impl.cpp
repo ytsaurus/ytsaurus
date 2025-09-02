@@ -156,8 +156,14 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
             user,
             tokenPrefix,
             tokenHash);
-        THROW_ERROR_EXCEPTION("Failed to issue new token for user")
-            << userIdRspOrError;
+        if (userIdRspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::NoSuchUser, "No such user %Qv",
+                user)
+                << userIdRspOrError;
+        } else {
+            THROW_ERROR_EXCEPTION("Failed to issue new token for user")
+                << userIdRspOrError;
+        }
     }
 
     attributes->Set("user", user);
@@ -405,7 +411,20 @@ void TClient::ValidateAuthenticationCommandPermissions(
             Format("//sys/users/%v", ToYPathLiteral(user)),
             EPermission::Administer,
             checkPermissionOptions));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check %Qlv permission for user", EPermission::Administer);
+
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::NoSuchUser, "No such user %Qv",
+                    user)
+                    << rspOrError;
+            } else {
+                THROW_ERROR_EXCEPTION("Failed to check %Qlv permission to administer user %Qv for user %Qv",
+                    EPermission::Administer,
+                    user,
+                    *Options_.User)
+                    << rspOrError;
+            }
+        }
 
         canAdminister = (rspOrError.Value().Action == ESecurityAction::Allow);
     }
