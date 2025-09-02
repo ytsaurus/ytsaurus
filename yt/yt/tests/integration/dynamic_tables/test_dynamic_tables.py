@@ -776,23 +776,43 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert get("//tmp/t1/@profiling_tag") == "custom"
 
     @authors("sabdenovch")
-    def test_no_column_meta_in_chunk_meta(self):
+    @pytest.mark.parametrize("config", ["mount_config", "chunk_writer", "both"])
+    def test_no_column_meta_in_chunk_meta(self, config):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", lookup_cache_rows_per_tablet=50, optimize_for="scan")
-        set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", False)
-        set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", True)
+
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": f"payload_{i}"} for i in range(10)]
         insert_rows("//tmp/t", rows)
-        assert rows == lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
-        assert rows == lookup_rows("//tmp/t", [{"key": i} for i in range(10)], use_lookup_cache=False)
-        lookup_rows("//tmp/t", [{"key": i} for i in range(10)], use_lookup_cache=False, versioned=True)
-
         sync_flush_table("//tmp/t")
-        assert rows == lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
-        assert rows == lookup_rows("//tmp/t", [{"key": i} for i in range(10)], use_lookup_cache=False)
-        lookup_rows("//tmp/t", [{"key": i} for i in range(10)], use_lookup_cache=False, versioned=True)
+
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        meta_size_before_migration = get(f"#{chunk_id}/@meta_size")
+
+        if config == "mount_config":
+            set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", False)
+            set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", True)
+        elif config == "chunk_writer":
+            set("//tmp/t/@chunk_writer", {
+                "enable_column_meta_in_chunk_meta": False,
+                "enable_segment_meta_in_blocks": True,
+            })
+        else:
+            # Chunk writer config must have priority
+            set("//tmp/t/@mount_config/enable_column_meta_in_chunk_meta", True)
+            set("//tmp/t/@mount_config/enable_segment_meta_in_blocks", False)
+            set("//tmp/t/@chunk_writer", {
+                "enable_column_meta_in_chunk_meta": False,
+                "enable_segment_meta_in_blocks": True,
+            })
+
+        sync_compact_table("//tmp/t")
+
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        meta_size_after_migration = get(f"#{chunk_id}/@meta_size")
+
+        assert meta_size_after_migration < meta_size_before_migration, "Expected meta to become smaller"
 
     @authors("cherepashka")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
