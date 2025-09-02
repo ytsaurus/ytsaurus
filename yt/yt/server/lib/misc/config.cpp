@@ -128,6 +128,8 @@ void TDiskHealthCheckerConfig::Register(TRegistrar registrar)
         .Alias("timeout");
     registrar.Parameter("wait_timeout", &TThis::WaitTimeout)
         .Default(TDuration::Minutes(30));
+    registrar.Parameter("check_retry_count", &TThis::CheckRetryCount)
+        .Default(5);
 }
 
 TDiskHealthCheckerConfigPtr TDiskHealthCheckerConfig::ApplyDynamic(const TDiskHealthCheckerDynamicConfig& dynamicConfig)
@@ -136,6 +138,7 @@ TDiskHealthCheckerConfigPtr TDiskHealthCheckerConfig::ApplyDynamic(const TDiskHe
     UpdateYsonStructField(mergedConfig->TestSize, dynamicConfig.TestSize);
     UpdateYsonStructField(mergedConfig->ExecTimeout, dynamicConfig.ExecTimeout);
     UpdateYsonStructField(mergedConfig->WaitTimeout, dynamicConfig.WaitTimeout);
+    UpdateYsonStructField(mergedConfig->CheckRetryCount, dynamicConfig.CheckRetryCount);
     return mergedConfig;
 }
 
@@ -146,6 +149,8 @@ void TDiskHealthCheckerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("test_size", &TThis::TestSize)
         .Optional();
     registrar.Parameter("wait_timeout", &TThis::WaitTimeout)
+        .Optional();
+    registrar.Parameter("check_retry_count", &TThis::CheckRetryCount)
         .Optional();
     registrar.Parameter("exec_timeout", &TThis::ExecTimeout)
         .Optional()
