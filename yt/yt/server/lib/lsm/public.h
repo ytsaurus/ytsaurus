@@ -43,6 +43,13 @@ struct TRowDigestUpcomingCompactionInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EHunkCompactionReason,
+    (None)
+    (ForcedCompaction)
+    (GarbageRatioTooHigh)
+    (HunkChunkTooSmall)
+);
+
 DEFINE_ENUM(EStoreCompactionReason,
     (None)
     (Regular)

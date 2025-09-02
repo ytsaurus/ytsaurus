@@ -34,6 +34,9 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TTabletLsmStatistics, LsmStatistics);
 
+    using THunkChunkMap = THashMap<NChunkClient::TChunkId, std::unique_ptr<THunkChunk>>;
+    DEFINE_BYREF_RW_PROPERTY(THunkChunkMap, HunkChunks);
+
     // Sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TPartition>>, Partitions);
     DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TPartition>, Eden);

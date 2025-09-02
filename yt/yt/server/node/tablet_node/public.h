@@ -31,13 +31,6 @@ DEFINE_ENUM(ETabletDistributedThrottlerKind,
     (BlobMediumRead)
 );
 
-DEFINE_ENUM(EHunkCompactionReason,
-    (None)
-    (ForcedCompaction)
-    (GarbageRatioTooHigh)
-    (HunkChunkTooSmall)
-);
-
 DEFINE_ENUM(ETabletWriteMode,
     ((Direct)         (0))
     ((Pull)           (1))

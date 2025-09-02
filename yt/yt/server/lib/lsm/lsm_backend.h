@@ -13,10 +13,12 @@ struct TCompactionRequest
     TTabletPtr Tablet = nullptr;
     TPartitionId PartitionId;
     std::vector<TStoreId> Stores;
+    THashSet<NChunkClient::TChunkId> HunkChunks;
     int Slack = 0;
     int Effect = 0;
     bool DiscardStores = false;
     EStoreCompactionReason Reason = EStoreCompactionReason::None;
+    TEnumIndexedArray<EHunkCompactionReason, i64> HunkChunkCountByReason;
 };
 
 struct TSamplePartitionRequest

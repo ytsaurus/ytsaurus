@@ -23,6 +23,7 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/lib/lsm/hunk_chunk.h>
 #include <yt/yt/server/lib/lsm/tablet.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
@@ -184,6 +185,7 @@ struct TCompactionTaskInfo
     const ui64 Random = RandomNumber<size_t>();
 
     const std::vector<TStoreId> StoreIds;
+    const THashSet<TChunkId> HunkChunkIds;
 
     TCompactionRuntimeData RuntimeData;
 
@@ -199,7 +201,9 @@ struct TCompactionTaskInfo
         int slack,
         int effect,
         int futureEffect,
-        std::vector<TStoreId> storeIds)
+        std::vector<TStoreId> storeIds,
+        THashSet<TChunkId> hunkChunkIds,
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
         : TBackgroundActivityTaskInfoBase(
             taskId,
             tabletId,
@@ -213,7 +217,11 @@ struct TCompactionTaskInfo
         , Effect(effect)
         , FutureEffect(futureEffect)
         , StoreIds(std::move(storeIds))
-    { }
+        , HunkChunkIds(std::move(hunkChunkIds))
+    {
+        auto guard = Guard(RuntimeData.SpinLock);
+        RuntimeData.HunkChunkCountByReason = hunkChunkCountByReason;
+    }
 
     auto GetOrderingTuple() const
     {
@@ -341,7 +349,9 @@ struct TCompactionTask
         const TTablet* tablet,
         TPartitionId partitionId,
         std::vector<TStoreId> storeIds,
+        THashSet<TChunkId> hunkChunkIds,
         NLsm::EStoreCompactionReason reason,
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
         bool discardStores,
         int slack,
         int effect,
@@ -1195,7 +1205,9 @@ private:
             tablet,
             request.PartitionId,
             request.Stores,
+            request.HunkChunks,
             request.Reason,
+            request.HunkChunkCountByReason,
             request.DiscardStores,
             request.Slack,
             request.Effect,
@@ -1649,16 +1661,15 @@ private:
                 ConvertTo<TRetentionConfigPtr>(mountConfig));
 
             reader = CreateReader(
-                task,
                 tablet,
                 tabletSnapshot,
                 stores,
+                task->Info->HunkChunkIds,
                 chunkReadOptions,
                 currentTimestamp,
                 // NB: No major compaction during Eden partitioning.
                 /*majorTimestamp*/ MinTimestamp,
-                tabletSnapshot->PartitioningThrottler,
-                Logger);
+                tabletSnapshot->PartitioningThrottler);
 
             auto transaction = StartPartitioningTransaction(tabletSnapshot, &Logger);
 
@@ -2064,15 +2075,14 @@ private:
                 task->Info->Reason);
 
             reader = CreateReader(
-                task,
                 tablet,
                 tabletSnapshot,
                 stores,
+                task->Info->HunkChunkIds,
                 chunkReadOptions,
                 currentTimestamp,
                 majorTimestamp,
-                tabletSnapshot->CompactionThrottler,
-                Logger);
+                tabletSnapshot->CompactionThrottler);
 
             auto transaction = StartCompactionTransaction(tabletSnapshot, &Logger);
 
@@ -2216,167 +2226,15 @@ private:
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }
 
-
-    static bool IsHunkCompactionForced(
-        const TTablet* tablet,
-        const THunkChunkPtr& chunk)
-    {
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        auto forcedCompactionRevision = std::max(
-            mountConfig->ForcedCompactionRevision,
-            mountConfig->ForcedHunkCompactionRevision);
-
-        auto revision = RevisionFromId(chunk->GetId());
-        return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
-    }
-
-    static bool IsHunkCompactionGarbageRatioTooHigh(
-        const TTablet* tablet,
-        const THunkChunkPtr& hunkChunk)
-    {
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) /
-            hunkChunk->GetTotalHunkLength();
-        return referencedHunkLengthRatio < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
-    }
-
-    static bool IsSmallHunkCompactionNeeded(
-        const TTablet* tablet,
-        const THunkChunkPtr& hunkChunk)
-    {
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-        return hunkChunk->GetTotalHunkLength() <= mountConfig->MaxHunkCompactionSize;
-    }
-
-    static EHunkCompactionReason GetHunkCompactionReason(
-        const TTablet* tablet,
-        const THunkChunkPtr& hunkChunk)
-    {
-        if (IsHunkCompactionForced(tablet, hunkChunk)) {
-            return EHunkCompactionReason::ForcedCompaction;
-        }
-
-        if (IsHunkCompactionGarbageRatioTooHigh(tablet, hunkChunk)) {
-            return EHunkCompactionReason::GarbageRatioTooHigh;
-        }
-
-        if (IsSmallHunkCompactionNeeded(tablet, hunkChunk)) {
-            return EHunkCompactionReason::HunkChunkTooSmall;
-        }
-
-        return EHunkCompactionReason::None;
-    }
-
-    THashSet<TChunkId> PickCompactableHunkChunkIds(
-        TCompactionTask* task,
-        const TTablet* tablet,
-        const std::vector<TSortedChunkStorePtr>& stores,
-        const NLogging::TLogger& logger)
-    {
-        const auto& Logger = logger;
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
-
-        // Forced or garbage ratio too high. Will be compacted unconditionally.
-        THashSet<TChunkId> finalistIds;
-
-        // Too small hunk chunks. Will be compacted only if there are enough of them.
-        THashSet<THunkChunkPtr> candidates;
-
-        for (const auto& store : stores) {
-            for (const auto& hunkRef : store->HunkChunkRefs()) {
-                const auto& hunkChunk = hunkRef.HunkChunk;
-                auto compactionReason = GetHunkCompactionReason(tablet, hunkChunk);
-
-                if (compactionReason == EHunkCompactionReason::None) {
-                    continue;
-                } else if (compactionReason == EHunkCompactionReason::HunkChunkTooSmall) {
-                    candidates.insert(hunkChunk);
-                } else {
-                    if (finalistIds.insert(hunkChunk->GetId()).second) {
-                        {
-                            auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                            // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurrence.
-                            ++task->Info->RuntimeData.HunkChunkCountByReason[compactionReason];
-                        }
-
-                        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                            "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                            hunkChunk->GetId(),
-                            compactionReason);
-                    }
-                }
-            }
-        }
-
-        // Fast path.
-        if (ssize(candidates) < mountConfig->MinHunkCompactionChunkCount)
-        {
-            return finalistIds;
-        }
-
-        std::vector<THunkChunkPtr> sortedCandidates(
-            candidates.begin(),
-            candidates.end());
-        std::sort(
-            sortedCandidates.begin(),
-            sortedCandidates.end(),
-            [] (const auto& lhs, const auto& rhs) {
-                return lhs->GetTotalHunkLength() < rhs->GetTotalHunkLength();
-            });
-
-        for (int i = 0; i < ssize(sortedCandidates); ++i) {
-            i64 totalSize = 0;
-            int j = i;
-            while (j < ssize(sortedCandidates)) {
-                if (j - i == mountConfig->MaxHunkCompactionChunkCount) {
-                    break;
-                }
-
-                i64 size = sortedCandidates[j]->GetTotalHunkLength();
-                if (size > mountConfig->HunkCompactionSizeBase &&
-                    totalSize > 0 &&
-                    size > totalSize * mountConfig->HunkCompactionSizeRatio)
-                {
-                    break;
-                }
-
-                totalSize += size;
-                ++j;
-            }
-
-            if (j - i >= mountConfig->MinHunkCompactionChunkCount) {
-                while (i < j) {
-                    const auto& candidate = sortedCandidates[i];
-                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                        "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        candidate->GetId(),
-                        EHunkCompactionReason::HunkChunkTooSmall);
-
-                    {
-                        auto guard = Guard(task->Info->RuntimeData.SpinLock);
-                        ++task->Info->RuntimeData.HunkChunkCountByReason[EHunkCompactionReason::HunkChunkTooSmall];
-                    }
-
-                    InsertOrCrash(finalistIds, candidate->GetId());
-                    ++i;
-                }
-                break;
-            }
-        }
-
-        return finalistIds;
-    }
-
     IVersionedReaderPtr CreateReader(
-        TCompactionTask* task,
         TTablet* tablet,
         const TTabletSnapshotPtr& tabletSnapshot,
         const std::vector<TSortedChunkStorePtr>& stores,
+        const THashSet<TChunkId>& hunkChunkIds,
         const TClientChunkReadOptions& chunkReadOptions,
         TTimestamp currentTimestamp,
         TTimestamp majorTimestamp,
-        IThroughputThrottlerPtr inboundThrottler,
-        const NLogging::TLogger& logger)
+        IThroughputThrottlerPtr inboundThrottler)
     {
         return CreateHunkInliningVersionedReader(
             tablet->GetSettings().HunkReaderConfig,
@@ -2396,11 +2254,7 @@ private:
             tablet->GetChunkFragmentReader(),
             tabletSnapshot->DictionaryCompressionFactory,
             tablet->GetPhysicalSchema(),
-            PickCompactableHunkChunkIds(
-                task,
-                tablet,
-                stores,
-                logger),
+            hunkChunkIds,
             chunkReadOptions,
             tabletSnapshot->PerformanceCounters);
     }
@@ -2482,7 +2336,9 @@ TCompactionTask::TCompactionTask(
     const TTablet* tablet,
     TPartitionId partitionId,
     std::vector<TStoreId> storeIds,
+    THashSet<TChunkId> hunkChunkIds,
     NLsm::EStoreCompactionReason reason,
+    TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason,
     bool discardStores,
     int slack,
     int effect,
@@ -2501,7 +2357,9 @@ TCompactionTask::TCompactionTask(
             slack,
             effect,
             futureEffect,
-            std::move(storeIds)),
+            std::move(storeIds),
+            std::move(hunkChunkIds),
+            hunkChunkCountByReason),
         std::move(orchid))
     , Slot(slot)
     , Invoker(tablet->GetEpochAutomatonInvoker())

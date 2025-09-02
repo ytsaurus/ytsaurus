@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "hunk_chunk.h"
 #include "partition_balancer.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -21,6 +22,7 @@
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
 #include <yt/yt/server/lib/lsm/config.h>
+#include <yt/yt/server/lib/lsm/hunk_chunk.h>
 #include <yt/yt/server/lib/lsm/lsm_backend.h>
 #include <yt/yt/server/lib/lsm/partition.h>
 #include <yt/yt/server/lib/lsm/store.h>
@@ -310,6 +312,7 @@ private:
             lsmStore->SetIsCompactable(storeManager->IsStoreCompactable(store));
             lsmStore->SetCreationTime(chunkStore->GetCreationTime());
             lsmStore->SetLastCompactionTimestamp(chunkStore->GetLastCompactionTimestamp());
+            lsmStore->HunkChunks() = ScanHunkChunks(store, lsmTablet);
 
             if (auto backingStore = chunkStore->GetBackingStore()) {
                 lsmStore->SetBackingStoreMemoryUsage(backingStore->GetDynamicMemoryUsage());
@@ -335,6 +338,31 @@ private:
         }
 
         return lsmStore;
+    }
+
+    std::vector<NLsm::THunkChunk*> ScanHunkChunks(const IStorePtr& store, NLsm::TTablet* lsmTablet)
+    {
+        std::vector<NLsm::THunkChunk*> hunkChunks;
+        for (const auto& hunkChunkRef : store->AsChunk()->HunkChunkRefs()) {
+            const auto& hunkChunk = hunkChunkRef.HunkChunk;
+
+            auto it = lsmTablet->HunkChunks().find(hunkChunk->GetId());
+
+            if (it == lsmTablet->HunkChunks().end()) {
+                it = lsmTablet->HunkChunks().emplace(
+                    hunkChunk->GetId(),
+                    std::make_unique<NLsm::THunkChunk>(
+                        hunkChunk->GetId(),
+                        hunkChunk->GetTotalHunkLength(),
+                        hunkChunk->GetReferencedTotalHunkLength()
+                    )
+                ).first;
+            }
+
+            hunkChunks.push_back(it->second.get());
+        }
+
+        return hunkChunks;
     }
 };
 
