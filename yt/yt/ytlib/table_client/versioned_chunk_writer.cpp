@@ -707,13 +707,17 @@ public:
             dataSink)
         , DataToBlockFlush_(std::min(BlockSize_, BufferSize_))
     {
-        THROW_ERROR_EXCEPTION_IF(!Options_->EnableColumnMetaInChunkMeta && !Options_->EnableSegmentMetaInBlocks,
-            "Bad chunk writer options. At least one of \"enable_column_meta_in_chunk_meta\" or "
-            "\"enable_segment_meta_in_blocks\" must be true");
+        THROW_ERROR_EXCEPTION_IF(!IsColumnMetaInChunkMetaEnabled() && !IsSegmentMetaInBlocksEnabled(),
+            "Bad chunk writer configuration. Either column meta in chunk meta or segment meta in blocks"
+            "must be allowed");
+
+        YT_LOG_DEBUG("Created columnar versioned chunk writer (ColumnMetaEnabled: %v, SegmentMetaEnabled: %v)",
+            IsColumnMetaInChunkMetaEnabled(),
+            IsSegmentMetaInBlocksEnabled());
 
         auto createBlockWriter = [&] {
             int blockWriterIndex = std::ssize(BlockWriters_);
-            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(Options_->EnableSegmentMetaInBlocks));
+            BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>(IsSegmentMetaInBlocksEnabled()));
             return blockWriterIndex;
         };
 
@@ -794,13 +798,13 @@ public:
     i64 GetMetaSize() const override
     {
         i64 metaSize = 0;
-        if (Options_->EnableColumnMetaInChunkMeta) {
+        if (IsColumnMetaInChunkMetaEnabled()) {
             for (const auto& valueColumnWriter : ValueColumnWriters_) {
                 metaSize += valueColumnWriter->GetMetaSize();
             }
             metaSize += TimestampWriter_->GetMetaSize();
         }
-        if (Options_->EnableSegmentMetaInBlocks) {
+        if (IsSegmentMetaInBlocksEnabled()) {
             metaSize += ColumnGroupInfosExt_.ByteSizeLong();
         }
 
@@ -902,7 +906,7 @@ private:
 
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
 
-        if (Options_->EnableSegmentMetaInBlocks) {
+        if (IsSegmentMetaInBlocksEnabled()) {
             ColumnGroupInfosExt_.add_block_group_indexes(blockWriterIndex);
 
             YT_VERIFY(block.SegmentMetaOffset);
@@ -922,14 +926,12 @@ private:
 
         auto meta = EncodingChunkWriter_->GetMeta();
 
-        YT_VERIFY(Options_->EnableSegmentMetaInBlocks || Options_->EnableColumnMetaInChunkMeta);
-
-        if (Options_->EnableSegmentMetaInBlocks) {
+        if (IsSegmentMetaInBlocksEnabled()) {
             ToProto(ColumnGroupInfosExt_.mutable_column_to_group(), ColumnToGroupIndex_);
             SetProtoExtension(meta->mutable_extensions(), ColumnGroupInfosExt_);
         }
 
-        if (Options_->EnableColumnMetaInChunkMeta) {
+        if (IsColumnMetaInChunkMetaEnabled()) {
             NProto::TColumnMetaExt columnMetaExt;
             for (const auto& valueColumnWriter : ValueColumnWriters_) {
                 *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
@@ -964,6 +966,16 @@ private:
     EChunkFormat GetChunkFormat() const override
     {
         return EChunkFormat::TableVersionedColumnar;
+    }
+
+    bool IsSegmentMetaInBlocksEnabled() const
+    {
+        return Config_->EnableSegmentMetaInBlocks.value_or(Options_->EnableSegmentMetaInBlocks);
+    }
+
+    bool IsColumnMetaInChunkMetaEnabled() const
+    {
+        return Config_->EnableColumnMetaInChunkMeta.value_or(Options_->EnableColumnMetaInChunkMeta);
     }
 };
 
