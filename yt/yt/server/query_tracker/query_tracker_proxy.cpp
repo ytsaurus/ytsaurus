@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/server/query_tracker/yql_engine.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -21,7 +23,11 @@
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/yql_client/yql_service_proxy.h>
+
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/rpc/roaming_channel.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -627,7 +633,9 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
     , ProxyConfig_(std::move(config))
-{ }
+{
+    EngineInfoProviders_[EQueryEngine::Yql] = CreateYqlEngineInfoProvider(StateClient_, StateRoot_);
+}
 
 void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config)
 {
@@ -1434,6 +1442,9 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         "Getting query tracker information (Attributes: %v)",
         options.Attributes);
 
+    static const TYsonString EmptyMap = TYsonString(TString("{}"));
+    auto settingsMap = options.Settings ? options.Settings->AsMap() : ConvertToNode(EmptyMap)->AsMap();
+
     auto attributes = options.Attributes;
 
     attributes.ValidateKeysOnly();
@@ -1448,7 +1459,6 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     TNodeExistsOptions nodeExistsOptions;
     nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
 
-    static const TYsonString EmptyMap = TYsonString(TString("{}"));
     TYsonString supportedFeatures = EmptyMap;
     if (attributes.AdmitsKeySlow("supported_features")) {
         // These features are guaranteed to be deployed before or with this code.
@@ -1459,17 +1469,17 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
             .EndMap();
     }
 
-    std::vector<TString> accessControlObjects;
+    std::vector<std::string> accessControlObjects;
     if (attributes.AdmitsKeySlow("access_control_objects")) {
         YT_LOG_DEBUG("Getting access control objects");
         TListNodeOptions listOptions;
         listOptions.ReadFrom = EMasterChannelKind::Cache;
         auto allAcos = WaitFor(StateClient_->ListNode(TString(QueriesAcoNamespacePath), listOptions))
             .ValueOrThrow();
-        accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
+        accessControlObjects = ConvertTo<std::vector<std::string>>(allAcos);
     }
 
-    std::vector<TString> clusters;
+    std::vector<std::string> clusters;
     if (attributes.AdmitsKeySlow("clusters")) {
         YT_LOG_DEBUG("Getting list of available clusters");
         TListNodeOptions listOptions;
@@ -1477,7 +1487,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         listOptions.SuccessStalenessBound = TDuration::Minutes(1);
         auto allClusters = WaitFor(StateClient_->ListNode("//sys/clusters", listOptions))
             .ValueOrThrow();
-        clusters = ConvertTo<std::vector<TString>>(allClusters);
+        clusters = ConvertTo<std::vector<std::string>>(allClusters);
     }
 
     return TGetQueryTrackerInfoResult{
@@ -1485,7 +1495,8 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         .ClusterName = std::move(clusterName),
         .SupportedFeatures = std::move(supportedFeatures),
         .AccessControlObjects = std::move(accessControlObjects),
-        .Clusters = std::move(clusters)
+        .Clusters = std::move(clusters),
+        .EnginesInfo = TYsonString(TString("{}")),
     };
 }
 
