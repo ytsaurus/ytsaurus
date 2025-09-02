@@ -8745,6 +8745,68 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
         {.SyntaxVersion = 2});
 }
 
+TEST_F(TQueryEvaluateTest, OutOfLineBindedValues)
+{
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
+    std::string query = R"(
+        (sum(SumCost)) AS SumCost_,
+        (
+            SELECT
+                GMID_ * SumCost_ as X,
+                sum(if(if_null(double(SumCost_) / SumNum_, 0) = 0, null, double(SumCost_) / SumNum_)) AS Y
+            FROM (
+                array_agg(GMID, false) AS GMID_,
+                array_agg(SumNum, false) as SumNum_
+            )
+            GROUP BY GMID_
+        ) AS SumArray
+        FROM (
+            SELECT
+                GMID,
+                sum(Num) AS SumNum,
+                sum(Cost) AS SumCost
+            FROM `//t`
+            GROUP BY (GMID)
+            LIMIT 4294967295
+        )
+        GROUP BY (1) AS FakeGroupBy
+    )";
+
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"GMID", EValueType::Int64},
+        {"Num", EValueType::Int64},
+        {"Cost", EValueType::Int64},
+    });
+
+    auto data = std::vector<std::string>{};
+
+    splits["//t"] = schema;
+    sources.push_back(data);
+
+    auto resultSplit = MakeSplit({
+        {"SumCost_", EValueType::Int64},
+        {"SumArray", ListLogicalType(StructLogicalType({
+            {"X", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"Y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))}
+        }))}
+    });
+
+    auto result = YsonToRows({}, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        query,
+        splits,
+        sources,
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+}
+
 TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
 {
     if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {

@@ -246,7 +246,8 @@ public:
         const TCodegenFragmentInfos& fragmentInfos,
         Value* expressionClosure,
         Value* literals,
-        Value* rowValues);
+        Value* rowValues,
+        Value* bindedValues);
 
     static TCGExprContext Make(
         const TCGOpaqueValuesContext& builder,

@@ -616,6 +616,9 @@ Value* TCGOpaqueValuesContext::GetOpaqueValue(size_t index) const
 
 Value* TCGOpaqueValuesContext::GetBindedValues() const
 {
+    if (!BindedValues_) {
+        return ConstantPointerNull::get(Builder_->getPtrTy());
+    }
     return Builder_->ViaClosure(BindedValues_, "bindedValues");
 }
 
@@ -689,7 +692,8 @@ TCGExprContext TCGExprContext::Make(
     const TCodegenFragmentInfos& fragmentInfos,
     Value* expressionClosurePtr,
     Value* literals,
-    Value* rowValues)
+    Value* rowValues,
+    Value* bindedValues)
 {
     Value* opaqueValuesPtr = builder->CreateStructGEP(
         TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
@@ -712,7 +716,7 @@ TCGExprContext TCGExprContext::Make(
         "buffer");
 
     return TCGExprContext(
-        TCGOpaqueValuesContext(builder, literals, opaqueValues),
+        TCGOpaqueValuesContext(builder, literals, opaqueValues, bindedValues),
         TCGExprData(
             fragmentInfos,
             buffer,
