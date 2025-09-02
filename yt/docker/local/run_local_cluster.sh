@@ -399,7 +399,7 @@ EOF
         servicelabel="yt-${servicename}"
 
         cat <<EOF >> prometheus.yml.tmp
-  - job_name: '$servicelabel'
+  - job_name: '$filename'
     metrics_path: '/solomon/all'
     static_configs:
       - targets: ['yt.backend:$port']
