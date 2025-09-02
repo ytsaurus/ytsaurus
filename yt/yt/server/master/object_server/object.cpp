@@ -3,6 +3,7 @@
 #include "garbage_collector.h"
 #include "object.h"
 #include "object_manager.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -31,6 +32,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+constinit const auto Logger = ObjectServerLogger;
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 struct TThreadState
@@ -45,6 +52,10 @@ struct TThreadState
     std::vector<TObject*> ObjectsWithScheduledUnref;
     std::vector<TObject*> ObjectsWithScheduledWeakUnref;
 
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+    THashSet<TObject*> CreatedObjects;
+#endif
+
     bool IsInMutation() const
     {
         return InMutationCounter > 0;
@@ -53,30 +64,6 @@ struct TThreadState
     bool IsInTeardown() const
     {
         return InTeardownFlag;
-    }
-
-    void FlushObjectUnrefs()
-    {
-        YT_VERIFY(IsInMutation());
-        YT_VERIFY(!IsInTeardown());
-
-        const auto& objectManager = Bootstrap->GetObjectManager();
-        while (
-            !ObjectsWithScheduledUnref.empty() ||
-            !ObjectsWithScheduledWeakUnref.empty())
-        {
-            auto objectsWithScheduledUnref = std::move(ObjectsWithScheduledUnref);
-            Sort(objectsWithScheduledUnref, TObjectIdComparer());
-            for (auto* object : objectsWithScheduledUnref) {
-                objectManager->UnrefObject(object);
-            }
-
-            auto objectsWithScheduledWeakUnref = std::move(ObjectsWithScheduledWeakUnref);
-            Sort(objectsWithScheduledWeakUnref, TObjectIdComparer());
-            for (auto* object : objectsWithScheduledWeakUnref) {
-                objectManager->WeakUnrefObject(object);
-            }
-        }
     }
 };
 
@@ -94,6 +81,71 @@ TThreadState* GetThreadState()
     YT_VERIFY(threadState);
     return &*threadState;
 }
+
+void FlushObjectUnrefs(TThreadState* threadState)
+{
+    YT_VERIFY(threadState->IsInMutation());
+    YT_VERIFY(!threadState->IsInTeardown());
+
+    const auto& objectManager = threadState->Bootstrap->GetObjectManager();
+    while (
+        !threadState->ObjectsWithScheduledUnref.empty() ||
+        !threadState->ObjectsWithScheduledWeakUnref.empty())
+    {
+        auto objectsWithScheduledUnref = std::exchange(threadState->ObjectsWithScheduledUnref, {});
+        Sort(objectsWithScheduledUnref, TObjectIdComparer());
+        for (auto* object : objectsWithScheduledUnref) {
+            objectManager->UnrefObject(object);
+        }
+
+        auto objectsWithScheduledWeakUnref = std::exchange(threadState->ObjectsWithScheduledWeakUnref, {});
+        Sort(objectsWithScheduledWeakUnref, TObjectIdComparer());
+        for (auto* object : objectsWithScheduledWeakUnref) {
+            objectManager->WeakUnrefObject(object);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+
+void ValidateCreatedObjectsRefs(TThreadState* threadState)
+{
+    auto createdObjects = std::exchange(threadState->CreatedObjects, {});
+    const auto& garbageCollector = threadState->Bootstrap->GetObjectManager()->GetGarbageCollector();
+    for (auto* object : createdObjects) {
+        if (!object->IsTrunk()) {
+            continue;
+        }
+        if (object->GetObjectRefCounter() == 0 &&
+            object->GetObjectWeakRefCounter() == 0 &&
+            object->GetObjectEphemeralRefCounter() == 0 &&
+            !garbageCollector->IsRegisteredZombie(object) &&
+            !garbageCollector->IsEphemeralGhost(object))
+        {
+            YT_LOG_ALERT("Object leak detected (ObjectId: %v)",
+                object->GetId());
+        }
+    }
+}
+
+void OnObjectCreated(TObject* object)
+{
+    if (auto* threadState = TryGetThreadState(); threadState && threadState->IsInMutation()) {
+        EmplaceOrCrash(threadState->CreatedObjects, object);
+    }
+}
+
+void OnObjectDestroyed(TObject* object)
+{
+    if (auto* threadState = TryGetThreadState(); threadState && threadState->IsInMutation()) {
+        // NB: Could be missing.
+        threadState->CreatedObjects.erase(object);
+    }
+}
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -549,10 +601,14 @@ void BeginMutation()
 
     auto* threadState = NDetail::GetThreadState();
     YT_VERIFY(!threadState->IsInTeardown());
+    YT_VERIFY(++threadState->InMutationCounter > 0);
 
-    if (++threadState->InMutationCounter == 1) {
+    if (threadState->InMutationCounter == 1) {
         YT_VERIFY(threadState->ObjectsWithScheduledUnref.empty());
         YT_VERIFY(threadState->ObjectsWithScheduledWeakUnref.empty());
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+        YT_VERIFY(threadState->CreatedObjects.empty());
+#endif
     }
 }
 
@@ -561,14 +617,21 @@ void EndMutation()
     AssertAutomatonThreadAffinity();
 
     auto* threadState = NDetail::GetThreadState();
-    threadState->FlushObjectUnrefs();
+    NDetail::FlushObjectUnrefs(threadState);
+
     YT_VERIFY(--threadState->InMutationCounter >= 0);
+
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+    if (threadState->InMutationCounter == 0) {
+        NDetail::ValidateCreatedObjectsRefs(threadState);
+    }
+#endif
 }
 
 bool IsInMutation()
 {
     const auto* threadState = NDetail::TryGetThreadState();
-    return threadState && threadState->IsInMutation() > 0;
+    return threadState && threadState->IsInMutation();
 }
 
 void BeginTeardown()
@@ -596,7 +659,7 @@ void FlushObjectUnrefs()
     AssertAutomatonThreadAffinity();
 
     auto* threadState = NDetail::GetThreadState();
-    threadState->FlushObjectUnrefs();
+    NDetail::FlushObjectUnrefs(threadState);
 }
 
 void VerifyAutomatonThreadAffinity()

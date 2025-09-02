@@ -10,6 +10,19 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+
+void OnObjectCreated(TObject* object);
+void OnObjectDestroyed(TObject* object);
+
+#endif
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline TObject::TObject(TObjectId id)
     : Id_(id)
     , EphemeralRefCounter_(Id_)
@@ -17,7 +30,11 @@ inline TObject::TObject(TObjectId id)
 #ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
     , RopSanTag_(GenerateRopSanTag())
 #endif
-{ }
+{
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+    NDetail::OnObjectCreated(this);
+#endif
+}
 
 inline TObject::~TObject()
 {
@@ -26,6 +43,10 @@ inline TObject::~TObject()
 
 #ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
     RopSanTag_ = DeadRopSanTag;
+#endif
+
+#ifdef YT_ROPSAN_ENABLE_LEAK_DETECTION
+    NDetail::OnObjectDestroyed(this);
 #endif
 }
 

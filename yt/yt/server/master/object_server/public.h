@@ -140,12 +140,18 @@ static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;
     * YT_ROPSAN_ENABLE_SERIALIZATION_CHECK
     Minimally-intrusive mode. Only enforces tag checks when TRawObjectPtr
     is being persisted to a snapshot.
+
+    * YT_ROPSAN_ENABLE_LEAK_DETECTION
+    Detects objects that were created but not destroyed during a mutation and
+    alert if some of these objects completely lack any references at the end of the mutatio
+    and are not registered in Garbage Collector. Such objects are definite leaks.
 */
 
 // Turning assertions on enables all ROPSan features automatically.
 #if !defined(NDEBUG)
 #   define YT_ROPSAN_ENABLE_ACCESS_CHECK
 #   define YT_ROPSAN_ENABLE_SERIALIZATION_CHECK
+#   define YT_ROPSAN_ENABLE_LEAK_DETECTION
 #endif
 
 /*
