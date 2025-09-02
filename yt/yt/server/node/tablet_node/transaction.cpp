@@ -57,6 +57,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, PersistentLeaseIds_);
     Save(context, ExternalizerTablets_);
     Save(context, ExternalizationToken_);
+    Save(context, HasUnforwardedActions_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -115,6 +116,11 @@ void TTransaction::Load(TLoadContext& context)
 
     if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
         Load(context, ExternalizationToken_);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::UnforwardedTransactionActions) {
+        Load(context, HasUnforwardedActions_);
     }
 }
 

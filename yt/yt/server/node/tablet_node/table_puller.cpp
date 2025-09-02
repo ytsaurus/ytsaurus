@@ -951,7 +951,7 @@ private:
                 Slot_->GetTabletManager()->ExternalizeTransactionIfNeeded(
                     tabletSnapshot,
                     localTransaction,
-                    "pull rows");
+                    "pull_rows");
 
                 // NB: 2PC is used here to correctly process transaction signatures (sent by both rows and actions).
                 // TODO(savrus) Discard 2PC.
