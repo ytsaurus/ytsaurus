@@ -2,9 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(1.15.3)
+VERSION(1.16.1)
 
-ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.15.3.tar.gz)
+ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.16.1.tar.gz)
 
 LICENSE(BSD-3-Clause)
 
@@ -45,13 +45,8 @@ ADDINCL(
     contrib/python/scipy/py3/scipy/stats/_rcont
     contrib/python/scipy/py3/scipy/stats/_unuran
     contrib/python/scipy/py3/scipy/stats/libnpyrandom
-    contrib/python/scipy/py3/highs/extern
-    contrib/python/scipy/py3/highs/extern/zstr
     contrib/python/scipy/py3/highs/src
-    contrib/python/scipy/py3/highs/src/io
-    contrib/python/scipy/py3/highs/src/lp_data
-    contrib/python/scipy/py3/highs/src/simplex
-    contrib/python/scipy/py3/highs/src/util
+    contrib/python/scipy/py3/xsf/include
     FOR cython contrib/python/numpy/py3
     FOR cython contrib/python/scipy/py3
 )
@@ -66,6 +61,7 @@ NO_CHECK_IMPORTS(
     scipy._lib.array_api_compat.cupy.*
     scipy._lib.array_api_compat.dask.*
     scipy._lib.array_api_compat.torch.*
+    scipy._lib.array_api_extra._lib._testing
     scipy.sparse.linalg._svdp
     scipy.special._mptestutils
     scipy.special._precompute.cosine_cdf
@@ -619,6 +615,7 @@ SRCS(
     scipy/linalg/_flapack-f2pywrappers.f
     scipy/linalg/_flapackmodule.c
     scipy/linalg/_matfuncs_expm.c
+    scipy/linalg/_matfuncs_sqrtm.c
     scipy/ndimage/src/_ctest.c
     scipy/ndimage/src/_rank_filter_1d.cpp
     scipy/ndimage/src/nd_image.c
@@ -637,8 +634,8 @@ SRCS(
     scipy/odr/odrpack/dlunoc.f
     scipy/optimize/__lbfgsb.c
     scipy/optimize/__minpack.c
-    scipy/optimize/_cobyla-f2pywrappers.f
-    scipy/optimize/_cobylamodule.c
+    scipy/optimize/__nnls.c
+    scipy/optimize/__slsqp.c
     scipy/optimize/_direct/DIRect.c
     scipy/optimize/_direct/DIRserial.c
     scipy/optimize/_direct/DIRsubrout.c
@@ -647,24 +644,19 @@ SRCS(
     scipy/optimize/_highspy/highs_options.cpp
     scipy/optimize/_lsap.c
     scipy/optimize/_pava/pava_pybind.cpp
-    scipy/optimize/_slsqp-f2pywrappers.f
-    scipy/optimize/_slsqpmodule.c
     scipy/optimize/_trlib/trlib_eigen_inverse.c
     scipy/optimize/_trlib/trlib_krylov.c
     scipy/optimize/_trlib/trlib_leftmost.c
     scipy/optimize/_trlib/trlib_quadratic_zero.c
     scipy/optimize/_trlib/trlib_tri_factor.c
-    scipy/optimize/cobyla/cobyla2.f
-    scipy/optimize/cobyla/trstlp.f
     scipy/optimize/rectangular_lsap/rectangular_lsap.cpp
-    scipy/optimize/slsqp/slsqp_optmz.f
     scipy/optimize/tnc/tnc.c
     scipy/optimize/zeros.c
-    scipy/signal/_correlate_nd.c
-    scipy/signal/_firfilter.c
-    scipy/signal/_lfilter.c
-    scipy/signal/_medianfilter.c
-    scipy/signal/_sigtoolsmodule.c
+    scipy/signal/_correlate_nd.cc
+    scipy/signal/_firfilter.cc
+    scipy/signal/_lfilter.cc
+    scipy/signal/_medianfilter.cc
+    scipy/signal/_sigtoolsmodule.cc
     scipy/signal/_splinemodule.cc
     scipy/sparse/linalg/_dsolve/SuperLU/SRC/ccolumn_bmod.c
     scipy/sparse/linalg/_dsolve/SuperLU/SRC/ccolumn_dfs.c
@@ -1117,9 +1109,7 @@ SRCS(
     scipy/spatial/ckdtree/src/sparse_distances.cxx
     scipy/spatial/src/distance_pybind.cpp
     scipy/spatial/src/distance_wrap.c
-    scipy/special/Faddeeva.cc
     scipy/special/_cosine.c
-    scipy/special/_faddeeva.cxx
     scipy/special/_gufuncs.cpp
     scipy/special/_gufuncs_docs.cpp
     scipy/special/_special_ufuncs.cpp
@@ -1129,12 +1119,9 @@ SRCS(
     scipy/special/dd_real_wrappers.cpp
     scipy/special/ellint_carlson_wrap.cxx
     scipy/special/sf_error.cc
-    scipy/special/sf_error_state.c
     scipy/special/wright.cc
     scipy/special/xsf_wrappers.cpp
     scipy/stats/_levy_stable/c_src/levyst.c
-    scipy/stats/_mvn-f2pywrappers.f
-    scipy/stats/_mvnmodule.c
     scipy/stats/_rcont/_rcont.c
     scipy/stats/biasedurn/fnchyppr.cpp
     scipy/stats/biasedurn/impls.cpp
@@ -1143,7 +1130,6 @@ SRCS(
     scipy/stats/biasedurn/wnchyppr.cpp
     scipy/stats/libnpyrandom/distributions.c
     scipy/stats/libnpyrandom/logfactorial.c
-    scipy/stats/mvndst.c
 )
 
 IF (HAVE_MKL)
@@ -1174,12 +1160,12 @@ PY_REGISTER(
     scipy.linalg._flapack
     scipy.linalg._linalg_pythran
     scipy.linalg._matfuncs_expm
+    scipy.linalg._matfuncs_schur_sqrtm
     scipy.linalg._matfuncs_sqrtm_triu
     scipy.ndimage._ctest
     scipy.ndimage._nd_image
     scipy.ndimage._rank_filter_1d
     scipy.odr.__odrpack
-    scipy.optimize._cobyla
     scipy.optimize._direct
     scipy.optimize._group_columns
     scipy.optimize._highspy._core
@@ -1188,7 +1174,7 @@ PY_REGISTER(
     scipy.optimize._lsap
     scipy.optimize._minpack
     scipy.optimize._pava_pybind
-    scipy.optimize._slsqp
+    scipy.optimize._slsqplib
     scipy.optimize._zeros
     scipy.signal._max_len_seq_inner
     scipy.signal._sigtools
@@ -1200,7 +1186,6 @@ PY_REGISTER(
     scipy.spatial._distance_wrap
     scipy.special._gufuncs
     scipy.special._special_ufuncs
-    scipy.stats._mvn
     scipy.stats._stats_pythran
 )
 
@@ -1211,22 +1196,21 @@ PY_SRCS(
     scipy/_distributor_init.py
     scipy/_lib/__init__.py
     scipy/_lib/_array_api.py
+    scipy/_lib/_array_api_compat_vendor.py
     scipy/_lib/_array_api_no_0d.py
-    scipy/_lib/_boost_utils.py
     scipy/_lib/_bunch.py
     scipy/_lib/_ccallback.py
     scipy/_lib/_disjoint_set.py
     scipy/_lib/_docscrape.py
     scipy/_lib/_elementwise_iterative_method.py
-    scipy/_lib/_finite_differences.py
     scipy/_lib/_gcutils.py
     scipy/_lib/_pep440.py
+    scipy/_lib/_sparse.py
     scipy/_lib/_testutils.py
     scipy/_lib/_threadsafety.py
     scipy/_lib/_tmpdirs.py
     scipy/_lib/_uarray/__init__.py
     scipy/_lib/_uarray/_backend.py
-    scipy/_lib/_unuran_utils.py
     scipy/_lib/_util.py
     scipy/_lib/array_api_compat/__init__.py
     scipy/_lib/array_api_compat/_internal.py
@@ -1257,11 +1241,24 @@ PY_SRCS(
     scipy/_lib/array_api_compat/torch/__init__.py
     scipy/_lib/array_api_compat/torch/_aliases.py
     scipy/_lib/array_api_compat/torch/_info.py
+    scipy/_lib/array_api_compat/torch/_typing.py
     scipy/_lib/array_api_compat/torch/fft.py
     scipy/_lib/array_api_compat/torch/linalg.py
     scipy/_lib/array_api_extra/__init__.py
-    scipy/_lib/array_api_extra/_funcs.py
-    scipy/_lib/array_api_extra/_typing.py
+    scipy/_lib/array_api_extra/_delegation.py
+    scipy/_lib/array_api_extra/_lib/__init__.py
+    scipy/_lib/array_api_extra/_lib/_at.py
+    scipy/_lib/array_api_extra/_lib/_backends.py
+    scipy/_lib/array_api_extra/_lib/_funcs.py
+    scipy/_lib/array_api_extra/_lib/_lazy.py
+    scipy/_lib/array_api_extra/_lib/_testing.py
+    scipy/_lib/array_api_extra/_lib/_utils/__init__.py
+    scipy/_lib/array_api_extra/_lib/_utils/_compat.py
+    scipy/_lib/array_api_extra/_lib/_utils/_compat.pyi
+    scipy/_lib/array_api_extra/_lib/_utils/_helpers.py
+    scipy/_lib/array_api_extra/_lib/_utils/_typing.py
+    scipy/_lib/array_api_extra/_lib/_utils/_typing.pyi
+    scipy/_lib/array_api_extra/testing.py
     scipy/_lib/cobyqa/__init__.py
     scipy/_lib/cobyqa/framework.py
     scipy/_lib/cobyqa/main.py
@@ -1278,6 +1275,32 @@ PY_SRCS(
     scipy/_lib/decorator.py
     scipy/_lib/deprecation.py
     scipy/_lib/doccer.py
+    scipy/_lib/pyprima/__init__.py
+    scipy/_lib/pyprima/cobyla/__init__.py
+    scipy/_lib/pyprima/cobyla/cobyla.py
+    scipy/_lib/pyprima/cobyla/cobylb.py
+    scipy/_lib/pyprima/cobyla/geometry.py
+    scipy/_lib/pyprima/cobyla/initialize.py
+    scipy/_lib/pyprima/cobyla/trustregion.py
+    scipy/_lib/pyprima/cobyla/update.py
+    scipy/_lib/pyprima/common/__init__.py
+    scipy/_lib/pyprima/common/_bounds.py
+    scipy/_lib/pyprima/common/_linear_constraints.py
+    scipy/_lib/pyprima/common/_nonlinear_constraints.py
+    scipy/_lib/pyprima/common/_project.py
+    scipy/_lib/pyprima/common/checkbreak.py
+    scipy/_lib/pyprima/common/consts.py
+    scipy/_lib/pyprima/common/evaluate.py
+    scipy/_lib/pyprima/common/history.py
+    scipy/_lib/pyprima/common/infos.py
+    scipy/_lib/pyprima/common/linalg.py
+    scipy/_lib/pyprima/common/message.py
+    scipy/_lib/pyprima/common/powalg.py
+    scipy/_lib/pyprima/common/preproc.py
+    scipy/_lib/pyprima/common/present.py
+    scipy/_lib/pyprima/common/ratio.py
+    scipy/_lib/pyprima/common/redrho.py
+    scipy/_lib/pyprima/common/selectx.py
     scipy/_lib/uarray.py
     scipy/cluster/__init__.py
     scipy/cluster/hierarchy.py
@@ -1550,18 +1573,22 @@ PY_SRCS(
     scipy/signal/__init__.py
     scipy/signal/_arraytools.py
     scipy/signal/_czt.py
+    scipy/signal/_delegators.py
     scipy/signal/_filter_design.py
     scipy/signal/_fir_filter_design.py
     scipy/signal/_lti_conversion.py
     scipy/signal/_ltisys.py
     scipy/signal/_max_len_seq.py
     scipy/signal/_peak_finding.py
+    scipy/signal/_polyutils.py
     scipy/signal/_savitzky_golay.py
     scipy/signal/_short_time_fft.py
+    scipy/signal/_signal_api.py
     scipy/signal/_signaltools.py
     scipy/signal/_spectral_py.py
     scipy/signal/_spline.pyi
     scipy/signal/_spline_filters.py
+    scipy/signal/_support_alternative_backends.py
     scipy/signal/_upfirdn.py
     scipy/signal/_waveforms.py
     scipy/signal/_wavelets.py
@@ -1710,6 +1737,7 @@ PY_SRCS(
     scipy/stats/_censored_data.py
     scipy/stats/_common.py
     scipy/stats/_constants.py
+    scipy/stats/_continued_fraction.py
     scipy/stats/_continuous_distns.py
     scipy/stats/_correlation.py
     scipy/stats/_covariance.py
@@ -1719,6 +1747,7 @@ PY_SRCS(
     scipy/stats/_distr_params.py
     scipy/stats/_distribution_infrastructure.py
     scipy/stats/_entropy.py
+    scipy/stats/_finite_differences.py
     scipy/stats/_fit.py
     scipy/stats/_hypotests.py
     scipy/stats/_kde.py
@@ -1738,6 +1767,7 @@ PY_SRCS(
     scipy/stats/_qmc.py
     scipy/stats/_qmc_cy.pyi
     scipy/stats/_qmvnt.py
+    scipy/stats/_quantile.py
     scipy/stats/_rcont/__init__.py
     scipy/stats/_relative_risk.py
     scipy/stats/_resampling.py
@@ -1792,7 +1822,6 @@ PY_SRCS(
     scipy/ndimage/_cytest.pyx
     scipy/ndimage/_ni_label.pyx
     scipy/optimize/_bglu_dense.pyx
-    scipy/optimize/_cython_nnls.pyx
     scipy/optimize/_lsq/givens_elimination.pyx
     scipy/optimize/_trlib/_trlib.pyx
     scipy/optimize/cython_optimize/_zeros.pyx
@@ -1805,12 +1834,12 @@ PY_SRCS(
     scipy/sparse/csgraph/_matching.pyx
     scipy/sparse/csgraph/_min_spanning_tree.pyx
     scipy/sparse/csgraph/_reordering.pyx
-    scipy/sparse/csgraph/_shortest_path.pyx
     scipy/sparse/csgraph/_tools.pyx
     scipy/sparse/csgraph/_traversal.pyx
     scipy/spatial/_hausdorff.pyx
     scipy/spatial/_qhull.pyx
     scipy/spatial/_voronoi.pyx
+    scipy/spatial/transform/_rigid_transform.pyx
     scipy/spatial/transform/_rotation.pyx
     scipy/special/_comb.pyx
     scipy/special/_ellip_harm_2.pyx
@@ -1823,12 +1852,13 @@ PY_SRCS(
     scipy/stats/_stats.pyx
     scipy/stats/_unuran/unuran_wrapper.pyx
     CYTHON_CPP
-    scipy/interpolate/_bspl.pyx
+    scipy/sparse/csgraph/_shortest_path.pyx
     scipy/spatial/_ckdtree.pyx
     scipy/special/_specfun.pyx
     scipy/special/_ufuncs_cxx.pyx
     scipy/stats/_biasedurn.pyx
     scipy/stats/_qmc_cy.pyx
+    scipy/stats/_qmvnt_cy.pyx
 )
 
 RESOURCE_FILES(

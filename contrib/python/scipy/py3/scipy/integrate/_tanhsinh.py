@@ -5,7 +5,7 @@ from scipy import special
 import scipy._lib._elementwise_iterative_method as eim
 from scipy._lib._util import _RichResult
 from scipy._lib._array_api import (array_namespace, xp_copy, xp_ravel,
-                                   xp_real, xp_take_along_axis)
+                                   xp_promote)
 
 
 __all__ = ['nsum']
@@ -97,13 +97,10 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
     atol, rtol : float, optional
         Absolute termination tolerance (default: 0) and relative termination
         tolerance (default: ``eps**0.75``, where ``eps`` is the precision of
-        the result dtype), respectively.  Iteration will stop when
-        ``res.error < atol`` or  ``res.error < res.integral * rtol``. The error
-        estimate is as described in [1]_ Section 5 but with a lower bound of
-        ``eps * res.integral``. While not theoretically rigorous or
-        conservative, it is said to work well in practice. Must be non-negative
-        and finite if `log` is False, and must be expressed as the log of a
-        non-negative and finite number if `log` is True.
+        the result dtype), respectively. Must be non-negative and finite if
+        `log` is False, and must be expressed as the log of a non-negative and
+        finite number if `log` is True. Iteration will stop when
+        ``res.error < atol`` or  ``res.error < res.integral * rtol``.
     preserve_shape : bool, default: False
         In the following, "arguments of `f`" refers to the array ``xi`` and
         any arrays within ``argsi``. Let ``shape`` be the broadcasted shape
@@ -128,7 +125,7 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
         An optional user-supplied function to be called before the first
         iteration and after each iteration.
         Called as ``callback(res)``, where ``res`` is a ``_RichResult``
-        similar to that returned by `_differentiate` (but containing the
+        similar to that returned by `tanhsinh` (but containing the
         current iterate's values of all variables). If `callback` raises a
         ``StopIteration``, the algorithm will terminate immediately and
         `tanhsinh` will return a result object. `callback` must not mutate
@@ -174,6 +171,12 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
     Implements the algorithm as described in [1]_ with minor adaptations for
     finite-precision arithmetic, including some described by [2]_ and [3]_. The
     tanh-sinh scheme was originally introduced in [4]_.
+
+    Two error estimation schemes are described in [1]_ Section 5: one attempts to
+    detect and exploit quadratic convergence; the other simply compares the integral
+    estimates at successive levels. While neither is theoretically rigorous or
+    conservative, both work well in practice. Our error estimate uses the minimum of
+    these two schemes with a lower bound of ``eps * res.integral``.
 
     Due to floating-point error in the abscissae, the function may be evaluated
     at the endpoints of the interval during iterations, but the values returned by
@@ -364,7 +367,7 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
     aerr = xp_ravel(xp.full(shape, xp.nan, dtype=dtype))  # absolute error
     status = xp_ravel(xp.full(shape, eim._EINPROGRESS, dtype=xp.int32))
     h0 = _get_base_step(dtype, xp)
-    h0 = xp_real(h0) # base step
+    h0 = xp.real(h0) # base step
 
     # For term `d4` of error estimate ([1] Section 5), we need to keep the
     # most extreme abscissae and corresponding `fj`s, `wj`s in Euler-Maclaurin
@@ -403,8 +406,7 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
 
         # Perform abscissae substitutions for infinite limits of integration
         xj = xp_copy(work.xj)
-        # use xp_real here to avoid cupy/cupy#8434
-        xj[work.abinf] = xj[work.abinf] / (1 - xp_real(xj[work.abinf])**2)
+        xj[work.abinf] = xj[work.abinf] / (1 - xp.real(xj[work.abinf])**2)
         xj[work.binf] = 1/xj[work.binf] - 1 + work.a0[work.binf]
         xj[work.ainf] *= -1
         return xj
@@ -454,7 +456,7 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
 
         # Terminate if integral estimate becomes invalid
         if log:
-            Sn_real = xp_real(work.Sn)
+            Sn_real = xp.real(work.Sn)
             Sn_pos_inf = xp.isinf(Sn_real) & (Sn_real > 0)
             i = (Sn_pos_inf | xp.isnan(work.Sn)) & ~stop
         else:
@@ -473,10 +475,7 @@ def tanhsinh(f, a, b, *, args=(), log=False, maxlevel=None, minlevel=2,
         # If the integration limits were such that b < a, we reversed them
         # to perform the calculation, and the final result needs to be negated.
         if log and xp.any(negative):
-            dtype = res['integral'].dtype
-            pi = xp.asarray(xp.pi, dtype=dtype)[()]
-            j = xp.asarray(1j, dtype=xp.complex64)[()]  # minimum complex type
-            res['integral'] = res['integral'] + negative*pi*j
+            res['integral'] = res['integral'] + negative * xp.pi * 1.0j
         else:
             res['integral'][negative] *= -1
 
@@ -615,7 +614,7 @@ def _transform_to_limits(xjc, wj, a, b, xp):
     # these points; however, we can't easily filter out points since this
     # function is vectorized. Instead, zero the weights.
     # Note: values may have complex dtype, but have zero imaginary part
-    xj_real, a_real, b_real = xp_real(xj), xp_real(a), xp_real(b)
+    xj_real, a_real, b_real = xp.real(xj), xp.real(a), xp.real(b)
     invalid = (xj_real <= a_real) | (xj_real >= b_real)
     wj[invalid] = 0
     return xj, wj
@@ -646,16 +645,16 @@ def _euler_maclaurin_sum(fj, work, xp):
 
     # integer index of the maximum abscissa at this level
     xr[invalid_r] = -xp.inf
-    ir = xp.argmax(xp_real(xr), axis=0, keepdims=True)
+    ir = xp.argmax(xp.real(xr), axis=0, keepdims=True)
     # abscissa, function value, and weight at this index
     ### Not Array API Compatible... yet ###
-    xr_max = xp_take_along_axis(xr, ir, axis=0)[0]
-    fr_max = xp_take_along_axis(fr, ir, axis=0)[0]
-    wr_max = xp_take_along_axis(wr, ir, axis=0)[0]
+    xr_max = xp.take_along_axis(xr, ir, axis=0)[0]
+    fr_max = xp.take_along_axis(fr, ir, axis=0)[0]
+    wr_max = xp.take_along_axis(wr, ir, axis=0)[0]
     # boolean indices at which maximum abscissa at this level exceeds
     # the incumbent maximum abscissa (from all previous levels)
     # note: abscissa may have complex dtype, but will have zero imaginary part
-    j = xp_real(xr_max) > xp_real(xr0)
+    j = xp.real(xr_max) > xp.real(xr0)
     # Update record of the incumbent abscissa, function value, and weight
     xr0[j] = xr_max[j]
     fr0[j] = fr_max[j]
@@ -663,15 +662,15 @@ def _euler_maclaurin_sum(fj, work, xp):
 
     # integer index of the minimum abscissa at this level
     xl[invalid_l] = xp.inf
-    il = xp.argmin(xp_real(xl), axis=0, keepdims=True)
+    il = xp.argmin(xp.real(xl), axis=0, keepdims=True)
     # abscissa, function value, and weight at this index
-    xl_min = xp_take_along_axis(xl, il, axis=0)[0]
-    fl_min = xp_take_along_axis(fl, il, axis=0)[0]
-    wl_min = xp_take_along_axis(wl, il, axis=0)[0]
+    xl_min = xp.take_along_axis(xl, il, axis=0)[0]
+    fl_min = xp.take_along_axis(fl, il, axis=0)[0]
+    wl_min = xp.take_along_axis(wl, il, axis=0)[0]
     # boolean indices at which minimum abscissa at this level is less than
     # the incumbent minimum abscissa (from all previous levels)
     # note: abscissa may have complex dtype, but will have zero imaginary part
-    j = xp_real(xl_min) < xp_real(xl0)
+    j = xp.real(xl_min) < xp.real(xl0)
     # Update record of the incumbent abscissa, function value, and weight
     xl0[j] = xl_min[j]
     fl0[j] = fl_min[j]
@@ -682,7 +681,7 @@ def _euler_maclaurin_sum(fj, work, xp):
     # rightmost term, whichever is greater.
     flwl0 = fl0 + xp.log(wl0) if work.log else fl0 * wl0  # leftmost term
     frwr0 = fr0 + xp.log(wr0) if work.log else fr0 * wr0  # rightmost term
-    magnitude = xp_real if work.log else xp.abs
+    magnitude = xp.real if work.log else xp.abs
     work.d4 = xp.maximum(magnitude(flwl0), magnitude(frwr0))
 
     # There are two approaches to dealing with function values that are
@@ -769,14 +768,14 @@ def _estimate_error(work, xp):
         # complex values have imaginary part in increments of pi*j, which just
         # carries sign information of the original integral, so use of
         # `xp.real` here is equivalent to absolute value in real scale.
-        d1 = xp_real(special.logsumexp(xp.stack([work.Sn, Snm1 + work.pi*1j]), axis=0))
-        d2 = xp_real(special.logsumexp(xp.stack([work.Sn, Snm2 + work.pi*1j]), axis=0))
-        d3 = log_e1 + xp.max(xp_real(work.fjwj), axis=-1)
+        d1 = xp.real(special.logsumexp(xp.stack([work.Sn, Snm1 + work.pi*1j]), axis=0))
+        d2 = xp.real(special.logsumexp(xp.stack([work.Sn, Snm2 + work.pi*1j]), axis=0))
+        d3 = log_e1 + xp.max(xp.real(work.fjwj), axis=-1)
         d4 = work.d4
         d5 = log_e1 + xp.real(work.Sn)
         temp = xp.where(d1 > -xp.inf, d1 ** 2 / d2, -xp.inf)
-        ds = xp.stack([temp, 2 * d1, d3, d4, d5])
-        aerr = xp.max(ds, axis=0)
+        ds = xp.stack([temp, 2 * d1, d3, d4])
+        aerr = xp.clip(xp.max(ds, axis=0), d5, d1)
         rerr = aerr - xp.real(work.Sn)
     else:
         # Note: explicit computation of log10 of each of these is unnecessary.
@@ -786,8 +785,8 @@ def _estimate_error(work, xp):
         d4 = work.d4
         d5 = e1 * xp.abs(work.Sn)
         temp = xp.where(d1 > 0, d1**(xp.log(d1)/xp.log(d2)), 0)
-        ds = xp.stack([temp, d1**2, d3, d4, d5])
-        aerr = xp.max(ds, axis=0)
+        ds = xp.stack([temp, d1**2, d3, d4])
+        aerr = xp.clip(xp.max(ds, axis=0), d5, d1)
         rerr = aerr/xp.abs(work.Sn)
 
     return rerr, aerr
@@ -804,7 +803,7 @@ def _transform_integrals(a, b, xp):
     a[ab_same], b[ab_same] = 1, 1
 
     # `a, b` may have complex dtype but have zero imaginary part
-    negative = xp_real(b) < xp_real(a)
+    negative = xp.real(b) < xp.real(a)
     a[negative], b[negative] = b[negative], a[negative]
 
     abinf = xp.isinf(a) & xp.isinf(b)
@@ -825,14 +824,13 @@ def _tanhsinh_iv(f, a, b, log, maxfun, maxlevel, minlevel,
     # Input validation and standardization
 
     xp = array_namespace(a, b)
+    a, b = xp_promote(a, b, broadcast=True, force_floating=True, xp=xp)
 
     message = '`f` must be callable.'
     if not callable(f):
         raise ValueError(message)
 
     message = 'All elements of `a` and `b` must be real numbers.'
-    a, b = xp.asarray(a), xp.asarray(b)
-    a, b = xp.broadcast_arrays(a, b)
     if (xp.isdtype(a.dtype, 'complex floating')
             or xp.isdtype(b.dtype, 'complex floating')):
         raise ValueError(message)
@@ -901,16 +899,15 @@ def _tanhsinh_iv(f, a, b, log, maxfun, maxlevel, minlevel,
 def _nsum_iv(f, a, b, step, args, log, maxterms, tolerances):
     # Input validation and standardization
 
-    xp = array_namespace(a, b)
+    xp = array_namespace(a, b, step)
+    a, b, step = xp_promote(a, b, step, broadcast=True, force_floating=True, xp=xp)
 
     message = '`f` must be callable.'
     if not callable(f):
         raise ValueError(message)
 
     message = 'All elements of `a`, `b`, and `step` must be real numbers.'
-    a, b, step = xp.broadcast_arrays(xp.asarray(a), xp.asarray(b), xp.asarray(step))
-    dtype = xp.result_type(a.dtype, b.dtype, step.dtype)
-    if not xp.isdtype(dtype, 'numeric') or xp.isdtype(dtype, 'complex floating'):
+    if not xp.isdtype(a.dtype, ('integral', 'real floating')):
         raise ValueError(message)
 
     valid_b = b >= a  # NaNs will be False
@@ -1183,6 +1180,7 @@ def nsum(f, a, b, *, step=1, args=(), log=False, maxterms=int(2**20), tolerances
 
     # Branch for direct sum evaluation / integral approximation / invalid input
     i0 = ~valid_abstep                     # invalid
+    i0b = b < a                            # zero
     i1 = (nterms + 1 <= maxterms) & ~i0    # direct sum evaluation
     i2 = xp.isfinite(a) & ~i1 & ~i0        # infinite sum to the right
     i3 = xp.isfinite(b) & ~i2 & ~i1 & ~i0  # infinite sum to the left
@@ -1191,6 +1189,9 @@ def nsum(f, a, b, *, step=1, args=(), log=False, maxterms=int(2**20), tolerances
     if xp.any(i0):
         S[i0], E[i0] = xp.nan, xp.nan
         status[i0] = -1
+
+        S[i0b], E[i0b] = zero, zero
+        status[i0b] = 0
 
     if xp.any(i1):
         args_direct = [arg[i1] for arg in args]
@@ -1294,7 +1295,7 @@ def _direct(f, a, b, step, args, constants, xp, inclusive=True):
     nfev = max_steps - i_nan.sum(axis=-1)
     S = special.logsumexp(fs, axis=-1) if log else xp.sum(fs, axis=-1)
     # Rough, non-conservative error estimate. See gh-19667 for improvement ideas.
-    E = xp_real(S) + math.log(eps) if log else eps * abs(S)
+    E = xp.real(S) + math.log(eps) if log else eps * abs(S)
     return S, E, nfev
 
 
@@ -1310,7 +1311,7 @@ def _integral_bound(f, a, b, step, args, constants, xp):
         tol = special.logsumexp(xp.stack((tol, rtol + lb.integral)), axis=0)
     else:
         tol = tol + rtol*lb.integral
-    i_skip = lb.status < 0  # avoid unnecessary f_evals if integral is divergent
+    i_skip = lb.status == -3  # avoid unnecessary f_evals if integral is divergent
     tol[i_skip] = xp.nan
     status = lb.status
 
@@ -1331,7 +1332,7 @@ def _integral_bound(f, a, b, step, args, constants, xp):
     fksp1 = f(ks + step2, *args2)  # check that the function is decreasing
     fk_insufficient = (fks > tol[:, xp.newaxis]) | (fksp1 > fks)
     n_fk_insufficient = xp.sum(fk_insufficient, axis=-1)
-    nt = xp.minimum(n_fk_insufficient, xp.asarray(n_steps.shape[-1]-1))
+    nt = xp.minimum(n_fk_insufficient, n_steps.shape[-1]-1)
     n_steps = n_steps[nt]
 
     # If `maxterms` is insufficient (i.e. either the magnitude of the last term of the
@@ -1374,7 +1375,7 @@ def _integral_bound(f, a, b, step, args, constants, xp):
         S_terms = (left, right.integral - log_step, fk - log2, fb - log2)
         S = special.logsumexp(xp.stack(S_terms), axis=0)
         E_terms = (left_error, right.error - log_step, fk-log2, fb-log2+xp.pi*1j)
-        E = xp_real(special.logsumexp(xp.stack(E_terms), axis=0))
+        E = xp.real(special.logsumexp(xp.stack(E_terms), axis=0))
     else:
         S = left + right.integral/step + fk/2 + fb/2
         E = left_error + right.error/step + fk/2 - fb/2

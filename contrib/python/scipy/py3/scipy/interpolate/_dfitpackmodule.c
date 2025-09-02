@@ -398,7 +398,7 @@ extern void F_FUNC(surfit ,SURFIT )(int*,int*,double*,double*,double*,double*,do
 extern void F_FUNC(surfit ,SURFIT )(int*,int*,double*,double*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,double*,int*,double*,int*,double*,double*,double*,double*,int*,double*,int*,int*,int*,int*);
 extern void F_FUNC(sphere ,SPHERE )(int*,int*,double*,double*,double*,double*,double*,int*,int*,double*,int*,double*,int*,double*,double*,double*,double*,int*,double*,int*,int*,int*,int*);
 extern void F_FUNC(sphere ,SPHERE )(int*,int*,double*,double*,double*,double*,double*,int*,int*,double*,int*,double*,int*,double*,double*,double*,double*,int*,double*,int*,int*,int*,int*);
-extern void F_FUNC(regrid ,REGRID )(int*,int*,double*,int*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*);
+extern void F_FUNC(regrid ,REGRID )(int*,int*,double*,int*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*);
 extern void F_FUNC(spgrid ,SPGRID )(int*,int*,int*,double*,int*,double*,double*,double*,double*,double*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*);
 extern void F_WRAPPEDFUNC(dblint,DBLINT)(double*,double*,int*,double*,int*,double*,int*,int*,double*,double*,double*,double*,double*);
 /*eof externroutines*/
@@ -6690,7 +6690,7 @@ f2py_stop_clock();
 
 /******************************** regrid_smth ********************************/
 static char doc_f2py_rout__dfitpack_regrid_smth[] = "\
-nx,tx,ny,ty,c,fp,ier = regrid_smth(x,y,z,[xb,xe,yb,ye,kx,ky,s])\n\nWrapper for ``regrid_smth``.\
+nx,tx,ny,ty,c,fp,ier = regrid_smth(x,y,z,[xb,xe,yb,ye,kx,ky,s,maxit])\n\nWrapper for ``regrid_smth``.\
 \n\nParameters\n----------\n"
 "x : input rank-1 array('d') with bounds (mx)\n"
 "y : input rank-1 array('d') with bounds (my)\n"
@@ -6703,6 +6703,7 @@ nx,tx,ny,ty,c,fp,ier = regrid_smth(x,y,z,[xb,xe,yb,ye,kx,ky,s])\n\nWrapper for `
 "kx : input int, optional\n    Default: 3\n"
 "ky : input int, optional\n    Default: 3\n"
 "s : input float, optional\n    Default: 0.0\n"
+"maxit : input int, optional\n    Default: 20\n"
 "\nReturns\n-------\n"
 "nx : int\n"
 "tx : rank-1 array('d') with bounds (nxest)\n"
@@ -6711,11 +6712,11 @@ nx,tx,ny,ty,c,fp,ier = regrid_smth(x,y,z,[xb,xe,yb,ye,kx,ky,s])\n\nWrapper for `
 "c : rank-1 array('d') with bounds (1 + kx + ky - nxest - nyest + kx * ky - kx * nyest - ky * nxest + nxest * nyest)\n"
 "fp : float\n"
 "ier : int";
-/* extern void F_FUNC(regrid ,REGRID )(int*,int*,double*,int*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*); */
+/* extern void F_FUNC(regrid ,REGRID )(int*,int*,double*,int*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*); */
 static PyObject *f2py_rout__dfitpack_regrid_smth(const PyObject *capi_self,
                            PyObject *capi_args,
                            PyObject *capi_keywds,
-                           void (*f2py_func)(int*,int*,double*,int*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*)) {
+                           void (*f2py_func)(int*,int*,double*,int*,double*,double*,double*,double*,double*,double*,int*,int*,double*,int*,int*,int*,int*,double*,int*,double*,double*,double*,double*,int*,int*,int*,int*)) {
     PyObject * volatile capi_buildvalue = NULL;
     volatile int f2py_success = 1;
 /*decl*/
@@ -6757,6 +6758,8 @@ static PyObject *f2py_rout__dfitpack_regrid_smth(const PyObject *capi_self,
     PyObject *s_capi = Py_None;
     int nxest = 0;
     int nyest = 0;
+    int maxit = 0;
+    PyObject *maxit_capi = Py_None;
     int nx = 0;
     double *tx = NULL;
     npy_intp tx_Dims[1] = {-1};
@@ -6788,15 +6791,15 @@ static PyObject *f2py_rout__dfitpack_regrid_smth(const PyObject *capi_self,
     int capi_iwrk_intent = 0;
     int kwrk = 0;
     int ier = 0;
-    static char *capi_kwlist[] = {"x","y","z","xb","xe","yb","ye","kx","ky","s",NULL};
+    static char *capi_kwlist[] = {"x","y","z","xb","xe","yb","ye","kx","ky","s","maxit",NULL};
 
 /*routdebugenter*/
 #ifdef F2PY_REPORT_ATEXIT
 f2py_start_clock();
 #endif
     if (!PyArg_ParseTupleAndKeywords(capi_args,capi_keywds,\
-        "OOO|OOOOOOO:_dfitpack.regrid_smth",\
-        capi_kwlist,&x_capi,&y_capi,&z_capi,&xb_capi,&xe_capi,&yb_capi,&ye_capi,&kx_capi,&ky_capi,&s_capi))
+        "OOO|OOOOOOOO:_dfitpack.regrid_smth",\
+        capi_kwlist,&x_capi,&y_capi,&z_capi,&xb_capi,&xe_capi,&yb_capi,&ye_capi,&kx_capi,&ky_capi,&s_capi,&maxit_capi))
         return NULL;
 /*frompyobj*/
     /* Processing variable iopt */
@@ -6844,6 +6847,10 @@ f2py_start_clock();
         f2py_success = double_from_pyobj(&s,s_capi,"_dfitpack.regrid_smth() 7th keyword (s) can't be converted to double");
     if (f2py_success) {
     CHECKSCALAR(0.0<=s,"0.0<=s","7th keyword s","regrid_smth:s=%g",s) {
+    /* Processing variable maxit */
+    if (maxit_capi == Py_None) maxit = 20; else
+        f2py_success = int_from_pyobj(&maxit,maxit_capi,"_dfitpack.regrid_smth() 8th keyword (maxit) can't be converted to int");
+    if (f2py_success) {
     /* Processing variable nx */
     /* Processing variable ny */
     /* Processing variable fp */
@@ -6971,7 +6978,7 @@ f2py_start_call_clock();
 #endif
 /*callfortranroutine*/
             Py_BEGIN_ALLOW_THREADS
-                (*f2py_func)(&iopt,&mx,x,&my,y,z,&xb,&xe,&yb,&ye,&kx,&ky,&s,&nxest,&nyest,&nx,tx,&ny,ty,c,&fp,wrk,&lwrk,iwrk,&kwrk,&ier);
+                (*f2py_func)(&iopt,&mx,x,&my,y,z,&xb,&xe,&yb,&ye,&kx,&ky,&s,&nxest,&nyest,&maxit,&nx,tx,&ny,ty,c,&fp,wrk,&lwrk,iwrk,&kwrk,&ier);
             Py_END_ALLOW_THREADS
 if (PyErr_Occurred())
   f2py_success = 0;
@@ -7027,6 +7034,8 @@ f2py_stop_call_clock();
     /* End of cleaning variable fp */
     /* End of cleaning variable ny */
     /* End of cleaning variable nx */
+    } /*if (f2py_success) of maxit*/
+    /* End of cleaning variable maxit */
     } /*CHECKSCALAR(0.0<=s)*/
     } /*if (f2py_success) of s*/
     /* End of cleaning variable s */
@@ -7763,7 +7772,7 @@ PyMODINIT_FUNC PyInit__dfitpack(void) {
 "    tx,ty,c,fp,ier = surfit_lsq(x,y,z,nx,tx,ny,ty,w=1.0,xb=calc_b(x,m,tx,nx),xe=calc_e(x,m,tx,nx),yb=calc_b(y,m,ty,ny),ye=calc_e(y,m,ty,ny),kx=3,ky=3,eps=1e-16,lwrk2=calc_surfit_lwrk2(m,kx,ky,nxest,nyest),overwrite_tx=1,overwrite_ty=1)\n"
 "    nt,tt,np,tp,c,fp,ier = spherfit_smth(teta,phi,r,w=1.0,s=m,eps=1e-16)\n"
 "    tt,tp,c,fp,ier = spherfit_lsq(teta,phi,r,tt,tp,w=1.0,eps=1e-16,overwrite_tt=1,overwrite_tp=1)\n"
-"    nx,tx,ny,ty,c,fp,ier = regrid_smth(x,y,z,xb=dmin(x,mx),xe=dmax(x,mx),yb=dmin(y,my),ye=dmax(y,my),kx=3,ky=3,s=0.0)\n"
+"    nx,tx,ny,ty,c,fp,ier = regrid_smth(x,y,z,xb=dmin(x,mx),xe=dmax(x,mx),yb=dmin(y,my),ye=dmax(y,my),kx=3,ky=3,s=0.0,maxit=20)\n"
 "    nu,tu,nv,tv,c,fp,ier = regrid_smth_spher(iopt,ider,u,v,r,r0=,r1=,s=0.0)\n"
 "    dblint = dblint(tx,ty,c,kx,ky,xb,xe,yb,ye)\n"
 "COMMON blocks:\n""  /types/ intvar\n"".");

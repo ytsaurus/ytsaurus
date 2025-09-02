@@ -258,12 +258,6 @@ cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_nct_pdf_double "nct_pdf_double"(double, double, double) noexcept nogil
 cdef void *_export_nct_pdf_double = <void*>_func_nct_pdf_double
 cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef float _func_nct_ppf_float "nct_ppf_float"(float, float, float) noexcept nogil
-cdef void *_export_nct_ppf_float = <void*>_func_nct_ppf_float
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double _func_nct_ppf_double "nct_ppf_double"(double, double, double) noexcept nogil
-cdef void *_export_nct_ppf_double = <void*>_func_nct_ppf_double
-cdef extern from r"_ufuncs_cxx_defs.h":
     cdef float _func_nct_sf_float "nct_sf_float"(float, float, float) noexcept nogil
 cdef void *_export_nct_sf_float = <void*>_func_nct_sf_float
 cdef extern from r"_ufuncs_cxx_defs.h":
@@ -357,12 +351,6 @@ cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_ibeta_inv_double "ibeta_inv_double"(double, double, double) noexcept nogil
 cdef void *_export_ibeta_inv_double = <void*>_func_ibeta_inv_double
 cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double _func_faddeeva_dawsn "faddeeva_dawsn"(double) noexcept nogil
-cdef void *_export_faddeeva_dawsn = <void*>_func_faddeeva_dawsn
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_dawsn_complex "faddeeva_dawsn_complex"(double complex) noexcept nogil
-cdef void *_export_faddeeva_dawsn_complex = <void*>_func_faddeeva_dawsn_complex
-cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_fellint_RC "fellint_RC"(double, double) noexcept nogil
 cdef void *_export_fellint_RC = <void*>_func_fellint_RC
 cdef extern from r"_ufuncs_cxx_defs.h":
@@ -393,24 +381,6 @@ cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double complex _func_cellint_RJ "cellint_RJ"(double complex, double complex, double complex, double complex) noexcept nogil
 cdef void *_export_cellint_RJ = <void*>_func_cellint_RJ
 cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_erf "faddeeva_erf"(double complex) noexcept nogil
-cdef void *_export_faddeeva_erf = <void*>_func_faddeeva_erf
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_erfc_complex "faddeeva_erfc_complex"(double complex) noexcept nogil
-cdef void *_export_faddeeva_erfc_complex = <void*>_func_faddeeva_erfc_complex
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double _func_faddeeva_erfcx "faddeeva_erfcx"(double) noexcept nogil
-cdef void *_export_faddeeva_erfcx = <void*>_func_faddeeva_erfcx
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_erfcx_complex "faddeeva_erfcx_complex"(double complex) noexcept nogil
-cdef void *_export_faddeeva_erfcx_complex = <void*>_func_faddeeva_erfcx_complex
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double _func_faddeeva_erfi "faddeeva_erfi"(double) noexcept nogil
-cdef void *_export_faddeeva_erfi = <void*>_func_faddeeva_erfi
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_erfi_complex "faddeeva_erfi_complex"(double complex) noexcept nogil
-cdef void *_export_faddeeva_erfi_complex = <void*>_func_faddeeva_erfi_complex
-cdef extern from r"_ufuncs_cxx_defs.h":
     cdef float _func_erfinv_float "erfinv_float"(float) noexcept nogil
 cdef void *_export_erfinv_float = <void*>_func_erfinv_float
 cdef extern from r"_ufuncs_cxx_defs.h":
@@ -419,12 +389,6 @@ cdef void *_export_erfinv_double = <void*>_func_erfinv_double
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_hyp1f1_double "hyp1f1_double"(double, double, double) noexcept nogil
 cdef void *_export_hyp1f1_double = <void*>_func_hyp1f1_double
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double _func_faddeeva_log_ndtr "faddeeva_log_ndtr"(double) noexcept nogil
-cdef void *_export_faddeeva_log_ndtr = <void*>_func_faddeeva_log_ndtr
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_log_ndtr_complex "faddeeva_log_ndtr_complex"(double complex) noexcept nogil
-cdef void *_export_faddeeva_log_ndtr_complex = <void*>_func_faddeeva_log_ndtr_complex
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef float _func_ncf_cdf_float "ncf_cdf_float"(float, float, float, float) noexcept nogil
 cdef void *_export_ncf_cdf_float = <void*>_func_ncf_cdf_float
@@ -444,20 +408,17 @@ cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_nct_cdf_double "nct_cdf_double"(double, double, double) noexcept nogil
 cdef void *_export_nct_cdf_double = <void*>_func_nct_cdf_double
 cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_ndtr "faddeeva_ndtr"(double complex) noexcept nogil
-cdef void *_export_faddeeva_ndtr = <void*>_func_faddeeva_ndtr
+    cdef float _func_nct_ppf_float "nct_ppf_float"(float, float, float) noexcept nogil
+cdef void *_export_nct_ppf_float = <void*>_func_nct_ppf_float
+cdef extern from r"_ufuncs_cxx_defs.h":
+    cdef double _func_nct_ppf_double "nct_ppf_double"(double, double, double) noexcept nogil
+cdef void *_export_nct_ppf_double = <void*>_func_nct_ppf_double
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef float _func_powm1_float "powm1_float"(float, float) noexcept nogil
 cdef void *_export_powm1_float = <void*>_func_powm1_float
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double _func_powm1_double "powm1_double"(double, double) noexcept nogil
 cdef void *_export_powm1_double = <void*>_func_powm1_double
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double _func_faddeeva_voigt_profile "faddeeva_voigt_profile"(double, double, double) noexcept nogil
-cdef void *_export_faddeeva_voigt_profile = <void*>_func_faddeeva_voigt_profile
-cdef extern from r"_ufuncs_cxx_defs.h":
-    cdef double complex _func_faddeeva_w "faddeeva_w"(double complex) noexcept nogil
-cdef void *_export_faddeeva_w = <void*>_func_faddeeva_w
 cdef extern from r"_ufuncs_cxx_defs.h":
     cdef double complex _func_wrightomega "wrightomega"(double complex) noexcept nogil
 cdef void *_export_wrightomega = <void*>_func_wrightomega
