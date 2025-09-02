@@ -4730,13 +4730,18 @@ class TestChaos(ChaosTestBase):
         assert tablet_infos[0]["total_row_count"] == 1
         assert tablet_infos[0]["trimmed_row_count"] == 0
 
-        # Prevent trimmig errors due to replication lag
-        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
         sync_flush_table("//tmp/q0")
         sync_flush_table("//tmp/q1")
         sync_flush_table("//tmp/q2")
 
-        # TODO(osidorkin) Uss safe trim row count
+        # Prevent trimmig errors due to replication lag
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+        ts = get(f"#{card_id}/@current_timestamp")
+
+        for replica in replicas:
+            self._wait_for_table_card_timestamp(replica["replica_path"], ts)
+
+        # TODO(osidorkin) Use safe trim row count
         trim_rows("//tmp/q0", 0, 1)
         trim_rows("//tmp/q1", 0, 1)
         trim_rows("//tmp/q2", 0, 1)
