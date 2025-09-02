@@ -1361,7 +1361,8 @@ TCGValue CodegenFragment(
             {
                 builder.GetExpressionClosurePtr(),
                 builder.GetLiterals(),
-                builder.RowValues
+                builder.RowValues,
+                builder.GetBindedValues(),
             });
 
         return TCGValue::LoadFromRowValue(
@@ -1394,7 +1395,8 @@ void CodegenFragmentBodies(
                             cgModule->GetModule()->getContext(),
                             fragmentInfos.Functions.size())),
                     TTypeBuilder<TPIValue*>::Get(cgModule->GetModule()->getContext()),
-                    TTypeBuilder<TPIValue*>::Get(cgModule->GetModule()->getContext())
+                    TTypeBuilder<TPIValue*>::Get(cgModule->GetModule()->getContext()),
+                    TTypeBuilder<TPIValue*>::Get(cgModule->GetModule()->getContext()),
                 },
                 true);
 
@@ -1412,6 +1414,7 @@ void CodegenFragmentBodies(
             Value* expressionClosure = ConvertToPointer(args++);
             Value* literals = ConvertToPointer(args++);
             Value* rowValues = ConvertToPointer(args++);
+            Value* bindedValues = ConvertToPointer(args++);
             {
                 TCGIRBuilder irBuilder(function);
                 auto innerBuilder = TCGExprContext::Make(
@@ -1419,7 +1422,8 @@ void CodegenFragmentBodies(
                     fragmentInfos,
                     expressionClosure,
                     literals,
-                    rowValues);
+                    rowValues,
+                    bindedValues);
 
                 Value* fragmentFlag = innerBuilder.GetFragmentFlag(id);
 
