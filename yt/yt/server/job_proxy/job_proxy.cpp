@@ -789,9 +789,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
 
-    auto signatureGenerator = Config_->EnableSignatureGeneration
-        ? New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_)
-        : NSignature::CreateAlwaysThrowingSignatureGenerator();
+    auto signatureGenerator = New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_);
     connection->SetSignatureGenerator(std::move(signatureGenerator));
 
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
@@ -824,9 +822,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
 
-    auto signatureValidator = Config_->EnableSignatureValidation
-        ? New<TProxySignatureValidator>(*SupervisorProxy_, JobId_)
-        : NSignature::CreateAlwaysThrowingSignatureValidator();
+    auto signatureValidator = New<TProxySignatureValidator>(*SupervisorProxy_, JobId_);
 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
