@@ -2616,6 +2616,9 @@ class TestUserJobMonitoring(YTEnvSetup):
 
     @authors("omgronny", "eshcherbin")
     def test_profiling(self):
+        update_controller_agent_config(
+            "user_job_monitoring/default_max_monitored_user_jobs_per_operation", 2)
+
         op = run_sleeping_vanilla(
             job_count=2,
             task_patch={
@@ -2633,24 +2636,28 @@ class TestUserJobMonitoring(YTEnvSetup):
         monitored_job_count_gauge = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/monitored_job_count")
         used_descriptor_count_gauge = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/used_descriptor_count")
         total_descriptor_count_gauge = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/total_descriptor_count")
+        used_descriptor_by_user_counter = controller_agent_profiler.counter("controller_agent/user_job_monitoring/used_descriptors")
 
         max_monitored_user_jobs_per_agent = TestUserJobMonitoring.DELTA_CONTROLLER_AGENT_CONFIG["controller_agent"]["user_job_monitoring"]["max_monitored_user_jobs_per_agent"]
 
         wait(lambda: monitored_job_count_gauge.get() == 2)
         wait(lambda: used_descriptor_count_gauge.get() == 2)
         wait(lambda: total_descriptor_count_gauge.get() == max_monitored_user_jobs_per_agent)
+        wait(lambda: used_descriptor_by_user_counter.get(tags={"user_name": "root"}) == 2)
 
         abandon_job(jobs[0])
 
         wait(lambda: monitored_job_count_gauge.get() == 1)
         wait(lambda: used_descriptor_count_gauge.get() == 2)
         wait(lambda: total_descriptor_count_gauge.get() == max_monitored_user_jobs_per_agent)
+        wait(lambda: used_descriptor_by_user_counter.get(tags={"user_name": "root"}) == 2)
 
         op.abort()
 
         wait(lambda: monitored_job_count_gauge.get() == 0)
         wait(lambda: used_descriptor_count_gauge.get() == 0)
         wait(lambda: total_descriptor_count_gauge.get() == max_monitored_user_jobs_per_agent)
+        wait(lambda: used_descriptor_by_user_counter.get_all() == [])
 
     @authors("levysotsky")
     def test_limits(self):
@@ -2715,6 +2722,11 @@ class TestUserJobMonitoring(YTEnvSetup):
         # Expect an alert here as limit per agent is 7.
         @wait_no_assert
         def agent_alert():
+            controller_agent_address = get(next_op.get_path() + "/@controller_agent_address")
+            controller_agent_profiler = profiler_factory().at_controller_agent(controller_agent_address)
+            not_acquired_monitor_descriptors_count = controller_agent_profiler.gauge("controller_agent/user_job_monitoring/not_acquired_monitor_descriptors_count")
+            wait(lambda: not_acquired_monitor_descriptors_count.get() == 1)
+
             assert ls(next_op.get_path() + "/@alerts") == ["user_job_monitoring_limited"]
             assert len(get_agent_alerts()) == 1
             assert "Limit of monitored user jobs per controller agent reached" in get_agent_alerts()[0]["message"]
@@ -4225,6 +4237,11 @@ class TestJobInputCache(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                }
+            }
         },
     }
 
@@ -4422,6 +4439,47 @@ class TestJobInputCache(YTEnvSetup):
         wait(lambda: block_compressed_cache_size.get() == 0)
         wait(lambda: meta_cache_size.get() == 0)
 
+    @authors("coteeq")
+    def test_disable_for_remote_jobs(self):
+        self._set_config()
+
+        remote_driver = get_driver(cluster=self.REMOTE_CLUSTER_NAME)
+
+        node = self.find_node_with_flavors(["exec"])
+
+        create("table", "//tmp/t1", driver=remote_driver)
+        create("table", "//tmp/t_local")
+        write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
+        write_table("//tmp/t_local", {"a": "b"})
+
+        create("table", "//tmp/t2")
+
+        map(
+            in_=[
+                f"<cluster={self.REMOTE_CLUSTER_NAME}>//tmp/t1",
+                "//tmp/t_local",
+            ],
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "read_via_exec_node": True,
+                # "data_size_per_job": 1,
+                "scheduling_tag_filter": node,
+                "mapper": {
+                    "format": yson.loads(b"<line_prefix=tskv; enable_table_index=false>dsv"),
+                },
+                "job_io": {
+                    "table_reader": {
+                        # Forbid from fetching new seeds from remote master.
+                        "retry_count": 1,
+                    }
+                },
+            },
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}] * 2
+
 
 class TestJobStatistics(YTEnvSetup):
     NUM_MASTERS = 1
@@ -4551,3 +4609,41 @@ class TestJobSetupCommandCri(YTEnvSetup):
         err = op.get_error()
         assert err.contains_code(10000)
         assert err.find_matching_error(10000).attributes.get("exit_code") == 1
+
+
+##################################################################
+
+
+@authors("rp-1")
+class TestUserJobDebugOptions(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @pytest.mark.parametrize("should_append", [True, False, None])
+    def test_append_debug_options(self, should_append: bool | None):
+        command = with_breakpoint("BREAKPOINT; echo here are debug options:")
+        task_patch = {"append_debug_options": should_append} if should_append is not None else {}
+
+        run_test_vanilla(
+            command=command,
+            task_patch=task_patch
+        )
+
+        wait_breakpoint()
+
+        output = subprocess.check_output(["ps", "aux"]).decode("utf-8")
+
+        for line in output.split('\n'):
+            if "echo here are debug options:" in line:
+                if should_append:
+                    assert "--job-id" in line
+                    assert "--operation-id" in line
+                else:
+                    assert "--job-id" not in line
+                    assert "--operation-id" not in line
+                break
+        else:
+            assert False, "Process not found"
+
+        release_breakpoint()

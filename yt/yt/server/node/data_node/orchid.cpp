@@ -2,6 +2,7 @@
 
 #include "ally_replica_manager.h"
 #include "job_controller.h"
+#include "location_manager.h"
 #include "session_manager.h"
 #include "ytree_integration.h"
 
@@ -38,6 +39,9 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
     mapService->AddChild(
         "ally_replica_manager",
         bootstrap->GetAllyReplicaManager()->GetOrchidService());
+    mapService->AddChild(
+        "location_manager",
+        bootstrap->GetLocationManager()->GetOrchidService());
 
     return mapService;
 }

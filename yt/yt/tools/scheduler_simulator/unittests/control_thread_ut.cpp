@@ -70,7 +70,7 @@ std::vector<TJobDescription> CreateJobDescriptions(
 
 TYsonString CreatePoolTreesConfig()
 {
-    auto physicalTreeConfig = New<TFairShareStrategyTreeConfig>();
+    auto physicalTreeConfig = New<TStrategyTreeConfig>();
     physicalTreeConfig->NodesFilter = NYTree::ConvertTo<TSchedulingTagFilter>("internal");
     physicalTreeConfig->DefaultParentPool = "research";
 

@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, exists, copy, move, link, remove, wait,
     start_transaction, commit_transaction, abort_all_transactions,
-    raises_yt_error,
+    raises_yt_error, create_user, ls
 )
 
 from yt_sequoia_helpers import (
@@ -172,7 +172,7 @@ def lookup_path_to_node_id(path, tx=None):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSequoiaSymlinks(YTEnvSetup):
+class TestSequoiaSyncMode(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
@@ -189,14 +189,15 @@ class TestSequoiaSymlinks(YTEnvSetup):
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "sequoia_manager": {
-            "enable_ground_update_queues": True
+            "enable_ground_update_queues": True,
         },
     }
 
     DELTA_CYPRESS_PROXY_CONFIG = {
         "testing": {
             "enable_ground_update_queues_sync": True,
-        }
+            "enable_user_directory_per_request_sync": True,
+        },
     }
 
     def setup_method(self, method):
@@ -274,3 +275,19 @@ class TestSequoiaSymlinks(YTEnvSetup):
         remove("//cypress/t2")
         assert get("//cypress/l1&/@broken")
         assert get("//tmp/l2&/@broken")
+
+    @authors("cherepashka", "danilalexeev")
+    def test_user(self):
+        create_user("u")
+        create("map_node", "//tmp/m1", authenticated_user="u")
+        assert get("//tmp/m1/@owner") == "u"
+        copy("//tmp/m1", "//tmp/m2", authenticated_user="u")
+        assert get("//tmp/m2/@owner") == "u"
+        move("//tmp/m2", "//tmp/m3", authenticated_user="u")
+        assert get("//tmp/m3/@owner") == "u"
+
+        assert ls("//tmp/m1", authenticated_user="u") == []
+        set("//tmp/m", {"s": "u", "b": "tree"}, authenticated_user="u")
+        assert get("//tmp/m", authenticated_user="u") == {"s": "u", "b": "tree"}
+
+        remove("//tmp/m1", authenticated_user="u")

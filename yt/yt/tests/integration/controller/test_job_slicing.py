@@ -226,8 +226,8 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         | Weight | #  #       # |            |
         |        | #  #  ...  # | _  _  _  _ |
         +--------+--------------+------------+
-        | Compr. |              |            |
-        | Data   |              |            | <~ [max_]compressed_data_size_per_job = 2200
+        | Compr. |              |            | <~ compressed_data_size_per_job = 2400
+        | Data   |              |            | <~ compressed_data_size_per_job = 2200
         | Size   | _  _  ...  _ | #  #  #  # |
         +--------+--------------+------------+
         | Chunk  | 1  2  ...  10| 11 12 13 14|
@@ -279,7 +279,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         for _ in range(4):
             write_table("<append=%true>//tmp/t_in", {
                 "col1": "a",
-                "col2": make_random_string(1000),
+                "col2": make_random_string(960),
             })
 
         assert get("//tmp/t_in/@compressed_data_size") > 5000
@@ -293,7 +293,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
             spec={
                 "data_weight_per_job": 3900,
             } | ({
-                "max_compressed_data_size_per_job": 2200,
+                "max_compressed_data_size_per_job": 2400,
             } if use_max_constraints else {
                 "compressed_data_size_per_job": 2200,
             }) | ({
@@ -307,7 +307,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
 
         progress = get(op.get_path() + "/@progress")
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
-        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
+        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2400
         assert progress["jobs"]["completed"]["total"] == 12
 
     @authors("apollo1321")

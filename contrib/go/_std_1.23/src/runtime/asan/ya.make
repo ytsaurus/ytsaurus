@@ -1,3 +1,4 @@
+SUBSCRIBER(g:contrib)
 IF (CGO_ENABLED)
 GO_LIBRARY()
 

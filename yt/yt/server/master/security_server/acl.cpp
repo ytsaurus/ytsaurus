@@ -48,7 +48,9 @@ TAccessControlEntry::TAccessControlEntry(
 
 void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& context)
 {
+    using NCellMaster::EMasterReign;
     using NYT::Persist;
+
     Persist(context, Subjects);
     Persist(context, Permissions);
     Persist(context, Action);
@@ -56,6 +58,10 @@ void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& contex
     Persist(context, SubjectTagFilter);
     Persist(context, Columns);
     Persist(context, Vital);
+    if (context.GetVersion() >= EMasterReign::RowLevelSecurity) {
+        Persist(context, Expression);
+        Persist(context, InapplicableExpressionMode);
+    }
 }
 
 void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext& context)
@@ -68,6 +74,8 @@ void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext&
     Persist(context, SubjectTagFilter);
     Persist(context, Columns);
     Persist(context, Vital);
+    Persist(context, Expression);
+    Persist(context, InapplicableExpressionMode);
 }
 
 bool TAccessControlEntry::operator==(const TAccessControlEntry& rhs) const
@@ -96,6 +104,14 @@ bool TAccessControlEntry::operator==(const TAccessControlEntry& rhs) const
         return false;
     }
 
+    if (Expression != rhs.Expression) {
+        return false;
+    }
+
+    if (InapplicableExpressionMode != rhs.InapplicableExpressionMode) {
+        return false;
+    }
+
     auto lhsSubjects = Subjects;
     std::sort(lhsSubjects.begin(), lhsSubjects.end(), TObjectIdComparer());
     auto rhsSubjects = rhs.Subjects;
@@ -116,6 +132,8 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
             .OptionalItem("subject_tag_filter", ace.SubjectTagFilter)
             .OptionalItem("columns", ace.Columns)
             .OptionalItem("vital", ace.Vital)
+            .OptionalItem(TSerializableAccessControlEntry::ExpressionKey, ace.Expression)
+            .OptionalItem(TSerializableAccessControlEntry::InapplicableExpressionModeKey, ace.InapplicableExpressionMode)
         .EndMap();
 }
 
@@ -184,6 +202,9 @@ static void DoDeserializeAclOrThrow(
 
         // Vital
         ace.Vital = serializableAce.Vital;
+
+        ace.Expression = serializableAce.Expression;
+        ace.InapplicableExpressionMode = serializableAce.InapplicableExpressionMode;
 
         acl.Entries.push_back(ace);
     }
@@ -411,4 +432,3 @@ TWrappedAccessControlDescriptorPtr::operator bool() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

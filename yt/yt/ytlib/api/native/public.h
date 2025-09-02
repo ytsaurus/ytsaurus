@@ -42,6 +42,7 @@ using TConnectionDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TConnectionDynamic
 DECLARE_REFCOUNTED_STRUCT(TJournalChunkWriterOptions)
 
 struct TConnectionOptions;
+struct TClientOptions;
 
 class TTabletSyncReplicaCache;
 class TTabletReplicaStatusCache;

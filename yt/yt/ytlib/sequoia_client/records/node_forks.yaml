@@ -2,7 +2,7 @@ namespace: NYT::NSequoiaClient::NRecords
 
 types:
   - table_name: node_forks
-    table_group: transactions
+    table_group: transaction_tables
     type_name: TNodeFork
     fields:
       - cpp_name: TransactionIdHash

@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/security_client/account_ypath_proxy.h>
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/yt/ytlib/security_client/acl.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -41,10 +42,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetCurrentUserResultPtr TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
+TGetCurrentUserResult TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
 {
-    auto result = New<TGetCurrentUserResult>();
-    result->User = Options_.GetAuthenticatedUser();
+    TGetCurrentUserResult result;
+    result.User = Options_.GetAuthenticatedUser();
     return result;
 }
 
@@ -172,6 +173,10 @@ TCheckPermissionResponse TClient::DoCheckPermission(
         for (const auto& protoResult : rsp->columns().items()) {
             fillResult(&response.Columns->emplace_back(), protoResult);
         }
+    }
+
+    if (rsp->has_rl_acl()) {
+        response.RlAcl = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->rl_acl().items());
     }
 
     return response;

@@ -19,7 +19,7 @@ class TAlienClusterClientCache
 public:
     TAlienClusterClientCache(
         NApi::NNative::IConnectionPtr localConnection,
-        NYT::NApi::TClientOptions clientOptions,
+        NYT::NApi::NNative::TClientOptions clientOptions,
         TDuration evictionPeriod)
         : TAlienClusterClientCacheBase(evictionPeriod)
         , LocalConnection_(std::move(localConnection))
@@ -66,7 +66,7 @@ public:
 private:
     const NApi::NNative::IConnectionPtr LocalConnection_;
     const NApi::NNative::IClientPtr LocalClient_;
-    const NApi::TClientOptions ClientOptions_;
+    const NApi::NNative::TClientOptions ClientOptions_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CachedClientsLock_);
 };
@@ -75,7 +75,7 @@ private:
 
 IAlienClusterClientCachePtr CreateAlienClusterClientCache(
     IConnectionPtr localConnection,
-    NApi::TClientOptions clientOptions,
+    NApi::NNative::TClientOptions clientOptions,
     TDuration evictionPeriod)
 {
     return New<TAlienClusterClientCache>(
@@ -87,3 +87,4 @@ IAlienClusterClientCachePtr CreateAlienClusterClientCache(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
+

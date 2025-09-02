@@ -860,6 +860,7 @@ public:
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
             .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingDistributedWriteSession));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
             .SetStreamingEnabled(true)
@@ -1139,7 +1140,7 @@ private:
             multiproxyTargetCluster,
             identity,
             connection,
-            TClientOptions::FromAuthenticationIdentity(identity));
+            NNative::TClientOptions::FromAuthenticationIdentity(identity));
 
         if (!client) {
             THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
@@ -4857,7 +4858,7 @@ private:
             rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
                 request.rowset_descriptor(),
                 MergeRefsToRef<TApiServiceBufferTag>(attachments));
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error sending rows for table %v",
                 path)
                 << TError(ex);
@@ -5542,7 +5543,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_user(result->User);
+                response->set_user(result.User);
             });
     }
 
@@ -6396,6 +6397,26 @@ private:
                 for (const auto& cookie : result.Cookies) {
                     context->Response().add_signed_cookies(ConvertToYsonString(cookie).ToString());
                 }
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingDistributedWriteSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TSignedDistributedWriteSessionPtr session;
+        TDistributedWriteSessionPingOptions options;
+        ParseRequest(&session, &options, *request);
+
+        auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
+        context->SetRequestInfo(
+            "TableId: %v",
+            concreteSession.PatchInfo.ObjectId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PingDistributedWriteSession(std::move(session), options);
             });
     }
 

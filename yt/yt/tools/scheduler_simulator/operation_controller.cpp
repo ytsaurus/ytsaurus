@@ -205,7 +205,7 @@ public:
 
     //! Called during heartbeat processing to request actions the node must perform.
     TFuture<TControllerScheduleAllocationResultPtr> ScheduleAllocation(
-        const ISchedulingContextPtr& context,
+        const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& nodeLimits,
         const TDiskResources& diskResourceLimits,
         const TString& /* treeId */,
@@ -446,7 +446,7 @@ bool TSimulatorOperationController::FindJobToSchedule(
 }
 
 TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::ScheduleAllocation(
-    const ISchedulingContextPtr& context,
+    const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
     const TJobResources& nodeLimits,
     const TDiskResources& /*diskResourceLimits*/,
     const TString& /* treeId */,
@@ -473,7 +473,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
         .ResourceLimits = jobToSchedule.ResourceLimits,
     });
 
-    dynamic_cast<TSchedulingContext*>(context.Get())->SetDurationForStartedAllocation(allocationId, jobToSchedule.Duration);
+    dynamic_cast<TSchedulingHeartbeatContext*>(context.Get())->SetDurationForStartedAllocation(allocationId, jobToSchedule.Duration);
     AllocationIdToJobDescription_.Insert(allocationId, jobToSchedule);
 
     NeededResources_ -= jobToSchedule.ResourceLimits;

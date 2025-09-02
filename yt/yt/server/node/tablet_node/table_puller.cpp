@@ -7,10 +7,12 @@
 #include "error_manager.h"
 #include "private.h"
 #include "tablet.h"
+#include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -94,7 +96,7 @@ public:
         auto it = BannedReplicas_.find(replicaId);
         bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
 
-        YT_LOG_DEBUG("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
+        YT_LOG_TRACE("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
             replicaId,
             result);
 
@@ -386,6 +388,11 @@ private:
                 return;
             }
 
+            if (!tabletSnapshot->TabletRuntimeData->SmoothMovementData.IsActiveServant) {
+                YT_LOG_DEBUG("Will not pull rows since tablet servant is not active");
+                return;
+            }
+
             auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplica) {
                 THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
@@ -490,9 +497,10 @@ private:
                 bool committed = AdvanceTabletReplicationProgress(
                     ReplicatorClientCache_.GetLocalClient(),
                     Logger,
+                    Slot_->GetTabletManager(),
                     Slot_->GetCellId(),
                     Slot_->GetOptions()->ClockClusterTag,
-                    TabletId_,
+                    tabletSnapshot,
                     std::move(*newProgress),
                     /*validateStrictAdvance*/ true,
                     ReplicationRound_);
@@ -939,6 +947,11 @@ private:
                 YT_LOG_DEBUG("Committing pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
                     localTransaction->GetId(),
                     ReplicationRound_);
+
+                Slot_->GetTabletManager()->ExternalizeTransactionIfNeeded(
+                    tabletSnapshot,
+                    localTransaction,
+                    "pull rows");
 
                 // NB: 2PC is used here to correctly process transaction signatures (sent by both rows and actions).
                 // TODO(savrus) Discard 2PC.

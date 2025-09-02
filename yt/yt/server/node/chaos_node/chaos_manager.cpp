@@ -372,7 +372,7 @@ public:
         return replicationCard;
     }
 
-    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) override
+    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated = false) override
     {
         auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
 
@@ -2336,15 +2336,17 @@ private:
             return;
         }
 
-        int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
-        int syncQueueCount = CountSyncQueueReplicas(*replicationCard);
-        if (syncQueueCount < minSyncQueueCount) {
-            YT_LOG_DEBUG("Will not commence new replication era since there would be not enough sync queue replicas "
-                "(ReplicationCard: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
-                *replicationCard,
-                minSyncQueueCount,
-                syncQueueCount);
-            return;
+        if (!replicationCard->Replicas().empty()) {
+            int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
+            int syncQueueCount = CountSyncQueueReplicas(*replicationCard);
+            if (syncQueueCount < minSyncQueueCount) {
+                YT_LOG_DEBUG("Will not commence new replication era since there would be not enough sync queue replicas "
+                    "(ReplicationCard: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
+                    *replicationCard,
+                    minSyncQueueCount,
+                    syncQueueCount);
+                return;
+            }
         }
 
         auto newEra = replicationCard->GetEra() + 1;

@@ -853,7 +853,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
         dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
         dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
-        dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
+        dominant_estimated_guarantee_share_sensor = profiler.gauge(metric_prefix + "dominant_estimated_guarantee_share")
         weight_sensor = profiler.gauge(metric_prefix + "weight")
         cpu_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/cpu")
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
@@ -875,7 +875,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: dominant_fair_share_sensor.get() == 1.0)
         wait(lambda: dominant_usage_share_sensor.get() == 1.0)
         wait(lambda: dominant_demand_share_sensor.get() == 1.0)
-        wait(lambda: dominant_promised_fair_share_sensor.get() == 1.0)
+        wait(lambda: dominant_estimated_guarantee_share_sensor.get() == 1.0)
         wait(lambda: weight_sensor.get() == 1.0)
         wait(lambda: cpu_usage_sensor.get() == 1)
         wait(lambda: user_slots_usage_sensor.get() == 1)
@@ -900,7 +900,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_slot_profiling(self):
-        create_pool("some_pool")
+        create_pool("some_pool", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "some_pool"})
 
@@ -908,7 +908,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
         dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
         dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
-        dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
+        dominant_estimated_guarantee_share_sensor = profiler.gauge(metric_prefix + "dominant_estimated_guarantee_share")
         weight_sensor = profiler.gauge(metric_prefix + "weight")
         cpu_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/cpu")
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
@@ -942,7 +942,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags1), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags1) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags1) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags1), 0.5))
+        wait(lambda: are_almost_equal(dominant_estimated_guarantee_share_sensor.get(tags=tags1), 0.5))
         wait(lambda: weight_sensor.get(tags=tags1) == 1.0)
         wait(lambda: cpu_usage_sensor.get(tags=tags1) == 1)
         wait(lambda: user_slots_usage_sensor.get(tags=tags1) == 1)
@@ -958,7 +958,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags2), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags2), 0.5))
+        wait(lambda: are_almost_equal(dominant_estimated_guarantee_share_sensor.get(tags=tags2), 0.5))
         wait(lambda: weight_sensor.get(tags=tags2) == 1.0)
         wait(lambda: cpu_usage_sensor.get(tags=tags2) == 0)
         wait(lambda: user_slots_usage_sensor.get(tags=tags2) == 0)
@@ -973,7 +973,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: dominant_fair_share_sensor.get(tags=tags2) == 1.0)
         wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
-        wait(lambda: dominant_promised_fair_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_estimated_guarantee_share_sensor.get(tags=tags2) == 1.0)
         wait(lambda: weight_sensor.get(tags=tags2) == 1.0)
 
         wait(lambda: operation_schedule_job_attempt_count_sensor["tags2"].get_delta() == 1.0)
@@ -983,8 +983,11 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         create_user("ignat")
         create_user("egor")
 
-        create_pool("some_pool")
-        create_pool("other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
+        create_pool("some_pool", attributes={"strong_guarantee_resources": {"cpu": 0.5}})
+        create_pool("other_pool", attributes={
+            "strong_guarantee_resources": {"cpu": 0.5},
+            "allowed_profiling_tags": ["hello", "world"]},
+        )
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
@@ -992,7 +995,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         dominant_fair_share_sensor = profiler.gauge(metric_prefix + "dominant_fair_share/total")
         dominant_usage_share_sensor = profiler.gauge(metric_prefix + "dominant_usage_share")
         dominant_demand_share_sensor = profiler.gauge(metric_prefix + "dominant_demand_share")
-        dominant_promised_fair_share_sensor = profiler.gauge(metric_prefix + "promised_dominant_fair_share")
+        dominant_estimated_guarantee_share_sensor = profiler.gauge(metric_prefix + "dominant_estimated_guarantee_share")
         weight_sensor = profiler.gauge(metric_prefix + "weight")
         cpu_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/cpu")
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
@@ -1027,7 +1030,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags), 0.5))
+        wait(lambda: are_almost_equal(dominant_estimated_guarantee_share_sensor.get(tags=tags), 0.5))
         wait(lambda: weight_sensor.get(tags=tags) == 1.0)
         wait(lambda: cpu_usage_sensor.get(tags=tags) == 1)
         wait(lambda: user_slots_usage_sensor.get(tags=tags) == 1)
@@ -1054,7 +1057,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_fair_share_sensor, tags), 1.0 / 3.0))
         wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 2.0)
-        wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_estimated_guarantee_share_sensor, tags), 1.0 / 3.0))
         wait(lambda: get_total_metric_by_users(weight_sensor, tags) == 2.0)
         wait(lambda: get_total_metric_by_users(cpu_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(user_slots_usage_sensor, tags) == 0)
@@ -1069,7 +1072,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_fair_share_sensor, tags), 1.0 / 6.0))
         wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 1.0)
-        wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags), 1.0 / 6.0))
+        wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_estimated_guarantee_share_sensor, tags), 1.0 / 6.0))
         wait(lambda: get_total_metric_by_users(weight_sensor, tags) == 1.0)
         wait(lambda: get_total_metric_by_users(cpu_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(user_slots_usage_sensor, tags) == 0)
@@ -1084,7 +1087,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 3.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags), 0.5))
+        wait(lambda: are_almost_equal(dominant_estimated_guarantee_share_sensor.get(tags=tags), 0.5))
         wait(lambda: weight_sensor.get(tags=tags) == 3.0)
         wait(lambda: cpu_usage_sensor.get(tags=tags) == 0)
         wait(lambda: user_slots_usage_sensor.get(tags=tags) == 0)
@@ -1099,7 +1102,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: dominant_fair_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags), 0.5))
+        wait(lambda: are_almost_equal(dominant_estimated_guarantee_share_sensor.get(tags=tags), 0.5))
         wait(lambda: weight_sensor.get(tags=tags) == 1.0)
         wait(lambda: operation_schedule_job_attempt_count_sensor.get_delta() == 1.0)
 
@@ -1110,7 +1113,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get_total_metric_by_users(dominant_fair_share_sensor, tags) == 1.0)
         wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 1.0)
         wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 1.0)
-        wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags), 0.5))
+        wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_estimated_guarantee_share_sensor, tags), 0.5))
         wait(lambda: get_total_metric_by_users(weight_sensor, tags) == 1.0)
         wait(lambda: get_total_counter_metric_by_users(operation_schedule_job_attempt_count_sensor) == 0.0)
 

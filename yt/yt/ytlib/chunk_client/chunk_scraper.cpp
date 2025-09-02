@@ -253,7 +253,6 @@ private:
     TFuture<void> LocateChunksAsync()
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-        YT_VERIFY(!ThrottledBatchSize_.has_value());
 
         ThrottledBatchSize_ = std::min<i64>(ChunkIdsQueue_->GetSize(), Config_->MaxChunksPerRequest);
         return Throttler_->Throttle(*ThrottledBatchSize_);

@@ -42,6 +42,11 @@ concept CYsonStructPtr = CIntrusivePtr<T> && CYsonStruct<TExtractTemplateArg<T>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+concept CProtoMessage = std::is_convertible_v<T*, google::protobuf::Message*>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template<class T, class U>
 concept SameHelper = std::is_same_v<T, U>;
 

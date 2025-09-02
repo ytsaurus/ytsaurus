@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
 
 #include <yt/yt/client/hive/public.h>
 
@@ -110,7 +111,7 @@ public:
 
 private:
     TClusterDirectoryPtr ClusterDirectory_;
-    NApi::TClientOptions ClientOptions_;
+    NApi::NNative::TClientOptions ClientOptions_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientDirectory)

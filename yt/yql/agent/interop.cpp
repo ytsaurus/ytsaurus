@@ -2,13 +2,8 @@
 #include "type_builder.h"
 #include "data_builder.h"
 
-#include <yt/yt/library/formats/skiff_parser.h>
-
-#include <yt/yt/library/skiff_ext/schema_match.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
 
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/client.h>
@@ -43,6 +38,8 @@
 
 namespace NYT::NYqlAgent {
 
+using namespace NApi;
+using namespace NApi::NRpcProxy;
 using namespace NYson;
 using namespace NYTree;
 using namespace NHiveClient;
@@ -115,7 +112,8 @@ void TYqlRef::Register(TRegistrar registrar)
 }
 
 TYqlRowset BuildRowsetByRef(
-    const TClientDirectoryPtr& clientDirectory,
+    const std::vector<std::pair<TString, TString>>& clusters,
+    const TClientOptions& clientOptions,
     TYqlRefPtr references,
     int resultIndex,
     i64 rowCountLimit)
@@ -129,7 +127,19 @@ TYqlRowset BuildRowsetByRef(
         // Best effort to deYQLize paths.
         table = "//" + table;
     }
-    auto client = clientDirectory->GetClientOrThrow(cluster);
+
+    TString clusterAddress;
+    for (const auto& clusterMapping : clusters) {
+        if (clusterMapping.first == cluster) {
+            clusterAddress = clusterMapping.second;
+        }
+    }
+    if (!clusterAddress) {
+        THROW_ERROR_EXCEPTION("Cluster %v address is not specified", cluster);
+    }
+    auto config = NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterAddress);
+    auto connection = NRpcProxy::CreateConnection(config);
+    auto client = connection->CreateClient(clientOptions);
 
     TTableSchemaPtr targetSchema;
     TNameTablePtr targetNameTable;
@@ -137,8 +147,10 @@ TYqlRowset BuildRowsetByRef(
     std::vector<TUnversionedRow> resultRows;
     auto rowBuffer = New<TRowBuffer>();
 
+    NApi::TGetNodeOptions options;
+    options.Timeout = config->RpcTimeout;
     auto isDynamicTable = ConvertTo<bool>(
-        WaitFor(client->GetNode(table + "/@dynamic"))
+        WaitFor(client->GetNode(table + "/@dynamic", options))
             .ValueOrThrow());
 
     if (isDynamicTable) {
@@ -202,7 +214,14 @@ TYqlRowset BuildRowsetByRef(
 TTableSchemaPtr BuildSchema(const TLogicalType& type)
 {
     std::vector<TColumnSchema> columns;
-    for (const auto& member : type.AsListTypeRef().GetElement()->AsStructTypeRef().GetFields()) {
+
+    if (type.GetMetatype() != ELogicalMetatype::List || type.AsListTypeRef().GetElement()->GetMetatype() != ELogicalMetatype::Struct) {
+        THROW_ERROR_EXCEPTION("Non-table results are not supported in Query Tracker. Expected List<Struct<…>> but found %Qv",
+            ToString(type));
+    }
+
+    auto rowType = type.AsListTypeRef().GetElement();
+    for (const auto& member : rowType->AsStructTypeRef().GetFields()) {
         columns.emplace_back(member.Name, member.Type);
     }
     return New<TTableSchema>(columns);
@@ -254,7 +273,8 @@ TYqlRowset BuildRowset(
 }
 
 TYqlRowset BuildRowsetFromYson(
-    const TClientDirectoryPtr& clientDirectory,
+    const std::vector<std::pair<TString, TString>>& clusters,
+    const TClientOptions& clientOptions,
     const NYql::NResult::TWrite& write,
     int resultIndex,
     i64 rowCountLimit)
@@ -269,7 +289,7 @@ TYqlRowset BuildRowsetFromYson(
             ref->Columns.emplace(columns->size());
             std::copy(columns->cbegin(), columns->cend(), ref->Columns->begin());
         }
-        return BuildRowsetByRef(clientDirectory, std::move(ref), resultIndex, rowCountLimit);
+        return BuildRowsetByRef(clusters, clientOptions, std::move(ref), resultIndex, rowCountLimit);
     }
 
     TTypeBuilder typeBuilder;
@@ -280,49 +300,6 @@ TYqlRowset BuildRowsetFromYson(
     TDataBuilder dataBuilder(&consumer, typeResult);
     NYql::NResult::ParseData(*write.Type, *write.Data, dataBuilder);
     return BuildRowset(consumer, resultIndex, write.IsTruncated, {}, rowCountLimit);
-}
-
-TYqlRowset BuildRowsetFromSkiff(
-    const TClientDirectoryPtr& clientDirectory,
-    const INodePtr& resultNode,
-    int resultIndex,
-    i64 rowCountLimit)
-{
-    const auto& writeNode = resultNode->AsMap()->GetChildOrThrow("Write")->AsList()->GetChildOrThrow(0)->AsMap();
-    if (writeNode->FindChild("Ref")) {
-        const auto& refsNode = writeNode->GetChildOrThrow("Ref")->AsList();
-        if (refsNode->GetChildCount() != 1) {
-            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet");
-        }
-        return BuildRowsetByRef(clientDirectory, ConvertTo<TYqlRefPtr>(refsNode->GetChildOrThrow(0)), resultIndex, rowCountLimit);
-    }
-
-    const auto& skiffTypeNode = writeNode->GetChildOrThrow("SkiffType");
-    const auto config = ConvertTo<NFormats::TSkiffFormatConfigPtr>(&skiffTypeNode->Attributes());
-    auto skiffSchemas = NSkiffExt::ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
-
-    const auto& typeNode = writeNode->GetChildOrThrow("Type");
-    const auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
-    TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
-
-    THashMap<TString, ui32> columns;
-    if (const auto& columnsPtr = writeNode->FindChild("Columns")) {
-        ui32 index = 0;
-        for (const auto& column : ConvertTo<std::vector<TString>>(columnsPtr)) {
-            columns[column] = index;
-            index++;
-        }
-    }
-
-    const auto data = writeNode->GetChildOrThrow("Data")->AsString()->GetValue();
-    const auto parser = CreateParserForSkiff(&consumer, skiffSchemas, config, 0);
-    parser->Read(data);
-    parser->Finish();
-
-    const auto incompleteNode = writeNode->FindChild("Incomplete");
-    const bool incomplete = incompleteNode ? incompleteNode->AsBoolean()->GetValue() : false;
-
-    return BuildRowset(consumer, resultIndex, incomplete, std::move(columns), rowCountLimit);
 }
 
 TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
@@ -341,7 +318,8 @@ TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
 }
 
 std::vector<TWireYqlRowset> BuildRowsets(
-    const TClientDirectoryPtr& clientDirectory,
+    const std::vector<std::pair<TString, TString>>& clusters,
+    const TClientOptions& clientOptions,
     const TString& yqlYsonResults,
     i64 rowCountLimit)
 {
@@ -352,7 +330,7 @@ std::vector<TWireYqlRowset> BuildRowsets(
         rowsets.reserve(response.size());
         for (size_t index = 0U; index < response.size(); ++index) {
             YT_LOG_DEBUG("Building rowset for query result (ResultIndex: %v)", index);
-            auto rowset = MakeWireYqlRowset(BuildRowsetFromYson(clientDirectory, response[index].Writes.front(), index, rowCountLimit));
+            auto rowset = MakeWireYqlRowset(BuildRowsetFromYson(clusters, clientOptions, response[index].Writes.front(), index, rowCountLimit));
             YT_LOG_DEBUG("Rowset built (ResultBytes: %v)", rowset.WireRowset.size());
             rowsets.push_back(std::move(rowset));
         }

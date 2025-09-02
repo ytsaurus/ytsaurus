@@ -138,7 +138,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         Bootstrap_->GetJobInvoker(),
         BIND_NO_PROPAGATE(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
-    , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
+    , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoProvider))
 { }
 
 void TGpuManager::Initialize()
@@ -245,14 +245,16 @@ void TGpuManager::OnDynamicConfigChanged(
     HealthCheckExecutor_->SetPeriod(newConfig->HealthCheckPeriod);
     RdmaDeviceInfoUpdateExecutor_->SetPeriod(newConfig->RdmaDeviceInfoUpdatePeriod);
     FetchDriverLayerExecutor_->SetOptions(newConfig->DriverLayerFetching);
-    if (newConfig->GpuInfoSource) {
+    if (newConfig->GpuInfoProvider) {
         // XXX(ignat): avoid this hack.
-        if (!newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
-            newConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = StaticConfig_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
+        auto nvManagerDynamicConfig = newConfig->GpuInfoProvider.TryGetConcrete<EGpuInfoProviderType::NvGpuManager>();
+        auto nvManagerStaticConfig = StaticConfig_->GpuInfoProvider.TryGetConcrete<EGpuInfoProviderType::NvGpuManager>();
+        if (nvManagerStaticConfig && nvManagerDynamicConfig && !nvManagerDynamicConfig->DevicesCgroupPath) {
+            nvManagerDynamicConfig->DevicesCgroupPath = nvManagerStaticConfig->DevicesCgroupPath;
         }
-        GpuInfoProvider_.Store(CreateGpuInfoProvider(newConfig->GpuInfoSource));
+        GpuInfoProvider_.Store(CreateGpuInfoProvider(newConfig->GpuInfoProvider));
     } else {
-        GpuInfoProvider_.Store(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource));
+        GpuInfoProvider_.Store(CreateGpuInfoProvider(StaticConfig_->GpuInfoProvider));
     }
 
     DynamicConfig_.Store(std::move(newConfig));

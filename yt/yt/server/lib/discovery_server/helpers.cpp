@@ -23,4 +23,4 @@ void FromProto(TGossipMemberInfo* memberInfo, const NProto::TGossipMemberInfo& p
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDiscoveryClient
+} // namespace NYT::NDiscoveryServer

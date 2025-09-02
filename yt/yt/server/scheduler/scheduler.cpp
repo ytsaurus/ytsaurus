@@ -1,17 +1,17 @@
 #include "scheduler.h"
 
 #include "private.h"
-#include "fair_share_strategy.h"
 #include "helpers.h"
 #include "master_connector.h"
 #include "node_manager.h"
-#include "scheduler_strategy.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
 #include "bootstrap.h"
 #include "operations_cleaner.h"
 #include "controller_agent_tracker.h"
-#include "persistent_scheduler_state.h"
+
+#include <yt/yt/server/scheduler/strategy/strategy.h>
+#include <yt/yt/server/scheduler/strategy/helpers.h>
 
 #include <yt/yt/server/lib/scheduler/allocation_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -145,7 +145,7 @@ const std::vector<std::string>& GetPoolTreeKeys()
 
 class TScheduler::TImpl
     : public TRefCounted
-    , public ISchedulerStrategyHost
+    , public NStrategy::IStrategyHost
     , public INodeManagerHost
     , public IOperationsCleanerHost
     , public TEventLogHostBase
@@ -190,7 +190,7 @@ public:
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
 
-            Strategy_ = CreateFairShareStrategy(Config_, this, std::move(feasibleInvokers));
+            Strategy_ = NStrategy::CreateStrategy(Config_, /*host*/ this, std::move(feasibleInvokers));
         }
     }
 
@@ -960,7 +960,7 @@ public:
 
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
-            .Item(EventLogPoolTreeKey).Value(treeId);
+            .Item(NStrategy::EventLogPoolTreeKey).Value(treeId);
 
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::UnregisterOperationFromTreeForBannedTree, MakeStrong(this), operation, treeId));
@@ -1211,7 +1211,7 @@ public:
         NodeManager_->ProcessNodeHeartbeat(context);
     }
 
-    // ISchedulerStrategyHost implementation
+    // IStrategyHost implementation
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1287,7 +1287,7 @@ public:
         // TODO(eshcherbin): Remove config option for this feature and move all logic inside strategy.
         auto scheduleOperationInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
         if (scheduleOperationInSingleTree) {
-            // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
+            // NB(eshcherbin): We need to make sure that all necessary information is in pool tree snapshots
             // before choosing the best single tree for this operation during |FinishOperationMaterialization| later.
             futures.push_back(Strategy_->GetFullFairShareUpdateFinished());
         }
@@ -1577,7 +1577,7 @@ public:
         return descriptor->Name;
     }
 
-    const ISchedulerStrategyPtr& GetStrategy() const override
+    const NStrategy::IStrategyPtr& GetStrategy() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1659,7 +1659,7 @@ public:
             }));
     }
 
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) override
+    void InvokeStoringStrategyState(NStrategy::TPersistentStrategyStatePtr strategyState) override
     {
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
@@ -1772,7 +1772,7 @@ private:
 
     const TNodeManagerPtr NodeManager_;
 
-    ISchedulerStrategyPtr Strategy_;
+    NStrategy::IStrategyPtr Strategy_;
 
     struct TOperationAlias
     {
@@ -2846,7 +2846,7 @@ private:
 
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationStarted)
             .Do(std::bind(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation, _1))
-            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
+            .Do(std::bind(&NStrategy::IStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
 
         YT_LOG_INFO("Preparing operation (OperationId: %v)",
             operationId);
@@ -3744,7 +3744,7 @@ private:
                         fluent.Items(nodeYson);
                 })
                 .Item("user_to_default_pool").Value(UserToDefaultPoolMap_)
-                .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
+                .Do(std::bind(&NStrategy::IStrategy::BuildOrchid, Strategy_, _1))
             .EndMap();
     }
 
@@ -4170,7 +4170,7 @@ private:
 
         attributes.SerializedLightAttributes = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
-            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
+            .Do(std::bind(&NStrategy::IStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
             .Item("error").Value(error)
             .Finish();
 
@@ -4233,7 +4233,7 @@ private:
                     BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
                         BuildYsonFluently(consumer)
                             .BeginMap()
-                                .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, strategy, operationId))
+                                .Do(BIND(&NStrategy::IStrategy::BuildOperationProgress, strategy, operationId))
                             .EndMap();
                     }))
                     ->Via(scheduler->GetControlInvoker(EControlQueue::DynamicOrchid)))
@@ -4242,7 +4242,7 @@ private:
                     BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
                         BuildYsonFluently(consumer)
                             .BeginMap()
-                                .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, strategy, operationId))
+                                .Do(BIND(&NStrategy::IStrategy::BuildBriefOperationProgress, strategy, operationId))
                             .EndMap();
                     }))
                     ->Via(scheduler->GetControlInvoker(EControlQueue::DynamicOrchid)))
@@ -4461,7 +4461,7 @@ void TScheduler::Initialize()
     Impl_->Initialize();
 }
 
-ISchedulerStrategyPtr TScheduler::GetStrategy() const
+NStrategy::IStrategyPtr TScheduler::GetStrategy() const
 {
     return Impl_->GetStrategy();
 }

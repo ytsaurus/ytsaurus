@@ -8,14 +8,11 @@ from mcp.types import TextContent
 from mcp.server.fastmcp.utilities.func_metadata import ArgModelBase
 from pydantic import Field, create_model
 from pydantic.fields import _Unset
-from typing import Annotated, Optional, Union, List
+from typing import Annotated, Optional, Union, List, Dict, Any
 
 import yt.wrapper as yt
 
 import yt.mcp as yt_mcp
-
-
-logger = logging.getLogger(__name__)
 
 
 class YTToolRunnerMCP:
@@ -34,7 +31,7 @@ class YTToolRunnerMCP:
 
     def helper_get_yt_client(self, cluster, request_context: Context) -> yt.YtClient:
         if self._token:
-            yt_client = yt.YtClient(cluster, token=self._toke)
+            yt_client = yt.YtClient(cluster, token=self._token)
         else:
             yt_client = yt.YtClient(cluster)
         return yt_client
@@ -45,10 +42,17 @@ class YTToolRunnerMCP:
         self._logger = logging.getLogger(__name__)
         self._token = None
 
-    def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"]):
+    def attach_tools(self, tools: List["yt_mcp.lib.tools.helpers.YTToolBase"], variants: List[Dict[str, Any]] = None):
         for tool in tools:
             tool.set_runner(self)
+
             cloned_tools = tool._clone_by_variants()
+            if variants:
+                for variant in variants:
+                    if variant:
+                        tool_description, _ = tool._get_tool_description()
+                        cloned_tools.extend(tool._clone_by_dict(variant["tools"][tool_description.name]))
+
             if cloned_tools:
                 self._tools.extend(cloned_tools)
             else:

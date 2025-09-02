@@ -220,6 +220,8 @@ struct TSequoiaChunkReplica
     int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
     NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
+    // Not persisted, used for getting StoredReplicas attribute.
+    EChunkReplicaState ReplicaState = EChunkReplicaState::Generic;
 
     std::strong_ordering operator<=>(const TSequoiaChunkReplica& other) const = default;
 

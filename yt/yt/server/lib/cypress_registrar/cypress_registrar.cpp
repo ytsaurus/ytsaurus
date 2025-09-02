@@ -273,7 +273,7 @@ private:
             Initialized_ = true;
         }
 
-        // Update root node expiration time and attributes..
+        // Update root node expiration time and attributes.
         if (auto patchedAttributes = WithExpirationTime(attributes)) {
             TMultisetAttributesNodeOptions options;
             SetRequestOptions(options);

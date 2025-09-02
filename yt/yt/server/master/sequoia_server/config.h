@@ -50,7 +50,6 @@ struct TDynamicCypressProxyTrackerConfig
     : public NYTree::TYsonStruct
 {
     TDuration CypressProxyOrchidTimeout;
-    TDuration PersistentHeartbeatPeriod;
 
     REGISTER_YSON_STRUCT(TDynamicCypressProxyTrackerConfig);
 

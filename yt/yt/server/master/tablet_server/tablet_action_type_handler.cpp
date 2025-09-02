@@ -1,7 +1,9 @@
 #include "tablet_action_type_handler.h"
+
+#include "tablet_action.h"
+#include "tablet_action_manager.h"
 #include "tablet_action_proxy.h"
 #include "tablet_manager.h"
-#include "tablet_action.h"
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
@@ -93,7 +95,7 @@ public:
             cells.push_back(tabletManager->GetTabletCellOrThrow(cellId));
         }
 
-        return tabletManager->CreateTabletAction(
+        return tabletManager->GetTabletActionManager()->CreateTabletAction(
             hintId,
             kind,
             tablets,
@@ -122,7 +124,7 @@ private:
     void DoZombifyObject(TTabletAction* action) noexcept override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->ZombifyTabletAction(action);
+        tabletManager->GetTabletActionManager()->ZombifyTabletAction(action);
 
         TObjectTypeHandlerWithMapBase::DoZombifyObject(action);
     }

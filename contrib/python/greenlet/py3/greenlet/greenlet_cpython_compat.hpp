@@ -73,7 +73,9 @@ https://bugs.python.org/issue39573 */
 #    define Py_SET_REFCNT(obj, refcnt) Py_REFCNT(obj) = (refcnt)
 #endif
 
-#ifndef _Py_DEC_REFTOTAL
+#ifdef _Py_DEC_REFTOTAL
+#  define GREENLET_Py_DEC_REFTOTAL _Py_DEC_REFTOTAL
+#else
 /* _Py_DEC_REFTOTAL macro has been removed from Python 3.9 by:
   https://github.com/python/cpython/commit/49932fec62c616ec88da52642339d83ae719e924
 
@@ -81,12 +83,12 @@ https://bugs.python.org/issue39573 */
 */
 #    ifdef Py_REF_DEBUG
 #      if GREENLET_PY312
-#         define _Py_DEC_REFTOTAL
+#         define GREENLET_Py_DEC_REFTOTAL
 #      else
-#        define _Py_DEC_REFTOTAL _Py_RefTotal--
+#        define GREENLET_Py_DEC_REFTOTAL _Py_RefTotal--
 #      endif
 #    else
-#        define _Py_DEC_REFTOTAL
+#        define GREENLET_Py_DEC_REFTOTAL
 #    endif
 #endif
 // Define these flags like Cython does if we're on an old version.

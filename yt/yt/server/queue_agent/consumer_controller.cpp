@@ -153,7 +153,8 @@ private:
         Client_ = clientContext.Client;
         ConsumerClient_ = CreateConsumerClient(Client_, clientContext.Path, *ConsumerSnapshot_->Row.Schema);
 
-        THashMap<TCrossClusterReference, TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
+        std::vector<TCrossClusterReference> queueRefs;
+        std::vector<TFuture<TSubConsumerSnapshotPtr>> subSnapshotFutures;
         for (const auto& [registrationIndex, registration] : Enumerate(Registrations_)) {
             auto queueRef = registration.Queue;
             auto queueSnapshot = DynamicPointerCast<const TQueueSnapshot>(Store_->FindSnapshot(queueRef));
@@ -163,23 +164,22 @@ private:
                 errorQueueSnapshot->Error = TError("Queue %Qv snapshot is missing", queueRef);
                 queueSnapshot = std::move(errorQueueSnapshot);
             }
-            subSnapshotFutures[queueRef] = BIND(
+            queueRefs.push_back(queueRef);
+            subSnapshotFutures.push_back(BIND(
                 &TConsumerSnapshotBuildSession::BuildSubConsumerSnapshot,
                 MakeStrong(this),
                 queueRef,
                 Passed(std::move(queueSnapshot)),
                 IsVerboseLoggingQueue_[registrationIndex])
                 .AsyncVia(GetCurrentInvoker())
-                .Run();
+                .Run());
         }
 
         // Cannot throw unless cancellation occurs.
-        WaitFor(AllSet(GetValues(subSnapshotFutures)))
-            .ThrowOnError();
+        auto subConsumerSnapshotOrErrors = WaitForUnique(AllSet(std::move(subSnapshotFutures)))
+            .ValueOrThrow();
 
-        for (const auto& [queueRef, subConsumerSnapshotFuture] : subSnapshotFutures) {
-            YT_VERIFY(subConsumerSnapshotFuture.IsSet());
-            auto subConsumerSnapshotOrError = subConsumerSnapshotFuture.GetUnique();
+        for (const auto& [queueRef, subConsumerSnapshotOrError] : Zip(queueRefs, subConsumerSnapshotOrErrors)) {
             TSubConsumerSnapshotPtr subConsumerSnapshot;
             if (subConsumerSnapshotOrError.IsOK()) {
                 subConsumerSnapshot = std::move(subConsumerSnapshotOrError.Value());

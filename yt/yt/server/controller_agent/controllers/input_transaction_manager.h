@@ -106,7 +106,7 @@ private:
 
     std::map<NScheduler::TRichTransactionId, NApi::ITransactionPtr> ParentToTransaction_;
 
-    NLogging::TLogger Logger; // NOLINT
+    NLogging::TLogger Logger;
     TControllerAgentConfigPtr ControllerConfig_;
     NTransactionClient::TTransactionId UserTransactionId_;
     TClusterResolverPtr ClusterResolver_;

@@ -158,7 +158,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateUnversionedChunkConstraintsBeforeMount)               (3003))  // atalmenev
     ((FixBuiltinUserIds)                                            (3004))  // cherepashka
     ((DropEnableFixRequisitionUpdateCompat)                         (3005))  // kvk1920
-    ((SequoiaPrerequisiteRevisions)                                 (3006))  // cherepashka
+    ((SequoiaPrerequisiteRevisionsOnWrite)                          (3006))  // cherepashka
     ((DropHydraRemoveExpiredNodes)                                  (3007))  // danilalexeev
     ((TransactionsCanNowFeelImpendingDoom)                          (3008))  // h0pless
     ((ValidateClockCellTagOnChaosMount)                             (3009))  // ponasneko-rs
@@ -166,6 +166,19 @@ DEFINE_ENUM(EMasterReign,
     ((WeakPtrInTableReplicas)                                       (3011))  // babenko
     ((ChunkLocationDisposal)                                        (3012))  // grphil
     ((MulticellChunksSamples)                                       (3013))  // grphil
+    ((CypressProxyState)                                            (3014))  // h0pless
+    ((FirstClassFullReadSupport)                                    (3015))  // coteeq
+    ((RowLevelSecurity)                                             (3016))  // coteeq
+    ((TabletActionManager)                                          (3017))  // ifsmirnov
+    ((AdditionalMulticellChunksSamples)                             (3018))  // grphil
+    ((BulkInsertSendsDynamicStoresToMountingTablets)                (3019))  // ifsmirnov
+    ((SequoiaPrerequisiteRevisionsOnRead)                           (3020))  // cherepashka
+    ((TransactionFinisher)                                          (3021))  // kvk1920
+    ((DisablePermissionCheckForSequoiaNodes)                        (3022))  // shakurov
+    ((AddSchemaRevision)                                            (3023))  // theevilbird
+    ((RespectChunkMergerModeAttributeWhenChunkMergerIsDisabled)     (3024))  // cherepashka
+    ((KindaFixHunkChunkListInReshard)                               (3025))  // babenko
+    ((PreserveUnflushedTimestampForUnmountedTablets)                (3026))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

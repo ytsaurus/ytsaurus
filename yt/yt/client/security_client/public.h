@@ -100,7 +100,13 @@ DEFINE_ENUM(EAccessControlObject,
     (CollectCoverage)
 );
 
+DEFINE_ENUM(EInapplicableExpressionMode,
+    // Fail the read action (e.g. scheduler operation / read_table command / SPYT/CHYT query).
+    (Fail)
+    // Pretend that the RL ACE does not exist for the current read action.
+    (Ignore)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityClient
-

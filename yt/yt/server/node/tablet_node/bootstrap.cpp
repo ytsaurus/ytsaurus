@@ -342,7 +342,7 @@ public:
 
         ReplicatorClientCache_ = CreateAlienClusterClientCache(
             GetConnection(),
-            NApi::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
+            NApi::NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
             GetConfig()->TabletNode->AlienClusterClientCacheEvictionPeriod);
         ReplicationCardUpdatesBatcher_ = CreateClientReplicationCardUpdatesBatcher(
             GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher,
@@ -708,7 +708,9 @@ private:
         ErrorManager_->Reconfigure(newConfig);
 
         if (ReplicationCardUpdatesBatcher_) {
-            ReplicationCardUpdatesBatcher_->Reconfigure(tabletNodeConfig->ChaosReplicationCardUpdatesBatcher);
+            ReplicationCardUpdatesBatcher_->Reconfigure(
+                GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher->ApplyDynamic(
+                    tabletNodeConfig->ChaosReplicationCardUpdatesBatcher));
         }
     }
 

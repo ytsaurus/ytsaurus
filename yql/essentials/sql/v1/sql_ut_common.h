@@ -1754,7 +1754,13 @@ Y_UNIT_TEST_SUITE(SqlParsingOnly) {
     }
 
     Y_UNIT_TEST(UnionDistinctTest) {
-        NYql::TAstParseResult res = SqlToYql("SELECT key FROM plato.Input UNION DISTINCT select subkey FROM plato.Input;");
+        NSQLTranslation::TTranslationSettings settings;
+        settings.LangVer = NYql::MakeLangVersion(2025, 3);
+
+        NYql::TAstParseResult res = SqlToYqlWithSettings(
+            R"sql(SELECT key FROM plato.Input UNION DISTINCT SELECT subkey FROM plato.Input;)sql",
+            settings);
+
         UNIT_ASSERT(res.Root);
 
         TWordCountHive elementStat = {{TString("Union"), 0}};
@@ -2803,6 +2809,27 @@ Y_UNIT_TEST_SUITE(SqlParsingOnly) {
             if (word == "Write") {
                 UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("storeExternalBlobs"));
                 UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("ENABLED"));
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("Write"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write"]);
+    }
+
+    Y_UNIT_TEST(ExternalDataChannelsCountParseCorrect) {
+        NYql::TAstParseResult res = SqlToYql(
+            R"( USE plato;
+                CREATE TABLE tableName (Key Uint32, Value String, PRIMARY KEY (Key))
+                WITH ( EXTERNAL_DATA_CHANNELS_COUNT = 7 );)"
+        );
+        UNIT_ASSERT(res.Root);
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "Write") {
+                UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("externalDataChannelsCount"));
+                UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("7"));
             }
         };
 
@@ -8812,6 +8839,54 @@ Y_UNIT_TEST_SUITE(ColumnFamily) {
         UNIT_ASSERT_STRING_CONTAINS(res.Issues.ToString(), "COMPRESSION_LEVEL value should be an integer");
     }
 
+    Y_UNIT_TEST(FieldCacheModeCorrectUsage) {
+        NYql::TAstParseResult res = SqlToYql(R"sql( use plato;
+            CREATE TABLE tableName (
+                Key Uint32 FAMILY default,
+                Value String FAMILY family1,
+                PRIMARY KEY (Key),
+                FAMILY default (
+                     DATA = "test",
+                     CACHE_MODE = "regular"
+                ),
+                FAMILY family1 (
+                     DATA = "test",
+                     CACHE_MODE = "in_memory"
+                )
+            );
+        )sql");
+        UNIT_ASSERT(res.IsOk());
+        UNIT_ASSERT(res.Issues.Size() == 0);
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "Write") {
+                UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("cache_mode"));
+                UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("regular"));
+                UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find("in_memory"));
+            }
+        };
+
+        TWordCountHive elementStat = { { TString("Write"), 0 }, { TString("cache_mode"), 0 } };
+        VerifyProgram(res, elementStat, verifyLine);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write"]);
+        UNIT_ASSERT_VALUES_EQUAL(2, elementStat["cache_mode"]);
+    }
+
+    Y_UNIT_TEST(FieldCacheModeIsNotString) {
+        NYql::TAstParseResult res = SqlToYql(R"sql( use plato;
+            CREATE TABLE tableName (
+                Key Uint32 FAMILY default,
+                PRIMARY KEY (Key),
+                FAMILY default (
+                     DATA = "test",
+                     CACHE_MODE = 42
+                )
+            );
+        )sql");
+        UNIT_ASSERT(!res.IsOk());
+        UNIT_ASSERT(res.Issues.Size() == 1);
+        UNIT_ASSERT_STRING_CONTAINS(res.Issues.ToString(), "CACHE_MODE value should be a string literal");
+    }
+
     Y_UNIT_TEST(AlterCompressionCorrectUsage) {
         NYql::TAstParseResult res = SqlToYql(R"( use plato;
             ALTER TABLE tableName ALTER FAMILY default SET COMPRESSION "lz4";
@@ -8848,6 +8923,45 @@ Y_UNIT_TEST_SUITE(ColumnFamily) {
         UNIT_ASSERT(!res.IsOk());
         UNIT_ASSERT(res.Issues.Size() == 1);
         UNIT_ASSERT_STRING_CONTAINS(res.Issues.ToString(), "COMPRESSION_LEVEL value should be an integer");
+    }
+
+    Y_UNIT_TEST(AlterCompressionLevelFieldRedefinition) {
+        NYql::TAstParseResult res = SqlToYql(R"sql( use plato;
+            ALTER TABLE tableName
+                ALTER FAMILY default SET COMPRESSION_LEVEL 3,
+                ALTER FAMILY default SET COMPRESSION_LEVEL 5;
+        )sql");
+        UNIT_ASSERT(!res.IsOk());
+        UNIT_ASSERT(res.Issues.Size() == 1);
+        UNIT_ASSERT_STRING_CONTAINS(res.Issues.ToString(), "Redefinition of COMPRESSION_LEVEL setting");
+    }
+
+    Y_UNIT_TEST(AlterCacheModeCorrectUsage) {
+        NYql::TAstParseResult res = SqlToYql(R"sql( use plato;
+            ALTER TABLE tableName ALTER FAMILY default SET CACHE_MODE "in_memory";
+        )sql");
+        UNIT_ASSERT(res.IsOk());
+        UNIT_ASSERT(res.Issues.Size() == 0);
+    }
+
+    Y_UNIT_TEST(AlterCacheModeFieldIsNotInteger) {
+        NYql::TAstParseResult res = SqlToYql(R"sql( use plato;
+            ALTER TABLE tableName ALTER FAMILY default SET CACHE_MODE 42;
+        )sql");
+        UNIT_ASSERT(!res.IsOk());
+        UNIT_ASSERT(res.Issues.Size() == 1);
+        UNIT_ASSERT_STRING_CONTAINS(res.Issues.ToString(), "CACHE_MODE value should be a string literal");
+    }
+
+    Y_UNIT_TEST(AlterCacheModeFieldRedefinition) {
+        NYql::TAstParseResult res = SqlToYql(R"sql( use plato;
+            ALTER TABLE tableName
+                ALTER FAMILY default SET CACHE_MODE "in_memory",
+                ALTER FAMILY default SET CACHE_MODE "regular";
+        )sql");
+        UNIT_ASSERT(!res.IsOk());
+        UNIT_ASSERT(res.Issues.Size() == 1);
+        UNIT_ASSERT_STRING_CONTAINS(res.Issues.ToString(), "Redefinition of CACHE_MODE setting");
     }
 }
 
@@ -9194,5 +9308,401 @@ Y_UNIT_TEST_SUITE(HoppingWindow) {
 
             "<main>:3:25: Error: HopEnd can not be used here: HoppingWindow specification is missing in GROUP BY\n"
         );
+    }
+}
+
+Y_UNIT_TEST_SUITE(StreamingQuery) {
+    Y_UNIT_TEST(CreateStreamingQueryBasic) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+USE plato;
+-- Some comment
+CREATE STREAMING QUERY MyQuery AS DO BEGIN
+USE plato;
+$source = SELECT * FROM Input;
+INSERT INTO Output1 SELECT * FROM $source;
+INSERT INTO Output2 SELECT * FROM $source;END DO;
+USE hahn;
+-- Other comment
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "createObject") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '"\nUSE plato;\n$source = SELECT * FROM Input;\nINSERT INTO Output1 SELECT * FROM $source;\nINSERT INTO Output2 SELECT * FROM $source;")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("createObject"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["createObject"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(CreateStreamingQueryWithSettings) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+USE plato;
+-- Some comment
+CREATE STREAMING QUERY MyQuery WITH (
+    RUN = TRUE,
+    RESOURCE_POOL = my_pool
+) AS DO BEGIN
+USE plato;
+$source = SELECT * FROM Input;
+INSERT INTO Output1 SELECT * FROM $source;
+INSERT INTO Output2 SELECT * FROM $source;END DO;
+USE hahn;
+-- Other comment
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "createObject") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '"\nUSE plato;\n$source = SELECT * FROM Input;\nINSERT INTO Output1 SELECT * FROM $source;\nINSERT INTO Output2 SELECT * FROM $source;") '('"resource_pool" '"my_pool") '('"run" (Bool '"true")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("createObject"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["createObject"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(CreateOrReplaceStreamingQuery) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            CREATE OR REPLACE STREAMING QUERY MyQuery AS DO BEGIN /* create or replace */ SELECT 42; END DO;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "createObjectOrReplace") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '" /* create or replace */ SELECT 42; ")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("createObjectOrReplace"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["createObjectOrReplace"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(CreateStreamingQueryIfNotExists) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            CREATE STREAMING QUERY IF NOT EXISTS MyQuery AS DO BEGIN /* create if not exists */ SELECT 42; END DO;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "createObjectIfNotExists") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '" /* create if not exists */ SELECT 42; ")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("createObjectIfNotExists"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["createObjectIfNotExists"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(CreateStreamingQueryWithTablePrefix) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            PRAGMA TablePathPrefix='/aba';
+            CREATE STREAMING QUERY MyQuery AS DO BEGIN SELECT * FROM hahn.Input; END DO;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "createObject") {
+                UNIT_ASSERT_STRING_CONTAINS(line, "/aba/MyQuery");
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '" SELECT * FROM hahn.Input; ")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("createObject"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["createObject"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(CreateStreamingQueryWithBadArguments) {
+#if ANTLR_VER == 3
+        ExpectFailWithError(R"sql(
+            USE plato;
+            CREATE STREAMING QUERY MyQuery WITH (OPTION = "VALUE");
+        )sql" , "<main>:3:66: Error: Unexpected token ';' : syntax error...\n\n");
+#else
+        ExpectFailWithError(R"sql(
+            USE plato;
+            CREATE STREAMING QUERY MyQuery WITH (OPTION = "VALUE");
+        )sql" , "<main>:3:66: Error: mismatched input ';' expecting AS\n");
+#endif
+
+        ExpectFailWithError(R"sql(
+            USE plato;
+            CREATE STREAMING QUERY MyQuery WITH (
+                DUPLICATE_SETTING = "first_value",
+                DUPLICATE_SETTING = "second_value"
+            ) AS
+            DO BEGIN
+                USE plato;
+                INSERT INTO Output SELECT * FROM Input;
+            END DO;
+        )sql" , "<main>:5:17: Error: Found duplicated parameter: DUPLICATE_SETTING\n");
+
+        ExpectFailWithError(R"sql(
+            USE plato;
+            CREATE STREAMING QUERY MyQuery WITH (
+                `__QUERY_TEXT` = "SELECT 42"
+            ) AS
+            DO BEGIN
+                USE plato;
+                INSERT INTO Output SELECT * FROM Input;
+            END DO;
+        )sql" , "<main>:4:17: Error: Streaming query parameter name should not start with prefix '__': __QUERY_TEXT\n");
+
+        ExpectFailWithError(R"sql(
+            USE plato;
+            $named_node = 42;
+            CREATE STREAMING QUERY MyQuery AS
+            DO BEGIN
+                SELECT $named_node;
+            END DO;
+        )sql" , "<main>:6:24: Error: Unknown name: $named_node\n");
+    }
+
+    Y_UNIT_TEST(AlterStreamingQuerySetQuery) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+USE plato;
+-- Some comment
+ALTER STREAMING QUERY MyQuery AS DO BEGIN
+USE plato;
+$source = SELECT * FROM Input;
+INSERT INTO Output1 SELECT * FROM $source;
+INSERT INTO Output2 SELECT * FROM $source;END DO;
+USE hahn;
+-- Other comment
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "alterObject") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '"\nUSE plato;\n$source = SELECT * FROM Input;\nINSERT INTO Output1 SELECT * FROM $source;\nINSERT INTO Output2 SELECT * FROM $source;")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("alterObject"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["alterObject"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(AlterStreamingQuerySetOptions) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY MyQuery SET (
+                WAIT_CHECKPOINT = TRUE,
+                RESOURCE_POOL = other_pool
+            );
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "Write") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('('"resource_pool" '"other_pool") '('"wait_checkpoint" (Bool '"true"))))#");
+                UNIT_ASSERT_STRING_CONTAINS(line, "alterObject");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("Write"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write"]);
+    }
+
+    Y_UNIT_TEST(AlterStreamingQuerySetBothOptionsAndQuery) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY MyQuery SET (
+                WAIT_CHECKPOINT = TRUE,
+                RESOURCE_POOL = other_pool
+            ) AS DO BEGIN /* alter */ SELECT 42; END DO;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "alterObject") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '" /* alter */ SELECT 42; ") '('"resource_pool" '"other_pool") '('"wait_checkpoint" (Bool '"true"))))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("alterObject"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["alterObject"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(AlterStreamingQueryIfExists) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY IF EXISTS MyQuery AS DO BEGIN /* alter if exists */ SELECT 42; END DO;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "alterObjectIfExists") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '" /* alter if exists */ SELECT 42; ")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("alterObjectIfExists"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["alterObjectIfExists"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(AlterStreamingQueryWithTablePrefix) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            PRAGMA TablePathPrefix='/aba';
+            ALTER STREAMING QUERY MyQuery AS DO BEGIN SELECT * FROM hahn.Input; END DO;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "alterObject") {
+                UNIT_ASSERT_STRING_CONTAINS(line, "/aba/MyQuery");
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_ast" (block '()#");
+            }
+
+            if (word == "__query_text") {
+                UNIT_ASSERT_STRING_CONTAINS(line, R"#('('"__query_text" '" SELECT * FROM hahn.Input; ")))#");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("alterObject"), 0}, {TString("__query_text"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["alterObject"]);
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["__query_text"]);
+    }
+
+    Y_UNIT_TEST(AlterStreamingQueryWithBadArguments) {
+#if ANTLR_VER == 3
+        ExpectFailWithError(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY MyQuery;
+        )sql" , "<main>:3:41: Error: Unexpected token ';' : cannot match to any predicted input...\n\n");
+#else
+        ExpectFailWithError(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY MyQuery;
+        )sql" , "<main>:3:41: Error: mismatched input ';' expecting {AS, SET}\n");
+#endif
+
+        ExpectFailWithError(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY MyQuery SET (
+                DUPLICATE_SETTING = "first_value",
+                DUPLICATE_SETTING = "second_value"
+            );
+        )sql" , "<main>:5:17: Error: Found duplicated parameter: DUPLICATE_SETTING\n");
+
+        ExpectFailWithError(R"sql(
+            USE plato;
+            ALTER STREAMING QUERY MyQuery SET (
+                `__QUERY_TEXT` = "SELECT 42"
+            );
+        )sql" , "<main>:4:17: Error: Streaming query parameter name should not start with prefix '__': __QUERY_TEXT\n");
+
+        ExpectFailWithError(R"sql(
+            USE plato;
+            $named_node = 42;
+            ALTER STREAMING QUERY MyQuery AS
+            DO BEGIN
+                SELECT $named_node;
+            END DO;
+        )sql" , "<main>:6:24: Error: Unknown name: $named_node\n");
+    }
+
+    Y_UNIT_TEST(DropStreamingQueryBasic) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            DROP STREAMING QUERY MyQuery;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "Write") {
+                UNIT_ASSERT_VALUES_EQUAL(TString::npos, line.find("'features"));
+                UNIT_ASSERT_STRING_CONTAINS(line, "dropObject");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("Write"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write"]);
+    }
+
+    Y_UNIT_TEST(DropStreamingQueryIfExists) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            USE plato;
+            DROP STREAMING QUERY IF EXISTS MyQuery;
+        )sql");
+        UNIT_ASSERT_C(res.Root, res.Issues.ToOneLineString());
+
+        TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+            if (word == "Write") {
+                UNIT_ASSERT_VALUES_EQUAL(TString::npos, line.find("'features"));
+                UNIT_ASSERT_STRING_CONTAINS(line, "dropObjectIfExists");
+            }
+        };
+
+        TWordCountHive elementStat = { {TString("Write"), 0} };
+        VerifyProgram(res, elementStat, verifyLine);
+
+        UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write"]);
     }
 }

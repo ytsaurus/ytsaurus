@@ -4,10 +4,7 @@ ONLY_TAGS(GO_PROTO)
 
 PEERDIR(yt/go/proto/core/yson)
 
-PROTO_ADDINCL(
-    GLOBAL
-    yt
-)
+PROTO_NAMESPACE(yt)
 
 SRCS(
     ${ARCADIA_ROOT}/yt/yt_proto/yt/core/ytree/proto/attributes.proto

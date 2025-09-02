@@ -97,7 +97,7 @@ TSignedWriteFragmentResultPtr TDistributedTableApiTest::DistributedWriteTable(
 void TDistributedTableApiTest::PingDistributedWriteSession(
     const TSignedDistributedWriteSessionPtr& session)
 {
-    WaitFor(NApi::PingDistributedWriteSession(session, Client_)).ThrowOnError();
+    WaitFor(Client_->PingDistributedWriteSession(session)).ThrowOnError();
 }
 
 void TDistributedTableApiTest::FinishDistributedWriteSession(
@@ -361,13 +361,56 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishNoTimeout)
     }
 
     auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/ 1, std::nullopt, TDuration::Minutes(1));
-    TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
     auto result = DistributedWriteTable(
         sessionWithCookies.Cookies[0],
         {
             "v1",
         },
         inputRows);
+    FinishDistributedWriteSession(std::move(sessionWithCookies.Session), {std::move(result)});
+
+    auto rowsDistributed = ReadTable();
+    EXPECT_EQ(std::ssize(rowsDistributed), std::ssize(expectedRows));
+    EXPECT_EQ(expectedRows, rowsDistributed);
+}
+
+TEST_F(TDistributedTableApiTest, StartPingWriteFinishNoTimeout)
+{
+    CreateStaticTable(
+        /*tablePath*/ "//tmp/distributed_table_api_test",
+        /*schema*/ "["
+        "{name=v1;type=string};"
+        "]");
+
+    std::vector<std::string> rowStrings = {
+        "Foo",
+        "Bar",
+        "Baz",
+    };
+
+    std::vector<std::string> inputRows;
+    std::vector<std::string> expectedRows;
+
+    for (auto row : rowStrings) {
+        inputRows.push_back("<id=0> " + row + ";");
+        expectedRows.push_back("[\"" + row + "\";]");
+    }
+
+    auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/ 1, std::nullopt, TDuration::Seconds(2));
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    PingDistributedWriteSession(sessionWithCookies.Session);
+    auto result = DistributedWriteTable(
+        sessionWithCookies.Cookies[0],
+        {
+            "v1",
+        },
+        inputRows);
+    PingDistributedWriteSession(sessionWithCookies.Session);
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    PingDistributedWriteSession(sessionWithCookies.Session);
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    PingDistributedWriteSession(sessionWithCookies.Session);
     FinishDistributedWriteSession(std::move(sessionWithCookies.Session), {std::move(result)});
 
     auto rowsDistributed = ReadTable();

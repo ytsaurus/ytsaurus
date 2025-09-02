@@ -429,7 +429,7 @@ private:
         }
 
         const auto& config = GetDynamicConfig();
-        if (node->Flavors().contains(ENodeFlavor::Data) || !config->ImmediatelyDisposeNondataNodes) {
+        if (node->Flavors().contains(ENodeFlavor::Data)) {
             DoStartNodeDisposal(node);
             nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
 
@@ -440,6 +440,8 @@ private:
                     ChunkLocationsAwaitingDisposal_.push_back(location->GetIndex());
                 }
             }
+
+            MaybeFinishNodeDisposal(node);
         } else {
             DisposeNodeCompletely(node);
         }

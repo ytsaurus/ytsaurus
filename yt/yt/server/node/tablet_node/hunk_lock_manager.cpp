@@ -50,7 +50,6 @@ struct THunkStoreLockingState
     // Transient.
     int TransientLockCount = 0;
     TInstant LastChangeTime;
-    // Should only change false -> true.
     bool IsBeingUnlocked = false;
 
     void Save(TSaveContext& context) const
@@ -493,6 +492,8 @@ private:
 
         transactionFuture
             .Apply(BIND([=, this] (const NNative::ITransactionPtr& transaction) {
+                auto tabletCellId = Context_->GetCellId();
+
                 NTabletClient::NProto::TReqToggleHunkTabletStoreLock hunkRequest;
                 ToProto(hunkRequest.mutable_tablet_id(), hunkTabletId);
                 ToProto(hunkRequest.mutable_store_id(), hunkStoreId);
@@ -509,9 +510,10 @@ private:
                 localRequest.set_lock(lock);
                 localRequest.set_mount_revision(ToProto(hunkMountRevision));
                 localRequest.set_term(term);
-                transaction->AddAction(Context_->GetCellId(), MakeTransactionActionData(localRequest));
+                transaction->AddAction(tabletCellId, MakeTransactionActionData(localRequest));
 
                 NApi::TTransactionCommitOptions commitOptions{
+                    .CoordinatorCellId = tabletCellId,
                     .Force2PC = true,
                     .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
                 };

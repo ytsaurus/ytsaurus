@@ -152,7 +152,6 @@ protected:
             // Forward in an object type handler attribute leaf is interpreted as Fail.
             case EUnknownYsonFieldsMode::Forward:
             case EUnknownYsonFieldsMode::Fail:
-            default:
                 break;
         }
 

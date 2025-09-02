@@ -157,9 +157,9 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/phoenix/type_registry.h>
-#include <yt/yt/core/phoenix/schemas.h>
 #include <yt/yt/core/phoenix/load.h>
+#include <yt/yt/core/phoenix/schemas.h>
+#include <yt/yt/core/phoenix/type_registry.h>
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
@@ -220,11 +220,15 @@ using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
 {
     return TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
         << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -340,6 +344,10 @@ TOperationControllerBase::TOperationControllerBase(
         BIND_NO_PROPAGATE(&TThis::SendRunningAllocationTimeStatisticsUpdates, MakeWeak(this)),
         Config_->RunningAllocationTimeStatisticsUpdatesSendPeriod))
     , JobAbortsUntilOperationFailure_(Config_->MaxJobAbortsUntilOperationFailure)
+    , UsedMonitoringDescriptorCount_(
+        ControllerAgentProfiler()
+            .WithTag("user_name", AuthenticatedUser_)
+            .Counter("/user_job_monitoring/used_descriptors"))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -446,49 +454,50 @@ void TOperationControllerBase::SleepInInitialize()
 
 std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
 {
-    if (Spec_->TestingOperationOptions->AllocationSize.value_or(0) > 0) {
-        auto Logger = ControllerLogger;
-
-        constexpr i64 allocationPartSize = 1_MB;
-
-        std::vector<TTestAllocationGuard> testHeap;
-
-        std::function<void()> incrementer = [
-                this,
-                this_ = MakeStrong(this),
-                operationId = ToString(OperationId_),
-                Logger = Logger
-            ] {
-                auto size = TestingAllocationSize_.fetch_add(allocationPartSize);
-                YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
-                    size + allocationPartSize);
-            };
-
-        std::function<void()> decrementer = [
-            this,
-            this_ = MakeStrong(this),
-            OperationId = ToString(OperationId_),
-            Logger = Logger] {
-                auto size = TestingAllocationSize_.fetch_sub(allocationPartSize);
-                YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
-                    size - allocationPartSize);
-            };
-
-        while (TestingAllocationSize_ > 0) {
-            testHeap.emplace_back(
-                allocationPartSize,
-                decrementer,
-                incrementer,
-                AllocationReleaseDelay_.value_or(TDuration::Zero()),
-                GetInvoker());
-        }
-
-        YT_LOG_DEBUG("Test heap allocation is finished (MemoryUsage: %v)",
-            GetMemoryUsage());
-        return testHeap;
+    if (Spec_->TestingOperationOptions->AllocationSize.value_or(0) <= 0) {
+        return {};
     }
 
-    return {};
+    auto Logger = ControllerLogger;
+
+    constexpr i64 AllocationPartSize = 1_MB;
+
+    std::vector<TTestAllocationGuard> testHeap;
+
+    std::function incrementer = [
+        this,
+        this_ = MakeStrong(this),
+        operationId = ToString(OperationId_),
+        Logger = Logger
+    ] {
+        i64 size = TestingAllocationSize_.fetch_add(AllocationPartSize);
+        YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
+            size + AllocationPartSize);
+    };
+
+    std::function decrementer = [
+        this,
+        this_ = MakeStrong(this),
+        OperationId = ToString(OperationId_),
+        Logger = Logger
+    ] {
+        i64 size = TestingAllocationSize_.fetch_sub(AllocationPartSize);
+        YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
+            size - AllocationPartSize);
+    };
+
+    while (TestingAllocationSize_ > 0) {
+        testHeap.emplace_back(
+            AllocationPartSize,
+            decrementer,
+            incrementer,
+            AllocationReleaseDelay_.value_or(TDuration::Zero()),
+            GetInvoker());
+    }
+
+    YT_LOG_DEBUG("Test heap allocation is finished (MemoryUsage: %v)",
+        GetMemoryUsage());
+    return testHeap;
 }
 
 void TOperationControllerBase::InitializeClients()
@@ -496,14 +505,14 @@ void TOperationControllerBase::InitializeClients()
     Client_ = Host_
         ->GetClient()
         ->GetNativeConnection()
-        ->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser_));
+        ->CreateNativeClient(NNative::TClientOptions::FromUser(AuthenticatedUser_));
     InputClient_ = Client_;
     OutputClient_ = Client_;
 
     SchedulerClient_ = Host_
         ->GetClient()
         ->GetNativeConnection()
-        ->CreateNativeClient(TClientOptions::FromUser(SchedulerUserName));
+        ->CreateNativeClient(NNative::TClientOptions::FromUser(SchedulerUserName));
 
     // TODO(coteeq): SchedulerInputClient may seem unexpected since we now can have
     //               client from another cluster (or even many different clusters).
@@ -786,12 +795,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
 bool TOperationControllerBase::HasUserJobFilesOrLayers() const
 {
-    for (const auto& [_, files] : UserJobFiles_) {
-        if (!files.empty()) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(
+        UserJobFiles_ | std::views::values,
+        [] (const auto& files) { return !files.empty(); });
 }
 
 void TOperationControllerBase::InitOutputTables()
@@ -856,19 +862,20 @@ void TOperationControllerBase::InitializeStructures()
                 THROW_ERROR_EXCEPTION("File name must not contain NUL byte")
                     << TErrorAttribute("file_name", *filename);
             }
-            files.push_back(TUserFile(
+
+            files.emplace_back(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
-                /*layer*/ false));
+                /*layer*/ false);
         }
 
         // Add layer files.
         auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
-            files.push_back(TUserFile(
+            files.emplace_back(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
-                /*layer*/ true));
+                /*layer*/ true);
         }
 
         // Add gpu check layers.
@@ -1096,11 +1103,10 @@ void TOperationControllerBase::CreateOutputTables(
     EObjectType desiredType)
 {
     std::vector<TUserObject*> tablesToCreate;
-    for (auto* table : tables) {
-        if (table->Path.GetCreate()) {
-            tablesToCreate.push_back(table);
-        }
-    }
+    std::ranges::copy_if(
+        tables,
+        std::back_inserter(tablesToCreate),
+        [] (auto* table) { return table->Path.GetCreate(); });
     if (tablesToCreate.empty()) {
         return;
     }
@@ -1208,36 +1214,35 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     {
         ValidateUpdatingTablesTypes();
 
-        THashSet<TObjectId> updatingTableIds;
-        for (const auto& table : UpdatingTables_) {
-            bool insertedNew = updatingTableIds.insert(table->ObjectId).second;
-            if (!insertedNew) {
-                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
-                    table->GetPath());
+        {
+            THashSet<TObjectId> updatingTableIds;
+            for (const auto& table : UpdatingTables_) {
+                if (!updatingTableIds.insert(table->ObjectId).second) {
+                    THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                        table->GetPath());
+                }
             }
         }
 
         GetOutputTablesSchema();
 
         std::vector<TTableSchemaPtr> outputTableSchemas;
-        outputTableSchemas.resize(OutputTables_.size());
-        for (int outputTableIndex = 0; outputTableIndex < std::ssize(OutputTables_); ++outputTableIndex) {
-            const auto& table = OutputTables_[outputTableIndex];
-            if (table->Dynamic) {
-                outputTableSchemas[outputTableIndex] = table->TableUploadOptions.GetUploadSchema();
-            }
-        }
+        outputTableSchemas.reserve(OutputTables_.size());
+        std::ranges::transform(
+            OutputTables_,
+            std::back_inserter(outputTableSchemas),
+            [] (const auto& table) { return table->Dynamic ? table->TableUploadOptions.GetUploadSchema() : nullptr; });
 
         PrepareOutputTables();
 
-        for (int outputTableIndex = 0; outputTableIndex < std::ssize(OutputTables_); ++outputTableIndex) {
-            const auto& table = OutputTables_[outputTableIndex];
-            if (table->Dynamic && *outputTableSchemas[outputTableIndex] != *table->TableUploadOptions.GetUploadSchema()) {
+        for (const auto& [table, expectedSchema] : Zip(OutputTables_, outputTableSchemas)) {
+            if (table->Dynamic && *expectedSchema != *table->TableUploadOptions.GetUploadSchema()) {
+                // XXX(namorniradnug) Maybe use YT_LOG_ALERT here?
                 THROW_ERROR_EXCEPTION(
                     "Schema of output dynamic table %v unexpectedly changed during preparation phase. "
                     "Please send the link to the operation to yt-admin@",
                     table->Path)
-                    << TErrorAttribute("original_schema", *outputTableSchemas[outputTableIndex])
+                    << TErrorAttribute("original_schema", *expectedSchema)
                     << TErrorAttribute("upload_schema", *table->TableUploadOptions.GetUploadSchema());
             }
         }
@@ -1300,16 +1305,16 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         AlertManager_->StartPeriodicActivity();
 
-        if (auto spec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_)) {
-            if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
-                SetOperationAlert(
-                    EOperationAlertType::InvalidDataWeightPerJob,
-                    TError("\"data_weight_per_job\"  cannot be greater than \"max_data_weight_per_job\". "
-                       "Please specify a \"data_weight_per_job\" value less than or equal to \"max_data_weight_per_job\". "
-                       "This constraint will be strictly enforced in future releases")
-                        << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
-                        << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob));
-            }
+        if (auto spec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_);
+            spec && spec->DataWeightPerJob > spec->MaxDataWeightPerJob)
+        {
+            SetOperationAlert(
+                EOperationAlertType::InvalidDataWeightPerJob,
+                TError("\"data_weight_per_job\"  cannot be greater than \"max_data_weight_per_job\". "
+                   "Please specify a \"data_weight_per_job\" value less than or equal to \"max_data_weight_per_job\". "
+                   "This constraint will be strictly enforced in future releases.")
+                    << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
+                    << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob));
         }
 
         CustomMaterialize();
@@ -1420,18 +1425,7 @@ void TOperationControllerBase::SleepInRevive()
 void TOperationControllerBase::ClearEmptyAllocationsInRevive()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
-
-    std::vector<THashMap<TAllocationId, TAllocation>::iterator> allocationIteratorsToErase;
-
-    for (auto it = begin(AllocationMap_); it != end(AllocationMap_); ++it) {
-        if (!it->second.Joblet) {
-            allocationIteratorsToErase.push_back(it);
-        }
-    }
-
-    for (auto it : allocationIteratorsToErase) {
-        AllocationMap_.erase(it);
-    }
+    EraseNodesIf(AllocationMap_, [] (const auto& idAllocation) { return !idAllocation.second.Joblet; });
 }
 
 TOperationControllerReviveResult TOperationControllerBase::Revive()
@@ -1509,17 +1503,20 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ShouldUpdateProgressAttributesInCypress_ = true;
     ShouldUpdateLightOperationAttributes_ = true;
 
+    // XXX(namorniradnug): duplication (see SafeMaterialize)
+    // Probably something like "StartExecutors" would make sense
     CheckTimeLimitExecutor_->Start();
     ProgressBuildExecutor_->Start();
     ExecNodesCheckExecutor_->Start();
     SuspiciousJobsYsonUpdater_->Start();
-    AlertManager_->StartPeriodicActivity();
     MinNeededResourcesSanityCheckExecutor_->Start();
     ExecNodesUpdateExecutor_->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
     UpdateAccountResourceUsageLeasesExecutor_->Start();
     RunningJobStatisticsUpdateExecutor_->Start();
     SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
+
+    AlertManager_->StartPeriodicActivity();
 
     ClearEmptyAllocationsInRevive();
 
@@ -1671,8 +1668,8 @@ void TOperationControllerBase::InitInputStreamDirectory()
 {
     std::vector<NChunkPools::TInputStreamDescriptor> inputStreams;
     inputStreams.reserve(InputManager_->GetInputTables().size());
-    for (const auto& [tableIndex, inputTable] : Enumerate(InputManager_->GetInputTables())) {
-        for (const auto& [rangeIndex, range] : Enumerate(inputTable->Path.GetRanges())) {
+    for (const auto& [tableIndex, inputTable] : SEnumerate(InputManager_->GetInputTables())) {
+        for (const auto& [rangeIndex, range] : SEnumerate(inputTable->Path.GetRanges())) {
             auto& descriptor = inputStreams.emplace_back(
                 inputTable->Teleportable,
                 inputTable->IsPrimary(),
@@ -1693,10 +1690,9 @@ const TInputStreamDirectory& TOperationControllerBase::GetInputStreamDirectory()
 
 int TOperationControllerBase::GetPrimaryInputTableCount() const
 {
-    return std::count_if(
-        InputManager_->GetInputTables().begin(),
-        InputManager_->GetInputTables().end(),
-        [] (const TInputTablePtr& table) { return table->IsPrimary(); });
+    return std::ranges::count_if(
+        InputManager_->GetInputTables(),
+        &TInputTable::IsPrimary);
 }
 
 TTransactionId TOperationControllerBase::GetInputTransactionParentId()
@@ -1738,11 +1734,10 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
                 result.push_back(table->ExternalCellTag);
             }
 
-            for (const auto& [chunkStripeKey, id] : table->OutputChunkTreeIds) {
-                if (TypeFromId(id) == EObjectType::ChunkList) {
-                    continue;
+            for (const auto& [_, id] : table->OutputChunkTreeIds) {
+                if (TypeFromId(id) != EObjectType::ChunkList) {
+                    result.push_back(CellTagFromId(id));
                 }
-                result.push_back(CellTagFromId(id));
             }
         }
 
@@ -1913,9 +1908,8 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] {
             if (auto this_ = weakThis.Lock()) {
                 return GetAliveIntermediateChunks();
-            } else {
-                return THashSet<TChunkId>();
             }
+            return THashSet<TChunkId>();
         }),
         BIND_NO_PROPAGATE(&TThis::OnIntermediateChunkBatchLocated, MakeWeak(this))
             .Via(GetCancelableInvoker()),
@@ -1969,8 +1963,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
     // NB: If row count limit is set on any output table, we do not
     // enable auto merge as it prematurely stops the operation
     // because wrong statistics are currently used when checking row count.
-    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-        if (OutputTables_[index]->Path.GetRowCountLimit()) {
+    for (const auto& [index, table] : SEnumerate(OutputTables_)) {
+        if (table->Path.GetRowCountLimit()) {
             YT_LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
             auto error = TError("Output table has row count limit, force disabling auto merge")
                 << TErrorAttribute("table_index", index);
@@ -1998,14 +1992,16 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         Logger);
 
     bool sortedOutputAutoMergeRequired = false;
-
-    const auto standardStreamDescriptors = GetStandardStreamDescriptors();
-
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors;
-    outputStreamDescriptors.reserve(OutputTables_.size());
-    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-        const auto& outputTable = OutputTables_[index];
-        if (outputTable->Path.GetAutoMerge()) {
+
+    {
+        const auto& standardStreamDescriptors = GetStandardStreamDescriptors();
+
+        outputStreamDescriptors.reserve(OutputTables_.size());
+        for (const auto& [index, outputTable] : SEnumerate(OutputTables_)) {
+            if (!outputTable->Path.GetAutoMerge()) {
+                continue;
+            }
             if (outputTable->TableUploadOptions.TableSchema->IsSorted()) {
                 sortedOutputAutoMergeRequired = true;
             } else {
@@ -2081,22 +2077,23 @@ std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeSt
     YT_VERIFY(std::ssize(streamDescriptors) <= std::ssize(AutoMergeEnabled_));
 
     int autoMergeTaskTableIndex = 0;
-    for (int index = 0; index < std::ssize(streamDescriptors); ++index) {
-        if (AutoMergeEnabled_[index]) {
-            streamDescriptors[index] = streamDescriptors[index]->Clone();
-            streamDescriptors[index]->DestinationPool = AutoMergeTask_->GetChunkPoolInput();
-            streamDescriptors[index]->ChunkMapping = AutoMergeTask_->GetChunkMapping();
-            streamDescriptors[index]->ImmediatelyUnstageChunkLists = true;
-            streamDescriptors[index]->RequiresRecoveryInfo = true;
-            streamDescriptors[index]->IsFinalOutput = false;
-            // NB. The vertex descriptor for auto merge task must be empty, as TAutoMergeTask builds both input
-            // and output edges. The underlying operation must not build an output edge, as it doesn't know
-            // whether the resulting vertex is shallow_auto_merge or auto_merge.
-            streamDescriptors[index]->TargetDescriptor = TDataFlowGraph::TVertexDescriptor();
-            streamDescriptors[index]->PartitionTag = autoMergeTaskTableIndex++;
-            if (intermediateDataAccount) {
-                streamDescriptors[index]->TableWriterOptions->Account = *intermediateDataAccount;
-            }
+    for (const auto& [autoMergeEnabled, streamDescriptor] : Zip(AutoMergeEnabled_, streamDescriptors)) {
+        if (!autoMergeEnabled) {
+            continue;
+        }
+        streamDescriptor = streamDescriptor->Clone();
+        streamDescriptor->DestinationPool = AutoMergeTask_->GetChunkPoolInput();
+        streamDescriptor->ChunkMapping = AutoMergeTask_->GetChunkMapping();
+        streamDescriptor->ImmediatelyUnstageChunkLists = true;
+        streamDescriptor->RequiresRecoveryInfo = true;
+        streamDescriptor->IsFinalOutput = false;
+        // NB. The vertex descriptor for auto merge task must be empty, as TAutoMergeTask builds both input
+        // and output edges. The underlying operation must not build an output edge, as it doesn't know
+        // whether the resulting vertex is shallow_auto_merge or auto_merge.
+        streamDescriptor->TargetDescriptor = {};
+        streamDescriptor->PartitionTag = autoMergeTaskTableIndex++;
+        if (intermediateDataAccount) {
+            streamDescriptor->TableWriterOptions->Account = *intermediateDataAccount;
         }
     }
     return streamDescriptors;
@@ -2669,7 +2666,7 @@ void TOperationControllerBase::TeleportOutputChunks()
         .ThrowOnError();
 }
 
-void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
+void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
 {
     const auto& path = table->Path.GetPath();
     YT_LOG_DEBUG("Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
@@ -2727,30 +2724,27 @@ void TOperationControllerBase::VerifySortedOutput(TOutputTablePtr table)
         }
     }
 
-    for (auto current = table->OutputChunkTreeIds.begin(); current != table->OutputChunkTreeIds.end(); ++current) {
-        auto next = current + 1;
-        if (next != table->OutputChunkTreeIds.end()) {
-            int cmp = comparator.CompareKeys(next->first.AsBoundaryKeys().MinKey, current->first.AsBoundaryKeys().MaxKey);
+    for (const auto& [current, next] : Zip(table->OutputChunkTreeIds, std::views::drop(table->OutputChunkTreeIds, 1))) {
+        int cmp = comparator.CompareKeys(next.first.AsBoundaryKeys().MinKey, current.first.AsBoundaryKeys().MaxKey);
 
-            if (cmp < 0) {
-                THROW_ERROR_EXCEPTION(
-                    NTableClient::EErrorCode::SortOrderViolation,
-                    "Output table %v is not sorted: job outputs have overlapping key ranges",
-                    table->GetPath())
-                    << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
-                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey)
-                    << TErrorAttribute("comparator", comparator);
-            }
+        if (cmp < 0) {
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::SortOrderViolation,
+                "Output table %v is not sorted: job outputs have overlapping key ranges",
+                table->GetPath())
+                << TErrorAttribute("current_range_max_key", current.first.AsBoundaryKeys().MaxKey)
+                << TErrorAttribute("next_range_min_key", next.first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("comparator", comparator);
+        }
 
-            if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
-                THROW_ERROR_EXCEPTION(
-                    NTableClient::EErrorCode::UniqueKeyViolation,
-                    "Output table %v contains duplicate keys: job outputs have overlapping key ranges",
-                    table->GetPath())
-                    << TErrorAttribute("current_range_max_key", current->first.AsBoundaryKeys().MaxKey)
-                    << TErrorAttribute("next_range_min_key", next->first.AsBoundaryKeys().MinKey)
-                    << TErrorAttribute("comparator", comparator);
-            }
+        if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::UniqueKeyViolation,
+                "Output table %v contains duplicate keys: job outputs have overlapping key ranges",
+                table->GetPath())
+                << TErrorAttribute("current_range_max_key", current.first.AsBoundaryKeys().MaxKey)
+                << TErrorAttribute("next_range_min_key", next.first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("comparator", comparator);
         }
     }
 }
@@ -3490,10 +3484,8 @@ bool TOperationControllerBase::OnJobFailed(
             return GetTimeLimitError()
                 << std::move(failureKindError)
                 << error;
-        } else {
-            return std::move(failureKindError)
-                << error;
         }
+        return std::move(failureKindError) << error;
     };
 
     if (int maxFailedJobCount = SpecManager_->GetSpec()->MaxFailedJobCount; FailedJobCount_ >= maxFailedJobCount) {
@@ -3770,7 +3762,7 @@ void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSumma
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    ProcessAllocationEvent(std::move(finishedAllocationSummary), "finished");
+    ProcessAllocationEvent(finishedAllocationSummary, "finished");
 }
 
 void TOperationControllerBase::OnJobRunning(
@@ -4080,7 +4072,7 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
 }
 
 void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
-    std::vector<TScrapedChunkInfo> chunkBatch)
+    const std::vector<TScrapedChunkInfo>& chunkBatch)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -4348,11 +4340,14 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         }
 
         std::vector<TOutputTablePtr> tables;
-        if (StderrTable_ && StderrTable_->IsPrepared()) {
-            tables.push_back(StderrTable_);
-        }
-        if (CoreTable_ && CoreTable_->IsPrepared()) {
-            tables.push_back(CoreTable_);
+
+        if (DebugTablesReady_) {
+            if (StderrTable_ && StderrTable_->IsPrepared()) {
+                tables.push_back(StderrTable_);
+            }
+            if (CoreTable_ && CoreTable_->IsPrepared()) {
+                tables.push_back(CoreTable_);
+            }
         }
 
         if (!tables.empty()) {
@@ -5365,12 +5360,11 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
                         << error);
             }
             return;
-        } else {
-            YT_LOG_DEBUG("Account resource usage lease updated (Account: %v, LeaseId: %v, DiskQuota: %v)",
-                account,
-                info.LeaseId,
-                info.DiskQuota);
         }
+        YT_LOG_DEBUG("Account resource usage lease updated (Account: %v, LeaseId: %v, DiskQuota: %v)",
+            account,
+            info.LeaseId,
+            info.DiskQuota);
     }
 }
 
@@ -5712,7 +5706,7 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 bool TOperationControllerBase::CheckGracefullyAbortedJobsStatusReceived()
 {
     if (IsFailing() && RunningJobCount_ == 0) {
-        OnOperationFailed(std::move(OperationFailError_), /*flush*/ true);
+        OnOperationFailed(OperationFailError_, /*flush*/ true);
         return true;
     }
 
@@ -5726,18 +5720,20 @@ const std::vector<TOutputStreamDescriptorPtr>& TOperationControllerBase::GetStan
 
 void TOperationControllerBase::InitializeStandardStreamDescriptors()
 {
-    StandardStreamDescriptors_.resize(OutputTables_.size());
-    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-        StandardStreamDescriptors_[index] = OutputTables_[index]->GetStreamDescriptorTemplate(index)->Clone();
-        StandardStreamDescriptors_[index]->DestinationPool = GetSink();
-        StandardStreamDescriptors_[index]->IsFinalOutput = true;
-        StandardStreamDescriptors_[index]->LivePreviewIndex = index;
-        StandardStreamDescriptors_[index]->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
-        StandardStreamDescriptors_[index]->PartitionTag = index;
+    StandardStreamDescriptors_.clear();
+    StandardStreamDescriptors_.reserve(OutputTables_.size());
+    for (const auto& [index, outputTable] : SEnumerate(OutputTables_)) {
+        const auto& descriptor = StandardStreamDescriptors_.emplace_back(
+            outputTable->GetStreamDescriptorTemplate(index)->Clone());
+        descriptor->DestinationPool = GetSink();
+        descriptor->IsFinalOutput = true;
+        descriptor->LivePreviewIndex = index;
+        descriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+        descriptor->PartitionTag = index;
     }
 }
 
-void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr> chunks)
+void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputChunkPtr>& chunks)
 {
     std::vector<TChunkId> chunkIds;
     for (const auto& chunk : chunks) {
@@ -5749,18 +5745,17 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
             livePreviewDescriptor.LivePreviewIndex,
             chunk);
         if (!result.IsOK()) {
-            static constexpr auto message = "Error unregistering a chunk from a live preview";
+            static constexpr auto Message = "Error unregistering a chunk from a live preview";
             auto tableName = "output_" + ToString(it->second.LivePreviewIndex);
             if (Config_->FailOperationOnErrorsInLivePreview) {
-                THROW_ERROR_EXCEPTION(message)
+                THROW_ERROR_EXCEPTION(Message)
                     << TErrorAttribute("table_name", tableName)
                     << TErrorAttribute("chunk_id", chunk->GetChunkId());
-            } else {
-                YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                    message,
-                    tableName,
-                    chunk);
             }
+            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
+                Message,
+                tableName,
+                chunk);
         }
         chunkIds.push_back(chunk->GetChunkId());
         YT_LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
@@ -5769,7 +5764,7 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
             livePreviewDescriptor.LivePreviewIndex);
         LivePreviewChunks_.erase(it);
     }
-    Host_->AddChunkTreesToUnstageList(std::move(chunkIds), /*recursive*/ false);
+    Host_->AddChunkTreesToUnstageList(chunkIds, /*recursive*/ false);
 }
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
@@ -6130,7 +6125,7 @@ void TOperationControllerBase::UpdateFailedJobsExitCodeCounters(std::optional<in
     ++FailCountsPerKnownExitCode_[exitCode];
 }
 
-bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) const noexcept
+bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -6139,15 +6134,14 @@ bool TOperationControllerBase::IsJobIdEarlier(TJobId lhs, TJobId rhs) const noex
     return lhs.Underlying().Parts32[0] < rhs.Underlying().Parts32[0];
 }
 
-TJobId TOperationControllerBase::GetLaterJobId(TJobId lhs, TJobId rhs) const noexcept
+TJobId TOperationControllerBase::GetLaterJobId(TJobId lhs, TJobId rhs) noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (IsJobIdEarlier(lhs, rhs)) {
         return rhs;
-    } else {
-        return lhs;
     }
+    return lhs;
 }
 
 void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortReason)
@@ -6229,7 +6223,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         // We should check if user is not in legacy live preview blacklist in order to inform him
         // if he is in a blacklist.
         if (NRe2::TRe2::FullMatch(
-            NRe2::StringPiece(AuthenticatedUser_.data()),
+            NRe2::StringPiece(AuthenticatedUser_),
             *Config_->LegacyLivePreviewUserBlacklist))
         {
             suppressionErrors.push_back(TError(
@@ -6416,7 +6410,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error creating live preview tables");
     const auto& batchRsp = batchRspOrError.Value();
 
-    auto handleResponse = [&] (TLivePreviewTableBase& table, TCypressYPathProxy::TRspCreatePtr rsp) {
+    auto handleResponse = [&] (TLivePreviewTableBase& table, const TCypressYPathProxy::TRspCreatePtr& rsp) {
         table.LivePreviewTableId = FromProto<NCypressClient::TNodeId>(rsp->node_id());
     };
 
@@ -6539,7 +6533,7 @@ EObjectType TOperationControllerBase::GetOutputTableDesiredType() const
     return EObjectType::Table;
 }
 
-void TOperationControllerBase::ForEachLockableDynamicTable(std::function<void(const TOutputTablePtr&)> handler)
+void TOperationControllerBase::ForEachLockableDynamicTable(const std::function<void(const TOutputTablePtr&)>& handler)
 {
     if (auto explicitOption = Spec_->LockOutputDynamicTables) {
         if (!*explicitOption) {
@@ -6642,14 +6636,13 @@ void TOperationControllerBase::GetOutputTablesSchema()
         if (table->IsFile()) {
             table->TableUploadOptions = GetFileUploadOptions(path, *attributes);
             continue;
-        } else {
-            table->Dynamic = attributes->Get<bool>("dynamic");
-            table->TableUploadOptions = GetTableUploadOptions(
-                path,
-                *attributes,
-                table->Schema,
-                0); // Here we assume zero row count, we will do additional check later.
         }
+        table->Dynamic = attributes->Get<bool>("dynamic");
+        table->TableUploadOptions = GetTableUploadOptions(
+            path,
+            *attributes,
+            table->Schema,
+            0); // Here we assume zero row count, we will do additional check later.
 
         // Will be used by AddOutputTableSpecs.
         table->TableUploadOptions.SchemaId = table->SchemaId;
@@ -6703,6 +6696,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
         if (StderrTable_->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
             THROW_ERROR_EXCEPTION("Cannot write stderr table in append mode");
         }
+        if (StderrTable_->Dynamic) {
+            THROW_ERROR_EXCEPTION("Stderr table cannot be dynamic")
+                << TErrorAttribute("table_path", StderrTable_->Path);
+        }
     }
 
     if (CoreTable_) {
@@ -6710,6 +6707,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
         CoreTable_->TableUploadOptions.SchemaMode = ETableSchemaMode::Strong;
         if (CoreTable_->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
             THROW_ERROR_EXCEPTION("Cannot write core table in append mode");
+        }
+        if (CoreTable_->Dynamic) {
+            THROW_ERROR_EXCEPTION("Core table cannot be dynamic")
+                << TErrorAttribute("table_path", CoreTable_->Path);
         }
     }
 }
@@ -7546,7 +7547,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     EObjectType::Table,
                     EObjectType::File,
                     file.Type);
-            } else if (file.Layer && file.Type != EObjectType::File) {
+            }
+            if (file.Layer && file.Type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv, actual %Qlv",
                     path,
                     EObjectType::File,
@@ -7572,30 +7574,30 @@ void TOperationControllerBase::GetUserFilesAttributes()
                 auto req = TYPathProxy::Get(file.GetObjectIdPath() + "/@");
                 SetTransactionId(req, *file.TransactionId);
                 std::vector<TString> attributeKeys;
-                attributeKeys.push_back("file_name");
-                attributeKeys.push_back("account");
+                attributeKeys.emplace_back("file_name");
+                attributeKeys.emplace_back("account");
                 switch (file.Type) {
                     case EObjectType::File:
-                        attributeKeys.push_back("executable");
-                        attributeKeys.push_back("filesystem");
-                        attributeKeys.push_back("access_method");
+                        attributeKeys.emplace_back("executable");
+                        attributeKeys.emplace_back("filesystem");
+                        attributeKeys.emplace_back("access_method");
                         break;
 
                     case EObjectType::Table:
-                        attributeKeys.push_back("format");
-                        attributeKeys.push_back("dynamic");
-                        attributeKeys.push_back("schema");
-                        attributeKeys.push_back("retained_timestamp");
-                        attributeKeys.push_back("unflushed_timestamp");
-                        attributeKeys.push_back("enable_dynamic_store_read");
+                        attributeKeys.emplace_back("format");
+                        attributeKeys.emplace_back("dynamic");
+                        attributeKeys.emplace_back("schema");
+                        attributeKeys.emplace_back("retained_timestamp");
+                        attributeKeys.emplace_back("unflushed_timestamp");
+                        attributeKeys.emplace_back("enable_dynamic_store_read");
                         break;
 
                     default:
                         YT_ABORT();
                 }
-                attributeKeys.push_back("key");
-                attributeKeys.push_back("chunk_count");
-                attributeKeys.push_back("content_revision");
+                attributeKeys.emplace_back("key");
+                attributeKeys.emplace_back("chunk_count");
+                attributeKeys.emplace_back("content_revision");
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -7782,12 +7784,10 @@ void TOperationControllerBase::ParseInputQuery(
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<std::string> externalNames;
-        for (const auto& name : names) {
-            auto found = typeInferrers->find(name);
-            if (found == typeInferrers->end()) {
-                externalNames.push_back(name);
-            }
-        }
+        std::ranges::copy_if(
+            names,
+            std::back_inserter(externalNames),
+            [&] (const auto& name) { return !typeInferrers->contains(name); });
 
         if (externalNames.empty()) {
             return;
@@ -7799,6 +7799,7 @@ void TOperationControllerBase::ParseInputQuery(
         }
 
         std::vector<std::pair<TYPath, std::string>> keys;
+        keys.reserve(externalNames.size());
         for (const auto& name : externalNames) {
             keys.emplace_back(*Config_->UdfRegistryPath, name);
         }
@@ -7837,7 +7838,7 @@ void TOperationControllerBase::ParseInputQuery(
 
     // Use query column filter for input tables.
     bool allowTimestampColumns = false;
-    for (auto table : InputManager_->GetInputTables()) {
+    for (const auto& table : InputManager_->GetInputTables()) {
         auto columns = getColumns(*query->GetReadSchema(), *table->Schema);
         if (columns) {
             table->Path.SetColumns(*columns);
@@ -7935,12 +7936,9 @@ void TOperationControllerBase::CollectTotals()
 
 bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
 {
-    for (const auto& userJobSpec : GetUserJobSpecs()) {
-        if (userJobSpec->DiskRequest && userJobSpec->DiskRequest->Account) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(
+        GetUserJobSpecs(),
+        [] (const auto& userJobSpec) { return userJobSpec->DiskRequest && userJobSpec->DiskRequest->Account; });
 }
 
 void TOperationControllerBase::InitAccountResourceUsageLeases()
@@ -7966,7 +7964,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                         << TErrorAttribute("medium_name", mediumName);
                 }
             }
-            if (Config_->DeprecatedMedia.contains(mediumName)) {
+            if (Config_->DeprecatedMedia.contains(mediumName) && !diskRequest->NbdDisk) {
                 THROW_ERROR_EXCEPTION("Medium is deprecated to be used in disk requests")
                     << TErrorAttribute("medium_name", mediumName);
             }
@@ -8129,9 +8127,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             auto scraper = InputManager_->CreateFetcherChunkScraper(clusterName);
             DataSliceFetcherChunkScrapers_.push_back(scraper);
             return scraper;
-        } else {
-            return IFetcherChunkScraperPtr();
         }
+        return {};
     };
 
     i64 totalDataWeightBefore = 0;
@@ -8249,9 +8246,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     }
 
     std::vector<TLegacyDataSlicePtr> dataSlices;
-    for (auto& tableDataSlices : dataSlicesByTableIndex) {
-        std::move(tableDataSlices.begin(), tableDataSlices.end(), std::back_inserter(dataSlices));
-    }
+    std::ranges::move(dataSlicesByTableIndex | std::views::join, std::back_inserter(dataSlices));
     return dataSlices;
 }
 
@@ -8260,7 +8255,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
     std::vector<std::deque<TLegacyDataSlicePtr>> result;
     for (const auto& table : InputManager_->GetInputTables()) {
         if (table->IsForeign()) {
-            result.push_back(std::deque<TLegacyDataSlicePtr>());
+            result.emplace_back();
 
             if (table->Dynamic && table->Schema->IsSorted()) {
                 std::vector<TInputChunkSlicePtr> chunkSlices;
@@ -8329,37 +8324,26 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
 
 bool TOperationControllerBase::InputHasVersionedTables() const
 {
-    for (const auto& table : InputManager_->GetInputTables()) {
-        if (table->Dynamic && table->Schema->IsSorted()) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(
+        InputManager_->GetInputTables(),
+        [] (const auto& table) { return table->Dynamic && table->Schema->IsSorted(); });
 }
 
 bool TOperationControllerBase::InputHasReadLimits() const
 {
-    for (const auto& table : InputManager_->GetInputTables()) {
-        if (table->Path.HasNontrivialRanges()) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(
+        InputManager_->GetInputTables(),
+        [] (const auto& table) { return table->Path.HasNontrivialRanges(); });
 }
 
 bool TOperationControllerBase::InputHasDynamicStores() const
 {
-    for (const auto& table : InputManager_->GetInputTables()) {
-        if (table->Dynamic) {
-            for (const auto& chunk : table->Chunks) {
-                if (chunk->IsDynamicStore()) {
-                    return true;
-                }
-            }
-        }
-    }
-
-    return false;
+    return std::ranges::any_of(
+        InputManager_->GetInputTables()
+        | std::views::filter(&TInputTable::Dynamic)
+        | std::views::transform(&TInputTable::Chunks)
+        | std::views::join,
+        &TInputChunk::IsDynamicStore);
 }
 
 bool TOperationControllerBase::IsLocalityEnabled() const
@@ -8471,12 +8455,13 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
 
 TSortColumns TOperationControllerBase::CheckInputTablesSorted(
     const TSortColumns& sortColumns,
-    std::function<bool(const TInputTablePtr& table)> inputTableFilter)
+    const std::function<bool(const TInputTablePtr& table)>& inputTableFilter)
 {
     YT_VERIFY(!InputManager_->GetInputTables().empty());
+    auto filteredInputTables = InputManager_->GetInputTables() | std::views::filter(inputTableFilter);
 
-    for (const auto& table : InputManager_->GetInputTables()) {
-        if (inputTableFilter(table) && !table->Schema->IsSorted()) {
+    for (const auto& table : filteredInputTables) {
+        if (!table->Schema->IsSorted()) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
                 table->GetPath());
         }
@@ -8490,7 +8475,7 @@ TSortColumns TOperationControllerBase::CheckInputTablesSorted(
 
         auto columnSet = THashSet<std::string>(columns->begin(), columns->end());
         for (const auto& sortColumn : sortColumns) {
-            if (columnSet.find(sortColumn.Name) == columnSet.end()) {
+            if (!columnSet.contains(sortColumn.Name)) {
                 THROW_ERROR_EXCEPTION("Column filter for input table %v must include key column %Qv",
                     table->GetPath(),
                     sortColumn.Name);
@@ -8499,11 +8484,7 @@ TSortColumns TOperationControllerBase::CheckInputTablesSorted(
     };
 
     if (!sortColumns.empty()) {
-        for (const auto& table : InputManager_->GetInputTables()) {
-            if (!inputTableFilter(table)) {
-                continue;
-            }
-
+        for (const auto& table : filteredInputTables) {
             if (!CheckSortColumnsCompatible(table->Schema->GetSortColumns(), sortColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
@@ -8514,29 +8495,23 @@ TSortColumns TOperationControllerBase::CheckInputTablesSorted(
             validateColumnFilter(table, sortColumns);
         }
         return sortColumns;
-    } else {
-        for (const auto& referenceTable : InputManager_->GetInputTables()) {
-            if (inputTableFilter(referenceTable)) {
-                for (const auto& table : InputManager_->GetInputTables()) {
-                    if (!inputTableFilter(table)) {
-                        continue;
-                    }
-
-                    if (table->Schema->GetSortColumns() != referenceTable->Schema->GetSortColumns()) {
-                        THROW_ERROR_EXCEPTION("Sort columns do not match: input table %v is sorted by columns %v "
-                            "while input table %v is sorted by columns %v",
-                            table->GetPath(),
-                            table->Schema->GetSortColumns(),
-                            referenceTable->GetPath(),
-                            referenceTable->Schema->GetSortColumns());
-                    }
-                    validateColumnFilter(table, referenceTable->Schema->GetSortColumns());
-                }
-                return referenceTable->Schema->GetSortColumns();
-            }
-        }
     }
-    YT_ABORT();
+
+    YT_VERIFY(!std::ranges::empty(filteredInputTables));
+
+    const auto& referenceTable = *std::begin(filteredInputTables);
+    for (const auto& table : filteredInputTables | std::views::drop(/*count*/ 1)) {
+        if (table->Schema->GetSortColumns() != referenceTable->Schema->GetSortColumns()) {
+            THROW_ERROR_EXCEPTION("Sort columns do not match: input table %v is sorted by columns %v "
+                "while input table %v is sorted by columns %v",
+                table->GetPath(),
+                table->Schema->GetSortColumns(),
+                referenceTable->GetPath(),
+                referenceTable->Schema->GetSortColumns());
+        }
+        validateColumnFilter(table, referenceTable->Schema->GetSortColumns());
+    }
+    return referenceTable->Schema->GetSortColumns();
 }
 
 bool TOperationControllerBase::CheckKeyColumnsCompatible(
@@ -8635,17 +8610,16 @@ void TOperationControllerBase::AttachToLivePreview(
     if (LivePreviews_->contains(tableName)) {
         auto result = (*LivePreviews_)[tableName]->TryInsertChunk(chunk);
         if (!result.IsOK()) {
-            static constexpr auto message = "Error registering a chunk in a live preview";
+            static constexpr auto Message = "Error registering a chunk in a live preview";
             if (Config_->FailOperationOnErrorsInLivePreview) {
-                THROW_ERROR_EXCEPTION(message)
+                THROW_ERROR_EXCEPTION(Message)
                     << TErrorAttribute("table_name", tableName)
                     << TErrorAttribute("chunk_id", chunk->GetChunkId());
-            } else {
-                YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                    message,
-                    tableName,
-                    chunk);
             }
+            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
+                Message,
+                tableName,
+                chunk);
         }
     }
 }
@@ -8697,7 +8671,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
             .MaxKey = FromProto<TLegacyOwningKey>(stderrResult.max()),
         });
         AttachToLivePreview(StderrTable_->LivePreviewTableName, chunk);
-        RegisterLivePreviewChunk(TDataFlowGraph::StderrDescriptor, /*index*/ 0, std::move(chunk));
+        RegisterLivePreviewChunk(TDataFlowGraph::StderrDescriptor, /*index*/ 0, chunk);
     }
 
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
@@ -8719,7 +8693,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
 
     const auto& chunkListId = joblet->CoreTableChunkListId;
 
-    const auto jobResultExt = jobSummary.FindJobResultExt();
+    const auto* jobResultExt = jobSummary.FindJobResultExt();
     if (!jobResultExt) {
         return;
     }
@@ -8760,7 +8734,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             .MaxKey = FromProto<TLegacyOwningKey>(coreResult.max()),
         });
         AttachToLivePreview(CoreTable_->LivePreviewTableName, chunk);
-        RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, std::move(chunk));
+        RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, chunk);
     }
 
     YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
@@ -8770,22 +8744,19 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         coreResult.chunk_specs().size());
 }
 
-const ITransactionPtr TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
+ITransactionPtr TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
 {
     if (table->OutputType == EOutputTableType::Output) {
         if (OutputCompletionTransaction_) {
             return OutputCompletionTransaction_;
-        } else {
-            return OutputTransaction_;
         }
-    } else {
-        YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
-        if (DebugCompletionTransaction_) {
-            return DebugCompletionTransaction_;
-        } else {
-            return DebugTransaction_;
-        }
+        return OutputTransaction_;
     }
+    YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
+    if (DebugCompletionTransaction_) {
+        return DebugCompletionTransaction_;
+    }
+    return DebugTransaction_;
 }
 
 void TOperationControllerBase::RegisterTeleportChunk(
@@ -8913,7 +8884,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
 
         for (const auto& stripeList : stripeListsToRelease) {
             auto chunks = GetStripeListChunks(stripeList);
-            AddChunksToUnstageList(std::move(chunks));
+            AddChunksToUnstageList(chunks);
             OnChunksReleased(stripeList->TotalChunkCount);
         }
     }
@@ -9017,7 +8988,7 @@ void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool d
         THROW_ERROR_EXCEPTION_UNLESS(
             State_.load() == EControllerState::Running,
             "Operation is not running");
-        SpecManager_->ValidateSpecPatch(std::move(newCumulativeSpecPatch));
+        SpecManager_->ValidateSpecPatch(newCumulativeSpecPatch);
     } else {
         switch (State_) {
             case EControllerState::Preparing:
@@ -9096,8 +9067,7 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
     result.Alerts =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .DoFor(GetAlerts(), [&] (TFluentMap fluent, const auto& pair) {
-                auto alertType = pair.first;
-                const auto& error = pair.second;
+                const auto& [alertType, error] = pair;
                 if (!error.IsOK()) {
                     fluent
                         .Item(FormatEnum(alertType)).Value(error);
@@ -9254,38 +9224,43 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
 }
 
 std::optional<TJobMonitoringDescriptor> TOperationControllerBase::AcquireMonitoringDescriptorForJob(
-    TJobId jobId,
+    const TJobletPtr& joblet,
     const TAllocation& /*allocation*/)
 {
     YT_LOG_DEBUG(
         "Trying to assign monitoring descriptor to job (JobId: %v)",
-        jobId);
+        joblet->JobId);
 
     std::optional<TJobMonitoringDescriptor> descriptor;
-
     if (MonitoringDescriptorPool_.empty()) {
-        descriptor = RegisterNewMonitoringDescriptor();
+        descriptor = RegisterNewMonitoringDescriptor(joblet);
     } else {
-        auto it = MonitoringDescriptorPool_.begin();
-        auto foundDescriptor = *it;
-        MonitoringDescriptorPool_.erase(it);
-        descriptor = foundDescriptor;
+        descriptor = TryAcquireMonitoringDescriptorFromPool(joblet);
     }
 
     if (descriptor) {
         YT_LOG_DEBUG(
             "Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
-            jobId,
+            joblet->JobId,
             descriptor);
 
         ++MonitoredUserJobCount_;
     } else {
-        YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", joblet->JobId);
     }
     return descriptor;
 }
 
-std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMonitoringDescriptor()
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::TryAcquireMonitoringDescriptorFromPool(const TJobletPtr& /*joblet*/)
+{
+    auto it = MonitoringDescriptorPool_.begin();
+    YT_VERIFY(it != MonitoringDescriptorPool_.end());
+    auto foundDescriptor = *it;
+    MonitoringDescriptorPool_.erase(it);
+    return foundDescriptor;
+}
+
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMonitoringDescriptor(const TJobletPtr& joblet)
 {
     ++MonitoredUserJobAttemptCount_;
     if (MonitoredUserJobCount_ >= Config_->UserJobMonitoring->ExtendedMaxMonitoredUserJobsPerOperation) {
@@ -9307,6 +9282,16 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
         return {};
     }
 
+
+    if (auto descriptor = DoRegisterNewMonitoringDescriptor(joblet)) {
+        ++RegisteredMonitoringDescriptorCount_;
+        return descriptor;
+    }
+    return {};
+}
+
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::DoRegisterNewMonitoringDescriptor(const TJobletPtr& /*joblet*/)
+{
     auto descriptor = Host_->TryAcquireJobMonitoringDescriptor(OperationId_);
     if (!descriptor) {
         SetOperationAlert(
@@ -9315,7 +9300,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
                 << TErrorAttribute("limit_per_controller_agent", Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent));
         return {};
     }
-    ++RegisteredMonitoringDescriptorCount_;
+    UsedMonitoringDescriptorCount_.Increment();
     return descriptor;
 }
 
@@ -9676,7 +9661,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
         THROW_ERROR_EXCEPTION("Testing failure");
     }
 
-    auto maybeAllocation = FindAllocation(allocationId);
+    auto* maybeAllocation = FindAllocation(allocationId);
     if (!maybeAllocation) {
         YT_LOG_DEBUG(
             "Stale settle job request, no such allocation; send error instead of spec "
@@ -9787,9 +9772,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
         }
     }
 
-    std::sort(suspiciousJoblets.begin(), suspiciousJoblets.end(), [] (const TJobletPtr& lhs, const TJobletPtr& rhs) {
-        return lhs->LastActivityTime < rhs->LastActivityTime;
-    });
+    std::ranges::sort(suspiciousJoblets, {}, &TJoblet::LastActivityTime);
 
     THashMap<EJobType, int> suspiciousJobCountPerType;
 
@@ -9814,7 +9797,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
     {
         auto guard = WriterGuard(CachedSuspiciousJobsYsonLock_);
-        CachedSuspiciousJobsYson_ = yson;
+        CachedSuspiciousJobsYson_ = std::move(yson);
     }
 }
 
@@ -10166,6 +10149,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
+    jobSpec->set_append_debug_options(jobSpecConfig->AppendDebugOptions);
 
     auto specifiedCpuLimit = GetCpuLimit(jobSpecConfig);
     // This is common policy for all operations of given type.
@@ -10493,7 +10477,7 @@ void TOperationControllerBase::InitUserJobSpec(
 
 void TOperationControllerBase::AddStderrOutputSpecs(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet) const
+    const TJobletPtr& joblet) const
 {
     YT_ASSERT_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
@@ -10510,7 +10494,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 
 void TOperationControllerBase::AddCoreOutputSpecs(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet) const
+    const TJobletPtr& joblet) const
 {
     YT_ASSERT_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
@@ -10526,7 +10510,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
 }
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(
-    TJobIOConfigPtr ioConfig,
+    const TJobIOConfigPtr& ioConfig,
     bool useEstimatedBufferSize) const
 {
     i64 result = 0;
@@ -10563,22 +10547,22 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 curentMemoryLimit, i64 previousMemory)
+void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 currentMemory, i64 previousMemory)
 {
-    constexpr int subAlertCount = 5;
-    constexpr int alertLimit = 5;
+    constexpr int SubAlertCount = 5;
+    constexpr int AlertLimit = 5;
 
     TOverrunTableWriteBufferMemoryInfo overrunTableWriteBufferMemoryInfo(
         jobId,
         previousMemory,
-        curentMemoryLimit);
+        currentMemory);
 
     if (overrunTableWriteBufferMemoryInfo.GetRelativeDifference() > Config_->WriteBufferMemoryOverrunAlertFactor)
     {
         auto guard = Guard(OverrunWriteBufferMemoryPerJobLock_);
-        OverrunWriteBufferMemoryPerJob_.emplace(std::move(overrunTableWriteBufferMemoryInfo));
+        OverrunWriteBufferMemoryPerJob_.emplace(overrunTableWriteBufferMemoryInfo);
 
-        if (std::size(OverrunWriteBufferMemoryPerJob_) > alertLimit) {
+        if (std::size(OverrunWriteBufferMemoryPerJob_) > AlertLimit) {
             OverrunWriteBufferMemoryPerJob_.erase(std::prev(OverrunWriteBufferMemoryPerJob_.end()));
         }
 
@@ -10586,7 +10570,7 @@ void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 cu
 
         std::for_each_n(
             OverrunWriteBufferMemoryPerJob_.begin(),
-            std::min<int>(subAlertCount, std::ssize(OverrunWriteBufferMemoryPerJob_)),
+            std::min<int>(SubAlertCount, std::ssize(OverrunWriteBufferMemoryPerJob_)),
             [&] (const TOverrunTableWriteBufferMemoryInfo& info) {
                 auto subAlert = TError("More memory was allocated for write buffers with an estimated size than for buffers with a fixed size")
                     << TErrorAttribute("job_id", ToString(info.GetJobId()))
@@ -10596,12 +10580,12 @@ void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 cu
                 alert.MutableInnerErrors()->emplace_back(std::move(subAlert));
             });
 
-        SetOperationAlert(EOperationAlertType::WriteBufferMemoryOverrun, std::move(alert));
+        SetOperationAlert(EOperationAlertType::WriteBufferMemoryOverrun, alert);
     }
 }
 
 i64 TOperationControllerBase::GetFinalIOMemorySize(
-    TJobIOConfigPtr ioConfig,
+    const TJobIOConfigPtr& ioConfig,
     bool useEstimatedBufferSize,
     const TChunkStripeStatisticsVector& stripeStatistics) const
 {
@@ -10613,7 +10597,7 @@ i64 TOperationControllerBase::GetFinalIOMemorySize(
     return result;
 }
 
-void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const TString& operation)
+void TOperationControllerBase::ValidateUserFileCount(const TUserJobSpecPtr& spec, const TString& operation)
 {
     if (std::ssize(spec->FilePaths) > Config_->MaxUserFileCount) {
         THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",
@@ -10626,7 +10610,7 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
 void TOperationControllerBase::OnExecNodesUpdated()
 { }
 
-int TOperationControllerBase::GetAvailableExecNodeCount()
+int TOperationControllerBase::GetAvailableExecNodeCount() const
 {
     return AvailableExecNodeCount_;
 }
@@ -10647,14 +10631,20 @@ void TOperationControllerBase::UpdateExecNodes()
 
     TSchedulingTagFilter filter(Spec_->SchedulingTagFilter);
 
-    auto onlineExecNodeCount = Host_->GetAvailableExecNodeCount();
+    int onlineExecNodeCount = Host_->GetAvailableExecNodeCount();
     auto execNodeDescriptors = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ false);
     auto onlineExecNodeDescriptors = Host_->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
     auto maxAvailableResources = Host_->GetMaxAvailableResources(filter);
 
     const auto& controllerInvoker = GetCancelableInvoker();
     controllerInvoker->Invoke(
-        BIND([=, this, weakThis = MakeWeak(this)] {
+        BIND([
+            =,
+            this,
+            weakThis = MakeWeak(this),
+            execNodeDescriptors = std::move(execNodeDescriptors),
+            onlineExecNodeDescriptors = std::move(onlineExecNodeDescriptors)
+        ] () mutable {
             auto this_ = weakThis.Lock();
             if (!this_) {
                 return;
@@ -10663,7 +10653,7 @@ void TOperationControllerBase::UpdateExecNodes()
             AvailableExecNodeCount_ = onlineExecNodeCount;
             CachedMaxAvailableExecNodeResources_ = maxAvailableResources;
 
-            auto assign = []<class T, class U>(T* variable, U value) {
+            auto assign = [] (auto* variable, auto value) {
                 auto oldValue = *variable;
                 *variable = std::move(value);
 
@@ -11127,7 +11117,7 @@ void TOperationControllerBase::ReleaseIntermediateStripeList(const NChunkPools::
     switch (GetIntermediateChunkUnstageMode()) {
         case EIntermediateChunkUnstageMode::OnJobCompleted: {
             auto chunks = GetStripeListChunks(stripeList);
-            AddChunksToUnstageList(std::move(chunks));
+            AddChunksToUnstageList(chunks);
             OnChunksReleased(stripeList->TotalChunkCount);
             break;
         }
@@ -11168,18 +11158,17 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
 
     auto result = DataFlowGraph_->TryRegisterLivePreviewChunk(vertexDescriptor, index, chunk);
     if (!result.IsOK()) {
-        static constexpr auto message = "Error registering a chunk in a live preview";
+        static constexpr auto Message = "Error registering a chunk in a live preview";
         auto tableName = "output_" + ToString(index);
         if (Config_->FailOperationOnErrorsInLivePreview) {
-            THROW_ERROR_EXCEPTION(message)
+            THROW_ERROR_EXCEPTION(Message)
                 << TErrorAttribute("table_name", tableName)
                 << TErrorAttribute("chunk_id", chunk->GetChunkId());
-        } else {
-            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                message,
-                tableName,
-                chunk);
         }
+        YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
+            Message,
+            tableName,
+            chunk);
     }
 
     if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
@@ -11223,21 +11212,18 @@ void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, 
             alertType);
     }
 
-    Alerts_[alertType] = alert;
+    existingAlert = alert;
 }
 
 bool TOperationControllerBase::IsCompleted() const
 {
-    if (AutoMergeTask_ && !AutoMergeTask_->IsCompleted()) {
-        return false;
-    }
-    return true;
+    return !AutoMergeTask_ || AutoMergeTask_->IsCompleted();
 }
 
 TString TOperationControllerBase::WriteCoreDump() const
 {
     // Save `this` explicitly to simplify debugging a core dump in GDB.
-    auto this_ = this;
+    const auto* this_ = this;
     DoNotOptimizeAway(this_);
 
     const auto& coreDumper = Host_->GetCoreDumper();
@@ -11366,7 +11352,7 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason re
 void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const
 {
     Host_->GetJobReporter()->HandleJobReport(
-        jobReport
+        std::move(jobReport)
             .OperationId(OperationId_)
             .JobId(joblet->JobId)
             .Address(NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
@@ -11575,8 +11561,8 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
 {
     THashMap<TDataFlowGraph::TVertexDescriptor, int> vertexDescriptorToIndex;
     auto topologicalOrdering = DataFlowGraph_->GetTopologicalOrdering();
-    for (int index = 0; index < std::ssize(topologicalOrdering); ++index) {
-        YT_VERIFY(vertexDescriptorToIndex.emplace(topologicalOrdering[index], index).second);
+    for (const auto& [index, descriptor]: SEnumerate(topologicalOrdering)) {
+        YT_VERIFY(vertexDescriptorToIndex.emplace(descriptor, index).second);
     }
 
     std::vector<std::pair<int, TTaskPtr>> tasksWithIndices;
@@ -11590,14 +11576,13 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
             }
         }
     }
-    std::sort(tasksWithIndices.begin(), tasksWithIndices.end());
+    std::ranges::sort(tasksWithIndices);
 
     std::vector<TTaskPtr> tasks;
     tasks.reserve(tasksWithIndices.size());
-    for (auto& [index, task] : tasksWithIndices) {
-        Y_UNUSED(index);
-        tasks.push_back(std::move(task));
-    }
+    std::ranges::move(
+        tasksWithIndices | std::views::elements<1>,
+        std::back_inserter(tasks));
     return tasks;
 }
 
@@ -11723,9 +11708,11 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
     ReleaseJobs(jobIdsToRelease);
 }
 
-void TOperationControllerBase::OnOperationReady() const
+void TOperationControllerBase::OnOperationReady()
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
+
+    DebugTablesReady_ = true;
 
     std::vector<TStartedAllocationInfo> revivedAllocations;
     revivedAllocations.reserve(size(AllocationMap_));

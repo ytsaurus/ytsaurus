@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ._core._contextmanagers import AsyncContextManagerMixin as AsyncContextManagerMixin
+from ._core._contextmanagers import ContextManagerMixin as ContextManagerMixin
 from ._core._eventloop import current_time as current_time
 from ._core._eventloop import get_all_backends as get_all_backends
 from ._core._eventloop import get_cancelled_exc_class as get_cancelled_exc_class
@@ -8,10 +10,11 @@ from ._core._eventloop import sleep as sleep
 from ._core._eventloop import sleep_forever as sleep_forever
 from ._core._eventloop import sleep_until as sleep_until
 from ._core._exceptions import BrokenResourceError as BrokenResourceError
-from ._core._exceptions import BrokenWorkerIntepreter as BrokenWorkerIntepreter
+from ._core._exceptions import BrokenWorkerInterpreter as BrokenWorkerInterpreter
 from ._core._exceptions import BrokenWorkerProcess as BrokenWorkerProcess
 from ._core._exceptions import BusyResourceError as BusyResourceError
 from ._core._exceptions import ClosedResourceError as ClosedResourceError
+from ._core._exceptions import ConnectionFailed as ConnectionFailed
 from ._core._exceptions import DelimiterNotFound as DelimiterNotFound
 from ._core._exceptions import EndOfStream as EndOfStream
 from ._core._exceptions import IncompleteRead as IncompleteRead
@@ -23,6 +26,9 @@ from ._core._fileio import open_file as open_file
 from ._core._fileio import wrap_file as wrap_file
 from ._core._resources import aclose_forcefully as aclose_forcefully
 from ._core._signals import open_signal_receiver as open_signal_receiver
+from ._core._sockets import TCPConnectable as TCPConnectable
+from ._core._sockets import UNIXConnectable as UNIXConnectable
+from ._core._sockets import as_connectable as as_connectable
 from ._core._sockets import connect_tcp as connect_tcp
 from ._core._sockets import connect_unix as connect_unix
 from ._core._sockets import create_connected_udp_socket as create_connected_udp_socket
@@ -35,6 +41,7 @@ from ._core._sockets import create_unix_datagram_socket as create_unix_datagram_
 from ._core._sockets import create_unix_listener as create_unix_listener
 from ._core._sockets import getaddrinfo as getaddrinfo
 from ._core._sockets import getnameinfo as getnameinfo
+from ._core._sockets import notify_closing as notify_closing
 from ._core._sockets import wait_readable as wait_readable
 from ._core._sockets import wait_socket_readable as wait_socket_readable
 from ._core._sockets import wait_socket_writable as wait_socket_writable
@@ -82,4 +89,20 @@ for __value in list(locals().values()):
     if getattr(__value, "__module__", "").startswith("anyio."):
         __value.__module__ = __name__
 
+
 del __value
+
+
+def __getattr__(attr: str) -> type[BrokenWorkerInterpreter]:
+    """Support deprecated aliases."""
+    if attr == "BrokenWorkerIntepreter":
+        import warnings
+
+        warnings.warn(
+            "The 'BrokenWorkerIntepreter' alias is deprecated, use 'BrokenWorkerInterpreter' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return BrokenWorkerInterpreter
+
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")

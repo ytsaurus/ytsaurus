@@ -112,13 +112,13 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def test_root_pool(self):
         wait(
             lambda: are_almost_equal(
-                get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/fair_share_ratio"),
+                get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/detailed_dominant_fair_share/total"),
                 0.0,
             )
         )
 
     @authors("ignat")
-    def test_scheduler_promised_fair_share(self):
+    def test_estimated_guarantee_share(self):
         total_resource_limits = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits")
 
         create_pool(
@@ -134,26 +134,26 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        def get_pool_promised_fair_share_resources(pool):
-            return get(scheduler_orchid_pool_path(pool) + "/promised_fair_share_resources")
+        def get_pool_estimated_guarantee_resources(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/estimated_guarantee_resources")
 
-        def get_pool_promised_dominant_fair_share(pool):
-            return get(scheduler_orchid_pool_path(pool) + "/promised_dominant_fair_share")
+        def get_pool_dominant_estimated_guarantee_share(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/dominant_estimated_guarantee_share")
 
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("big_pool"), 1.0)
-        assert get_pool_promised_fair_share_resources("big_pool") == total_resource_limits
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("big_pool"), 1.0)
+        assert get_pool_estimated_guarantee_resources("big_pool") == total_resource_limits
 
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("small_pool"), 0)
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_3"), 0)
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_4"), 0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("small_pool"), 0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("subpool_3"), 0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("subpool_4"), 0)
 
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_1"), 1.0 / 4.0)
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_2"), 3.0 / 4.0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("subpool_1"), 1.0 / 4.0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("subpool_2"), 3.0 / 4.0)
 
         self._prepare_tables()
 
-        def get_operation_promised_dominant_fair_share(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/promised_dominant_fair_share", 0.0)
+        def get_operation_dominant_estimated_guarantee_share(op):
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/dominant_estimated_guarantee_share", 0.0)
 
         op = map(
             track=False,
@@ -167,9 +167,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        assert are_almost_equal(get_operation_promised_dominant_fair_share(op), 1.0 / 5.0)
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_1"), 1.0 / 5.0)
-        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_2"), 3.0 / 5.0)
+        assert are_almost_equal(get_operation_dominant_estimated_guarantee_share(op), 1.0 / 5.0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("subpool_1"), 1.0 / 5.0)
+        assert are_almost_equal(get_pool_dominant_estimated_guarantee_share("subpool_2"), 3.0 / 5.0)
 
         release_breakpoint()
         op.track()
@@ -3050,13 +3050,13 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         for i in range(num_children):
             create_pool("child" + str(i + 1), parent_name="parent")
 
-    def _get_pool_fair_share_ratio(self, pool):
+    def _get_pool_dominant_fair_share(self, pool):
         try:
-            return get(scheduler_orchid_pool_path(pool) + "/dominant_fair_share/total")
+            return get(scheduler_orchid_pool_path(pool) + "/detailed_dominant_fair_share/total")
         except YtError:
             return 0.0
 
-    def _get_pool_usage_ratio(self, pool):
+    def _get_pool_dominant_usage_share(self, pool):
         try:
             return get(scheduler_orchid_pool_path(pool) + "/dominant_usage_share")
         except YtError:
@@ -3070,7 +3070,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         wait(
             lambda: are_almost_equal(
-                self._get_pool_usage_ratio("child1"),
+                self._get_pool_dominant_usage_share("child1"),
                 min(num_jobs_op1 / self.NUM_SLOTS_PER_NODE, 1.0),
             )
         )
@@ -3112,7 +3112,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
         op1_tasks_spec = {"task": {"job_count": self.NUM_SLOTS_PER_NODE, "command": "sleep 100;"}}
         op1 = vanilla(spec={"pool": "child1", "tasks": op1_tasks_spec}, track=False)
 
-        wait(lambda: are_almost_equal(self._get_pool_usage_ratio("child1"), 1.0))
+        wait(lambda: are_almost_equal(self._get_pool_dominant_usage_share("child1"), 1.0))
 
         # give some time for historic usage to accumulate
         time.sleep(2)

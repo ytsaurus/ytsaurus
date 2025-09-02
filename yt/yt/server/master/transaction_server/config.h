@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NTransactionServer {
@@ -40,6 +42,38 @@ DEFINE_REFCOUNTED_TYPE(TBoomerangTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionFinisherConfig
+    : public NYTree::TYsonStruct
+{
+    TExponentialBackoffOptions Retries;
+    TDuration ScanPeriod;
+    int MaxTransactionsPerScan;
+    bool AlertOnTooManyRetries;
+
+    REGISTER_YSON_STRUCT(TTransactionFinisherConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransactionFinisherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicTransactionManagerTestingConfig
+    : public NYTree::TYsonStruct
+{
+    bool ThrowOnLeaseRevocation;
+    THashSet<TTransactionId> PrerequisiteCheckFailureDuringCommitOfTransactions;
+
+    REGISTER_YSON_STRUCT(TDynamicTransactionManagerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTransactionManagerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicTransactionManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -50,6 +84,8 @@ struct TDynamicTransactionManagerConfig
 
     TTransactionPresenceCacheConfigPtr TransactionPresenceCache;
     TBoomerangTrackerConfigPtr BoomerangTracker;
+
+    TTransactionFinisherConfigPtr TransactionFinisher;
 
     TDuration ProfilingPeriod;
 
@@ -68,8 +104,7 @@ struct TDynamicTransactionManagerConfig
     // Allows to use native transaction ID instead of externalized one and vice versa.
     bool EnableNonStrictExternalizedTransactionUsage;
 
-    // Testing option.
-    bool ThrowOnLeaseRevocation;
+    TDynamicTransactionManagerTestingConfigPtr Testing;
 
     // COMPAT(shakurov)
     bool EnableStartForeignTransactionFixes;

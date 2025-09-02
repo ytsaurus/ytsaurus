@@ -194,6 +194,7 @@ public:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "zone_is_disrupted",
                     .BundleName = bundleName,
+                    .DataCenter = dataCenterName,
                     .Description = Format("Zone %Qv is disrupted. Disabling all %v allocations within %Qv.",
                         zoneName,
                         adapter->GetHumanReadableInstanceType(),
@@ -291,6 +292,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "zone_instance_limit_reached",
                 .BundleName = bundleName,
+                .DataCenter = dataCenterName,
                 .Description = Format("Cannot allocate new %v at zone %v for bundle %v.",
                     adapter->GetInstanceType(), bundleInfo->Zone, bundleName)
             });
@@ -519,6 +521,7 @@ private:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "instance_allocation_failed",
                     .BundleName = bundleName,
+                    .DataCenter = allocationState->DataCenter,
                     .Description = Format("Allocation request %v has failed.",
                         allocationId),
                 });
@@ -558,6 +561,7 @@ private:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "stuck_instance_allocation",
                     .BundleName = bundleName,
+                    .DataCenter = allocationState->DataCenter,
                     .Description = Format("Found stuck allocation %v with age %v which is more than threshold %v.",
                         allocationId,
                         allocationAge,
@@ -619,6 +623,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "no_spare_instances_available",
                 .BundleName = bundleName,
+                .DataCenter = dataCenterName,
                 .Description = Format("No spare instances of type %v are available for allocation request %v",
                     adapter->GetInstanceType(),
                     allocationId),
@@ -778,6 +783,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "instance_deallocation_failed",
                 .BundleName = bundleName,
+                .DataCenter = deallocationState->DataCenter,
                 .Description = Format("Deallocation request %v has failed.",
                     deallocationId),
             });
@@ -824,6 +830,7 @@ private:
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "stuck_instance_deallocation",
                 .BundleName = bundleName,
+                .DataCenter = deallocationState->DataCenter,
                 .Description = Format("Found stuck deallocation %v with age %v which is more than threshold %v.",
                     deallocationId,
                     deallocationAge,
@@ -1116,6 +1123,7 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
             if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < dataCenterIt->second.RequiredSpareNodeCount) {
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "minus_one_rack_guarantee_violation",
+                    .DataCenter = dataCenter,
                     .Description = Format("Zone %v in data center %v has target spare nodes: %v "
                         ", where required count is at least %v.",
                         zone,
@@ -3374,11 +3382,28 @@ void MiscBundleChecks(const TSchedulerInputState& input, TSchedulerMutations* mu
             YT_LOG_WARNING("Hotfix mode is enabled for bundle (BundleName: %v)",
                 bundleName);
 
-            mutations->AlertsToFire.push_back(TAlert{
+            mutations->AlertsToFire.push_back({
                 .Id = "hotfix_mode_is_enabled",
                 .BundleName = bundleName,
                 .Description = "Hotfix mode is enabled for the bundle",
             });
+        }
+    }
+
+    for (const auto& [zoneName, zoneInfo] : input.Zones) {
+        for (const auto& [dataCenterName, dataCenter] : zoneInfo->DataCenters) {
+            if (dataCenter->Forbidden) {
+                YT_LOG_WARNING("Data center is forbidden (Zone: %v, DataCenter: %v)",
+                    zoneName,
+                    dataCenterName);
+
+                mutations->AlertsToFire.push_back({
+                    .Id = "dc_is_forbidden",
+                    .DataCenter = dataCenterName,
+                    .Description = Format("Data center %Qv is forbidden",
+                        dataCenterName),
+                });
+            }
         }
     }
 }

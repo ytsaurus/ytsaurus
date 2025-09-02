@@ -1,6 +1,7 @@
 #pragma once
 
 #include "client.h"
+#include "options.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chaos_client/alien_cell.h>
@@ -529,7 +530,7 @@ public: \
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
-    IMPLEMENT_METHOD(TGetCurrentUserResultPtr, GetCurrentUser, (
+    IMPLEMENT_METHOD(TGetCurrentUserResult, GetCurrentUser, (
         const TGetCurrentUserOptions& options),
         (options))
 
@@ -985,6 +986,10 @@ public: \
         const NYPath::TRichYPath& path,
         const TDistributedWriteSessionStartOptions& options),
         (path, options))
+    IMPLEMENT_METHOD(void, PingDistributedWriteSession, (
+        TSignedDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionPingOptions& options),
+        (session, options))
     IMPLEMENT_METHOD(void, FinishDistributedWriteSession, (
         const TDistributedWriteSessionWithResults& sessionWithResults,
         const TDistributedWriteSessionFinishOptions& options),
@@ -1057,6 +1062,9 @@ private:
 
     //! NB: Could throw in case of non-existing cell tag.
     void InitChannelsOrThrow(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
+
+    NRpc::IChannelPtr WrapChannel(NRpc::IChannelPtr channel) const;
+    NRpc::IChannelFactoryPtr WrapChannelFactory(NRpc::IChannelFactoryPtr factory) const;
 
     const IClientPtr& GetOperationsArchiveClient();
 

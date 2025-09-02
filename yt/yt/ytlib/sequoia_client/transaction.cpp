@@ -167,7 +167,7 @@ public:
         , Type_(type)
         , AuthenticatedLocalClient_(
             localConnection->CreateNativeClient(
-                TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
+                NNative::TClientOptions::FromAuthenticationIdentity(sequoiaTransactionOptions.AuthenticationIdentity)))
         , GroundClient_(std::move(groundClient))
         , SerializedInvoker_(CreateSerializedInvoker(localConnection->GetInvoker()))
         , SequoiaTransactionOptions_(sequoiaTransactionOptions)
@@ -968,8 +968,8 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     YT_VERIFY(!sequoiaTransactionOptions.AuthenticationIdentity.User.empty());
 
     if (!transactionStartOptions.Timeout.has_value()) {
-        const auto& connectionConfig = localConnection->GetConfig();
-        transactionStartOptions.Timeout = connectionConfig->SequoiaTransactionTypeToTimeout[type];
+        auto connectionConfig = localConnection->GetConfig();
+        transactionStartOptions.Timeout = GetOrDefault(connectionConfig->SequoiaTransactionTypeToTimeout, type, std::nullopt);
     }
 
     auto transaction = New<TSequoiaTransaction>(

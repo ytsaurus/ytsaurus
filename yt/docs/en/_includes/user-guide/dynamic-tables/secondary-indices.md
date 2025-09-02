@@ -41,14 +41,14 @@ Note that the column names and types in the tables are exactly the same. If the 
 A secondary index can be created only if both tables are unmounted. Once the secondary index is created and the tables are mounted, *further* writes to the indexed table are automatically displayed in the index table (learn more about building an index table on top of the existing data [here](../../../user-guide/dynamic-tables/secondary-indices#building)). You can also execute efficient select queries with filtering by secondary key using the `WITH INDEX` keyword. A query with an index runs efficiently if the predicate can be used to [infer](../../../user-guide/dynamic-tables/dyn-query-language#input_data_cut) relevant read ranges from the index table.
 
 ```bash
-yt select-rows "key, value FROM [//path/to/table] WITH INDEX [//path/to/index/table] where value BETWEEN 0 and 10"
+yt select-rows "key, value FROM [//path/to/table] WITH INDEX [//path/to/index/table] AS IndexTable where value BETWEEN 0 and 10"
 ```
 
 When executing a query with this syntax, the system first reads the rows matching the `where value BETWEEN 0 and 10` predicate from the index table and then performs an inner join with the indexed table rows by common columns for indexes with an `injective` relation or by primary key for `bijective` indexes. Such a query is equivalent to one of the following:
 
 ```bash
-yt select-rows "key, value FROM [//path/to/injective/index/table] AS `$IndexTable` JOIN [//path/to/table] ON (`$IndexTable.key`, `$IndexTable.value`) = (key, value) WHERE `$IndexTable.value` BETWEEN 0 and 10"
-yt select-rows "key, value FROM [//path/to/bijective/index/table] AS `$IndexTable` JOIN [//path/to/table] ON `$IndexTable.key` = key WHERE `$IndexTable.value` BETWEEN 0 and 10"
+yt select-rows "key, value FROM [//path/to/injective/index/table] AS IndexTable JOIN [//path/to/table] ON (IndexTable.key, IndexTable.value) = (key, value) WHERE IndexTable.value BETWEEN 0 and 10"
+yt select-rows "key, value FROM [//path/to/bijective/index/table] AS IndexTable JOIN [//path/to/table] ON IndexTable.key = key WHERE IndexTable.value BETWEEN 0 and 10"
 ```
 
 A current list of secondary indexes connected to the table is specified in the `secondary_indices` table attribute. A secondary index for which this particular table is an index one is specified in the `index_to` attribute.
@@ -63,7 +63,7 @@ This can be helpful if the queries the index is useful for are related only to a
 
 ### Index over a list { #unfolding }
 
-A `kind=unfolding` index unfolds rows by a column with a list of elementary type values. With this index, you can perform sampling of rows where the indexed list contains specific values. For example, the row `{id=0; child_ids=[1, 4, 7]}` will correspond to the rows `[{child_ids=1; id=0}; {child_ids=4; id=0}; {child_ids=7; id=0}]` in the index table. When creating such an index, specify the `unfolded_column` attribute, which represents the name of a column of type `T` in the index table and a column of type `List<T>` or `Optional<List<T>>` in the indexed table. In select queries, you can set a filter on the indexed value using the `list_contains` function. Example: `id FROM [//path/to/table] WITH INDEX [//path/to/index/table] where list_contains(child_ids, 1)`.
+A `kind=unfolding` index unfolds rows by a column with a list of elementary type values. With this index, you can perform sampling of rows where the indexed list contains specific values. For example, the row `{id=0; child_ids=[1, 4, 7]}` will correspond to the rows `[{child_ids=1; id=0}; {child_ids=4; id=0}; {child_ids=7; id=0}]` in the index table. When creating such an index, specify the `unfolded_column` attribute, which represents the name of a column of type `T` in the index table and a column of type `List<T>` or `Optional<List<T>>` in the indexed table. In select queries, you can set a filter on the indexed value using the `list_contains` function. Example: `id FROM [//path/to/table] WITH INDEX [//path/to/index/table] AS IndexTable where list_contains(child_ids, 1)`.
 
 {% note warning "Note" %}
 

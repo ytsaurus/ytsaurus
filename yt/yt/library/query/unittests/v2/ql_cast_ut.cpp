@@ -136,6 +136,7 @@ TEST_F(TCastExpressionTest, Basic)
     Check("CAST(s1 AS String)", "s1=\"alpha\"", MakeString("alpha"));
 
     Check("CAST(1 AS String)", "", MakeString("1"));
+    Check("CAST(# AS `String?`)", "", MakeNull());
     Check("CAST(\"1\" AS `Optional<Double>`)", "", MakeDouble(1.0));
 }
 
@@ -156,6 +157,15 @@ TEST_F(TCastExpressionTest, ToComposite)
     Check("CAST(yson_string_to_any(\"#\") AS `Optional<Struct<a:String, b: Null>>`)", "", MakeComposite("#"));
     Check("CAST(yson_string_to_any(\"[alyx;#;13.2]\") AS `Struct<a:String, b: Int32?, c: Double?>`)", "",
         MakeComposite("[alyx;#;13.2]"));
+}
+
+TEST_F(TCastExpressionTest, ToAny)
+{
+    Check("CAST(1 AS `Any?`)", "", MakeAny("1"));
+    Check("CAST(\"abc\" AS `Any?`)", "", MakeAny("abc"));
+    Check("CAST(l AS `Any?`)", "l=[1;2;3;]", MakeAny("[1;2;3;]"));
+    Check("CAST(true AS `Any?`)", "l=[1;2;3;]", MakeAny("%true"));
+    Check("CAST(# AS `Any?`)", "l=[1;2;3;]", MakeNull());
 }
 
 TEST_F(TCastExpressionTest, Malformed)

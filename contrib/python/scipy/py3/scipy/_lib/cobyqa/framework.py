@@ -50,13 +50,13 @@ class TrustRegion:
         `numpy.linalg.LinAlgError`
             If the initial interpolation system is ill-defined.
         """
-        # Initialize the models.
-        self._pb = pb
-        self._models = Models(self._pb, options)
-        self._constants = constants
-
         # Set the initial penalty parameter.
         self._penalty = 0.0
+
+        # Initialize the models.
+        self._pb = pb
+        self._models = Models(self._pb, options, self.penalty)
+        self._constants = constants
 
         # Set the index of the best interpolation point.
         self._best_index = 0
@@ -467,7 +467,7 @@ class TrustRegion:
             Value of the merit function at `x`.
         """
         if fun_val is None or cub_val is None or ceq_val is None:
-            fun_val, cub_val, ceq_val = self._pb(x)
+            fun_val, cub_val, ceq_val = self._pb(x, self.penalty)
         m_val = fun_val
         if self._penalty > 0.0:
             c_val = self._pb.violation(x, cub_val=cub_val, ceq_val=ceq_val)

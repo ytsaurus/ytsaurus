@@ -15,13 +15,13 @@ Using any of these subpackages requires an explicit import. For example,
  cluster                      --- Vector Quantization / Kmeans
  constants                    --- Physical and mathematical constants and units
  datasets                     --- Dataset methods
+ differentiate                --- Finite difference differentiation tools
  fft                          --- Discrete Fourier transforms
  fftpack                      --- Legacy discrete Fourier transforms
  integrate                    --- Integration routines
  interpolate                  --- Interpolation Tools
  io                           --- Data input and output
  linalg                       --- Linear algebra routines
- misc                         --- Utilities that don't have another home.
  ndimage                      --- N-D image package
  odr                          --- Orthogonal Distance Regression
  optimize                     --- Optimization Tools
@@ -67,7 +67,7 @@ del _distributor_init
 from scipy._lib import _pep440
 # In maintenance branch, change to np_maxversion N+3 if numpy is at N
 np_minversion = '1.23.5'
-np_maxversion = '2.3.0'
+np_maxversion = '2.5.0'
 if (_pep440.parse(__numpy_version__) < _pep440.Version(np_minversion) or
         _pep440.parse(__numpy_version__) >= _pep440.Version(np_maxversion)):
     import warnings
@@ -100,13 +100,13 @@ submodules = [
     'cluster',
     'constants',
     'datasets',
+    'differentiate',
     'fft',
     'fftpack',
     'integrate',
     'interpolate',
     'io',
     'linalg',
-    'misc',
     'ndimage',
     'odr',
     'optimize',

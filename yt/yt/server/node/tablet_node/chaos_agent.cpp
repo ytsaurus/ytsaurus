@@ -3,6 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "tablet.h"
+#include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
 
@@ -167,6 +168,10 @@ private:
 
     void FiberIteration()
     {
+        if (!Tablet_->IsActiveServant()) {
+            return;
+        }
+
         UpdateReplicationCardAndReconfigure();
     }
 
@@ -441,9 +446,10 @@ private:
                 AdvanceTabletReplicationProgress(
                     LocalClient_,
                     Logger,
+                    Slot_->GetTabletManager(),
                     Slot_->GetCellId(),
                     Slot_->GetOptions()->ClockClusterTag,
-                    Tablet_->GetId(),
+                    Tablet_,
                     std::move(newProgress));
 
                 YT_LOG_DEBUG("Advanced replication progress to replication card current timestamp (CurrentTimestamp: %v)",
@@ -454,6 +460,10 @@ private:
 
     void ReportUpdatedReplicationProgress()
     {
+        if (!Tablet_->IsActiveServant()) {
+            return;
+        }
+
         auto progress = Tablet_->RuntimeData()->ReplicationProgress.Acquire();
         auto* counters = Tablet_->GetTableProfiler()->GetTablePullerCounters();
         if (Tablet_->RuntimeData()->WriteMode == ETabletWriteMode::Direct) {
@@ -522,9 +532,10 @@ IChaosAgentPtr CreateChaosAgent(
 bool AdvanceTabletReplicationProgress(
     const NNative::IClientPtr& localClient,
     const NLogging::TLogger& Logger,
+    const ITabletManagerPtr& tabletManager,
     TTabletCellId tabletCellId,
     NApi::TClusterTag clockClusterTag,
-    TTabletId tabletId,
+    std::variant<TTabletSnapshotPtr, TTablet*> tablet,
     const TReplicationProgress& progress,
     bool validateStrictAdvance,
     std::optional<ui64> replicationRound)
@@ -533,6 +544,20 @@ bool AdvanceTabletReplicationProgress(
     startOptions.ClockClusterTag = clockClusterTag;
     auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet, startOptions))
         .ValueOrThrow();
+
+    auto tabletId = std::holds_alternative<TTabletSnapshotPtr>(tablet)
+        ? std::get<TTabletSnapshotPtr>(tablet)->TabletId
+        : std::get<TTablet*>(tablet)->GetId();
+
+    std::visit(
+        [&] (auto&& tablet) {
+            tabletManager->ExternalizeTransactionIfNeeded(
+                tablet,
+                localTransaction,
+                "advance replication progress");
+        },
+        tablet
+    );
 
     {
         NProto::TReqAdvanceReplicationProgress req;

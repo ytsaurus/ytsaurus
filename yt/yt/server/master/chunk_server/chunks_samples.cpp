@@ -52,11 +52,29 @@ const TChunksSampleMap& TChunksSamples::GetCellParityMissingChunks() const
     return ParityMissingChunksSample_;
 }
 
+const TChunksSampleMap& TChunksSamples::GetCellOldestPartMissingChunks() const
+{
+    return OldestPartMissingChunksSample_;
+}
+
+const TChunksSampleMap& TChunksSamples::GetCellQuorumMissingChunks() const
+{
+    return QuorumMissingChunksSample_;
+}
+
+const TChunksSampleMap& TChunksSamples::GetCellInconsistentlyPlacedChunks() const
+{
+    return InconsistentlyPlacedChunksSample_;
+}
+
 void TChunksSamples::Clear()
 {
     LostVitalChunksSample_.clear();
     DataMissingChunksSample_.clear();
     ParityMissingChunksSample_.clear();
+    OldestPartMissingChunksSample_.clear();
+    QuorumMissingChunksSample_.clear();
+    InconsistentlyPlacedChunksSample_.clear();
 }
 
 void TChunksSamples::Load(TLoadContext& context)
@@ -69,6 +87,11 @@ void TChunksSamples::Load(TLoadContext& context)
         Load(context, DataMissingChunksSample_);
         Load(context, ParityMissingChunksSample_);
     }
+    if (context.GetVersion() >= NCellMaster::EMasterReign::AdditionalMulticellChunksSamples) {
+        Load(context, OldestPartMissingChunksSample_);
+        Load(context, QuorumMissingChunksSample_);
+        Load(context, InconsistentlyPlacedChunksSample_);
+    }
 }
 
 void TChunksSamples::Save(TSaveContext& context) const
@@ -77,6 +100,9 @@ void TChunksSamples::Save(TSaveContext& context) const
     Save(context, LostVitalChunksSample_);
     Save(context, DataMissingChunksSample_);
     Save(context, ParityMissingChunksSample_);
+    Save(context, OldestPartMissingChunksSample_);
+    Save(context, QuorumMissingChunksSample_);
+    Save(context, InconsistentlyPlacedChunksSample_);
 }
 
 void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSamples* request)
@@ -91,6 +117,9 @@ void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSampl
     LostVitalChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->lost_vital_chunk_ids());
     DataMissingChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->data_missing_chunk_ids());
     ParityMissingChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->parity_missing_chunk_ids());
+    OldestPartMissingChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->oldest_part_missing_chunk_ids());
+    QuorumMissingChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->quorum_missing_chunk_ids());
+    InconsistentlyPlacedChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->inconsistently_placed_chunk_ids());
 
     if (!request->lost_vital_chunk_ids().empty()) {
         YT_LOG_DEBUG("Received lost vital chunks sample (LostVitalChunksSample: %v)", request->lost_vital_chunk_ids());
@@ -100,6 +129,15 @@ void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSampl
     }
     if (!request->parity_missing_chunk_ids().empty()) {
         YT_LOG_DEBUG("Received parity missing chunks sample (ParityMissingChunksSample: %v)", request->parity_missing_chunk_ids());
+    }
+    if (!request->oldest_part_missing_chunk_ids().empty()) {
+        YT_LOG_DEBUG("Received oldest part missing chunks sample (OldestPartMissingChunksSample: %v)", request->oldest_part_missing_chunk_ids());
+    }
+    if (!request->quorum_missing_chunk_ids().empty()) {
+        YT_LOG_DEBUG("Received quorum missing chunks sample (QuorumMissingChunksSample: %v)", request->quorum_missing_chunk_ids());
+    }
+    if (!request->inconsistently_placed_chunk_ids().empty()) {
+        YT_LOG_DEBUG("Received inconsistently placed chunks sample (InconsistentlyPlacedChunksSample: %v)", request->inconsistently_placed_chunk_ids());
     }
 }
 
@@ -193,14 +231,20 @@ TFuture<NProto::TReqChunksSamples> TChunksSamples::GetLocalCellUpdate() {
     return AllSet(std::vector{
         GetLocalSample("//sys/local_lost_vital_chunks"),
         GetLocalSample("//sys/local_data_missing_chunks"),
-        GetLocalSample("//sys/local_parity_missing_chunks")})
+        GetLocalSample("//sys/local_parity_missing_chunks"),
+        GetLocalSample("//sys/local_oldest_part_missing_chunks"),
+        GetLocalSample("//sys/local_quorum_missing_chunks"),
+        GetLocalSample("//sys/local_inconsistently_placed_chunks")})
         .ApplyUnique(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (std::vector<TErrorOr<TLocalSampleVector>>&& samples) {
             NProto::TReqChunksSamples req;
             req.set_cell_tag(ToProto(cellTag));
-            YT_VERIFY(samples.size() == 3);
+            YT_VERIFY(samples.size() == 6);
             ToProto(req.mutable_lost_vital_chunk_ids(), samples[0].Value());
             ToProto(req.mutable_data_missing_chunk_ids(), samples[1].Value());
             ToProto(req.mutable_parity_missing_chunk_ids(), samples[2].Value());
+            ToProto(req.mutable_oldest_part_missing_chunk_ids(), samples[3].Value());
+            ToProto(req.mutable_quorum_missing_chunk_ids(), samples[4].Value());
+            ToProto(req.mutable_inconsistently_placed_chunk_ids(), samples[5].Value());
             return req;
         }));
 }

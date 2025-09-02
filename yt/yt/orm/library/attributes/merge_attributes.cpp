@@ -134,7 +134,8 @@ TYsonString MergeAttributeValuesAsStrings(
 
 TYsonString MergeAttributeValuesAsNodes(
     std::vector<TAttributeValue> attributeValues,
-    EYsonFormat format)
+    EYsonFormat format,
+    EDuplicatePolicy duplicatePolicy)
 {
     std::ranges::stable_sort(attributeValues, std::less{}, [] (const auto& attributeValue) {
         return attributeValue.Path.size();
@@ -167,6 +168,13 @@ TYsonString MergeAttributeValuesAsNodes(
             rootNode = node->AsMap();
         } else {
             RemoveEntitiesOnPath(rootNode, attributeValue.Path);
+
+            if (duplicatePolicy == EDuplicatePolicy::PrioritizeEtc &&
+                FindNodeByYPathNoThrow(rootNode, attributeValue.Path))
+            {
+                continue;
+            }
+
             SetNodeByYPath(rootNode, attributeValue.Path, node, /*force*/ true);
         }
     }
@@ -271,7 +279,8 @@ void TMergeAttributesHelper::Finalize()
 
 TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
-    NYson::EYsonFormat format)
+    NYson::EYsonFormat format,
+    EDuplicatePolicy duplicatePolicy)
 {
     for (const auto& attribute : attributeValues) {
         THROW_ERROR_EXCEPTION_UNLESS(attribute.Value.GetType() == EYsonType::Node,
@@ -293,7 +302,7 @@ TYsonString MergeAttributes(
     auto expandedAttributeValues = ExpandWildcardValueLists(std::move(attributeValues), format);
 
     if (hasEtcs || HasPrefixes(expandedAttributeValues)) {
-        return MergeAttributeValuesAsNodes(std::move(expandedAttributeValues), format);
+        return MergeAttributeValuesAsNodes(std::move(expandedAttributeValues), format, duplicatePolicy);
     } else {
         return MergeAttributeValuesAsStrings(std::move(expandedAttributeValues), format);
     }

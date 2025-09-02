@@ -357,11 +357,11 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         set("//sys/pool_trees/@default_tree", "unexisting")
         wait(lambda: get("//sys/scheduler/@alerts"))
-        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
+        wait(lambda: not exists("//sys/scheduler/orchid/scheduler/default_pool_tree"))
 
         set("//sys/pool_trees/@default_tree", "default")
-        wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_fair_share_tree"))
-        assert get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "default"
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_pool_tree"))
+        assert get("//sys/scheduler/orchid/scheduler/default_pool_tree") == "default"
 
     @authors("asaitgalin")
     def test_fair_share(self):
@@ -399,7 +399,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
         def get_fair_share(tree, op_id):
             try:
-                return get(scheduler_orchid_operation_path(op_id, tree) + "/fair_share_ratio")
+                return get(scheduler_orchid_operation_path(op_id, tree) + "/detailed_dominant_fair_share/total")
             except YtError:
                 return 0.0
 
@@ -420,7 +420,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: op1.get_state() == "running")
 
         set("//sys/pool_trees/@default_tree", "other")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_fair_share_tree") == "other")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_pool_tree") == "other")
         assert op1.get_state() == "running"
 
         create("table", "//tmp/t_out_2")

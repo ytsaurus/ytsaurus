@@ -32,8 +32,8 @@ def main():
     mcp_runner = YTToolRunnerMCP()
 
     mcp_runner.configure_logging(
-        logging.getLevelName(app_args.log_level),
-        app_args.log_file,
+        level=logging.getLevelName(app_args.log_level),
+        file_name=app_args.log_file,
     )
 
     mcp_runner.configure_yt(

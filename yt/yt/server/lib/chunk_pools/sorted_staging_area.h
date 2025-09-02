@@ -20,6 +20,12 @@ DEFINE_ENUM(ESliceType,
 //! next interesting endpoint" of "flush".
 struct ISortedStagingArea
 {
+    struct TCurrentJobsStatistics
+    {
+        int JobCount = 0;
+        i64 DataSliceCount = 0;
+    };
+
     //! Promote upper bound for currently built job.
     virtual void PromoteUpperBound(NTableClient::TKeyBound upperBound) = 0;
 
@@ -38,15 +44,11 @@ struct ISortedStagingArea
     virtual void PutBarrier() = 0;
 
     //! Flush data slices into a new single job.
-    virtual void Flush() = 0;
+    virtual TCurrentJobsStatistics Flush() = 0;
 
     //! Called at the end of processing to finalize some stuff and flush the remaining job (if any).
     //! Must be called exactly once.
-    virtual std::vector<TNewJobStub> Finish() && = 0;
-
-    //! Total number of data slices in all created jobs.
-    //! Used for internal bookkeeping by the outer code.
-    virtual i64 GetTotalDataSliceCount() const = 0;
+    virtual std::pair<std::vector<TNewJobStub>, TCurrentJobsStatistics> Finish() && = 0;
 
     //! Returns largest of all primary data slice upper bounds. Used to
     //! determine how far current staging area spans to the right.
@@ -65,8 +67,6 @@ std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
     NTableClient::TComparator primaryComparator,
     NTableClient::TComparator foreignComparator,
     NTableClient::TRowBufferPtr rowBuffer,
-    i64 initialTotalDataSliceCount,
-    i64 maxTotalDataSliceCount,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

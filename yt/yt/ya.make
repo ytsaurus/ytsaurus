@@ -4,6 +4,7 @@ RECURSE(
     client
     core
     experiments
+    gpuagent
     library
     python
     scripts

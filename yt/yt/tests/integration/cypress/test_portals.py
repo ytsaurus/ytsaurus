@@ -1572,6 +1572,7 @@ class TestCrossCellCopy(YTEnvSetup):
         "content_revision",
         "native_content_revision",
         "revision",
+        "schema_revision",
     ]
 
     # These attributes have to change when cross-cell copying.
@@ -1614,7 +1615,13 @@ class TestCrossCellCopy(YTEnvSetup):
         elif self.COPY_TO_SEQUOIA:
             # Cypress -> Sequoia.
             create("map_node", self.SRC)
-            create("rootstock", self.DST)
+            create(
+                "rootstock",
+                self.DST,
+                # TODO(danilalexeev): YT-24575. Remove once attribute sync is implemented.
+                attributes={
+                    "acl": [make_ace("allow", "users", "administer")],
+                })
         else:
             # Sequoia -> Cypress.
             create("rootstock", self.SRC)
@@ -2614,6 +2621,13 @@ class TestCypressToSequoiaCopy(TestCrossCellCopy):
         },
     }
 
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        }
+    }
+
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
         "object_service": {
             "allow_bypass_master_resolve": True,
@@ -2682,6 +2696,13 @@ class TestSequoiaToCypressCopy(TestCrossCellCopy):
         "sequoia_manager": {
             "enable_ground_update_queues": True
         },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        }
     }
 
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {

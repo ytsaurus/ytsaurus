@@ -22,14 +22,25 @@ import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
+import tech.ytsaurus.client.request.CreateTablePartitionReader;
+import tech.ytsaurus.client.request.FlowExecute;
+import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
+import tech.ytsaurus.client.request.GetFlowView;
+import tech.ytsaurus.client.request.GetFlowViewResult;
 import tech.ytsaurus.client.request.GetInSyncReplicas;
 import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetPipelineDynamicSpec;
+import tech.ytsaurus.client.request.GetPipelineDynamicSpecResult;
+import tech.ytsaurus.client.request.GetPipelineSpec;
+import tech.ytsaurus.client.request.GetPipelineSpecResult;
+import tech.ytsaurus.client.request.GetPipelineState;
+import tech.ytsaurus.client.request.GetPipelineStateResult;
 import tech.ytsaurus.client.request.GetQuery;
 import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
@@ -42,8 +53,11 @@ import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
 import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
+import tech.ytsaurus.client.request.PatchOperationSpec;
+import tech.ytsaurus.client.request.PausePipeline;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.ReadQueryResult;
@@ -51,10 +65,16 @@ import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
+import tech.ytsaurus.client.request.SetPipelineDynamicSpec;
+import tech.ytsaurus.client.request.SetPipelineDynamicSpecResult;
+import tech.ytsaurus.client.request.SetPipelineSpec;
+import tech.ytsaurus.client.request.SetPipelineSpecResult;
 import tech.ytsaurus.client.request.ShuffleHandle;
+import tech.ytsaurus.client.request.StartPipeline;
 import tech.ytsaurus.client.request.StartQuery;
 import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
+import tech.ytsaurus.client.request.StopPipeline;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TabletInfo;
 import tech.ytsaurus.client.request.TrimTable;
@@ -325,6 +345,28 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
 
+    /**
+     * Reads a batch of rows from a given partition of a given queue, starting at (at least) the given offset.
+     * Requires the user to have read-access to the specified queue.
+     * There is no guarantee that `PullQueue#rowBatchReadOptions#maxRowCount` rows will be returned even if they are
+     * in the queue.
+     * <p>
+     *
+     * @param req PullQueue request.
+     * @return CompletableFuture that completes with {@link QueueRowset}.
+     */
+    CompletableFuture<QueueRowset> pullQueue(PullQueue req);
+
+    /**
+     * Same as {@link ApiServiceClient#pullQueue(PullQueue)}, but requires user to have read-access to the consumer
+     * and the consumer being registered for the given queue.
+     * There is no guarantee that `PullConsumer#rowBatchReadOptions#maxRowCount` rows will be returned even if they
+     * are in the queue.
+     * <p>
+     *
+     * @param req PullConsumer request.
+     * @return CompletableFuture that completes with {@link QueueRowset}.
+     */
     CompletableFuture<QueueRowset> pullConsumer(PullConsumer req);
 
     CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req);
@@ -448,6 +490,15 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<AsyncReader<UnversionedRow>> createShuffleReader(CreateShuffleReader req);
 
     /**
+     * Creates TablePartitionReader for reading partition rows.
+     *
+     * @param req A request to create Partition reader containing cookie and additional reading configs.
+     * @return TablePartitionReader that can be used to read partition rows.
+     */
+    <T> CompletableFuture<AsyncReader<T>> createTablePartitionReader(CreateTablePartitionReader<T> req);
+
+
+    /**
      * @deprecated prefer to use {@link #resumeOperation(ResumeOperation)}
      */
     @Deprecated
@@ -484,6 +535,11 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req);
 
     /**
+     * Patches operation specification for running operation.
+     */
+    CompletableFuture<Void> patchOperationSpec(PatchOperationSpec req);
+
+    /**
      * @deprecated prefer to use {@link #updateOperationParameters(UpdateOperationParameters)}
      */
     @Deprecated
@@ -491,4 +547,102 @@ public interface ApiServiceClient extends TransactionalClient {
             UpdateOperationParameters.BuilderBase<?> req) {
         return updateOperationParameters(req.build());
     }
+
+    /**
+     * Retrieves a Flow pipeline spec for a given pipeline path.
+     * <p>
+     *
+     * @param req a request containing the pipeline path.
+     * @return A {@link CompletableFuture} that completes with {@link GetPipelineSpecResult}, containing the pipeline
+     * spec and pipeline version.
+     */
+    CompletableFuture<GetPipelineSpecResult> getPipelineSpec(GetPipelineSpec req);
+
+    /**
+     * Sets the Flow pipeline spec for a given pipeline path.
+     * <p>
+     *
+     * @param req A request containing the pipeline path, pipeline spec, expected pipeline version and force flag.
+     * @return A {@link CompletableFuture} that completes with {@link SetPipelineSpecResult}, containing the new
+     * pipeline version.
+     * @throws RuntimeException If the expectedVersion is provided and does not equal the received version.
+     */
+    CompletableFuture<SetPipelineSpecResult> setPipelineSpec(SetPipelineSpec req);
+
+    /**
+     * Retrieves a Flow pipeline dynamic spec for a given pipeline path.
+     * <p>
+     *
+     * @param req A request containing the pipeline path.
+     * @return A {@link CompletableFuture} that completes with {@link GetPipelineDynamicSpecResult}, containing the
+     * pipeline dynamic spec and pipeline version.
+     */
+    CompletableFuture<GetPipelineDynamicSpecResult> getPipelineDynamicSpec(GetPipelineDynamicSpec req);
+
+    /**
+     * Sets the Flow pipeline dynamic spec for a given pipeline path.
+     * <p>
+     *
+     * @param req A request containing the pipeline path, pipeline dynamic spec, and expected pipeline version.
+     * @return A {@link CompletableFuture} that completes with {@link SetPipelineDynamicSpecResult}, containing the
+     * new pipeline version.
+     * @throws RuntimeException If the expectedVersion is provided and does not equal the received version.
+     */
+    CompletableFuture<SetPipelineDynamicSpecResult> setPipelineDynamicSpec(SetPipelineDynamicSpec req);
+
+    /**
+     * Starts a Flow pipeline for a given pipeline path.
+     * <p>
+     *
+     * @param req The request containing the pipeline path.
+     * @return A {@link CompletableFuture} that completes when the pipeline has been successfully started.
+     */
+    CompletableFuture<Void> startPipeline(StartPipeline req);
+
+    /**
+     * Stops a Flow pipeline for a given pipeline path.
+     * <p>
+     *
+     * @param req the request containing the pipeline path.
+     * @return A {@link CompletableFuture} that completes when the pipeline has been successfully stopped.
+     */
+    CompletableFuture<Void> stopPipeline(StopPipeline req);
+
+    /**
+     * Pauses a Flow pipeline for a given pipeline path.
+     * <p>
+     *
+     * @param req The request containing the pipeline path.
+     * @return A {@link CompletableFuture} that completes when the pipeline has been successfully paused.
+     */
+    CompletableFuture<Void> pausePipeline(PausePipeline req);
+
+    /**
+     * Retrieves the current state of a Flow pipeline for a given pipeline path.
+     * <p>
+     *
+     * @param req The request object containing pipeline path.
+     * @return A {@link CompletableFuture} that completes with the {@link GetPipelineStateResult}.
+     */
+    CompletableFuture<GetPipelineStateResult> getPipelineState(GetPipelineState req);
+
+    /**
+     * Retrieves the current Flow view for a given request.
+     * <p>
+     *
+     * @param req the request object containing pipeline path, view path and cached flag.
+     * @return A {@link CompletableFuture} that completes with the GetFlowViewResult.
+     */
+    CompletableFuture<GetFlowViewResult> getFlowView(GetFlowView req);
+
+    /**
+     * A universal method for executing arbitrary Flow commands for a given pipeline path.
+     * <p>
+     *
+     * @param req The request containing pipeline path, Flow command and arguments as a {@link YTreeNode}.
+     * @return A {@link CompletableFuture} that completes with the {@link FlowExecuteResult}, containing command
+     * execution result as a {@link YTreeNode}.
+     */
+    CompletableFuture<FlowExecuteResult> flowExecute(FlowExecute req);
+
 }

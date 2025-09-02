@@ -1,12 +1,14 @@
+#include "tablet_balancer.h"
+
 #include "balancing_helpers.h"
 #include "config.h"
 #include "private.h"
 #include "public.h"
-#include "tablet_balancer.h"
-#include "tablet_manager.h"
-#include "tablet_cell.h"
 #include "tablet.h"
 #include "tablet_action.h"
+#include "tablet_action_manager.h"
+#include "tablet_cell.h"
+#include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -270,7 +272,7 @@ private:
         TablesWithActiveActions_.clear();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (auto [actionId, action] : tabletManager->TabletActions()) {
+        for (auto [actionId, action] : tabletManager->GetTabletActionManager()->TabletActions()) {
             if (!action->IsFinished()) {
                 for (auto tablet : action->Tablets()) {
                     YT_VERIFY(tablet->GetType() == EObjectType::Tablet);

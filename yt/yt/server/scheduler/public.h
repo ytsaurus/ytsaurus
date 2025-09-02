@@ -1,5 +1,9 @@
 #pragma once
 
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
+
+#include <yt/yt/server/scheduler/common/public.h>
+
 #include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -13,15 +17,11 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
-DECLARE_REFCOUNTED_CLASS(TAllocation)
-
-using TAllocationList = std::list<TAllocationPtr>;
 
 struct INodeManagerHost;
-
 DECLARE_REFCOUNTED_CLASS(TNodeManager)
 DECLARE_REFCOUNTED_CLASS(TNodeShard)
-DECLARE_REFCOUNTED_CLASS(TExecNode)
+
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 
 DECLARE_REFCOUNTED_CLASS(TOperationsCleaner)
@@ -30,15 +30,6 @@ DECLARE_REFCOUNTED_CLASS(TScheduler)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentTracker)
 
 struct IEventLogHost;
-
-DECLARE_REFCOUNTED_STRUCT(INodeHeartbeatStrategyProxy)
-
-DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
-struct ISchedulerStrategyHost;
-DECLARE_REFCOUNTED_STRUCT(IOperationStrategyHost)
-
-DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
-DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
 
 struct TOperationControllerInitializeResult;
@@ -49,15 +40,11 @@ class TMasterConnector;
 
 DECLARE_REFCOUNTED_CLASS(TBootstrap)
 
-DECLARE_REFCOUNTED_STRUCT(TPersistentStrategyState)
-DECLARE_REFCOUNTED_STRUCT(TPersistentTreeState)
-DECLARE_REFCOUNTED_STRUCT(TPersistentPoolState)
-DECLARE_REFCOUNTED_STRUCT(TPersistentSchedulingSegmentsState)
-
-// TODO(mrkastep) Move to private.h
-DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)
-
 DECLARE_REFCOUNTED_CLASS(TControllerRuntimeData)
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TAllocationList = std::list<TAllocationPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

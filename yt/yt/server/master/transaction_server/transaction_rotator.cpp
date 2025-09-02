@@ -112,4 +112,4 @@ bool TTransactionRotator::OnTransactionFinished(TTransaction* transaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkServer
+} // namespace NYT::NTransactionServer

@@ -37,7 +37,7 @@ public:
     void Initialize() override
     {
         auto client = GetConnection()->CreateNativeClient(
-            TClientOptions::FromUser(NSecurityClient::RootUserName));
+            NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
         ChaosCache_ = New<TChaosCache>(
             GetConfig()->ChaosCache,

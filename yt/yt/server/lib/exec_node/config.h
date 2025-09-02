@@ -417,7 +417,7 @@ struct TGpuManagerConfig
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
     std::optional<TString> DriverVersion;
 
-    NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
+    NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     TGpuManagerTestingConfigPtr Testing;
 
@@ -446,7 +446,7 @@ struct TGpuManagerDynamicConfig
 
     THashMap<TString, TString> CudaToolkitMinDriverVersion;
 
-    NGpu::TGpuInfoSourceConfigPtr GpuInfoSource;
+    NGpu::TGpuInfoProviderConfig GpuInfoProvider;
 
     //! This option is specific to nvidia-container-runtime.
     TString DefaultNvidiaDriverCapabilities;
@@ -681,6 +681,10 @@ struct TJobProxyConfig
     NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
+
+    NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
+
+    NBus::TBusClientConfigPtr SupervisorConnection;
 
     TDuration SupervisorRpcTimeout;
 

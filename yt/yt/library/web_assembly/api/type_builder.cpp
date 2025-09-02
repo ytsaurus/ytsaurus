@@ -29,6 +29,7 @@ namespace NYT::NWebAssembly {
 
     XX(char*, EWebAssemblyValueType::UintPtr)
     XX(const char*, EWebAssemblyValueType::UintPtr)
+    XX(long*, EWebAssemblyValueType::UintPtr)
     XX(char**, EWebAssemblyValueType::UintPtr)
     XX(const uint8_t*, EWebAssemblyValueType::UintPtr)
     XX(const uint8_t**, EWebAssemblyValueType::UintPtr)
@@ -55,4 +56,4 @@ Y_WEAK TWebAssemblyRuntimeType GetTypeId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NWebAssembly
+} // namespace NYT::NWebAssembly

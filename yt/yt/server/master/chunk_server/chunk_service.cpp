@@ -32,6 +32,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -407,7 +409,7 @@ private:
             }
 
             if (dynamicStore->IsFlushed()) {
-                if (auto chunk = dynamicStore->GetFlushedChunk()) {
+                if (const auto& chunk = dynamicStore->FlushedChunk()) {
                     auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
 
                     auto* spec = subresponse->mutable_chunk_spec();
@@ -425,7 +427,7 @@ private:
 
                     BuildChunkSpec(
                         Bootstrap_,
-                        chunk,
+                        chunk.Get(),
                         replicas,
                         rowIndex,
                         /*tabletIndex*/ {},
@@ -968,8 +970,19 @@ private:
             WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
                 .ThrowOnError();
 
-            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
             if (requestStatistics) {
+                const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+                WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
+                    .ThrowOnError();
+
+                auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+                if (!chunk->IsConfirmed()) {
+                    YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
+                    THROW_ERROR_EXCEPTION(
+                        NRpc::EErrorCode::TransientFailure,
+                        "Chunk %v is not confirmed after confirm",
+                        chunkId);
+                }
                 ToProto(context->Response().mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
                 // Do not set revision as ally replicas do not work for Sequoia anyway.
             }

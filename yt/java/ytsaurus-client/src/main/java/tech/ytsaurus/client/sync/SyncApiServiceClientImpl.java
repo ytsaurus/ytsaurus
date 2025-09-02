@@ -38,6 +38,7 @@ import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.PullQueue;
 import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.ReadQueryResult;
@@ -247,6 +248,11 @@ class SyncApiServiceClientImpl
     @Override
     public QueueRowset pullConsumer(PullConsumer req) {
         return client.pullConsumer(req).join();
+    }
+
+    @Override
+    public QueueRowset pullQueue(PullQueue req) {
+        return client.pullQueue(req).join();
     }
 
     @Override

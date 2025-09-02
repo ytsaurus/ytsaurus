@@ -622,6 +622,9 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("request_gpu_monitoring", &TThis::RequestGpuMonitoring)
         .Default(false);
+
+    registrar.Parameter("use_operation_id_based_descriptors_for_gangs_jobs", &TThis::UseOperationIdBasedDescriptorsForGangsJobs)
+        .Default(false);
 }
 
 const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
@@ -1327,6 +1330,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("redirect_stdout_to_stderr", &TThis::RedirectStdoutToStderr)
+        .Default(false);
+
+    registrar.Parameter("append_debug_options", &TThis::AppendDebugOptions)
         .Default(false);
 
     registrar.Parameter("profilers", &TThis::Profilers)
@@ -2339,6 +2345,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
+        TStringBuf taskWithDescriptorsForGangsJobsName;
         for (const auto& [taskName, taskSpec] : spec->Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
@@ -2358,6 +2365,9 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
             if (!empty(taskSpec->OutputTablePaths)) {
                 taskWithOutputTableName = taskName;
+            }
+            if (taskSpec->Monitoring && taskSpec->Monitoring->UseOperationIdBasedDescriptorsForGangsJobs) {
+                taskWithDescriptorsForGangsJobsName = taskName;
             }
         }
 
@@ -2383,6 +2393,10 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("You do not want sampling in vanilla operation :)");
+        }
+
+        if (!taskWithGangOptionsName && taskWithDescriptorsForGangsJobsName) {
+            THROW_ERROR_EXCEPTION("\"use_operation_id_based_descriptors_for_gangs_jobs\" must set only for gang operation");
         }
     });
 }
@@ -2690,7 +2704,7 @@ void TPoolConfig::Validate(const TString& poolName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFairShareStrategyPackingConfig::Register(TRegistrar registrar)
+void TStrategyPackingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
@@ -2830,7 +2844,7 @@ void TOperationJobShellRuntimeParameters::Register(TRegistrar registrar)
         .Default();
 }
 
-void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
+void TOperationPoolTreeRuntimeParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()
@@ -2897,7 +2911,7 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     if (auto acl = mapNode->FindChild("acl")) {
         Deserialize(parameters.Acl, acl);
     }
-    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
+    parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationPoolTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
     if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
         Deserialize(parameters.SchedulingTagFilter, child);
@@ -2936,7 +2950,7 @@ void Deserialize(TOperationRuntimeParameters& parameters, TYsonPullParserCursor*
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registrar)
+void TOperationPoolTreeRuntimeParametersUpdate::Register(TRegistrar registrar)
 {
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()
@@ -3032,17 +3046,17 @@ EPermissionSet TOperationRuntimeParametersUpdate::GetRequiredPermissions() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersPtr UpdateFairShareTreeRuntimeParameters(
-    const TOperationFairShareTreeRuntimeParametersPtr& origin,
-    const TOperationFairShareTreeRuntimeParametersUpdatePtr& update)
+TOperationPoolTreeRuntimeParametersPtr UpdatePoolTreeRuntimeParameters(
+    const TOperationPoolTreeRuntimeParametersPtr& origin,
+    const TOperationPoolTreeRuntimeParametersUpdatePtr& update)
 {
     try {
         if (!origin) {
-            return NYTree::ConvertTo<TOperationFairShareTreeRuntimeParametersPtr>(ConvertToNode(update));
+            return NYTree::ConvertTo<TOperationPoolTreeRuntimeParametersPtr>(ConvertToNode(update));
         }
         return UpdateYsonStruct(origin, ConvertToNode(update));
     } catch (const std::exception& exception) {
-        THROW_ERROR_EXCEPTION("Error updating operation fair share tree runtime parameters")
+        THROW_ERROR_EXCEPTION("Error updating operation pool tree runtime parameters")
             << exception;
     }
 }

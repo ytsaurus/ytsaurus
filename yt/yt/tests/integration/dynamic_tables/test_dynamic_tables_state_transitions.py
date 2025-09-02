@@ -9,7 +9,7 @@ from yt_commands import (
     remount_table, sync_flush_table, select_rows, insert_rows, alter_table,
     sync_enable_table_replica, create_table_replica,
     cancel_tablet_transition, raises_yt_error, create_user, remove,
-    multicell_sleep, create_area, ls)
+    multicell_sleep, create_area, ls, write_table, map)
 
 from yt.environment.helpers import assert_items_equal, are_items_equal
 
@@ -27,6 +27,8 @@ import pytest
 class TestDynamicTableStateTransitions(DynamicTablesBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 5
+    NUM_SCHEDULERS = 1
+    ENABLE_BULK_INSERT = True
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
@@ -623,6 +625,66 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         node_store_ids += ls(f"#{tablet_id}/orchid/eden/stores")
 
         assert_items_equal(master_store_ids, node_store_ids)
+
+    @authors("ifsmirnov")
+    def test_stress_bulk_insert_in_transient_states(self):
+        cell_ids = sync_create_cells(2)
+
+        create("table", "//tmp/t_input")
+        rows = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t_input", rows)
+
+        self._create_sorted_table(
+            "//tmp/t_output",
+            enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t_output")
+        tablet_id = get("//tmp/t_output/@tablets/0/tablet_id")
+
+        def _run_op():
+            return map(
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="cat",
+                spec={
+                    "testing": {
+                        "delay_inside_operation_commit": random.randint(0, 1000),
+                        "delay_inside_operation_commit_stage": "stage5",
+                    },
+                },
+                track=False)
+
+        def _run_tablet_action():
+            current_cell = get(f"#{tablet_id}/@cell_id")
+            for cell_id in cell_ids:
+                if cell_id != current_cell:
+                    break
+            else:
+                assert False
+            return create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "move",
+                    "tablet_ids": [tablet_id],
+                    "cell_ids": [cell_id],
+                    "expiration_timeout": 60000,
+                    "skip_freezing": random.choice([False, True]),
+                })
+
+        random.seed(555)
+
+        op = None
+        action_id = None
+
+        for i in range(200):
+            sleep(random.choice((0, .100, .200, .500, .1000)))
+
+            if random.randint(0, 1) == 0:
+                if action_id is None or get(f"#{action_id}/@state") in ("completed", "failed"):
+                    action_id = _run_tablet_action()
+            else:
+                if op is None or op.get_state() in ("completed", "failed"):
+                    op = _run_op()
 
 
 ##################################################################

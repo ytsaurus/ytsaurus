@@ -24,6 +24,7 @@ public:
     int GetSize();
     int GetMaxSize();
     int GetResidualCapacity();
+    int GetNotAddedIndexesCount();
     void SetMaxSize(int maxSize);
 
     std::optional<int> TryAddIndex(TOperationId operationId);
@@ -35,6 +36,7 @@ private:
     int Size_ = 0;
     int MaxSize_ = -1;
     int IndexCount_ = InitialIndexCount;
+    int NotAddedIndexesCount_ = 0;
     std::set<int> FreeIndices_;
     THashMap<TOperationId, THashSet<int>> OperationIdToIndexes_;
 };

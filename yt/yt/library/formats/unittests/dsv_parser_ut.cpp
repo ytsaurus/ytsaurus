@@ -362,4 +362,4 @@ TEST_F(TTskvParserTest, WrongLinePrefix)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NDriver
+} // namespace NYT::NFormats

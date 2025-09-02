@@ -213,7 +213,7 @@ message TLocalAttributeMigration
     optional string old_lock_group = 4;
 }
 
-// Next field number 56.
+// Next field number 57.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 20, 21, 28, 29, 35, 37, 38, 46;
@@ -322,6 +322,10 @@ message TObjectTypeOption
     optional bool remove_legacy_meta_account_id = 47;
 
     optional bool keep_removal_time = 52;
+
+    // Each predicate is an ORM QL expression over object's attributes.
+    // Validation is performed only for mutating API calls, not for server-side plugins.
+    repeated string object_validation_predicates = 56;
 }
 
 message TIndexOption

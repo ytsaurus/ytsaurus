@@ -325,8 +325,6 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedField(
                     indexParseResult.Index,
                     EVisitReason::Path);
                 break;
-            default:
-                YT_ABORT();
         }
     }
 }

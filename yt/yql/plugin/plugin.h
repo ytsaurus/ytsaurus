@@ -60,7 +60,7 @@ struct TQueryResult
 
 struct TClustersResult
 {
-    std::vector<TString> Clusters;
+    std::vector<std::pair<TString, TString>> Clusters;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;

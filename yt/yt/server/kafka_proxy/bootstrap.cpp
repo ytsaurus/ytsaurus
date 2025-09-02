@@ -192,7 +192,7 @@ private:
             /*staticClusterConnectionNode*/ nullptr,
             Logger());
 
-        NativeRootClient_ = NativeConnection_->CreateNativeClient(TClientOptions::Root());
+        NativeRootClient_ = NativeConnection_->CreateNativeClient(NNative::TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);

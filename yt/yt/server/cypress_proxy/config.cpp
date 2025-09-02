@@ -11,7 +11,7 @@ void TTestConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_ground_update_queues_sync", &TThis::EnableGroundUpdateQueuesSync)
         .Default(false);
 
-    registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
+    registrar.Parameter("enable_user_directory_per_request_sync", &TThis::EnableUserDirectoryPerRequestSync)
         .Default(false);
 
     registrar.Parameter("ground_update_queues_sync_request_timeout", &TThis::GroundUpdateQueuesSyncRequestTimeout)
@@ -108,6 +108,8 @@ void TCypressProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .Default(DefaultThreadPoolSize);
+    registrar.Parameter("default_get_response_size_limit", &TThis::DefaultGetResponseSizeLimit)
+        .Default(1'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

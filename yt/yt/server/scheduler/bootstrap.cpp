@@ -142,7 +142,7 @@ void TBootstrap::DoInitialize()
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
-    auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
+    auto clientOptions = NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
@@ -222,7 +222,7 @@ const NNative::IClientPtr& TBootstrap::GetRemoteClient(TCellTag tag) const
     auto it = RemoteClients_.find(tag);
     if (it == RemoteClients_.end()) {
         auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
-        auto client = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
+        auto client = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
         auto result = RemoteClients_.emplace(tag, client);
         YT_VERIFY(result.second);
         it = result.first;

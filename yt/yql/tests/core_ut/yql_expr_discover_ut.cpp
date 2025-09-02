@@ -31,7 +31,7 @@ Y_UNIT_TEST_SUITE(TDiscoverYqlExpr) {
         auto ytGateway = CreateYtFileGateway(yqlNativeServices);
         auto typeAnnotationContext = MakeIntrusive<TTypeAnnotationContext>();
         typeAnnotationContext->DiscoveryMode = true;
-        auto ytState = MakeIntrusive<TYtState>(typeAnnotationContext.Get());
+        auto ytState = std::make_shared<TYtState>(typeAnnotationContext.Get());
         ytState->Gateway = ytGateway;
 
         InitializeYtGateway(ytGateway, ytState);

@@ -10,6 +10,8 @@
 
 #include <library/cpp/yt/memory/new.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NCellBalancer {
@@ -1020,6 +1022,14 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
+
+    THashSet<std::string> expectedDataCenters{dataCenters.begin(), dataCenters.end()};
+    THashSet<std::string> actualDataCenters;
+    for (const auto& alert : mutations.AlertsToFire) {
+        actualDataCenters.insert(*alert.DataCenter);
+    }
+
+    EXPECT_EQ(expectedDataCenters, actualDataCenters);
 }
 
 TEST_P(TBundleSchedulerTest, DisableAllocationsCausesAllocationFromSpare)
@@ -5601,7 +5611,9 @@ TEST(TDataCentersPriority, Forbidden)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "dc_is_forbidden");
+
     EXPECT_EQ(6, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
     THashSet<std::string> assigningDC;
@@ -5776,7 +5788,9 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "dc_is_forbidden");
+
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
 
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
@@ -5927,7 +5941,9 @@ TEST(TDataCentersProxyPriority, Forbidden)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "dc_is_forbidden");
+
     const auto& assignments = mutations.ChangedProxyRole;
 
     THashSet<std::string> assigningDC;

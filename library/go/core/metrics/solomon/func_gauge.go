@@ -21,6 +21,23 @@ type FuncGauge struct {
 	memOnly    bool
 }
 
+func NewFuncGauge(name string, function func() float64, opts ...MetricOpt) FuncGauge {
+	mOpts := MetricsOpts{}
+	for _, op := range opts {
+		op(&mOpts)
+	}
+	return FuncGauge{
+		name:       name,
+		metricType: typeIGauge,
+		tags:       mOpts.tags,
+		function:   function,
+		timestamp:  mOpts.timestamp,
+
+		useNameTag: mOpts.useNameTag,
+		memOnly:    mOpts.memOnly,
+	}
+}
+
 func (g *FuncGauge) getID() string {
 	if g.timestamp != nil {
 		return g.name + "(" + g.timestamp.Format(time.RFC3339) + ")"

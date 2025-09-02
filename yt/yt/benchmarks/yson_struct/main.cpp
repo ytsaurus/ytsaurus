@@ -82,6 +82,6 @@ BENCHMARK(BM_Parse);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NTableClient
+} // namespace NYT::NYTree
 
 BENCHMARK_MAIN();

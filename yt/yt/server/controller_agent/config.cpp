@@ -664,6 +664,10 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_monitored_user_jobs_per_agent", &TThis::MaxMonitoredUserJobsPerAgent)
         .Default(1'000)
         .GreaterThanOrEqual(0);
+
+    registrar.Parameter("max_monitired_gang_jobs_per_agent", &TThis::MaxMonitoredGangsJobsPerAgent)
+        .Default(1'000)
+        .GreaterThanOrEqual(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

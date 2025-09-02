@@ -29,6 +29,12 @@ public:
 
     const TChunksSampleMap& GetCellParityMissingChunks() const;
 
+    const TChunksSampleMap& GetCellOldestPartMissingChunks() const;
+
+    const TChunksSampleMap& GetCellQuorumMissingChunks() const;
+
+    const TChunksSampleMap& GetCellInconsistentlyPlacedChunks() const;
+
     // CMulticellStatisticsValue implementation
     using TMutationRequestTypes = std::tuple<NProto::TReqChunksSamples>;
 
@@ -52,6 +58,9 @@ private:
     TChunksSampleMap LostVitalChunksSample_;
     TChunksSampleMap DataMissingChunksSample_;
     TChunksSampleMap ParityMissingChunksSample_;
+    TChunksSampleMap OldestPartMissingChunksSample_;
+    TChunksSampleMap QuorumMissingChunksSample_;
+    TChunksSampleMap InconsistentlyPlacedChunksSample_;
 
     using TLocalSampleVector = TCompactVector<NCypressClient::TObjectId, TDynamicChunkManagerConfig::DefaultMaxChunksSampleSizePerCell>;
 

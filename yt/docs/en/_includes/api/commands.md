@@ -209,7 +209,7 @@ For more information about the metainformation tree, see [Cypress](../../user-gu
 
 {% note info "Note" %}
 
-All the commands working with Cypress are transactional.
+All the commands used to work with Cypress are transactional.
 
 {% endnote %}
 
@@ -818,7 +818,7 @@ For more information about files, see the [Files](../../user-guide/storage/files
 
 {% note info "Note" %}
 
-All the commands working with files are transactional.
+All the commands used to work with files are transactional.
 
 {% endnote %}
 
@@ -1494,9 +1494,9 @@ Semantics:
 - The resharded tablets must be unmounted.
 - Be sure to specify `tablet_count` for an ordered table. For a sorted table, you can specify both `tablet_count` and `pivot_keys`. The resharded tablets are replaced by a set of new tablets.
 - In the case of a sorted table:
-   - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
-   - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
-   - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
+  - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
+  - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
+  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
 - For an ordered table, `table_count` specifies the number of new tablets that the sharded tablets are split into. In this case, if the resulting tablets are higher in numbers than the old ones, new empty tablets are created. If the resulting tablets are smaller in numbers, the corresponding number of source trailing tablets are merged into a single tablet in their natural order.
 
 Parameters:
@@ -1564,7 +1564,7 @@ OUTPUT [
 ]
 ```
 
-### alter_table
+ ### alter_table
 
 Command properties: **Mutating**, **Light**.
 
@@ -1643,9 +1643,9 @@ Semantics:
 
 - Get statistics on the set of columns in the given set of tables (taken completely or partially, by ranges).
 - The statistics includes:
-   - The total `data_weight` for each of the requested columns.
-   - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
-   - The total weight of all the timestamps of rows in a dynamic table.
+  - The total `data_weight` for each of the requested columns.
+  - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
+  - The total weight of all the timestamps of rows in a dynamic table.
 - The paths should always include the `column selectors`.
 - The command can be nested in a transaction.
 
@@ -1687,7 +1687,7 @@ OUTPUT {
 For more information about running data processing operations, see [Data processing](../../user-guide/data-processing/operations/overview.md).
 
 All the operations are run asynchronously, the specified commands only launch them. To find out whether the operation is complete or not, request the [operation status](../../user-guide/data-processing/operations/overview.md#status) using the `get_operation` command.
-All the commands working with operations are also transactional. It means that everything you do with tables in an operation will be executed within the specified transaction when you run the operation.  The node responsible for the operation (`//sys/operations/<OP_ID>`) is updated by the [scheduler](../../user-guide/data-processing/scheduler/scheduler-and-pools.md)outside of any transactions.
+All the commands used to work with operations are also transactional. It means that everything you do with tables in an operation will be executed within the specified transaction when you run the operation.  The node responsible for the operation (`//sys/operations/<OP_ID>`) is updated by the [scheduler](../../user-guide/data-processing/scheduler/scheduler-and-pools.md)outside of any transactions.
 
 ### start_operation
 
@@ -2025,7 +2025,7 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 {% note info "Note" %}
 
-All the commands working with the operations are non-[transactional](#transactions).
+All the commands used to work with the operations are non-[transactional](#transactions).
 
 {% endnote %}
 
@@ -2111,7 +2111,7 @@ Output data:
 | `type_counts` | `map<string, int>` | Map indicating the number of operations of various types that match all specified filters (except the filter by type). |
 | `pool_counts` | `map<string, int>` | Map indicating the number of operations in various pools that match all specified filters (except the filter by pool). |
 | `pool_tree_counts` | `map<string, int>` | Map indicating the number of operations in various pool trees that match all specified filters (except the filter by pool tree). |
-| `failed_job_count` | `int` | Number of unsuccessful jobs in the `failed` state. |
+| `failed_job_count` | `int` | Number of unsuccessful jobs with the `failed` state. |
 
 Example:
 
@@ -2195,6 +2195,67 @@ Example:
 PARAMETERS {  "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; attributes = [ "state" ] }
 OUTPUT {
     "state" = "running";
+}
+```
+
+### list_operation_events { #list_operation_events }
+
+Command properties: **Non-mutating**, **Light**.
+
+Semantics:
+
+- Get operation events.
+
+Parameters:
+
+| **Parameter** | **Type** | **Required** | **Default value** | **Description** |
+| -------------- | --------- | ---------------- | ------------------------- | -------------------------------------------------------------------- |
+| `operation_id` | `GUID` | Yes |                           | Operation ID. |
+| `event_type` | `string` | No | `Null` | Event type. If the value is empty, it returns events of all types. |
+
+Input data:
+
+- Type: `null`.
+
+Output data:
+
+- Type: `list`.
+- The list of the `TOperationEvent` operation events.
+
+`TOperationEvent` is a structure that contains information about an operation event. The following event types are supported:
+
+- `incarnation_started` — start of a new incarnation of a gang operation.
+
+All events, irrespective of their type, have the following fields:
+
+| **Field** | **Type** | **Description** |
+|--------------------------|-------------------|---------------------------------------------------------------------------------------------------|
+| `timestamp` | `ISO 8601 string` | Event time. |
+| `type` | `string` | Event type. |
+
+Other fields depend on the event type.
+
+- `incarnation_started`:
+
+| **Parameter** | **Type** | **Required** | **Default value** | **Description** |
+| --------------------------- | -------- | ----------------- |--------------------------- | --------------------------------------------------------------------------------------- |
+| `incarnation` | `string` | Yes |                            | Incarnation identifier. |
+| `incarnation_switch_reason` | `string` | No | `Null` | Incarnation switch reason. The empty value refers to an incarnation at the operation start. |
+| `incarnation_switch_info` | `map` | No | `{}` | Additional information about the incarnation switch reason. |
+
+Example:
+
+```bash
+PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
+OUTPUT {
+    [
+        {
+            "timestamp" = "2025-07-03T08:01:41.497318Z";
+            "event_type" = "incarnation_started";
+            "incarnation" = "d31999cc-7ee0f616-ecb005cb-b0ec2d45";
+            "incarnation_switch_info" = {};
+        };
+    ]
 }
 ```
 
@@ -2366,7 +2427,7 @@ PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" =
 
 {% note info "Note" %}
 
-All the commands working with jobs are non-[transactional](#transactions).
+All the commands used to work with jobs are non-[transactional](#transactions).
 
 {% endnote %}
 

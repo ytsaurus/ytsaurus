@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package NYT.NGpuAgent.NProto;
+
+option go_package = "go.ytsaurus.tech/yt/yt/gpuagent/internal/pb";
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+service GpuAgent {
+	rpc ListGpuDevices (ListGpuDevicesRequest) returns (ListGpuDevicesResponse) {}
+}
+
+message ListGpuDevicesRequest {
+}
+
+message ListGpuDevicesResponse {
+    repeated GpuDevice devices = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+message GpuDevice {
+    uint32 index = 1;
+	uint32 minor = 2;
+    string uuid = 3;
+    string model = 4;
+
+    string driver_version = 5;
+    string cuda_version = 6;
+
+    uint32 power_limit = 7;              // milli watt
+    uint32 power_usage = 8;              // milli watt
+
+    uint64 memory_total = 9;             // bytes
+    uint64 memory_used = 10;             // bytes
+    uint64 memory_free = 11;             // bytes
+    uint32 memory_temperature = 12;      // Celcius
+    uint32 memory_max_temperature = 13;  // Celcius  (0 if not supported)
+    uint32 memory_utilization_rate = 14; // %
+
+    uint32 gpu_temperature = 15;         // Celcius
+    uint32 gpu_max_temperature = 16;     // Celcius
+    uint32 gpu_utilization_rate = 17;    // %
+
+    uint32 clock_sm = 18;                // MHz
+    uint32 clock_max_sm = 19;            // MHz
+
+    repeated SlowdownType slowdowns = 20;
+}
+
+enum SlowdownType {
+    SLOWDOWN_TYPE_UNSPECIFIED = 0;
+    HW = 1;
+    HWPowerBrake = 2;
+    HWThermal = 3;
+    SWThermal = 4;
+}

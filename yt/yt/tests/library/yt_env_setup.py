@@ -629,8 +629,7 @@ class YTEnvSetup(object):
         delta_global_cluster_connection_config = None
 
         if cls.get_param("USE_SEQUOIA", index):
-            if delta_global_cluster_connection_config is None:
-                delta_global_cluster_connection_config = {}
+            delta_global_cluster_connection_config = {}
             update_inplace(delta_global_cluster_connection_config, {
                 "sequoia_retries": {
                     "enable": True,
@@ -639,6 +638,16 @@ class YTEnvSetup(object):
                     "cypress_modification": 5000,
                     "cypress_transaction_mirroring": 5000,
                     "response_keeper": 5000,
+                },
+                # NB: default backoff is 3 seconds. It's too long. Typical
+                # Sequoia tx lives no longer than 300ms.
+                "transaction_manager": {
+                    "enable_exponential_retry_backoffs": True,
+                    "retry_backoffs": {
+                        "min_backoff": 300,
+                        "max_backoff": 1500,
+                        "backoff_multiplier": 1.2,
+                    },
                 },
             })
         if cls._is_ground_cluster(index):
@@ -1540,11 +1549,6 @@ class YTEnvSetup(object):
                             "permissions": ["read", "write", "remove"],
                             "subjects": ["users"],
                         },
-                        {
-                            "action": "allow",
-                            "permissions": ["read"],
-                            "subjects": ["everyone"],
-                        },
                     ],
                 },
                 force=True,
@@ -1684,16 +1688,23 @@ class YTEnvSetup(object):
 
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.doomed_transactions.get_default_path()}]", driver=driver) == [])
 
-                mangled_sys_operations = yt_sequoia_helpers.mangle_sequoia_path("//sys/operations")
+                paths_to_ignore = ["//sys/operations", "//sys/pools"]
 
                 non_empty_tables = list(DESCRIPTORS.get_group("resolve_tables"))
 
                 def sequoia_tables_empty():
                     def condition(descriptor):
                         if descriptor is DESCRIPTORS.node_id_to_path:
-                            return " where path != '//sys/operations'"
+                            return (
+                                " where " +
+                                " and ".join([f"path != '{p}'" for p in paths_to_ignore]))
                         if descriptor is DESCRIPTORS.path_to_node_id:
-                            return f" where path != '{mangled_sys_operations}'"
+                            return (
+                                " where " +
+                                " and ".join([
+                                    f"path != '{yt_sequoia_helpers.mangle_sequoia_path(p)}'"
+                                    for p in paths_to_ignore
+                                ]))
                         return ""
 
                     nonlocal non_empty_tables
@@ -2094,6 +2105,15 @@ class YTEnvSetup(object):
                     "enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases": True,
                     "forbid_transaction_actions_for_cypress_transactions": True,
                 })
+                # COMPAT(kvk1920)
+                if cls.Env.get_component_version("ytserver-master").abi >= (25, 3):
+                    update_inplace(config["transaction_manager"], {
+                        "transaction_finisher": {
+                            "retries": {
+                                "invocation_count": 60,
+                            }
+                        }
+                    })
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi >= (24, 2):
@@ -2385,6 +2405,28 @@ class YTEnvSetup(object):
         for t in self._additional_threads:
             t.wait()
         del self._additional_threads
+
+    def _update_specific_nodes_dynamic_config(self, nodes, config):
+        new_config = yt_commands.get("//sys/cluster_nodes/@config")
+        common_node_config = None
+        for key, value in new_config.items():
+            if "%true" in key:
+                assert common_node_config is None
+                common_node_config = copy.deepcopy(value)
+        assert common_node_config is not None
+
+        if any(node not in new_config for node in nodes):
+            new_config = {}
+            for node in nodes:
+                new_config[node] = copy.deepcopy(common_node_config)
+            other_nodes = "%true & " + " & ".join(["!{}".format(node) for node in nodes])
+            new_config[other_nodes] = copy.deepcopy(common_node_config)
+
+        for node in nodes:
+            new_config[node].update(config)
+        yt_commands.set("//sys/cluster_nodes/@config", new_config)
+        for node in nodes:
+            wait(lambda: yt_commands.get_applied_node_dynamic_config(node) == new_config[node])
 
 
 def get_custom_rootfs_delta_node_config():

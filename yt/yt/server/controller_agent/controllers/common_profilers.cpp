@@ -30,7 +30,7 @@ TDuration GetJobDuration(const TJoblet& joblet)
     return joblet.FinishTime - joblet.StartTime;
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

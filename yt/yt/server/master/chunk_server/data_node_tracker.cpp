@@ -435,12 +435,6 @@ public:
                 }
             }
         }
-
-        // COMPAT(kvk1920)
-        THROW_ERROR_EXCEPTION_IF(
-            !chunkLocationUuids.empty() && !request->location_directory_supported(),
-            "Cannot register node %Qv: location directory is required by master server but not supported by data node",
-            address);
     }
 
     void ProcessRegisterNode(
@@ -490,6 +484,12 @@ public:
 
             dataNodeInfoExt->set_require_location_uuids(false);
             dataNodeInfoExt->set_per_location_full_heartbeats_enabled(GetDynamicConfig()->EnablePerLocationFullHeartbeats);
+            dataNodeInfoExt->set_location_indexes_in_heartbeats_enabled(
+                GetDynamicConfig()->EnableLocationIndexesInDataNodeHeartbeats
+                && request->location_indexes_in_heartbeats_supported());
+            if (dataNodeInfoExt->location_indexes_in_heartbeats_enabled()) {
+                SerializeLocationIndexes(this, chunkLocationUuids, dataNodeInfoExt->mutable_location_indexes());
+            }
         }
     }
 
@@ -788,11 +788,6 @@ private:
     {
         using NYT::FromProto;
 
-        // Heartbeats should no longer contain location uuids but if node was
-        // registered before master server update it still can send heartbeats
-        // with location uuids.
-        YT_ASSERT(!chunkInfo.has_location_uuid());
-
         using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
         static_assert(std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo> || std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkRemoveInfo>,
             "TChunkInfo must be either TChunkAddInfo or TChunkRemoveInfo");
@@ -802,19 +797,71 @@ private:
 
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
 
-        if (chunkInfo.location_directory_index() < 0 || chunkInfo.location_directory_index() >= locationDirectorySize) {
-            const auto& Logger = ChunkServerLogger();
-            YT_LOG_ALERT(
-                "Data node reported %v heartbeat with invalid location index "
+        if (chunkInfo.has_location_index()) {
+            auto locationIndex = FromProto<NNodeTrackerClient::TChunkLocationIndex>(chunkInfo.location_index());
+            if (chunkInfo.has_location_directory_index()) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with both location index and location directory index "
+                    "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                    FullHeartbeat ? "full" : "incremental",
+                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+                    chunkId,
+                    node->GetDefaultAddress(),
+                    locationIndex);
+
+                THROW_ERROR_EXCEPTION("%v heartbeat contains both location index and location directory index",
+                    FullHeartbeat ? "Full" : "Incremental");
+            }
+
+            auto location = FindChunkLocationByIndex(locationIndex);
+            if (!location) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with invalid location index "
+                    "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                    FullHeartbeat ? "full" : "incremental",
+                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+                    chunkId,
+                    node->GetDefaultAddress(),
+                    chunkInfo.location_index());
+
+                THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
+                    FullHeartbeat ? "Full" : "Incremental");
+            }
+            YT_LOG_DEBUG(
+                "Data node reported %v heartbeat with location index "
                 "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
                 FullHeartbeat ? "full" : "incremental",
                 FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
                 chunkId,
                 node->GetDefaultAddress(),
-                chunkInfo.location_directory_index());
+                locationIndex);
+        } else {
+            // COMPAT(grphil): remove after location directory is deprecated
+            if (!chunkInfo.has_location_directory_index()) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with no location index or location directory index "
+                    "(%vChunkId: %v, NodeAddress: %v)",
+                    FullHeartbeat ? "full" : "incremental",
+                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+                    chunkId,
+                    node->GetDefaultAddress());
 
-            THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
-                FullHeartbeat ? "Full" : "Incremental");
+                THROW_ERROR_EXCEPTION("%v heartbeat contains no location index or location directory index",
+                    FullHeartbeat ? "Full" : "Incremental");
+            }
+            if (chunkInfo.location_directory_index() < 0 || chunkInfo.location_directory_index() >= locationDirectorySize) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with invalid location directory index "
+                    "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                    FullHeartbeat ? "full" : "incremental",
+                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+                    chunkId,
+                    node->GetDefaultAddress(),
+                    chunkInfo.location_directory_index());
+
+                THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
+                    FullHeartbeat ? "Full" : "Incremental");
+            }
         }
     }
 
@@ -900,8 +947,10 @@ private:
                 for (auto chunkInfo : chunkInfos) {
                     using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                    auto locationDirectoryIndex = chunkInfo.location_directory_index();
-                    chunkInfo.set_location_index(ToProto(locationDirectory[locationDirectoryIndex]));
+                    if (!chunkInfo.has_location_index()) {
+                        auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                        chunkInfo.set_location_index(ToProto(locationDirectory[locationDirectoryIndex]));
+                    }
 
                     if (isSequoiaEnabled && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
                         if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {

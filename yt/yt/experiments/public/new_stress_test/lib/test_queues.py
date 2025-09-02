@@ -89,6 +89,7 @@ def create_tables(registry, schema, attributes, spec, args):
 
             hunk_storage_attributes = {
                 "external_cell_tag": cell_tag,
+                "tablet_count": spec.size.tablet_count,
             }
             if spec.queues.use_erasure_hunk_storage:
                 hunk_storage_attributes["erasure_codec"] = "reed_solomon_3_3"

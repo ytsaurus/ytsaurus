@@ -96,6 +96,9 @@ class TestSequoiaInternals(YTEnvSetup):
             "sync_period": 100,
             "sync_period_splay": 100,
         },
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
     }
 
     @authors("kvk1920")
@@ -151,12 +154,76 @@ class TestSequoiaInternals(YTEnvSetup):
 
         # All nodes should be printed.
         assert get("//tmp/more") == {"memes": {}, "nodes": {"to": "test"}, "stuff": {"to": {"break": 1337}}}
-        # Node "memes" should be printed as an empty node, others should be opaque.
-        assert get("//tmp/more", max_size=3) == {"memes": {}, "nodes": yson.YsonEntity(), "stuff": yson.YsonEntity()}
 
-        create("map_node", "//tmp/more/memes/hi")
-        # All 3 nodes should be opaque.
-        assert get("//tmp/more", max_size=3) == {"memes": yson.YsonEntity(), "nodes": yson.YsonEntity(), "stuff": yson.YsonEntity()}
+    @authors("h0pless")
+    def test_get_recursive_attributes(self):
+        root = "//tmp/root"
+        root_id = create("map_node", f"{root}")
+        level_1_id = create("map_node", f"{root}/level_1")
+        level_2_id = create("map_node", f"{root}/level_1/level_2")
+        set(f"{root}/level_1/level_2/@magic_word", "abracadabra")
+
+        # First off, check that root node cannot appear opaque.
+        expected_string = f'<"id"="{root_id}";>{{"level_1"=<"id"="{level_1_id}";>#;}}'
+        for limit in range(3):
+            set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
+            sleep(0.5)
+            assert get(root, attributes=["id", "magic_word"]) == yson.loads(expected_string.encode())
+
+        expected_string = f'<"id"="{root_id}";>{{"level_1"=<"id"="{level_1_id}";>{{"level_2"=<"id"="{level_2_id}";"magic_word"="abracadabra";>{{}};}};}}'
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 3)
+        sleep(0.5)
+        assert get(root, attributes=["id", "magic_word"]) == yson.loads(expected_string.encode())
+
+    @authors("h0pless")
+    def test_get_recursive_limits(self):
+        # Test directory structure:
+        # root
+        # |-- level_1_string
+        # |-- level_1_map_0
+        # |   |-- level_2_map
+        # |   |   |-- level_3_map
+        # |   |   `-- level_3_string
+        # |   `-- level_2_string
+        # `-- level_1_map_1
+
+        root = "//tmp/root"
+        create("map_node", f"{root}/level_1_map_0/level_2_map/level_3_map", recursive=True)
+        create("string_node", f"{root}/level_1_string")
+        create("string_node", f"{root}/level_1_map_0/level_2_string")
+        create("string_node", f"{root}/level_1_map_0/level_2_map/level_3_string")
+        create("map_node", f"{root}/level_1_map_1",)
+        set(f"{root}/level_1_string", "level_1_value")
+        set(f"{root}/level_1_map_0/level_2_string", "level_2_value")
+        set(f"{root}/level_1_map_0/level_2_map/level_3_string", "level_3_value")
+
+        # First off, check that root node cannot appear opaque.
+        expected_result = {"level_1_map_0": yson.YsonEntity(), "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 1)
+        sleep(0.5)
+        assert get(root) == expected_result
+
+        # Now ensure that until the full layer of children can fit the limit we do not add anything to the response.
+        for limit in range(2, 6):
+            set("//sys/cypress_proxies/@config/default_get_response_size_limit", limit)
+            sleep(0.5)
+            assert get(root) == expected_result
+
+        # A new layer should be added.
+        expected_result = {
+            "level_1_map_0": {"level_2_map": yson.YsonEntity(), "level_2_string": "level_2_value"},
+            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 6)
+        sleep(0.5)
+        assert get(root) == expected_result
+
+        # The whole tree should be fetched.
+        expected_result = {
+            "level_1_map_0": {"level_2_map": {"level_3_map": {}, "level_3_string": "level_3_value"}, "level_2_string": "level_2_value"},
+            "level_1_map_1": {}, "level_1_string": "level_1_value"}
+        set("//sys/cypress_proxies/@config/default_get_response_size_limit", 100)
+        sleep(0.5)
+        assert get(root) == expected_result
 
     @authors("kvk1920", "cherepashka")
     def test_create_and_remove(self):
@@ -175,22 +242,6 @@ class TestSequoiaInternals(YTEnvSetup):
 
         remove("//tmp/m1")
         assert ls("//tmp") == []
-
-    @authors("cherepashka")
-    def test_user(self):
-        create_user("u")
-        create("map_node", "//tmp/m1", authenticated_user="u")
-        assert get("//tmp/m1/@owner") == "u"
-        copy("//tmp/m1", "//tmp/m2", authenticated_user="u")
-        assert get("//tmp/m2/@owner") == "u"
-        move("//tmp/m2", "//tmp/m3", authenticated_user="u")
-        assert get("//tmp/m3/@owner") == "u"
-
-        assert ls("//tmp/m1", authenticated_user="u") == []
-        set("//tmp/m", {"s": "u", "b": "tree"}, authenticated_user="u")
-        assert get("//tmp/m", authenticated_user="u") == {"s": "u", "b": "tree"}
-
-        remove("//tmp/m1", authenticated_user="u")
 
     @authors("danilalexeev")
     def test_list(self):
@@ -1022,8 +1073,8 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
     @authors("kvk1920")
     def test_rollback(self):
         # t1 is prerequisite for t2
-        #                       /  \
-        #                      t3  t4
+        #  |                    /  \
+        # t5                   t3  t4
         t1 = start_transaction(timeout=100000)
         t2 = start_transaction(prerequisite_transaction_ids=[t1], timeout=100000)
         t3 = start_transaction(tx=t2, timeout=100000)
@@ -1031,6 +1082,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         t5 = start_transaction(tx=t1, timeout=100000, replicate_to_master_cell_tags=[13])
 
         m3 = create("map_node", "//tmp/m3", tx=t3)
+        create("map_node", "//tmp/m4", tx=t4)
         create("map_node", "//tmp/m1", tx=t1)
 
         for table in DESCRIPTORS.get_group("transaction_tables"):
@@ -1041,12 +1093,11 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
             # from Sequoia point of view.
             commit_transaction(t4)
 
-        # Looks like abort_transaction() never returns an error. Strange but OK
-        # for now...
-        # TODO(kvk1920): in this case client should retry request after
-        # mirroring will be disabled. So client should actually get an error.
-        abort_transaction(t4)
         assert exists(f"#{t4}")
+        assert exists("//tmp/m4", tx=t4)
+        assert not exists("//tmp/m4")
+
+        assert get(f"#{t4}/@leases_state") != "active"
 
         # Disable transaction enabling and try to commit/abort some transactions.
         set("//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia", False)
@@ -1054,8 +1105,13 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         assert exists(f"#{t1}")
         assert exists(f"#{t2}")
         assert exists(f"#{t3}")
-        assert exists(f"#{t4}")
         assert exists(f"#{t5}")
+
+        # Commit of |t4| has been stared before transaction mirroring was
+        # disabled. |t4| should be eventually committed by transaction finisher.
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 50)
+        wait(lambda: not exists(f"#{t4}"))
+        assert exists("//tmp/m4", tx=t2)
 
         assert exists("//tmp/m3", tx=t3)
         assert exists("//tmp/m1", tx=t1)

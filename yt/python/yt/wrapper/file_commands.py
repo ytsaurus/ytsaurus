@@ -3,7 +3,7 @@ from .auth_commands import get_current_user
 from .config import get_config, get_option
 from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream, update
 from .compression import try_enable_parallel_write_gzip
-from .driver import get_command_list, make_formatted_request
+from .driver import get_commands_description, make_formatted_request
 from .errors import YtError, YtResponseError, YtCypressTransactionLockConflict
 from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
@@ -442,8 +442,8 @@ def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
         use_legacy = \
-            "put_file_to_cache" not in get_command_list(client) or \
-            "get_file_from_cache" not in get_command_list(client)
+            "put_file_to_cache" not in get_commands_description(client) or \
+            "get_file_from_cache" not in get_commands_description(client)
 
     if use_legacy:
         return _upload_file_to_cache_legacy(filename, hash, client=client)
@@ -486,8 +486,8 @@ def _touch_file_in_cache(filepath, client=None):
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
         use_legacy = \
-            "put_file_to_cache" not in get_command_list(client) or \
-            "get_file_from_cache" not in get_command_list(client)
+            "put_file_to_cache" not in get_commands_description(client) or \
+            "get_file_from_cache" not in get_commands_description(client)
 
     if use_legacy:
         try:

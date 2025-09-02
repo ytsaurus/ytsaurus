@@ -171,6 +171,7 @@ TS_TEST_FIELDS_BASE = (
     df.TestName.value,
     df.TestRecipes.value,
     df.TestTimeout.from_unit,
+    df.TsConfigPath.from_unit,
 )
 
 TS_TEST_SPECIFIC_FIELDS = {
@@ -348,13 +349,16 @@ def _build_cmd_output_paths(paths: list[str] | tuple[str], hide=False):
     return _build_directives([hide_part, "output"], paths)
 
 
+def _arc_path(unit: NotsUnitType, path: str) -> str:
+    return unit.resolve(unit.resolve_arc_path(path))
+
+
 def _create_erm_json(unit: NotsUnitType):
     from lib.nots.erm_json_lite import ErmJsonLite
 
-    erm_packages_path = unit.get("ERM_PACKAGES_PATH")
-    path = unit.resolve(unit.resolve_arc_path(erm_packages_path))
+    erm_packages_path = _arc_path(unit, unit.get("ERM_PACKAGES_PATH"))
 
-    return ErmJsonLite.load(path)
+    return ErmJsonLite.load(erm_packages_path)
 
 
 def _get_pm_type(unit: NotsUnitType) -> 'PackageManagerType':
@@ -492,16 +496,17 @@ def on_ts_configure(unit: NotsUnitType) -> None:
 
     mod_dir = unit.get("MODDIR")
     cur_dir = unit.get("TS_TEST_FOR_PATH") if unit.get("TS_TEST_FOR") else mod_dir
-    pj_path = build_pj_path(unit.resolve(unit.resolve_arc_path(cur_dir)))
+    pj_path = build_pj_path(_arc_path(unit, cur_dir))
     dep_paths = PackageJson.load(pj_path).get_dep_paths_by_names()
 
     # reversed for using the first tsconfig as the config for include processor (legacy)
     for tsconfig_path in reversed(tsconfig_paths):
-        abs_tsconfig_path = unit.resolve(unit.resolve_arc_path(tsconfig_path))
+        abs_tsconfig_path = _arc_path(unit, tsconfig_path)
         if not abs_tsconfig_path:
             raise Exception("tsconfig not found: {}".format(tsconfig_path))
 
-        tsconfig = TsConfig.load(abs_tsconfig_path)
+        source_dir = _arc_path(unit, _get_source_path(unit))
+        tsconfig = TsConfig.load(abs_tsconfig_path, source_dir)
         config_files = tsconfig.inline_extend(dep_paths)
         config_files = [rootrel_arc_src(path, unit) for path in config_files]
 
@@ -536,6 +541,16 @@ def on_ts_configure(unit: NotsUnitType) -> None:
     _setup_stylelint(unit)
 
 
+def _should_setup_build_env(unit: NotsUnitType) -> bool:
+    build_env_for = unit.get("TS_BUILD_ENV_FOR")
+    if build_env_for is None:
+        return True
+
+    target = unit.get("MODDIR")
+
+    return target in build_env_for.split(":")
+
+
 @_with_report_configure_error
 def on_setup_build_env(unit: NotsUnitType) -> None:
     build_env_var = unit.get("TS_BUILD_ENV")
@@ -545,7 +560,7 @@ def on_setup_build_env(unit: NotsUnitType) -> None:
 
     options = []
     names = set()
-    if build_env_var:
+    if build_env_var and _should_setup_build_env(unit):
         for name in build_env_var.split(","):
             value = unit.get(f"TS_ENV_{name}")
             if value is None:
@@ -593,14 +608,14 @@ def _filter_inputs_by_rules_from_tsconfig(unit: NotsUnitType, tsconfig: 'TsConfi
     mod_dir = unit.get("MODDIR")
     target_path = os.path.join("${ARCADIA_ROOT}", mod_dir, "")  # To have "/" in the end
 
-    all_files = [__strip_prefix(target_path, f) for f in unit.get("TS_GLOB_FILES").split(" ")]
-    filtered_files = tsconfig.filter_files(all_files)
-
-    __set_append(unit, "TS_INPUT_FILES", [os.path.join(target_path, f) for f in filtered_files])
+    for from_var, to_var in [("TS_GLOB_FILES", "TS_INPUT_FILES"), ("TS_GLOB_TEST_FILES", "TS_INPUT_TEST_FILES")]:
+        all_files = [__strip_prefix(target_path, f) for f in unit.get(from_var).split(" ")]
+        filtered_files = tsconfig.filter_files(all_files)
+        __set_append(unit, to_var, [os.path.join(target_path, f) for f in filtered_files])
 
 
 def _is_tests_enabled(unit: NotsUnitType) -> bool:
-    return unit.get("TIDY") != "yes"
+    return unit.get("CPP_ANALYSIS_MODE") != "yes"
 
 
 def _setup_eslint(unit: NotsUnitType) -> None:
@@ -662,11 +677,18 @@ def _setup_tsc_typecheck(unit: NotsUnitType) -> None:
     if unit.get("_TS_TYPECHECK_VALUE") == "none":
         return
 
-    test_files = df.TestFiles.ts_input_files(unit, (), {})[df.TestFiles.KEY]
+    test_files = df.TestFiles.tsc_typecheck_input_files(unit, (), {})[df.TestFiles.KEY]
     if not test_files:
         return
 
-    tsconfig_path = unit.get("_TS_TYPECHECK_TSCONFIG")
+    tsconfig_paths = unit.get("_TS_TYPECHECK_TSCONFIG").split(" ")
+    if len(tsconfig_paths) > 1:
+        raise Exception(
+            f"You have set several tsconfig files for TS_TYPECHECK: {tsconfig_paths}. "
+            f"Only one tsconfig is allowed for `TS_TYPECHECK(<config_filename>)` macro."
+        )
+
+    tsconfig_path = tsconfig_paths[0]
     if not tsconfig_path:
         tsconfig_paths = unit.get("TS_CONFIG_PATH").split()
         if len(tsconfig_paths) > 1:
@@ -675,7 +697,7 @@ def _setup_tsc_typecheck(unit: NotsUnitType) -> None:
 
         tsconfig_path = tsconfig_paths[0]
 
-    abs_tsconfig_path = unit.resolve(unit.resolve_arc_path(tsconfig_path))
+    abs_tsconfig_path = _arc_path(unit, tsconfig_path)
     if not abs_tsconfig_path:
         raise Exception(f"tsconfig for typecheck not found: {tsconfig_path}")
 
@@ -1096,3 +1118,25 @@ def on_run_javascript_after_build_process_inputs(unit: NotsUnitType, js_script: 
         processed_inputs.append(_build_cmd_input_paths([js_script], hide=True))
 
     unit.set(["_RUN_JAVASCRIPT_AFTER_BUILD_INPUTS", " ".join(processed_inputs)])
+
+
+@_with_report_configure_error
+def on_ts_next_experimental_build_mode(unit: NotsUnitType) -> None:
+    from lib.nots.package_manager import BasePackageManager
+    from lib.nots.semver import Version
+
+    pj = BasePackageManager.load_package_json_from_dir(unit.resolve(_get_source_path(unit)))
+    erm_json = _create_erm_json(unit)
+    version = _select_matching_version(erm_json, "next", pj.get_dep_specifier("next"))
+
+    var_name = "TS_NEXT_COMMAND"
+
+    if version >= Version.from_str("14.1.2"):
+        # For Next >=v14: build --experimental-build-mode=compile
+        # https://github.com/vercel/next.js/commit/47f73cd8ec79d0a6c248139088aa536453b23ae1
+        unit.set([var_name, "build --experimental-build-mode=compile"])
+    elif version >= Version.from_str("13.5.3"):
+        # For Next <v14: experimental-compile
+        unit.set([var_name, "experimental-compile"])
+    else:
+        raise Exception(f"Unsupported Next.js version: {version} for TS_NEXT_EXPERIMENTAL_BUILD_MODE()")

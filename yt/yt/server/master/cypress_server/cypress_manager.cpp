@@ -1078,6 +1078,9 @@ public:
         RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunksSampleMap));
         RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::DataMissingChunksSampleMap));
         RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::ParityMissingChunksSampleMap));
+        RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::OldestPartMissingChunksSampleMap));
+        RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::QuorumMissingChunksSampleMap));
+        RegisterHandler(CreateChunksSampleMapTypeHandler(Bootstrap_, EObjectType::InconsistentlyPlacedChunksSampleMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunkMap));
@@ -4844,7 +4847,7 @@ void TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
 
 std::string TNodeTypeHandler::DoGetName(const TCypressNode* node)
 {
-    return Format("node %v", DoGetPath(node));
+    return FormatCypressNodeName(DoGetPath(node));
 }
 
 NYPath::TYPath TNodeTypeHandler::DoGetPath(const TCypressNode* node)

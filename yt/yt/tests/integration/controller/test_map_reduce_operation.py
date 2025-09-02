@@ -4532,6 +4532,61 @@ fi
         # and node unregistering. The number of aborted jobs can be either 1 or 2.
         assert get(op.get_path() + "/@progress/sorted_reduce/aborted/total") >= 1
 
+    @authors("coteeq")
+    @pytest.mark.xfail(
+        reason="This little maneuver is gonna cost us sizeof(NProto::TDataStatistics) "
+        "bytes for each job (112 at the time of writing), since we will need to store these"
+        "statistics for all restartable jobs"
+    )
+    def test_regenerate_in_data_flow(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 2, "y": 3}])
+
+        reducer_cmd = " ; ".join(
+            [
+                "cat",
+                events_on_fs().notify_event_cmd("reducer_started"),
+                events_on_fs().wait_event_cmd("continue_reducer"),
+            ]
+        )
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            reducer_command=reducer_cmd,
+            spec={
+                "enable_intermediate_output_recalculation": True,
+                "enable_partitioned_data_balancing": False,
+                "intermediate_data_replication_factor": 1,
+                "sort_job_io": {"table_reader": {"retry_count": 1, "pass_count": 1}},
+                "partition_count": 2,
+                "resource_limits": {"user_slots": 1},
+            },
+            track=False,
+        )
+
+        events_on_fs().wait_event("reducer_started", timeout=datetime.timedelta(1000))
+        self._ban_nodes_with_intermediate_chunks()
+        events_on_fs().notify_event("continue_reducer")
+
+        op.track()
+
+        data_flow = get(op.get_path() + "/@progress/data_flow")
+
+        def find_edge(src, dst):
+            matching = [edge for edge in data_flow if edge["source_name"] == src and edge["target_name"] == dst]
+            assert len(matching) == 1
+            return matching[0]
+
+        source_row_count = find_edge("source", "partition(0)")["job_data_statistics"]["row_count"]
+        output_row_count = find_edge("partition_reduce", "sink")["job_data_statistics"]["row_count"]
+
+        assert source_row_count == output_row_count
+
 
 ##################################################################
 

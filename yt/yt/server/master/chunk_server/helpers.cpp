@@ -1256,6 +1256,21 @@ void SerializeMediumOverrides(
     }
 }
 
+void SerializeLocationIndexes(
+    const IDataNodeTrackerPtr& dataNodeTracker,
+    const std::vector<TChunkLocationUuid>& locationUuids,
+    NChunkClient::NProto::TLocationIndexes* protoLocationIndexes)
+{
+    for (auto uuid : locationUuids) {
+        auto location = dataNodeTracker->FindChunkLocationByUuid(uuid);
+        YT_VERIFY(IsObjectAlive(location));
+
+        auto protoLocation = protoLocationIndexes->add_locations();
+        ToProto(protoLocation->mutable_uuid(), uuid);
+        protoLocation->set_index(ToProto(location->GetIndex()));
+    }
+}
+
 int GetChunkShardIndex(TChunkId chunkId)
 {
     return GetShardIndex<ChunkShardCount>(chunkId);

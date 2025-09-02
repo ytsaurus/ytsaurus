@@ -86,8 +86,6 @@ public:
     {
         // In-order traverse of subtree.
         std::vector<TCypressNodeDescriptor> Nodes;
-
-        const TCypressNodeDescriptor& GetRoot() const;
     };
 
     // Start and finish.
@@ -139,7 +137,7 @@ public:
      *  NB: requires "late prepare" with subtree root's cell as a coordinator.
      */
     void ClearSubtree(
-        NSequoiaClient::TAbsolutePathBuf path,
+        const TSubtree& subtree,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     // Miscelanous.
@@ -309,10 +307,15 @@ public:
 
     void ValidateTransactionPresence();
 
+    const TAcdFetcherPtr& GetAcdFetcher() const;
+
+    const TUserDescriptorPtr& GetCurrentAuthenticatedUser() const;
+
 private:
     IBootstrap* const Bootstrap_;
     const TCypressTransactionAncestry CypressTransactionAncestry_;
     const TCypressTransactionDepths CypressTransactionDepths_;
+    const TUserDescriptorPtr AuthenticatedUser_;
 
     bool Finished_ = false;
 
@@ -334,10 +337,13 @@ private:
     };
     std::vector<TCypressLock> AcquiredCypressLocks_;
 
+    TAcdFetcherPtr AcdFetcher_;
+
     TSequoiaSession(
         IBootstrap* bootstrap,
         NSequoiaClient::ISequoiaTransactionPtr sequoiaTransaction,
-        std::vector<NCypressClient::TTransactionId> cypressTransactionIds);
+        std::vector<NCypressClient::TTransactionId> cypressTransactionIds,
+        TUserDescriptorPtr authenticatedUser);
 
     //! Returns whether or not an object with a given ID _could_ be created in
     //! this session.

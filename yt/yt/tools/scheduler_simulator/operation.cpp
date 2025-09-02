@@ -40,11 +40,11 @@ const NScheduler::TOperationOptionsPtr& TOperation::GetOperationOptions() const
     return stub;
 }
 
-std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
+std::optional<NScheduler::NStrategy::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
 {
     if (treeId) {
         if (Controller_->GetNeededResources().GetNeededResourcesForTree(treeId.value()).GetUserSlots() == 0) {
-            return NScheduler::EUnschedulableReason::NoPendingAllocations;
+            return NScheduler::NStrategy::EUnschedulableReason::NoPendingAllocations;
         }
     } else if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
         // Check needed resources of all trees.
@@ -53,7 +53,7 @@ std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable(c
             noPendingAllocations = noPendingAllocations && neededResources.GetUserSlots() == 0;
         }
         if (noPendingAllocations) {
-            return NScheduler::EUnschedulableReason::NoPendingAllocations;
+            return NScheduler::NStrategy::EUnschedulableReason::NoPendingAllocations;
         }
     }
 
@@ -91,7 +91,7 @@ std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
     return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
 }
 
-NScheduler::IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() const
+NScheduler::NStrategy::ISchedulingOperationControllerPtr TOperation::GetControllerStrategyHost() const
 {
     return Controller_;
 }
@@ -146,7 +146,7 @@ void TOperation::SetState(NScheduler::EOperationState state)
     State_ = state;
 }
 
-void TOperation::UpdatePoolAttributes(const TString& /*treeId*/, const NScheduler::TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/)
+void TOperation::UpdatePoolAttributes(const TString& /*treeId*/, const NScheduler::NStrategy::TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/)
 { }
 
 bool TOperation::IsTreeErased(const TString& /*treeId*/) const

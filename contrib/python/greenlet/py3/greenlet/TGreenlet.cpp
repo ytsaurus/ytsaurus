@@ -562,6 +562,7 @@ Greenlet::deallocing_greenlet_in_thread(const ThreadState* current_thread_state)
     // be able to raise an exception.
     // That's mostly OK! Since we can't add it to a list, our refcount
     // won't increase, and we'll go ahead with the DECREFs later.
+
     ThreadState *const  thread_state = this->thread_state();
     if (thread_state) {
         thread_state->delete_when_thread_running(this->self());

@@ -122,9 +122,9 @@ yt remove '#replica-id'
 
 #### Adding a replica to an existing replicated table {#add-new-replica}
 
-If you want to add a replica with fully coping the data of an existing replica, use the replica copy {% if audience == "public" %}tool{% else %}[tool](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#add-table-replica-script){% endif %}.
+If you want to add a replica by fully copying the data of an existing replica, use the {% if audience == "public" %}replica copy tool{% else %}[replica copy tool](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md#add-table-replica-script){% endif %}.
 
-If you want to add a new replica or you already have a replica table that stores the required data state, use one of the two attributes (`start_replication_timestamp` or `start_replication_row_indexes`) when creating a `table_replica` object. With `start_replication_timestamp`, all changes that have a commit ts strictly greater than the specified value (in the sense of the metacluster timestamp) will be replicated. If you need to initiate replication from an arbitrary moment of time, the most convenient way is to specify a timestamp obtained by calling generate-timestamp for the metacluster. With `start_replication_row_indexes`, you need to specify the row index (and do so for each tablet of the replicated table) from where you want data to replicate. You can obtain relevant row indexes from the get-tablet-infos query.
+If you want to add a new replica or you already have a replica table that stores the required data state, use one of the two attributes (`start_replication_timestamp` or `start_replication_row_indexes`) when creating a `table_replica` object. With `start_replication_timestamp`, all changes that have a commit ts strictly greater than the specified value (meaning the meta cluster timestamp) will be replicated. If you need to initiate replication from a specific moment, the easiest way to do that is to specify a timestamp obtained by calling generate-timestamp for the meta cluster. With `start_replication_row_indexes`, you need to specify the row index (and do so for each tablet of the replicated table) from where you want data to replicate. You can obtain relevant row indexes from the get-tablet-infos query.
 
 ### Creating replica tables
 
@@ -177,6 +177,7 @@ If the cluster on which the synchronous replica is located is unavailable, writi
 
 There are two settings to specify the number of synchronous replicas: `min_sync_replica_count` and `max_sync_replica_count`. The automated system switches available replicas to synchronous mode, ensuring that there are no more than `max_sync_replica_count` synchronous replicas. The automated system also monitors that the number of synchronous replicas does not fall below `min_sync_replica_count`.
 If `min_sync_replica_count` and `max_sync_replica_count` are not specified, then both fields are equal to 1 by default. If only `min_sync_replica_count` is not specified, it will be equal to `max_sync_replica_count`. If only `max_sync_replica_count` is not specified, it will be equal to the total number of replicas. Thus, by default, the automated system supports exactly one synchronous replica.
+In case of chaos replication, there are special parameters (`min_sync_queue_replica_count` and `max_sync_queue_replica_count`) for replicas of type `queue`.
 
 There is a mode when the {{product-name}} system stops monitoring any table replica, but continues monitoring the remaining replicas. To enable this mode for a replica (`table_replica`), use the `yt set` call and set the `enable_replicated_table_tracker=%false` attribute.
 
@@ -228,7 +229,12 @@ When a replicated table on different clusters has multiple replicas that can bec
 yt set //tmp/replicated_table/@replicated_table_options/preferred_sync_replica_clusters '["cluster-name"]'
 ```
 
-This attribute respects [collocations](#replication_collocation) of replicated tables, but for it to work correctly, the attribute must be set **to all tables** of the collocation.
+This attribute respects [collocations](#replication_collocation) of replicated tables.
+To specify preferred clusters for all tables in a collocation at once, just set this attribute in the collocation options once.
+```bash
+yt set #collocation-id/@replicated_table_options/preferred_sync_replica_clusters '["cluster-name"]'
+```
+If this attribute is not set for the collocation, its value will be derived from the replicated tables' options. In this case, make sure that it is set **for all tables** of the collocation.
 
 ### Limiting replication speed
 
@@ -322,7 +328,12 @@ All replicated tables are tables and they have a corresponding set of attributes
 | enable_replicated_table_tracker | bool | Whether automated synchronous replica switching is enabled. The default value is `%false` |
 | max_sync_replica_count | integer | Maximum and preferred number of synchronous replicas to be supported by the automated system |
 | min_sync_replica_count | integer | Minimum number of synchronous replicas to be supported by the automated system |
+| max_sync_queue_replica_count | integer | Similar to `max_sync_replica_count`, but for `queue` replicas (used in chaos replication). |
+| min_sync_queue_replica_count | integer | Similar to `min_sync_replica_count`, but for `queue` replicas (used in chaos replication). | |
 | preferred_sync_replica_clusters | list | List of preferred clusters for synchronous replicas |
+| sync_replica_lag_threshold | Duration | Maximum lag value up to which the replica is considered available. The default value is 10 minutes. This value may sometimes substantially prolong replication, in which case you should decrease it. |
+| enable_preload_state_check | bool | Whether to check the preload state of tables mounted in memory to see if they are available. The default value is `%false`. |
+| incomplete_preload_grace_period | Duration | When checking replica availability in terms of the preload state, the replica is considered available if the last preload was successfully completed no later than the value specified in this parameter. The default value is 5 minutes. This parameter is used to ensure that the short-term preload during tablet rebalancing does not interfere with the algorithm. |
 
 Each replica is described by the `ReplicaInfo` dict with the following form:
 
@@ -333,7 +344,7 @@ Each replica is described by the `ReplicaInfo` dict with the following form:
 | state | TableReplicaState | Replica state |
 | mode | TableReplicaMode | Replica mode: `async` or `sync` |
 | replication_lag_time | Duration | Replica lag estimate |
-| errors | Error[*](**) | List of replication errors for this replica |
+| errors | Error[*](*error) | List of replication errors for this replica |
 | preserve_timestamps | bool | Save start `timestamps`? The default value is `true`. Makes sense only for asynchronous replicas |
 | atomicity | EAtomicity | `full` or `none`. Makes sense only for asynchronous replicas |
 
@@ -532,4 +543,4 @@ yt get '#730e-8611b-3ff02c5-f647333f/@tablets'
 # You can see that the flushed_row_count and current_replication_row_index values are the same, which means that both replicas have been fully replicated.
 ```
 
-[**]: The parameter appears in the answer several times.
+[*error]: The parameter appears in the answer several times.

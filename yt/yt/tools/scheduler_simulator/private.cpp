@@ -24,5 +24,5 @@ NChunkClient::TMediumDirectoryPtr CreateDefaultMediumDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NSchedulerSimulator
 

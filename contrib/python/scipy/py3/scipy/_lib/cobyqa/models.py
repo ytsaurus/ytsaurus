@@ -624,7 +624,7 @@ class Models:
     Models for a nonlinear optimization problem.
     """
 
-    def __init__(self, pb, options):
+    def __init__(self, pb, options, penalty):
         """
         Initialize the models.
 
@@ -634,6 +634,9 @@ class Models:
             Problem to be solved.
         options : dict
             Options of the solver.
+        penalty : float
+            Penalty parameter used to select the point in the filter to forward
+            to the callback function.
 
         Raises
         ------
@@ -653,7 +656,7 @@ class Models:
 
         # Evaluate the nonlinear functions at the initial interpolation points.
         x_eval = self.interpolation.point(0)
-        fun_init, cub_init, ceq_init = pb(x_eval)
+        fun_init, cub_init, ceq_init = pb(x_eval, penalty)
         self._fun_val = np.full(options[Options.NPT], np.nan)
         self._cub_val = np.full((options[Options.NPT], cub_init.size), np.nan)
         self._ceq_val = np.full((options[Options.NPT], ceq_init.size), np.nan)
@@ -667,7 +670,8 @@ class Models:
             else:
                 x_eval = self.interpolation.point(k)
                 self.fun_val[k], self.cub_val[k, :], self.ceq_val[k, :] = pb(
-                    x_eval
+                    x_eval,
+                    penalty,
                 )
 
             # Stop the iterations if the problem is a feasibility problem and

@@ -27,7 +27,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressProxyLogger;
+static constinit auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +216,7 @@ TResolveIterationResult ResolveByPath(
     std::optional<TAbsolutePathBuf> resolvedPath;
     TNodeId resolvedParentId = NullObjectId;
     std::optional<TYPathBuf> unresolvedSuffix;
+    std::vector<TCypressNodeDescriptor> ancestry;
 
     for (; index < std::ssize(nodeIds); ++index) {
         if (!nodeIds[index]) {
@@ -238,6 +239,7 @@ TResolveIterationResult ResolveByPath(
         resolvedId = nodeId;
         resolvedPath = prefix;
         unresolvedSuffix = suffix;
+        ancestry.emplace_back(nodeId, prefix);
 
         if (IsLinkType(nodeType) && ShouldFollowLink(suffix, pathIsAdditional, method)) {
             // Failure here means that Sequoia resolve tables are inconsistent.
@@ -259,6 +261,7 @@ TResolveIterationResult ResolveByPath(
         .Path = *resolvedPath,
         .UnresolvedSuffix = TYPath(*unresolvedSuffix),
         .ParentId = resolvedParentId,
+        .NodeAncestry = std::move(ancestry),
     }};
 }
 
@@ -298,6 +301,22 @@ TResolveIterationResult ResolveByObjectId(
         }
 
         if (resolvedNode->IsSnapshot) {
+            auto resolvedPath = ResolveByPath(
+                session,
+                method,
+                resolvedNode->Path.Underlying(),
+                pathIsAdditional);
+
+            auto* resolveHere = std::get_if<TResolveHere>(&resolvedPath);
+            auto nodeAncestry = resolveHere && resolveHere->Result.Id == rootDesignator
+                ? std::move(resolveHere->Result.NodeAncestry)
+                : std::vector{
+                    TCypressNodeDescriptor{
+                        .Id = rootDesignator,
+                        .Path = resolvedNode->Path,
+                    }
+                };
+
             return TResolveHere{{
                 .Id = rootDesignator,
                 .Path = std::move(resolvedNode->Path),
@@ -305,6 +324,7 @@ TResolveIterationResult ResolveByObjectId(
                 // Snapshot locks of scions are forbidden so to use null parent
                 // ID is sufficient to distinguish snapshot from regular node.
                 .ParentId = NullObjectId,
+                .NodeAncestry = std::move(nodeAncestry),
             }};
         }
 

@@ -1909,7 +1909,7 @@ private:
 
         auto filter = workloadType == EUserWorkloadType::Write
             ? [] (TSubrequest* subrequest) {
-                return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
+                return subrequest->Type == EExecutionSessionSubrequestType::LocalWrite;
             }
             : [] (TSubrequest* subrequest) {
                 return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
@@ -1980,10 +1980,12 @@ private:
 
             case EExecutionSessionSubrequestType::Remote:
             case EExecutionSessionSubrequestType::Cache:
+            case EExecutionSessionSubrequestType::Sequoia:
+            case EExecutionSessionSubrequestType::Undefined:
+                YT_LOG_ALERT("Attempted to execute a subrequest of unexpected type (SubrequestIndex: %v, SubrequestType: %v)",
+                    subrequest->Index,
+                    subrequest->Type);
                 break;
-
-            default:
-                YT_ABORT();
         }
     }
 

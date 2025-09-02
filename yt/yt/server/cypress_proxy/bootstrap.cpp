@@ -249,7 +249,7 @@ private:
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-        NativeRootClient_ = NativeConnection_->CreateNativeClient(NApi::TClientOptions::Root());
+        NativeRootClient_ = NativeConnection_->CreateNativeClient(NApi::NNative::TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
@@ -263,7 +263,7 @@ private:
             GetRootClient(),
             UserDirectory_,
             GetControlInvoker(),
-            Config_->Testing->EnableUserDirectorySync
+            Config_->Testing->EnableUserDirectoryPerRequestSync
                 ? NApi::EMasterChannelKind::Follower
                 : NApi::EMasterChannelKind::Cache);
 

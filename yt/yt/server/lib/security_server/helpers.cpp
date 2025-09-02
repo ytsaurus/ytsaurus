@@ -73,11 +73,16 @@ void LogAndThrowAuthorizationError(
             .Item("denied_for").Value(resultSubjectName)
             .Item("denied_by").Value(resultObjectName);
     } else {
+        auto adjustedPermission = permission;
+        if (adjustedPermission == EPermission::FullRead && result.RequestedFullReadButReadIsDenied) {
+            adjustedPermission = EPermission::Read;
+        }
+
         error = TError(
             NSecurityClient::EErrorCode::AuthorizationError,
             "Access denied for user %Qv: %Qlv permission for %v is not allowed by any matching ACE",
             userName,
-            permission,
+            adjustedPermission,
             targetObjectName);
 
         event
@@ -125,6 +130,16 @@ std::optional<EAceInheritanceMode> GetInheritedInheritanceMode(EAceInheritanceMo
     }
 }
 
+std::string FormatCypressNodeName(const std::string& name)
+{
+    return Format("node %v", name);
+}
+
+bool IsOnlyReadPermissionSet(EPermissionSet permissionMask)
+{
+    return None(permissionMask & ~(EPermission::Read | EPermission::FullRead));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NSequoiaServer
+} // namespace NYT::NSecurityServer

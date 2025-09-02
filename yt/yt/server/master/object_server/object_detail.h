@@ -18,6 +18,8 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/security_client/acl.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/ytree/system_attribute_provider.h>
@@ -74,7 +76,9 @@ protected:
         TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
         NTransactionClient::TTransactionId ExternalTransactionId;
         std::optional<std::vector<std::string>> Columns;
+        std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RlAcl;
         bool OmitInaccessibleColumns = false;
+        bool OmitInaccessibleRows = false;
         std::optional<std::vector<std::string>> OmittedInaccessibleColumns;
         bool PopulateSecurityTags = false;
         std::optional<NSecurityServer::TSecurityTags> SecurityTags;

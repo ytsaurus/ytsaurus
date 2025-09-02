@@ -167,10 +167,7 @@ class TestOrphanedJob(YTEnvSetup):
                 try:
                     return get(f"{orchid_path}/job_state") == "completed"
                 except YtResponseError:
-                    # return not exists(orchid_path)
-                    # NB(pogorelov): We increase request_new_agent_delay, so such case should be rare.
-                    # We could uncomment line above but test will be less precise.
-                    assert False
+                    return not exists(orchid_path)
 
             wait(check)
 

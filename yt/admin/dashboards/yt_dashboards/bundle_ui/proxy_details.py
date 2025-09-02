@@ -85,7 +85,12 @@ def build_rpc_proxy_network():
                     .aggr("encrypted")
                     .alias("band: {{band}}, net: {{network}}")
                     .stack())
-            .cell("TCP retransmits rate", RpcProxyInternal("yt.bus.retransmits.rate"))
+            .cell(
+                "TCP retransmits rate",
+                MonitoringExpr(RpcProxyInternal("yt.bus.retransmits.rate"))
+                    .all("network")
+                    .aggr("band", "encrypted")
+                    .alias("net: {{network}}"))
     ).owner
 
 

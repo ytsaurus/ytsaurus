@@ -287,103 +287,95 @@ private:
     void FetchNonTeleportDataSlices(const INewSortedJobBuilderPtr& builder)
     {
         auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
-        auto primarySliceSize = JobSizeConstraints_->GetInputSliceDataWeight();
-        auto foreignSliceSize = JobSizeConstraints_->GetForeignSliceDataWeight();
 
-        // TODO(max42): job size constraints is incredibly bloated :( get rid of such workarounds.
-        primarySliceSize = std::min(primarySliceSize, JobSizeConstraints_->GetPrimaryDataWeightPerJob());
-
-        YT_LOG_DEBUG("Fetching non-teleport data slices (HasChunkSliceFetcher: %v, PrimarySliceSize: %v, ForeignSliceSize: %v, SliceForeignChunks: %v)",
-            static_cast<bool>(chunkSliceFetcher),
-            primarySliceSize,
-            foreignSliceSize,
-            SliceForeignChunks_);
-
-        // If chunkSliceFetcher == nullptr, we form chunk slices manually by putting them
-        // into this vector.
-        std::vector<TInputChunkSlicePtr> unversionedChunkSlices;
-
-        THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
-        THashMap<TInputChunkPtr, TLegacyDataSlicePtr> unversionedInputChunkToOwningDataSlice;
-
-        //! Either add data slice to builder or put it into `ForeignDataSlicesByStreamIndex_' depending on whether
-        //! it is primary or foreign.
         auto processDataSlice = [&] (const TLegacyDataSlicePtr& dataSlice, int inputCookie) {
             YT_VERIFY(!dataSlice->IsLegacy);
             dataSlice->Tag = inputCookie;
             builder->AddDataSlice(dataSlice);
         };
 
-        // TODO(max42): logic here is schizophrenic :( introduce IdentityChunkSliceFetcher and
-        // stop converting chunk slices to data slices and forth.
-
-        for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
-            const auto& suspendableStripe = Stripes_[inputCookie];
-            const auto& stripe = suspendableStripe.GetStripe();
-
-            if (suspendableStripe.GetTeleport()) {
-                continue;
-            }
-
-            for (const auto& dataSlice : stripe->DataSlices) {
-                // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
-                // while versioned slices are taken as is.
-                if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-                    auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                    auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
-                    auto comparator = isPrimary
-                        ? SortedJobOptions_.PrimaryComparator
-                        : SortedJobOptions_.ForeignComparator;
-                    auto sliceSize = isPrimary
-                        ? primarySliceSize
-                        : foreignSliceSize;
-                    if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
-                        YT_LOG_TRACE("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v)",
-                            inputChunk->GetChunkId(),
-                            inputChunk->GetDataWeight(),
-                            isPrimary,
-                            comparator,
-                            sliceSize);
-
-                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, MinManiacDataWeight_);
-                    } else if (!isPrimary) {
-                        // Take foreign slice as-is.
-                        processDataSlice(dataSlice, inputCookie);
-                    } else {
-                        YT_VERIFY(dataSlice->ChunkSlices.size() == 1);
-                        auto chunkSlice = dataSlice->ChunkSlices[0];
-                        unversionedChunkSlices.emplace_back(std::move(chunkSlice));
-                    }
-
-                    unversionedInputChunkToOwningDataSlice[inputChunk] = dataSlice;
-                    unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
-                } else {
+        if (!chunkSliceFetcher) {
+            YT_LOG_DEBUG("Data slices will not be fetched, as chunk slice fetcher is not present");
+            for (const auto& [inputCookie, suspendableStripe] : SEnumerate(Stripes_)) {
+                if (suspendableStripe.GetTeleport()) {
+                    continue;
+                }
+                for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
                     processDataSlice(dataSlice, inputCookie);
                 }
             }
+            return;
         }
 
-        if (chunkSliceFetcher) {
-            WaitFor(chunkSliceFetcher->Fetch())
-                .ThrowOnError();
-            unversionedChunkSlices = chunkSliceFetcher->GetChunkSlices();
+        // TODO(max42): job size constraints is incredibly bloated :( get rid of such workarounds.
+        i64 primarySliceSize = std::min(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+        i64 foreignSliceSize = JobSizeConstraints_->GetForeignSliceDataWeight();
+
+        YT_LOG_DEBUG(
+            "Fetching non-teleport data slices (HasChunkSliceFetcher: %v, PrimarySliceSize: %v, ForeignSliceSize: %v, SliceForeignChunks: %v)",
+            static_cast<bool>(chunkSliceFetcher),
+            primarySliceSize,
+            foreignSliceSize,
+            SliceForeignChunks_);
+
+        THashMap<TInputChunkPtr, std::pair<TLegacyDataSlicePtr, IChunkPoolInput::TCookie>> inputChunkToOwningDataSlice;
+
+        // TODO(max42): logic here is schizophrenic :( introduce IdentityChunkSliceFetcher and
+        // stop converting chunk slices to data slices and forth.
+        for (const auto& [inputCookie, suspendableStripe] : SEnumerate(Stripes_)) {
+            if (suspendableStripe.GetTeleport()) {
+                continue;
+            }
+            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+                // Unversioned data slices should be additionally sliced using chunkSliceFetcher,
+                // while versioned slices are taken as is.
+                bool isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
+                bool shouldSliceUnversioned = isPrimary || SliceForeignChunks_;
+                if (dataSlice->Type != EDataSourceType::UnversionedTable || !shouldSliceUnversioned) {
+                    processDataSlice(dataSlice, inputCookie);
+                    continue;
+                }
+
+                const auto& comparator = isPrimary
+                    ? SortedJobOptions_.PrimaryComparator
+                    : SortedJobOptions_.ForeignComparator;
+                i64 sliceSize = isPrimary
+                    ? primarySliceSize
+                    : foreignSliceSize;
+                auto inputChunk = dataSlice->GetSingleUnversionedChunk();
+                YT_LOG_TRACE(
+                    "Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v)",
+                    inputChunk->GetChunkId(),
+                    inputChunk->GetDataWeight(),
+                    isPrimary,
+                    comparator,
+                    sliceSize);
+
+                chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, MinManiacDataWeight_);
+
+                YT_VERIFY(!inputChunkToOwningDataSlice.contains(inputChunk));
+                inputChunkToOwningDataSlice[inputChunk] = std::pair(dataSlice, inputCookie);
+            }
         }
 
-        for (const auto& chunkSlice : unversionedChunkSlices) {
-            const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
-            int inputCookie = GetOrCrash(unversionedInputChunkToInputCookie, chunkSlice->GetInputChunk());
-            auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+        WaitFor(chunkSliceFetcher->Fetch())
+            .ThrowOnError();
+
+        for (auto& chunkSlice : chunkSliceFetcher->GetChunkSlices()) {
+            YT_VERIFY(!chunkSlice->IsLegacy);
+            auto* originalDataSliceAndInputCookie = inputChunkToOwningDataSlice.FindPtr(chunkSlice->GetInputChunk());
+            YT_VERIFY(originalDataSliceAndInputCookie);
+            const auto& [originalDataSlice, inputCookie] = *originalDataSliceAndInputCookie;
+            auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
             dataSlice->CopyPayloadFrom(*originalDataSlice);
 
-            auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary();
-            auto comparator = isPrimary
+            const auto& comparator = InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsPrimary()
                 ? SortedJobOptions_.PrimaryComparator
                 : SortedJobOptions_.ForeignComparator;
 
             comparator.ReplaceIfStrongerKeyBound(dataSlice->LowerLimit().KeyBound, originalDataSlice->LowerLimit().KeyBound);
             comparator.ReplaceIfStrongerKeyBound(dataSlice->UpperLimit().KeyBound, originalDataSlice->UpperLimit().KeyBound);
 
-            YT_VERIFY(!dataSlice->IsLegacy);
             processDataSlice(dataSlice, inputCookie);
         }
     }

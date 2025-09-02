@@ -4,12 +4,15 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
+#include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/yt/server/lib/io/huge_page_manager.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -33,6 +36,8 @@
 #include <yt/yt/core/misc/random.h>
 
 #include <yt/yt/library/fusion/service_directory.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NDataNode {
 
@@ -228,9 +233,9 @@ public:
         return Bootstrap_->GetLocationHealthChecker();
     }
 
-    void SetLocationUuidsRequired(bool value) override
+    void SetLocationIndexesInHeartbeatsEnabled(bool value) override
     {
-        MasterConnector_->SetLocationUuidsRequired(value);
+        MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
     }
 
     void SetPerLocationFullHeartbeatsEnabled(bool value) override
@@ -256,7 +261,7 @@ struct TMasterConnectorMock
 
     MOCK_METHOD(bool, IsOnline, (), (const, override));
 
-    MOCK_METHOD(void, SetLocationUuidsRequired, (bool value), (override));
+    MOCK_METHOD(void, SetLocationIndexesInHeartbeatsEnabled, (bool value), (override));
 
     MOCK_METHOD(void, SetPerLocationFullHeartbeatsEnabled, (bool value), (override));
 };
@@ -325,15 +330,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TThreadPoolConfig)
+DECLARE_REFCOUNTED_STRUCT(TIOEngineConfig)
 
-struct TThreadPoolConfig
+struct TIOEngineConfig
     : public NYTree::TYsonStruct
 {
     int ReadThreadCount;
     int WriteThreadCount;
+    NIO::EDirectIOPolicy UseDirectIOForReads;
 
-    REGISTER_YSON_STRUCT(TThreadPoolConfig);
+    REGISTER_YSON_STRUCT(TIOEngineConfig);
 
     static void Register(TRegistrar registrar)
     {
@@ -343,10 +349,13 @@ struct TThreadPoolConfig
         registrar.Parameter("write_thread_count", &TThis::WriteThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
+
+        registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
+            .Default(NIO::EDirectIOPolicy::Never);
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TThreadPoolConfig)
+DEFINE_REFCOUNTED_TYPE(TIOEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,6 +365,9 @@ class TDataNodeTest
 public:
     struct TDataNodeTestParams
     {
+        NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
+        bool EnableHugePageManager = false;
+        NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
         int ClusterConnectionThreadPoolSize = 4;
@@ -364,13 +376,43 @@ public:
         i64 WriteMemoryLimit = 128_GB;
         i64 ReadMemoryLimit = 128_GB;
         i64 LegacyWriteMemoryLimit = 128_GB;
+        bool ChooseLocationBasedOnIOWeight = false;
+        std::vector<double> IoWeights = {1.};
+        std::vector<int> SessionCountLimits = {1024};
     };
+
+    TDataNodeTest() = default;
 
     explicit TDataNodeTest(const TDataNodeTestParams& testParams)
         : TestParams_(testParams)
     { }
 
-    TClusterNodeBootstrapConfigPtr GenerateClusterBootstrapConfig() const
+    TStoreLocationConfigPtr GenerateStoreLocationConfig(double ioWeight, int sessionCountLimit) {
+        auto storeLocationConfig = New<TStoreLocationConfig>();
+        storeLocationConfig->Path = Format("/tmp/locations/%v/chunk_store", GenerateRandomString(5, Generator_));
+        storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
+        auto ioEngineConfig = New<TIOEngineConfig>();
+        ioEngineConfig->ReadThreadCount = TestParams_.ReadThreadCount;
+        ioEngineConfig->WriteThreadCount = TestParams_.WriteThreadCount;
+        ioEngineConfig->UseDirectIOForReads = TestParams_.UseDirectIOForReads;
+        storeLocationConfig->IOConfig = NYTree::ConvertToNode(ioEngineConfig);
+        storeLocationConfig->IOWeight = ioWeight;
+        storeLocationConfig->SessionCountLimit = sessionCountLimit;
+        storeLocationConfig->Throttlers = {};
+        storeLocationConfig->WriteMemoryLimit = TestParams_.WriteMemoryLimit;
+        storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
+        storeLocationConfig->LegacyWriteMemoryLimit = TestParams_.LegacyWriteMemoryLimit;
+        storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
+
+        for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
+            if (!storeLocationConfig->Throttlers[kind]) {
+                storeLocationConfig->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+            }
+        }
+        return storeLocationConfig;
+    }
+
+    TClusterNodeBootstrapConfigPtr GenerateClusterBootstrapConfig()
     {
         auto bootstrapConfig = New<TClusterNodeBootstrapConfig>();
         bootstrapConfig->Flavors = {NNodeTrackerClient::ENodeFlavor::Data};
@@ -379,6 +421,11 @@ public:
         bootstrapConfig->ClusterConnection->Static->PrimaryMaster = New<TMasterConnectionConfig>();
         bootstrapConfig->ClusterConnection->Static->PrimaryMaster->Addresses = {PrimaryMasterAddress};
         bootstrapConfig->ClusterConnection->Static->PrimaryMaster->CellId = CellId;
+
+        bootstrapConfig->HugePageManager = New<NIO::THugePageManagerConfig>();
+        bootstrapConfig->HugePageManager->Type = TestParams_.HugePageManagerType;
+        bootstrapConfig->HugePageManager->Enabled = TestParams_.EnableHugePageManager;
+        bootstrapConfig->HugePageManager->PagesPerBlob = 2;
 
         bootstrapConfig->ClusterConnection->Dynamic = New<TConnectionDynamicConfig>();
         bootstrapConfig->ClusterConnection->Dynamic->ThreadPoolSize = TestParams_.ClusterConnectionThreadPoolSize;
@@ -394,6 +441,7 @@ public:
         cacheConfig->Capacity = 0;
         bootstrapConfig->DataNode->BlockCache->CompressedData = cacheConfig;
         bootstrapConfig->DataNode->BlockCache->UncompressedData = cacheConfig;
+        bootstrapConfig->DataNode->ChooseLocationBasedOnIOWeight = TestParams_.ChooseLocationBasedOnIOWeight;
 
         for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
             if (!bootstrapConfig->DataNode->Throttlers[kind]) {
@@ -401,26 +449,9 @@ public:
             }
         }
 
-        auto storeLocationConfig = New<TStoreLocationConfig>();
-        storeLocationConfig->Path = StoreLocationPath_;
-        storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
-        auto threadPoolConfig = New<TThreadPoolConfig>();
-        threadPoolConfig->ReadThreadCount = TestParams_.ReadThreadCount;
-        threadPoolConfig->WriteThreadCount = TestParams_.WriteThreadCount;
-        storeLocationConfig->IOConfig = NYTree::ConvertToNode(threadPoolConfig);
-        storeLocationConfig->Throttlers = {};
-        storeLocationConfig->WriteMemoryLimit = TestParams_.WriteMemoryLimit;
-        storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
-        storeLocationConfig->LegacyWriteMemoryLimit = TestParams_.LegacyWriteMemoryLimit;
-        storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
-
-        for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
-            if (!storeLocationConfig->Throttlers[kind]) {
-                storeLocationConfig->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
-            }
+        for (const auto& [ioWeight, sessionCountLimit] : Zip(TestParams_.IoWeights, TestParams_.SessionCountLimits)) {
+            bootstrapConfig->DataNode->StoreLocations.push_back(GenerateStoreLocationConfig(ioWeight, sessionCountLimit));
         }
-
-        bootstrapConfig->DataNode->StoreLocations.push_back(storeLocationConfig);
 
         bootstrapConfig->ResourceLimits->TotalMemory = 256_GB;
         for (auto kind : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
@@ -433,12 +464,10 @@ public:
 
     void SetUp() override
     {
-        TRandomGenerator generator(TInstant::Now().MicroSeconds());
-        StoreLocationPath_ = Format("/tmp/%v/chunk_store", GenerateRandomString(5, generator));
         ActionQueue_ = New<NConcurrency::TActionQueue>();
         auto nodeTrackerService = New<TTestNodeTrackerService>(ActionQueue_->GetInvoker());
 
-        CellDirectoryMock_ = New<TCellDirectoryMock>();
+        auto cellDirectoryMock = New<TCellDirectoryMock>();
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->AddDescriptor(
@@ -458,28 +487,29 @@ public:
             ActionQueue_->GetInvoker(),
             MemoryTracker_);
 
-        EXPECT_CALL(*TestConnection_, CreateNativeClient).WillRepeatedly([this] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+        EXPECT_CALL(*TestConnection_, CreateNativeClient).WillRepeatedly([this] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr
             {
                 return New<TClient>(TestConnection_, options, MemoryTracker_);
             });
         EXPECT_CALL(*TestConnection_, GetClusterDirectory).WillRepeatedly(testing::DoDefault());
         EXPECT_CALL(*TestConnection_, SubscribeReconfigured).WillRepeatedly(testing::DoDefault());
-        EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellTag()).WillRepeatedly([] () -> TCellTag {
+        EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellTag).WillRepeatedly([] () -> TCellTag {
             return TCellTag(0xf003);
         });
         EXPECT_CALL(*TestConnection_, GetMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
-        EXPECT_CALL(*CellDirectoryMock_, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
+        EXPECT_CALL(*cellDirectoryMock, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
         EXPECT_CALL(*TestConnection_, GetPrimaryMasterCellId).WillRepeatedly([] () -> TCellId {
             return CellId;
         });
-        EXPECT_CALL(*TestConnection_, GetMasterCellDirectory()).WillRepeatedly([this] () -> ICellDirectoryPtr {
+        CellDirectoryMock_ = cellDirectoryMock;
+        EXPECT_CALL(*TestConnection_, GetMasterCellDirectory).WillRepeatedly([this] () -> const NCellMasterClient::ICellDirectoryPtr& {
             return CellDirectoryMock_;
         });
-        EXPECT_CALL(*TestConnection_, GetSecondaryMasterCellTags()).WillRepeatedly([] () -> TCellTagList {
+        EXPECT_CALL(*TestConnection_, GetSecondaryMasterCellTags).WillRepeatedly([] () -> TCellTagList {
             return {};
         });
 
@@ -491,12 +521,12 @@ public:
         ClusterNodeBootstrap_->Initialize();
 
         MasterConnectorMock_ = New<TMasterConnectorMock>();
-        EXPECT_CALL(*MasterConnectorMock_, IsOnline()).WillRepeatedly(testing::Return(true));
+        EXPECT_CALL(*MasterConnectorMock_, IsOnline).WillRepeatedly(testing::Return(true));
         DataNodeBootstrap_ = New<TDataNodeBootstrapMock>(ClusterNodeBootstrap_->GetDataNodeBootstrap(), MasterConnectorMock_);
 
-        if (CellDirectoryMock_) {
-            testing::Mock::AllowLeak(CellDirectoryMock_.Get());
-        }
+        // if (CellDirectoryMock_) {
+        //     testing::Mock::AllowLeak(CellDirectoryMock_.Get());
+        // }
 
         if (MasterConnectorMock_) {
             testing::Mock::AllowLeak(MasterConnectorMock_.Get());
@@ -527,6 +557,8 @@ public:
         CellDirectoryMock_.Reset();
         MasterConnectorMock_.Reset();
         TestConnection_.Reset();
+
+        NFS::RemoveRecursive("/tmp/locations");
     }
 
     const NDataNode::IBootstrapPtr& GetDataNodeBootstrap() const {
@@ -548,6 +580,17 @@ public:
         ToProto(req->mutable_session_id(), sessionId);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
 
+        return req->Invoke();
+    }
+
+    auto ProbePutBlocks(const TSessionId& sessionId, i64 cumulativeBlockSize)
+    {
+        auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
+        TDataNodeServiceProxy proxy(channel);
+
+        auto req = proxy.ProbePutBlocks();
+        req->set_cumulative_block_size(cumulativeBlockSize);
+        ToProto(req->mutable_session_id(), sessionId);
         return req->Invoke();
     }
 
@@ -644,11 +687,18 @@ public:
         return req->Invoke();
     }
 
-    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize)
+    std::vector<TBlock> FillWithRandomBlocks(TSessionId sessionId, int blockCount, int blockSize, bool useProbePutBlocks = false)
     {
         auto blocks = CreateBlocks(blockCount, blockSize, Generator_);
         auto cummulativeBlockSize = CalculateCummulativeBlockSize(blocks);
-        WaitFor(StartChunk(sessionId, false)).ThrowOnError();
+        WaitFor(StartChunk(sessionId, useProbePutBlocks)).ThrowOnError();
+        if (useProbePutBlocks) {
+            int approvedCumulativeBlockSize = 0;
+            do {
+                auto resp = WaitFor(ProbePutBlocks(sessionId, cummulativeBlockSize));
+                approvedCumulativeBlockSize = resp.Value()->probe_put_blocks_state().approved_cumulative_block_size();
+            } while (approvedCumulativeBlockSize < cummulativeBlockSize);
+        }
         WaitFor(PutBlocks(sessionId, blocks, 0, cummulativeBlockSize)).ThrowOnError();
         WaitFor(FlushBlocks(sessionId, blockCount - 1)).ThrowOnError();
         WaitFor(FinishChunk(sessionId, blockCount)).ThrowOnError();
@@ -668,14 +718,13 @@ private:
     std::atomic<int> Counter_ = 0;
 
     INodeMemoryTrackerPtr MemoryTracker_;
-    TString StoreLocationPath_;
     NConcurrency::TActionQueuePtr ActionQueue_;
     NClusterNode::IBootstrapPtr ClusterNodeBootstrap_;
     NDataNode::IBootstrapPtr DataNodeBootstrap_;
     IServicePtr DataNodeService_;
     IChannelFactoryPtr ChannelFactory_;
     TWorkloadDescriptor WorkloadDescriptor_;
-    TIntrusivePtr<TCellDirectoryMock> CellDirectoryMock_;
+    NCellMasterClient::ICellDirectoryPtr CellDirectoryMock_;
     TIntrusivePtr<TMasterConnectorMock> MasterConnectorMock_;
     TIntrusivePtr<TTestConnection> TestConnection_;
 };
@@ -685,13 +734,17 @@ private:
 struct TGetBlockSetTestCase
 {
     int BlockCount = 100;
-    int BlockSize = 1_MB;
+    int BlockSize = 1_KB;
     int ParallelGetBlockSetCount = 1;
     int BlocksInRequest = 10;
     bool PopulateCache = true;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
     bool EnableSequentialIORequests = true;
+    bool UseProbePutBlocks = false;
+    NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
+    bool EnableHugePageManager = false;
+    NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -704,6 +757,9 @@ public:
     TGetBlockSetTest()
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
+                .HugePageManagerType = GetParam().HugePageManagerType,
+                .EnableHugePageManager = GetParam().EnableHugePageManager,
+                .UseDirectIOForReads = GetParam().UseDirectIOForReads,
                 .EnableSequentialIORequests = GetParam().EnableSequentialIORequests,
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4
@@ -716,7 +772,7 @@ public:
 struct TGetBlockSetGapTestCase
 {
     int BlockCount = 40;
-    int BlockSize = 1_MB;
+    int BlockSize = 1_KB;
     bool PopulateCache = true;
     bool FetchFromCache = true;
     bool FetchFromDisk = true;
@@ -742,12 +798,100 @@ public:
     { }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TIoWeightTestCase
+{
+    std::vector<double> IoWeights = {1., 1.};
+    std::vector<int> SessionCountLimits = {128, 128};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIoWeightTest
+    : public TDataNodeTest
+    , public ::testing::WithParamInterface<TIoWeightTestCase>
+{
+public:
+    TIoWeightTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .ReadThreadCount = 4,
+                .WriteThreadCount = 4,
+                .ChooseLocationBasedOnIOWeight = true,
+                .IoWeights = GetParam().IoWeights,
+                .SessionCountLimits = GetParam().SessionCountLimits,
+            })
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
+{
+    auto& ioWeights = GetParam().IoWeights;
+    auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+
+    YT_VERIFY(std::ssize(ioWeights) == std::ssize(locations));
+
+    std::vector<TFuture<void>> futures;
+    futures.resize(256);
+
+    for (auto& future: futures) {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false)
+            .AsyncVia(GetActionQueue()->GetInvoker())
+            .Run()
+            .AsVoid();
+    }
+
+    for (auto& future : futures) {
+        future.Wait();
+    }
+
+    std::vector<double> usedSpaces;
+    usedSpaces.reserve(std::ssize(locations));
+
+    for (auto& location : locations) {
+        usedSpaces.push_back(location->GetUsedSpace());
+    }
+
+    auto sortedUsedSpaces = usedSpaces;
+
+    std::sort(sortedUsedSpaces.begin(), sortedUsedSpaces.end());
+
+    EXPECT_EQ(sortedUsedSpaces, usedSpaces);
+}
+
+
+INSTANTIATE_TEST_SUITE_P(
+    TIoWeightTest,
+    TIoWeightTest,
+    ::testing::Values(
+        TIoWeightTestCase{
+            .IoWeights = {0.0001, 0.001, 0.01, 0.1, 1.},
+            .SessionCountLimits = {1024, 1024, 1024, 1024, 1024},
+        },
+        TIoWeightTestCase{
+            .IoWeights = {0.2, 0.5},
+            .SessionCountLimits = {256, 256},
+        },
+        TIoWeightTestCase{
+            .IoWeights = {0.2, 0.6, 1.5},
+            .SessionCountLimits = {128, 128, 128},
+        },
+        TIoWeightTestCase{
+            .IoWeights = {1., 1.},
+            .SessionCountLimits = {16, 256},
+        }
+    )
+);
+
 TEST_P(TGetBlockSetGapTest, GetBlocksByOneDiskIORequestTest)
 {
     auto testCase = GetParam();
 
     TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
-    TRandomGenerator generator(42);
     int blockCount = testCase.BlockCount;
     int blockSize = testCase.BlockSize;
     auto blocks = FillWithRandomBlocks(sessionId, blockCount, blockSize);
@@ -794,20 +938,20 @@ INSTANTIATE_TEST_SUITE_P(
             .EnableSequentialIORequests = false
         },
         TGetBlockSetGapTestCase{
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
             .EnableSequentialIORequests = false,
-            .CoalescedReadMaxGapSize = 1_MB,
+            .CoalescedReadMaxGapSize = 1_KB,
         },
         TGetBlockSetGapTestCase{
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
             .EnableSequentialIORequests = false,
-            .CoalescedReadMaxGapSize = 1_MB / 2,
+            .CoalescedReadMaxGapSize = 1_KB / 2,
         }
     )
 );
@@ -820,7 +964,7 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     TRandomGenerator generator(42);
     int blockCount = testCase.BlockCount;
     int blkSize = testCase.BlockSize;
-    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize);
+    auto blocks = FillWithRandomBlocks(sessionId, blockCount, blkSize, testCase.UseProbePutBlocks);
 
     int getBlockSetCount = testCase.ParallelGetBlockSetCount;
     std::vector<TFuture<void>> getBlockSetFutures;
@@ -878,7 +1022,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = true,
@@ -887,7 +1031,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -896,7 +1040,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = true,
@@ -905,7 +1049,7 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
@@ -914,16 +1058,112 @@ INSTANTIATE_TEST_SUITE_P(
         },
         TGetBlockSetTestCase{
             .BlockCount = 1000,
-            .BlockSize = 1_MB,
+            .BlockSize = 1_KB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
+            .UseProbePutBlocks = true
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 1000,
+            .BlockSize = 1_KB,
             .ParallelGetBlockSetCount = 100,
             .BlocksInRequest = 40,
             .PopulateCache = false,
             .FetchFromCache = false,
             .FetchFromDisk = true,
             .EnableSequentialIORequests = false
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 100,
+            .BlockSize = 1_KB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
+            .HugePageManagerType = NIO::EHugeManagerType::Transparent,
+            .EnableHugePageManager = true,
+            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always
+        },
+        TGetBlockSetTestCase{
+            .BlockCount = 100,
+            .BlockSize = 1_KB,
+            .ParallelGetBlockSetCount = 100,
+            .BlocksInRequest = 40,
+            .PopulateCache = false,
+            .FetchFromCache = false,
+            .FetchFromDisk = true,
+            .HugePageManagerType = NIO::EHugeManagerType::Preallocated,
+            .EnableHugePageManager = true,
+            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always
         }
     )
 );
+
+TEST_F(TDataNodeTest, ProbePutBlocksCancelChunk)
+{
+    std::vector<TSessionId> sessionIds;
+
+    for (int i = 0; i < 100; ++i) {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        sessionIds.push_back(sessionId);
+        WaitFor(StartChunk(sessionId, true)).ThrowOnError();
+    }
+
+    for (const auto& sessionId: sessionIds) {
+        for (int i = 0; i < 100; ++i) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionId, 5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = 0; i < std::ssize(sessionIds) / 2; ++i) {
+        WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        for (int j = 0; j < 100; ++j) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionIds[i],  5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        WaitFor(CancelChunk(sessionIds[i])).ThrowOnError();
+    }
+}
+
+TEST_F(TDataNodeTest, ProbePutBlocksFinishChunk)
+{
+    std::vector<TSessionId> sessionIds;
+
+    for (int i = 0; i < 100; ++i) {
+        TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
+        sessionIds.push_back(sessionId);
+        WaitFor(StartChunk(sessionId, true)).ThrowOnError();
+    }
+
+    for (const auto& sessionId: sessionIds) {
+        for (int i = 0; i < 100; ++i) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionId, 5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = 0; i < std::ssize(sessionIds) / 2; ++i) {
+        WaitFor(FinishChunk(sessionIds[i], 0)).ThrowOnError();
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        for (int j = 0; j < 100; ++j) {
+            YT_UNUSED_FUTURE(ProbePutBlocks(sessionIds[i], 5_GB + RandomNumber<unsigned>() % 1000 * 100_MB));
+        }
+    }
+
+    for (int i = std::ssize(sessionIds) / 2; i < std::ssize(sessionIds); ++i) {
+        WaitFor(FinishChunk(sessionIds[i], 0)).ThrowOnError();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

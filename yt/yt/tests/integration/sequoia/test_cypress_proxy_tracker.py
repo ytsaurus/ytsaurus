@@ -9,6 +9,9 @@ from yt_commands import (
 from datetime import datetime, timezone
 from time import sleep
 
+import builtins
+import pytest
+
 
 ##################################################################
 
@@ -69,8 +72,6 @@ class TestCypressProxyTracker(YTEnvSetup):
 
     @authors("kvk1920")
     def test_cypress_proxy_persistent_heartbeat_period(self):
-        set("//sys/@config/cypress_proxy_tracker/persistent_heartbeat_period", 1000)
-
         now = datetime.now(timezone.utc)
 
         def check():
@@ -90,3 +91,30 @@ class TestCypressProxyTracker(YTEnvSetup):
         sleep(1)
         # Should not fail.
         get("//sys/@config")
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("read_only", [False, True])
+    def test_state(self, read_only):
+        if read_only:
+            build_master_snapshots(set_read_only=True)
+
+        addresses = ls("//sys/cypress_proxies")
+        expected_state = "unknown" if read_only else "online"
+        for address in addresses:
+            assert get(f"//sys/cypress_proxies/{address}/@state") == expected_state
+
+        self.Env.kill_cypress_proxies(indexes=[0])
+        sleep(3)
+
+        states = builtins.set()
+        for address in addresses:
+            states.add(get(f"//sys/cypress_proxies/{address}/@state"))
+
+        if read_only:
+            assert states == {"unknown"}
+        else:
+            assert states == {"online", "offline"}
+
+        self.Env.start_cypress_proxies()
+
+        wait(lambda: all(get(f"//sys/cypress_proxies/{address}/@state") == expected_state for address in addresses))

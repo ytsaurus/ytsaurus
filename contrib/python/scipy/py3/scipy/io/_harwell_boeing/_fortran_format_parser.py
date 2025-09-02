@@ -7,6 +7,7 @@ FortranFormatParser can create *Format instances from raw Fortran format
 strings (e.g. '(3I4)', '(10I3)', etc...)
 """
 import re
+import threading
 
 import numpy as np
 
@@ -228,16 +229,19 @@ class FortranFormatParser:
     (integer format) for now.
     """
     def __init__(self):
-        self.tokenizer = Tokenizer()
+        self.tokenizer = threading.local()
 
     def parse(self, s):
-        self.tokenizer.input(s)
+        if not hasattr(self.tokenizer, 't'):
+            self.tokenizer.t = Tokenizer()
+
+        self.tokenizer.t.input(s)
 
         tokens = []
 
         try:
             while True:
-                t = self.tokenizer.next_token()
+                t = self.tokenizer.t.next_token()
                 if t is None:
                     break
                 else:
@@ -263,7 +267,7 @@ class FortranFormatParser:
                               "%d (got '%s')" % (0, tokens[0].value))
         elif not tokens[-1].type == "RPAR":
             raise SyntaxError("Expected right parenthesis at position "
-                              "%d (got '%s')" % (len(tokens), tokens[-1].value))
+                              f"{len(tokens)} (got '{tokens[-1].value}')")
 
         tokens = tokens[1:-1]
         types = [t.type for t in tokens]
@@ -299,7 +303,7 @@ class FortranFormatParser:
                 min = None
             return ExpFormat(width, significand, min, repeat)
         else:
-            raise SyntaxError("Invalid formatter type %s" % next.value)
+            raise SyntaxError(f"Invalid formatter type {next.value}")
 
     def _next(self, tokens, tp):
         if not len(tokens) > 0:

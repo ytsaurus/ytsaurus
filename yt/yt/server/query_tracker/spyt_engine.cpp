@@ -138,7 +138,7 @@ public:
         , Config_(config)
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
         , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
-        , QueryClient_(NativeConnection_->CreateNativeClient(TClientOptions::FromUser(activeQuery.User)))
+        , QueryClient_(NativeConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(activeQuery.User)))
         , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
         , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
@@ -697,4 +697,4 @@ IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NQueryTracker

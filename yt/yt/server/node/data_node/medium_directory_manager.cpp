@@ -52,4 +52,4 @@ void TMediumDirectoryManager::UpdateMediumDirectory(const NProto::TMediumDirecto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT:NDataNode
+} // namespace NYT::NDataNode

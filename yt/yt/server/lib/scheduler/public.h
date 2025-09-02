@@ -150,7 +150,7 @@ DEFINE_ENUM(EControlQueue,
     (AgentTracker)
     (NodeTracker)
     (OperationsCleaner)
-    (FairShareStrategy)
+    (Strategy)
     (EventLog)
     (Metering)
 );
@@ -209,11 +209,11 @@ DEFINE_ENUM(EOperationManagementAction,
 
 DECLARE_REFCOUNTED_STRUCT(TStrategyTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TOperationStuckCheckOptions)
-DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyConfig)
-DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyOperationControllerConfig)
-DECLARE_REFCOUNTED_CLASS(TFairShareStrategyControllerThrottling)
+DECLARE_REFCOUNTED_STRUCT(TStrategyConfig)
+DECLARE_REFCOUNTED_STRUCT(TStrategyOperationControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TStrategyControllerThrottling)
 DECLARE_REFCOUNTED_STRUCT(TTreeTestingOptions)
-DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyTreeConfig)
+DECLARE_REFCOUNTED_STRUCT(TStrategyTreeConfig)
 DECLARE_REFCOUNTED_STRUCT(TDelayConfig)
 DECLARE_REFCOUNTED_STRUCT(TTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TOperationsCleanerConfig)
@@ -224,9 +224,9 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulerConfig)
 DECLARE_REFCOUNTED_STRUCT(TSchedulerBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TSchedulerProgramConfig)
 DECLARE_REFCOUNTED_STRUCT(TSchedulerIntegralGuaranteesConfig)
-DECLARE_REFCOUNTED_STRUCT(TFairShareStrategySchedulingSegmentsConfig)
+DECLARE_REFCOUNTED_STRUCT(TStrategySchedulingSegmentsConfig)
 DECLARE_REFCOUNTED_STRUCT(TGpuAllocationSchedulerConfig)
-DECLARE_REFCOUNTED_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig)
+DECLARE_REFCOUNTED_STRUCT(TStrategySsdPriorityPreemptionConfig)
 DECLARE_REFCOUNTED_STRUCT(TBatchOperationSchedulingConfig)
 DECLARE_REFCOUNTED_STRUCT(TOperationOptions)
 
@@ -265,6 +265,7 @@ using TNetworkPriority = i8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Unify string constant definition style.
 extern const std::string DefaultTreeAttributeName;
 extern const std::string TreeConfigAttributeName;
 extern const std::string IdAttributeName;
@@ -281,6 +282,10 @@ inline const TString ProfilingPoolTreeKey{"tree"};
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline constexpr char DefaultOperationTag[] = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 

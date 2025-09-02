@@ -12,6 +12,8 @@ from yt_type_helpers import make_schema
 
 from yt_helpers import profiler_factory
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -70,6 +72,7 @@ class CheckPermissionBase(YTEnvSetup):
     NUM_NODES = 3
 
     @authors("s-v-m")
+    @not_implemented_in_sequoia
     def test_subject_aliases_acls(self):
         create_user("u1")
         create_user("u2")
@@ -97,6 +100,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u2", "write", "//tmp/t")["action"] == "deny"
 
     @authors("s-v-m")
+    @not_implemented_in_sequoia
     def test_subject_aliases_misc(self):
         create_user("user")
         set("//sys/users/user/@aliases", ["alias_to_user"])
@@ -116,6 +120,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert get("//tmp/t/@owner") == "user"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_descendants_only_inheritance(self):
         create(
             "map_node",
@@ -129,6 +134,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_object_only_inheritance(self):
         create(
             "map_node",
@@ -140,6 +146,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "allow"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_immediate_descendants_only_inheritance(self):
         create(
             "map_node",
@@ -153,6 +160,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
     @authors("kiselyovp", "gritukan")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("superuser", [False, True])
     def test_banned_user_permission(self, superuser):
         create_user("u")
@@ -162,10 +170,12 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u", "read", "//tmp")["action"] == "deny"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_check_permission_for_virtual_maps(self):
         assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_owner_user(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -182,6 +192,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u2", "remove", "//tmp/x/2")["action"] == "allow"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_owner_group(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -197,6 +208,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u2", "remove", "//tmp/x/1")["action"] == "deny"
 
     @authors("kiselyovp")
+    @not_implemented_in_sequoia
     def test_check_permission_by_acl(self):
         create_user("u1")
         create_user("u2")
@@ -226,6 +238,7 @@ class CheckPermissionBase(YTEnvSetup):
         )
 
     @authors("kiselyovp", "levysotsky")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
     @pytest.mark.parametrize("rename_columns", [False, True])
     def test_check_permission_for_columnar_acl(self, acl_path, rename_columns):
@@ -289,6 +302,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert response4["action"] == "deny"
 
     @authors("babenko", "levysotsky")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("rename_columns", [False, True])
     def test_inaccessible_columns_yt_11619(self, rename_columns):
         create_user("u")
@@ -404,19 +418,19 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             set(rw_path, "d", authenticated_user=rw_user)
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_denying_acl1(self):
         create_user("u")
         self._test_denying_acl("//tmp/a", "u", "//tmp/a", "u")
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_denying_acl2(self):
         create_user("u")
         create_group("g")
         add_member("u", "g")
         self._test_denying_acl("//tmp/a", "u", "//tmp/a", "g")
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_denying_acl3(self):
         create_user("u")
         set("//tmp/p", {})
@@ -436,22 +450,23 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             set(rw_path, "d", authenticated_user=rw_user)
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_allowing_acl1(self):
         self._test_allowing_acl("//tmp/a", "guest", "//tmp/a", "guest")
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_allowing_acl2(self):
         create_group("g")
         add_member("guest", "g")
         self._test_allowing_acl("//tmp/a", "guest", "//tmp/a", "g")
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_allowing_acl3(self):
         set("//tmp/p", {})
         self._test_allowing_acl("//tmp/p/a", "guest", "//tmp/p", "guest")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_schema_acl1(self):
         create_user("u")
         create("table", "//tmp/t1", authenticated_user="u")
@@ -460,6 +475,7 @@ class TestCypressAcls(CheckPermissionBase):
             create("table", "//tmp/t2", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_schema_acl2(self):
         create_user("u")
         start_transaction(authenticated_user="u")
@@ -467,7 +483,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             start_transaction(authenticated_user="u")
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_user_destruction(self):
         old_acl = get("//tmp/@acl")
         create("map_node", "//tmp/dir")
@@ -480,7 +496,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove_user("u")
         assert get("//tmp/dir/@acl") == old_acl
 
-    @authors("babenko", "ignat")
+    @authors("danilalexeev")
     def test_group_destruction(self):
         old_acl = get("//tmp/@acl")
         create("map_node", "//tmp/dir")
@@ -494,6 +510,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/dir/@acl") == old_acl
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_account_acl(self):
         create_account("a")
         create_user("u")
@@ -513,6 +530,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/t/@account") == "a"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_init_acl_in_create(self):
         create_user("u1")
         create_user("u2")
@@ -529,6 +547,7 @@ class TestCypressAcls(CheckPermissionBase):
             set("//tmp/t/@x", 1, authenticated_user="u2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_init_acl_in_set(self):
         create_user("u1")
         create_user("u2")
@@ -553,6 +572,7 @@ class TestCypressAcls(CheckPermissionBase):
         map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t1/@acl/end", make_ace("deny", "u", "read"))
@@ -560,6 +580,7 @@ class TestCypressAcls(CheckPermissionBase):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@acl/end", make_ace("deny", "u", "write"))
@@ -567,6 +588,7 @@ class TestCypressAcls(CheckPermissionBase):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_scheduler_account_quota(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@account", "a")
@@ -576,6 +598,7 @@ class TestCypressAcls(CheckPermissionBase):
             map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("acid")
+    @not_implemented_in_sequoia
     def test_scheduler_operation_abort_by_owners(self):
         self._prepare_scheduler_test()
         create_user("u1")
@@ -589,7 +612,7 @@ class TestCypressAcls(CheckPermissionBase):
         )
         op.abort(authenticated_user="u1")
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_inherit1(self):
         set("//tmp/p", {})
         set("//tmp/p/@inherit_acl", False)
@@ -605,7 +628,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert ls("//tmp/p", authenticated_user="u") == ["a"]
         assert get("//tmp/p/a", authenticated_user="u") == "b"
 
-    @authors("shakurov")
+    @authors("shakurov", "danilalexeev")
     def test_create_with_replace(self):
         create_user("u")
 
@@ -643,14 +666,14 @@ class TestCypressAcls(CheckPermissionBase):
         )
         create("table", "//tmp/c", force=True, authenticated_user="u")
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_create_in_tx1(self):
         create_user("u")
         tx = start_transaction()
         create("table", "//tmp/a", tx=tx, authenticated_user="u")
         assert read_table("//tmp/a", tx=tx, authenticated_user="u") == []
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_create_in_tx2(self):
         create_user("u")
         tx = start_transaction()
@@ -658,6 +681,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert read_table("//tmp/a/b/c", tx=tx, authenticated_user="u") == []
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     @pytest.mark.xfail(run=False, reason="In progress")
     def test_snapshot_remove(self):
         set("//tmp/a", {"b": {"c": "d"}})
@@ -671,6 +695,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get(path, authenticated_user="u", tx=tx) == "d"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     @pytest.mark.xfail(run=False, reason="In progress")
     def test_snapshot_no_inherit(self):
         set("//tmp/a", "b")
@@ -680,6 +705,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert not get("//tmp/a/@inherit_acl", tx=tx)
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_administer_permission1(self):
         create_user("u")
         create("table", "//tmp/t")
@@ -687,6 +713,7 @@ class TestCypressAcls(CheckPermissionBase):
             set("//tmp/t/@acl", [], authenticated_user="u")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_administer_permission2(self):
         create_user("u")
         create("table", "//tmp/t")
@@ -694,6 +721,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/t/@acl", [], authenticated_user="u", force=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_administer_permission3(self):
         create("table", "//tmp/t")
         create_user("u")
@@ -706,6 +734,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//tmp/t/@acl/1", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_administer_permission4(self):
         create("table", "//tmp/t")
         create_user("u")
@@ -719,6 +748,7 @@ class TestCypressAcls(CheckPermissionBase):
             set("//tmp/t/@inherit_acl", False, authenticated_user="u")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_administer_permission5(self):
         create_user("u")
 
@@ -826,18 +856,21 @@ class TestCypressAcls(CheckPermissionBase):
             set("//sys/users/u1/@name", "u2")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_deny_create(self):
         create_user("u")
         with pytest.raises(YtError):
             create("account_map", "//tmp/accounts", authenticated_user="u")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_deny_copy_src(self):
         create_user("u")
         with pytest.raises(YtError):
             copy("//sys", "//tmp/sys", authenticated_user="u")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_deny_copy_dst(self):
         create_user("u")
         create("table", "//tmp/t")
@@ -845,6 +878,7 @@ class TestCypressAcls(CheckPermissionBase):
             copy("//tmp/t", "//sys/t", authenticated_user="u", preserve_account=True)
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_document1(self):
         create_user("u")
         create("document", "//tmp/d")
@@ -880,6 +914,7 @@ class TestCypressAcls(CheckPermissionBase):
             remove("//tmp/d", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_document2(self):
         create_user("u")
         create("document", "//tmp/d")
@@ -909,6 +944,7 @@ class TestCypressAcls(CheckPermissionBase):
             remove("//tmp/d", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_document3(self):
         create_user("u")
         create("document", "//tmp/d")
@@ -933,6 +969,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//tmp/d", authenticated_user="u")
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_account1(self):
         create_account("a")
         create_user("u")
@@ -944,6 +981,7 @@ class TestCypressAcls(CheckPermissionBase):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_account2(self):
         create_account("a")
         create_user("u")
@@ -956,6 +994,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/y/@account") == "a"
 
     @authors("babenko", "ignat")
+    @not_implemented_in_sequoia
     def test_copy_account3(self):
         create_account("a")
         create_user("u")
@@ -966,7 +1005,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
-    @authors("sandello", "babenko")
+    @authors("danilalexeev")
     def test_copy_non_writable_src(self):
         # YT-4175
         create_user("u")
@@ -976,7 +1015,7 @@ class TestCypressAcls(CheckPermissionBase):
         copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
         assert get("//tmp/s/y", authenticated_user="u") == get("//tmp/s/x", authenticated_user="u")
 
-    @authors("sandello", "babenko")
+    @authors("danilalexeev")
     def test_copy_and_move_require_read_on_source(self):
         create_user("u")
         set("//tmp/s", {"x": {}})
@@ -987,7 +1026,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
-    @authors("sandello", "babenko")
+    @authors("danilalexeev")
     def test_copy_and_move_require_write_on_target_parent(self):
         create_user("u")
         set("//tmp/s", {"x": {}})
@@ -998,7 +1037,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             move("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
 
-    @authors("sandello", "babenko")
+    @authors("danilalexeev")
     def test_copy_and_move_requires_remove_on_target_if_exists(self):
         create_user("u")
         set("//tmp/s", {"x": {}, "y": {}})
@@ -1009,7 +1048,7 @@ class TestCypressAcls(CheckPermissionBase):
         with pytest.raises(YtError):
             move("//tmp/s/x", "//tmp/s/y", force=True, authenticated_user="u")
 
-    @authors("sandello", "babenko")
+    @authors("danilalexeev")
     def test_move_requires_remove_on_self_and_write_on_self_parent(self):
         create_user("u")
         set("//tmp/s", {"x": {}})
@@ -1039,7 +1078,7 @@ class TestCypressAcls(CheckPermissionBase):
         add_member("u", "superusers")
         remove("//sys/protected", authenticated_user="u")
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_remove_self_requires_permission(self):
         create_user("u")
         set("//tmp/x", {}, force=True)
@@ -1068,7 +1107,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/@acl", [make_ace("allow", "u", "remove")])
         remove("//tmp/x", authenticated_user="u")
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_remove_recursive_requires_permission(self):
         create_user("u")
         set("//tmp/x", {}, force=True)
@@ -1084,7 +1123,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/y/@acl", [make_ace("allow", "u", "remove")])
         remove("//tmp/x/*", authenticated_user="u")
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_set_self_requires_remove_permission(self):
         create_user("u")
         set("//tmp/x", {}, force=True)
@@ -1171,6 +1210,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/m/@acl/0/inheritance_mode") == "object_and_descendants"
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_read_from_per_user_cache(self):
         create_user("u")
         set("//tmp/a", "b")
@@ -1181,6 +1221,7 @@ class TestCypressAcls(CheckPermissionBase):
             get("//tmp/a", authenticated_user="u", read_from="cache")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_read_from_global_cache(self):
         create_user("u")
         set("//tmp/a", "b")
@@ -1190,12 +1231,13 @@ class TestCypressAcls(CheckPermissionBase):
             get("//tmp/a", authenticated_user="u")
         assert get("//tmp/a", authenticated_user="u", read_from="cache", disable_per_user_cache=True) == "b"
 
-    @authors("babenko")
+    @authors("danilalexeev")
     def test_no_owner_auth(self):
         with pytest.raises(YtError):
             get("//tmp", authenticated_user="owner")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_list_with_attr_yt_7165(self):
         create_user("u")
         create("map_node", "//tmp/x")
@@ -1206,6 +1248,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert "attr" not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[0].attributes
 
     @authors("savrus")
+    @not_implemented_in_sequoia
     def test_safe_mode(self):
         create_user("u")
         with pytest.raises(YtError):
@@ -1220,6 +1263,7 @@ class TestCypressAcls(CheckPermissionBase):
             check_permission("u", "read", "//tmp")
 
     @authors("levysotsky")
+    @not_implemented_in_sequoia
     def test_effective_acl(self):
         create_user("u")
         for ch in "abcd":
@@ -1321,6 +1365,7 @@ class TestCypressAcls(CheckPermissionBase):
         )
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_read_table_with_denied_columns(self):
         create_user("u")
 
@@ -1347,6 +1392,7 @@ class TestCypressAcls(CheckPermissionBase):
             read_table("//tmp/t{secret}", authenticated_user="u")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_columnar_acl_sanity(self):
         create_user("u")
         create(
@@ -1362,6 +1408,7 @@ class TestCypressAcls(CheckPermissionBase):
             )
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("strict", [False, True])
     def test_read_table_with_omitted_columns(self, optimize_for, strict):
@@ -1407,6 +1454,7 @@ class TestCypressAcls(CheckPermissionBase):
         do("//tmp/t{secret}", {}, [b"secret"])
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_map_table_with_denied_columns(self):
         create_user("u")
 
@@ -1451,6 +1499,7 @@ class TestCypressAcls(CheckPermissionBase):
             )
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     @pytest.mark.parametrize("strict", [False, True])
     def test_map_table_with_omitted_columns(self, optimize_for, strict):
@@ -1504,6 +1553,7 @@ class TestCypressAcls(CheckPermissionBase):
         do("//tmp/t_in{secret}", {}, True)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_orphaned_node(self):
         create_user("u")
 
@@ -1565,6 +1615,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove(src_dir + "/t2")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_columnar_acl_copy_yt_12749(self):
         create_user("u1")
         create_user("u2")
@@ -1572,6 +1623,7 @@ class TestCypressAcls(CheckPermissionBase):
         self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_special_acd_holders(self):
         create_user("u1")
 
@@ -1588,6 +1640,7 @@ class TestCypressAcls(CheckPermissionBase):
         get("//sys/users/u1/@")
 
     @authors("don-dron")
+    @not_implemented_in_sequoia
     def test_create_access_control_objects_with_ignore_existing(self):
         create_access_control_object_namespace("cats", ignore_existing=True)
         create_access_control_object("garfield", "cats", ignore_existing=True)
@@ -1596,6 +1649,7 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//sys/access_control_object_namespaces/cats")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_access_control_object_recursive_get(self):
         create_access_control_object_namespace("cats")
         create_access_control_object("garfield", "cats")
@@ -1603,6 +1657,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert "principal" in get("//sys/access_control_object_namespaces/cats/garfield")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_access_control_object_revision(self):
         create_access_control_object_namespace("cats")
         create_access_control_object("garfield", "cats")
@@ -1631,6 +1686,7 @@ class TestCypressAcls(CheckPermissionBase):
         assert new_attribute_revision > old_attribute_revision
 
     @authors("kvk1920")
+    @not_implemented_in_sequoia
     def test_medium_permission_validation(self):
         create_domestic_medium("prohibited")
         create_user("u")
@@ -1645,6 +1701,7 @@ class TestCypressAcls(CheckPermissionBase):
         multiset_attributes(path + "/@", {key: value}, authenticated_user=user, force=force)
 
     @authors("vovamelnikov")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("request_type", ["set", "multiset"])
     @pytest.mark.parametrize("key", ["acl", "inherit_acl"])
     def test_irreversible_modification(self, request_type, key):
@@ -1681,6 +1738,7 @@ class TestCypressAcls(CheckPermissionBase):
         request_func(path=path, key=key, value=value, user='u', force=True)
 
     @authors("vovamelnikov")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("request_type", ["set", "multiset"])
     def test_irreversible_owner_modification(self, request_type):
         set("//sys/@config/security_manager/forbid_irreversible_changes", True)
@@ -1709,7 +1767,7 @@ class TestCypressAcls(CheckPermissionBase):
 
         request_func(path="//tmp/dir", key="owner", value="u2", user="u2", force=True)
 
-    @authors("h0pless")
+    @authors("h0pless", "danilalexeev")
     def test_attribute_based_access_control(self):
         create_user("smoothie_lover")
         create_user("kvas_enjoyer")
@@ -1830,6 +1888,7 @@ class TestCypressAcls(CheckPermissionBase):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
 
     @authors("h0pless")
+    @not_implemented_in_sequoia
     def test_disable_subject_tag_filters(self):
         create_user("George50")
         set("//sys/users/George50/@tags", ['cool', 'lonely'])
@@ -1882,6 +1941,7 @@ class TestCypressAcls(CheckPermissionBase):
         )
 
     @authors("kivedernikov")
+    @not_implemented_in_sequoia
     def test_permissions_concatenate(self):
         create_user("u1")
         create_group("g1")
@@ -1939,6 +1999,446 @@ class TestCypressAcls(CheckPermissionBase):
         )
 
         concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_full_read_validation(self):
+        create_user("u")
+        create("table", "//tmp/t")
+
+        with raises_yt_error('ACE with "full_read" permission may have only "allow" action'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", "full_read")])
+
+        with raises_yt_error('ACE with "full_read" permission may have only "allow" action'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", ["read", "full_read"])])
+
+        with raises_yt_error('ACE specifying columns may contain only "read" permission'):
+            set("//tmp/t/@acl", [make_ace("deny", "u", "full_read", columns=["a"])])
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_full_read_simple(self):
+        create_user("u")
+        create_user("restricted")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "read", columns=["private"]),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        with raises_yt_error('Access denied for user "restricted"'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
+
+        set("//tmp/t/@acl/end", make_ace("allow", "restricted", "full_read"))
+
+        # full_read should grant read.
+        get("//tmp/t/@acl", authenticated_user="restricted")
+        read_table("//tmp/t", authenticated_user="restricted")
+
+        # full_read should also grant full_read.
+        copy("//tmp/t", "//tmp/t_copy", authenticated_user="restricted")
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_full_read_and_deny_read(self):
+        create_user("u")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "public", "type": "string"},
+                    {"name": "private", "type": "int64"},
+                ],
+                "acl": [
+                    make_ace("allow", "u", "full_read"),
+                    make_ace("deny", "u", "read"),
+                ],
+                "inherit_acl": False,
+            }
+        )
+
+        # full_read must not override deny on read.
+        with raises_yt_error('Access denied for user "u"'):
+            get("//tmp/t/@acl", authenticated_user="u")
+        with raises_yt_error('Access denied for user "u"'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_absence_of_read_does_not_mention_full_read(self):
+        # NB(coteeq): This is a test for the behaviour that is designed to
+        # decrease entropy with the access control rules.
+        # When the user tries to full_read a table, on which they do not even
+        # have a basic read, we should ask them to get basic read first and
+        # hope that basic read will be enough.
+        #
+        # Otherwise, if we mention full_read in the error, the user will
+        # immediately rush to get full_read, which they probably do not need.
+        create_user("u")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+            }
+        )
+
+        with raises_yt_error('"read" permission for node //tmp/t'):
+            copy("//tmp/t", "//tmp/t_copy", authenticated_user="u")
+
+
+@pytest.mark.enabled_multidaemon
+class TestRowAcls(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    def _make_rl_ace(self, users, expression=None, mode=None, permission="read"):
+        ace = make_ace("allow", users, permission)
+        if expression is not None:
+            ace["expression"] = expression
+        if mode is not None:
+            ace["inapplicable_expression_mode"] = mode
+        return ace
+
+    def _read(self, user, path="//tmp/t", omit_inaccessible_rows=True):
+        return read_table(path, authenticated_user=user, omit_inaccessible_rows=omit_inaccessible_rows)
+
+    def _rows(self, *int_seq):
+        return [
+            {"col1": i, "col2": f"val_{i}"}
+            for i in int_seq
+        ]
+
+    def _create_and_write_table(self, acl, optimize_for="scan", schema=None):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "inherit_acl": False,
+                "acl": acl,
+                "schema": schema or [
+                    {"name": "col1", "type": "int64"},
+                    {"name": "col2", "type": "string"},
+                ],
+                "optimize_for": optimize_for,
+            },
+        )
+        write_table("//tmp/t", self._rows(*range(2, 10)))
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_row_ace(self, optimize_for):
+        create_user("prime_manager")
+        create_user("even_manager")
+        create_user("everything_manager")
+        create_user("everything_manager_via_expression")
+        create_user("only_generic_read")
+        create_user("no_read")
+
+        acl = [
+            self._make_rl_ace("prime_manager", "col1 in (2, 3, 5, 7)"),
+            self._make_rl_ace("even_manager", "col1 % 2 = 0"),
+            make_ace("allow", "everything_manager", "full_read"),
+            self._make_rl_ace("everything_manager_via_expression", "true"),
+            self._make_rl_ace(["prime_manager", "even_manager", "only_generic_read", "everything_manager_via_expression"]),
+        ]
+
+        self._create_and_write_table(acl, optimize_for)
+
+        for user in ["prime_manager", "even_manager", "everything_manager", "everything_manager_via_expression", "only_generic_read"]:
+            get("//tmp/t/@optimize_for", authenticated_user=user)
+
+        with raises_yt_error("Access denied for user"):
+            get("//tmp/t/@optimize_for", authenticated_user="no_read")
+
+        for user in ["prime_manager", "even_manager", "only_generic_read", "no_read", "everything_manager_via_expression"]:
+            with raises_yt_error("Access denied for user"):
+                copy("//tmp/t", f"//tmp/t_copy_{user}", authenticated_user=user)
+            with raises_yt_error("Access denied for user"):
+                concatenate(["//tmp/t"], f"//tmp/t_concat_{user}", authenticated_user=user)
+
+        copy("//tmp/t", "//tmp/t2_copy", authenticated_user="everything_manager")
+        concatenate(["//tmp/t"], "//tmp/t2_copy", authenticated_user="everything_manager")
+
+        assert self._read("prime_manager") == self._rows(2, 3, 5, 7)
+        assert self._read("even_manager") == self._rows(2, 4, 6, 8)
+        assert self._read("everything_manager") == self._rows(*range(2, 10))
+        assert self._read("everything_manager_via_expression") == self._rows(*range(2, 10))
+        assert self._read("only_generic_read") == []
+
+        # Just check for sanity.
+        with raises_yt_error():
+            self._read("no_read")
+
+    @authors("coteeq")
+    def test_row_ace_validation(self):
+        create_user("u")
+
+        def make_bad_ace(action, permissions, expression, inapplicable_expression_mode=None, columns=None):
+            ace = make_ace(action, "u", permissions, columns=columns)
+            if expression is not None:
+                ace["expression"] = expression
+            if inapplicable_expression_mode is not None:
+                ace["inapplicable_expression_mode"] = inapplicable_expression_mode
+            return ace
+
+        bad_aces = []
+        bad_aces.extend([
+            (make_bad_ace("deny", "read", "a = 2"), 'ACE specifying "expression" may have only "allow" action'),
+        ])
+        bad_aces.extend([
+            (make_bad_ace("allow", permission, "a = 2"), 'ACE specifying "expression" may contain only "read" permission')
+            for permission in ["write", "use", "administer", "create", "remove", "mount", "manage", "modify_children"]
+        ] + [
+            (make_bad_ace("allow", ["write", "modify_children"], "a = 2"), 'ACE specifying "expression" may contain only "read" permission'),
+        ])
+        bad_aces.extend([
+            (make_bad_ace("allow", "read", None, "ignore"), '"inapplicable_expression_mode" can only be specified if "expression" is specified'),
+        ])
+        bad_aces.extend([
+            (make_bad_ace("allow", "read", "a = 2", columns=["col"]), 'Single ACE must not contain both "columns" and "expression"'),
+        ])
+
+        bad_aces.extend([
+            (make_bad_ace("allow", ["read", "full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "expression" or "columns"'),
+            (make_bad_ace("allow", ["full_read"], "a = 2"), 'ACE with "full_read" permission may not specify "expression" or "columns"'),
+        ])
+
+        for bad_ace, expected_error in bad_aces:
+            with raises_yt_error(expected_error):
+                create("table", "//tmp/t", attributes={"acl": [bad_ace]})
+
+    def _prepare_check_permission(self, user):
+        create_user("u0")
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+
+        acl = [
+            self._make_rl_ace("u0", "a < 3"),
+            self._make_rl_ace(["u0", "u1"], "b == 2"),
+            self._make_rl_ace(["u0", "u1"], "c == \"asdf\"", "ignore"),
+            make_ace("allow", ["u2"], "full_read"),
+            self._make_rl_ace(["u3"]),
+        ]
+
+        create("table", "//tmp/t", attributes={"acl": acl})
+        return check_permission(user, "read", "//tmp/t")
+
+    @authors("coteeq")
+    def test_check_permission_u0(self):
+        response = self._prepare_check_permission("u0")
+        response["rl_acl"].sort(key=lambda descriptor: descriptor.get("expression", ""))
+
+        assert response["rl_acl"][0]["expression"] == "a < 3"
+        assert response["rl_acl"][1]["expression"] == "b == 2"
+        assert response["rl_acl"][2]["expression"] == "c == \"asdf\""
+
+        assert "inapplicable_expression_mode" not in response["rl_acl"][0]
+        assert "inapplicable_expression_mode" not in response["rl_acl"][1]
+        assert response["rl_acl"][2]["inapplicable_expression_mode"] == "ignore"
+
+    @authors("coteeq")
+    def test_check_permission_u1(self):
+        response = self._prepare_check_permission("u1")
+        response["rl_acl"].sort(key=lambda descriptor: descriptor["expression"])
+
+        assert response["rl_acl"][0]["expression"] == "b == 2"
+        assert response["rl_acl"][1]["expression"] == "c == \"asdf\""
+
+        assert "inapplicable_expression_mode" not in response["rl_acl"][0]
+        assert response["rl_acl"][1]["inapplicable_expression_mode"] == "ignore"
+
+    @authors("coteeq")
+    def test_check_permission_u2(self):
+        response = self._prepare_check_permission("u2")
+        assert "rl_acl" not in response
+
+    @authors("coteeq")
+    def test_check_permission_u3(self):
+        response = self._prepare_check_permission("u3")
+        assert response["rl_acl"] == []
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["ignore", "fail"])
+    @pytest.mark.parametrize("invalid_reason", ["non_existent_column", "column_type_invalid", "not_boolean", "syntax"])
+    def test_invalid_expression(self, mode, invalid_reason):
+        create_user("u")
+
+        expression = None
+        error = None
+        if invalid_reason == "non_existent_column":
+            expression = "non_existent = 2"
+            error = "Undefined reference"
+        elif invalid_reason == "column_type_invalid":
+            expression = "col1 = \"str\""
+            error = "Type mismatch in expression"
+        elif invalid_reason == "not_boolean":
+            expression = "col1 + 1"
+            error = "result type to be boolean"
+        else:
+            expression = ")col1 == 2("
+            error = "syntax error"
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", expression, mode=mode),
+            ],
+        )
+
+        if mode == "fail":
+            with raises_yt_error(error):
+                assert self._read("u")
+        else:
+            assert self._read("u") == []
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_adjust_columns(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 < 5"),
+            ],
+            optimize_for,
+        )
+
+        assert self._read("u", path="//tmp/t{col2}") == [{"col2": row["col2"]} for row in self._rows(2, 3, 4)]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_missing_in_chunk_column(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [],
+            optimize_for,
+        )
+
+        new_schema = [
+            {"name": "col1", "type": "int64"},
+            {"name": "col2", "type": "string"},
+            {"name": "new_col", "type": "string"},
+        ]
+
+        alter_table("//tmp/t", schema=new_schema)
+
+        set("//tmp/t/@acl/end", self._make_rl_ace("u"))
+        set("//tmp/t/@acl/end", self._make_rl_ace("u", "is_null(new_col) and col1 < 5"))
+
+        assert self._read("u") == self._rows(2, 3, 4)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_columns(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 < 5"),
+            ],
+            optimize_for,
+        )
+
+        new_schema_1 = [
+            {"name": "forget_me", "type": "int64", "stable_name": "col1"},
+            {"name": "col2", "type": "string"},
+            {"name": "col1", "type": "string", "stable_name": "new_col"},
+        ]
+
+        alter_table("//tmp/t", schema=new_schema_1)
+
+        # col1 is now string and expression is not applicable.
+        with raises_yt_error():
+            assert self._read("u")
+
+        new_schema_2 = [
+            {"name": "forget_me", "type": "int64", "stable_name": "col1"},
+            {"name": "col2", "type": "string"},
+            {"name": "new_col", "type": "string", "stable_name": "new_col"},
+            {"name": "col1", "type": "int64", "stable_name": "even_newer_col"},
+        ]
+        alter_table("//tmp/t", schema=new_schema_2)
+
+        write_table("<append=%true>//tmp/t", {"col1": 12, "col2": "12"})
+
+        # col1 is now null for the first chunk and `null < 5` is always true.
+        assert self._read("u") == [
+            {"forget_me": stable["col1"], "col2": stable["col2"]}
+            for stable in self._rows(*range(2, 10))
+        ]
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.xfail(reason="This will be kinda hard :(")
+    def test_read_ranges_index(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 % 2 = 0"),
+            ],
+            optimize_for,
+        )
+
+        assert self._read("u", "//tmp/t[#2]") == self._rows(6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_read_ranges_keys(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 % 2 = 0"),
+            ],
+            optimize_for,
+            schema=[
+                {"name": "col1", "type": "int64", "sort_order": "ascending"},
+                {"name": "col2", "type": "string"},
+            ]
+        )
+
+        assert self._read("u", "//tmp/t[4]") == self._rows(4)
+        assert self._read("u", "//tmp/t[5]") == []
+        assert self._read("u", "//tmp/t[4:8]") == self._rows(4, 6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_multiple_aces(self, optimize_for):
+        create_user("u")
+
+        self._create_and_write_table(
+            [
+                self._make_rl_ace("u"),
+                self._make_rl_ace("u", "col1 = 4"),
+                self._make_rl_ace("u", "col1 = 5"),
+                self._make_rl_ace("u", "col1 = 6"),
+            ],
+            optimize_for,
+        )
+
+        assert self._read("u") == self._rows(4, 5, 6)
+
 
 ##################################################################
 
@@ -2009,3 +2509,36 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         # Must not crash.
         build_snapshot(cell_id=None, set_read_only=False)
         get("//sys/users/u1/@")
+
+
+################################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestCypressAclsSequoia(TestCypressAclsMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_TEST_PARTITIONS = 3
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    }

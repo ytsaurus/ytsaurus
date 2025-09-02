@@ -76,26 +76,6 @@ NodeRpc =       ProjectSensor("tab_node_rpc|exe_node_rpc|node_rpc",             
 NodeRpcClient = ProjectSensor("tab_node_rpc_client|exe_node_rpc_client|node_rpc_client", "yt-data-node.*|yt-exec-node.*|yt-tablet-node.*", base=RpcBase)  # noqa: E222
 NodeMonitor =   ProjectSensor("node_monitor",                                            "yt-node-monitor")  # noqa: E222
 
-UserJobSensors = ProjectSensor("*node_user_job", "yt-exec-node-user-job*")
-# class UserJobSensors(Sensor):
-#     def __init__(self, sensor_name, **kwargs):
-#         additional_selectors = {}
-#         if 'gpu_slot' in kwargs:
-#             additional_selectors['gpu_slot'] = kwargs.pop('gpu_slot')
-#         if 'rdma_device' in kwargs:
-#             additional_selectors['rdma_device'] = kwargs.pop('rdma_device')
-#
-#         selectors = {
-#             'project': 'yt',
-#             'cluster': '{{cluster}}',
-#             'service': '*node_user_job',
-#             'sensor': sensor_name,
-#             'job_descriptor': '{{job_descriptor}}',
-#             **additional_selectors
-#         }
-#
-#         super().__init__(selectors, **kwargs)
-
 # Data nodes.
 DatNode =          ProjectSensor("dat_node",            "yt-data-node.*")  # noqa: E222
 DatNodeMemory =    ProjectSensor("dat_node_memory",     "yt-data-node.*")  # noqa: E222
@@ -115,6 +95,9 @@ ExeNodePorto =     ProjectSensor("exe_node_porto",      "yt-exec-node.*")  # noq
 ExeNodeUserJob =   ProjectSensor("exe_node_user_job",   "yt-exec-node.*")  # noqa: E222
 ExeNodeRpc =       ProjectSensor("exe_node_rpc",        "yt-exec-node.*", base=RpcBase)  # noqa: E222
 ExeNodeRpcClient = ProjectSensor("exe_node_rpc_client", "yt-exec-node.*", base=RpcBase)  # noqa: E222
+
+# User job sensor by exec nodes.
+UserJobSensors = ProjectSensor("*node_user_job", "yt-exec-node-user-job*")  # noqa: E222
 
 # Tablet nodes.
 TabNode =          ProjectSensor("tab_node",            "yt-tablet-node.*")  # noqa: E222

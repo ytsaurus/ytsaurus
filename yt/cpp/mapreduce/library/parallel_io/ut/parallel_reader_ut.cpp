@@ -11,6 +11,8 @@
 using namespace NYT;
 using namespace NYT::NTesting;
 
+using namespace NSkiff;
+
 bool operator==(const TTestMessage& left, const TTestMessage& right)
 {
     return left.key() == right.key() && left.value() == right.value();
@@ -121,6 +123,99 @@ NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>(const TMaybe<TSkiffRo
                 CreateSimpleTypeSchema(NSkiff::EWireType::Double)})
             ->SetName("pointNum")});
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBlobSkiffRow
+{
+    TString Blob;
+
+    TBlobSkiffRow() = default;
+
+    TBlobSkiffRow(TTestSkiffRow structuredRow)
+    {
+        TStringOutput blobStream(Blob);
+        TCheckedSkiffWriter checkedSkiffWriter(GetSkiffSchema<TTestSkiffRow>(TSkiffRowHints().TableIndex(0)), &blobStream);
+
+        checkedSkiffWriter.WriteUint64(structuredRow.Num);
+        checkedSkiffWriter.WriteString32(structuredRow.Str);
+        checkedSkiffWriter.WriteVariant8Tag(0);
+
+        checkedSkiffWriter.Finish();
+    }
+
+    bool operator==(const TBlobSkiffRow& other) const
+    {
+        return Blob == other.Blob;
+    }
+};
+
+template <>
+struct TIsSkiffRow<TBlobSkiffRow>
+    : std::true_type
+{ };
+
+IOutputStream& operator<<(IOutputStream& ss, const TBlobSkiffRow& row)
+{
+    ss << "{ Blob: '" << row.Blob << "' }";
+    return ss;
+}
+
+class TBlobSkiffRowParser
+    : public ISkiffRowParser
+{
+public:
+    TBlobSkiffRowParser(TBlobSkiffRow* row)
+        : Row_(row)
+    { }
+
+    virtual ~TBlobSkiffRowParser() override = default;
+
+    virtual void Parse(NSkiff::TCheckedInDebugSkiffParser* parser) override
+    {
+        Row_->Blob = parser->ParseString32();
+    }
+
+private:
+    TBlobSkiffRow* Row_;
+};
+
+template <>
+ISkiffRowParserPtr NYT::CreateSkiffParser<TBlobSkiffRow>(TBlobSkiffRow* row, const TMaybe<TSkiffRowHints>& /*hints*/)
+{
+    return ::MakeIntrusive<TBlobSkiffRowParser>(row);
+}
+
+template <>
+NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TBlobSkiffRow>(const TMaybe<TSkiffRowHints>& hints)
+{
+    if (hints && hints->TableIndex_ && *hints->TableIndex_ == 0) {
+        return NSkiff::CreateTupleSchema({
+            NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Int32)->SetName("$remaining_row_bytes"),
+            NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Uint64)->SetName("num"),
+            NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::String32)->SetName("str"),
+            NSkiff::CreateVariant8Schema({
+                CreateSimpleTypeSchema(NSkiff::EWireType::Nothing),
+                CreateSimpleTypeSchema(NSkiff::EWireType::Double)})
+            ->SetName("pointNum")});
+    } else {
+        return NSkiff::CreateTupleSchema({
+            NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Int32)->SetName("$remaining_row_bytes"),
+            NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Uint64)->SetName("num"),
+            NSkiff::CreateVariant8Schema({
+                CreateSimpleTypeSchema(NSkiff::EWireType::Nothing),
+                CreateSimpleTypeSchema(NSkiff::EWireType::Double)})
+            ->SetName("pointNum")});
+    }
+}
+
+template <>
+NSkiff::TSkiffSchemaPtr NYT::GetParserSkiffSchema<TBlobSkiffRow>(const TMaybe<TSkiffRowHints>& /*hints*/)
+{
+    return NSkiff::CreateTupleSchema({
+        NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::String32)->SetName("blob"),
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -463,6 +558,31 @@ TEST_P(TParallelReaderTest, SimpleSkiffRowSeveralTables)
             .Ordered(GetParam())
             .BufferedRowCountLimit(10)
             .ThreadCount(5)
+            .FormatHints(TFormatHints()
+                .SkiffRowHints(TSkiffRowHints())));
+}
+
+TEST_P(TParallelReaderTest, SimpleBlobSkiffRow)
+{
+    TVector<TNode> rows;
+    constexpr size_t rowCount = 100;
+    rows.reserve(rowCount);
+    TVector<TBlobSkiffRow> expectedRows;
+    expectedRows.reserve(rowCount);
+    for (size_t i = 0; i != rowCount; ++i) {
+        rows.push_back(TNode()("num", i)("str", ToString(i * i)));
+        expectedRows.push_back(TBlobSkiffRow(TTestSkiffRow(i, ToString(i * i), std::nullopt)));
+    }
+
+    TestReader(
+        "table",
+        rows,
+        expectedRows,
+        {{0, rowCount}},
+        TParallelTableReaderOptions()
+            .Ordered(GetParam())
+            .ThreadCount(10)
+            .BufferedRowCountLimit(20)
             .FormatHints(TFormatHints()
                 .SkiffRowHints(TSkiffRowHints())));
 }

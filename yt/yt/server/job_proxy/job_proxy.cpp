@@ -109,6 +109,8 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
@@ -262,7 +264,34 @@ void TJobProxy::Fail(TError error)
 
 TSharedRef TJobProxy::DumpSensors()
 {
-    return SolomonExporter_->DumpSensors();
+    auto tags = TTagSet();
+    const auto& host = Config_->SolomonExporter->Host;
+
+    if (host) {
+        tags = tags
+            .WithTag(NProfiling::TTag{"host", ToString(*host)})
+            .WithTag(NProfiling::TTag{"slot_index", ToString(Config_->SlotIndex)}, /*parent*/ -1);
+    }
+
+    const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
+    if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().has_monitoring_config()) {
+        std::string jobProxyDescriptor = jobSpecExt.user_job_spec().monitoring_config().job_descriptor();
+        if (host) {
+            tags = tags
+                // Alternative to host tag.
+                .WithAlternativeTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor}, /*alternativeTo*/ -2);
+        } else {
+            tags = tags
+                .WithTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor});
+        }
+    }
+
+    for (const auto& [key, value] : Config_->SolomonExporter->InstanceTags) {
+        tags = tags
+            .WithRequiredTag(NProfiling::TTag{key, value});
+    }
+
+    return SolomonExporter_->DumpSensors(/*customTagSet*/ tags);
 }
 
 IServerPtr TJobProxy::GetRpcServer() const
@@ -689,12 +718,10 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
 
-    auto signatureGenerator = Config_->EnableSignatureGeneration
-        ? New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_)
-        : NSignature::CreateAlwaysThrowingSignatureGenerator();
+    auto signatureGenerator = New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_);
     connection->SetSignatureGenerator(std::move(signatureGenerator));
 
-    auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+    auto rootClient = connection->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     if (enableShuffleService) {
         YT_VERIFY(!PublicRpcServer_);
@@ -706,7 +733,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         PublicRpcServer_->Start();
         YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
 
-        auto localServerAddress = BuildServiceAddress(GetLocalHostName(), *Config_->BusServer->Port);
+        auto localServerAddress = BuildServiceAddress(NNet::GetLocalHostName(), *Config_->BusServer->Port);
         auto shuffleService = CreateShuffleService(
             ApiServiceThreadPool_->GetInvoker(),
             rootClient,
@@ -724,9 +751,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
 
-    auto signatureValidator = Config_->EnableSignatureValidation
-        ? New<TProxySignatureValidator>(*SupervisorProxy_, JobId_)
-        : NSignature::CreateAlwaysThrowingSignatureValidator();
+    auto signatureValidator = New<TProxySignatureValidator>(*SupervisorProxy_, JobId_);
 
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
@@ -848,7 +873,7 @@ TJobResult TJobProxy::RunJob()
         RetrieveJobSpec();
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
-        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
+        Client_ = clusterConnection->CreateNativeClient(NNative::TClientOptions::FromUser(GetAuthenticatedUser()));
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
@@ -894,12 +919,6 @@ TJobResult TJobProxy::RunJob()
         const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
         if (jobSpecExt.is_traced()) {
             RootSpan_->SetSampled();
-        }
-        if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().has_monitoring_config()) {
-            TString jobProxyDescriptor = jobSpecExt.user_job_spec().monitoring_config().job_descriptor();
-            NProfiling::TSolomonRegistry::Get()->SetDynamicTags({
-                NProfiling::TTag{"job_descriptor", jobProxyDescriptor},
-            });
         }
         if (jobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = jobSpecExt.user_job_spec();

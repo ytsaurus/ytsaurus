@@ -1,8 +1,8 @@
 PY3_PROGRAM(mcp_yt_server)
 
-PY_SRCS(
-    # NAMESPACE yt.mcp
+SUBSCRIBER(g:yt g:yt-python)
 
+PY_SRCS(
     MAIN mcp_yt_server.py
     __init__.py
 )

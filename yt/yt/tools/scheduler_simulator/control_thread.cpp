@@ -4,8 +4,8 @@
 #include "node_shard.h"
 #include "node_worker.h"
 
-#include <yt/yt/server/scheduler/fair_share_strategy.h>
-#include <yt/yt/server/scheduler/fair_share_tree.h>
+#include <yt/yt/server/scheduler/strategy/pool_tree.h>
+#include <yt/yt/server/scheduler/strategy/strategy.h>
 
 #include <yt/yt/client/security_client/acl.h>
 
@@ -19,6 +19,7 @@
 namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
+using namespace NScheduler::NStrategy;
 using namespace NLogging;
 using namespace NConcurrency;
 using namespace NYTree;
@@ -83,8 +84,8 @@ TSimulatorControlThread::TSimulatorControlThread(
         /*maxAllowedOutrunning*/ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
     , NodeWorkerThreadPool_(CreateThreadPool(config->NodeWorkerThreadCount, "NodeWorkerPool"))
     , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog, NodeShardInvokers_)
-    , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
-    , SharedSchedulerStrategy_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
+    , Strategy_(CreateStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
+    , SharedStrategy_(Strategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
     , Logger(SchedulerSimulatorLogger().WithTag("ControlThread"))
@@ -100,7 +101,7 @@ TSimulatorControlThread::TSimulatorControlThread(
             shardId,
             &NodeEventQueue_,
             &StrategyHost_,
-            &SharedSchedulerStrategy_,
+            &SharedStrategy_,
             &OperationStatistics_,
             operationStatisticsOutput,
             &RunningOperationsMap_,
@@ -127,14 +128,14 @@ void TSimulatorControlThread::Initialize(const TYsonString& poolTreesYson)
 {
     YT_VERIFY(!Initialized_.load());
 
-    SchedulerStrategy_->InitPersistentState(New<TPersistentStrategyState>());
-    WaitFor(BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesYson)
+    Strategy_->InitPersistentState(New<TPersistentStrategyState>());
+    WaitFor(BIND(&IStrategy::UpdatePoolTrees, Strategy_, poolTreesYson)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run())
         .ThrowOnError();
 
     for (const auto& execNode : *ExecNodes_) {
-        WaitFor(BIND(&ISchedulerStrategy::RegisterOrUpdateNode, SchedulerStrategy_)
+        WaitFor(BIND(&IStrategy::RegisterOrUpdateNode, Strategy_)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run(execNode->GetId(), execNode->GetDefaultAddress(), execNode->Tags()))
             .ThrowOnError();
@@ -212,7 +213,7 @@ void TSimulatorControlThread::Run()
     WaitFor(AllSucceeded(nodeShardFinalizationFutures))
         .ThrowOnError();
 
-    SchedulerStrategy_->OnMasterDisconnected();
+    Strategy_->OnMasterDisconnected();
     StrategyHost_.CloseEventLogger();
 
     YT_LOG_INFO("Simulation finished");
@@ -246,7 +247,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     const auto& description = OperationStatistics_.GetOperationDescription(event.OperationId);
 
     auto runtimeParameters = New<TOperationRuntimeParameters>();
-    SchedulerStrategy_->InitOperationRuntimeParameters(
+    Strategy_->InitOperationRuntimeParameters(
         runtimeParameters,
         NYTree::ConvertTo<TOperationSpecBasePtr>(description.Spec),
         description.AuthenticatedUser,
@@ -265,16 +266,16 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     // Notify scheduler.
     std::vector<TString> unknownTreeIds;
     TPoolTreeControllerSettingsMap poolTreeControllerSettingsMap;
-    SchedulerStrategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
+    Strategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
     YT_VERIFY(unknownTreeIds.empty());
     StrategyHost_.LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationStarted)
         .Item("operation_id").Value(operation->GetId())
         .Item("operation_type").Value(operation->GetType())
         .Item("spec").Value(operation->GetSpecString())
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
-        .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, SchedulerStrategy_, operation.Get(), _1));
+        .Do(std::bind(&IStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
     // TODO(eshcherbin): Init operation scheduling segments. Got to think of a way to get min needed resources at this point.
-    SchedulerStrategy_->EnableOperation(operation.Get());
+    Strategy_->EnableOperation(operation.Get());
 
     JobAndOperationCounter_.OnOperationStarted();
 }
@@ -289,12 +290,12 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 
     YT_LOG_INFO("Finished waiting for struggling node workers (VirtualTimestamp: %v)", event.Time);
 
-    SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
-    SchedulerStrategy_->OnFairShareProfilingAt(updateTime);
+    Strategy_->OnFairShareUpdateAt(updateTime);
+    Strategy_->OnFairShareProfilingAt(updateTime);
     if (Config_->EnableFullEventLog) {
-        SchedulerStrategy_->OnFairShareLoggingAt(updateTime);
+        Strategy_->OnFairShareLoggingAt(updateTime);
     } else {
-        SchedulerStrategy_->OnFairShareEssentialLoggingAt(updateTime);
+        Strategy_->OnFairShareEssentialLoggingAt(updateTime);
     }
 
     NodeEventQueue_.UpdateControlThreadTime(updateTime);

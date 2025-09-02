@@ -68,7 +68,7 @@ public:
         return RegistrationError_.Read([] (const TError& error) {
             return
                 error.IsOK() ||
-                error.GetCode() == NSequoiaClient::EErrorCode::InvalidSequoiaReign;
+                error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign);
         });
     }
 
@@ -102,10 +102,13 @@ private:
     {
         auto connection = Bootstrap_->GetNativeConnection();
         auto channel = connection->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower,
+            EMasterChannelKind::Leader,
             PrimaryMasterCellTagSentinel);
         auto proxy = TCypressProxyTrackerServiceProxy(std::move(channel));
         auto request = proxy.Heartbeat();
+
+        auto heartbeatPeriod = Bootstrap_->GetConfig()->HeartbeatPeriod;
+        request->set_heartbeat_period(ToProto(heartbeatPeriod));
         request->set_address(SelfAddress_);
         request->set_sequoia_reign(ToProto(GetCurrentSequoiaReign()));
         request->set_version(GetVersion());

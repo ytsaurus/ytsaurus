@@ -54,8 +54,6 @@ void ValidateAttributeType(EValueType valueType)
         case EValueType::Composite:
         case EValueType::Max:
             THROW_ERROR_EXCEPTION("Attribute type %Qlv is not supported", valueType);
-        default:
-            YT_ABORT();
     }
 }
 
@@ -88,49 +86,49 @@ void ValidateAttributePaths(const std::vector<TTypedAttributePath>& typedAttribu
 TUnversionedValue MakeUnversionedValue(
     EValueType valueType,
     const TNonOwningAttributePayload& payload,
-    TObjectsHolder* objectsHolder)
+    TObjectsHolder* /*objectsHolder*/)
 {
-    if (valueType == EValueType::String) {
-        return Visit(
-            payload,
-            [&] (const TYsonStringBuf& ysonPayload) {
-                // Currently, it's impossible to create a non-owning string view from TYsonString.
-                // Since TUnversionedValue itself is non-owning, an external holder is needed.
-                auto* regularString = objectsHolder->New<TString>();
-                *regularString = NYson::ConvertFromYsonString<TString>(ysonPayload);
-                return MakeUnversionedStringValue(*regularString);
-            },
-            [&] (TStringBuf stringPayload) {
-                return MakeUnversionedStringValue(stringPayload);
-            });
+    if (const auto* stringPayloadPtr = std::get_if<TStringBuf>(&payload)) {
+        THROW_ERROR_EXCEPTION_UNLESS(valueType == EValueType::String,
+            "Values of type %Qlv can not be parsed from TStringBuf payload",
+            valueType);
+        return MakeUnversionedStringValue(*stringPayloadPtr);
     }
 
-    const auto& ysonPayload = std::invoke([&] () -> const auto& {
-        if (const auto* ysonPayloadPtr = std::get_if<TYsonStringBuf>(&payload)) {
-            return *ysonPayloadPtr;
-        }
-        THROW_ERROR_EXCEPTION("Values of type %Qlv can be parsed from yson payload only",
+    const auto& ysonPayload = std::get<TYsonStringBuf>(payload);
+    auto ysonPayloadBuf = ysonPayload.AsStringBuf();
+    if (!ysonPayloadBuf) {
+        THROW_ERROR_EXCEPTION_UNLESS(valueType == EValueType::Any,
+            "Values of type %Qlv can not be parsed from empty payload",
             valueType);
-    });
+        return MakeUnversionedAnyValue(ysonPayloadBuf);
+    }
+
+    TMemoryInput input(ysonPayloadBuf);
+    NYson::TYsonPullParser parser(&input, NYson::EYsonType::Node);
+
+    if (parser.IsEntity()) {
+        return MakeUnversionedNullValue();
+    }
 
     switch (valueType) {
+        case EValueType::String: {
+            return MakeUnversionedStringValue(parser.ParseString());
+        }
         case EValueType::Int64: {
-            return MakeUnversionedInt64Value(NYson::ConvertFromYsonString<i64>(ysonPayload));
+            return MakeUnversionedInt64Value(parser.ParseInt64());
         }
         case EValueType::Uint64: {
-            return MakeUnversionedUint64Value(NYson::ConvertFromYsonString<ui64>(ysonPayload));
+            return MakeUnversionedUint64Value(parser.ParseUint64());
         }
         case EValueType::Double: {
-            return MakeUnversionedDoubleValue(NYson::ConvertFromYsonString<double>(ysonPayload));
+            return MakeUnversionedDoubleValue(parser.ParseDouble());
         }
         case EValueType::Boolean: {
-            return MakeUnversionedBooleanValue(NYson::ConvertFromYsonString<bool>(ysonPayload));
+            return MakeUnversionedBooleanValue(parser.ParseBoolean());
         }
         case EValueType::Any: {
-            if (ysonPayload == TYsonStringBuf("#")) {
-                return MakeUnversionedNullValue();
-            }
-            return MakeUnversionedAnyValue(ysonPayload.AsStringBuf());
+            return MakeUnversionedAnyValue(ysonPayloadBuf);
         }
         default:
             // Attribute type validation should have been performed earlier.
@@ -156,7 +154,7 @@ public:
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
-        const TRowBufferPtr& rowBuffer) override
+        const TRowBufferPtr& rowBuffer) const override
     {
         try {
             if (attributePayloads.size() != Columns_.size()) {
@@ -188,7 +186,7 @@ public:
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const TNonOwningAttributePayload& attributePayload,
-        const TRowBufferPtr& rowBuffer) override
+        const TRowBufferPtr& rowBuffer) const override
     {
         return Evaluate(std::vector<TNonOwningAttributePayload>{attributePayload}, rowBuffer);
     }

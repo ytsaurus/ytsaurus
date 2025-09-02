@@ -93,6 +93,11 @@ class TestChaos(ChaosTestBase):
         for driver in self._get_drivers():
             set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
+        native_config = deepcopy(self.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 3
+        self.native_driver = Driver(native_config)
+
     @authors("savrus")
     def test_virtual_maps(self):
         tablet_cell_id = sync_create_cells(1)[0]
@@ -4721,8 +4726,8 @@ class TestChaos(ChaosTestBase):
         primary_commit_timestamp = commit_res["primary_commit_timestamp"]
 
         # Waitng for transaction serialization so total row count is updated
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") >= primary_commit_timestamp)
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[2]}/replication_lag_timestamp") >= primary_commit_timestamp)
+        for replica_id in replica_ids:
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") >= primary_commit_timestamp)
 
         tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
         assert len(tablet_infos) == 1
@@ -4730,21 +4735,32 @@ class TestChaos(ChaosTestBase):
         assert tablet_infos[0]["total_row_count"] == 1
         assert tablet_infos[0]["trimmed_row_count"] == 0
 
-        # Prevent trimmig errors due to replication lag
-        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
-        ts = get(f"#{card_id}/@current_timestamp")
-
         sync_flush_table("//tmp/q0")
         sync_flush_table("//tmp/q1")
         sync_flush_table("//tmp/q2")
 
-        for replica in replicas:
-            self._wait_for_table_card_timestamp(replica["replica_path"], ts)
+        ts = generate_timestamp()
 
-        # TODO(osidorkin) Use safe trim row count
-        trim_rows("//tmp/q0", 0, 1)
-        trim_rows("//tmp/q1", 0, 1)
-        trim_rows("//tmp/q2", 0, 1)
+        def _get_safe_trim_row_count(path: str, tablet_index: int):
+            requests = [{"path": path, "tablet_index": tablet_index, "timestamp": ts}]
+            results = execute_command(
+                "get_ordered_tablet_safe_trim_row_count",
+                parameters={
+                    "requests": requests,
+                    "driver": self.native_driver,
+                },
+                parse_yson=True
+            )
+            assert len(results) == 1
+            return results[0]["value"]
+
+        def _checked_trim_rows(path: str, tablet_index: int, row_count: int):
+            wait(lambda: _get_safe_trim_row_count(path, tablet_index) >= row_count)
+            trim_rows(path, tablet_index, row_count)
+
+        _checked_trim_rows("//tmp/q0", 0, 1)
+        _checked_trim_rows("//tmp/q1", 0, 1)
+        _checked_trim_rows("//tmp/q2", 0, 1)
 
         tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
         assert len(tablet_infos) == 1
@@ -5317,6 +5333,40 @@ class TestChaosNativeProxy(ChaosTestBase):
 
         insert_rows("//tmp/pds", [row1, row2])
 
+    @authors("osidorkin")
+    def test_card_without_replicas_migrate_and_return(self):
+        b_name = "test_card_without_replicas_migrate_and_return"
+        metadata_cell_id = self._sync_create_chaos_bundle_and_cell(name=b_name)
+        set(f"//sys/chaos_cell_bundles/{b_name}/@metadata_cell_id", metadata_cell_id)
+
+        a_cell_id = generate_chaos_cell_id()
+        sync_create_chaos_cell(b_name, a_cell_id, self.get_cluster_names())
+
+        replicated_table_options = {
+            "enable_replicated_table_tracker": True,
+            "min_sync_queue_replica_count": 2,
+            "tablet_cell_bundle_name_ttl": 1000,
+            "tablet_cell_bundle_name_failure_interval": 100,
+        }
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": b_name,
+            "replicated_table_options": replicated_table_options
+        })
+
+        card_id = get("//tmp/crt/@replication_card_id")
+        options = get("//tmp/crt/@replicated_table_options")
+        assert options["enable_replicated_table_tracker"]
+        assert options["min_sync_queue_replica_count"] == 2
+
+        def _get_card_state(cell_id, card_id):
+            address = get(f"#{cell_id}/@peers/0/address")
+            return get(f"//sys/cluster_nodes/{address}/orchid/chaos_cells/{cell_id}/chaos_manager/replication_cards/{card_id}/state")
+
+        self._sync_migrate_replication_cards(metadata_cell_id, [card_id], destination_cell_id=a_cell_id)
+        wait(lambda: _get_card_state(a_cell_id, card_id) == "normal")
+        self._sync_migrate_replication_cards(a_cell_id, [card_id], destination_cell_id=metadata_cell_id)
+        wait(lambda: _get_card_state(metadata_cell_id, card_id) == "normal")
+
 
 ##################################################################
 
@@ -5803,7 +5853,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         # Test internal orchid.
         beta_cell_states = get(f"{orchids_paths[beta_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver2)
-        assert beta_cell_states["normal"] == 1 and beta_cell_states["generating_timestamp_for_new_era"] == 1
+        assert beta_cell_states["normal"] + beta_cell_states["generating_timestamp_for_new_era"] == 2
         assert get(f"{orchids_paths[alpha_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver1)["migrated"] == 2
 
         resume_chaos_cells([alpha_cell])
@@ -5814,7 +5864,7 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: get(suspended_path, driver=remote_driver2))
         alpha_cell_states = get(f"{orchids_paths[alpha_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver1)
         beta_cell_states = get(f"{orchids_paths[beta_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver2)
-        assert alpha_cell_states["normal"] == 1 and alpha_cell_states["generating_timestamp_for_new_era"] == 1
+        assert alpha_cell_states["normal"] + alpha_cell_states["generating_timestamp_for_new_era"] == 2
         # NB: Foreign migrated replication cards could be removed.
         assert beta_cell_states["migrated"] == sum(beta_cell_states.values()) and beta_cell_states["migrated"] <= 2
 

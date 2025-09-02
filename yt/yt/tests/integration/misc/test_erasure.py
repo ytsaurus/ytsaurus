@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, update_nodes_dynamic_config, get_applied_node_dynamic_config,
+    remove, update_nodes_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
     get_singular_chunk_id, set_node_banned, set_nodes_banned, create_dynamic_table, raises_yt_error,
@@ -13,7 +13,6 @@ from yt.common import YtResponseError, YtError
 import yt.yson as yson
 
 import pytest
-import copy
 import time
 from datetime import datetime, timedelta
 
@@ -370,7 +369,7 @@ class TestErasure(TestErasureBase):
         node_dyn_config["data_node"]["testing_options"] = {
             "simulate_network_throttling_for_get_block_set" : True,
         }
-        self.update_specific_node_dynamic_config_(throttling_replica, node_dyn_config)
+        self._update_specific_nodes_dynamic_config([throttling_replica], node_dyn_config)
 
         # Test for several parts
         for r in replicas[4 : 6]:
@@ -382,20 +381,8 @@ class TestErasure(TestErasureBase):
             set_node_banned(r, False)
 
         node_dyn_config["data_node"]["testing_options"] = {}
-        self.update_specific_node_dynamic_config_(throttling_replica, node_dyn_config)
+        self._update_specific_nodes_dynamic_config([throttling_replica], node_dyn_config)
         assert read_table("//tmp/table") == [{"b": "hello"}]
-
-    def update_specific_node_dynamic_config_(self, node, config):
-        current_config = get("//sys/cluster_nodes/@config")
-        new_config = current_config
-        if node not in new_config:
-            new_config = {
-                "!{}".format(node) : copy.deepcopy(current_config["%true"]),
-                node : copy.deepcopy(current_config["%true"])
-            }
-        new_config[node].update(config)
-        set("//sys/cluster_nodes/@config", new_config)
-        wait(lambda: get_applied_node_dynamic_config(node) == new_config[node])
 
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("adaptive_repair", [False, True])

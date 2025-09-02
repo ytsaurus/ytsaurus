@@ -421,32 +421,28 @@ class Path:
             target: str | os.PathLike[str],
             *,
             follow_symlinks: bool = True,
-            dirs_exist_ok: bool = False,
             preserve_metadata: bool = False,
         ) -> Path:
             func = partial(
                 self._path.copy,
                 follow_symlinks=follow_symlinks,
-                dirs_exist_ok=dirs_exist_ok,
                 preserve_metadata=preserve_metadata,
             )
-            return Path(await to_thread.run_sync(func, target))
+            return Path(await to_thread.run_sync(func, pathlib.Path(target)))
 
         async def copy_into(
             self,
             target_dir: str | os.PathLike[str],
             *,
             follow_symlinks: bool = True,
-            dirs_exist_ok: bool = False,
             preserve_metadata: bool = False,
         ) -> Path:
             func = partial(
                 self._path.copy_into,
                 follow_symlinks=follow_symlinks,
-                dirs_exist_ok=dirs_exist_ok,
                 preserve_metadata=preserve_metadata,
             )
-            return Path(await to_thread.run_sync(func, target_dir))
+            return Path(await to_thread.run_sync(func, pathlib.Path(target_dir)))
 
         async def move(self, target: str | os.PathLike[str]) -> Path:
             # Upstream does not handle anyio.Path properly as a PathLike
@@ -616,7 +612,9 @@ class Path:
         def relative_to(
             self, *other: str | PathLike[str], walk_up: bool = False
         ) -> Path:
-            return Path(self._path.relative_to(*other, walk_up=walk_up))
+            # relative_to() should work with any PathLike but it doesn't
+            others = [pathlib.Path(other) for other in other]
+            return Path(self._path.relative_to(*others, walk_up=walk_up))
 
     else:
 

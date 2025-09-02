@@ -13,4 +13,4 @@ __import__(__package__ + '.fft')
 
 from ..common._helpers import * # noqa: F401,F403
 
-__array_api_version__ = '2022.12'
+__array_api_version__ = '2023.12'

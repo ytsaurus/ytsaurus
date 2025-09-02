@@ -355,10 +355,10 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
         if (tableViableClusters.empty()) {
             for (auto id : bannedReplicaIds) {
                 if (BannedReplicaTrackers_[index]) {
-                    if (const auto& error = BannedReplicaTrackers_[index]->GetReplicaError(id);
+                    if (auto error = BannedReplicaTrackers_[index]->GetReplicaError(id);
                         !error.IsOK())
                     {
-                        replicaErrors.push_back(error);
+                        replicaErrors.push_back(std::move(error));
                     }
                 }
             }

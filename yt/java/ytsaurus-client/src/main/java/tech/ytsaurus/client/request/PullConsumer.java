@@ -64,6 +64,16 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
+        sb.append("consumerPath: ").append(consumerPath).append(";");
+        sb.append("queuePath: ").append(queuePath).append(";");
+        sb.append("partitionIndex: ").append(partitionIndex).append(";");
+        if (offset != null) {
+            sb.append("offset: ").append(offset).append(";");
+        }
+        if (replicaConsistency != null) {
+            sb.append("replicaConsistency: ").append(replicaConsistency).append(";");
+        }
+        sb.append("rowBatchReadOptions: ").append(rowBatchReadOptions).append(";");
         super.writeArgumentsLogString(sb);
     }
 

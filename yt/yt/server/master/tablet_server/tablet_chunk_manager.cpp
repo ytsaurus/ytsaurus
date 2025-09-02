@@ -509,6 +509,9 @@ public:
                 SortUnique(hunkTabletTrailingChunks, TObjectIdComparer());
                 auto* newLastHunkTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
                 chunkManager->AttachToChunkList(newLastHunkTabletChunkList, hunkTabletTrailingChunks);
+                // TODO(babenko): fix properly in YT-26056
+                objectManager->RefObject(newTabletChunkLists[EChunkListContentType::Hunk].back());
+                objectManager->UnrefObject(newTabletChunkLists[EChunkListContentType::Hunk].back());
                 newTabletChunkLists[EChunkListContentType::Hunk].back() = newLastHunkTabletChunkList;
             } else {
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
@@ -1212,21 +1215,20 @@ public:
 
                 auto* dynamicStore = underlyingTree->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
-                auto chunk = dynamicStore->GetFlushedChunk();
 
-                if (chunk) {
+                if (const auto& chunk = dynamicStore->FlushedChunk()) {
                     // FIXME(ifsmirnov): chunk view is not always needed, check
                     // chunk min/max timestaps.
                     auto* wrappedStore = chunkManager->CreateChunkView(
-                        chunk,
+                        chunk.Get(),
                         chunkView->Modifier());
                     storesToAttach.push_back(wrappedStore);
                 }
             } else if (IsDynamicTabletStoreType(store->GetType())) {
                 auto* dynamicStore = store->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
-                if (auto chunk = dynamicStore->GetFlushedChunk()) {
-                    storesToAttach.push_back(chunk);
+                if (const auto& chunk = dynamicStore->FlushedChunk()) {
+                    storesToAttach.push_back(chunk.Get());
                 }
                 storesToDetach.push_back(dynamicStore);
             }

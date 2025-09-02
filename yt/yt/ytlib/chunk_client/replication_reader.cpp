@@ -847,6 +847,8 @@ protected:
     template <class T>
     void ProcessError(const TErrorOr<T>& rspOrError, const TPeer& peer, const TError& wrappingError)
     {
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
+
         auto code = rspOrError.GetCode();
         if (code == NYT::EErrorCode::Canceled) {
             return;
@@ -1271,6 +1273,170 @@ protected:
 private:
     friend class TRequestBatcher;
 
+    class TProbingSessionState final
+    {
+    public:
+        TProbingSessionState(
+            std::vector<std::pair<int, TDuration>> partialPeerProbingTimeouts,
+            int totalRequestCount,
+            NLogging::TLogger logger)
+            : PartialPeerProbingTimeouts_(std::move(partialPeerProbingTimeouts))
+            , TotalRequestCount_(totalRequestCount)
+            , Logger(std::move(logger))
+        {
+            YT_VERIFY(TotalRequestCount_ > 1);
+            YT_VERIFY(!PartialPeerProbingTimeouts_.empty());
+            YT_VERIFY(PartialPeerProbingTimeouts_[CurrentTimeoutIndex_].first < TotalRequestCount_);
+        }
+
+        void Initialize(const std::vector<TFuture<TPeerProbingResult>>& asyncResults)
+        {
+            YT_VERIFY(TotalRequestCount_ == std::ssize(asyncResults));
+
+            {
+                auto guard = Guard(Lock_);
+
+                CurrentResults_.reserve(TotalRequestCount_);
+                TimeoutCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TProbingSessionState::OnTimeout, MakeWeak(this)),
+                    PartialPeerProbingTimeouts_[CurrentTimeoutIndex_].second);
+            }
+
+            for (const auto& asyncResult : asyncResults) {
+                asyncResult.SubscribeUnique(BIND(
+                    &TProbingSessionState::ProcessPeerProbingResult,
+                    MakeStrong(this)));
+            }
+        }
+
+        TFuture<TProbingResults> GetResultsFuture() const
+        {
+            return ResultsPromise_.ToFuture();
+        }
+
+    private:
+        const std::vector<std::pair<int, TDuration>> PartialPeerProbingTimeouts_;
+        const int TotalRequestCount_;
+        const NLogging::TLogger Logger;
+        const TInstant ProbingStartTime_ = TInstant::Now();
+
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+        int CurrentTimeoutIndex_ = 0;
+        TDelayedExecutorCookie TimeoutCookie_;
+        int SuccessfulResponseCount_ = 0;
+        TProbingResults CurrentResults_;
+        bool Finished_ = false;
+
+        TPromise<TProbingResults> ResultsPromise_ = NewPromise<TProbingResults>();
+
+
+        bool IsReadyToFinish() const
+        {
+            YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+            if (Finished_) {
+                return false;
+            }
+
+            if (std::ssize(CurrentResults_) == TotalRequestCount_) {
+                return true;
+            }
+
+            if (CurrentTimeoutIndex_ > 0 &&
+                SuccessfulResponseCount_ >= PartialPeerProbingTimeouts_[CurrentTimeoutIndex_ - 1].first)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        void DoFinish(TGuard<NThreading::TSpinLock> guard)
+        {
+            YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
+
+            Finished_ = true;
+            auto cookie = std::move(TimeoutCookie_);
+            auto results = std::move(CurrentResults_);
+            auto successfulResponseCount = SuccessfulResponseCount_;
+            auto currentTimeoutIndex = CurrentTimeoutIndex_;
+
+            guard.Release();
+
+            YT_LOG_DEBUG("Probing session finished "
+                "(ResponseCount: %v, SuccessfulResponseCount: %v, TotalRequestCount: %v, "
+                "CurrentTimeoutIndex: %v, TimePassed: %v)",
+                results.size(),
+                successfulResponseCount,
+                TotalRequestCount_,
+                currentTimeoutIndex,
+                TInstant::Now() - ProbingStartTime_);
+
+            ResultsPromise_.TrySet(std::move(results));
+
+            TDelayedExecutor::CancelAndClear(cookie);
+        }
+
+        void ProcessPeerProbingResult(TErrorOr<TPeerProbingResult>&& peerProbingResultOrError)
+        {
+            if (ResultsPromise_.IsSet()) {
+                return;
+            }
+
+            YT_VERIFY(peerProbingResultOrError.IsOK());
+            auto peerProbingResult = std::move(peerProbingResultOrError.Value());
+            bool success = IsPeerProbingSuccessful(peerProbingResult);
+
+            auto guard = Guard(Lock_);
+
+            SuccessfulResponseCount_ += success;
+            CurrentResults_.push_back(std::move(peerProbingResult));
+
+            if (IsReadyToFinish()) {
+                DoFinish(std::move(guard));
+            }
+        }
+
+        void OnTimeout()
+        {
+            YT_LOG_DEBUG("Probing session timeout reached");
+
+            if (ResultsPromise_.IsSet()) {
+                return;
+            }
+
+            auto guard = Guard(Lock_);
+
+            YT_VERIFY(CurrentTimeoutIndex_ < std::ssize(PartialPeerProbingTimeouts_));
+            ++CurrentTimeoutIndex_;
+
+            if (IsReadyToFinish()) {
+                DoFinish(std::move(guard));
+                return;
+            }
+
+            if (CurrentTimeoutIndex_ < std::ssize(PartialPeerProbingTimeouts_)) {
+                auto timePassed = TInstant::Now() - ProbingStartTime_;
+                auto newTimeout = PartialPeerProbingTimeouts_[CurrentTimeoutIndex_].second;
+
+                YT_VERIFY(PartialPeerProbingTimeouts_[CurrentTimeoutIndex_ - 1].second < newTimeout);
+                YT_VERIFY(PartialPeerProbingTimeouts_[CurrentTimeoutIndex_ - 1].first >
+                    PartialPeerProbingTimeouts_[CurrentTimeoutIndex_].first);
+
+                if (timePassed >= newTimeout) {
+                    guard.Release();
+                    OnTimeout();
+                    return;
+                }
+
+                TDelayedExecutor::Cancel(TimeoutCookie_);
+                TimeoutCookie_ = TDelayedExecutor::Submit(
+                    BIND(&TProbingSessionState::OnTimeout, MakeWeak(this)),
+                    newTimeout - timePassed);
+            }
+        }
+    };
+
     //! Errors collected by the session.
     std::vector<TError> InnerErrors_;
 
@@ -1440,6 +1606,39 @@ private:
         return false;
     }
 
+    TIntrusivePtr<TProbingSessionState> MaybeCreateAdaptiveProbingSession(
+        const std::vector<TFuture<TPeerProbingResult>>& asyncResults)
+    {
+        int firstPartialTimeoutIndex = 0;
+        while (firstPartialTimeoutIndex < std::ssize(ReaderConfig_->PartialPeerProbingTimeouts)) {
+            YT_VERIFY(firstPartialTimeoutIndex == 0 ||
+                (ReaderConfig_->PartialPeerProbingTimeouts[firstPartialTimeoutIndex - 1].first >
+                ReaderConfig_->PartialPeerProbingTimeouts[firstPartialTimeoutIndex].first) &&
+                (ReaderConfig_->PartialPeerProbingTimeouts[firstPartialTimeoutIndex - 1].second <
+                ReaderConfig_->PartialPeerProbingTimeouts[firstPartialTimeoutIndex].second));
+
+            if (ReaderConfig_->PartialPeerProbingTimeouts[firstPartialTimeoutIndex].first < std::ssize(asyncResults)) {
+                break;
+            }
+            ++firstPartialTimeoutIndex;
+        }
+
+        if (firstPartialTimeoutIndex == std::ssize(ReaderConfig_->PartialPeerProbingTimeouts)) {
+            return {};
+        }
+
+        auto probingState = New<TProbingSessionState>(
+            std::vector<std::pair<int, TDuration>>{
+                ReaderConfig_->PartialPeerProbingTimeouts.begin() + firstPartialTimeoutIndex,
+                ReaderConfig_->PartialPeerProbingTimeouts.end()
+            },
+            std::ssize(asyncResults),
+            Logger);
+        probingState->Initialize(asyncResults);
+
+        return probingState;
+    }
+
     TPeerProbingResult ParsePeerAndProbingResponse(
         TPeer peer,
         const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
@@ -1538,7 +1737,6 @@ private:
         const TPeerList& candidates,
         const std::vector<int>& blockIndexes)
     {
-        // Multiple candidates - send probing requests.
         std::vector<TFuture<TPeerProbingResult>> asyncResults;
         std::vector<TFuture<TPeerProbingResult>> asyncSuspiciousResults;
         asyncResults.reserve(candidates.size());
@@ -1560,59 +1758,94 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Gathered candidate peers for probing (Addresses: %v, SuspiciousNodeCount: %v)",
+        auto maybeProbingSession = MaybeCreateAdaptiveProbingSession(asyncResults);
+
+        YT_LOG_DEBUG("Gathered candidate peers for probing "
+            "(Addresses: %v, NodeCount: %v, SuspiciousNodeCount: %v, RunAdaptiveProbing: %v)",
             candidates,
-            asyncSuspiciousResults.size());
+            asyncResults.size(),
+            asyncSuspiciousResults.size(),
+            static_cast<bool>(maybeProbingSession));
+
+        if (asyncResults.empty()) {
+            return AllSucceeded(std::move(asyncSuspiciousResults));
+        }
+
+        TFuture<TProbingResults> results;
+        if (maybeProbingSession) {
+            results = maybeProbingSession->GetResultsFuture();
+        } else {
+            results = AllSucceeded(std::move(asyncResults));
+        }
 
         if (asyncSuspiciousResults.empty()) {
-            return AllSucceeded(std::move(asyncResults));
-        } else if (asyncResults.empty()) {
-            return AllSucceeded(std::move(asyncSuspiciousResults));
-        } else {
-            return AllSucceeded(std::move(asyncResults))
-                .ApplyUnique(BIND(
-                [
-                    this,
-                    this_ = MakeStrong(this),
-                    asyncSuspiciousResults = std::move(asyncSuspiciousResults)
-                ] (TErrorOr<TProbingResults>&& probingResultsOrError) {
-                    YT_VERIFY(probingResultsOrError.IsOK());
-                    auto probingResults = std::move(probingResultsOrError.Value());
-                    int totalCandidateCount = probingResults.size() + asyncSuspiciousResults.size();
-
-                    for (const auto& asyncSuspiciousResult : asyncSuspiciousResults) {
-                        auto maybeSuspiciousResult = asyncSuspiciousResult.TryGetUnique();
-                        if (!maybeSuspiciousResult) {
-                            continue;
-                        }
-
-                        YT_VERIFY(maybeSuspiciousResult->IsOK());
-
-                        auto suspiciousResultValue = std::move(maybeSuspiciousResult->Value());
-                        if (suspiciousResultValue.second.IsOK()) {
-                            probingResults.push_back(std::move(suspiciousResultValue));
-                        } else {
-                            ProcessError(
-                                suspiciousResultValue.second,
-                                suspiciousResultValue.first,
-                                TError(
-                                    NChunkClient::EErrorCode::NodeProbeFailed,
-                                    "Error probing suspicious node %v",
-                                    suspiciousResultValue.first.Address));
-                        }
-                    }
-
-                    auto omittedSuspiciousNodeCount = totalCandidateCount - probingResults.size();
-                    if (omittedSuspiciousNodeCount > 0) {
-                        SessionOptions_.ChunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(
-                            omittedSuspiciousNodeCount,
-                            std::memory_order::relaxed);
-                    }
-
-                    return probingResults;
-                })
-                .AsyncVia(SessionInvoker_));
+            return results;
         }
+
+        return results
+            .ApplyUnique(BIND(
+                &TSessionBase::EnrichProbingResultWithSuspicousNodes,
+                MakeStrong(this),
+                Passed(std::move(asyncSuspiciousResults)))
+            .AsyncVia(SessionInvoker_));
+    }
+
+    TProbingResults EnrichProbingResultWithSuspicousNodes(
+        std::vector<TFuture<TPeerProbingResult>> asyncSuspiciousResults,
+        TProbingResults&& results)
+    {
+        int totalCandidateCount = results.size() + asyncSuspiciousResults.size();
+
+        for (auto& asyncSuspiciousResult : asyncSuspiciousResults) {
+            auto maybeSuspiciousResult = asyncSuspiciousResult.TryGetUnique();
+            if (!maybeSuspiciousResult) {
+                continue;
+            }
+
+            YT_VERIFY(maybeSuspiciousResult->IsOK());
+
+            auto suspiciousResultValue = std::move(maybeSuspiciousResult->Value());
+            if (suspiciousResultValue.second.IsOK()) {
+                results.push_back(std::move(suspiciousResultValue));
+            } else {
+                ProcessError(
+                    suspiciousResultValue.second,
+                    suspiciousResultValue.first,
+                    TError(
+                        NChunkClient::EErrorCode::NodeProbeFailed,
+                        "Error probing suspicious node %v",
+                        suspiciousResultValue.first.Address));
+            }
+        }
+
+        auto omittedSuspiciousNodeCount = totalCandidateCount - results.size();
+        if (omittedSuspiciousNodeCount > 0) {
+            SessionOptions_.ChunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(
+                omittedSuspiciousNodeCount,
+                std::memory_order::relaxed);
+        }
+
+        return results;
+    }
+
+    static bool IsPeerProbingSuccessful(const TPeerProbingResult& peerProbingResult)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        const auto& [peer, probingInfoOrError] = peerProbingResult;
+        if (!probingInfoOrError.IsOK()) {
+            return false;
+        }
+
+        const auto& probingInfo = probingInfoOrError.Value();
+        if (probingInfo.NetThrottling || probingInfo.DiskThrottling) {
+            return false;
+        }
+        if (!probingInfo.HasCompleteChunk && peer.Type == EPeerType::Seed) {
+            return false;
+        }
+
+        return true;
     }
 
     TPeerList OnPeersProbed(
@@ -1620,9 +1853,15 @@ private:
         int count,
         const std::vector<int>& blockIndexes)
     {
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
+
         bool receivedNewPeers = false;
+        int successfulProbingCount = 0;
         std::vector<std::pair<TPeer, TPeerProbingInfo>> successfulPeerAndProbingInfoList;
-        for (auto& [peer, probingInfoOrError] : probingResults) {
+        for (auto& peerProbingResult : probingResults) {
+            successfulProbingCount += IsPeerProbingSuccessful(peerProbingResult);
+
+            auto& [peer, probingInfoOrError] = peerProbingResult;
             if (!probingInfoOrError.IsOK()) {
                 ProcessError(
                     probingInfoOrError,
@@ -1658,6 +1897,10 @@ private:
 
             successfulPeerAndProbingInfoList.emplace_back(std::move(peer), std::move(probingInfo));
         }
+
+        // NB: This is done to verify IsPeerProbingSuccessful is in-sync with this function
+        // as the former is also used somewhere else.
+        YT_VERIFY(successfulProbingCount == std::ssize(successfulPeerAndProbingInfoList));
 
         if (successfulPeerAndProbingInfoList.empty()) {
             YT_LOG_DEBUG("All peer candidates were discarded");
@@ -2398,7 +2641,7 @@ private:
                 CancelAllBlocks(
                     blocks,
                     TError(NChunkClient::EErrorCode::ReaderThrottlingFailed, "Failed to apply throttling in reader"));
-                return MakeFuture<bool>(false);
+                return FalseFuture;
             }
         }
 

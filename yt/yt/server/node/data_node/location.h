@@ -238,6 +238,13 @@ public:
     //! Returns the universally unique id.
     TChunkLocationUuid GetUuid() const;
 
+    //! Returns the universally unique index.
+    TChunkLocationIndex GetIndex() const;
+
+    //! Sets the index of location.
+    //! Verifies that index has not been changed if it was set already.
+    void SetIndex(TChunkLocationIndex index);
+
     //! Returns the disk family
     const TString& GetDiskFamily() const;
 
@@ -581,6 +588,7 @@ private:
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
     TChunkLocationUuid Uuid_;
+    TChunkLocationIndex Index_ = NNodeTrackerClient::InvalidChunkLocationIndex;
 
     NThreading::TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;

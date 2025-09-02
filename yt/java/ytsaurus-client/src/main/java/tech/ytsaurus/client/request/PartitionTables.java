@@ -37,6 +37,8 @@ public class PartitionTables
     @Nullable
     private final Boolean enableKeyGuarantee;
     @Nullable
+    private final Boolean enableCookies;
+    @Nullable
     private final TransactionalOptions transactionalOptions;
 
     PartitionTables(Builder builder) {
@@ -50,6 +52,7 @@ public class PartitionTables
         this.maxPartitionCount = builder.maxPartitionCount;
         this.adjustDataWeightPerPartition = builder.adjustDataWeightPerPartition;
         this.enableKeyGuarantee = builder.enableKeyGuarantee;
+        this.enableCookies = builder.enableCookies;
         if (builder.transactionalOptions != null) {
             this.transactionalOptions = new TransactionalOptions(builder.transactionalOptions);
         } else {
@@ -98,6 +101,9 @@ public class PartitionTables
         if (enableKeyGuarantee != null) {
             builder.setEnableKeyGuarantee(enableKeyGuarantee);
         }
+        if (enableCookies != null) {
+            builder.setEnableCookies(enableCookies);
+        }
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
@@ -128,6 +134,7 @@ public class PartitionTables
                 .setMaxPartitionCount(maxPartitionCount)
                 .setAdjustDataWeightPerPartition(adjustDataWeightPerPartition)
                 .setEnableKeyGuarantee(enableKeyGuarantee)
+                .setEnableCookies(enableCookies)
                 .setTransactionalOptions(transactionalOptions)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
@@ -155,6 +162,8 @@ public class PartitionTables
         private Boolean adjustDataWeightPerPartition = true;
         @Nullable
         private Boolean enableKeyGuarantee;
+        @Nullable
+        private Boolean enableCookies;
         @Nullable
         private TransactionalOptions transactionalOptions;
 
@@ -205,6 +214,11 @@ public class PartitionTables
 
         public Builder setEnableKeyGuarantee(@Nullable Boolean enableKeyGuarantee) {
             this.enableKeyGuarantee = enableKeyGuarantee;
+            return self();
+        }
+
+        public Builder setEnableCookies(@Nullable Boolean enableCookies) {
+            this.enableCookies = enableCookies;
             return self();
         }
 

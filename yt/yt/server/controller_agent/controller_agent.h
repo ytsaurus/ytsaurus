@@ -208,11 +208,33 @@ public:
      */
     bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor);
 
+    //! Registers gang's job for monitoring.
+    /*!
+     *  \returns job descriptor for the corresponding monitoring tag
+     *           or nullopt if monitored job limit is reached.
+     *  \note Thread affinity: any
+     */
+    std::optional<TJobMonitoringDescriptor> TryAcquireGangJobMonitoringDescriptor(TOperationId operationId, int rank);
+
+    //! Unregisters gang's job monitoring.
+    /*!
+     *  \returns true iff the job was actually monitored.
+     *
+     *  \note Thread affinity: any
+     */
+    bool TryReleaseGangJobMonitoringDescriptor(TOperationId operationId);
+
     //! Schedule job monitoring alert update.
     /*!
      *  \note Thread affinity: any
      */
     void EnqueueJobMonitoringAlertUpdate();
+
+    //! Schedule gang's job monitoring alert update.
+    /*!
+     *  \note Thread affinity: any
+     */
+    void EnqueueGangJobMoniotoringAlertUpdate();
 
     void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,

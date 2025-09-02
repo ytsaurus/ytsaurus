@@ -2,7 +2,7 @@
 
 #include "shared_data.h"
 #include "config.h"
-#include "scheduling_context.h"
+#include "scheduling_heartbeat_context.h"
 #include "control_thread.h"
 
 #include <yt/yt/server/scheduler/public.h>
@@ -23,8 +23,8 @@ public:
     TSimulatorNodeShard(
         int shardId,
         TSharedEventQueue* events,
-        TSchedulerStrategyHost* strategyHost,
-        TSharedSchedulerStrategy* schedulingStrategy,
+        TStrategyHost* strategyHost,
+        TSharedStrategy* schedulingStrategy,
         TSharedOperationStatistics* operationStatistics,
         IOperationStatisticsOutput* operationStatisticsOutput,
         TSharedRunningOperationsMap* runningOperationsMap,
@@ -48,8 +48,8 @@ public:
 private:
     const int Id_;
     TSharedEventQueue* const Events_;
-    TSchedulerStrategyHost* const StrategyHost_;
-    TSharedSchedulerStrategy* const SchedulingStrategy_;
+    TStrategyHost* const StrategyHost_;
+    TSharedStrategy* const Strategy_;
     TSharedOperationStatistics* const OperationStatistics_;
     IOperationStatisticsOutput* const OperationStatisticsOutput_;
     TSharedRunningOperationsMap* const RunningOperationsMap_;

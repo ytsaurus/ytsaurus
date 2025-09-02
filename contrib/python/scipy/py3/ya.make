@@ -2,9 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(1.14.1)
+VERSION(1.15.3)
 
-ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.14.1.tar.gz)
+ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.15.3.tar.gz)
 
 LICENSE(BSD-3-Clause)
 
@@ -22,16 +22,8 @@ PEERDIR(
 ADDINCL(
     contrib/libs/qhull
     contrib/python/pythran/pythran
+    contrib/python/scipy/py3/scipy
     contrib/python/scipy/py3/scipy/_build_utils/src
-    contrib/python/scipy/py3/scipy/_lib/highs/extern
-    contrib/python/scipy/py3/scipy/_lib/highs/extern/zstr
-    contrib/python/scipy/py3/scipy/_lib/highs/src
-    contrib/python/scipy/py3/scipy/_lib/highs/src/io
-    contrib/python/scipy/py3/scipy/_lib/highs/src/ipm/basiclu/include
-    contrib/python/scipy/py3/scipy/_lib/highs/src/ipm/ipx/include
-    contrib/python/scipy/py3/scipy/_lib/highs/src/lp_data
-    contrib/python/scipy/py3/scipy/_lib/highs/src/simplex
-    contrib/python/scipy/py3/scipy/_lib/highs/src/util
     contrib/python/scipy/py3/scipy/_lib/pocketfft
     contrib/python/scipy/py3/scipy/_lib/src
     contrib/python/scipy/py3/scipy/_lib/unuran/unuran/src
@@ -42,7 +34,6 @@ ADDINCL(
     contrib/python/scipy/py3/scipy/io/_fast_matrix_market/fast_matrix_market/include
     contrib/python/scipy/py3/scipy/io/matlab
     contrib/python/scipy/py3/scipy/linalg
-    contrib/python/scipy/py3/scipy/optimize/_highs
     contrib/python/scipy/py3/scipy/optimize/_trlib
     contrib/python/scipy/py3/scipy/optimize/cython_optimize
     contrib/python/scipy/py3/scipy/optimize/tnc
@@ -54,6 +45,13 @@ ADDINCL(
     contrib/python/scipy/py3/scipy/stats/_rcont
     contrib/python/scipy/py3/scipy/stats/_unuran
     contrib/python/scipy/py3/scipy/stats/libnpyrandom
+    contrib/python/scipy/py3/highs/extern
+    contrib/python/scipy/py3/highs/extern/zstr
+    contrib/python/scipy/py3/highs/src
+    contrib/python/scipy/py3/highs/src/io
+    contrib/python/scipy/py3/highs/src/lp_data
+    contrib/python/scipy/py3/highs/src/simplex
+    contrib/python/scipy/py3/highs/src/util
     FOR cython contrib/python/numpy/py3
     FOR cython contrib/python/scipy/py3
 )
@@ -83,11 +81,6 @@ CFLAGS(
     -Dc_exp=SuperLU_c_exp
     -DUNDERSCORE_G77
     -DPOCKETFFT_CACHE_SIZE=16
-    -DHIGHS_COMPILATION_DATE=\"2021-07-09\"
-    -DHIGHS_GITHASH=\"n/a\"
-    -DHIGHS_VERSION_MAJOR=1
-    -DHIGHS_VERSION_MINOR=2
-    -DHIGHS_VERSION_PATCH=0
     -DR_BUILD
     -DBOOST_MATH_STANDALONE=1
     -DHAVE_DECL_HUGE_VAL=1
@@ -136,9 +129,18 @@ IF (HAVE_MKL)
     CFLAGS(
         -DHAVE_MKL=1
     )
+    CYTHON_FLAGS(
+        -ECTE_HAVE_MKL=1
+    )
 ELSE()
     CFLAGS(
         -Dchla_transtype_=chla_transtype__
+    )
+    CYTHON_FLAGS(
+        -ECTE_HAVE_MKL=0
+    )
+    SRCS(
+        stub_lapack.c
     )
 ENDIF()
 
@@ -153,169 +155,185 @@ ELSE()
 ENDIF()
 
 SRCS(
+    highs/extern/filereaderlp/reader.cpp
+    highs/src/highs_bindings.cpp
+    highs/src/interfaces/highs_c_api.cpp
+    highs/src/io/Filereader.cpp
+    highs/src/io/FilereaderEms.cpp
+    highs/src/io/FilereaderLp.cpp
+    highs/src/io/FilereaderMps.cpp
+    highs/src/io/HMPSIO.cpp
+    highs/src/io/HMpsFF.cpp
+    highs/src/io/HighsIO.cpp
+    highs/src/io/LoadOptions.cpp
+    highs/src/ipm/IpxWrapper.cpp
+    highs/src/ipm/basiclu/basiclu_factorize.c
+    highs/src/ipm/basiclu/basiclu_get_factors.c
+    highs/src/ipm/basiclu/basiclu_initialize.c
+    highs/src/ipm/basiclu/basiclu_object.c
+    highs/src/ipm/basiclu/basiclu_solve_dense.c
+    highs/src/ipm/basiclu/basiclu_solve_for_update.c
+    highs/src/ipm/basiclu/basiclu_solve_sparse.c
+    highs/src/ipm/basiclu/basiclu_update.c
+    highs/src/ipm/basiclu/lu_build_factors.c
+    highs/src/ipm/basiclu/lu_condest.c
+    highs/src/ipm/basiclu/lu_dfs.c
+    highs/src/ipm/basiclu/lu_factorize_bump.c
+    highs/src/ipm/basiclu/lu_file.c
+    highs/src/ipm/basiclu/lu_garbage_perm.c
+    highs/src/ipm/basiclu/lu_initialize.c
+    highs/src/ipm/basiclu/lu_internal.c
+    highs/src/ipm/basiclu/lu_markowitz.c
+    highs/src/ipm/basiclu/lu_matrix_norm.c
+    highs/src/ipm/basiclu/lu_pivot.c
+    highs/src/ipm/basiclu/lu_residual_test.c
+    highs/src/ipm/basiclu/lu_setup_bump.c
+    highs/src/ipm/basiclu/lu_singletons.c
+    highs/src/ipm/basiclu/lu_solve_dense.c
+    highs/src/ipm/basiclu/lu_solve_for_update.c
+    highs/src/ipm/basiclu/lu_solve_sparse.c
+    highs/src/ipm/basiclu/lu_solve_symbolic.c
+    highs/src/ipm/basiclu/lu_solve_triangular.c
+    highs/src/ipm/basiclu/lu_update.c
+    highs/src/ipm/ipx/basiclu_kernel.cc
+    highs/src/ipm/ipx/basiclu_wrapper.cc
+    highs/src/ipm/ipx/basis.cc
+    highs/src/ipm/ipx/conjugate_residuals.cc
+    highs/src/ipm/ipx/control.cc
+    highs/src/ipm/ipx/crossover.cc
+    highs/src/ipm/ipx/diagonal_precond.cc
+    highs/src/ipm/ipx/forrest_tomlin.cc
+    highs/src/ipm/ipx/guess_basis.cc
+    highs/src/ipm/ipx/indexed_vector.cc
+    highs/src/ipm/ipx/info.cc
+    highs/src/ipm/ipx/ipm.cc
+    highs/src/ipm/ipx/ipx_c.cc
+    highs/src/ipm/ipx/iterate.cc
+    highs/src/ipm/ipx/kkt_solver.cc
+    highs/src/ipm/ipx/kkt_solver_basis.cc
+    highs/src/ipm/ipx/kkt_solver_diag.cc
+    highs/src/ipm/ipx/linear_operator.cc
+    highs/src/ipm/ipx/lp_solver.cc
+    highs/src/ipm/ipx/lu_factorization.cc
+    highs/src/ipm/ipx/lu_update.cc
+    highs/src/ipm/ipx/maxvolume.cc
+    highs/src/ipm/ipx/model.cc
+    highs/src/ipm/ipx/normal_matrix.cc
+    highs/src/ipm/ipx/sparse_matrix.cc
+    highs/src/ipm/ipx/sparse_utils.cc
+    highs/src/ipm/ipx/splitted_normal_matrix.cc
+    highs/src/ipm/ipx/starting_basis.cc
+    highs/src/ipm/ipx/symbolic_invert.cc
+    highs/src/ipm/ipx/timer.cc
+    highs/src/ipm/ipx/utils.cc
+    highs/src/lp_data/Highs.cpp
+    highs/src/lp_data/HighsCallback.cpp
+    highs/src/lp_data/HighsDebug.cpp
+    highs/src/lp_data/HighsDeprecated.cpp
+    highs/src/lp_data/HighsIis.cpp
+    highs/src/lp_data/HighsInfo.cpp
+    highs/src/lp_data/HighsInfoDebug.cpp
+    highs/src/lp_data/HighsInterface.cpp
+    highs/src/lp_data/HighsLp.cpp
+    highs/src/lp_data/HighsLpUtils.cpp
+    highs/src/lp_data/HighsModelUtils.cpp
+    highs/src/lp_data/HighsOptions.cpp
+    highs/src/lp_data/HighsRanging.cpp
+    highs/src/lp_data/HighsSolution.cpp
+    highs/src/lp_data/HighsSolutionDebug.cpp
+    highs/src/lp_data/HighsSolve.cpp
+    highs/src/lp_data/HighsStatus.cpp
+    highs/src/mip/HighsCliqueTable.cpp
+    highs/src/mip/HighsConflictPool.cpp
+    highs/src/mip/HighsCutGeneration.cpp
+    highs/src/mip/HighsCutPool.cpp
+    highs/src/mip/HighsDebugSol.cpp
+    highs/src/mip/HighsDomain.cpp
+    highs/src/mip/HighsDynamicRowMatrix.cpp
+    highs/src/mip/HighsGFkSolve.cpp
+    highs/src/mip/HighsImplications.cpp
+    highs/src/mip/HighsLpAggregator.cpp
+    highs/src/mip/HighsLpRelaxation.cpp
+    highs/src/mip/HighsMipAnalysis.cpp
+    highs/src/mip/HighsMipSolver.cpp
+    highs/src/mip/HighsMipSolverData.cpp
+    highs/src/mip/HighsModkSeparator.cpp
+    highs/src/mip/HighsNodeQueue.cpp
+    highs/src/mip/HighsObjectiveFunction.cpp
+    highs/src/mip/HighsPathSeparator.cpp
+    highs/src/mip/HighsPrimalHeuristics.cpp
+    highs/src/mip/HighsPseudocost.cpp
+    highs/src/mip/HighsRedcostFixing.cpp
+    highs/src/mip/HighsSearch.cpp
+    highs/src/mip/HighsSeparation.cpp
+    highs/src/mip/HighsSeparator.cpp
+    highs/src/mip/HighsTableauSeparator.cpp
+    highs/src/mip/HighsTransformedLp.cpp
+    highs/src/model/HighsHessian.cpp
+    highs/src/model/HighsHessianUtils.cpp
+    highs/src/model/HighsModel.cpp
+    highs/src/parallel/HighsTaskExecutor.cpp
+    highs/src/pdlp/CupdlpWrapper.cpp
+    highs/src/pdlp/cupdlp/cupdlp_cs.c
+    highs/src/pdlp/cupdlp/cupdlp_linalg.c
+    highs/src/pdlp/cupdlp/cupdlp_proj.c
+    highs/src/pdlp/cupdlp/cupdlp_restart.c
+    highs/src/pdlp/cupdlp/cupdlp_scaling_cuda.c
+    highs/src/pdlp/cupdlp/cupdlp_solver.c
+    highs/src/pdlp/cupdlp/cupdlp_step.c
+    highs/src/pdlp/cupdlp/cupdlp_utils.c
+    highs/src/presolve/HPresolve.cpp
+    highs/src/presolve/HPresolveAnalysis.cpp
+    highs/src/presolve/HighsPostsolveStack.cpp
+    highs/src/presolve/HighsSymmetry.cpp
+    highs/src/presolve/ICrash.cpp
+    highs/src/presolve/ICrashUtil.cpp
+    highs/src/presolve/ICrashX.cpp
+    highs/src/presolve/PresolveComponent.cpp
+    highs/src/qpsolver/a_asm.cpp
+    highs/src/qpsolver/a_quass.cpp
+    highs/src/qpsolver/basis.cpp
+    highs/src/qpsolver/perturbation.cpp
+    highs/src/qpsolver/quass.cpp
+    highs/src/qpsolver/ratiotest.cpp
+    highs/src/qpsolver/scaling.cpp
+    highs/src/simplex/HEkk.cpp
+    highs/src/simplex/HEkkControl.cpp
+    highs/src/simplex/HEkkDebug.cpp
+    highs/src/simplex/HEkkDual.cpp
+    highs/src/simplex/HEkkDualMulti.cpp
+    highs/src/simplex/HEkkDualRHS.cpp
+    highs/src/simplex/HEkkDualRow.cpp
+    highs/src/simplex/HEkkInterface.cpp
+    highs/src/simplex/HEkkPrimal.cpp
+    highs/src/simplex/HSimplex.cpp
+    highs/src/simplex/HSimplexDebug.cpp
+    highs/src/simplex/HSimplexNla.cpp
+    highs/src/simplex/HSimplexNlaDebug.cpp
+    highs/src/simplex/HSimplexNlaFreeze.cpp
+    highs/src/simplex/HSimplexNlaProductForm.cpp
+    highs/src/simplex/HSimplexReport.cpp
+    highs/src/simplex/HighsSimplexAnalysis.cpp
+    highs/src/test/DevKkt.cpp
+    highs/src/test/KktCh2.cpp
+    highs/src/util/HFactor.cpp
+    highs/src/util/HFactorDebug.cpp
+    highs/src/util/HFactorExtend.cpp
+    highs/src/util/HFactorRefactor.cpp
+    highs/src/util/HFactorUtils.cpp
+    highs/src/util/HSet.cpp
+    highs/src/util/HVectorBase.cpp
+    highs/src/util/HighsHash.cpp
+    highs/src/util/HighsLinearSumBounds.cpp
+    highs/src/util/HighsMatrixPic.cpp
+    highs/src/util/HighsMatrixUtils.cpp
+    highs/src/util/HighsSort.cpp
+    highs/src/util/HighsSparseMatrix.cpp
+    highs/src/util/HighsUtils.cpp
+    highs/src/util/stringutil.cpp
     scipy/_lib/_fpumode.c
     scipy/_lib/_uarray/_uarray_dispatch.cxx
     scipy/_lib/_uarray/vectorcall.cxx
-    scipy/_lib/highs/extern/filereaderlp/reader.cpp
-    scipy/_lib/highs/src/interfaces/highs_c_api.cpp
-    scipy/_lib/highs/src/io/Filereader.cpp
-    scipy/_lib/highs/src/io/FilereaderEms.cpp
-    scipy/_lib/highs/src/io/FilereaderLp.cpp
-    scipy/_lib/highs/src/io/FilereaderMps.cpp
-    scipy/_lib/highs/src/io/HMPSIO.cpp
-    scipy/_lib/highs/src/io/HMpsFF.cpp
-    scipy/_lib/highs/src/io/HighsIO.cpp
-    scipy/_lib/highs/src/io/LoadOptions.cpp
-    scipy/_lib/highs/src/ipm/IpxWrapper.cpp
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_factorize.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_get_factors.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_initialize.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_object.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_solve_dense.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_solve_for_update.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_solve_sparse.c
-    scipy/_lib/highs/src/ipm/basiclu/src/basiclu_update.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_build_factors.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_condest.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_dfs.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_factorize_bump.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_file.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_garbage_perm.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_initialize.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_internal.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_markowitz.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_matrix_norm.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_pivot.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_residual_test.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_setup_bump.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_singletons.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_solve_dense.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_solve_for_update.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_solve_sparse.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_solve_symbolic.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_solve_triangular.c
-    scipy/_lib/highs/src/ipm/basiclu/src/lu_update.c
-    scipy/_lib/highs/src/ipm/ipx/src/basiclu_kernel.cc
-    scipy/_lib/highs/src/ipm/ipx/src/basiclu_wrapper.cc
-    scipy/_lib/highs/src/ipm/ipx/src/basis.cc
-    scipy/_lib/highs/src/ipm/ipx/src/conjugate_residuals.cc
-    scipy/_lib/highs/src/ipm/ipx/src/control.cc
-    scipy/_lib/highs/src/ipm/ipx/src/crossover.cc
-    scipy/_lib/highs/src/ipm/ipx/src/diagonal_precond.cc
-    scipy/_lib/highs/src/ipm/ipx/src/forrest_tomlin.cc
-    scipy/_lib/highs/src/ipm/ipx/src/guess_basis.cc
-    scipy/_lib/highs/src/ipm/ipx/src/indexed_vector.cc
-    scipy/_lib/highs/src/ipm/ipx/src/info.cc
-    scipy/_lib/highs/src/ipm/ipx/src/ipm.cc
-    scipy/_lib/highs/src/ipm/ipx/src/ipx_c.cc
-    scipy/_lib/highs/src/ipm/ipx/src/iterate.cc
-    scipy/_lib/highs/src/ipm/ipx/src/kkt_solver.cc
-    scipy/_lib/highs/src/ipm/ipx/src/kkt_solver_basis.cc
-    scipy/_lib/highs/src/ipm/ipx/src/kkt_solver_diag.cc
-    scipy/_lib/highs/src/ipm/ipx/src/linear_operator.cc
-    scipy/_lib/highs/src/ipm/ipx/src/lp_solver.cc
-    scipy/_lib/highs/src/ipm/ipx/src/lu_factorization.cc
-    scipy/_lib/highs/src/ipm/ipx/src/lu_update.cc
-    scipy/_lib/highs/src/ipm/ipx/src/maxvolume.cc
-    scipy/_lib/highs/src/ipm/ipx/src/model.cc
-    scipy/_lib/highs/src/ipm/ipx/src/normal_matrix.cc
-    scipy/_lib/highs/src/ipm/ipx/src/sparse_matrix.cc
-    scipy/_lib/highs/src/ipm/ipx/src/sparse_utils.cc
-    scipy/_lib/highs/src/ipm/ipx/src/splitted_normal_matrix.cc
-    scipy/_lib/highs/src/ipm/ipx/src/starting_basis.cc
-    scipy/_lib/highs/src/ipm/ipx/src/symbolic_invert.cc
-    scipy/_lib/highs/src/ipm/ipx/src/timer.cc
-    scipy/_lib/highs/src/ipm/ipx/src/utils.cc
-    scipy/_lib/highs/src/lp_data/Highs.cpp
-    scipy/_lib/highs/src/lp_data/HighsDebug.cpp
-    scipy/_lib/highs/src/lp_data/HighsDeprecated.cpp
-    scipy/_lib/highs/src/lp_data/HighsInfo.cpp
-    scipy/_lib/highs/src/lp_data/HighsInfoDebug.cpp
-    scipy/_lib/highs/src/lp_data/HighsInterface.cpp
-    scipy/_lib/highs/src/lp_data/HighsLp.cpp
-    scipy/_lib/highs/src/lp_data/HighsLpUtils.cpp
-    scipy/_lib/highs/src/lp_data/HighsModelUtils.cpp
-    scipy/_lib/highs/src/lp_data/HighsOptions.cpp
-    scipy/_lib/highs/src/lp_data/HighsRanging.cpp
-    scipy/_lib/highs/src/lp_data/HighsSolution.cpp
-    scipy/_lib/highs/src/lp_data/HighsSolutionDebug.cpp
-    scipy/_lib/highs/src/lp_data/HighsSolve.cpp
-    scipy/_lib/highs/src/lp_data/HighsStatus.cpp
-    scipy/_lib/highs/src/mip/HighsCliqueTable.cpp
-    scipy/_lib/highs/src/mip/HighsConflictPool.cpp
-    scipy/_lib/highs/src/mip/HighsCutGeneration.cpp
-    scipy/_lib/highs/src/mip/HighsCutPool.cpp
-    scipy/_lib/highs/src/mip/HighsDebugSol.cpp
-    scipy/_lib/highs/src/mip/HighsDomain.cpp
-    scipy/_lib/highs/src/mip/HighsDynamicRowMatrix.cpp
-    scipy/_lib/highs/src/mip/HighsGFkSolve.cpp
-    scipy/_lib/highs/src/mip/HighsImplications.cpp
-    scipy/_lib/highs/src/mip/HighsLpAggregator.cpp
-    scipy/_lib/highs/src/mip/HighsLpRelaxation.cpp
-    scipy/_lib/highs/src/mip/HighsMipSolver.cpp
-    scipy/_lib/highs/src/mip/HighsMipSolverData.cpp
-    scipy/_lib/highs/src/mip/HighsModkSeparator.cpp
-    scipy/_lib/highs/src/mip/HighsNodeQueue.cpp
-    scipy/_lib/highs/src/mip/HighsObjectiveFunction.cpp
-    scipy/_lib/highs/src/mip/HighsPathSeparator.cpp
-    scipy/_lib/highs/src/mip/HighsPrimalHeuristics.cpp
-    scipy/_lib/highs/src/mip/HighsPseudocost.cpp
-    scipy/_lib/highs/src/mip/HighsRedcostFixing.cpp
-    scipy/_lib/highs/src/mip/HighsSearch.cpp
-    scipy/_lib/highs/src/mip/HighsSeparation.cpp
-    scipy/_lib/highs/src/mip/HighsSeparator.cpp
-    scipy/_lib/highs/src/mip/HighsTableauSeparator.cpp
-    scipy/_lib/highs/src/mip/HighsTransformedLp.cpp
-    scipy/_lib/highs/src/model/HighsHessian.cpp
-    scipy/_lib/highs/src/model/HighsHessianUtils.cpp
-    scipy/_lib/highs/src/model/HighsModel.cpp
-    scipy/_lib/highs/src/parallel/HighsTaskExecutor.cpp
-    scipy/_lib/highs/src/presolve/HPresolve.cpp
-    scipy/_lib/highs/src/presolve/HighsPostsolveStack.cpp
-    scipy/_lib/highs/src/presolve/HighsSymmetry.cpp
-    scipy/_lib/highs/src/presolve/ICrash.cpp
-    scipy/_lib/highs/src/presolve/ICrashUtil.cpp
-    scipy/_lib/highs/src/presolve/ICrashX.cpp
-    scipy/_lib/highs/src/presolve/PresolveComponent.cpp
-    scipy/_lib/highs/src/qpsolver/basis.cpp
-    scipy/_lib/highs/src/qpsolver/perturbation.cpp
-    scipy/_lib/highs/src/qpsolver/quass.cpp
-    scipy/_lib/highs/src/qpsolver/ratiotest.cpp
-    scipy/_lib/highs/src/qpsolver/scaling.cpp
-    scipy/_lib/highs/src/simplex/HEkk.cpp
-    scipy/_lib/highs/src/simplex/HEkkControl.cpp
-    scipy/_lib/highs/src/simplex/HEkkDebug.cpp
-    scipy/_lib/highs/src/simplex/HEkkDual.cpp
-    scipy/_lib/highs/src/simplex/HEkkDualMulti.cpp
-    scipy/_lib/highs/src/simplex/HEkkDualRHS.cpp
-    scipy/_lib/highs/src/simplex/HEkkDualRow.cpp
-    scipy/_lib/highs/src/simplex/HEkkInterface.cpp
-    scipy/_lib/highs/src/simplex/HEkkPrimal.cpp
-    scipy/_lib/highs/src/simplex/HSimplex.cpp
-    scipy/_lib/highs/src/simplex/HSimplexDebug.cpp
-    scipy/_lib/highs/src/simplex/HSimplexNla.cpp
-    scipy/_lib/highs/src/simplex/HSimplexNlaDebug.cpp
-    scipy/_lib/highs/src/simplex/HSimplexNlaFreeze.cpp
-    scipy/_lib/highs/src/simplex/HSimplexNlaProductForm.cpp
-    scipy/_lib/highs/src/simplex/HSimplexReport.cpp
-    scipy/_lib/highs/src/simplex/HighsSimplexAnalysis.cpp
-    scipy/_lib/highs/src/test/DevKkt.cpp
-    scipy/_lib/highs/src/test/KktCh2.cpp
-    scipy/_lib/highs/src/util/HFactor.cpp
-    scipy/_lib/highs/src/util/HFactorDebug.cpp
-    scipy/_lib/highs/src/util/HFactorExtend.cpp
-    scipy/_lib/highs/src/util/HFactorRefactor.cpp
-    scipy/_lib/highs/src/util/HFactorUtils.cpp
-    scipy/_lib/highs/src/util/HSet.cpp
-    scipy/_lib/highs/src/util/HVectorBase.cpp
-    scipy/_lib/highs/src/util/HighsHash.cpp
-    scipy/_lib/highs/src/util/HighsLinearSumBounds.cpp
-    scipy/_lib/highs/src/util/HighsMatrixPic.cpp
-    scipy/_lib/highs/src/util/HighsMatrixUtils.cpp
-    scipy/_lib/highs/src/util/HighsSort.cpp
-    scipy/_lib/highs/src/util/HighsSparseMatrix.cpp
-    scipy/_lib/highs/src/util/HighsUtils.cpp
-    scipy/_lib/highs/src/util/stringutil.cpp
     scipy/_lib/unuran/unuran/src/distr/cemp.c
     scipy/_lib/unuran/unuran/src/distr/condi.c
     scipy/_lib/unuran/unuran/src/distr/cont.c
@@ -467,12 +485,12 @@ SRCS(
     scipy/_lib/unuran/unuran/src/utils/vector.c
     scipy/_lib/unuran/urng_default_mod.c
     scipy/fft/_pocketfft/pypocketfft.cxx
+    scipy/integrate/__quadpack.c
     scipy/integrate/_dop-f2pywrappers.f
     scipy/integrate/_dopmodule.c
     scipy/integrate/_lsoda-f2pywrappers.f
     scipy/integrate/_lsodamodule.c
     scipy/integrate/_odepackmodule.c
-    scipy/integrate/_quadpackmodule.c
     scipy/integrate/_vode-f2pywrappers.f
     scipy/integrate/_vodemodule.c
     scipy/integrate/dop/dop853.f
@@ -496,41 +514,6 @@ SRCS(
     scipy/integrate/odepack/xsetf.f
     scipy/integrate/odepack/xsetun.f
     scipy/integrate/odepack/zvode.f
-    scipy/integrate/quadpack/dqag.f
-    scipy/integrate/quadpack/dqage.f
-    scipy/integrate/quadpack/dqagi.f
-    scipy/integrate/quadpack/dqagie.f
-    scipy/integrate/quadpack/dqagp.f
-    scipy/integrate/quadpack/dqagpe.f
-    scipy/integrate/quadpack/dqags.f
-    scipy/integrate/quadpack/dqagse.f
-    scipy/integrate/quadpack/dqawc.f
-    scipy/integrate/quadpack/dqawce.f
-    scipy/integrate/quadpack/dqawf.f
-    scipy/integrate/quadpack/dqawfe.f
-    scipy/integrate/quadpack/dqawo.f
-    scipy/integrate/quadpack/dqawoe.f
-    scipy/integrate/quadpack/dqaws.f
-    scipy/integrate/quadpack/dqawse.f
-    scipy/integrate/quadpack/dqc25c.f
-    scipy/integrate/quadpack/dqc25f.f
-    scipy/integrate/quadpack/dqc25s.f
-    scipy/integrate/quadpack/dqcheb.f
-    scipy/integrate/quadpack/dqelg.f
-    scipy/integrate/quadpack/dqk15.f
-    scipy/integrate/quadpack/dqk15i.f
-    scipy/integrate/quadpack/dqk15w.f
-    scipy/integrate/quadpack/dqk21.f
-    scipy/integrate/quadpack/dqk31.f
-    scipy/integrate/quadpack/dqk41.f
-    scipy/integrate/quadpack/dqk51.f
-    scipy/integrate/quadpack/dqk61.f
-    scipy/integrate/quadpack/dqmomo.f
-    scipy/integrate/quadpack/dqng.f
-    scipy/integrate/quadpack/dqpsrt.f
-    scipy/integrate/quadpack/dqwgtc.f
-    scipy/integrate/quadpack/dqwgtf.f
-    scipy/integrate/quadpack/dqwgts.f
     scipy/interpolate/_dfitpack-f2pywrappers.f
     scipy/interpolate/_dfitpackmodule.c
     scipy/interpolate/fitpack/bispeu.f
@@ -619,6 +602,8 @@ SRCS(
     scipy/interpolate/fitpack/sproot.f
     scipy/interpolate/fitpack/surev.f
     scipy/interpolate/fitpack/surfit.f
+    scipy/interpolate/src/__fitpack.cc
+    scipy/interpolate/src/_dierckxmodule.cc
     scipy/interpolate/src/_fitpackmodule.c
     scipy/io/_fast_matrix_market/fast_matrix_market/dependencies/ryu/ryu/d2fixed.c
     scipy/io/_fast_matrix_market/fast_matrix_market/dependencies/ryu/ryu/d2s.c
@@ -633,110 +618,9 @@ SRCS(
     scipy/linalg/_fblasmodule.c
     scipy/linalg/_flapack-f2pywrappers.f
     scipy/linalg/_flapackmodule.c
-    scipy/linalg/_interpolative-f2pywrappers.f
-    scipy/linalg/_interpolativemodule.c
-    scipy/linalg/src/id_dist/src/dfft_subr_0.f
-    scipy/linalg/src/id_dist/src/dfft_subr_1.f
-    scipy/linalg/src/id_dist/src/dfft_subr_10.f
-    scipy/linalg/src/id_dist/src/dfft_subr_11.f
-    scipy/linalg/src/id_dist/src/dfft_subr_12.f
-    scipy/linalg/src/id_dist/src/dfft_subr_13.f
-    scipy/linalg/src/id_dist/src/dfft_subr_14.f
-    scipy/linalg/src/id_dist/src/dfft_subr_15.f
-    scipy/linalg/src/id_dist/src/dfft_subr_2.f
-    scipy/linalg/src/id_dist/src/dfft_subr_3.f
-    scipy/linalg/src/id_dist/src/dfft_subr_4.f
-    scipy/linalg/src/id_dist/src/dfft_subr_5.f
-    scipy/linalg/src/id_dist/src/dfft_subr_6.f
-    scipy/linalg/src/id_dist/src/dfft_subr_7.f
-    scipy/linalg/src/id_dist/src/dfft_subr_8.f
-    scipy/linalg/src/id_dist/src/dfft_subr_9.f
-    scipy/linalg/src/id_dist/src/id_rand_subr_0.f
-    scipy/linalg/src/id_dist/src/id_rand_subr_1.f
-    scipy/linalg/src/id_dist/src/id_rand_subr_2.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_0.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_1.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_10.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_11.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_2.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_3.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_4.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_5.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_6.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_7.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_8.f
-    scipy/linalg/src/id_dist/src/id_rtrans_subr_9.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_0.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_1.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_2.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_3.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_4.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_5.f
-    scipy/linalg/src/id_dist/src/idd_frm_subr_6.f
-    scipy/linalg/src/id_dist/src/idd_house.f
-    scipy/linalg/src/id_dist/src/idd_id.f
-    scipy/linalg/src/id_dist/src/idd_id2svd_subr_0.f
-    scipy/linalg/src/id_dist/src/idd_id2svd_subr_1.f
-    scipy/linalg/src/id_dist/src/idd_id2svd_subr_2.f
-    scipy/linalg/src/id_dist/src/idd_qrpiv.f
-    scipy/linalg/src/id_dist/src/idd_sfft_subr_0.f
-    scipy/linalg/src/id_dist/src/idd_sfft_subr_1.f
-    scipy/linalg/src/id_dist/src/idd_sfft_subr_2.f
-    scipy/linalg/src/id_dist/src/idd_sfft_subr_3.f
-    scipy/linalg/src/id_dist/src/idd_sfft_subr_4.f
-    scipy/linalg/src/id_dist/src/idd_snorm.f
-    scipy/linalg/src/id_dist/src/idd_svd_subr_0.f
-    scipy/linalg/src/id_dist/src/idd_svd_subr_1.f
-    scipy/linalg/src/id_dist/src/idd_svd_subr_2.f
-    scipy/linalg/src/id_dist/src/iddp_aid.f
-    scipy/linalg/src/id_dist/src/iddp_asvd_subr_0.f
-    scipy/linalg/src/id_dist/src/iddp_asvd_subr_1.f
-    scipy/linalg/src/id_dist/src/iddp_rid.f
-    scipy/linalg/src/id_dist/src/iddp_rsvd_subr_0.f
-    scipy/linalg/src/id_dist/src/iddp_rsvd_subr_1.f
-    scipy/linalg/src/id_dist/src/iddr_aid.f
-    scipy/linalg/src/id_dist/src/iddr_asvd_subr_0.f
-    scipy/linalg/src/id_dist/src/iddr_asvd_subr_1.f
-    scipy/linalg/src/id_dist/src/iddr_rid.f
-    scipy/linalg/src/id_dist/src/iddr_rsvd_subr_0.f
-    scipy/linalg/src/id_dist/src/iddr_rsvd_subr_1.f
-    scipy/linalg/src/id_dist/src/idz_frm_subr_0.f
-    scipy/linalg/src/id_dist/src/idz_frm_subr_1.f
-    scipy/linalg/src/id_dist/src/idz_frm_subr_2.f
-    scipy/linalg/src/id_dist/src/idz_frm_subr_3.f
-    scipy/linalg/src/id_dist/src/idz_house.f
-    scipy/linalg/src/id_dist/src/idz_id.f
-    scipy/linalg/src/id_dist/src/idz_id2svd_subr_0.f
-    scipy/linalg/src/id_dist/src/idz_id2svd_subr_1.f
-    scipy/linalg/src/id_dist/src/idz_id2svd_subr_2.f
-    scipy/linalg/src/id_dist/src/idz_qrpiv.f
-    scipy/linalg/src/id_dist/src/idz_sfft.f
-    scipy/linalg/src/id_dist/src/idz_snorm.f
-    scipy/linalg/src/id_dist/src/idz_svd_subr_0.f
-    scipy/linalg/src/id_dist/src/idz_svd_subr_1.f
-    scipy/linalg/src/id_dist/src/idz_svd_subr_2.f
-    scipy/linalg/src/id_dist/src/idz_svd_subr_3.f
-    scipy/linalg/src/id_dist/src/idzp_aid_subr_0.f
-    scipy/linalg/src/id_dist/src/idzp_aid_subr_1.f
-    scipy/linalg/src/id_dist/src/idzp_aid_subr_2.f
-    scipy/linalg/src/id_dist/src/idzp_aid_subr_3.f
-    scipy/linalg/src/id_dist/src/idzp_aid_subr_4.f
-    scipy/linalg/src/id_dist/src/idzp_aid_subr_5.f
-    scipy/linalg/src/id_dist/src/idzp_asvd_subr_0.f
-    scipy/linalg/src/id_dist/src/idzp_asvd_subr_1.f
-    scipy/linalg/src/id_dist/src/idzp_asvd_subr_2.f
-    scipy/linalg/src/id_dist/src/idzp_rid.f
-    scipy/linalg/src/id_dist/src/idzp_rsvd_subr_0.f
-    scipy/linalg/src/id_dist/src/idzp_rsvd_subr_1.f
-    scipy/linalg/src/id_dist/src/idzp_rsvd_subr_2.f
-    scipy/linalg/src/id_dist/src/idzr_aid.f
-    scipy/linalg/src/id_dist/src/idzr_asvd_subr_0.f
-    scipy/linalg/src/id_dist/src/idzr_asvd_subr_1.f
-    scipy/linalg/src/id_dist/src/idzr_rid.f
-    scipy/linalg/src/id_dist/src/idzr_rsvd_subr_0.f
-    scipy/linalg/src/id_dist/src/idzr_rsvd_subr_1.f
-    scipy/linalg/src/id_dist/src/prini.f
+    scipy/linalg/_matfuncs_expm.c
     scipy/ndimage/src/_ctest.c
+    scipy/ndimage/src/_rank_filter_1d.cpp
     scipy/ndimage/src/nd_image.c
     scipy/ndimage/src/ni_filters.c
     scipy/ndimage/src/ni_fourier.c
@@ -751,6 +635,8 @@ SRCS(
     scipy/odr/odrpack/d_odr.f
     scipy/odr/odrpack/d_test.f
     scipy/odr/odrpack/dlunoc.f
+    scipy/optimize/__lbfgsb.c
+    scipy/optimize/__minpack.c
     scipy/optimize/_cobyla-f2pywrappers.f
     scipy/optimize/_cobylamodule.c
     scipy/optimize/_direct/DIRect.c
@@ -758,12 +644,8 @@ SRCS(
     scipy/optimize/_direct/DIRsubrout.c
     scipy/optimize/_direct/direct_wrap.c
     scipy/optimize/_directmodule.c
-    scipy/optimize/_lbfgsb-f2pywrappers.f
-    scipy/optimize/_lbfgsbmodule.c
+    scipy/optimize/_highspy/highs_options.cpp
     scipy/optimize/_lsap.c
-    scipy/optimize/_minpack2-f2pywrappers.f
-    scipy/optimize/_minpack2module.c
-    scipy/optimize/_minpackmodule.c
     scipy/optimize/_pava/pava_pybind.cpp
     scipy/optimize/_slsqp-f2pywrappers.f
     scipy/optimize/_slsqpmodule.c
@@ -774,45 +656,16 @@ SRCS(
     scipy/optimize/_trlib/trlib_tri_factor.c
     scipy/optimize/cobyla/cobyla2.f
     scipy/optimize/cobyla/trstlp.f
-    scipy/optimize/lbfgsb_src/lbfgsb.f
-    scipy/optimize/lbfgsb_src/linpack.f
-    scipy/optimize/lbfgsb_src/timer.f
-    scipy/optimize/minpack/chkder.f
-    scipy/optimize/minpack/dogleg.f
-    scipy/optimize/minpack/dpmpar.f
-    scipy/optimize/minpack/enorm.f
-    scipy/optimize/minpack/fdjac1.f
-    scipy/optimize/minpack/fdjac2.f
-    scipy/optimize/minpack/hybrd.f
-    scipy/optimize/minpack/hybrd1.f
-    scipy/optimize/minpack/hybrj.f
-    scipy/optimize/minpack/hybrj1.f
-    scipy/optimize/minpack/lmder.f
-    scipy/optimize/minpack/lmder1.f
-    scipy/optimize/minpack/lmdif.f
-    scipy/optimize/minpack/lmdif1.f
-    scipy/optimize/minpack/lmpar.f
-    scipy/optimize/minpack/lmstr.f
-    scipy/optimize/minpack/lmstr1.f
-    scipy/optimize/minpack/qform.f
-    scipy/optimize/minpack/qrfac.f
-    scipy/optimize/minpack/qrsolv.f
-    scipy/optimize/minpack/r1mpyq.f
-    scipy/optimize/minpack/r1updt.f
-    scipy/optimize/minpack/rwupdt.f
-    scipy/optimize/minpack2/dcsrch.f
-    scipy/optimize/minpack2/dcstep.f
     scipy/optimize/rectangular_lsap/rectangular_lsap.cpp
     scipy/optimize/slsqp/slsqp_optmz.f
     scipy/optimize/tnc/tnc.c
     scipy/optimize/zeros.c
-    scipy/signal/_bspline_util.c
     scipy/signal/_correlate_nd.c
     scipy/signal/_firfilter.c
     scipy/signal/_lfilter.c
     scipy/signal/_medianfilter.c
     scipy/signal/_sigtoolsmodule.c
-    scipy/signal/_splinemodule.c
+    scipy/signal/_splinemodule.cc
     scipy/sparse/linalg/_dsolve/SuperLU/SRC/ccolumn_bmod.c
     scipy/sparse/linalg/_dsolve/SuperLU/SRC/ccolumn_dfs.c
     scipy/sparse/linalg/_dsolve/SuperLU/SRC/ccopy_to_ucol.c
@@ -997,6 +850,7 @@ SRCS(
     scipy/sparse/linalg/_dsolve/_superlu_utils.c
     scipy/sparse/linalg/_dsolve/_superlumodule.c
     scipy/sparse/linalg/_dsolve/_superluobject.c
+    scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/ccdotc.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/cgetv0.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/cnaitr.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/cnapps.f
@@ -1063,6 +917,7 @@ SRCS(
     scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/zngets.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/zsortc.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/zstatn.f
+    scipy/sparse/linalg/_eigen/arpack/ARPACK/SRC/zzdotc.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/UTIL/cmout.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/UTIL/cvout.f
     scipy/sparse/linalg/_eigen/arpack/ARPACK/UTIL/dmout.f
@@ -1121,6 +976,7 @@ SRCS(
     scipy/sparse/linalg/_propack/PROPACK/complex16/Lapack_Util/xerbla.f
     scipy/sparse/linalg/_propack/PROPACK/complex16/Lapack_Util/zlarnv.f
     scipy/sparse/linalg/_propack/PROPACK/complex16/Lapack_Util/zlascl.f
+    scipy/sparse/linalg/_propack/PROPACK/complex16/zzdotc.f
     scipy/sparse/linalg/_propack/PROPACK/complex8/Lapack_Util/clarnv.f
     scipy/sparse/linalg/_propack/PROPACK/complex8/Lapack_Util/clascl.f
     scipy/sparse/linalg/_propack/PROPACK/complex8/Lapack_Util/ieeeck.f
@@ -1274,8 +1130,8 @@ SRCS(
     scipy/special/ellint_carlson_wrap.cxx
     scipy/special/sf_error.cc
     scipy/special/sf_error_state.c
-    scipy/special/special_wrappers.cpp
     scipy/special/wright.cc
+    scipy/special/xsf_wrappers.cpp
     scipy/stats/_levy_stable/c_src/levyst.c
     scipy/stats/_mvn-f2pywrappers.f
     scipy/stats/_mvnmodule.c
@@ -1310,29 +1166,32 @@ PY_REGISTER(
     scipy.integrate._quadpack
     scipy.integrate._vode
     scipy.interpolate._dfitpack
+    scipy.interpolate._dierckx
     scipy.interpolate._fitpack
     scipy.interpolate._rbfinterp_pythran
     scipy.io._fast_matrix_market._fmm_core
     scipy.linalg._fblas
     scipy.linalg._flapack
-    scipy.linalg._interpolative
+    scipy.linalg._linalg_pythran
+    scipy.linalg._matfuncs_expm
     scipy.linalg._matfuncs_sqrtm_triu
     scipy.ndimage._ctest
     scipy.ndimage._nd_image
+    scipy.ndimage._rank_filter_1d
     scipy.odr.__odrpack
     scipy.optimize._cobyla
     scipy.optimize._direct
     scipy.optimize._group_columns
+    scipy.optimize._highspy._core
+    scipy.optimize._highspy._highs_options
     scipy.optimize._lbfgsb
     scipy.optimize._lsap
     scipy.optimize._minpack
-    scipy.optimize._minpack2
     scipy.optimize._pava_pybind
     scipy.optimize._slsqp
     scipy.optimize._zeros
     scipy.signal._max_len_seq_inner
     scipy.signal._sigtools
-    scipy.signal._spectral
     scipy.signal._spline
     scipy.sparse._sparsetools
     scipy.sparse.linalg._dsolve._superlu
@@ -1352,6 +1211,7 @@ PY_SRCS(
     scipy/_distributor_init.py
     scipy/_lib/__init__.py
     scipy/_lib/_array_api.py
+    scipy/_lib/_array_api_no_0d.py
     scipy/_lib/_boost_utils.py
     scipy/_lib/_bunch.py
     scipy/_lib/_ccallback.py
@@ -1360,7 +1220,6 @@ PY_SRCS(
     scipy/_lib/_elementwise_iterative_method.py
     scipy/_lib/_finite_differences.py
     scipy/_lib/_gcutils.py
-    scipy/_lib/_highs_utils.py
     scipy/_lib/_pep440.py
     scipy/_lib/_testutils.py
     scipy/_lib/_threadsafety.py
@@ -1379,22 +1238,30 @@ PY_SRCS(
     scipy/_lib/array_api_compat/common/_typing.py
     scipy/_lib/array_api_compat/cupy/__init__.py
     scipy/_lib/array_api_compat/cupy/_aliases.py
+    scipy/_lib/array_api_compat/cupy/_info.py
     scipy/_lib/array_api_compat/cupy/_typing.py
     scipy/_lib/array_api_compat/cupy/fft.py
     scipy/_lib/array_api_compat/cupy/linalg.py
     scipy/_lib/array_api_compat/dask/__init__.py
     scipy/_lib/array_api_compat/dask/array/__init__.py
     scipy/_lib/array_api_compat/dask/array/_aliases.py
+    scipy/_lib/array_api_compat/dask/array/_info.py
+    scipy/_lib/array_api_compat/dask/array/fft.py
     scipy/_lib/array_api_compat/dask/array/linalg.py
     scipy/_lib/array_api_compat/numpy/__init__.py
     scipy/_lib/array_api_compat/numpy/_aliases.py
+    scipy/_lib/array_api_compat/numpy/_info.py
     scipy/_lib/array_api_compat/numpy/_typing.py
     scipy/_lib/array_api_compat/numpy/fft.py
     scipy/_lib/array_api_compat/numpy/linalg.py
     scipy/_lib/array_api_compat/torch/__init__.py
     scipy/_lib/array_api_compat/torch/_aliases.py
+    scipy/_lib/array_api_compat/torch/_info.py
     scipy/_lib/array_api_compat/torch/fft.py
     scipy/_lib/array_api_compat/torch/linalg.py
+    scipy/_lib/array_api_extra/__init__.py
+    scipy/_lib/array_api_extra/_funcs.py
+    scipy/_lib/array_api_extra/_typing.py
     scipy/_lib/cobyqa/__init__.py
     scipy/_lib/cobyqa/framework.py
     scipy/_lib/cobyqa/main.py
@@ -1425,6 +1292,8 @@ PY_SRCS(
     scipy/datasets/_fetchers.py
     scipy/datasets/_registry.py
     scipy/datasets/_utils.py
+    scipy/differentiate/__init__.py
+    scipy/differentiate/_differentiate.py
     scipy/fft/__init__.py
     scipy/fft/_backend.py
     scipy/fft/_basic.py
@@ -1450,6 +1319,7 @@ PY_SRCS(
     scipy/fftpack/realtransforms.py
     scipy/integrate/__init__.py
     scipy/integrate/_bvp.py
+    scipy/integrate/_cubature.py
     scipy/integrate/_ivp/__init__.py
     scipy/integrate/_ivp/base.py
     scipy/integrate/_ivp/bdf.py
@@ -1459,11 +1329,17 @@ PY_SRCS(
     scipy/integrate/_ivp/lsoda.py
     scipy/integrate/_ivp/radau.py
     scipy/integrate/_ivp/rk.py
+    scipy/integrate/_lebedev.py
     scipy/integrate/_ode.py
     scipy/integrate/_odepack_py.py
     scipy/integrate/_quad_vec.py
     scipy/integrate/_quadpack_py.py
     scipy/integrate/_quadrature.py
+    scipy/integrate/_rules/__init__.py
+    scipy/integrate/_rules/_base.py
+    scipy/integrate/_rules/_gauss_kronrod.py
+    scipy/integrate/_rules/_gauss_legendre.py
+    scipy/integrate/_rules/_genz_malik.py
     scipy/integrate/_tanhsinh.py
     scipy/integrate/dop.py
     scipy/integrate/lsoda.py
@@ -1471,11 +1347,13 @@ PY_SRCS(
     scipy/integrate/quadpack.py
     scipy/integrate/vode.py
     scipy/interpolate/__init__.py
+    scipy/interpolate/_bary_rational.py
     scipy/interpolate/_bsplines.py
     scipy/interpolate/_cubic.py
     scipy/interpolate/_fitpack2.py
     scipy/interpolate/_fitpack_impl.py
     scipy/interpolate/_fitpack_py.py
+    scipy/interpolate/_fitpack_repro.py
     scipy/interpolate/_interpolate.py
     scipy/interpolate/_ndbspline.py
     scipy/interpolate/_ndgriddata.py
@@ -1487,6 +1365,7 @@ PY_SRCS(
     scipy/interpolate/dfitpack.py
     scipy/interpolate/fitpack.py
     scipy/interpolate/fitpack2.py
+    scipy/interpolate/interpnd.py
     scipy/interpolate/interpolate.py
     scipy/interpolate/ndgriddata.py
     scipy/interpolate/polyint.py
@@ -1539,7 +1418,6 @@ PY_SRCS(
     scipy/linalg/_decomp_schur.py
     scipy/linalg/_decomp_svd.py
     scipy/linalg/_expm_frechet.py
-    scipy/linalg/_interpolative_backend.py
     scipy/linalg/_matfuncs.py
     scipy/linalg/_matfuncs_expm.pyi
     scipy/linalg/_matfuncs_inv_ssq.py
@@ -1564,17 +1442,19 @@ PY_SRCS(
     scipy/linalg/misc.py
     scipy/linalg/special_matrices.py
     scipy/misc/__init__.py
-    scipy/misc/_common.py
     scipy/misc/common.py
     scipy/misc/doccer.py
     scipy/ndimage/__init__.py
+    scipy/ndimage/_delegators.py
     scipy/ndimage/_filters.py
     scipy/ndimage/_fourier.py
     scipy/ndimage/_interpolation.py
     scipy/ndimage/_measurements.py
     scipy/ndimage/_morphology.py
+    scipy/ndimage/_ndimage_api.py
     scipy/ndimage/_ni_docstrings.py
     scipy/ndimage/_ni_support.py
+    scipy/ndimage/_support_alternative_backends.py
     scipy/ndimage/filters.py
     scipy/ndimage/fourier.py
     scipy/ndimage/interpolation.py
@@ -1596,12 +1476,12 @@ PY_SRCS(
     scipy/optimize/_dcsrch.py
     scipy/optimize/_differentiable_functions.py
     scipy/optimize/_differentialevolution.py
-    scipy/optimize/_differentiate.py
     scipy/optimize/_direct_py.py
     scipy/optimize/_dual_annealing.py
+    scipy/optimize/_elementwise.py
     scipy/optimize/_hessian_update_strategy.py
-    scipy/optimize/_highs/__init__.py
-    scipy/optimize/_highs/cython/__init__.py
+    scipy/optimize/_highspy/__init__.py
+    scipy/optimize/_highspy/_highs_wrapper.py
     scipy/optimize/_isotonic.py
     scipy/optimize/_lbfgsb_py.py
     scipy/optimize/_linesearch.py
@@ -1656,6 +1536,7 @@ PY_SRCS(
     scipy/optimize/_zeros_py.py
     scipy/optimize/cobyla.py
     scipy/optimize/cython_optimize/__init__.py
+    scipy/optimize/elementwise.py
     scipy/optimize/lbfgsb.py
     scipy/optimize/linesearch.py
     scipy/optimize/minpack.py
@@ -1668,7 +1549,6 @@ PY_SRCS(
     scipy/optimize/zeros.py
     scipy/signal/__init__.py
     scipy/signal/_arraytools.py
-    scipy/signal/_bsplines.py
     scipy/signal/_czt.py
     scipy/signal/_filter_design.py
     scipy/signal/_fir_filter_design.py
@@ -1680,6 +1560,8 @@ PY_SRCS(
     scipy/signal/_short_time_fft.py
     scipy/signal/_signaltools.py
     scipy/signal/_spectral_py.py
+    scipy/signal/_spline.pyi
+    scipy/signal/_spline_filters.py
     scipy/signal/_upfirdn.py
     scipy/signal/_waveforms.py
     scipy/signal/_wavelets.py
@@ -1766,7 +1648,6 @@ PY_SRCS(
     scipy/sparse/spfuncs.py
     scipy/sparse/sputils.py
     scipy/spatial/__init__.py
-    scipy/spatial/_ckdtree.pyi
     scipy/spatial/_geometric_slerp.py
     scipy/spatial/_kdtree.py
     scipy/spatial/_plotutils.py
@@ -1780,7 +1661,6 @@ PY_SRCS(
     scipy/spatial/kdtree.py
     scipy/spatial/qhull.py
     scipy/spatial/transform/__init__.py
-    scipy/spatial/transform/_rotation.pyi
     scipy/spatial/transform/_rotation_groups.py
     scipy/spatial/transform/_rotation_spline.py
     scipy/spatial/transform/rotation.py
@@ -1788,9 +1668,11 @@ PY_SRCS(
     scipy/special/_add_newdocs.py
     scipy/special/_basic.py
     scipy/special/_ellip_harm.py
+    scipy/special/_input_validation.py
     scipy/special/_lambertw.py
     scipy/special/_logsumexp.py
     scipy/special/_mptestutils.py
+    scipy/special/_multiufuncs.py
     scipy/special/_orthogonal.py
     scipy/special/_orthogonal.pyi
     scipy/special/_precompute/__init__.py
@@ -1829,11 +1711,13 @@ PY_SRCS(
     scipy/stats/_common.py
     scipy/stats/_constants.py
     scipy/stats/_continuous_distns.py
+    scipy/stats/_correlation.py
     scipy/stats/_covariance.py
     scipy/stats/_crosstab.py
     scipy/stats/_discrete_distns.py
     scipy/stats/_distn_infrastructure.py
     scipy/stats/_distr_params.py
+    scipy/stats/_distribution_infrastructure.py
     scipy/stats/_entropy.py
     scipy/stats/_fit.py
     scipy/stats/_hypotests.py
@@ -1847,8 +1731,10 @@ PY_SRCS(
     scipy/stats/_mstats_extras.py
     scipy/stats/_multicomp.py
     scipy/stats/_multivariate.py
+    scipy/stats/_new_distributions.py
     scipy/stats/_odds_ratio.py
     scipy/stats/_page_trend_test.py
+    scipy/stats/_probability_distribution.py
     scipy/stats/_qmc.py
     scipy/stats/_qmc_cy.pyi
     scipy/stats/_qmvnt.py
@@ -1856,7 +1742,6 @@ PY_SRCS(
     scipy/stats/_relative_risk.py
     scipy/stats/_resampling.py
     scipy/stats/_result_classes.py
-    scipy/stats/_rvs_sampling.py
     scipy/stats/_sampling.py
     scipy/stats/_sensitivity_analysis.py
     scipy/stats/_sobol.pyi
@@ -1891,23 +1776,23 @@ PY_SRCS(
     scipy/cluster/_optimal_leaf_ordering.pyx
     scipy/cluster/_vq.pyx
     scipy/fftpack/convolve.pyx
-    scipy/interpolate/_bspl.pyx
+    scipy/interpolate/_interpnd.pyx
     scipy/interpolate/_ppoly.pyx
     scipy/interpolate/_rgi_cython.pyx
-    scipy/interpolate/interpnd.pyx
     scipy/io/matlab/_mio5_utils.pyx
     scipy/io/matlab/_mio_utils.pyx
     scipy/io/matlab/_streams.pyx
     scipy/linalg/_cythonized_array_utils.pyx
+    scipy/linalg/_decomp_interpolative.pyx
     scipy/linalg/_decomp_lu_cython.pyx
     scipy/linalg/_decomp_update.pyx
-    scipy/linalg/_matfuncs_expm.pyx
     scipy/linalg/_solve_toeplitz.pyx
     scipy/linalg/cython_blas.pyx
     scipy/linalg/cython_lapack.pyx
     scipy/ndimage/_cytest.pyx
     scipy/ndimage/_ni_label.pyx
     scipy/optimize/_bglu_dense.pyx
+    scipy/optimize/_cython_nnls.pyx
     scipy/optimize/_lsq/givens_elimination.pyx
     scipy/optimize/_trlib/_trlib.pyx
     scipy/optimize/cython_optimize/_zeros.pyx
@@ -1938,8 +1823,7 @@ PY_SRCS(
     scipy/stats/_stats.pyx
     scipy/stats/_unuran/unuran_wrapper.pyx
     CYTHON_CPP
-    scipy/optimize/_highs/_highs_constants.pyx
-    scipy/optimize/_highs/_highs_wrapper.pyx
+    scipy/interpolate/_bspl.pyx
     scipy/spatial/_ckdtree.pyx
     scipy/special/_specfun.pyx
     scipy/special/_ufuncs_cxx.pyx
@@ -1951,9 +1835,6 @@ RESOURCE_FILES(
     PREFIX contrib/python/scipy/py3/
     .dist-info/METADATA
     .dist-info/top_level.txt
-    scipy/misc/ascent.dat
-    scipy/misc/ecg.dat
-    scipy/misc/face.dat
     scipy/stats/_sobol_direction_numbers.npz
 )
 
@@ -2028,6 +1909,53 @@ RUN_PROGRAM(
     pythonic/types/numpy_texpr.hpp
     pythonic/types/slice.hpp
     pythonic/types/str.hpp
+)
+
+RUN_PROGRAM(
+    contrib/python/pythran/bin/pythran -E scipy/linalg/_linalg_pythran.py -o scipy/linalg/_linalg_pythran.cpp
+    IN scipy/linalg/_linalg_pythran.py
+    OUT scipy/linalg/_linalg_pythran.cpp
+    OUTPUT_INCLUDES
+    pythonic/builtins/abs.hpp
+    pythonic/builtins/min.hpp
+    pythonic/builtins/range.hpp
+    pythonic/builtins/sum.hpp
+    pythonic/builtins/tuple.hpp
+    pythonic/core.hpp
+    pythonic/include/builtins/abs.hpp
+    pythonic/include/builtins/min.hpp
+    pythonic/include/builtins/range.hpp
+    pythonic/include/builtins/sum.hpp
+    pythonic/include/builtins/tuple.hpp
+    pythonic/include/operator_/add.hpp
+    pythonic/include/operator_/div.hpp
+    pythonic/include/operator_/mul.hpp
+    pythonic/include/operator_/ne.hpp
+    pythonic/include/operator_/sub.hpp
+    pythonic/include/types/complex128.hpp
+    pythonic/include/types/complex64.hpp
+    pythonic/include/types/float32.hpp
+    pythonic/include/types/float64.hpp
+    pythonic/include/types/int.hpp
+    pythonic/include/types/ndarray.hpp
+    pythonic/include/types/numpy_texpr.hpp
+    pythonic/include/types/slice.hpp
+    pythonic/operator_/add.hpp
+    pythonic/operator_/div.hpp
+    pythonic/operator_/mul.hpp
+    pythonic/operator_/ne.hpp
+    pythonic/operator_/sub.hpp
+    pythonic/python/core.hpp
+    pythonic/python/exception_handler.hpp
+    pythonic/types/bool.hpp
+    pythonic/types/complex128.hpp
+    pythonic/types/complex64.hpp
+    pythonic/types/float32.hpp
+    pythonic/types/float64.hpp
+    pythonic/types/int.hpp
+    pythonic/types/ndarray.hpp
+    pythonic/types/numpy_texpr.hpp
+    pythonic/types/slice.hpp
 )
 
 RUN_PROGRAM(
@@ -2182,63 +2110,12 @@ RUN_PROGRAM(
 )
 
 RUN_PROGRAM(
-    contrib/python/pythran/bin/pythran -E scipy/signal/_spectral.py -o scipy/signal/_spectral.cpp
-    IN scipy/signal/_spectral.py
-    OUT scipy/signal/_spectral.cpp
-    OUTPUT_INCLUDES
-    pythonic/builtins/ValueError.hpp
-    pythonic/builtins/ZeroDivisionError.hpp
-    pythonic/builtins/getattr.hpp
-    pythonic/builtins/range.hpp
-    pythonic/core.hpp
-    pythonic/include/builtins/ValueError.hpp
-    pythonic/include/builtins/ZeroDivisionError.hpp
-    pythonic/include/builtins/getattr.hpp
-    pythonic/include/builtins/range.hpp
-    pythonic/include/numpy/arctan2.hpp
-    pythonic/include/numpy/copyto.hpp
-    pythonic/include/numpy/cos.hpp
-    pythonic/include/numpy/empty_like.hpp
-    pythonic/include/numpy/sin.hpp
-    pythonic/include/numpy/square.hpp
-    pythonic/include/operator_/add.hpp
-    pythonic/include/operator_/div.hpp
-    pythonic/include/operator_/eq.hpp
-    pythonic/include/operator_/iadd.hpp
-    pythonic/include/operator_/mul.hpp
-    pythonic/include/operator_/ne.hpp
-    pythonic/include/operator_/sub.hpp
-    pythonic/include/types/float64.hpp
-    pythonic/include/types/ndarray.hpp
-    pythonic/include/types/str.hpp
-    pythonic/numpy/arctan2.hpp
-    pythonic/numpy/copyto.hpp
-    pythonic/numpy/cos.hpp
-    pythonic/numpy/empty_like.hpp
-    pythonic/numpy/sin.hpp
-    pythonic/numpy/square.hpp
-    pythonic/operator_/add.hpp
-    pythonic/operator_/div.hpp
-    pythonic/operator_/eq.hpp
-    pythonic/operator_/iadd.hpp
-    pythonic/operator_/mul.hpp
-    pythonic/operator_/ne.hpp
-    pythonic/operator_/sub.hpp
-    pythonic/python/core.hpp
-    pythonic/python/exception_handler.hpp
-    pythonic/types/bool.hpp
-    pythonic/types/float64.hpp
-    pythonic/types/int.hpp
-    pythonic/types/ndarray.hpp
-    pythonic/types/str.hpp
-)
-
-RUN_PROGRAM(
     contrib/python/pythran/bin/pythran -E scipy/stats/_stats_pythran.py -o scipy/stats/_stats_pythran.cpp
     IN scipy/stats/_stats_pythran.py
     OUT scipy/stats/_stats_pythran.cpp
     OUTPUT_INCLUDES
     pythonic/__dispatch__/append.hpp
+    pythonic/builtins/dict.hpp
     pythonic/builtins/getattr.hpp
     pythonic/builtins/int_.hpp
     pythonic/builtins/len.hpp
@@ -2250,6 +2127,7 @@ RUN_PROGRAM(
     pythonic/builtins/tuple.hpp
     pythonic/core.hpp
     pythonic/include/__dispatch__/append.hpp
+    pythonic/include/builtins/dict.hpp
     pythonic/include/builtins/getattr.hpp
     pythonic/include/builtins/int_.hpp
     pythonic/include/builtins/len.hpp
@@ -2261,6 +2139,7 @@ RUN_PROGRAM(
     pythonic/include/builtins/tuple.hpp
     pythonic/include/numpy/asarray.hpp
     pythonic/include/numpy/ceil.hpp
+    pythonic/include/numpy/cumsum.hpp
     pythonic/include/numpy/expand_dims.hpp
     pythonic/include/numpy/float64.hpp
     pythonic/include/numpy/floor.hpp
@@ -2269,12 +2148,15 @@ RUN_PROGRAM(
     pythonic/include/numpy/ones.hpp
     pythonic/include/numpy/square.hpp
     pythonic/include/numpy/sum.hpp
+    pythonic/include/numpy/zeros.hpp
     pythonic/include/operator_/add.hpp
+    pythonic/include/operator_/contains.hpp
     pythonic/include/operator_/div.hpp
     pythonic/include/operator_/eq.hpp
     pythonic/include/operator_/floordiv.hpp
     pythonic/include/operator_/gt.hpp
     pythonic/include/operator_/iadd.hpp
+    pythonic/include/operator_/imul.hpp
     pythonic/include/operator_/le.hpp
     pythonic/include/operator_/lt.hpp
     pythonic/include/operator_/mul.hpp
@@ -2290,6 +2172,7 @@ RUN_PROGRAM(
     pythonic/include/types/str.hpp
     pythonic/numpy/asarray.hpp
     pythonic/numpy/ceil.hpp
+    pythonic/numpy/cumsum.hpp
     pythonic/numpy/expand_dims.hpp
     pythonic/numpy/float64.hpp
     pythonic/numpy/floor.hpp
@@ -2298,12 +2181,15 @@ RUN_PROGRAM(
     pythonic/numpy/ones.hpp
     pythonic/numpy/square.hpp
     pythonic/numpy/sum.hpp
+    pythonic/numpy/zeros.hpp
     pythonic/operator_/add.hpp
+    pythonic/operator_/contains.hpp
     pythonic/operator_/div.hpp
     pythonic/operator_/eq.hpp
     pythonic/operator_/floordiv.hpp
     pythonic/operator_/gt.hpp
     pythonic/operator_/iadd.hpp
+    pythonic/operator_/imul.hpp
     pythonic/operator_/le.hpp
     pythonic/operator_/lt.hpp
     pythonic/operator_/mul.hpp

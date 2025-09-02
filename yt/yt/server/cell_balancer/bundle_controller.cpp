@@ -29,6 +29,7 @@ using namespace NCypressClient;
 using namespace NProfiling;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
 
@@ -59,7 +60,7 @@ static constexpr int DefaultMaxSize = 1'000'000;
 
 struct TBundleAlertCounters
 {
-    THashMap<std::string, TCounter> IdToCounter;
+    THashMap<TAlert::TKey, TCounter> IdToCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +226,8 @@ private:
             YT_LOG_DEBUG("Bundle controller is not leading");
             return;
         }
+
+        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("BundleControllerScanPass"));
 
         ScanTabletCellBundles(dryRun, ignoreGlobalDisabledSwitch);
         ScanChaosCellBundles(dryRun, ignoreGlobalDisabledSwitch);
@@ -997,20 +1000,23 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        static const std::string DefaultBundleName = "all";
+        static const std::string GenericBundleName = "all";
+        static const std::string GenericDataCenterName = "all";
 
-        auto bundleName = alert.BundleName.value_or(DefaultBundleName);
+        auto bundleName = alert.BundleName.value_or(GenericBundleName);
+        auto dataCenter = alert.DataCenter.value_or(GenericDataCenterName);
 
         auto& bundle = BundleAlerts_[bundleName];
-        auto it = bundle.IdToCounter.find(alert.Id);
+        auto it = bundle.IdToCounter.find(alert.GetKey());
 
         if (it == bundle.IdToCounter.end()) {
             auto counter = Profiler
                 .WithTag("tablet_cell_bundle", bundleName)
+                .WithTag("data_center", dataCenter)
                 .WithTag("alarm_id", alert.Id)
                 .WithSparse()
                 .Counter("/scan_bundles_alarms_count");
-            it = bundle.IdToCounter.emplace(alert.Id, std::move(counter)).first;
+            it = bundle.IdToCounter.emplace(alert.GetKey(), std::move(counter)).first;
         }
 
         it->second.Increment(1);

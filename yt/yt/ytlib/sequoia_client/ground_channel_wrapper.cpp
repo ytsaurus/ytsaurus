@@ -119,4 +119,30 @@ IChannelPtr WrapGroundChannel(IChannelPtr underlyingChannel)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGroundChannelFactoryWrapper
+    : public IChannelFactory
+{
+public:
+    TGroundChannelFactoryWrapper(NRpc::IChannelFactoryPtr underlyingChannelFactory)
+        : UnderlyingChannelFactory_(std::move(underlyingChannelFactory))
+    { }
+
+    IChannelPtr CreateChannel(const std::string& address) override
+    {
+        return WrapGroundChannel(UnderlyingChannelFactory_->CreateChannel(address));
+    }
+
+private:
+    NRpc::IChannelFactoryPtr UnderlyingChannelFactory_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IChannelFactoryPtr WrapGroundChannelFactory(NRpc::IChannelFactoryPtr underlyingChannelFactory)
+{
+    return New<TGroundChannelFactoryWrapper>(std::move(underlyingChannelFactory));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSequoiaClient

@@ -182,6 +182,21 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
             }
         }
 
+        if (checkResponse.RlAcl && !context->OmitInaccessibleRows) {
+            // User did not explicitly indicate that he is okay with RLS.
+            TPermissionCheckTarget target;
+            target.ObjectId = Object_->GetId();
+            TPermissionCheckResult result;
+            result.Action = ESecurityAction::Deny;
+            securityManager->LogAndThrowAuthorizationError(
+                target,
+                user,
+                EPermission::Read,
+                result);
+        }
+
+        context->RlAcl = checkResponse.RlAcl;
+
         // No need for an extra check below.
         context->Permission = std::nullopt;
     }
@@ -259,6 +274,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaMode));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaRevision));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkWriter)
         .SetCustom(true)
         .SetReplicated(true));
@@ -518,6 +534,11 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
                 .Value(table->GetSchemaMode());
+            return true;
+
+        case EInternedAttributeKey::SchemaRevision:
+            BuildYsonFluently(consumer)
+                .Value(table->GetSchemaRevision());
             return true;
 
         case EInternedAttributeKey::SortedBy:

@@ -25,11 +25,16 @@ ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
-FROM ubuntu:focal AS ubuntu-base
+FROM ubuntu:noble AS ubuntu-base
 
 ARG APT_MIRROR="http://archive.ubuntu.com/"
 
 RUN sed -i "s|http://archive.ubuntu.com/|${APT_MIRROR}|g" /etc/apt/sources.list
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+      software-properties-common && \
+      add-apt-repository ppa:deadsnakes/ppa
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
@@ -124,8 +129,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libpython3.8 \
   libpython3.9 \
   libpython3.10 \
-  libpython3.11 \
-  libpython3.12
+  libpython3.11
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   openjdk-11-jdk \
@@ -304,8 +308,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libpython3.8 \
   libpython3.9 \
   libpython3.10 \
-  libpython3.11 \
-  libpython3.12
+  libpython3.11
 
 ##########################################################################################
 

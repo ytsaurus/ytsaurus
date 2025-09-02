@@ -89,7 +89,13 @@ public:
                 channel = CreateFailureDetectingChannel(
                     channel,
                     Config_->RpcAcknowledgementTimeout,
-                    BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));
+                    BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)),
+                    BIND_NO_PROPAGATE([](const TError& error) {
+                        if (error.GetCode() == NYT::EErrorCode::Timeout) {
+                            return true;
+                        }
+                        return IsChannelFailureError(error);
+                    }));
 
                 {
                     auto guard = Guard(SpinLock_);

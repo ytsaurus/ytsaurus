@@ -35,7 +35,7 @@ constinit const auto Logger = QueueAgentShardingManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString BannedQueueAgentInstanceAttributeName = "banned_queue_agent_instance";
+inline const TString BannedAttributeName = "banned";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,7 +208,7 @@ private:
 
         auto instancesPath = YPathJoin(DynamicStateRoot_, "instances");
         auto options = TListNodeOptions{
-            .Attributes = TAttributeFilter({BannedQueueAgentInstanceAttributeName}),
+            .Attributes = TAttributeFilter({BannedAttributeName}),
         };
 
         auto yson = WaitFor(Client_->ListNode(instancesPath, options))
@@ -219,7 +219,7 @@ private:
             YT_VERIFY(instance->GetType() == ENodeType::String);
             const auto& attributes = instance->Attributes();
             try {
-                if (attributes.Get<bool>(BannedQueueAgentInstanceAttributeName)) {
+                if (attributes.Get<bool>(BannedAttributeName)) {
                     BannedQueueAgentInstances_.insert(instance->GetValue<TString>());
                 }
             } catch (const std::exception&) {

@@ -2,6 +2,7 @@ package NYT.NObjectClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/rpc/proto/rpc.proto";
+import "yt/ytlib/security_client/proto/acl.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,6 +18,7 @@ message TPrerequisiteRevision
     required string path = 1;
     reserved 2;
     required uint64 revision = 3;
+    optional NYT.NProto.TGuid resolved_node_id_hint = 4;
 }
 
 message TPrerequisitesExt
@@ -60,6 +62,7 @@ message TReqGetBasicAttributes
     optional int32 permission = 1; // EPermission
     optional TColumns columns = 2;
     optional bool omit_inaccessible_columns = 3;
+    optional bool omit_inaccessible_rows = 5;
     optional bool populate_security_tags = 4;
 }
 
@@ -75,6 +78,11 @@ message TRspGetBasicAttributes
         repeated string items = 1;
     }
 
+    message TRowLevelAccessControlEntries
+    {
+        repeated NYT.NSecurityClient.NProto.TRowLevelAccessControlEntry items = 1;
+    }
+
     required NYT.NProto.TGuid object_id = 1;
     // This is typically deducible from |object_id| but for virtual tables
     // this is not the case.
@@ -88,6 +96,7 @@ message TRspGetBasicAttributes
     optional uint64 content_revision = 7;
     optional uint64 attribute_revision = 8;
     optional int64 chunk_count = 10;
+    optional TRowLevelAccessControlEntries rl_acl = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,12 +132,18 @@ message TRspCheckPermission
         repeated TResult items = 1;
     }
 
+    message TRowLevelAccessControlEntries
+    {
+        repeated NYT.NSecurityClient.NProto.TRowLevelAccessControlEntry items = 1;
+    }
+
     required int32 action = 1; // ESecurityAction
     optional NYT.NProto.TGuid object_id = 2;
     optional string object_name = 5;
     optional NYT.NProto.TGuid subject_id = 4;
     optional string subject_name = 3;
     optional TColumns columns = 6;
+    optional TRowLevelAccessControlEntries rl_acl = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

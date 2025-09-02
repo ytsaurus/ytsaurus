@@ -73,9 +73,9 @@ private:
     std::vector<TSimulatorNodeShardPtr> NodeShards_;
     std::vector<IInvokerPtr> NodeShardInvokers_;
 
-    TSchedulerStrategyHost StrategyHost_;
-    NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
-    TSharedSchedulerStrategy SharedSchedulerStrategy_;
+    TStrategyHost StrategyHost_;
+    NScheduler::NStrategy::IStrategyPtr Strategy_;
+    TSharedStrategy SharedStrategy_;
 
     TSharedOperationStatistics OperationStatistics_;
     TSharedRunningOperationsMap RunningOperationsMap_;

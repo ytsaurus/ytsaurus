@@ -55,7 +55,6 @@ class TStructSerializer final
 public:
     explicit TStructSerializer(TTableSchemaPtr schema)
         : Schema_(std::move(schema))
-        , Buffer_(New<TRowBuffer>())
     {
         Values_.reserve(Schema_->GetColumnCount());
         for (int i = 0; i < Schema_->GetColumnCount(); ++i) {
@@ -227,7 +226,12 @@ public:
 
     TUnversionedOwningRow Build()
     {
-        return TRange(std::move(Values_));
+        std::vector<TUnversionedValue> values;
+        values.reserve(Values_.size());
+        for (const auto& value : Values_) {
+            values.push_back(value);
+        }
+        return TRange(std::move(values));
     }
 
 private:
@@ -245,8 +249,7 @@ private:
     const TTableSchemaPtr Schema_;
     std::unique_ptr<TFieldSerializer> FieldSerializer_;
 
-    const TRowBufferPtr Buffer_;
-    std::vector<TUnversionedValue> Values_;
+    std::vector<TUnversionedOwningValue> Values_;
 
     int Depth_ = 0;
     std::optional<int> FieldId_;
@@ -257,7 +260,7 @@ private:
         const auto id = value.Id;
         const auto& column = Schema_->Columns()[id];
         ValidateValueType(value, column, false, false, false);
-        Values_[id] = Buffer_->CaptureValue(std::move(value));
+        Values_[id] = TUnversionedOwningValue(value);
     }
 };
 

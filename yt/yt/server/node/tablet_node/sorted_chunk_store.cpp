@@ -838,11 +838,14 @@ private:
             }
         }
 
-        TSharedRange<TLegacyKey> filteredKeys;
+        std::optional<TSharedRange<TLegacyKey>> filteredKeys;
         if (!filteringResultFuture) {
             filteredKeys = std::move(keys);
-        } else if (filteringResultFuture.IsSet() && filteringResultFuture.Get().IsOK()) {
-            auto filteringResult = std::move(filteringResultFuture.Get().Value());
+        } else if (auto optionalFilteringResultOrError = filteringResultFuture.TryGetUnique()) {
+            if (!optionalFilteringResultOrError->IsOK()) {
+                return MakeFuture(TError(*optionalFilteringResultOrError));
+            }
+            auto& filteringResult = optionalFilteringResultOrError->Value();
             filteredKeys = std::move(filteringResult.FilteredKeys);
             MissingKeyMask_ = std::move(filteringResult.MissingKeyMask);
         }
@@ -851,7 +854,7 @@ private:
             OnKeysFiltered(
                 chunk,
                 tabletSnapshot,
-                std::move(filteredKeys),
+                std::move(*filteredKeys),
                 timestamp,
                 produceAllVersions,
                 columnFilter,

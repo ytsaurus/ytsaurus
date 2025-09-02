@@ -167,15 +167,6 @@ TClient::TClient(
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");
     }
 
-    auto wrapChannel = [&] (IChannelPtr channel) {
-        channel = CreateAuthenticatedChannel(std::move(channel), options.GetAuthenticationIdentity());
-        return channel;
-    };
-    auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
-        factory = CreateAuthenticatedChannelFactory(std::move(factory), options.GetAuthenticationIdentity());
-        return factory;
-    };
-
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
         InitChannelsOrThrow(kind, Connection_->GetPrimaryMasterCellTag());
         for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
@@ -183,10 +174,10 @@ TClient::TClient(
         }
     }
 
-    SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
+    SchedulerChannel_ = WrapChannel(Connection_->GetSchedulerChannel());
 
     ChannelFactory_ = CreateNodeChannelFactory(
-        wrapChannelFactory(Connection_->GetChannelFactory()),
+        WrapChannelFactory(Connection_->GetChannelFactory()),
         Connection_->GetNetworks());
 
     SchedulerOperationProxy_ = std::make_unique<TOperationServiceProxy>(GetSchedulerChannel());
@@ -292,8 +283,7 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId);
-    return CreateAuthenticatedChannel(std::move(channel), Options_.GetAuthenticationIdentity());
+    return WrapChannel(cellDirectory->GetChannelByCellIdOrThrow(cellId));
 }
 
 IChannelPtr TClient::GetSchedulerChannel()
@@ -351,18 +341,35 @@ IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, TCellTag cellTa
 
 void TClient::InitChannelsOrThrow(EMasterChannelKind kind, TCellTag cellTag)
 {
-    const auto& authenticationIdentity = Options_.GetAuthenticationIdentity();
+    {
+        auto wrappedMasterChannel = WrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
+        auto guard = WriterGuard(MasterChannelsLock_);
+        EmplaceOrCrash(MasterChannels_[kind], cellTag, std::move(wrappedMasterChannel));
+    }
 
     {
-        const auto& authenticateddMasterChannel = CreateAuthenticatedChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag), authenticationIdentity);
-        auto guard = WriterGuard(MasterChannelsLock_);
-        EmplaceOrCrash(MasterChannels_[kind], cellTag, authenticateddMasterChannel);
-    }
-    {
-        const auto& authenticateddCypressChannel = CreateAuthenticatedChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag), authenticationIdentity);
+        auto wrappedCypressChannel = WrapChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag));
         auto guard = WriterGuard(CypressChannelsLock_);
-        EmplaceOrCrash(CypressChannels_[kind], cellTag, authenticateddCypressChannel);
+        EmplaceOrCrash(CypressChannels_[kind], cellTag, std::move(wrappedCypressChannel));
     }
+}
+
+NRpc::IChannelPtr TClient::WrapChannel(NRpc::IChannelPtr channel) const
+{
+    channel = CreateAuthenticatedChannel(std::move(channel), Options_.GetAuthenticationIdentity());
+    if (auto& wrapper = Options_.ChannelWrapper) {
+        channel = wrapper(std::move(channel));
+    }
+    return channel;
+}
+
+NRpc::IChannelFactoryPtr TClient::WrapChannelFactory(NRpc::IChannelFactoryPtr factory) const
+{
+    factory = CreateAuthenticatedChannelFactory(std::move(factory), Options_.GetAuthenticationIdentity());
+    if (auto& wrapper = Options_.ChannelFactoryWrapper) {
+        factory = wrapper(std::move(factory));
+    }
+    return factory;
 }
 
 const IClientPtr& TClient::GetOperationsArchiveClient()
@@ -374,7 +381,7 @@ const IClientPtr& TClient::GetOperationsArchiveClient()
         }
     }
 
-    auto options = TClientOptions::FromUser(OperationsClientUserName);
+    auto options = NNative::TClientOptions::FromUser(OperationsClientUserName);
     auto client = Connection_->CreateNativeClient(options);
 
     {

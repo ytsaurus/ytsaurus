@@ -25,7 +25,6 @@ IF (NOT OPENSOURCE)
         cfg
         docs
         docs/yandex-specific
-        docs/ytsaurus
         datahub-docs
         idm-integration
         internal

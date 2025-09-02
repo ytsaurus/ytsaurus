@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
+
 #include <yt/yt/ytlib/test_framework/test_connection.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -48,11 +50,58 @@ namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NNodeTrackerClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestNodeStatusDirectory
+    : public INodeStatusDirectory
+{
+public:
+    void UpdateSuspicionMarkTime(
+        TNodeId /*nodeId*/,
+        TStringBuf /*address*/,
+        bool /*suspicious*/,
+        std::optional<TInstant> /*previousMarkTime*/) override
+    { }
+
+    std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
+        const std::vector<TNodeId>& nodeIds) const override
+    {
+        auto suspiciousNodeCount = SuspiciousNodeCount_.exchange(0);
+
+        std::vector<std::optional<TInstant>> result(nodeIds.size());
+        for (int index = 0; index < std::min<int>(suspiciousNodeCount, std::ssize(nodeIds)); ++index) {
+            result[index] = TInstant::Now();
+        }
+
+        return result;
+    }
+
+    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
+        const std::vector<TNodeId>& /*nodeIds*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    bool ShouldMarkNodeSuspicious(const TError& /*error*/) const override
+    {
+        YT_ABORT();
+    }
+
+    void SetSuspicousNodeCount(int suspiciousNodeCount)
+    {
+        SuspiciousNodeCount_ = suspiciousNodeCount;
+    }
+
+private:
+    mutable std::atomic<int> SuspiciousNodeCount_ = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +145,10 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeBlockSet)
     {
+        if (PostponeProbingReply_.load()) {
+            TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
+        }
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         response->set_has_complete_chunk(ChunkBlocks_.contains(chunkId));
 
@@ -200,6 +253,11 @@ public:
         EnablePartialThrottling_.store(enablePartiallyThrottle);
     }
 
+    void SetPostponeProbingReply(bool postponeProbingReply)
+    {
+        PostponeProbingReply_.store(postponeProbingReply);
+    }
+
     void SetChunkMeta(
         TChunkId chunkId,
         NProto::TChunkMeta chunkMeta)
@@ -214,6 +272,7 @@ private:
     std::atomic<bool> EnablePartiallyResponse_ = false;
     std::atomic<bool> EnablePartialThrottling_ = false;
     std::atomic<bool> HasFatalError_ = false;
+    std::atomic<bool> PostponeProbingReply_ = false;
     TRandomGenerator Generator_{42};
 
     std::vector<TBlock> GetBlocksByIndexes(
@@ -293,7 +352,9 @@ std::vector<TSharedRef> CreateBlocks(int count, TRandomGenerator* generator)
     return blocks;
 }
 
-TChunkReaderHostPtr GetChunkReaderHost(const NApi::NNative::IConnectionPtr connection)
+TChunkReaderHostPtr GetChunkReaderHost(
+    const NApi::NNative::IConnectionPtr connection,
+    INodeStatusDirectoryPtr nodeStatusDirectory)
 {
     auto localDescriptor = NNodeTrackerClient::TNodeDescriptor(
         {std::pair("default", "localhost")},
@@ -301,14 +362,14 @@ TChunkReaderHostPtr GetChunkReaderHost(const NApi::NNative::IConnectionPtr conne
         /*rack*/ {},
         /*dc*/ {});
     return New<TChunkReaderHost>(
-        connection->CreateNativeClient(NApi::TClientOptions::FromUser("user")),
+        connection->CreateNativeClient(NApi::NNative::TClientOptions::FromUser("user")),
         std::move(localDescriptor),
         CreateClientBlockCache(
             New<TBlockCacheConfig>(),
             EBlockType::CompressedData,
             GetNullMemoryUsageTracker()),
         /*chunkMetaCache*/ nullptr,
-        /*nodeStatusDirectory*/ nullptr,
+        std::move(nodeStatusDirectory),
         NConcurrency::GetUnlimitedThrottler(),
         NConcurrency::GetUnlimitedThrottler(),
         NConcurrency::GetUnlimitedThrottler(),
@@ -329,6 +390,8 @@ struct TTestCase
     bool PartiallyThrottling = false;
     bool PartiallyBanns = false;
     std::optional<i64> BlockSetSubrequestThreshold;
+    std::vector<std::pair<int, TDuration>> PartialPeerProbingTimeouts;
+    bool MarkSomeNodesSuspicious = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,6 +445,10 @@ TEST_P(TReplicationReaderTest, ReadTest)
             service->SetFatalError();
         }
 
+        if (!testCase.PartialPeerProbingTimeouts.empty() && index == 0) {
+            service->SetPostponeProbingReply(true);
+        }
+
         replicas.emplace_back(NNodeTrackerClient::TNodeId(index), index);
     }
 
@@ -396,7 +463,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
         invoker,
         memoryTracker);
 
-    EXPECT_CALL(*connection, CreateNativeClient).WillRepeatedly([&connection, &memoryTracker] (const NApi::TClientOptions& options) -> NApi::NNative::IClientPtr
+    EXPECT_CALL(*connection, CreateNativeClient).WillRepeatedly([&connection, &memoryTracker] (const NApi::NNative::TClientOptions& options) -> NApi::NNative::IClientPtr
         {
             return New<NApi::NNative::TClient>(connection, options, memoryTracker);
         });
@@ -407,15 +474,21 @@ TEST_P(TReplicationReaderTest, ReadTest)
     EXPECT_CALL(*connection, GetPrimaryMasterCellTag).Times(testing::AtLeast(1));
     EXPECT_CALL(*connection, GetSecondaryMasterCellTags).Times(testing::AtLeast(1));
 
-    auto readerHost = GetChunkReaderHost(connection);
+    auto nodeStatusDirectory = testCase.MarkSomeNodesSuspicious
+        ? New<TTestNodeStatusDirectory>()
+        : nullptr;
+
+    auto readerHost = GetChunkReaderHost(connection, nodeStatusDirectory);
 
     auto config = New<TReplicationReaderConfig>();
     config->UseChunkProber = testCase.EnableChunkProber;
     config->UseReadBlocksBatcher = testCase.EnableChunkProber;
-    config->BackoffTimeMultiplier = 1;
+    config->BackoffTimeMultiplier = 1.01;
     config->MinBackoffTime = TDuration::MilliSeconds(1);
     config->MaxBackoffTime = TDuration::MilliSeconds(1);
     config->BlockSetSubrequestThreshold = testCase.BlockSetSubrequestThreshold;
+    config->PartialPeerProbingTimeouts = testCase.PartialPeerProbingTimeouts;
+    config->Postprocess();
 
     auto reader = CreateReplicationReader(
         std::move(config),
@@ -435,6 +508,11 @@ TEST_P(TReplicationReaderTest, ReadTest)
         int requestSize = std::max(std::max(blockCount / requestInBatch, 1), testCase.BlockInRequest);
 
         for (int requestIndex = 0; requestIndex < requestInBatch; requestIndex++) {
+            if (testCase.MarkSomeNodesSuspicious) {
+                int suspiciousNodeCount = requestIndex % (nodeCount + 1);
+                nodeStatusDirectory->SetSuspicousNodeCount(suspiciousNodeCount);
+            }
+
             std::vector<int> blockIndexes;
             int blockInRequestCount = std::max<int>(generator.Generate<ui64>() % requestSize, 1);
             for (int blockIndex = 0; blockIndex < blockInRequestCount; blockIndex++) {
@@ -827,7 +905,84 @@ INSTANTIATE_TEST_SUITE_P(
             .PartiallyThrottling = true,
             .PartiallyBanns = true,
             .BlockSetSubrequestThreshold = 4,
+        },
+        TTestCase{
+            .NodeCount = 3,
+            .Sequentially = true,
+            .PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+                std::make_pair(2, TDuration::Seconds(1)),
+            },
+
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+            .MarkSomeNodesSuspicious = true,
+        },
+        TTestCase{
+            .NodeCount = 3,
+            .Sequentially = true,
+            .PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+                std::make_pair(2, TDuration::Seconds(1)),
+            },
+        },
+        TTestCase{
+            .NodeCount = 3,
+            .Sequentially = true,
+            .PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+                std::make_pair(2, TDuration::Seconds(1)),
+            },
+            .MarkSomeNodesSuspicious = true,
         }));
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TReplicationReaderConfigTest, ValidateAdaptiveProbingConfig)
+{
+    auto config = New<TReplicationReaderConfig>();
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(1, TDuration::Seconds(1)),
+    };
+    config->Postprocess();
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(1, TDuration::Seconds(2)),
+        std::make_pair(2, TDuration::Seconds(1)),
+    };
+    config->Postprocess();
+
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(1, TDuration::Seconds(1)),
+        std::make_pair(1, TDuration::Seconds(2)),
+    };
+    EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(1, TDuration::Seconds(2)),
+        std::make_pair(1, TDuration::Seconds(1)),
+    };
+    EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
+
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(2, TDuration::Seconds(1)),
+        std::make_pair(1, TDuration::Seconds(1)),
+    };
+    EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(1, TDuration::Seconds(1)),
+        std::make_pair(2, TDuration::Seconds(1)),
+    };
+    EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
+
+    config->PartialPeerProbingTimeouts = std::vector<std::pair<int, TDuration>>{
+        std::make_pair(1, TDuration::Seconds(1)),
+        std::make_pair(2, TDuration::Seconds(2)),
+    };
+    EXPECT_THROW(config->Postprocess(), NYT::TErrorException);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

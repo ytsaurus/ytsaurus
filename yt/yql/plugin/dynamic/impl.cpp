@@ -130,9 +130,11 @@ TBridgeClustersResult* BridgeGetUsedClusters(
         files);
 
     bridgeResult->Clusters = new const char*[result.Clusters.size()];
+    bridgeResult->ClusterAddresses = new const char*[result.Clusters.size()];
     for (size_t i = 0; i < result.Clusters.size(); i++) {
-        ssize_t clusterLength;
-        FillString(bridgeResult->Clusters[i], clusterLength, result.Clusters[i]);
+        ssize_t clusterLength, clusterAddressLength;
+        FillString(bridgeResult->Clusters[i], clusterLength, result.Clusters[i].first);
+        FillString(bridgeResult->ClusterAddresses[i], clusterAddressLength, result.Clusters[i].second);
     }
     bridgeResult->ClusterCount = result.Clusters.size();
 

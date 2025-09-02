@@ -171,6 +171,10 @@ NApi::TLookupRowsOptions SerializeOptionsForLookupRows(
 
 NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions& options);
 
+NApi::TTableWriterOptions SerializeOptionsForWriteTable(
+    const TTransactionId& transactionId,
+    const TTableWriterOptions& options = {});
+
 NApi::TTableReaderOptions SerializeOptionsForReadTable(
     const TTransactionId& transactionId,
     const TTableReaderOptions& options = {});

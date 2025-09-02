@@ -1,14 +1,22 @@
 #ifndef STIRLING_H
 #define STIRLING_H
 
+#if defined(__cplusplus)
+#include <cmath>
+using std::isinf;
+#endif
+
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <memory>
+#include <limits>
 
-#include "special/binom.h"
-#include "special/lambertw.h"
+#include "xsf/binom.h"
+#include "xsf/lambertw.h"
+#include "sf_error.h"
 
 
 /*     Stirling numbers of the second kind
@@ -27,41 +35,44 @@
 
 // Dynamic programming
 
-double _stirling2_dp(double n, double k){
+double _stirling2_dp(double n, double k) {
     if ((n == 0 && k == 0) || (n==1 && k==1)) {
         return 1.;
     }
-    if (k <= 0 || k > n || n < 0){
+    if (k <= 0 || k > n || n < 0) {
         return 0.;
     }
     int arraySize = k <= n - k + 1 ? k : n - k + 1;
-    double *curr = (double *) malloc(arraySize * sizeof(double));
-    for (int i = 0; i < arraySize; i++){
+    auto curr = std::unique_ptr<double[]>{new (std::nothrow) double[arraySize]};
+    if (curr == nullptr) {
+        sf_error("stirling2", SF_ERROR_MEMORY, NULL);
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    for (int i = 0; i < arraySize; i++) {
         curr[i] = 1.;
     }
     if (k <= n - k + 1) {
-        for (int i = 1; i < n - k + 1; i++){
-            for (int j = 1; j < k; j++){
+        for (int i = 1; i < n - k + 1; i++) {
+            for (int j = 1; j < k; j++) {
                 curr[j] = (j + 1) * curr[j] + curr[j - 1];
-                if (isinf(curr[j])){
-                    free(curr);
+                if (isinf(curr[j])) {
+                    sf_error("stirling2", SF_ERROR_OVERFLOW, NULL);
                     return INFINITY; // numeric overflow
                 }
             }
         }
     } else {
-        for (int i = 1; i < k; i++){
-            for (int j = 1; j < n - k + 1; j++){
+        for (int i = 1; i < k; i++) {
+            for (int j = 1; j < n - k + 1; j++) {
                 curr[j] = (i + 1) * curr[j - 1] + curr[j];
-                if (isinf(curr[j])){
-                    free(curr);
+                if (isinf(curr[j])) {
+                    sf_error("stirling2", SF_ERROR_OVERFLOW, NULL);
                     return INFINITY; // numeric overflow
                 }
             }
         }
     }
     double output = curr[arraySize - 1];
-    free(curr);
     return output;
 }
 
@@ -69,11 +80,11 @@ double _stirling2_dp(double n, double k){
 
 // second order Temme approximation
 
-double _stirling2_temme(double n, double k){
-  if ((n == k && n >= 0) || (n > 0 && k==1)){
+double _stirling2_temme(double n, double k) {
+  if ((n == k && n >= 0) || (n > 0 && k==1)) {
       return 1.;
   }
-  if (k <= 0 || k > n || n < 0){
+  if (k <= 0 || k > n || n < 0) {
       return 0.;
   }
   double mu = (double)k / (double)n;
@@ -81,7 +92,7 @@ double _stirling2_temme(double n, double k){
   std::complex<double> delta = std::complex<double>(-d, 0);
   // note: lambert returns complex value, we only want the real part
   // matching k=0, tolerance=1e-8 from _lambertw.py
-  std::complex<double> lwv = special::lambertw(delta, 0, 1e-8);
+  std::complex<double> lwv = xsf::lambertw(delta, 0, 1e-8);
   double x0 = lwv.real() + 1/mu;
   double t0 = (1/mu) - 1;
   double F = sqrt(t0/((1 + t0)*(x0 - t0)));
@@ -97,7 +108,7 @@ double _stirling2_temme(double n, double k){
   num += (-6*t0power3 + (8*t0 - 6*x0 - 5)*xt + ((2.*x0+1.)*x0+3.)*x0)*xt;
   double denom = (24*F*(1 + t0) * (1 + t0)*(x0 - t0)*(x0 - t0)*(x0 - t0)*(x0-t0));
   double F1 = num / denom;
-  double val = exp(A) * pow(k,n - k) * special::binom(n, k) * (F-F1/k);
+  double val = exp(A) * pow(k,n - k) * xsf::binom(n, k) * (F-F1/k);
   return val;
 }
 

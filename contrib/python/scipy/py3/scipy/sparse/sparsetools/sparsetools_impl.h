@@ -77,7 +77,11 @@ PyObject *csc_le_csc_method(PyObject *, PyObject *);
 PyObject *csc_ge_csc_method(PyObject *, PyObject *);
 PyObject *coo_tocsr_method(PyObject *, PyObject *);
 PyObject *coo_todense_method(PyObject *, PyObject *);
+PyObject *coo_todense_nd_method(PyObject *, PyObject *);
 PyObject *coo_matvec_method(PyObject *, PyObject *);
+PyObject *coo_matvec_nd_method(PyObject *, PyObject *);
+PyObject *coo_matmat_dense_method(PyObject *, PyObject *);
+PyObject *coo_matmat_dense_nd_method(PyObject *, PyObject *);
 PyObject *dia_matvec_method(PyObject *, PyObject *);
 PyObject *cs_graph_components_method(PyObject *, PyObject *);
 
@@ -158,7 +162,11 @@ static struct PyMethodDef sparsetools_methods[] = {
             {"csc_ge_csc", (PyCFunction)csc_ge_csc_method, METH_VARARGS, NULL},
             {"coo_tocsr", (PyCFunction)coo_tocsr_method, METH_VARARGS, NULL},
             {"coo_todense", (PyCFunction)coo_todense_method, METH_VARARGS, NULL},
+            {"coo_todense_nd", (PyCFunction)coo_todense_nd_method, METH_VARARGS, NULL},
             {"coo_matvec", (PyCFunction)coo_matvec_method, METH_VARARGS, NULL},
+            {"coo_matvec_nd", (PyCFunction)coo_matvec_nd_method, METH_VARARGS, NULL},
+            {"coo_matmat_dense", (PyCFunction)coo_matmat_dense_method, METH_VARARGS, NULL},
+            {"coo_matmat_dense_nd", (PyCFunction)coo_matmat_dense_nd_method, METH_VARARGS, NULL},
             {"dia_matvec", (PyCFunction)dia_matvec_method, METH_VARARGS, NULL},
             {"cs_graph_components", (PyCFunction)cs_graph_components_method, METH_VARARGS, NULL},
         {NULL, NULL, 0, NULL}

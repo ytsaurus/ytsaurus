@@ -201,7 +201,7 @@ private:
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 
-        auto clientOptions = TClientOptions::FromUser(Config_->User);
+        auto clientOptions = NNative::TClientOptions::FromUser(Config_->User);
         NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
@@ -265,7 +265,9 @@ private:
             ControlInvoker_,
             DynamicState_,
             ClientDirectory_,
-            CreateAlertCollector(AlertManager_));
+            /*createAlertCollectorCallback*/ BIND_NO_PROPAGATE([alertManager = AlertManager_] {
+                return CreateAlertCollector(alertManager);
+            }));
 
         DynamicConfigManager_->Start();
 

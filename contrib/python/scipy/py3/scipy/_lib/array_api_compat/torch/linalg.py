@@ -60,6 +60,22 @@ def vecdot(x1: array, x2: array, /, *, axis: int = -1, **kwargs) -> array:
 
 def solve(x1: array, x2: array, /, **kwargs) -> array:
     x1, x2 = _fix_promotion(x1, x2, only_scalar=False)
+    # Torch tries to emulate NumPy 1 solve behavior by using batched 1-D solve
+    # whenever
+    # 1. x1.ndim - 1 == x2.ndim
+    # 2. x1.shape[:-1] == x2.shape
+    #
+    # See linalg_solve_is_vector_rhs in
+    # aten/src/ATen/native/LinearAlgebraUtils.h and
+    # TORCH_META_FUNC(_linalg_solve_ex) in
+    # aten/src/ATen/native/BatchLinearAlgebra.cpp in the PyTorch source code.
+    #
+    # The easiest way to work around this is to prepend a size 1 dimension to
+    # x2, since x2 is already one dimension less than x1.
+    #
+    # See https://github.com/pytorch/pytorch/issues/52915
+    if x2.ndim != 1 and x1.ndim - 1 == x2.ndim and x1.shape[:-1] == x2.shape:
+        x2 = x2[None]
     return torch.linalg.solve(x1, x2, **kwargs)
 
 # torch.trace doesn't support the offset argument and doesn't support stacking
@@ -78,7 +94,23 @@ def vector_norm(
 ) -> array:
     # torch.vector_norm incorrectly treats axis=() the same as axis=None
     if axis == ():
-        keepdims = True
+        out = kwargs.get('out')
+        if out is None:
+            dtype = None
+            if x.dtype == torch.complex64:
+                dtype = torch.float32
+            elif x.dtype == torch.complex128:
+                dtype = torch.float64
+
+            out = torch.zeros_like(x, dtype=dtype)
+
+        # The norm of a single scalar works out to abs(x) in every case except
+        # for ord=0, which is x != 0.
+        if ord == 0:
+            out[:] = (x != 0)
+        else:
+            out[:] = torch.abs(x)
+        return out
     return torch.linalg.vector_norm(x, ord=ord, axis=axis, keepdim=keepdims, **kwargs)
 
 __all__ = linalg_all + ['outer', 'matmul', 'matrix_transpose', 'tensordot',

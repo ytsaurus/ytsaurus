@@ -105,6 +105,8 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     }
 
     YT_OPTIONAL_TO_PROTO(protoDataSource, cluster_name, dataSource.GetClusterName().Underlying());
+
+    YT_OPTIONAL_TO_PROTO(protoDataSource, rls_read_spec, dataSource.GetRlsReadSpec());
 }
 
 void FromProto(
@@ -173,6 +175,8 @@ void FromProto(
     }
 
     dataSource->SetClusterName(TClusterName(YT_OPTIONAL_FROM_PROTO(protoDataSource, cluster_name)));
+
+    dataSource->SetRlsReadSpec(YT_OPTIONAL_FROM_PROTO(protoDataSource, rls_read_spec, TRlsReadSpec));
 }
 
 TDataSource MakeVersionedDataSource(

@@ -9,6 +9,7 @@ from yt_commands import (
 
 import yt_error_codes
 
+import builtins
 import os
 import time
 
@@ -156,8 +157,8 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         for i in range(cls.STORE_LOCATION_COUNT):
             create_domestic_medium(f"hdd{i}")
 
-    @authors("danilalexeev")
-    def test_interrupt_full_heartbeat_session(self):
+    @classmethod
+    def create_chunk_on_every_medium(self):
         # Create chunk on every medium.
         for i in range(self.STORE_LOCATION_COUNT):
             table_path = f"//tmp/t{i}"
@@ -168,6 +169,20 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
             })
             assert exists(f"{table_path}/@media/{medium_name}")
             write_table(table_path, [{"key": "value"}])
+
+    @classmethod
+    def check_chunk_on_every_medium(self):
+        for i in range(self.STORE_LOCATION_COUNT):
+            assert get(f"//tmp/t{i}/@primary_medium") == f"hdd{i}"
+
+    @classmethod
+    def remove_chunks_on_every_medium(self):
+        for i in range(self.STORE_LOCATION_COUNT):
+            remove(f"//tmp/t{i}")
+
+    @authors("danilalexeev")
+    def test_interrupt_full_heartbeat_session(self):
+        self.create_chunk_on_every_medium()
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
@@ -191,6 +206,46 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", False)
 
         wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+    @authors("grphil")
+    def test_location_indexes_in_heartbeats(self):
+        self.create_chunk_on_every_medium()
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", True)
+
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+        locations = get(f"//sys/cluster_nodes/{node}/orchid/data_node/location_manager/store_locations")
+        location_indexes = builtins.set()
+        for location in locations.values():
+            index = location["index"]
+            assert index > 0
+            assert index not in location_indexes
+            location_indexes.add(index)
+
+        self.check_chunk_on_every_medium()
+        self.remove_chunks_on_every_medium()
+        self.create_chunk_on_every_medium()
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_location_indexes_in_data_node_heartbeats", False)
+
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+        locations = get(f"//sys/cluster_nodes/{node}/orchid/data_node/location_manager/store_locations")
+        for location in locations.values():
+            assert location["index"] == 0
+
+        self.check_chunk_on_every_medium()
 
 
 class TestAsyncTrashLoad(YTEnvSetup):

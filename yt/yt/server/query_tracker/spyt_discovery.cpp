@@ -154,4 +154,4 @@ ISpytDiscoveryPtr CreateDiscoveryV2(
         std::move(logger));
 }
 
-}
+} // namespace NYT::NQueryTracker

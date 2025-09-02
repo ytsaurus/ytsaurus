@@ -453,7 +453,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("read_operations_archive_state_from", &TThis::ReadOperationsArchiveStateFrom)
-        .Default(EMasterChannelKind::ClientSideCache);
+        .Default(EMasterChannelKind::Cache);
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
@@ -486,13 +486,13 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("use_find_chaos_object", &TThis::UseFindChaosObject)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
         .Default(true);
 
     registrar.Parameter("allow_unaliased_secondary_index", &TThis::AllowUnaliasedSecondaryIndex)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));

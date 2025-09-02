@@ -10,6 +10,10 @@ message TCellStatistics
 
     optional int64 data_missing_chunk_count = 4;
     optional int64 parity_missing_chunk_count = 5;
+
+    optional int64 oldest_part_missing_chunk_count = 6;
+    optional int64 quorum_missing_chunk_count = 7;
+    optional int64 inconsistently_placed_chunk_count = 8;
 }
 
 message TReqSetCellStatistics

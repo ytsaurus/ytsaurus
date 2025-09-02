@@ -28,7 +28,7 @@ The path to the directory must start from `//` and cannot start from: {}
                     field_type=str,
                     name="cluster",
                     description=f"Cluster. One of: {self.runner.helper_get_public_clusters(delimeter=", ")}",
-                    examples=self.runner.helper_get_public_clusters(template="`//{}`"),
+                    examples=self.runner.helper_get_public_clusters(),
                 )
             ]
         )
@@ -51,7 +51,7 @@ The path to the directory must start from `//` and cannot start from: {}
         except Exception as e:
             self.helper_process_common_exception(e)
 
-        return [self.runner.return_structured(nodes)]
+        return self.runner.return_structured(nodes)
 
 
 class Search(YTToolBase):
@@ -161,4 +161,4 @@ List of result attributes: account, owner
         except Exception as e:
             self.runner.helper_process_common_exception(e)
 
-        return [self.runner.return_structured(nodes)]
+        return self.runner.return_structured(nodes)

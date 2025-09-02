@@ -105,8 +105,6 @@ public:
             }
         }
 
-        OnSizeUpdated();
-
         return replicas;
     }
 
@@ -137,8 +135,6 @@ public:
                     futures[index] = entry.Future;
                 }
             }
-
-            OnSizeUpdated();
         }
 
         std::vector<int> stillMissingIndices;
@@ -285,11 +281,11 @@ public:
                             }
                         }
                     }
+
+                    OnSizeUpdated();
                 }
 
                 MasterErrorDiscardsCounter_.Increment(errorCount);
-
-                OnSizeUpdated();
             }
         }
     }
@@ -489,8 +485,6 @@ private:
 
     const TPeriodicExecutorPtr ExpirationExecutor_;
 
-    TMemoryUsageTrackerGuard MemoryGuard_;
-
     std::atomic<TDuration> ExpirationTime_;
     std::atomic<int> MaxChunksPerMasterLocate_;
     std::atomic<bool> EnableSequoiaReplicasLocate_;
@@ -509,6 +503,7 @@ private:
     // TODO(babenko): maybe implement sharding
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, EntriesLock_);
     THashMap<TChunkId, std::unique_ptr<TEntry>> Entries_;
+    TMemoryUsageTrackerGuard MemoryGuard_;
 
     TLockFreeStack<TChunkId> NewlyAddedChunkIds_;
     static constexpr TChunkId GenerationSentinel = TChunkId();
@@ -735,10 +730,6 @@ private:
             for (auto chunkId : expiredChunkIds) {
                 Entries_.erase(chunkId);
             }
-        }
-
-        {
-            auto entriesGuard = ReaderGuard(EntriesLock_);
             OnSizeUpdated();
         }
 
@@ -916,6 +907,8 @@ private:
 
     void OnSizeUpdated()
     {
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(EntriesLock_);
+
         // Here size estimation relies on the fact that TCompactVector in TAllyReplicasInfo
         // does not stray too much from its specified expected size.
         MemoryGuard_.SetSize(Entries_.size() * (

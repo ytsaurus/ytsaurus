@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(4.9.0)
+VERSION(4.10.0)
 
 LICENSE(MIT)
 
@@ -27,6 +27,7 @@ PY_SRCS(
     anyio/_backends/_trio.py
     anyio/_core/__init__.py
     anyio/_core/_asyncio_selector_thread.py
+    anyio/_core/_contextmanagers.py
     anyio/_core/_eventloop.py
     anyio/_core/_exceptions.py
     anyio/_core/_fileio.py

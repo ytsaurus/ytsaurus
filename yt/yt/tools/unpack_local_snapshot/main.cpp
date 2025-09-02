@@ -65,7 +65,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT:::NTools::NUnpackLocalSnapshot
+} // namespace NYT::NTools::NUnpackLocalSnapshot
 
 int main(int argc, const char** argv)
 {

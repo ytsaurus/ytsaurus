@@ -37,7 +37,7 @@ The path to the node cannot start from: //yt,
                     field_type=str,
                     name="cluster",
                     description=f"Cluster name. MUST be one of: {self.runner.helper_get_public_clusters(delimeter=', ')}",
-                    examples=self.runner.helper_get_public_clusters(template="`//{}`"),
+                    examples=self.runner.helper_get_public_clusters(),
                 ),
             ]
         )

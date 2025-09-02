@@ -7,7 +7,7 @@ SRCS(
     operation.cpp
     operation_controller.cpp
     private.cpp
-    scheduler_strategy_host.cpp
+    scheduling_strategy_host.cpp
     shared_data.cpp
     node_shard.cpp
     node_worker.cpp

@@ -1206,7 +1206,7 @@ class TestChunksSamples(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 9
+    NUM_NODES = 16
 
     DELTA_NODE_CONFIG = {
         "data_node": {
@@ -1225,35 +1225,37 @@ class TestChunksSamples(YTEnvSetup):
         "12": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
-    def prepare_tables(self, attributes):
+    def prepare_tables(self, attributes, different_cells=False):
         create("table", "//tmp/t0", attributes={"external": False} | attributes)
         create("table", "//tmp/t1", attributes={"external_cell_tag": 11} | attributes)
         create("table", "//tmp/t2", attributes={"external_cell_tag": 12} | attributes)
-        create("table", "//tmp/t3", attributes={"external_cell_tag": 11} | attributes)
 
         write_table("//tmp/t0", {"a": "b"})
         write_table("//tmp/t1", {"c": "d"})
         write_table("//tmp/t2", {"e": "f"})
-        write_table("//tmp/t3", {"g": "h"})
 
         chunks = [
             get_singular_chunk_id("//tmp/t0"),
             get_singular_chunk_id("//tmp/t1"),
             get_singular_chunk_id("//tmp/t2"),
-            get_singular_chunk_id("//tmp/t3")
         ]
+
+        if not different_cells:
+            create("table", "//tmp/t3", attributes={"external_cell_tag": 11} | attributes)
+            write_table("//tmp/t3", {"g": "h"})
+            chunks.append(get_singular_chunk_id("//tmp/t3"))
 
         return chunks
 
     def check_all_chunks_in_list(self, chunks, list_name):
-        wait(lambda: get(f"//sys/@{list_name}_chunk_count") == 4)
-        wait(lambda: get(f"//sys/{list_name}_chunks_sample/@count") == 4)
+        wait(lambda: get(f"//sys/@{list_name}_chunk_count") == len(chunks))
+        wait(lambda: get(f"//sys/{list_name}_chunks_sample/@count") == len(chunks))
 
         chunks_sample = get(f"//sys/{list_name}_chunks_sample")
         chunks_sample_ids = get(f"//sys/{list_name}_chunks_sample", attributes=["id"])
 
-        assert len(chunks_sample) == 4
-        assert len(chunks_sample_ids) == 4
+        assert len(chunks_sample) == len(chunks)
+        assert len(chunks_sample_ids) == len(chunks)
 
         for chunk in chunks:
             assert chunk in chunks_sample
@@ -1313,6 +1315,35 @@ class TestChunksSamples(YTEnvSetup):
 
         self.check_no_chunks_in_list("data_missing")
         self.check_no_chunks_in_list("parity_missing")
+        self.check_no_chunks_in_list("oldest_part_missing")
+
+    @authors("grphil")
+    def test_oldest_part_missing_chunks_samples(self):
+        chunks = self.prepare_tables({"erasure_codec": "lrc_12_2_2"}, different_cells=True)
+
+        nodes = list(get("//sys/cluster_nodes"))
+        for node in nodes:
+            set_node_banned(node, True)
+
+        self.check_all_chunks_in_list(chunks, "oldest_part_missing")
+
+        for node in nodes:
+            set_node_banned(node, False)
+
+        self.check_no_chunks_in_list("oldest_part_missing")
+
+    @authors("grphil")
+    def test_quorum_missing_chunks_sample(self):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        create("journal", "//tmp/j")
+        write_journal("//tmp/j", [{"payload": "xxx"}])
+        nodes = list(get("//sys/cluster_nodes"))
+        chunk_id = get("//tmp/j/@chunk_ids")[0]
+        for node in nodes:
+            set_node_banned(node, True)
+
+        wait(lambda: get("//sys/@quorum_missing_chunk_count") > 0)
+        wait(lambda: chunk_id in get("//sys/quorum_missing_chunks_sample"))
 
 
 ##################################################################

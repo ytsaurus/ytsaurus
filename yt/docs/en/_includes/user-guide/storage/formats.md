@@ -269,9 +269,9 @@ JSON represents bytes numbered 0–32 (namely \u00XX) in a non-compact way. When
 
 ## YAML { #yaml }
 
-[YAML](https://yaml.org/) is a human-readable data serialization format that has become a standard for configuration files and infrastructure-as-code. It offers a more compact and readable syntax compared to JSON, with features like comments and anchors.
+[YAML](https://yaml.org/) is a human-friendly data serialization format that has become a standard for configuration files and for infrastructure as code. It offers more compact and readable syntax compared to JSON and supports comments and anchors.
 
-YAML is available in {{product-name}} starting from version 24.2.
+YAML is available in {{product-name}} starting with version 24.2.
 
 Reading a Cypress node in YAML format:
 
@@ -279,7 +279,7 @@ Reading a Cypress node in YAML format:
 yt get //path/to/some_table/@ --format yaml
 ```
 
-Example output:
+Output example:
 
 ```yaml
 id: 7b7-154e6-13440191-489067e7
@@ -316,33 +316,33 @@ recursive_resource_usage: null
 ...
 ```
 
-### Type System
+### Type system
 
 YAML format in {{product-name}} uses a [YAML schema](https://yaml.org/spec/1.2.2/#schema) approach for type deduction. The implementation follows the [Core schema](https://yaml.org/spec/1.2.2/#core-schema), which is widely used by most YAML parsers:
 
-- On parsing, the system complies with specific tags and deduces non-specific tags using Core schema regexps, which detect integer/float/string/boolean/null values
-  - For example, `123`, `3.14`, `true`, `null` are detected as integer, float, boolean and null value respectively, and `foo`, `bar`, `baz` are detected as strings
-- On writing:
-  - Non-string scalars are serialized in plain (unquoted) manner, e.g. `123`, `3.14`, `true`, `false`, `null`
-  - String scalars are serialized in plain (unquoted) manner if syntactically possible and if the unquoted representation doesn't match null/bool/int/float regexps, e.g. `foo`, `bar`, `baz`, but `"null"`, `"true"`, `"false"`, `"123"`, `"3.14"` (otherwise they would be interpreted by most YAML parsers as types other than strings)
+- When parsing, the system complies with specific tags and deduces non-specific tags using the Core schema regular expressions that detect integer/float/string/boolean/null values.
+  - For example, `123`, `3.14`, `true`, and `null` are defined as an integer, float, boolean, and null value, respectively, and `foo`, `bar`, and `baz` are defined as strings.
+- When writing:
+  - Non-string scalars are serialized in the plain (unquoted) style, for example: `123`, `3.14`, `true`, `false`, and `null`.
+  - String scalars are serialized in the plain (unquoted) style if this is syntactically possible and if the unquoted representation doesn't match regular expressions for null/bool/int/float. Examples: `foo`, `bar`, and `baz`, but`"null"`, `"true"`, `"false"`, `"123"`, and `"3.14"` — otherwise they would be interpreted by most YAML parsers as types other than strings.
 
-### Signed/Unsigned Integer Handling
+### Handling signed and unsigned integers
 
-To handle unsigned integers explicitly, a custom tag `!yt/uint` is introduced. The format has a `write_uint_tag` option (false by default) which forces the writer to use this tag for all uint64 scalars.
+To handle unsigned integers explicitly, the custom `!yt/uint` tag is introduced. The format has the `write_uint_tag` option (false by default), which forces the writer to use this tag for all uint64 scalars.
 
-On parsing:
-- If a tag `!yt/uint` is present, the value is interpreted as an uint64
-- If a tag is missing or is a standard YAML `!!int`:
-  - For decimal form, numbers in range [-2^63, 2^63) are interpreted as int64 and numbers in range [2^63, 2^64) as uint64
-  - For hexadecimal/octal form, values are always interpreted as uint64
+When parsing:
+- If the `!yt/uint` tag is present, the value is interpreted as being a uint64 value.
+- If the tag is missing or is a standard YAML `!!int` tag:
+  - For the decimal form, numbers within the [-2^63, 2^63) range are interpreted as int64 values, and numbers within the [2^63, 2^64) range are interpreted as uint64 values.
+  - For the hexadecimal and octal forms, values are always interpreted as uint64 values.
 
-On writing:
-- If `write_uint_tag = %false`, all integers are output in plain (unquoted) untagged form
-- If `write_uint_tag = %true`, int64 is output in plain untagged decimal form, and uint64 in plain decimal form with tag `!yt/uint`
+When writing:
+- If `write_uint_tag = %false`, all integers are inferred in the plain (unquoted) untagged form.
+- If `write_uint_tag = %true`, int64 values are inferred in the plain untagged decimal form, and uint64 values — in the plain decimal form with the `!yt/uint` tag.
 
-### Attribute Representation
+### Attribute representation
 
-Nodes with attributes are represented as a 2-element sequence tagged with `!yt/attrnode` to distinguish them from regular lists:
+Nodes with attributes are represented as 2-element sequences with the `!yt/attrnode` tag so that you can distinguish them from regular lists:
 
 ```
 YSON:
@@ -363,14 +363,14 @@ foo: !yt/attrnode
 
 ### Limitations
 
-- **Comments**: YAML comments are dropped when writing, as they are not a part of the node structure
-- **Anchors and Aliases**: Only non-recursive anchors and aliases are supported, also aliases must refer to a node defined somewhere before them; aliases are not preserved on parsing, i.e. they are immediately resolved
-- **Merge Operator**: The YAML 1.1 merge operator ("<<") is not supported and is treated as a regular scalar key
+- **Comments.** YAML comments are dropped when writing as they aren't part of the node structure.
+- **Anchors and aliases.** Only non-recursive anchors and aliases are supported. Aliases must refer to a node defined somewhere before them. Aliases aren't preserved when parsing as they are resolved immediately.
+- **Merge operator.** The YAML 1.1 merge operator ("<<") isn't supported and is treated as a regular scalar key.
 
 **Parameters**
 
-The values are specified in parentheses by default.
-- **write_uint_tag** (`false`) — enable using the `!yt/uint` tag for all uint64 scalars on writing
+Default values are specified in parentheses.
+- **write_uint_tag** (`false`) — enable using the `!yt/uint` tag for all uint64 scalars when writing.
 
 ## DSV (TSKV) { #dsv }
 
@@ -446,7 +446,7 @@ In practice, an arbitrary string is a valid DSV record. If there is no key-value
 This format is a variation of DSV. With SCHEMAFUL_DSV, data is generated as a set of values separated by tabs.
 The format has a mandatory `columns` attribute, in which you specify the names of the columns you need, separated by a semicolon. If the value of one of the columns is missing from at least one of the records, an error occurs (see **missing_value_mode**).
 
-For example, if a table has two records `{a=10;b=11} {c=100}` and the format `<columns=[a]>schemaful_dsv` is specified, the following error occurs — `Column "a" is in schema but missing`.
+For example, if a table has two records `{a=10;b=11} {c=100}` and the format `<columns=[a]>schemaful_dsv` is specified, the following error occurs — `Column "a" is in schema but missing`.
 If only the first record is in the table, the job will receive record `10` as input.
 
 {% note info "Note" %}
@@ -490,7 +490,7 @@ The values are specified in parentheses by default.
   - `fail` — stop the operation if the specified column is missing in one of the rows.
   - `print_sentinel` — instead of missing values, set `missing_value_sentinel`, whose default is an empty string.
 - **missing_value_sentinel** (`empty line`) — value of the missing column for **print_sentinel** mode.
-- **enable_column_names_header** (`false`) — can only be used for generating data in SCHEMAFUL_DSV format, but not for parsing such data. If the value is `%true`, the first row will have column names instead of values.
+- **enable_column_names_header** (`false`) — can only be used for generating data in SCHEMAFUL_DSV format, but not for parsing such data. If the value is `%true`, the first row will have column names instead of values. **Important!** Column names may be duplicated in the response body when parallel reading is enabled or when retrying.
 - **enable_string_to_all_conversion** (`false`) — enable conversion of string values to numeric and boolean types. For example, `"42u"` is converted to `42u`, and `"false"` is converted to `%false`.
 - **enable_all_to_string_conversion** (`false`) — enable conversion of numeric and boolean values to string type. For example, `3.14` becomes `"3.14"`, and `%false` becomes `"false"`.
 - **enable_integral_type_conversion** (`true`) — enable conversion of `uint64` to `int64` and vice versa. This option is enabled by default. If an overflow occurs during conversion, you will see a corresponding error.
@@ -600,6 +600,32 @@ yt map --input-format arrow --output-format arrow  --src "//path/to/input_table"
 ### Operations with multiple tables
 
 If you pass multiple tables as input to an Arrow operation, it will output a stream of multiple concatenated IPC Streaming Format streams, where each segment of the stream may belong to one of the tables. The table index is passed as [schema metadata](https://arrow.apache.org/docs/format/Columnar.html#schema-message) under the name `TableId`. Learn more about [Arrow metadata](https://arrow.apache.org/docs/format/Columnar.html#custom-application-metadata).
+
+## BLOB { #BLOB }
+
+BLOB format offers a convenient method to deliver binary data from a BLOB table to a job (see [Binary data](https://yt.yandex-team.ru/docs/user-guide/storage/blobtables)). Data in BLOB format represents the concatenation of binary data from the `data_column_name` table column. When this format is used, the system verifies that BLOB numbers in the `part_index_column_name` column are sequentially ascending from a specific value.
+
+**Parameters:**
+
+The values are specified in parentheses by default.
+- **part_index_column_name** (`part_index`): Name of the column with BLOB numbers.
+- **data_column_name** (`data`): Name of the column with BLOB data.
+
+### Example
+| part_index | data |
+| :--------- | :------: |
+| 0 | hel |
+| 1 | lo |
+| 2 | world |
+
+Reading in BLOB format:
+```bash
+yt read --table "//path/to/table" --format blob
+```
+Representation in BLOB format:
+```
+helloworld
+```
 
 ## PARQUET { #PARQUET }
 

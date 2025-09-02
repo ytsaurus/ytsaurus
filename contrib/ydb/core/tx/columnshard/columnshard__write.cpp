@@ -437,7 +437,12 @@ void TColumnShard::Handle(NEvents::TDataEvents::TEvWrite::TPtr& ev, const TActor
 
     const auto schemeShardLocalPathId = TSchemeShardLocalPathId::FromProto(operation.GetTableId());
     const auto& internalPathId = TablesManager.ResolveInternalPathId(schemeShardLocalPathId, false);
-    AFL_VERIFY(internalPathId);
+    if (!internalPathId) {
+        LWPROBE(EvWrite, TabletID(), source.ToString(), cookie, record.GetTxId(), writeTimeout.value_or(TDuration::Max()), 0, "", false, operation.GetIsBulk(), ToString(NKikimrDataEvents::TEvWriteResult::STATUS_BAD_REQUEST), "unknown table");
+        AFL_WARN(NKikimrServices::TX_COLUMNSHARD_WRITE)("event", "unknown_table")("path_id", schemeShardLocalPathId);
+        sendError("unknown table", NKikimrDataEvents::TEvWriteResult::STATUS_BAD_REQUEST);
+        return;
+    }
     const auto& pathId = TUnifiedPathId::BuildValid(*internalPathId, schemeShardLocalPathId);
     if (!TablesManager.IsReadyForStartWrite(*internalPathId, false)) {
         LWPROBE(EvWrite, TabletID(), source.ToString(), cookie, record.GetTxId(), writeTimeout.value_or(TDuration::Max()), 0, "", false, operation.GetIsBulk(), ToString(NKikimrDataEvents::TEvWriteResult::STATUS_INTERNAL_ERROR), "unknown schema version");
@@ -471,8 +476,10 @@ void TColumnShard::Handle(NEvents::TDataEvents::TEvWrite::TPtr& ev, const TActor
         auto result = NEvents::TDataEvents::TEvWriteResult::BuildError(
             TabletID(), 0, NKikimrDataEvents::TEvWriteResult::STATUS_OVERLOADED, "overload data error");
 
-        const auto rejectReasons = NOverload::MakeRejectReasons(overloadStatus);
-        OverloadSubscribers.SetOverloadSubscribed(record.GetOverloadSubscribe(), ev->Recipient, ev->Sender, rejectReasons, result->Record);
+        if (!outOfSpace && record.HasOverloadSubscribe()) {
+            const auto rejectReasons = NOverload::MakeRejectReasons(overloadStatus);
+            OverloadSubscribers.SetOverloadSubscribed(record.GetOverloadSubscribe(), ev->Recipient, ev->Sender, rejectReasons, result->Record);
+        }
         OverloadWriteFail(overloadStatus,
             NEvWrite::TWriteMeta(0, pathId, source, {}, TGUID::CreateTimebased().AsGuidString(),
                 Counters.GetCSCounters().WritingCounters->GetWriteFlowCounters()),

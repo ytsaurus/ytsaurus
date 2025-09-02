@@ -108,4 +108,3 @@ IServicePtr CreateControllerAgentTrackerService(TBootstrap* bootstrap, const IRe
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

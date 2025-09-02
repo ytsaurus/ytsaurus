@@ -41,7 +41,7 @@ DEFINE_ENUM(EPrimaryEndpointType,
 DEFINE_ENUM(ERowSliceabilityDecision,
     (SliceByRows)
     // All decisions below lead to slicing by keys.
-    (KeyGuaranteeDisabled)
+    (KeyGuaranteeEnabled)
     (NoJobSizeTracker)
     (VersionedSlicesPresent)
     (NonSingletonSliceCountIsAtLeastTwo)
@@ -709,7 +709,7 @@ private:
 
         // With key guarantee there is no row slicing at all.
         if (Options_.EnableKeyGuarantee) {
-            return ERowSliceabilityDecision::KeyGuaranteeDisabled;
+            return ERowSliceabilityDecision::KeyGuaranteeEnabled;
         }
 
         // No job size tracker means present pivot keys, also no row slicing.
@@ -792,6 +792,16 @@ private:
         return ERowSliceabilityDecision::SliceByRows;
     }
 
+    void ValidateDataSliceLimit(ISortedStagingArea::TCurrentJobsStatistics currentJobsStatistics)
+    {
+        if (TotalDataSliceCount_ + currentJobsStatistics.DataSliceCount > Options_.MaxTotalSliceCount) {
+            THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large")
+                << TErrorAttribute("total_data_slice_count", TotalDataSliceCount_ + currentJobsStatistics.DataSliceCount)
+                << TErrorAttribute("max_total_data_slice_count", Options_.MaxTotalSliceCount)
+                << TErrorAttribute("current_job_count", currentJobsStatistics.JobCount);
+        }
+    }
+
     // Flush job size tracker (if it is present) and staging area.
     void Flush(const std::optional<std::any>& overflowToken = std::nullopt)
     {
@@ -799,7 +809,8 @@ private:
         if (JobSizeTracker_) {
             JobSizeTracker_->Flush(overflowToken);
         }
-        StagingArea_->Flush();
+        auto statistics = StagingArea_->Flush();
+        ValidateDataSliceLimit(statistics);
     }
 
     void PromoteUpperBound(TKeyBound newUpperBound, const TPeriodicYielderGuard& periodicYielder)
@@ -843,6 +854,9 @@ private:
 
         auto lowerBound = endpoints[0].KeyBound;
 
+        // TODO(apollo1321): This code seems useless. It should be removed later, see YT-26022.
+        // Moreover, this code complicates TSortedStagingArea and allows upper bound "<= K" accept
+        // solids with lower bound "=> K".
         // TODO(coteeq): Do Max's todo.
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(Options_.PrimaryComparator.GetLength())) {
@@ -965,6 +979,7 @@ private:
             }
             if (!inLong) {
                 auto vector = TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
+                // XXX(apollo1321): Is it really safe to dereference JobSizeTracker_ here?
                 auto overflowToken = JobSizeTracker_->CheckOverflow(vector);
                 if (overflowToken) {
                     Flush(overflowToken);
@@ -983,8 +998,7 @@ private:
 
         auto tryFlush = [&] {
             if (JobSizeTracker_) {
-                auto overflowToken = JobSizeTracker_->CheckOverflow();
-                if (overflowToken) {
+                if (auto overflowToken = JobSizeTracker_->CheckOverflow()) {
                     Flush(overflowToken);
                 }
             }
@@ -1019,8 +1033,6 @@ private:
             Options_.PrimaryComparator,
             Options_.ForeignComparator,
             RowBuffer_,
-            /*initialTotalDataSliceCount*/ TotalDataSliceCount_,
-            Options_.MaxTotalSliceCount,
             Logger);
 
         // Iterate over groups of coinciding endpoints.
@@ -1083,14 +1095,15 @@ private:
 
         AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true), periodicYielder);
 
-        // XXX(apollo1321): Is adding +1 to the total data slice count really necessary?
-        TotalDataSliceCount_ = StagingArea_->GetTotalDataSliceCount() + 1;
-        auto preparedJobs = std::move(*StagingArea_).Finish();
+        auto [preparedJobs, statistics] = std::move(*StagingArea_).Finish();
+        ValidateDataSliceLimit(statistics);
 
         preparedJobs.emplace_back().SetIsBarrier(true);
 
+        i64 actualSegmentSliceCount = 0;
         for (auto& preparedJob : preparedJobs) {
             periodicYielder.TryYield();
+            actualSegmentSliceCount += preparedJob.GetSliceCount();
 
             if (preparedJob.GetIsBarrier()) {
                 Jobs_.emplace_back(std::move(preparedJob));
@@ -1098,6 +1111,9 @@ private:
                 AddJob(preparedJob);
             }
         }
+
+        YT_VERIFY(statistics.DataSliceCount == actualSegmentSliceCount);
+        TotalDataSliceCount_ += statistics.DataSliceCount;
 
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 

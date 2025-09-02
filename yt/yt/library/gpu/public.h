@@ -8,7 +8,9 @@ namespace NYT::NGpu {
 
 DECLARE_REFCOUNTED_STRUCT(IGpuInfoProvider)
 
-DECLARE_REFCOUNTED_STRUCT(TGpuInfoSourceConfig)
+DECLARE_REFCOUNTED_STRUCT(TGpuInfoProviderConfigBase)
+DECLARE_REFCOUNTED_STRUCT(TNvManagerGpuInfoProviderConfig)
+DECLARE_REFCOUNTED_STRUCT(TGpuAgentGpuInfoProviderConfig)
 
 using TNetworkPriority = i8;
 

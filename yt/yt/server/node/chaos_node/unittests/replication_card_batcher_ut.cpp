@@ -105,4 +105,4 @@ TEST_F(TReplcationCardBatcherTest, SmallCollocations)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NDataNode
+} // namespace NYT::NChaosNode

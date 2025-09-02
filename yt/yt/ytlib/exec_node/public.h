@@ -51,6 +51,7 @@ YT_DEFINE_ERROR_ENUM(
     ((JobCleanupTimeout)                     (1142))
     ((NotEnoughInitializedSlots)             (1143))
     ((WaitingForJobCleanupTimeout)           (1144))
+    ((InterruptionFailed)                    (1145))
 );
 
 DEFINE_ENUM(EJobPhase,

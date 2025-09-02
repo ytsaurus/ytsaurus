@@ -595,6 +595,28 @@ TChunkLocationUuid TChunkLocation::GetUuid() const
     return Uuid_;
 }
 
+TChunkLocationIndex TChunkLocation::GetIndex() const
+{
+    return Index_;
+}
+
+void TChunkLocation::SetIndex(TChunkLocationIndex index)
+{
+    if (Index_ != NNodeTrackerClient::InvalidChunkLocationIndex && Index_ != index) {
+        YT_LOG_ALERT(
+            "Chunk location index has been changed (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
+            Uuid_,
+            Index_,
+            index);
+
+        THROW_ERROR_EXCEPTION("Chunk location index has been changed")
+            << TErrorAttribute("location_uuid", Uuid_)
+            << TErrorAttribute("old_index", Index_)
+            << TErrorAttribute("new_index", index);
+    }
+    Index_ = index;
+}
+
 const TString& TChunkLocation::GetDiskFamily() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -970,17 +992,17 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
 
     while (!ProbePutBlocksRequests_.empty()) {
         auto supplierIt = ProbePutBlocksRequests_.begin();
-        auto& supplier = *supplierIt;
+        const auto& supplier = *supplierIt;
         if (supplier->IsCanceled()) {
-            ProbePutBlocksRequests_.erase(supplierIt);
             EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            ProbePutBlocksRequests_.erase(supplierIt);
             continue;
         }
 
         auto request = supplier->TryGetMinRequest();
         if (!request.has_value()) {
-            ProbePutBlocksRequests_.erase(supplierIt);
             EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
+            ProbePutBlocksRequests_.erase(supplierIt);
             continue;
         }
 

@@ -46,6 +46,19 @@ protected:
     IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 };
 
+class TSortedChunkPoolTestBase
+    : public TChunkPoolTestBase
+{
+protected:
+    NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
+
+    NTableClient::TLegacyKey BuildRow(std::vector<i64> values);
+
+    //! Helper for building key bound. #boolOperator must be one of
+    //! {"<", "<=", ">", ">="}.
+    NTableClient::TKeyBound BuildBound(const char* boolOperator, std::vector<i64> values);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkPools

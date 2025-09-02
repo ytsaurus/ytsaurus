@@ -27,6 +27,7 @@
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -821,6 +822,8 @@ protected:
         TTimestamp timestamp,
         bool produceAllVersions)
     {
+        auto memoryPool = TChunkedMemoryPool();
+
         auto expectedRows = CreateExpectedRows(
             initialRows,
             writeSchema,
@@ -828,7 +831,8 @@ protected:
             ranges,
             timestamp,
             columnFilter,
-            GetTestOptions().UseNewReader);
+            GetTestOptions().UseNewReader,
+            &memoryPool);
 
         auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
@@ -936,6 +940,8 @@ protected:
         TTimestamp timestamp,
         bool produceAllVersions)
     {
+        auto memoryPool = TChunkedMemoryPool();
+
         auto expectedRows = CreateExpectedRows(
             initialRows,
             writeSchema,
@@ -943,7 +949,8 @@ protected:
             lookupKeys,
             timestamp,
             columnFilter,
-            GetTestOptions().UseNewReader);
+            GetTestOptions().UseNewReader,
+            &memoryPool);
 
         auto chunkMeta = memoryReader->GetMeta(/*options*/ {})
             .Apply(BIND(
@@ -1126,7 +1133,7 @@ protected:
             for (int id = 0; id < std::ssize(ColumnSchemas_); ++id) {
                 const auto& columnSchema = ColumnSchemas_[id];
                 if (columnSchema.SortOrder()) {
-                    TUnversionedValue value;
+                    TUnversionedValue value{};
 
                     switch (columnSchema.CastToV1Type()) {
                         case ESimpleLogicalValueType::Int64:
@@ -1158,7 +1165,7 @@ protected:
                     builder.AddKey(value);
                 } else {
                     for (int i = 0; i < std::rand() % 3; ++i) {
-                        TVersionedValue value;
+                        TVersionedValue value{};
 
                         switch (columnSchema.CastToV1Type()) {
                             case ESimpleLogicalValueType::Int64:
@@ -1219,12 +1226,32 @@ protected:
         return idMapping;
     }
 
+    TVersionedValue EncodeVersionedAnyValueIfNeeded(
+        TVersionedValue value,
+        TRange<TColumnSchema> readSchemaColumns,
+        TChunkedMemoryPool* memoryPool)
+    {
+        auto encodeVersionedAnyValue = [] (TVersionedValue value, TChunkedMemoryPool* memoryPool) -> TVersionedValue {
+            YT_VERIFY(value.Flags == EValueFlags::Aggregate || value.Flags == EValueFlags::None);
+            auto flags = value.Flags;
+            value.Flags = EValueFlags::None;
+            auto result = MakeVersionedValue(EncodeUnversionedAnyValue(TUnversionedValue(value), memoryPool), value.Timestamp);
+            result.Flags = flags;
+            return result;
+        };
+
+        return readSchemaColumns[value.Id].GetWireType() == EValueType::Any
+            ? encodeVersionedAnyValue(value, memoryPool)
+            : value;
+    }
+
     bool CreateExpectedRow(
         TVersionedRowBuilder* builder,
         TVersionedRow row,
         TTimestamp timestamp,
         TRange<int> idMapping,
-        TRange<TColumnSchema> readSchemaColumns)
+        TRange<TColumnSchema> readSchemaColumns,
+        TChunkedMemoryPool* memoryPool)
     {
         if (timestamp == AllCommittedTimestamp) {
             for (auto timestamp : row.DeleteTimestamps()) {
@@ -1234,7 +1261,7 @@ protected:
             for (auto value : row.Values()) {
                 if (idMapping[value.Id] > 0) {
                     value.Id = idMapping[value.Id];
-                    builder->AddValue(value);
+                    builder->AddValue(EncodeVersionedAnyValueIfNeeded(value, readSchemaColumns, memoryPool));
                 }
             }
         } else {
@@ -1269,7 +1296,7 @@ protected:
                     auto targetId = idMapping[value.Id];
                     if (targetId != lastUsedId || readSchemaColumns[targetId].Aggregate()) {
                         value.Id = targetId;
-                        builder->AddValue(value);
+                        builder->AddValue(EncodeVersionedAnyValueIfNeeded(value, readSchemaColumns, memoryPool));
                         lastUsedId = targetId;
                     }
                 }
@@ -1286,7 +1313,8 @@ protected:
         const TSharedRange<TRowRange>& ranges,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
-        bool considerColumnFilterForKeys)
+        bool considerColumnFilterForKeys,
+        TChunkedMemoryPool* memoryPool)
     {
         YT_VERIFY(writeSchema->GetKeyColumnCount() <= readSchema->GetKeyColumnCount());
 
@@ -1348,7 +1376,7 @@ protected:
                 }
             }
 
-            if (CreateExpectedRow(&builder, row, timestamp, idMapping, readSchema->Columns())) {
+            if (CreateExpectedRow(&builder, row, timestamp, idMapping, readSchema->Columns(), memoryPool)) {
                 expectedRows.push_back(builder.FinishRow());
             } else {
                 // Finish row to reset builder.
@@ -1366,7 +1394,8 @@ protected:
         const TSharedRange<TUnversionedRow>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter,
-        bool considerColumnFilterForKeys)
+        bool considerColumnFilterForKeys,
+        TChunkedMemoryPool* memoryPool)
     {
         YT_VERIFY(writeSchema->GetKeyColumnCount() <= readSchema->GetKeyColumnCount());
         int keyColumnCount = writeSchema->GetKeyColumnCount();
@@ -1410,7 +1439,7 @@ protected:
                     }
                 }
 
-                if (CreateExpectedRow(&builder, *rowsIt, timestamp, idMapping, readSchema->Columns())) {
+                if (CreateExpectedRow(&builder, *rowsIt, timestamp, idMapping, readSchema->Columns(), memoryPool)) {
                     expectedRows.push_back(builder.FinishRow());
                 } else {
                     // Finish row to reset builder.

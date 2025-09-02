@@ -484,4 +484,4 @@ IReplicationCardsWatcherPtr CreateReplicationCardsWatcher(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChaosNode
+} // namespace NYT::NChaosClient

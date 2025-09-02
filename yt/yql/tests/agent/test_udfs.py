@@ -1,31 +1,17 @@
-from yt_queries import start_query
+from common import TestQueriesYqlBase
 
 from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
 from yt_commands import (authors, create, write_table, read_table, get, set)
 
-from yt_env_setup import YTEnvSetup
-
 import pytest
-
-
-class TestQueriesYqlBase(YTEnvSetup):
-    NUM_YQL_AGENTS = 1
-    NUM_MASTERS = 1
-    NUM_QUERY_TRACKER = 1
-    ENABLE_HTTP_PROXY = True
-    USE_DYNAMIC_TABLES = True
-    NUM_SCHEDULERS = 1
-
-    DELTA_DRIVER_CONFIG = {
-        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
-    }
 
 
 class TestUdfs(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("max42")
+    @pytest.mark.timeout(120)
     def test_simple_udf(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
         write_table("//tmp/t", [
@@ -34,24 +20,30 @@ class TestUdfs(TestQueriesYqlBase):
             {"a": "in a word"},
             {"a": "homeowner"},
         ])
-        query = start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
+        query = self.start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
 
     @authors("max42")
+    @pytest.mark.timeout(120)
     def test_folder(self, query_tracker, yql_agent):
-        create("table", "//tmp/t", attributes={
-            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
-        })
+        create(
+            "table", "//tmp/folder/t",
+            attributes={
+                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+            },
+            recursive=True
+        )
+
         rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
-        write_table("//tmp/t", rows)
-        query = start_query("yql", 'pragma yt.FolderInlineItemsLimit="0"; insert into `//tmp/output` select * from FOLDER("//tmp", "row_count")')
+        write_table("//tmp/folder/t", rows)
+        query = self.start_query("yql", 'pragma yt.FolderInlineItemsLimit="0"; insert into `//tmp/output` select * from FOLDER("//tmp/folder", "row_count")')
         query.track()
         result = read_table("//tmp/output")
         expected_result = [
             {
-                "Path": "tmp/t",
+                "Path": "tmp/folder/t",
                 "Type": "table",
                 "Attributes": {"row_count": 2},
             }
@@ -59,6 +51,7 @@ class TestUdfs(TestQueriesYqlBase):
         assert_items_equal(result, expected_result)
 
     @authors("max42")
+    @pytest.mark.timeout(120)
     def test_rename_members(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -66,7 +59,7 @@ class TestUdfs(TestQueriesYqlBase):
         rows = [{"a": 42}]
         expected_rows = [{"b": 42}]
         write_table("//tmp/t", rows)
-        query = start_query("yql", "select * from (select RenameMembers(TableRow(), [('a', 'b')]) from `//tmp/t`) flatten columns;")
+        query = self.start_query("yql", "select * from (select RenameMembers(TableRow(), [('a', 'b')]) from `//tmp/t`) flatten columns;")
         query.track()
         result = query.read_result(0)
         assert_items_equal(expected_rows, result)
@@ -91,7 +84,7 @@ def f(x):
 $f = Python3::f(Callable<(Int32)->Bool>, $python_code);
 select a from primary.`//tmp/t` where $f(unwrap(a));
 """
-        query = start_query("yql", yql_with_python)
+        query = self.start_query("yql", yql_with_python)
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 1}, {"a": 2}])
@@ -111,7 +104,7 @@ def get_secure_param(key):
 
 select $get_secure_param(SecureParam("token:default_yt")) as sp;
 """
-        query = start_query("yql", yql_with_python)
+        query = self.start_query("yql", yql_with_python)
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"sp": "ytct-"}])
@@ -127,14 +120,14 @@ def get_secure_param(key):
     @@
 );
 
-select $get_secure_param(SecureParam("token:geheim")) as sp;
+select $get_secure_param(SecureParam("token:geheim1")) as sp1, $get_secure_param(SecureParam("token:geheim2")) as sp2;
 """
         path = "//tmp/secret_path_to_secret_value"
         set(path, "test")
-        query = start_query("yql", yql_with_python, secrets=[{"id": "geheim", "ypath": path}])
+        query = self.start_query("yql", yql_with_python, secrets=[{"id": "geheim1", "ypath": path}, {"id": "geheim2", "ypath": f"primary:{path}"}])
         query.track()
         result = query.read_result(0)
-        assert_items_equal(result, [{"sp": "test"}])
+        assert_items_equal(result, [{"sp1": "test", "sp2": "test"}])
 
 
 class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
@@ -164,7 +157,7 @@ class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
             {"a": "in a word"},
             {"a": "homeowner"},
         ])
-        query = start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
+        query = self.start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
@@ -195,7 +188,7 @@ def f(x):
 $f = Python3::f(Callable<(Int32)->Bool>, $python_code);
 select a from primary.`//tmp/t` where $f(unwrap(a));
 """
-        query = start_query("yql", yql_with_python)
+        query = self.start_query("yql", yql_with_python)
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 1}, {"a": 2}])

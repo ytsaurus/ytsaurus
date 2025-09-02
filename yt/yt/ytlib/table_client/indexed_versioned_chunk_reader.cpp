@@ -178,13 +178,17 @@ private:
         IChunkIndexReadController::TReadResponse response;
 
         if (fragmentsFuture) {
-            YT_VERIFY(fragmentsFuture.IsSet() && fragmentsFuture.Get().IsOK());
-            response.Fragments = std::move(fragmentsFuture.GetUnique().Value().Fragments);
+            YT_VERIFY(fragmentsFuture.IsSet());
+            auto result = fragmentsFuture.GetUnique();
+            YT_VERIFY(result.IsOK());
+            response.Fragments = std::move(result.Value().Fragments);
         }
 
         if (blocksFuture) {
-            YT_VERIFY(blocksFuture.IsSet() && blocksFuture.Get().IsOK());
-            response.SystemBlocks = std::move(blocksFuture.GetUnique().Value());
+            YT_VERIFY(blocksFuture.IsSet());
+            auto result = blocksFuture.GetUnique();
+            YT_VERIFY(result.IsOK());
+            response.SystemBlocks = std::move(result.Value());
         }
 
         Controller_->HandleReadResponse(std::move(response));

@@ -313,9 +313,18 @@ Publishes as docker images.
 
 Publishes as docker images.
 
-**Current release:** 2.7.1 (`ghcr.io/ytsaurus/spyt:2.7.1`)
+**Current release:** 2.7.2 (`ghcr.io/ytsaurus/spyt:2.7.2`)
 
 **All releases:**
+
+{% cut "**2.7.2**" %}
+
+Maintenance release with minor enhancements
+
+- Improving YTsaurus shuffle service integration
+- Spark connect server wrapper for SPYT
+
+{% endcut %}
 
 {% cut "**2.7.1**" %}
 

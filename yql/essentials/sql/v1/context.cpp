@@ -121,15 +121,8 @@ TContext::TContext(const TLexers& lexers, const TParsers& parsers,
         Libraries.emplace(lib, TLibraryStuff());
     }
 
-    Scoped = MakeIntrusive<TScopedState>();
+    Scoped = CreateScopedState();
     AllScopes.push_back(Scoped);
-    Scoped->UnicodeLiterals = settings.UnicodeLiterals;
-    if (settings.DefaultCluster) {
-        Scoped->CurrCluster = TDeferredAtom({}, settings.DefaultCluster);
-        auto provider = GetClusterProvider(settings.DefaultCluster);
-        YQL_ENSURE(provider);
-        Scoped->CurrService = *provider;
-    }
 
     Position_.File = settings.File;
 
@@ -491,6 +484,20 @@ bool TContext::UseUnordered(const TTableRef& table) const {
     return YtProviderName == table.Service;
 }
 
+TScopedStatePtr TContext::CreateScopedState() const {
+    auto state = MakeIntrusive<TScopedState>();
+    state->UnicodeLiterals = Settings.UnicodeLiterals;
+
+    if (Settings.DefaultCluster) {
+        state->CurrCluster = TDeferredAtom({}, Settings.DefaultCluster);
+
+        const auto provider = GetClusterProvider(Settings.DefaultCluster);
+        YQL_ENSURE(provider);
+        state->CurrService = *provider;
+    }
+
+    return state;
+}
 
 TMaybe<EColumnRefState> GetFunctionArgColumnStatus(TContext& ctx, const TString& module, const TString& func, size_t argIndex) {
     static const TSet<TStringBuf> denyForAllArgs = {
@@ -670,6 +677,10 @@ TString TTranslation::AltDescription(const google::protobuf::Message& node, ui32
 
 void TTranslation::AltNotImplemented(const TString& ruleName, ui32 altCase, const google::protobuf::Message& node, const google::protobuf::Descriptor* descr) {
     Error() << ruleName << ": alternative is not implemented yet: " << AltDescription(node, altCase, descr);
+}
+
+bool TTranslation::IsBackwardCompatibleFeatureAvailable(NYql::TLangVersion langVer) const {
+    return NYql::IsBackwardCompatibleFeatureAvailable(Ctx_.Settings.LangVer, langVer, Ctx_.Settings.BackportMode);
 }
 
 void EnumerateSqlFlags(std::function<void(std::string_view)> callback) {

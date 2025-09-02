@@ -53,6 +53,7 @@ SRCS(
     api/native/journal_reader.cpp
     api/native/journal_writer.cpp
     api/native/list_operations.cpp
+    api/native/options.cpp
     api/native/partition_tables.cpp
     api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
@@ -208,6 +209,7 @@ SRCS(
     chunk_client/proto/data_sink.proto
     chunk_client/proto/data_source.proto
     chunk_client/proto/heartbeat.proto
+    chunk_client/proto/location_indexes.proto
     chunk_client/proto/medium_directory.proto
     chunk_client/proto/session_id.proto
 
@@ -392,6 +394,7 @@ SRCS(
     scheduler/proto/pool_ypath.proto
     scheduler/proto/scheduler_service.proto
 
+    security_client/acl.cpp
     security_client/config.cpp
     security_client/helpers.cpp
     security_client/permission_cache.cpp
@@ -399,6 +402,7 @@ SRCS(
     security_client/user_attribute_cache.cpp
 
     security_client/proto/account_ypath.proto
+    security_client/proto/acl.proto
     security_client/proto/group_ypath.proto
     security_client/proto/user_ypath.proto
 
@@ -472,6 +476,7 @@ SRCS(
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
+    table_client/row_level_security.cpp
     table_client/row_merger.cpp
     table_client/samples_fetcher.cpp
     table_client/schema_dictionary.cpp
@@ -504,6 +509,7 @@ SRCS(
     table_client/versioned_row_merger.cpp
     table_client/virtual_value_directory.cpp
 
+    table_client/proto/row_level_security.proto
     table_client/proto/table_partition_cookie.proto
     table_client/proto/table_ypath.proto
     table_client/proto/virtual_value_directory.proto
@@ -785,6 +791,7 @@ PEERDIR(
     yt/yt/client/logging
     yt/yt/library/formats
     yt/yt/library/query/base
+    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index

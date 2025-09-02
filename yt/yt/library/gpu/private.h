@@ -8,6 +8,8 @@ namespace NYT::NGpu {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, GpuLogger, "Gpu");
 
+DECLARE_REFCOUNTED_STRUCT(TGrpcGpuInfoProviderConfigBase)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NGpu

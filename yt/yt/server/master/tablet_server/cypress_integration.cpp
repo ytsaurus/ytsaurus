@@ -3,6 +3,7 @@
 #include "tablet.h"
 #include "tablet_action.h"
 #include "tablet_manager.h"
+#include "tablet_action_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -84,8 +85,8 @@ public:
 private:
     TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return MakeFuture(ToObjectIds(GetValues(tabletManager->TabletActions(), limit)));
+        const auto& tabletActionManager = Bootstrap_->GetTabletManager()->GetTabletActionManager();
+        return MakeFuture(ToObjectIds(GetValues(tabletActionManager->TabletActions(), limit)));
     }
 
     bool IsValidItem(TObject* object) const override
@@ -95,8 +96,8 @@ private:
 
     TFuture<i64> GetSize() const override
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        return MakeFuture<i64>(tabletManager->TabletActions().GetSize());
+        const auto& tabletActionManager = Bootstrap_->GetTabletManager()->GetTabletActionManager();
+        return MakeFuture<i64>(tabletActionManager->TabletActions().GetSize());
     }
 
     bool NeedSuppressUpstreamSync() const override

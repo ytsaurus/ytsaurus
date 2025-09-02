@@ -146,8 +146,13 @@ public:
 
         DynamicConfig_.Store(New<TClusterNodeDynamicConfig>());
 
+        // Host and InstanceTags are passed to job proxy and processed separately.
+        auto jobProxySolomonExporterConfig = CloneYsonStruct(GetConfig()->ExecNode->JobProxySolomonExporter);
+        jobProxySolomonExporterConfig->Host = std::nullopt;
+        jobProxySolomonExporterConfig->InstanceTags = {};
+
         JobProxySolomonExporter_ = New<TSolomonExporter>(
-            GetConfig()->ExecNode->JobProxySolomonExporter,
+            jobProxySolomonExporterConfig,
             New<TSolomonRegistry>());
 
         ThrottlerManager_ = CreateThrottlerManager(
@@ -234,7 +239,7 @@ public:
             connection->GetNodeDirectorySynchronizer()->Start();
             connection->GetClusterDirectorySynchronizer()->Start();
 
-            auto clientOptions = NYT::NApi::TClientOptions::FromUser(NSecurityClient::RootUserName);
+            auto clientOptions = NYT::NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName);
             auto client = connection->CreateNativeClient(clientOptions);
 
             auto blockCacheConfig = New<TBlockCacheConfig>();
@@ -496,7 +501,11 @@ private:
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         newJobProxyConfigTemplate->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
-        newJobProxyConfigTemplate->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        if (const auto& clusterConnection = GetConfig()->ExecNode->JobProxy->ClusterConnection) {
+            newJobProxyConfigTemplate->OriginalClusterConnection = clusterConnection->Clone();
+        } else {
+            newJobProxyConfigTemplate->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        }
 
         // We could probably replace addresses for known cells here as well, but
         // changing addresses of a known cell is cursed anyway, so I'm not
@@ -520,8 +529,12 @@ private:
 
         newJobProxyConfigTemplate->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
-        newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-        newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
+        if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            newJobProxyConfigTemplate->SupervisorConnection = CloneYsonStruct(supervisorConnection);
+        } else {
+            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
+        }
 
         newJobProxyConfigTemplate->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 
@@ -553,6 +566,9 @@ private:
         }
 
         newJobProxyConfigTemplate->DnsOverRpcResolver = GetConfig()->ExecNode->JobProxy->JobProxyDnsOverRpcResolver;
+
+        newJobProxyConfigTemplate->SolomonExporter->Host = GetConfig()->ExecNode->JobProxySolomonExporter->Host;
+        newJobProxyConfigTemplate->SolomonExporter->InstanceTags = GetConfig()->ExecNode->JobProxySolomonExporter->InstanceTags;
 
         JobProxyConfigTemplate_.Store(std::move(newJobProxyConfigTemplate));
     }

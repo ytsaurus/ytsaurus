@@ -469,6 +469,7 @@ void TTransaction::SetTransactionLeasesState(ETransactionLeasesState newState)
             LeasesRevokedPromise_ = NewPromise<void>();
         }
         LeasesRevokedPromise_.TrySet();
+        YT_LOG_DEBUG("Transaction leases revoked (TransactionId: %v)", Id_);
     }
 }
 

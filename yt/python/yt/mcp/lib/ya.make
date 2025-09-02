@@ -2,6 +2,8 @@ PY3_LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
+SUBSCRIBER(g:yt-python)
+
 PY_SRCS(
     NAMESPACE yt.mcp.lib
 
@@ -25,3 +27,7 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    tests
+)

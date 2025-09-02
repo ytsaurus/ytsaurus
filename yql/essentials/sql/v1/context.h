@@ -245,6 +245,8 @@ namespace NSQLTranslationV1 {
         TVector<NSQLTranslation::TSQLHint> PullHintForToken(NYql::TPosition tokenPos);
         void WarnUnusedHints();
 
+        TScopedStatePtr CreateScopedState() const;
+
     private:
         IOutputStream& MakeIssue(NYql::ESeverity severity, NYql::TIssueCode code, NYql::TPosition pos);
 
@@ -474,6 +476,8 @@ namespace NSQLTranslationV1 {
     protected:
         void AltNotImplemented(const TString& ruleName, ui32 altCase, const google::protobuf::Message& node, const google::protobuf::Descriptor* descr);
         TString AltDescription(const google::protobuf::Message& node, ui32 altCase, const google::protobuf::Descriptor* descr) const;
+
+        bool IsBackwardCompatibleFeatureAvailable(NYql::TLangVersion langVer) const;
 
     protected:
         TContext& Ctx_;

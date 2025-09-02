@@ -235,6 +235,18 @@ const THashMap<TString, TUserJobStatisticSensorPtr>& TUserJobMonitoringDynamicCo
 {
     static const auto DefaultStatisticSensors = ConvertTo<THashMap<TString, TUserJobStatisticSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
+            // Sensors `total_cpu` and `total_memory` are relevant for CRI job environment.
+            .Item("total_cpu").BeginMap()
+                .Item("path").Value("/job/cpu")
+                .Item("type").Value("counter")
+                .Item("profiling_name").Value("/job/cpu")
+            .EndMap()
+            .Item("total_memory").BeginMap()
+                .Item("path").Value("/job/memory")
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/job/memory")
+            .EndMap()
+
             .Item("cpu/burst").BeginMap()
                 .Item("path").Value("/user_job/cpu/burst")
                 .Item("type").Value("counter")
@@ -506,8 +518,9 @@ void TGpuManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("driver_version", &TThis::DriverVersion)
         .Default();
 
-    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
-        .DefaultNew();
+    registrar.Parameter("gpu_info_provider", &TThis::GpuInfoProvider)
+        .Alias("gpu_info_source")
+        .Default();
 
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
@@ -541,7 +554,8 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
         .Default();
 
-    registrar.Parameter("gpu_info_source", &TThis::GpuInfoSource)
+    registrar.Parameter("gpu_info_provider", &TThis::GpuInfoProvider)
+        .Alias("gpu_info_source")
         .Default();
 
     registrar.Parameter("default_nvidia_driver_capabilities", &TThis::DefaultNvidiaDriverCapabilities)
@@ -767,6 +781,12 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
+
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .Default();
+
+    registrar.Parameter("supervisor_connection", &TThis::SupervisorConnection)
+        .Default();
 
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));

@@ -566,6 +566,10 @@ public class RichYPath implements YPath {
         return new RichYPath("#" + id.toString(), List.of());
     }
 
+    public static YPath relative(String path) {
+        return new RichYPath("", getRelativePath(path, 0));
+    }
+
     public static YPath simple(String path) {
         return getRootDesignatorAndRelativePath(path);
     }

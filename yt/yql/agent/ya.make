@@ -32,7 +32,6 @@ PEERDIR(
     library/cpp/yt/mlock
 
     yt/yt/library/dynamic_config
-    yt/yt/library/skiff_ext
     yt/yt/library/server_program
     yt/yt/library/profiling/perf
 
@@ -47,8 +46,6 @@ PEERDIR(
 
     yt/yql/plugin
 
-    yt/yt/library/query/engine
-    yt/yt/library/query/row_comparer
     yt/yt/library/monitoring
 
     yt/yql/plugin/bridge

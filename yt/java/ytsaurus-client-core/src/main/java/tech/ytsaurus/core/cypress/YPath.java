@@ -179,6 +179,10 @@ public interface YPath {
         return RichYPath.objectRoot(id);
     }
 
+    static YPath relative(String path) {
+        return RichYPath.relative(path);
+    }
+
     static YPath simple(String path) {
         return RichYPath.simple(path);
     }

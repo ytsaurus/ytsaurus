@@ -45,5 +45,5 @@ TEST(TStreamReaderTest, Simple)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NControllerAgent
+} // namespace NYT::NPython
 

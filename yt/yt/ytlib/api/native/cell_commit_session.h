@@ -27,6 +27,7 @@ DEFINE_REFCOUNTED_TYPE(ICellCommitSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(shakurov): remove this?
 ICellCommitSessionPtr CreateCellCommitSession(
     IRegisterTransactionActionsRequestFactoryPtr requestFactory,
     TWeakPtr<NTransactionClient::TTransaction> transaction,

@@ -43,6 +43,8 @@ type (
 		level zapcore.Level
 	}
 
+	minFreeSpace float64
+
 	Option interface {
 		isOption()
 	}
@@ -54,10 +56,26 @@ func WithLogLevel(level zapcore.Level) Option {
 	return logLevel{level: level}
 }
 
+func (minFreeSpace) isOption() {}
+
+func WithMinFreeSpace(space float64) Option {
+	return minFreeSpace(space)
+}
+
 // NewSelfrotate returns logger configured with YT defaults.
 func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop func(), err error) {
 	rotateOptions := defaultRotationOptions
 	rotateOptions.Name = logPath
+
+	level := zap.DebugLevel
+	for _, opt := range options {
+		switch v := opt.(type) {
+		case logLevel:
+			level = v.level
+		case minFreeSpace:
+			rotateOptions.MinFreeSpace = float64(opt.(minFreeSpace))
+		}
+	}
 
 	w, err := selfrotate.New(rotateOptions)
 	if err != nil {
@@ -66,14 +84,6 @@ func NewSelfrotate(logPath string, options ...Option) (l *logzap.Logger, stop fu
 
 	encoder := zap.NewProductionEncoderConfig()
 	encoder.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	level := zap.DebugLevel
-	for _, opt := range options {
-		switch v := opt.(type) {
-		case logLevel:
-			level = v.level
-		}
-	}
 
 	core := asynczap.NewCore(zapcore.NewJSONEncoder(encoder), w, level, asynczap.Options{})
 

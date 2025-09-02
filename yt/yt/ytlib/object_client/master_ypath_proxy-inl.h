@@ -124,7 +124,7 @@ private:
         int startOffset = 0;
         while (startOffset < std::ssize(objectIds)) {
             auto endOffset = std::min<int>(startOffset + VectorizedReadSubbatchSize, std::ssize(objectIds));
-            auto subrequest = FormVectorizedReadRequest(objectIdsRange.Slice(startOffset, endOffset));
+            auto subrequest = MakeVectorizedReadRequest(objectIdsRange.Slice(startOffset, endOffset));
             startOffset = endOffset;
 
             batchReq->AddRequest(std::move(subrequest));
@@ -133,7 +133,7 @@ private:
         AsyncResults_.push_back(batchReq->Invoke());
     }
 
-    TMasterYPathProxy::TReqVectorizedReadPtr FormVectorizedReadRequest(TRange<TObjectId> objectIds)
+    TMasterYPathProxy::TReqVectorizedReadPtr MakeVectorizedReadRequest(TRange<TObjectId> objectIds)
     {
         auto request = TMasterYPathProxy::VectorizedRead();
 

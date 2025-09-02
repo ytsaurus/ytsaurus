@@ -1362,6 +1362,11 @@ private:
             "SandboxPath",
             CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
+        if (Config_->TestRootFS && Config_->RootPath) {
+            formatter.AddProperty("RootFs", *Config_->RootPath);
+            SetEnvironment(Format("YT_ROOT_FS=%v", *Config_->RootPath));
+        }
+
         if (Config_->ForwardAllEnvironmentVariables) {
             auto env = GetEnviron();
             for (const auto& variable : env) {
@@ -1379,10 +1384,6 @@ private:
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             SetEnvironment(formatter.Format(UserJobSpec_.environment(i)));
-        }
-
-        if (Config_->TestRootFS && Config_->RootPath) {
-            SetEnvironment(Format("YT_ROOT_FS=%v", *Config_->RootPath));
         }
 
         for (int index = 0; index < std::ssize(Ports_); ++index) {
@@ -1649,7 +1650,16 @@ private:
     {
         auto executorConfig = New<TUserJobExecutorConfig>();
 
-        executorConfig->Command = UserJobSpec_.shell_command();
+        if (UserJobSpec_.append_debug_options()) {
+            executorConfig->Command = Format(
+                "%v --job-id %v --operation-id %v",
+                UserJobSpec_.shell_command(),
+                JobId_,
+                Host_->GetOperationId());
+        } else {
+            executorConfig->Command = UserJobSpec_.shell_command();
+        }
+
         executorConfig->JobId = ToString(JobId_);
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {

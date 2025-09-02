@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
+#include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
+
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -169,6 +171,9 @@ public:
 
     //! Returns location with a given location uuid or nullptr if there is no such location.
     TStoreLocationPtr GetChunkLocationByUuid(TChunkLocationUuid locationUuid);
+
+    //! Sets location indexes
+    void SetChunkLocationIndexes(const NChunkClient::NProto::TLocationIndexes& locationIndexes);
 
     //! Fires the RemoveChunk_ callback for a chunk not physically present on a given location.
     void RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid locationUuid);

@@ -631,6 +631,8 @@ private:
             }
             // COMPAT(kvk1920)
             req->set_location_directory_supported(true);
+
+            req->set_location_indexes_in_heartbeats_supported(true);
         }
 
         YT_LOG_INFO("Registering at primary master");
@@ -659,12 +661,19 @@ private:
                 YT_VERIFY(dataNodeInfoExt.has_medium_overrides());
                 mediumUpdater->UpdateLocationMedia(dataNodeInfoExt.medium_overrides(), /*onInitialize*/ true);
 
-                dataNodeBootstrap->SetLocationUuidsRequired(dataNodeInfoExt.require_location_uuids());
                 dataNodeBootstrap->SetPerLocationFullHeartbeatsEnabled(dataNodeInfoExt.per_location_full_heartbeats_enabled());
+                dataNodeBootstrap->SetLocationIndexesInHeartbeatsEnabled(dataNodeInfoExt.location_indexes_in_heartbeats_enabled());
+
+                if (dataNodeInfoExt.location_indexes_in_heartbeats_enabled()) {
+                    Bootstrap_
+                        ->GetDataNodeBootstrap()
+                        ->GetChunkStore()
+                        ->SetChunkLocationIndexes(dataNodeInfoExt.location_indexes());
+                }
             } else {
-                dataNodeBootstrap->SetLocationUuidsRequired(true);
                 dataNodeBootstrap->SetPerLocationFullHeartbeatsEnabled(false);
                 mediumUpdater->UpdateLocationMedia({}, /*onInitialize*/ true);
+                dataNodeBootstrap->SetLocationIndexesInHeartbeatsEnabled(false);
             }
         }
 

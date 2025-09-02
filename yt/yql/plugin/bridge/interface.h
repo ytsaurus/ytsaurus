@@ -96,6 +96,7 @@ struct TBridgeQueryResult
 struct TBridgeClustersResult
 {
     const char** Clusters = nullptr;
+    const char** ClusterAddresses = nullptr;
     ssize_t ClusterCount = 0;
 
     const char* YsonError = nullptr;

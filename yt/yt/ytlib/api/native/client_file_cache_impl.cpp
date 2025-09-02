@@ -43,7 +43,7 @@ void TClient::SetTouchedAttribute(
     const TPrerequisiteOptions& options,
     TTransactionId transactionId)
 {
-    auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::FileCacheUserName));
+    auto fileCacheClient = Connection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::FileCacheUserName));
 
     // Set /@touched attribute.
     {
@@ -225,7 +225,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
     }
 
     auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
-    auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::FileCacheUserName));
+    auto fileCacheClient = Connection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::FileCacheUserName));
 
     // Copy file.
     {

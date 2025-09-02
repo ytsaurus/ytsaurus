@@ -210,4 +210,4 @@ TFuture<TJobShellDescriptor> TJobShellDescriptorCache::Get(const TJobShellDescri
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJobProberClient::NYT
+} // namespace NYT::NJobProberClient

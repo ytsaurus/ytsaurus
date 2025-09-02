@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/server/scheduler/strategy/public.h>
+
+#include <yt/yt/server/scheduler/common/structs.h>
+
 #include <yt/yt/server/lib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -17,13 +21,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Information retrieved during scheduler-master handshake.
-struct TMasterHandshakeResult
-{
-    std::vector<TOperationPtr> Operations;
-    TInstant LastMeteringLogTime;
-};
-
 using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
 using TWatcherHandler = TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)>;
 
@@ -36,6 +33,9 @@ struct TWatcherLockOptions
 
 DEFINE_ENUM(EMasterConnectorState,
     (Disconnected)
+    // NB(coteeq): Disconnection does many things and even on a prestable cluster
+    // it may take up to 80ms.
+    (Disconnecting)
     (Connecting)
     (Connected)
 );
@@ -91,7 +91,7 @@ public:
 
     TFuture<void> CheckTransactionAlive(NTransactionClient::TTransactionId transactionId);
 
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
+    void InvokeStoringStrategyState(NStrategy::TPersistentStrategyStatePtr strategyState);
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time);
 

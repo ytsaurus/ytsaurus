@@ -1485,11 +1485,6 @@ public:
     void DestroyDynamicStore(TDynamicStore* dynamicStore) override
     {
         YT_VERIFY(!dynamicStore->GetStagingTransaction());
-
-        if (auto chunk = dynamicStore->GetFlushedChunk()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(chunk);
-        }
     }
 
 
@@ -2523,6 +2518,9 @@ private:
     // COMPAT(ifsmirnov)
     bool NeedRecomputeOrderedTabletStatistics_ = false;
 
+    // COMPAT(danilalexeev)
+    bool NeedUnhealthyUnconfirmedChunkScan_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -3387,7 +3385,6 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         std::vector<TChunkReplicaWithLocationIndex> sequoiaReplicas;
-        std::vector<TConfirmChunkReplicaInfo> nonSequoiaReplicas;
         for (const auto& protoReplica : request->replicas()) {
             auto replica = FromProto<TChunkReplicaWithLocation>(protoReplica);
             auto nodeId = replica.GetNodeId();
@@ -3405,12 +3402,7 @@ private:
                 nodeId,
                 replica.GetReplicaIndex(),
                 location->GetIndex());
-
-            if (!ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkId)) {
-                nonSequoiaReplicas.push_back(protoReplica);
-            } else {
-                sequoiaReplicas.push_back(replicaWithLocationIndex);
-            }
+            sequoiaReplicas.push_back(replicaWithLocationIndex);
         }
 
         return Bootstrap_
@@ -3419,7 +3411,7 @@ private:
                 ESequoiaTransactionType::ChunkConfirmation,
                 {.CellTag = Bootstrap_->GetCellTag()},
                 {.AuthenticationIdentity = GetRootAuthenticationIdentity()})
-            .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), nonSequoiaReplicas = std::move(nonSequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+            .Apply(BIND([=, request = std::move(request), sequoiaReplicas = std::move(sequoiaReplicas), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
                 NRecords::TUnapprovedChunkReplicas chunkReplicas{
@@ -3436,9 +3428,6 @@ private:
 
                 if (!storeSequoiaReplicasOnMaster) {
                     request->mutable_replicas()->Clear();
-                    for (const auto& protoReplica : nonSequoiaReplicas) {
-                        *request->add_replicas() = protoReplica;
-                    }
                 }
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
@@ -5000,6 +4989,8 @@ private:
 
         // COMPAT(ifsmirnov)
         NeedRecomputeOrderedTabletStatistics_ = context.GetVersion() < EMasterReign::RipLogicalChunkCount;
+        // COMPAT(danilalexeev)
+        NeedUnhealthyUnconfirmedChunkScan_ = context.GetVersion() < EMasterReign::WriteAclToSequoiaTable;
     }
 
     void LoadHistogramValues(
@@ -5212,7 +5203,7 @@ private:
             YT_LOG_INFO("Finished initializing chunk lists");
         }
 
-        {
+        if (NeedUnhealthyUnconfirmedChunkScan_) {
             YT_LOG_INFO("Scanning for unhealthy unconfirmed chunks");
 
             for (auto [_, chunk] : ChunkMap_) {
@@ -5229,7 +5220,7 @@ private:
 
                 if (exported || !trunkOwningNodes.empty()) {
                     YT_LOG_ALERT(
-                        "Found unhealthy unconfirmed chunk (ChunkId: %v, Exported: %v, TrunkOwningNodes: %v)",
+                        "Found unhealthy unconfirmed chunk (ChunkId: %v, Exported: %v, OwningNodes: %v)",
                         chunk->GetId(),
                         exported,
                         MakeFormattableView(
@@ -5303,6 +5294,7 @@ private:
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
         NeedRecomputeOrderedTabletStatistics_ = false;
+        NeedUnhealthyUnconfirmedChunkScan_ = false;
     }
 
     void SetZeroState() override
@@ -5709,7 +5701,7 @@ private:
             }
         }
 
-        auto replicasOrError = WaitFor(ChunkReplicaFetcher_->GetSequoiaChunkReplicas(chunkIds));
+        auto replicasOrError = WaitFor(ChunkReplicaFetcher_->GetApprovedSequoiaChunkReplicas(chunkIds));
         if (!replicasOrError.IsOK()) {
             YT_LOG_ERROR(replicasOrError, "Error getting Sequoia chunk replicas");
             return;
@@ -6646,6 +6638,9 @@ private:
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_lost_vital_chunks/@count"));
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_data_missing_chunks/@count"));
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_parity_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_oldest_part_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_quorum_missing_chunks/@count"));
+            batchReq->AddRequest(TYPathProxy::Get("//sys/local_inconsistently_placed_chunks/@count"));
 
             responsesFutures.push_back(batchReq->Invoke());
         }
@@ -6658,6 +6653,9 @@ private:
                 cellStatistics.set_lost_vital_chunk_count(0);
                 cellStatistics.set_data_missing_chunk_count(0);
                 cellStatistics.set_parity_missing_chunk_count(0);
+                cellStatistics.set_oldest_part_missing_chunk_count(0);
+                cellStatistics.set_quorum_missing_chunk_count(0);
+                cellStatistics.set_inconsistently_placed_chunk_count(0);
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 if (multicellManager->IsPrimaryMaster()) {
@@ -6665,7 +6663,7 @@ private:
                     cellStatistics.set_online_node_count(nodeTracker->GetOnlineNodeCount());
                 }
 
-                std::array<i64, 3> responsesSum{};
+                std::array<i64, 6> responsesSum{};
 
                 auto processResponse = [&] (const TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>& rsp, int index, TStringBuf name) {
                     auto currentRspOrError = rsp->GetResponse<TYPathProxy::TRspGet>(index);
@@ -6691,10 +6689,16 @@ private:
                     processResponse(rsp, 0, "lost vital chunks");
                     processResponse(rsp, 1, "data missing chunks");
                     processResponse(rsp, 2, "parity missing chunks");
+                    processResponse(rsp, 3, "oldest part missing chunks");
+                    processResponse(rsp, 4, "quorum missing chunks");
+                    processResponse(rsp, 5, "inconsistently placed chunks");
                 }
                 cellStatistics.set_lost_vital_chunk_count(responsesSum[0]);
                 cellStatistics.set_data_missing_chunk_count(responsesSum[1]);
                 cellStatistics.set_parity_missing_chunk_count(responsesSum[2]);
+                cellStatistics.set_oldest_part_missing_chunk_count(responsesSum[3]);
+                cellStatistics.set_quorum_missing_chunk_count(responsesSum[4]);
+                cellStatistics.set_inconsistently_placed_chunk_count(responsesSum[5]);
                 return cellStatistics;
             }));
     }

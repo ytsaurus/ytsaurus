@@ -1161,6 +1161,7 @@ namespace NSQLTranslationV1 {
         TMaybe<TIdentifier> StoreType;
         TNodePtr PartitionByHashFunction;
         TMaybe<TIdentifier> StoreExternalBlobs;
+        TNodePtr ExternalDataChannelsCount;
 
         TNodePtr DataSourcePath;
         NYql::TResetableSetting<TNodePtr, void> Location;
@@ -1170,7 +1171,7 @@ namespace NSQLTranslationV1 {
             return CompactionPolicy || AutoPartitioningBySize || PartitionSizeMb || AutoPartitioningByLoad
                 || MinPartitions || MaxPartitions || UniformPartitions || PartitionAtKeys || KeyBloomFilter
                 || ReadReplicasSettings || TtlSettings || Tiering || StoreType || PartitionByHashFunction
-                || StoreExternalBlobs || DataSourcePath || Location || ExternalSourceParameters;
+                || StoreExternalBlobs || DataSourcePath || Location || ExternalSourceParameters || ExternalDataChannelsCount;
         }
     };
 
@@ -1183,6 +1184,7 @@ namespace NSQLTranslationV1 {
         TNodePtr Data;
         TNodePtr Compression;
         TNodePtr CompressionLevel;
+        TNodePtr CacheMode;
     };
 
     struct TVectorIndexSettings {
@@ -1450,6 +1452,14 @@ namespace NSQLTranslationV1 {
         TString At;
     };
 
+    struct TStreamingQuerySettings {
+        inline static constexpr char RESERVED_FEATURE_PREFIX[] = "__";
+        inline static constexpr char QUERY_TEXT_FEATURE[] = "__query_text";
+        inline static constexpr char QUERY_AST_FEATURE[] = "__query_ast";
+
+        std::map<TString, TDeferredAtom> Features;
+    };
+
     TString IdContent(TContext& ctx, const TString& str);
     TString IdContentFromString(TContext& ctx, const TString& str);
     TTableHints GetContextHints(TContext& ctx);
@@ -1565,7 +1575,7 @@ namespace NSQLTranslationV1 {
     TNodePtr BuildCreateObjectOperation(TPosition pos, const TString& objectId, const TString& typeId,
         bool existingOk, bool replaceIfExists, std::map<TString, TDeferredAtom>&& features, const TObjectOperatorContext& context);
     TNodePtr BuildAlterObjectOperation(TPosition pos, const TString& secretId, const TString& typeId,
-        std::map<TString, TDeferredAtom>&& features, std::set<TString>&& featuresToReset, const TObjectOperatorContext& context);
+        bool missingOk, std::map<TString, TDeferredAtom>&& features, std::set<TString>&& featuresToReset, const TObjectOperatorContext& context);
     TNodePtr BuildDropObjectOperation(TPosition pos, const TString& secretId, const TString& typeId,
         bool missingOk, std::map<TString, TDeferredAtom>&& options, const TObjectOperatorContext& context);
     TNodePtr BuildCreateAsyncReplication(TPosition pos, const TString& id,

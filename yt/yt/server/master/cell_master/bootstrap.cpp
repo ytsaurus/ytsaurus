@@ -102,6 +102,7 @@
 #include <yt/yt/server/master/tablet_server/replicated_table_tracker_service.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_transaction_service.h>
+#include <yt/yt/server/master/transaction_server/transaction_finisher.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/yt/server/master/transaction_server/transaction_service.h>
 #include <yt/yt/server/master/transaction_server/config.h>
@@ -443,6 +444,11 @@ const INodeTrackerCachePtr& TBootstrap::GetNodeTrackerCache() const
 const ITransactionManagerPtr& TBootstrap::GetTransactionManager() const
 {
     return TransactionManager_;
+}
+
+const ITransactionFinisherPtr& TBootstrap::GetTransactionFinisher() const
+{
+    return TransactionFinisher_;
 }
 
 const ITransactionLeaseTrackerThreadPoolPtr& TBootstrap::GetTransactionLeaseTrackerThreadPool() const
@@ -801,7 +807,7 @@ void TBootstrap::DoInitialize()
 
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
 
-    RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+    RootClient_ = ClusterConnection_->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
@@ -920,6 +926,8 @@ void TBootstrap::DoInitialize()
 
     TransactionManager_ = CreateTransactionManager(this);
 
+    TransactionFinisher_ = CreateTransactionFinisher(this);
+
     MaintenanceTracker_ = CreateMaintenanceTracker(this);
 
     NodeTracker_ = CreateNodeTracker(this);
@@ -1005,6 +1013,7 @@ void TBootstrap::DoInitialize()
     IncumbentManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();
+    TransactionFinisher_->Initialize();
     NodeTracker_->Initialize();
     DataNodeTracker_->Initialize();
     ExecNodeTracker_->Initialize();
