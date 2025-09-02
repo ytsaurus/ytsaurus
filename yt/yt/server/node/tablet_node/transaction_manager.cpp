@@ -1322,7 +1322,12 @@ private:
         }
 
         if (!ForwardTransactionIfExternalized(transaction, *request, /*options*/ {})) {
-            transaction->SetHasUnforwardedActions(true);
+            // COMPAT(ifsmirnov)
+            if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                ETabletReign::UnforwardedTransactionActions)
+            {
+                transaction->SetHasUnforwardedActions(true);
+            }
         }
 
         transaction->PersistentPrepareSignature() += signature;
