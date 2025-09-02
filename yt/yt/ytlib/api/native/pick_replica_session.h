@@ -44,7 +44,9 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
 
 std::vector<TFuture<NTabletClient::TTableMountInfoPtr>> GetQueryTableInfos(
     NQueryClient::NAst::TQuery* query,
-    const NTabletClient::ITableMountCachePtr& cache);
+    const NTabletClient::ITableMountCachePtr& cache,
+    bool omitIndex = false,
+    bool allowMissingIndex = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

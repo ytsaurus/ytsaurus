@@ -1668,7 +1668,11 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 
 void PreheatCache(NAst::TQuery* query, const ITableMountCachePtr& mountCache)
 {
-    WaitForFast(AllSucceeded(GetQueryTableInfos(query, mountCache)))
+    WaitForFast(AllSucceeded(GetQueryTableInfos(
+        query,
+        mountCache,
+        /*omitIndex*/ false,
+        /*allowMissingIndex*/ true)))
         .ValueOrThrow();
 }
 
@@ -1697,7 +1701,11 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
     PreheatCache(astQuery, mountCache);
 
-    TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
+    TransformWithIndexStatement(
+        astQuery,
+        mountCache,
+        &parsedQuery->AstHead,
+        dynamicConfig->AllowUnaliasedSecondaryIndex);
 
     auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
