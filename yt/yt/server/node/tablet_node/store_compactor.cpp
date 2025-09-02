@@ -971,6 +971,10 @@ public:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
+        IgnoreFutureEffect_.store(dynamicConfig->IgnoreFutureEffect);
+        ScheduleNewTasksAfterTaskCompletion_.store(dynamicConfig->ScheduleNewTasksAfterTaskCompletion);
     }
 
     void OnBeginSlotScan() override
@@ -1126,6 +1130,10 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, FutureEffectLock_);
     THashMap<TTabletId, int> FutureEffect_;
 
+    // Mirrored flags from dynamic config for faster access.
+    std::atomic<bool> IgnoreFutureEffect_;
+    std::atomic<bool> ScheduleNewTasksAfterTaskCompletion_;
+
     const TCompactionOrchidPtr CompactionOrchid_;
     const TCompactionOrchidPtr PartitioningOrchid_;
     const IYPathServicePtr OrchidService_;
@@ -1159,6 +1167,9 @@ private:
         CompactionOrchid_->Reconfigure(config->Orchid);
 
         UseQueryPool_.store(config->UseQueryPool);
+
+        IgnoreFutureEffect_.store(config->IgnoreFutureEffect);
+        ScheduleNewTasksAfterTaskCompletion_.store(config->ScheduleNewTasksAfterTaskCompletion);
     }
 
     std::unique_ptr<TCompactionTask> MakeTask(
@@ -1389,6 +1400,10 @@ private:
 
     int LockedGetFutureEffect(NThreading::TReaderGuard<TReaderWriterSpinLock>&, TTabletId tabletId)
     {
+        if (IgnoreFutureEffect_) {
+            return 0;
+        }
+
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;
     }
@@ -1512,7 +1527,9 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            ScheduleMorePartitionings();
+            if (ScheduleNewTasksAfterTaskCompletion_) {
+                ScheduleMorePartitionings();
+            }
         });
 
         auto traceId = task->Info->TaskId;
@@ -1912,7 +1929,9 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            ScheduleMoreCompactions();
+            if (ScheduleNewTasksAfterTaskCompletion_) {
+                ScheduleMoreCompactions();
+            }
         });
 
         auto traceId = task->Info->TaskId;

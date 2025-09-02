@@ -262,6 +262,9 @@ struct TStoreCompactorDynamicConfig
 
     bool UseQueryPool;
 
+    bool IgnoreFutureEffect;
+    bool ScheduleNewTasksAfterTaskCompletion;
+
     REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
 
     static void Register(TRegistrar registrar);
