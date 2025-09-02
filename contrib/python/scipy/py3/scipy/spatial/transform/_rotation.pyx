@@ -473,6 +473,10 @@ cdef inline double[:, :] _compose_quat(
 
     return product
 
+def compose_quat(p, q):
+    """Composition of quaternions."""
+    return _compose_quat(p, q)
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef inline double[:, :] _make_elementary_quat(
@@ -563,6 +567,7 @@ cdef class Rotation:
     - Rotation Vectors
     - Modified Rodrigues Parameters
     - Euler Angles
+    - Davenport Angles (Generalized Euler Angles)
 
     The following operations on rotations are supported:
 
@@ -1113,6 +1118,8 @@ cdef class Rotation:
 
         .. versionadded:: 1.4.0
         """
+        cdef int ind
+
         is_single = False
         matrix = np.array(matrix, dtype=float)
 
@@ -2573,17 +2580,9 @@ cdef class Rotation:
             raise ValueError("Expected input of shape (3,) or (P, 3), "
                              "got {}.".format(vectors.shape))
 
-        single_vector = False
-        if vectors.shape == (3,):
-            single_vector = True
-            vectors = vectors[None, :]
-
-        matrix = self.as_matrix()
-        if self._single:
-            matrix = matrix[None, :, :]
-
-        n_vectors = vectors.shape[0]
-        n_rotations = len(self._quat)
+        cdef bint single_vector = vectors.ndim == 1
+        cdef Py_ssize_t n_vectors = 1 if single_vector else len(vectors)
+        cdef Py_ssize_t n_rotations = 1 if self.single else len(self)
 
         if n_vectors != 1 and n_rotations != 1 and n_vectors != n_rotations:
             raise ValueError("Expected equal numbers of rotations and vectors "
@@ -2591,15 +2590,25 @@ cdef class Rotation:
                              "{} rotations and {} vectors.".format(
                                 n_rotations, n_vectors))
 
-        if inverse:
-            result = np.einsum('ikj,ik->ij', matrix, vectors)
-        else:
-            result = np.einsum('ijk,ik->ij', matrix, vectors)
+        cdef np.ndarray matrix = self.as_matrix()
 
-        if self._single and single_vector:
-            return result[0]
-        else:
-            return result
+        if inverse:
+            matrix = np.swapaxes(matrix, -1, -2)
+
+        if single_vector:
+            return np.matmul(matrix, vectors)
+
+        if self.single:
+            matrix = matrix[None, :, :]
+
+        if n_rotations == 1:
+            # Single rotation/many vectors, use matmul for speed: The axes argument
+            # is such that the input arguments don't need to be transposed and the
+            # output argument is contineous in memory.
+            return np.matmul(matrix, vectors, axes=[(-2, -1), (-1, -2), (-1, -2)])[0]
+
+        # for stacks of matrices einsum is faster
+        return np.einsum('ijk,ik->ij', matrix, vectors)
 
     @cython.embedsignature(True)
     def __mul__(Rotation self, Rotation other):
@@ -3663,6 +3672,12 @@ cdef class Rotation:
             return cls.from_matrix(C), rssd, sensitivity
         else:
             return cls.from_matrix(C), rssd
+
+    def __repr__(Rotation self):
+        m = f"{self.as_matrix()!r}".splitlines()
+        # bump indent (+21 characters)
+        m[1:] = [" " * 21 + m[i] for i in range(1, len(m))]
+        return "Rotation.from_matrix(" + "\n".join(m) + ")"
 
 class Slerp:
     """Spherical Linear Interpolation of Rotations.

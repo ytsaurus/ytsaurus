@@ -492,6 +492,117 @@ static PY_LONG_LONG coo_matvec_thunk(int I_typenum, int T_typenum, void **a)
     }
 }
 
+static PY_LONG_LONG dia_matmat_thunk(int I_typenum, int T_typenum, void **a)
+{
+    int j = get_thunk_case(I_typenum, T_typenum);
+    switch (j) {
+        case 1:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_bool_wrapper*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_bool_wrapper*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_bool_wrapper>*)a[12]);
+            return 0;
+        case 2:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_byte*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_byte*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_byte>*)a[12]);
+            return 0;
+        case 3:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ubyte*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_ubyte*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_ubyte>*)a[12]);
+            return 0;
+        case 4:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_short*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_short*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_short>*)a[12]);
+            return 0;
+        case 5:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ushort*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_ushort*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_ushort>*)a[12]);
+            return 0;
+        case 6:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_int*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_int>*)a[12]);
+            return 0;
+        case 7:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_uint*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_uint*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_uint>*)a[12]);
+            return 0;
+        case 8:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_long*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_long*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_long>*)a[12]);
+            return 0;
+        case 9:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ulong*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_ulong*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_ulong>*)a[12]);
+            return 0;
+        case 10:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_longlong*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_longlong*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_longlong>*)a[12]);
+            return 0;
+        case 11:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ulonglong*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_ulonglong*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_ulonglong>*)a[12]);
+            return 0;
+        case 12:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_float*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_float*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_float>*)a[12]);
+            return 0;
+        case 13:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_double*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_double*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_double>*)a[12]);
+            return 0;
+        case 14:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_longdouble*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_longdouble*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_longdouble>*)a[12]);
+            return 0;
+        case 15:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_cfloat_wrapper*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_cfloat_wrapper*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_cfloat_wrapper>*)a[12]);
+            return 0;
+        case 16:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_cdouble_wrapper*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_cdouble_wrapper*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_cdouble_wrapper>*)a[12]);
+            return 0;
+        case 17:
+            (void)dia_matmat(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_clongdouble_wrapper*)a[5], *(const npy_int32*)a[6], *(const npy_int32*)a[7], *(const npy_int32*)a[8], (const npy_int32*)a[9], (const npy_clongdouble_wrapper*)a[10], (std::vector<npy_int32>*)a[11], (std::vector<npy_clongdouble_wrapper>*)a[12]);
+            return 0;
+        case 19:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_bool_wrapper*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_bool_wrapper*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_bool_wrapper>*)a[12]);
+            return 0;
+        case 20:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_byte*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_byte*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_byte>*)a[12]);
+            return 0;
+        case 21:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ubyte*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_ubyte*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_ubyte>*)a[12]);
+            return 0;
+        case 22:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_short*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_short*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_short>*)a[12]);
+            return 0;
+        case 23:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ushort*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_ushort*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_ushort>*)a[12]);
+            return 0;
+        case 24:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_int*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_int>*)a[12]);
+            return 0;
+        case 25:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_uint*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_uint*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_uint>*)a[12]);
+            return 0;
+        case 26:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_long*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_long*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_long>*)a[12]);
+            return 0;
+        case 27:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ulong*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_ulong*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_ulong>*)a[12]);
+            return 0;
+        case 28:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_longlong*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_longlong*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_longlong>*)a[12]);
+            return 0;
+        case 29:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ulonglong*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_ulonglong*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_ulonglong>*)a[12]);
+            return 0;
+        case 30:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_float*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_float*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_float>*)a[12]);
+            return 0;
+        case 31:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_double*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_double*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_double>*)a[12]);
+            return 0;
+        case 32:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_longdouble*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_longdouble*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_longdouble>*)a[12]);
+            return 0;
+        case 33:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_cfloat_wrapper*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_cfloat_wrapper*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_cfloat_wrapper>*)a[12]);
+            return 0;
+        case 34:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_cdouble_wrapper*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_cdouble_wrapper*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_cdouble_wrapper>*)a[12]);
+            return 0;
+        case 35:
+            (void)dia_matmat(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_clongdouble_wrapper*)a[5], *(const npy_int64*)a[6], *(const npy_int64*)a[7], *(const npy_int64*)a[8], (const npy_int64*)a[9], (const npy_clongdouble_wrapper*)a[10], (std::vector<npy_int64>*)a[11], (std::vector<npy_clongdouble_wrapper>*)a[12]);
+            return 0;
+    default:
+        throw std::runtime_error("internal error: invalid argument typenums");
+    }
+}
+
 static PY_LONG_LONG coo_matvec_nd_thunk(int I_typenum, int T_typenum, void **a)
 {
     int j = get_thunk_case(I_typenum, T_typenum);
@@ -936,6 +1047,117 @@ static PY_LONG_LONG dia_matvec_thunk(int I_typenum, int T_typenum, void **a)
     }
 }
 
+static PY_LONG_LONG dia_matvecs_thunk(int I_typenum, int T_typenum, void **a)
+{
+    int j = get_thunk_case(I_typenum, T_typenum);
+    switch (j) {
+        case 1:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_bool_wrapper*)a[5], *(const npy_int32*)a[6], (const npy_bool_wrapper*)a[7], (npy_bool_wrapper*)a[8]);
+            return 0;
+        case 2:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_byte*)a[5], *(const npy_int32*)a[6], (const npy_byte*)a[7], (npy_byte*)a[8]);
+            return 0;
+        case 3:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ubyte*)a[5], *(const npy_int32*)a[6], (const npy_ubyte*)a[7], (npy_ubyte*)a[8]);
+            return 0;
+        case 4:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_short*)a[5], *(const npy_int32*)a[6], (const npy_short*)a[7], (npy_short*)a[8]);
+            return 0;
+        case 5:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ushort*)a[5], *(const npy_int32*)a[6], (const npy_ushort*)a[7], (npy_ushort*)a[8]);
+            return 0;
+        case 6:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_int*)a[5], *(const npy_int32*)a[6], (const npy_int*)a[7], (npy_int*)a[8]);
+            return 0;
+        case 7:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_uint*)a[5], *(const npy_int32*)a[6], (const npy_uint*)a[7], (npy_uint*)a[8]);
+            return 0;
+        case 8:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_long*)a[5], *(const npy_int32*)a[6], (const npy_long*)a[7], (npy_long*)a[8]);
+            return 0;
+        case 9:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ulong*)a[5], *(const npy_int32*)a[6], (const npy_ulong*)a[7], (npy_ulong*)a[8]);
+            return 0;
+        case 10:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_longlong*)a[5], *(const npy_int32*)a[6], (const npy_longlong*)a[7], (npy_longlong*)a[8]);
+            return 0;
+        case 11:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_ulonglong*)a[5], *(const npy_int32*)a[6], (const npy_ulonglong*)a[7], (npy_ulonglong*)a[8]);
+            return 0;
+        case 12:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_float*)a[5], *(const npy_int32*)a[6], (const npy_float*)a[7], (npy_float*)a[8]);
+            return 0;
+        case 13:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_double*)a[5], *(const npy_int32*)a[6], (const npy_double*)a[7], (npy_double*)a[8]);
+            return 0;
+        case 14:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_longdouble*)a[5], *(const npy_int32*)a[6], (const npy_longdouble*)a[7], (npy_longdouble*)a[8]);
+            return 0;
+        case 15:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_cfloat_wrapper*)a[5], *(const npy_int32*)a[6], (const npy_cfloat_wrapper*)a[7], (npy_cfloat_wrapper*)a[8]);
+            return 0;
+        case 16:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_cdouble_wrapper*)a[5], *(const npy_int32*)a[6], (const npy_cdouble_wrapper*)a[7], (npy_cdouble_wrapper*)a[8]);
+            return 0;
+        case 17:
+            (void)dia_matvecs(*(const npy_int32*)a[0], *(const npy_int32*)a[1], *(const npy_int32*)a[2], *(const npy_int32*)a[3], (const npy_int32*)a[4], (const npy_clongdouble_wrapper*)a[5], *(const npy_int32*)a[6], (const npy_clongdouble_wrapper*)a[7], (npy_clongdouble_wrapper*)a[8]);
+            return 0;
+        case 19:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_bool_wrapper*)a[5], *(const npy_int64*)a[6], (const npy_bool_wrapper*)a[7], (npy_bool_wrapper*)a[8]);
+            return 0;
+        case 20:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_byte*)a[5], *(const npy_int64*)a[6], (const npy_byte*)a[7], (npy_byte*)a[8]);
+            return 0;
+        case 21:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ubyte*)a[5], *(const npy_int64*)a[6], (const npy_ubyte*)a[7], (npy_ubyte*)a[8]);
+            return 0;
+        case 22:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_short*)a[5], *(const npy_int64*)a[6], (const npy_short*)a[7], (npy_short*)a[8]);
+            return 0;
+        case 23:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ushort*)a[5], *(const npy_int64*)a[6], (const npy_ushort*)a[7], (npy_ushort*)a[8]);
+            return 0;
+        case 24:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_int*)a[5], *(const npy_int64*)a[6], (const npy_int*)a[7], (npy_int*)a[8]);
+            return 0;
+        case 25:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_uint*)a[5], *(const npy_int64*)a[6], (const npy_uint*)a[7], (npy_uint*)a[8]);
+            return 0;
+        case 26:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_long*)a[5], *(const npy_int64*)a[6], (const npy_long*)a[7], (npy_long*)a[8]);
+            return 0;
+        case 27:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ulong*)a[5], *(const npy_int64*)a[6], (const npy_ulong*)a[7], (npy_ulong*)a[8]);
+            return 0;
+        case 28:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_longlong*)a[5], *(const npy_int64*)a[6], (const npy_longlong*)a[7], (npy_longlong*)a[8]);
+            return 0;
+        case 29:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_ulonglong*)a[5], *(const npy_int64*)a[6], (const npy_ulonglong*)a[7], (npy_ulonglong*)a[8]);
+            return 0;
+        case 30:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_float*)a[5], *(const npy_int64*)a[6], (const npy_float*)a[7], (npy_float*)a[8]);
+            return 0;
+        case 31:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_double*)a[5], *(const npy_int64*)a[6], (const npy_double*)a[7], (npy_double*)a[8]);
+            return 0;
+        case 32:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_longdouble*)a[5], *(const npy_int64*)a[6], (const npy_longdouble*)a[7], (npy_longdouble*)a[8]);
+            return 0;
+        case 33:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_cfloat_wrapper*)a[5], *(const npy_int64*)a[6], (const npy_cfloat_wrapper*)a[7], (npy_cfloat_wrapper*)a[8]);
+            return 0;
+        case 34:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_cdouble_wrapper*)a[5], *(const npy_int64*)a[6], (const npy_cdouble_wrapper*)a[7], (npy_cdouble_wrapper*)a[8]);
+            return 0;
+        case 35:
+            (void)dia_matvecs(*(const npy_int64*)a[0], *(const npy_int64*)a[1], *(const npy_int64*)a[2], *(const npy_int64*)a[3], (const npy_int64*)a[4], (const npy_clongdouble_wrapper*)a[5], *(const npy_int64*)a[6], (const npy_clongdouble_wrapper*)a[7], (npy_clongdouble_wrapper*)a[8]);
+            return 0;
+    default:
+        throw std::runtime_error("internal error: invalid argument typenums");
+    }
+}
+
 static PY_LONG_LONG cs_graph_components_thunk(int I_typenum, int T_typenum, void **a)
 {
     int j = get_thunk_case(I_typenum, T_typenum);
@@ -974,6 +1196,12 @@ coo_matvec_method(PyObject *self, PyObject *args)
 }
 
 PyObject *
+dia_matmat_method(PyObject *self, PyObject *args)
+{
+    return call_thunk('v', "iiiiITiiiIT*V*W", dia_matmat_thunk, args);
+}
+
+PyObject *
 coo_matvec_nd_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "llIITT*T", coo_matvec_nd_thunk, args);
@@ -995,6 +1223,12 @@ PyObject *
 dia_matvec_method(PyObject *self, PyObject *args)
 {
     return call_thunk('v', "iiiiITT*T", dia_matvec_thunk, args);
+}
+
+PyObject *
+dia_matvecs_method(PyObject *self, PyObject *args)
+{
+    return call_thunk('v', "iiiiITiT*T", dia_matvecs_thunk, args);
 }
 
 PyObject *
