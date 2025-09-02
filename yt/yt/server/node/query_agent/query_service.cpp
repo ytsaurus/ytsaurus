@@ -1727,6 +1727,20 @@ private:
             return tabletSnapshot->TotalRowCount;
         }
 
+        // Should match TabletManaget::ValidateTrimmedRowCountPrecedeReplication
+        if (auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
+            replicationCard && !replicationCard->Replicas.empty())
+        {
+            if (const auto& progress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Acquire()) {
+                auto chaosReplicationMinTimestamp = GetReplicationCardProgressMinTimestamp(
+                    *replicationCard,
+                    progress->Segments[0].LowerKey,
+                    progress->UpperKey);
+
+                timestamp = std::min(timestamp, chaosReplicationMinTimestamp);
+            }
+        }
+
         struct TStoreSnapshot
         {
             TStoreId Id;
