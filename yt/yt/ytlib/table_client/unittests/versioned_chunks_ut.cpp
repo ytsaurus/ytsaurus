@@ -320,13 +320,13 @@ protected:
         config->BlockSize = testOptions.ChunkFormat == EChunkFormat::TableVersionedIndexed
             ? THashTableChunkIndexFormatDetail::SectorSize + 1
             : 1025;
+        config->EnableSegmentMetaInBlocks = true;
+        config->EnableColumnMetaInChunkMeta = !testOptions.UseNewReader;
         config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
-        options->EnableSegmentMetaInBlocks = true;
-        options->EnableColumnMetaInChunkMeta = !testOptions.UseNewReader;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(
@@ -787,13 +787,13 @@ protected:
             : 4_KB;
         config->MaxSegmentValueCount = 128;
         config->SampleRate = 0.0;
+        config->EnableSegmentMetaInBlocks = true;
+        config->EnableColumnMetaInChunkMeta = !testOptions.UseNewReader;
         config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
-        options->EnableSegmentMetaInBlocks = true;
-        options->EnableColumnMetaInChunkMeta = !testOptions.UseNewReader;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(
@@ -1649,13 +1649,13 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 1_KB;
+        config->EnableSegmentMetaInBlocks = true;
+        config->EnableColumnMetaInChunkMeta = false;
         config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = testOptions.OptimizeFor;
         options->ChunkFormat = testOptions.ChunkFormat;
-        options->EnableSegmentMetaInBlocks = true;
-        options->EnableColumnMetaInChunkMeta = false;
         options->ConsiderMinRowRangeDataWeight = false;
         options->Postprocess();
 
