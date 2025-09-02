@@ -201,14 +201,16 @@ private:
             }
 
             if (!LockId_) {
+                auto transactionId = Transaction_->GetId();
                 YT_LOG_DEBUG("Creating lock (TransactionId: %v)",
-                    Transaction_->GetId());
+                    transactionId);
 
                 CreateLock();
 
-                YT_LOG_DEBUG("Lock created (TransactionId: %v, LockId: %v)",
-                    Transaction_->GetId(),
-                    LockId_);
+                YT_LOG_DEBUG("Lock created (TransactionId: %v, LockId: %v, TransacionStillAlive: %v)",
+                    transactionId,
+                    LockId_,
+                    Transaction_ != nullptr);
             }
 
             if (CheckLockAcquired()) {
@@ -344,6 +346,11 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!IsLeader());
+
+        if (!Transaction_) {
+            YT_LOG_WARNING("Transaction expired just before leading started");
+            return;
+        }
 
         PrerequisiteTransactionId_.Store(Transaction_->GetId());
 
