@@ -119,6 +119,9 @@ struct TDiskHealthCheckerConfig
     //! Maximum time allowed for waiting for execution.
     TDuration WaitTimeout;
 
+    //! Check fails only if all retries fail.
+    int CheckRetryCount;
+
     TDiskHealthCheckerConfigPtr ApplyDynamic(const TDiskHealthCheckerDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TDiskHealthCheckerConfig);
@@ -141,6 +144,9 @@ struct TDiskHealthCheckerDynamicConfig
 
     //! Maximum time allowed for waiting for execution.
     std::optional<TDuration> WaitTimeout;
+
+    //! Check fails only if all retries fail.
+    std::optional<int> CheckRetryCount;
 
     REGISTER_YSON_STRUCT(TDiskHealthCheckerDynamicConfig);
 
