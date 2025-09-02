@@ -25,7 +25,7 @@ from ._highspy._core import(
     HighsModelStatus,
     simplex_constants as s_c,  # [1]
 )
-from scipy.sparse import csc_matrix, vstack, issparse
+from scipy.sparse import csc_array, vstack, issparse
 
 # [1]: Directly importing from "._highspy._core.simplex_constants"
 # causes problems when reloading.
@@ -318,7 +318,7 @@ def _linprog_highs(lp, solver, time_limit=None, presolve=True,
         A = vstack((A_ub, A_eq))
     else:
         A = np.vstack((A_ub, A_eq))
-    A = csc_matrix(A)
+    A = csc_array(A)
 
     options = {
         'presolve': presolve,
