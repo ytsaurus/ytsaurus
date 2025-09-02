@@ -3011,18 +3011,10 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
         return MinTimestamp;
     }
 
-    const auto& segments = replicationProgress->Segments;
-    const auto& upper = replicationProgress->UpperKey;
-    auto replicationTimestamp = MaxTimestamp;
-    for (const auto& [_, replica] : replicationCard->Replicas) {
-        auto minTimestamp = GetReplicationProgressMinTimestamp(
-            replica.ReplicationProgress,
-            segments[0].LowerKey,
-            upper);
-        replicationTimestamp = std::min(replicationTimestamp, minTimestamp);
-    }
-
-    return replicationTimestamp;
+    return GetReplicationCardProgressMinTimestamp(
+        *replicationCard,
+        replicationProgress->Segments[0].LowerKey,
+        replicationProgress->UpperKey);
 }
 
 const IHunkLockManagerPtr& TTablet::GetHunkLockManager() const

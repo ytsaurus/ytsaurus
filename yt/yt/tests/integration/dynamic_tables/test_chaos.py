@@ -93,6 +93,11 @@ class TestChaos(ChaosTestBase):
         for driver in self._get_drivers():
             set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
 
+        native_config = deepcopy(self.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 3
+        self.native_driver = Driver(native_config)
+
     @authors("savrus")
     def test_virtual_maps(self):
         tablet_cell_id = sync_create_cells(1)[0]
@@ -4734,17 +4739,28 @@ class TestChaos(ChaosTestBase):
         sync_flush_table("//tmp/q1")
         sync_flush_table("//tmp/q2")
 
-        # Prevent trimmig errors due to replication lag
-        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
-        ts = get(f"#{card_id}/@current_timestamp")
+        ts = generate_timestamp()
 
-        for replica in replicas:
-            self._wait_for_table_card_timestamp(replica["replica_path"], ts)
+        def _get_safe_trim_row_count(path: str, tablet_index: int):
+            requests = [{"path": path, "tablet_index": tablet_index, "timestamp": ts}]
+            results = execute_command(
+                "get_ordered_tablet_safe_trim_row_count",
+                parameters={
+                    "requests": requests,
+                    "driver": self.native_driver,
+                },
+                parse_yson=True
+            )
+            assert len(results) == 1
+            return results[0]["value"]
 
-        # TODO(osidorkin) Use safe trim row count
-        trim_rows("//tmp/q0", 0, 1)
-        trim_rows("//tmp/q1", 0, 1)
-        trim_rows("//tmp/q2", 0, 1)
+        def _checked_trim_rows(path: str, tablet_index: int, row_count: int):
+            wait(lambda: _get_safe_trim_row_count(path, tablet_index) >= row_count)
+            trim_rows(path, tablet_index, row_count)
+
+        _checked_trim_rows("//tmp/q0", 0, 1)
+        _checked_trim_rows("//tmp/q1", 0, 1)
+        _checked_trim_rows("//tmp/q2", 0, 1)
 
         tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
         assert len(tablet_infos) == 1
