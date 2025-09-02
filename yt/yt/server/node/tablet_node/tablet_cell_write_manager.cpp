@@ -257,6 +257,15 @@ public:
 
             if (transaction) {
                 AddTransientAffectedTablet(transaction, tablet);
+
+                if (!transaction->GetTransient() &&
+                    tablet->SmoothMovementData().ShouldForwardMutation() &&
+                    !transaction->ExternalizerTablets().contains(tablet->GetId()))
+                {
+                    THROW_ERROR_EXCEPTION("Attempted to write rows in a transaction which is "
+                        "persistent and should be externalized but is not")
+                        << TErrorAttribute("transaction_id", transaction->GetId());
+                }
             }
 
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();

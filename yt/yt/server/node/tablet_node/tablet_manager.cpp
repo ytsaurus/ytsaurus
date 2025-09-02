@@ -1410,6 +1410,14 @@ private:
             THROW_ERROR_EXCEPTION("Bulk insert lock replication is not supported");
         }
 
+        // Restart chaos replica epoch to avoid puller transactions intersecting
+        // smooth movement barrier.
+        if (auto replicationCardId = tablet->GetReplicationCardId()) {
+            StopChaosReplicaEpoch(tablet);
+            RemoveChaosAgent(tablet);
+            StartChaosReplicaEpoch(tablet, replicationCardId);
+        }
+
         TReqReplicateTabletContent request;
 
         // Essential stuff.
