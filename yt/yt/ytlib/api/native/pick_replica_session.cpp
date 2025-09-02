@@ -18,6 +18,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NQueryClient;
 
+using NYTree::EErrorCode::ResolveError;
+
 using TClusterScoreMap = THashMap<std::string, TTimestamp>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,12 +36,12 @@ template <class TCallback>
 void TraverseQueryTables(NAst::TQuery* query, TCallback onTableDescriptor)
 {
     if (query->WithIndex) {
-        onTableDescriptor(*query->WithIndex);
+        onTableDescriptor(*query->WithIndex, /*index*/ true);
     }
 
     Visit(query->FromClause,
         [&] (NAst::TTableDescriptor& table) {
-            onTableDescriptor(table);
+            onTableDescriptor(table, false);
         },
         [&] (NAst::TQueryAstHeadPtr& subquery) {
             TraverseQueryTables(&subquery->Ast, onTableDescriptor);
@@ -50,7 +52,7 @@ void TraverseQueryTables(NAst::TQuery* query, TCallback onTableDescriptor)
 
     for (auto& join : query->Joins) {
         if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
-            onTableDescriptor(tableJoin->Table);
+            onTableDescriptor(tableJoin->Table, false);
         }
     }
 }
@@ -62,12 +64,30 @@ bool IsChaos(const TTableMountInfoPtr& tableInfo)
 
 std::vector<TFuture<TTableMountInfoPtr>> GetQueryTableInfos(
     NAst::TQuery* query,
-    const ITableMountCachePtr& cache)
+    const ITableMountCachePtr& cache,
+    bool omitIndex,
+    bool allowMissingIndex)
 {
     std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
 
-    TraverseQueryTables(query, [&] (NAst::TTableDescriptor& table) {
-        asyncTableInfos.push_back(cache->GetTableInfo(table.Path));
+    TraverseQueryTables(query, [&] (NAst::TTableDescriptor& table, bool index) {
+        if (index && omitIndex) {
+            return;
+        }
+
+        auto future = cache->GetTableInfo(table.Path);
+
+        if (index && allowMissingIndex) {
+            future = future.Apply(BIND([] (const TErrorOr<TTableMountInfoPtr>& errorOrMountInfo) {
+                if (!errorOrMountInfo.IsOK() && errorOrMountInfo.FindMatching(ResolveError)) {
+                    return TErrorOr(TTableMountInfoPtr());
+                } else {
+                    return errorOrMountInfo;
+                }
+            }));
+        }
+
+        asyncTableInfos.push_back(std::move(future));
     });
 
     return asyncTableInfos;
@@ -77,7 +97,11 @@ std::vector<NAst::TTableHintPtr> GetQueryTableHints(NAst::TQuery* query)
 {
     std::vector<NAst::TTableHintPtr> hints;
 
-    TraverseQueryTables(query, [&] (NAst::TTableDescriptor& table) {
+    TraverseQueryTables(query, [&] (NAst::TTableDescriptor& table, bool index) {
+        if (index) {
+            return;
+        }
+
         hints.push_back(table.Hint);
     });
 
@@ -102,9 +126,12 @@ std::vector<IBannedReplicaTrackerPtr> GetBannedReplicaTrackers(
 
 void PatchQuery(NAst::TQuery* query, const TReplicaSynchronicityList& replicas)
 {
-    int index = 0;
-    TraverseQueryTables(query, [&] (NAst::TTableDescriptor& table) {
-        table.Path = replicas[index++].ReplicaInfo->ReplicaPath;
+    int tableIndex = 0;
+    TraverseQueryTables(query, [&] (NAst::TTableDescriptor& table, bool index) {
+        if (index) {
+            return;
+        }
+        table.Path = replicas.at(tableIndex++).ReplicaInfo->ReplicaPath;
     });
 }
 
@@ -501,9 +528,10 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     const TSelectRowsOptionsBase& options,
     TTimestamp timestamp)
 {
-    auto tableInfos = WaitForFast(AllSucceeded(GetQueryTableInfos(query, mountCache)))
+    auto tableInfos = WaitForFast(AllSucceeded(GetQueryTableInfos(query, mountCache, /*omitIndex*/ true)))
         .ValueOrThrow();
     auto tableHints = GetQueryTableHints(query);
+
     auto bannedReplicaTrackers = GetBannedReplicaTrackers(connection, tableInfos);
 
     if (!CheckReplicated(tableInfos, options.ReplicaConsistency)) {
