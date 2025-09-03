@@ -1478,6 +1478,35 @@ void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRo
     }
 }
 
+// NB: UnprepareRow is idempotent.
+void TSortedDynamicStore::UnprepareRow(
+    TTransaction* transaction,
+    TSortedDynamicRow row,
+    TTimestamp transientPrepareTimestamp)
+{
+    // Transient prepare timestamp is provided separately from transaction as it could be already reset to active with 0 prepare timestamp.
+    YT_ASSERT(transientPrepareTimestamp != NullTimestamp);
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(FlushRevision_ != MaxRevision);
+
+    auto* lock = row.BeginLocks(KeyColumnCount_);
+    for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+        if (lock->WriteTransaction == transaction) {
+            lock->WriteTransactionPrepareTimestamp = NotPreparedTimestamp;
+        } else if (lock->SharedWriteTransactions.contains({transientPrepareTimestamp, transaction})) {
+            EraseOrCrash(
+                lock->SharedWriteTransactions,
+                TLockDescriptor::TSharedWriteTransaction{transientPrepareTimestamp, transaction});
+
+            InsertOrCrash(
+                lock->SharedWriteTransactions,
+                TLockDescriptor::TSharedWriteTransaction{NotPreparedTimestamp, transaction});
+        }
+
+        RecalculatePrepareTimestamp(lock);
+    }
+}
+
 void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
     TTransaction* transaction,
     TSortedDynamicRow dynamicRow,

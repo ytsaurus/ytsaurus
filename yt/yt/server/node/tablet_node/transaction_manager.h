@@ -71,9 +71,9 @@ struct ITransactionManager
     DECLARE_INTERFACE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
 
     //! Raised on epoch finish for each transaction (both persistent and transient)
-    //! to help all dependent subsystems to reset their transient transaction-related
-    //! state.
-    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionTransientReset);
+    //! to help all dependent subsystems to reset their transient transaction-related state.
+    //! Provided timestamp is non-null iff reset happened to transaction in TransientCommitPrepared state.
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*, TTimestamp), TransactionTransientReset);
 
     //! Finds transaction by id.
     //! If it does not exist then creates a new transaction

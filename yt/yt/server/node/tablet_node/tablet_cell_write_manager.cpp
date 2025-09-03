@@ -1079,11 +1079,11 @@ private:
         }
     }
 
-    void OnTransactionTransientReset(TTransaction* transaction)
+    void OnTransactionTransientReset(TTransaction* transaction, TTimestamp transientPrepareTimestamp)
     {
         for (auto* tablet : GetAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
-            tabletWriteManager->OnTransactionTransientReset(transaction);
+            tabletWriteManager->OnTransactionTransientReset(transaction, transientPrepareTimestamp);
         }
 
         // Release transient locks.
