@@ -50,6 +50,7 @@ target_link_options(library-query-unittests INTERFACE
 )
 
 target_sources(library-query-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/test_evaluate.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
 
