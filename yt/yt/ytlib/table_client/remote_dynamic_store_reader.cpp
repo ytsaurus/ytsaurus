@@ -863,9 +863,27 @@ protected:
 
     TFuture<void> DispatchUnderlyingReadyEvent(const TError& error)
     {
+        // NB(apollo1321): This workaround prevents stack overflow when
+        // LocateDynamicStore is retried repeatedly. Ideally, this logic should be
+        // refactored to use fibers instead of futures to avoid deep recursive calls.
+        auto promise = NewPromise<void>();
+        auto future = promise.ToFuture();
+
+        DoDispatchUnderlyingReadyEvent(std::move(promise), error);
+
+        return future;
+    }
+
+    void DoDispatchUnderlyingReadyEvent(TPromise<void> promise, const TError& error)
+    {
+        if (promise.IsCanceled()) {
+            return;
+        }
+
         if (error.IsOK()) {
             // Everything is just fine, underlying reader is ready.
-            return VoidFuture;
+            promise.Set();
+            return;
         }
 
         // Error in underlying ready event should be treated differently depending on
@@ -875,7 +893,8 @@ protected:
 
         if (ChunkReaderFallbackOccurred_) {
             // There is no way we can recover from this.
-            return MakeFuture(error);
+            promise.Set(error);
+            return;
         }
 
         // TODO(max42): do not retry if error is not retryable?
@@ -886,10 +905,10 @@ protected:
             Config_->RetryCount,
             LastLocateRequestTimestamp_);
 
-        return LocateDynamicStore();
+        LocateDynamicStore(std::move(promise));
     }
 
-    TFuture<void> LocateDynamicStore()
+    void LocateDynamicStore(TPromise<void> promise)
     {
         if (RetryCount_ == Config_->RetryCount) {
             auto storeId = GetObjectIdFromChunkSpec(ChunkSpec_);
@@ -902,22 +921,28 @@ protected:
                 << TErrorAttribute("cell_id", cellId)
                 << TErrorAttribute("retry_count", RetryCount_);
 
-            return MakeFuture(error);
+            promise.Set(std::move(error));
+            return;
         }
 
-        auto locateDynamicStoreAsync = BIND(&TRetryingRemoteDynamicStoreReaderBase::DoLocateDynamicStore, MakeStrong(this))
-            .AsyncVia(GetCurrentInvoker());
 
         auto now = TInstant::Now();
         if (LastLocateRequestTimestamp_ + Config_->LocateRequestBackoffTime > now) {
-            return TDelayedExecutor::MakeDelayed(LastLocateRequestTimestamp_ + Config_->LocateRequestBackoffTime - now).Apply(
-                locateDynamicStoreAsync);
+            auto locateDynamicStoreAsync = BIND(&TRetryingRemoteDynamicStoreReaderBase::DoLocateDynamicStore, MakeStrong(this), promise)
+                .AsyncVia(GetCurrentInvoker());
+
+            auto future = TDelayedExecutor::MakeDelayed(LastLocateRequestTimestamp_ + Config_->LocateRequestBackoffTime - now)
+                .Apply(std::move(locateDynamicStoreAsync));
+
+            promise.OnCanceled(BIND([future = future.AsCancelable()] (const TError& error) {
+                future.Cancel(error);
+            }));
         } else {
-            return locateDynamicStoreAsync.Run();
+            DoLocateDynamicStore(std::move(promise));
         }
     }
 
-    TFuture<void> DoLocateDynamicStore()
+    void DoLocateDynamicStore(TPromise<void> promise)
     {
         LastLocateRequestTimestamp_ = TInstant::Now();
         ++RetryCount_;
@@ -934,8 +959,8 @@ protected:
                 EMasterChannelKind::Follower,
                 CellTagFromId(storeId));
         } catch (const std::exception& ex) {
-            return MakeFuture(TError("Error communicating with master")
-                << ex);
+            promise.Set(TError("Error communicating with master") << ex);
+            return;
         }
 
         TChunkServiceProxy proxy(channel);
@@ -946,16 +971,20 @@ protected:
         // Redundant for ordered tables but not much enough to move it out of the base class.
         req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
         req->SetResponseHeavy(true);
-        return req->Invoke().Apply(
-            BIND(&TRetryingRemoteDynamicStoreReaderBase::OnLocateResponse, MakeStrong(this))
+        auto future = req->Invoke().Apply(
+            BIND(&TRetryingRemoteDynamicStoreReaderBase::OnLocateResponse, MakeStrong(this), promise)
                 .AsyncVia(GetCurrentInvoker()));
+        promise.OnCanceled(BIND([future = future.AsCancelable()] (const TError& error) {
+            future.Cancel(error);
+        }));
     }
 
-    TFuture<void> OnLocateResponse(const TChunkServiceProxy::TErrorOrRspLocateDynamicStoresPtr& rspOrError)
+    void OnLocateResponse(TPromise<void> promise, const TChunkServiceProxy::TErrorOrRspLocateDynamicStoresPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Failed to locate dynamic store");
-            return LocateDynamicStore();
+            LocateDynamicStore(std::move(promise));
+            return;
         }
 
         const auto& rsp = rspOrError.Value();
@@ -965,7 +994,8 @@ protected:
         // Dynamic store is missing.
         if (subresponse.missing()) {
             YT_LOG_DEBUG("Dynamic store located: store is missing");
-            return MakeFuture(TError("Dynamic store is missing"));
+            promise.Set(TError("Dynamic store is missing"));
+            return;
         }
 
         {
@@ -979,7 +1009,8 @@ protected:
             CurrentReader_.Store(nullptr);
             ChunkReaderFallbackOccurred_ = true;
             FlushedToEmptyChunk_ = true;
-            return VoidFuture;
+            promise.Set();
+            return;
         }
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
@@ -990,7 +1021,8 @@ protected:
             auto replicas = GetReplicasFromChunkSpec(chunkSpec);
             if (replicas.empty()) {
                 YT_LOG_DEBUG("Dynamic store located: store has no replicas");
-                return LocateDynamicStore();
+                LocateDynamicStore(std::move(promise));
+                return;
             }
 
             YT_LOG_DEBUG("Dynamic store located: got new replicas");
@@ -1000,9 +1032,12 @@ protected:
 
             DoCreateRemoteDynamicStoreReader();
 
-            return OpenCurrentReader().Apply(
-                BIND(&TRetryingRemoteDynamicStoreReaderBase::DispatchUnderlyingReadyEvent, MakeStrong(this))
+            auto future = OpenCurrentReader().Apply(
+                BIND(&TRetryingRemoteDynamicStoreReaderBase::DoDispatchUnderlyingReadyEvent, MakeStrong(this), promise)
                     .AsyncVia(GetCurrentInvoker()));
+            promise.OnCanceled(BIND([future = future.AsCancelable()] (const TError& error) {
+                future.Cancel(error);
+            }));
         } else {
             if (ChunkSpec_.has_lower_limit()) {
                 *chunkSpec.mutable_lower_limit() = ChunkSpec_.lower_limit();
@@ -1025,8 +1060,8 @@ protected:
             YT_LOG_DEBUG("Dynamic store located: falling back to chunk reader (ChunkId: %v)",
                 GetObjectIdFromChunkSpec(ChunkSpec_));
 
-            return ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManagerHolder_)
-                .Apply(BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this)));
+            promise.SetFrom(ChunkReaderFactory_(ChunkSpec_, ReaderMemoryManagerHolder_)
+                .Apply(BIND(&TRetryingRemoteDynamicStoreReaderBase::OnChunkReaderCreated, MakeStrong(this))));
         }
     }
 
