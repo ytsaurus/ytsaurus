@@ -2,13 +2,10 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h>
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
-
-#include <yt/yt/client/table_client/unversioned_row.h>
 
 namespace NYT::NTableClient {
 
