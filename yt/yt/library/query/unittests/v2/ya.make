@@ -5,6 +5,7 @@ ALLOCATOR(TCMALLOC)
 SRCS(
     init.cpp
     ql_cast_ut.cpp
+    ql_nested_subqueries_ut.cpp
 )
 
 PEERDIR(
