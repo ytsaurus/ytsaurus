@@ -383,9 +383,10 @@ private:
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             auto mutatingSubrequest = ypathExt.mutating();
 
-            YT_LOG_DEBUG("Parsed subrequest (Method: %v, TargetPath: %v, Mutating: %v%v, Retry: %v)",
+            YT_LOG_DEBUG("Parsed subrequest (Method: %v, TargetPath: %v, TransactionId: %v, Mutating: %v%v, Retry: %v)",
                 header.method(),
                 ypathExt.target_path(),
+                GetTransactionId(header),
                 mutatingSubrequest,
                 MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
                     if (mutatingSubrequest) {
