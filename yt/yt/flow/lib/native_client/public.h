@@ -17,6 +17,18 @@ inline constexpr TStringBuf FlowStateTableName = "flow_state";
 inline constexpr TStringBuf FlowStateObsoleteTableName = "flow_state_obsolete";
 inline constexpr TStringBuf PartitionTransactionsTableName = "partition_transactions";
 
+inline const std::vector InternalFlowTables{
+    InputMessagesTableName,
+    OutputMessagesTableName,
+    PartitionOutputMessagesTableName,
+    CheckpointsTableName,
+    PartitionCheckpointsTableName,
+    TimersTableName,
+    ControllerLogsTableName,
+    FlowStateTableName,
+    FlowStateObsoleteTableName,
+    PartitionTransactionsTableName};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
