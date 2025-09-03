@@ -261,12 +261,12 @@ void TAdditionalSystemLib::Register(TRegistrar registrar)
         .Default();
 }
 
-void TYqlProcessPluginConfig::Register(TRegistrar registrar)
+void TProcessYqlPluginConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
-    registrar.Parameter("slot_count", &TThis::SlotsCount)
+    registrar.Parameter("slot_count", &TThis::SlotCount)
         .Default(32);
 
     registrar.Parameter("slots_root_path", &TThis::SlotsRootPath)
@@ -274,6 +274,12 @@ void TYqlProcessPluginConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("check_process_active_delay", &TThis::CheckProcessActiveDelay)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("default_request_timeout", &TThis::DefaultRequestTimeout)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("run_request_timeout", &TThis::RunRequestTimeout)
+        .Default(TDuration::Days(7));
 
     registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
         .DefaultNew();

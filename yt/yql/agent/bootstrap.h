@@ -43,10 +43,8 @@ public:
     ~TBootstrap();
 
     void Run();
-    
-    const NServer::TNativeServerBootstrapConfigPtr GetNativeServerBootstrapConfig() const;
 
-    const TServerProgramConfigPtr GetServerProgramConfig() const;
+    const NApi::NNative::TConnectionCompoundConfigPtr GetClusterConnectionConfig() const;
 
 private:
     TAgentId AgentId_;

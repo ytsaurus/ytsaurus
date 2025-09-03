@@ -284,25 +284,26 @@ public:
         DefaultYqlUILangVersion_ = defaultVersionStringBuf;
         YT_LOG_INFO("Deafult YQL version for UI is set (Version: %v)", DefaultYqlUILangVersion_);
         auto options = NYqlPlugin::ConvertToOptions(
-            Config_, 
-            singletonsConfigString, 
-            NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")), 
+            Config_,
+            singletonsConfigString,
+            NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             MaxSupportedYqlVersion_);
 
         // NB: under debug build this method does not fit in regular fiber stack
         // due to python udf loading
         using TSignature = void(NYqlPlugin::TYqlPluginOptions);
         auto coroutine = TCoroutine<TSignature>(
-            BIND([this, bootstrap, maxVersionStringBuf](
+            BIND([this, bootstrap, maxVersionStringBuf, singletonsConfigDefaultLogging](
                 TCoroutine<TSignature>& /*self*/,
                 NYqlPlugin::TYqlPluginOptions options
             ) {
-                YqlPlugin_ = Config_->ProcessPluginConfig->Enabled 
+                YqlPlugin_ = Config_->ProcessPluginConfig->Enabled
                     ? NYqlPlugin::NProcess::CreateProcessYqlPlugin(
-                        bootstrap, 
-                        Config_, 
-                        YqlAgentProfiler().WithPrefix("/yql_plugin"),
-                        TString(maxVersionStringBuf))
+                        Config_,
+                        singletonsConfigDefaultLogging,
+                        bootstrap->GetClusterConnectionConfig(),
+                        TString(maxVersionStringBuf),
+                        YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
                     : NYqlPlugin::CreateBridgeYqlPlugin(std::move(options));
             }),
             EExecutionStackKind::Large);

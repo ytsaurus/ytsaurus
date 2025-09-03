@@ -116,23 +116,26 @@ struct TAdditionalSystemLib
 
 DEFINE_REFCOUNTED_TYPE(TAdditionalSystemLib)
 
-struct TYqlProcessPluginConfig
+struct TProcessYqlPluginConfig
     : public NYTree::TYsonStruct
 {
     bool Enabled;
-    int SlotsCount;
+    int SlotCount;
     TString SlotsRootPath;
 
     TDuration CheckProcessActiveDelay;
 
+    TDuration DefaultRequestTimeout;
+    TDuration RunRequestTimeout;
+
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
 
-    REGISTER_YSON_STRUCT(TYqlProcessPluginConfig);
+    REGISTER_YSON_STRUCT(TProcessYqlPluginConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlProcessPluginConfig)
+DEFINE_REFCOUNTED_TYPE(TProcessYqlPluginConfig)
 
 struct TYqlPluginConfig
     : public NYTree::TYsonStruct
@@ -170,7 +173,7 @@ struct TYqlPluginConfig
 
     std::vector<TAdditionalSystemLibPtr> AdditionalSystemLibs;
 
-    TYqlProcessPluginConfigPtr ProcessPluginConfig;
+    TProcessYqlPluginConfigPtr ProcessPluginConfig;
 
     REGISTER_YSON_STRUCT(TYqlPluginConfig);
 

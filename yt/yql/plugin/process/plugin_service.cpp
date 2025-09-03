@@ -82,8 +82,10 @@ public:
           TYsonString(request->settings()),
           files);
 
-        for (const TString& cluster : clusters.Clusters) {
-            response->add_clusters(cluster);
+        for (const auto& cluster : clusters.Clusters) {
+            auto added = response->add_clusters();
+            added->set_cluster_name(cluster.first);
+            added->set_cluster_address(cluster.second);
         }
 
         if (clusters.YsonError) {

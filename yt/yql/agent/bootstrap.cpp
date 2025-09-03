@@ -317,14 +317,9 @@ void TBootstrap::OnDynamicConfigChanged(
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
-const NServer::TNativeServerBootstrapConfigPtr TBootstrap::GetNativeServerBootstrapConfig() const 
+const NApi::NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConfig() const
 {
-    return Config_;
-}
-
-const TServerProgramConfigPtr TBootstrap::GetServerProgramConfig() const
-{
-    return Config_;
+    return Config_->ClusterConnection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
