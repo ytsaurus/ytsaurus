@@ -1,4 +1,4 @@
-module go.ytsaurus.tech/yt/yt/go/gpuagent
+module go.ytsaurus.tech/yt/yt/gpuagent
 
 go 1.23.8
 
