@@ -925,8 +925,11 @@ TJoinClausePtr BuildArrayJoinClause(
             "Expected a list-like type expression in the ARRAY JOIN operator, got %v",
             *typedExpression->LogicalType);
 
-        auto containedType = logicalType->UncheckedAsListTypeRef().GetElement();
-        nestedColumns[index] = TColumnSchema(aliasExpression->Name, std::move(containedType));
+        auto flattenedType = logicalType->UncheckedAsListTypeRef().GetElement();
+        if (arrayJoin.IsLeft && !flattenedType->IsNullable()) {
+            flattenedType = OptionalLogicalType(std::move(flattenedType));
+        }
+        nestedColumns[index] = TColumnSchema(aliasExpression->Name, std::move(flattenedType));
     }
 
     arrayJoinClause->Schema.Original = New<TTableSchema>(std::move(nestedColumns));
