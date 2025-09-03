@@ -9,6 +9,7 @@
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
 #include <yt/cpp/mapreduce/client/client.h>
+#include <yt/cpp/mapreduce/rpc_client/client_impl.h>
 
 #include <util/stream/printf.h>
 
@@ -73,7 +74,14 @@ IClientPtr CreateTestClient(TString proxy, TCreateClientOptions options)
         options.UseCoreHttpClient(true);
     }
 
-    auto client = CreateClient(proxy, options);
+    IClientPtr client;
+
+    if (UseRpcClient()) {
+        client = CreateRpcClient(proxy, options);
+    } else {
+        client = CreateClient(proxy, options);
+    }
+
     VerifyLocalMode(proxy, client);
     client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));
     client->Create("//testing", ENodeType::NT_MAP, TCreateOptions());
@@ -124,6 +132,14 @@ void WriteTable(const IClientBasePtr& client, const TString& tablePath, const st
         writer->AddRow(row);
     }
     writer->Finish();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool UseRpcClient()
+{
+    auto useRpcClient = GetEnv("YT_TESTS_USE_RPC_CLIENT");
+    return !useRpcClient.empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

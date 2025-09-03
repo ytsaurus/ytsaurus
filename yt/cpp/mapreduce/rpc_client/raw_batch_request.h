@@ -167,6 +167,15 @@ private:
     std::queue<TIntrusivePtr<ISingleRequest>> Requests_;
 
     bool Executed_ = false;
+
+    template<typename TRequest>
+    auto AddRequest(TRequest&& request) -> decltype(request->GetFuture())
+    {
+        Y_ENSURE(!Executed_, "Cannot add request: batch request is already executed");
+        auto future = request->GetFuture();
+        Requests_.emplace(std::forward<decltype(request)>(request));
+        return future;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
