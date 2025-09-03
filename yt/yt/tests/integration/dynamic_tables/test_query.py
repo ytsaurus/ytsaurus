@@ -1866,6 +1866,47 @@ class TestQuery(DynamicTablesBase):
                      (5, 3) and (5, 4),
                      (5, 5, 5) and (5, 6))""", 1)
 
+    @authors("timothyxp")
+    def test_group_by_order_by_projection_number(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+            ],
+            [
+                {"a": 0, "b": "b"},
+                {"a": 1, "b": "b"},
+                {"a": 2, "b": "a"},
+                {"a": 3, "b": "a"},
+            ],
+            "scan",
+        )
+
+        requests = [
+            (
+                "select a % 2 from `//tmp/t` group by 1",
+                [
+                    {"$projection_1": 0},
+                    {"$projection_1": 1},
+                ]
+            ),
+            (
+                "select a, b from `//tmp/t` order by 2 desc, 1 desc limit 4",
+                [
+                    {"a": 1, "b": "b"},
+                    {"a": 0, "b": "b"},
+                    {"a": 3, "b": "a"},
+                    {"a": 2, "b": "a"},
+                ]
+            ),
+        ]
+
+        for query, expected in requests:
+            actual = select_rows(query, expression_builder_version=2, syntax_version=3)
+            assert expected == actual
+
     @authors("dtorilov")
     def test_select_with_case_operator(self):
         sync_create_cells(1)

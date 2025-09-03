@@ -638,7 +638,7 @@ TEST_F(TQueryPrepareTest, TableAliasIsKeyword)
         auto queryString = std::string(R"(* from [//index] as index
             join [//order] as order on index.id = order.id)");
 
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = ParseAndPreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         EXPECT_EQ(query->JoinClauses.size(), 1u);
         const auto& joinClauses = query->JoinClauses;
@@ -1130,7 +1130,7 @@ TEST_F(TQueryPrepareTest, SubqueryAliases)
         &PrepareMock_,
         source,
         topQuery,
-        topAliasMap);
+        parsedSource->AstHead);
 
     EXPECT_TRUE(topAliasMap.contains("c"));
     EXPECT_EQ(topAliasMap.size(), 1ul);
@@ -1858,7 +1858,8 @@ protected:
     {
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
-                .WillOnce(Return(MakeFuture(dataSplit.second)));
+                .Times(testing::AtMost(1))
+                .WillRepeatedly(Return(MakeFuture(dataSplit.second)));
         }
 
         auto fragment = ParseAndPreparePlanFragment(
@@ -12188,6 +12189,153 @@ TEST_F(TQueryEvaluateTest, BigJoin2)
         Evaluate(query, splits, sources, ResultMatcher(result)),
         HasSubstr("The number of multi-join groups exceeds the allowed maximum."));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryEvaluateSQLCompatibleGroupByOrderByTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        TSource, // result
+        TDataSplit>> // resultSplit
+{ };
+
+TEST_P(TQueryEvaluateSQLCompatibleGroupByOrderByTest, Simple)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+        {"c", EValueType::Uint64},
+        {"d", EValueType::Boolean},
+    });
+
+    auto source = TSource{
+        "a=0;b=b;c=444u;d=%true",
+        "a=1;b=b;c=333u;d=%false",
+        "a=2;b=a;c=222u;d=%true",
+        "a=3;b=a;c=111u;d=%false",
+    };
+
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& result = std::get<1>(args);
+    const auto& resultSplit = std::get<2>(args);
+
+    Evaluate(
+        query,
+        split,
+        source,
+        ResultMatcher(YsonToRows(result, resultSplit), resultSplit.TableSchema),
+        TEvaluateOptions{.SyntaxVersion = 3});
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryEvaluateSQLCompatibleGroupByOrderByTest,
+    TQueryEvaluateSQLCompatibleGroupByOrderByTest,
+    ::testing::Values(
+        std::make_tuple(
+            "a % 2 from `//t` group by 1",
+            TSource{"\"$projection_1\"=0", "\"$projection_1\"=1"},
+            MakeSplit({{"$projection_1", EValueType::Int64}})),
+        std::make_tuple(
+            "a % 2 as c from `//t` group by 1",
+            TSource{"c=0", "c=1",},
+            MakeSplit({{"c", EValueType::Int64}})),
+        std::make_tuple(
+            "a % 2 as c from `//t` group by c",
+            TSource{"c=0", "c=1"},
+            MakeSplit({{"c", EValueType::Int64}})),
+        std::make_tuple(
+            "a * 0, c * 0 from `//t` group by 1, 2",
+            TSource{"\"$projection_1\"=0;\"$projection_2\"=0u"},
+            MakeSplit({{"$projection_1", EValueType::Int64}, {"$projection_2", EValueType::Uint64}})),
+        std::make_tuple(
+            "a, b from `//t` order by 2, 1 limit 4",
+            TSource{"a=2;b=a", "a=3;b=a", "a=0;b=b", "a=1;b=b"},
+            MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::String}})),
+        std::make_tuple(
+            "a, b from `//t` order by 2 desc, 1 desc limit 4",
+            TSource{"a=1;b=b", "a=0;b=b", "a=3;b=a", "a=2;b=a"},
+            MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::String}})),
+        std::make_tuple(
+            "a, b from `//t` order by 1+7, 1, 2 limit 4",
+            TSource{"a=0;b=b", "a=1;b=b", "a=2;b=a", "a=3;b=a"},
+            MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::String}})),
+        std::make_tuple(
+            "max(a) as m, b from `//t` group by 2 order by 2 desc, 1 limit 4",
+            TSource{"m=1;b=b", "m=3;b=a"},
+            MakeSplit({{"m", EValueType::Int64}, {"b", EValueType::String},})),
+        std::make_tuple(R"(
+            select
+                a * a     as aa,
+                length(b) as bb,
+                c         as cc,
+                not d     as dd
+            from `//t`
+            order by 4 desc, 3, 2 desc, 1
+            limit 4)",
+            TSource{"aa=9;bb=1;cc=111u;dd=%true", "aa=1;bb=1;cc=333u;dd=%true", "aa=4;bb=1;cc=222u;dd=%false", "aa=0;bb=1;cc=444u;dd=%false",},
+            MakeSplit({{"aa", EValueType::Int64}, {"bb", EValueType::Int64}, {"cc", EValueType::Uint64}, {"dd", EValueType::Boolean},}))));
+
+class TQueryPrepareSQLCompatibleGroupByOrderByTestWithIncorrectSyntaxTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        const char*>> // error message
+{ };
+
+TEST_P(TQueryPrepareSQLCompatibleGroupByOrderByTestWithIncorrectSyntaxTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& errorMessage = std::get<1>(args);
+
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::String},
+    });
+
+    auto source = TSource{};
+
+    EXPECT_THROW_THAT(
+        Evaluate(
+            query,
+            split,
+            source,
+            [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { },
+            TEvaluateOptions{.SyntaxVersion = 3}),
+        HasSubstr(errorMessage));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryPrepareSQLCompatibleGroupByOrderByTestWithIncorrectSyntaxTest,
+    TQueryPrepareSQLCompatibleGroupByOrderByTestWithIncorrectSyntaxTest,
+    ::testing::Values(
+        std::make_tuple(
+            "* from `//t` group by 1",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "* from `//t` group by -1",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "* from `//t` order by 42 limit 42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` order by 42 limit 42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` group by -1",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` group by -42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "a, b from `//t` order by -1 limit 42",
+            "Reference expression index is out of bounds"),
+        std::make_tuple(
+            "avg(a % 2) from `//t` group by 1",
+            "Misuse of aggregate function \"avg\"")
+   ));
 
 ////////////////////////////////////////////////////////////////////////////////
 

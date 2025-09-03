@@ -1754,9 +1754,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         queryPreparer.Get(),
         parsedQuery->Source,
         *astQuery,
-        parsedQuery->AstHead.AliasMap,
+        parsedQuery->AstHead,
         options.ExpressionBuilderVersion,
-        HeavyRequestMemoryUsageTracker_);
+        HeavyRequestMemoryUsageTracker_,
+        options.SyntaxVersion);
     const auto& query = fragment->Query;
 
     THROW_ERROR_EXCEPTION_IF(
@@ -1904,9 +1905,10 @@ NYson::TYsonString TClient::DoExplainQuery(
         queryPreparer.Get(),
         parsedQuery->Source,
         *astQuery,
-        parsedQuery->AstHead.AliasMap,
+        parsedQuery->AstHead,
         options.ExpressionBuilderVersion,
-        HeavyRequestMemoryUsageTracker_);
+        HeavyRequestMemoryUsageTracker_,
+        options.SyntaxVersion);
 
     auto memoryChunkProvider = MemoryProvider_->GetOrCreateProvider(
         ToString(TReadSessionId::Create()),

@@ -238,3 +238,23 @@ class TestExplainQuery(YTEnvSetup):
 
         assert len(grouped_ranges) == 1
         assert list(grouped_ranges.values())[0] == expected_ranges
+
+    @authors("timothyxp")
+    def test_group_by_order_by_projection_number(self):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t",
+            make_schema(
+                [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "string"},
+                ]
+            )
+        )
+        sync_mount_table("//tmp/t")
+
+        response = explain_query("a % 2 from `//tmp/t` group by 1", verbose_output=True, syntax_version=3)
+
+        grouped_ranges = response["query"]["grouped_ranges"]
+        assert len(grouped_ranges) == 1

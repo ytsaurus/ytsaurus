@@ -157,13 +157,15 @@ TPlanFragmentPtr ParseAndPreparePlanFragment(
     IMemoryUsageTrackerPtr memoryTracker)
 {
     auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+
     return PreparePlanFragment(
         callbacks,
         parsedSource->Source,
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
-        parsedSource->AstHead.AliasMap,
+        parsedSource->AstHead,
         DefaultExpressionBuilderVersion,
-        std::move(memoryTracker));
+        std::move(memoryTracker),
+        syntaxVersion);
 }
 
 TConstExpressionPtr ParseAndPrepareExpression(
