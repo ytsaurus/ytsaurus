@@ -17,6 +17,8 @@
 
 #include <yt/yt/client/table_client/record_descriptor.h>
 
+#include <yt/yt/core/misc/range_formatters.h>
+
 #include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NSequoiaClient {
@@ -48,6 +50,11 @@ public:
         return SequoiaClientLogger();
     }
 
+    const TLogger& Logger() const
+    {
+        return GetLogger();
+    }
+
     #define XX(name, args) \
         if (auto optionalClient = GroundClientFuture_.TryGet()) { \
             try { \
@@ -70,6 +77,7 @@ public:
         const NTableClient::TColumnFilter& columnFilter,
         NTransactionClient::TTimestamp timestamp) override
     {
+        YT_LOG_DEBUG("Looking up (Table: %v, Keys: %v, Timestamp: %v)", table, keys, timestamp);
         XX(LookupRows, (table, keys, columnFilter, timestamp))
     }
 
@@ -78,13 +86,16 @@ public:
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
     {
+        YT_LOG_DEBUG("Selecting (Table: %v, Query: %v, Timestamp: %v)", table, query, timestamp);
         XX(SelectRows, (table, query, timestamp))
     }
+
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         const TSequoiaTablePathDescriptor& descriptor,
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
     {
+        YT_LOG_DEBUG("Selecting (TablePathDescriptor: %v, Query: %v, Timestamp: %v)", descriptor, query, timestamp);
         XX(SelectRows, (descriptor, query, timestamp))
     }
 
@@ -93,6 +104,7 @@ public:
         int tabletIndex,
         i64 trimmedRowCount) override
     {
+        YT_LOG_DEBUG("Trimming (TablePathDescriptor: %v, TabletIndex: %v, TrimmedRowCount: %v)", descriptor, tabletIndex, trimmedRowCount);
         XX(TrimTable, (descriptor, tabletIndex, trimmedRowCount))
     }
 
@@ -101,6 +113,13 @@ public:
         const NApi::TTransactionStartOptions& transactionStartOptions,
         const TSequoiaTransactionOptions& sequoiaTransactionOptions) override
     {
+        YT_LOG_DEBUG("Starting transaction (Type: %v, Id: %v, ParentId: %v, Timeout: %v, CellTag: %v, PrerequisiteTransactionIds: %v)",
+            type,
+            transactionStartOptions.Id,
+            transactionStartOptions.ParentId,
+            transactionStartOptions.Timeout,
+            transactionStartOptions.CellTag,
+            transactionStartOptions.PrerequisiteTransactionIds);
         XX(StartTransaction, (type, transactionStartOptions, sequoiaTransactionOptions))
     }
 

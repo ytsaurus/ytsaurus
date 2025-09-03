@@ -22,6 +22,8 @@ struct TSequoiaTablePathDescriptor
     bool operator==(const TSequoiaTablePathDescriptor&) const = default;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TSequoiaTablePathDescriptor& descriptor, TStringBuf /*spec*/);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ITableDescriptor

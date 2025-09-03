@@ -17,6 +17,8 @@ struct TSelectRowsQuery
     std::optional<int> Limit;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TSelectRowsQuery& query, TStringBuf /*spec*/);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const char MangledPathSeparator = '\0';

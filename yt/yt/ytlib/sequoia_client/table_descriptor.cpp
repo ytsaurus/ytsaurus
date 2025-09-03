@@ -37,6 +37,13 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TSequoiaTablePathDescriptor& descriptor, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{Table: %v, MasterCellTag: %v}", descriptor.Table, descriptor.MasterCellTag);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ITableDescriptor::ScheduleInitialization()
 {
     static IThreadPoolPtr ThreadPool;
