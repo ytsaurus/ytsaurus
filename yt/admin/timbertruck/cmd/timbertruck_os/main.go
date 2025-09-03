@@ -93,6 +93,9 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 				Token:            ytToken,
 				Logger:           task.Controller.Logger(),
 				BatchSize:        logConfig.QueueBatchSize,
+				OnSent: func(meta pipelines.RowMeta) {
+					task.Controller.NotifyProgress(meta.End)
+				},
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]

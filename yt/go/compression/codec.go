@@ -34,7 +34,10 @@ const (
 	CodecIDZlib9 CodecID = 3
 
 	CodecIDZstd1 CodecID = 26
+	CodecIDZstd2 CodecID = 27
 	CodecIDZstd3 CodecID = 28
+	CodecIDZstd4 CodecID = 29
+	CodecIDZstd5 CodecID = 30
 	CodecIDZstd6 CodecID = 31
 	CodecIDZstd7 CodecID = 32
 )
@@ -96,8 +99,14 @@ func (i CodecID) String() string {
 
 	case CodecIDZstd1:
 		return "zstd_1"
+	case CodecIDZstd2:
+		return "zstd_2"
 	case CodecIDZstd3:
 		return "zstd_3"
+	case CodecIDZstd4:
+		return "zstd_4"
+	case CodecIDZstd5:
+		return "zstd_5"
 	case CodecIDZstd6:
 		return "zstd_6"
 	case CodecIDZstd7:
@@ -171,8 +180,14 @@ func NewCodec(id CodecID) Codec {
 
 	case CodecIDZstd1:
 		return CodecZstd(1)
+	case CodecIDZstd2:
+		return CodecZstd(2)
 	case CodecIDZstd3:
 		return CodecZstd(3)
+	case CodecIDZstd4:
+		return CodecZstd(4)
+	case CodecIDZstd5:
+		return CodecZstd(5)
 	case CodecIDZstd6:
 		return CodecZstd(6)
 	case CodecIDZstd7:

@@ -1,6 +1,7 @@
 package ytqueue
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -41,6 +42,8 @@ type OutputConfig struct {
 	Logger *slog.Logger
 
 	BatchSize int
+
+	OnSent func(meta pipelines.RowMeta)
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
@@ -82,7 +85,7 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		}
 		config.Logger.Debug("Compression codec is set", "compression_codec", compressor.codec())
 	}
-	out = &output{
+	o := &output{
 		yc:           yc,
 		queuePath:    ypath.Path(config.QueuePath),
 		producerPath: ypath.Path(config.ProducerPath),
@@ -92,7 +95,10 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		compressor: compressor,
 
 		logger: config.Logger,
+		onSent: config.OnSent,
 	}
+	o.startAsync()
+	out = o
 	return
 }
 
@@ -118,6 +124,62 @@ type output struct {
 	compressor *compressor
 
 	logger *slog.Logger
+
+	toCompress     chan sendItem
+	toSend         chan sendItem
+	compressorDone chan struct{}
+	senderDone     chan struct{}
+
+	onSent func(meta pipelines.RowMeta)
+}
+
+type sendItem struct {
+	ctx  context.Context
+	row  ytRow
+	meta pipelines.RowMeta
+}
+
+func (o *output) startAsync() {
+	o.toCompress = make(chan sendItem, 1)
+	o.toSend = make(chan sendItem, 1)
+	o.compressorDone = make(chan struct{})
+	o.senderDone = make(chan struct{})
+
+	go o.compressorLoop()
+	go o.senderLoop()
+}
+
+func (o *output) compressorLoop() {
+	for item := range o.toCompress {
+		if o.compressor != nil {
+			item.row.Codec = o.compressor.codec()
+			uncompressedSize := len(item.row.Value)
+			startedAt := time.Now()
+			item.row.Value = o.compressor.compress(item.row.Value)
+			o.logger.Debug("Row compressed", "seq_no", item.row.SequenceNumber, "codec", item.row.Codec, "uncompressed_size", uncompressedSize, "compressed_size", len(item.row.Value), "duration_ms", time.Since(startedAt).Milliseconds())
+		}
+		o.toSend <- item
+	}
+	close(o.toSend)
+	close(o.compressorDone)
+}
+
+func (o *output) senderLoop() {
+	for item := range o.toSend {
+		startedAt := time.Now()
+		retry(
+			func() error {
+				_, err := o.yc.PushQueueProducer(item.ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{item.row}, nil)
+				return err
+			},
+			func(err error) { o.logger.Warn("error pushing queue, will retry", "error", err) },
+		)
+		o.logger.Debug("Row pushed to YT Queue", "seq_no", item.row.SequenceNumber, "duration_ms", time.Since(startedAt).Milliseconds())
+		if o.onSent != nil {
+			o.onSent(item.meta)
+		}
+	}
+	close(o.senderDone)
 }
 
 func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.Row) {
@@ -129,30 +191,36 @@ func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.
 		hash := sha256.Sum256(row.Payload[:min(1024, len(row.Payload))])
 		rowMeta = &ytRowMeta{FirstBytesHash: hex.EncodeToString(hash[:])}
 	}
-	codec := "null"
-	value := row.Payload
-	if o.compressor != nil {
-		codec = o.compressor.codec()
-		value = o.compressor.compress(row.Payload)
-	}
+	// Copy payload to avoid aliasing with upstream buffer which may be mutated after Process returns.
+	payloadCopy := bytes.Clone(row.Payload)
 	ytRow := ytRow{
-		Value:          value,
-		Codec:          codec,
+		Value:          payloadCopy,
+		Codec:          "null",
 		SourceURI:      o.sessionID,
 		SequenceNumber: row.SeqNo,
 		Meta:           rowMeta,
 	}
+	startedAt := time.Now()
+	message := "Row pushed to send queue"
+	if err := o.pushToSendQueue(ctx, meta, ytRow); err != nil {
+		message = fmt.Sprintf("Row not pushed to send queue: %s", err.Error())
+	}
+	o.logger.Debug(message, "seq_no", row.SeqNo, "wait_ms", time.Since(startedAt).Milliseconds())
+}
 
-	retry(
-		func() error {
-			_, err := o.yc.PushQueueProducer(ctx, o.producerPath, o.queuePath, o.sessionID, o.epoch, []any{ytRow}, nil)
-			return err
-		},
-		func(err error) { o.logger.Warn("error pushing queue, will retry", "error", err) },
-	)
+func (o *output) pushToSendQueue(ctx context.Context, meta pipelines.RowMeta, row ytRow) error {
+	select {
+	case o.toCompress <- sendItem{ctx: ctx, meta: meta, row: row}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (o *output) Close(ctx context.Context) {
+	close(o.toCompress)
+	<-o.compressorDone
+	<-o.senderDone
 	retry(
 		func() error {
 			return o.yc.RemoveQueueProducerSession(
