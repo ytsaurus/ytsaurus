@@ -8,6 +8,24 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.36**" %}
+
+**Release date:** 2025-08-29
+
+
+#### Features
+
+  * Supported [blob](https://ytsaurus.tech/docs/en/user-guide/storage/formats#BLOB) table format
+
+#### Fixes
+
+  * Fixed heavy proxy selection logic for heavy requests
+  * Fixed `get_table_schema` for replicated tables
+  * Fixed `yt execute` for commands with input data
+
+{% endcut %}
+
+
 {% cut "**0.13.35**" %}
 
 **Release date:** 2025-08-12

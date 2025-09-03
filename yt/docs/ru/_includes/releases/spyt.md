@@ -21,6 +21,7 @@ Maintenance release with minor enhancements
 
 **Release date:** 2025-08-15
 
+
 Maintenance release with minor enhancements
 
 - Optimizing the number of requests to master in bulk reading scenarios
@@ -31,6 +32,7 @@ Maintenance release with minor enhancements
 - Including parsing context in parsing exceptions
 - Fix joins by uint64 columns
 - Support for setting secure vault in direct submit scenarios
+
 
 {% endcut %}
 
