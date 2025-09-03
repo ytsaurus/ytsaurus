@@ -182,6 +182,30 @@ TYsonString MergeAttributeValuesAsNodes(
     return ConvertToYsonString(rootNode, format);
 }
 
+TYsonString MergeAttributeValuesWithPrefixes(
+    std::vector<TAttributeValue> attributeValues,
+    EYsonFormat format,
+    EDuplicatePolicy duplicatePolicy)
+{
+    return MergeAttributeValuesAsNodes(std::move(attributeValues), format, duplicatePolicy);
+}
+
+TYsonString MergeAttributeValuesWithEtcs(
+    std::vector<TAttributeValue> attributeValues,
+    EYsonFormat format,
+    EDuplicatePolicy duplicatePolicy)
+{
+    return MergeAttributeValuesAsNodes(std::move(attributeValues), format, duplicatePolicy);
+}
+
+TYsonString MergeAttributeValuesWithBoth(
+    std::vector<TAttributeValue> attributeValues,
+    EYsonFormat format,
+    EDuplicatePolicy duplicatePolicy)
+{
+    return MergeAttributeValuesAsNodes(std::move(attributeValues), format, duplicatePolicy);
+}
+
 bool HasPrefixes(const std::vector<TAttributeValue>& attributeValues)
 {
     for (size_t i = 0; i < attributeValues.size(); i++) {
@@ -301,8 +325,14 @@ TYsonString MergeAttributes(
 
     auto expandedAttributeValues = ExpandWildcardValueLists(std::move(attributeValues), format);
 
-    if (hasEtcs || HasPrefixes(expandedAttributeValues)) {
-        return MergeAttributeValuesAsNodes(std::move(expandedAttributeValues), format, duplicatePolicy);
+    // TODO(vlaneliseev): Temporary split function to analyze performance.
+    bool hasPrefixes = HasPrefixes(expandedAttributeValues);
+    if (hasPrefixes && hasEtcs) {
+        return MergeAttributeValuesWithBoth(std::move(expandedAttributeValues), format, duplicatePolicy);
+    } else if (hasPrefixes) {
+        return MergeAttributeValuesWithPrefixes(std::move(expandedAttributeValues), format, duplicatePolicy);
+    } else if (hasEtcs) {
+        return MergeAttributeValuesWithEtcs(std::move(expandedAttributeValues), format, duplicatePolicy);
     } else {
         return MergeAttributeValuesAsStrings(std::move(expandedAttributeValues), format);
     }
