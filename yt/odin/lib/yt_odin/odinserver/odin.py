@@ -4,6 +4,7 @@ from .alerts import AlertsManager
 from .check_discovery import CheckDiscovery
 
 from yt_odin.common import prctl
+from yt_odin.common.token import get_token
 from yt_odin.logserver import run_logserver, OdinSocketHandler
 
 from six import iteritems
@@ -29,7 +30,7 @@ def sighup_handler(signum, frame):
 
 
 class Odin(object):
-    def __init__(self, db_client_factory, cluster_name, proxy, token, checks_path,
+    def __init__(self, db_client_factory, cluster_name, proxy, token, token_env_variable, checks_path,
                  log_server_socket_path, log_server_max_write_batch_size,
                  yt_request_retry_timeout=3000, yt_request_retry_count=4,
                  yt_heavy_request_retry_timeout=15000, default_check_timeout=65,
@@ -100,7 +101,7 @@ class Odin(object):
                 "dynamic_table_retries": heavy_retries_policy,
                 "concatenate_retries": retries_policy,
                 "start_operation_retries": retries_policy,
-                "token": token,
+                "token": get_token(token, token_env_variable),
                 "driver_address_resolver_config": yt_driver_address_resolver_config,
                 "driver_logging_config": yt_driver_logging_config,
             })

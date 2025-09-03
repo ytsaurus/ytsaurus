@@ -118,6 +118,7 @@ def configure_odin(yt_cluster_url, checks_path):
         "test_cluster",
         yt_cluster_url,
         token=None,
+        token_env_variable=None,
         checks_path=checks_path,
         log_server_socket_path=socket_path,
         log_server_max_write_batch_size=256,

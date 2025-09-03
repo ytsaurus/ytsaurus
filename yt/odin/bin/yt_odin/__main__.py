@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 from yt_odin.common import prctl
+from yt_odin.common.token import get_token
 from yt_odin.odinserver.common import BoundProcess, get_part
 from yt_odin.odinserver.odin import Odin
-from yt_odin.storage.db import get_cluster_client_factory_from_db_config
+from yt_odin.storage.db import get_yt_table_client_for_cluster_factory_from_db_config
 
 from yt.common import update
 import yt.logger as logger
@@ -45,8 +46,8 @@ class LogRecordStreamHandler(socketserver.StreamRequestHandler):
             logger.LOGGER.handle(record)
 
 
-def acquire_yt_lock(proxy, token, locks_dir, timeout, queue, shard_count):
-    yt_client = yt.YtClient(proxy, token)
+def acquire_yt_lock(proxy, token, token_env_variable, locks_dir, timeout, queue, shard_count):
+    yt_client = yt.YtClient(proxy, get_token(token, token_env_variable))
     yt_client.create("map_node", locks_dir, recursive=True, ignore_existing=True)
     title = f"Odin instance {socket.getfqdn()} transaction"
     with yt_client.Transaction(attributes={"title": title}) as tx:
@@ -79,8 +80,8 @@ def run_logging_server(port):
     socket_receiver.serve_forever()
 
 
-def run_odin(storage_kwargs, odin_kwargs):
-    odin = Odin(get_cluster_client_factory_from_db_config(storage_kwargs), **odin_kwargs)
+def run_odin(db_kwargs, odin_kwargs):
+    odin = Odin(get_yt_table_client_for_cluster_factory_from_db_config(db_kwargs), **odin_kwargs)
     odin.run()
 
 
@@ -155,7 +156,9 @@ def main(args):
     shard_count = service_config["shard_count"]
     assert shard_count > 0
 
-    lock_kwargs = dict((x, service_config[x]) for x in ["proxy", "token", "timeout", "shard_count"])
+    lock_kwargs = dict((x, service_config[x]) for x in ["proxy", "timeout", "shard_count"])
+    lock_kwargs["token"] = service_config.get("token")
+    lock_kwargs["token_env_variable"] = service_config.get("token_env_variable")
     lock_queue = Queue()
     lock_kwargs["queue"] = lock_queue
     lock_kwargs["locks_dir"] = yt.ypath_join(service_config["path"], "locks")
@@ -187,7 +190,8 @@ def main(args):
             odin_kwargs = dict(
                 cluster_name=cluster,
                 proxy=cluster_config["yt_config"]["proxy"],
-                token=cluster_config["yt_config"]["token"],
+                token=cluster_config["yt_config"].get("token"),
+                token_env_variable=cluster_config["yt_config"].get("token_env_variable"),
                 log_server_max_write_batch_size=log_server_storage_writer_config["max_write_batch_size"],
                 log_server_socket_path=socket_path,
                 checks_path=config["checks"]["path"],
