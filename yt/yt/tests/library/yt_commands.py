@@ -2534,6 +2534,16 @@ def update_access_control_object_acl(aco_namespase, aco_name, acl):
     set(f"//sys/access_control_object_namespaces/{aco_namespase}/{aco_name}/principal/@acl", acl)
 
 
+def get_safe_trim_row_count(requests: list[tuple[str, int, int]], **kwargs) -> list[dict[str, any]]:
+    reqs = [{"path": path, "tablet_index": tablet_index, "timestamp": ts} for path, tablet_index, ts in requests]
+    kwargs["requests"] = reqs
+    return execute_command(
+        "get_ordered_tablet_safe_trim_row_count",
+        kwargs,
+        parse_yson=True
+    )
+
+
 #########################################
 # Helpers:
 
