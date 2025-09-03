@@ -89,6 +89,7 @@ TRecord CreateSimpleQuery(const TQueryId& queryId, ui64 startTime = 0, const std
         .State = EQueryState::Draft,
         .Progress = EmptyMap,
         .Annotations = EmptyMap,
+        .Secrets = EmptyMap,
     };
 }
 

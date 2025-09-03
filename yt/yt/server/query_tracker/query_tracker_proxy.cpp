@@ -71,9 +71,9 @@ const TString FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 16);
-    static_assert(TActiveQueryDescriptor::FieldCount == 19);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 14);
+    static_assert(pfr::tuple_size<TQuery>::value == 17);
+    static_assert(TActiveQueryDescriptor::FieldCount == 20);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 15);
 
     TQuery query;
     // Note that some of the fields are twice optional.
@@ -94,6 +94,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.Progress = partialRecord.Progress.value_or(TYsonString());
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
+    query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("{}")));
 
     IAttributeDictionaryPtr otherAttributes;
     auto fillIfPresent = [&] (const TString& key, const auto& value) {
@@ -699,7 +700,7 @@ void TQueryTrackerProxy::StartQuery(
         TString filterFactors;
         auto startTime = TInstant::Now();
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 14);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 15);
             TFinishedQuery newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
@@ -713,6 +714,7 @@ void TQueryTrackerProxy::StartQuery(
                 .State = EQueryState::Draft,
                 .Progress = EmptyMap,
                 .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
+                .Secrets = ConvertToYsonString(options.Secrets),
             };
             filterFactors = GetFilterFactors(newRecord);
             std::vector rows{
@@ -785,7 +787,7 @@ void TQueryTrackerProxy::StartQuery(
             }
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 19);
+        static_assert(TActiveQueryDescriptor::FieldCount == 20);
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
             .Engine = engine,
@@ -800,6 +802,7 @@ void TQueryTrackerProxy::StartQuery(
             .Incarnation = -1,
             .Progress = EmptyMap,
             .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
+            .Secrets = ConvertToYsonString(options.Secrets)
         };
         newRecord.FilterFactors = GetFilterFactors(newRecord);
         std::vector rows{

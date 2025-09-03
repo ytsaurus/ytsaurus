@@ -56,7 +56,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 9);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 10);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -90,6 +90,15 @@ private:
             file->Content = requestFile.content();
             file->Type = FromProto<EContentType>(requestFile.type());
             options.Files.emplace_back(file);
+        }
+
+        for (const auto& protoSecret : rpcRequest.secrets()) {
+            auto secret = New<TQuerySecret>();
+            secret->Id = protoSecret.id();
+            secret->Category = protoSecret.category();
+            secret->Subcategory = protoSecret.subcategory();
+            secret->YPath = protoSecret.ypath();
+            options.Secrets.emplace_back(std::move(secret));
         }
 
         auto engine = ConvertQueryEngineFromProto(rpcRequest.engine());

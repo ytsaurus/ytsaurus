@@ -135,6 +135,13 @@ types:
         column_type: Any
         lock: client
 
+      # YSON dictionary.
+      - cpp_name: Secrets
+        cpp_type: NYson::TYsonString
+        column_name: secrets
+        column_type: Any
+        lock: client
+
 
   - type_name: TFinishedQuery
     fields:
@@ -217,6 +224,13 @@ types:
         cpp_type: NYson::TYsonString
         column_name: annotations
         column_type: Any
+
+      # YSON dictionary.
+      - cpp_name: Secrets
+        cpp_type: NYson::TYsonString
+        column_name: secrets
+        column_type: Any
+        lock: client
 
 
   - type_name: TFinishedQueryByStartTime

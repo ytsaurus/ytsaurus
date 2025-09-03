@@ -235,7 +235,8 @@ class TestQueryTrackerBan(YTEnvSetup):
             "query": "run_forever",
             "incarnation": 0,
             "state": "pending",
-            "settings": {}
+            "settings": {},
+            "secrets": {}
         }])
 
         acquisition_iterations = get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations")
@@ -271,6 +272,7 @@ class TestQueryTrackerResults(YTEnvSetup):
             "result_count": 1,
             "finish_time": 0,
             "annotations": None,
+            "secrets": {}
         }])
         full_result = {"cluster": "test", "table_path": "tmp/test"}
         insert_rows("//sys/query_tracker/finished_query_results", [{
@@ -304,7 +306,8 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
             "progress": {},
             "annotations": {},
             "state": state,
-            "settings": settings
+            "settings": settings,
+            "secrets": {}
         }
         if is_abort:
             query["abort_request"] = {"attributes": {}, "code": 100, "message": error}
