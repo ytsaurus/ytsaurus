@@ -84,6 +84,10 @@ struct IPerTabletStructuredLogger
     //! Thread affinity: any.
     virtual NLogging::TOneShotFluentLogEvent LogEvent(TStringBuf eventType) = 0;
 
+    virtual void Initialize(TDuration fullHeartbeatPeriod, TDuration incrementalHeartbeatPeriod) = 0;
+
+    virtual void ExecuteHeartbeatsIfNeeded(TDuration fullHeartbeatPeriod, TDuration incrementalHeartbeatPeriod) = 0;
+
     //! Logs all tablet meta.
     virtual void OnFullHeartbeat() = 0;
 
