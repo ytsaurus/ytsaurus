@@ -26,6 +26,7 @@ TEST(CanonizeYPath, TestBadCanonization)
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
+
     EXPECT_THROW(
         client->CanonizeYPath(TRichYPath("//foo/bar[#1005")),
         TErrorResponse);

@@ -43,6 +43,10 @@ NApi::TMultisetAttributesNodeOptions SerializeOptionsForMultisetAttributes(
     const TTransactionId& transactionId,
     const TMultisetAttributesOptions& options);
 
+NApi::TCreateObjectOptions SerializeOptionsForCreateObject(
+    TMutationId& mutationId,
+    const TCreateOptions& options);
+
 NApi::TCreateNodeOptions SerializeOptionsForCreate(
     TMutationId& mutationId,
     const TTransactionId& transactionId,
@@ -164,6 +168,10 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     const TReshardTableOptions& options);
 
 NApi::TModifyRowsOptions SerializeOptionsForInsertRows(const TInsertRowsOptions& options);
+
+NApi::TVersionedLookupRowsOptions SerializeOptionsForVersionedLookupRows(
+    const NTableClient::TNameTablePtr& nameTable,
+    const TLookupRowsOptions& options);
 
 NApi::TLookupRowsOptions SerializeOptionsForLookupRows(
     const NTableClient::TNameTablePtr& nameTable,

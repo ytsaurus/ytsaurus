@@ -12,30 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(cpp-mapreduce-rpc_client)
-
-
-target_compile_options(cpp-mapreduce-rpc_client PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-)
-
-target_link_libraries(cpp-mapreduce-rpc_client PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yson-node
-  cpp-mapreduce-interface
-  yt-yt-client
-)
-
-target_sources(cpp-mapreduce-rpc_client PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/rpc_client/client_impl.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/rpc_client/raw_batch_request.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/rpc_client/raw_client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/rpc_client/rpc_parameters_serialization.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/rpc_client/wrap_rpc_error.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

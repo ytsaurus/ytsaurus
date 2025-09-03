@@ -623,11 +623,19 @@ TEST(BatchRequestSuite, TestLink) {
 
     checkLink(tx, workingDir + "/tx_simple", workingDir + "/tx_simple_link", txRes.GetValue());
 
-    checkLink(client, workingDir + "/simple", workingDir + "/simple_link_with_attributes", attributesRes.GetValue());
+    if (UseRpcClient()) {
+        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+            attributesRes.GetValue(),
+            yexception,
+            "not supported");
+    }
+    else {
+        checkLink(client, workingDir + "/simple", workingDir + "/simple_link_with_attributes", attributesRes.GetValue());
 
-    EXPECT_EQ(
-        client->Get(workingDir + "/simple_link_with_attributes&/@attr_name").AsString(),
-        "attr_value");
+        EXPECT_EQ(
+            client->Get(workingDir + "/simple_link_with_attributes&/@attr_name").AsString(),
+            "attr_value");
+    }
 
     EXPECT_THROW(noRecursiveRes.GetValue(), TErrorResponse);
     EXPECT_EQ(client->Exists(workingDir + "/missing_dir"), false);

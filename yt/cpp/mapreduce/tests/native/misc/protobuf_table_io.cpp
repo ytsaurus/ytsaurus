@@ -555,6 +555,8 @@ TEST_P(TProtobufTableIoTest, ProtobufRepeatedSerialization)
 
 TEST_P(TProtobufTableIoTest, ForbiddenRepeatedInProtobuf)
 {
+    SKIP_IF_RPC();
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();

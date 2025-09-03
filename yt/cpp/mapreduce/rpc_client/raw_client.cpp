@@ -3,6 +3,7 @@
 #include "client_impl.h"
 #include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
+#include "wrap_rpc_error.h"
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 
@@ -170,45 +171,49 @@ EJobState FromApiJobState(NJobTrackerClient::EJobState state)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYtError ToYtError(const TError& err) {
-    TNode::TMapType attributes;
-    for (const auto& [key, value] : err.Attributes().ListPairs()) {
-        attributes.emplace(key, value);
-    }
+class TSyncRpcInputStream
+    : public IInputStream
+{
+public:
+    explicit TSyncRpcInputStream(std::unique_ptr<IInputStream> stream)
+        : Underlying_(std::move(stream))
+    { }
 
-    const auto& innerErrors = err.InnerErrors();
+private:
+    const std::unique_ptr<IInputStream> Underlying_;
 
-    TVector<TYtError> errors;
-    errors.reserve(innerErrors.size());
-    for (const auto& inner : innerErrors) {
-        errors.push_back(ToYtError(inner));
-    }
-    return {err.GetCode(), TString(err.GetMessage()), std::move(errors), std::move(attributes)};
-}
-
-template <typename TResult>
-TResult WaitAndProcess(TFuture<TResult> future) {
-    try {
-        if constexpr (std::is_same_v<TResult, void>) {
-            NConcurrency::WaitFor(future).ThrowOnError();
-        } else {
-            auto result = NConcurrency::WaitFor(future).ValueOrThrow();
-            return result;
+    size_t DoRead(void* buf, size_t len) override
+    {
+        try {
+            return Underlying_->Read(buf, len);
+        } catch (TErrorException ex) {
+            throw ToErrorResponse(std::move(ex));
         }
-    } catch (const TErrorException& ex) {
-        const auto& err = ex.Error();
-
-        const auto ytError = ToYtError(err);
-        const auto requestId = err.Attributes().Find<TString>("request_id").value_or("0-0-0-0");
-
-        YT_LOG_ERROR("RSP %v - RPC %v - %v",
-            requestId,
-            err.GetCode(),
-            ytError.FullDescription());
-
-        throw TErrorResponse(std::move(ytError), requestId);
     }
-}
+};
+
+class TSyncRpcOutputStream
+    : public IOutputStream
+{
+public:
+    explicit TSyncRpcOutputStream(IAsyncZeroCopyOutputStreamPtr stream)
+        : Underlying_(std::move(stream))
+    { }
+
+    void DoWrite(const void* buf, size_t len) override
+    {
+        auto sharedBuffer = TSharedRef::MakeCopy<TDefaultSharedBlobTag>(TRef(buf, len));
+        WaitAndProcess(Underlying_->Write(sharedBuffer));
+    }
+
+    void DoFinish() override
+    {
+        WaitAndProcess(Underlying_->Close());
+    }
+
+private:
+    const IAsyncZeroCopyOutputStreamPtr Underlying_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,10 +294,21 @@ TNodeId TRpcRawClient::Create(
     const ENodeType& type,
     const TCreateOptions& options)
 {
+    auto waitGuid = [](auto future) {
+        auto result = WaitAndProcess(future);
+        return UtilGuidFromYtGuid(result);
+    };
+
+    // Call CreateObject on empty path except NT_MAP node
+    // With NT_MAP path can be empty, but Config_->Prefix may exist
+    if (path.empty() && type != ENodeType::NT_MAP) {
+        auto future = Client_->CreateObject(ToApiObjectType(type), SerializeOptionsForCreateObject(mutationId, options));
+        return waitGuid(std::move(future));
+    }
+
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->CreateNode(newPath, ToApiObjectType(type), SerializeOptionsForCreate(mutationId, transactionId, options));
-    auto result = WaitAndProcess(future);
-    return UtilGuidFromYtGuid(result);
+    return waitGuid(std::move(future));
 }
 
 TNodeId TRpcRawClient::CopyWithoutRetries(
@@ -378,6 +394,9 @@ TNode::TListType TRpcRawClient::List(
     const TListOptions& options)
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
+    if (path.empty() && newPath.EndsWith('/')) {
+        newPath.pop_back();
+    }
     auto future = Client_->ListNode(newPath, SerializeOptionsForList(transactionId, options));
     auto result = WaitAndProcess(future);
     return NodeFromYsonString(result.AsStringBuf()).AsList();
@@ -390,6 +409,10 @@ TNodeId TRpcRawClient::Link(
     const TYPath& linkPath,
     const TLinkOptions& options)
 {
+    if (options.Attributes_) {
+        THROW_ERROR_EXCEPTION("Link option 'Attributes' is not supported yet via RPC client");
+    }
+
     auto newTargetPath = AddPathPrefix(targetPath, Config_->Prefix);
     auto newLinkPath = AddPathPrefix(linkPath, Config_->Prefix);
     auto future = Client_->LinkNode(newTargetPath, newLinkPath, SerializeOptionsForLink(mutationId, transactionId, options));
@@ -860,7 +883,7 @@ IFileReaderPtr TRpcRawClient::GetJobInput(
 {
     auto future = Client_->GetJobInput(NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
     auto result = WaitAndProcess(future);
-    auto stream = CreateSyncAdapter(CreateCopyingAdapter(result));
+    auto stream = std::make_unique<TSyncRpcInputStream>(CreateSyncAdapter(CreateCopyingAdapter(result)));
     return MakeIntrusive<TRpcResponseStream>(std::move(stream));
 }
 
@@ -921,7 +944,8 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadFile(
 {
     auto future = Client_->CreateFileReader(path.Path_, SerializeOptionsForReadFile(transactionId, options));
     auto reader = WaitAndProcess(future);
-    return CreateSyncAdapter(CreateCopyingAdapter(reader));
+    auto syncAdapter = CreateSyncAdapter(CreateCopyingAdapter(reader));
+    return std::make_unique<TSyncRpcInputStream>(std::move(syncAdapter));
 }
 
 class TRpcWriteFileRequestStream
@@ -1062,121 +1086,36 @@ NTableClient::TNameTablePtr GetNameTable(const TNode::TListType& rows)
     return nameTable;
 }
 
-TSharedRange<NTableClient::TUnversionedRow> GetSharedKeysRange(
-    const NTableClient::TNameTablePtr& nameTable,
-    const TNode::TListType& rows)
-{
-    auto rowBuffer = New<NTableClient::TRowBuffer>();
-    TVector<NTableClient::TUnversionedRow> unversionedKeys;
-    for (const auto& row : rows) {
-        const auto& rowMap = row.AsMap();
-        if (std::ssize(rowMap) != nameTable->GetSize()) {
-            // Ignore invalid input instead of failing
-            continue;
-        }
-
-        std::vector<TNode> rowNodes(rowMap.size());
-        for (const auto& [key, value] : rowMap) {
-            auto id = nameTable->GetId(key);
-            rowNodes[id] = value;
-        }
-
-        auto values = TNode::CreateList();
-        for (auto&& node : rowNodes) {
-            values.Add(std::move(node));
-        }
-
-        NTableClient::TLegacyOwningKey owningKey;
-        Deserialize(owningKey, NYTree::ConvertToNode(NYson::TYsonString(
-            NodeToYsonString(values, NYson::EYsonFormat::Binary))));
-        unversionedKeys.push_back(rowBuffer->CaptureRow(owningKey));
-    }
-
-    return MakeSharedRange(std::move(unversionedKeys), std::move(rowBuffer));
-}
-
 void TRpcRawClient::InsertRows(
-    const TYPath& path,
-    const TNode::TListType& rows,
-    const TInsertRowsOptions& options)
+    const TYPath& /* path */,
+    const TNode::TListType& /* rows */,
+    const TInsertRowsOptions& /*options*/)
 {
-    auto transaction = WaitAndProcess(
-        Client_->StartTransaction(
-            NTransactionClient::ETransactionType::Tablet,
-            SerializeOptionsForStartTransaction(options)));
-
-    auto nameTable = GetNameTable(rows);
-    auto keysRange = GetSharedKeysRange(nameTable, rows);
-
-    transaction->WriteRows(path, nameTable, keysRange, SerializeOptionsForInsertRows(options));
-
-    WaitAndProcess(transaction->Commit());
+    THROW_ERROR_EXCEPTION("InsertRows is not supported yet via RPC client");
 }
 
 void TRpcRawClient::TrimRows(
-    const TYPath& path,
-    i64 tabletIndex,
-    i64 rowCount,
+    const TYPath& /*path*/,
+    i64 /*tabletIndex*/,
+    i64 /*rowCount*/,
     const TTrimRowsOptions& /*options*/)
 {
-    auto future = Client_->TrimTable(path, tabletIndex, rowCount);
-    WaitAndProcess(future);
+    THROW_ERROR_EXCEPTION("TrimRows is not supported yet via RPC client");
 }
 
 TNode::TListType TRpcRawClient::LookupRows(
-    const TYPath& path,
-    const TNode::TListType& keys,
-    const TLookupRowsOptions& options)
+    const TYPath& /*path*/,
+    const TNode::TListType& /*keys*/,
+    const TLookupRowsOptions& /*options*/)
 {
-    auto nameTable = GetNameTable(keys);
-    auto keysRange = GetSharedKeysRange(nameTable, keys);
-
-    auto future = Client_->LookupRows(path, nameTable, keysRange, SerializeOptionsForLookupRows(nameTable, options));
-    auto lookupRowsResult = WaitAndProcess(future);
-
-    const auto& rowset = lookupRowsResult.Rowset;
-    const auto columnNames = rowset->GetSchema()->GetColumnNames();
-
-    auto result = TNode::CreateList();
-    for (const auto& row : rowset->GetRows()) {
-        YT_VERIFY(row.GetCount() == columnNames.size());
-
-        auto rowNode = TNode::CreateMap();
-        for (const auto& [columnIdx, columnName] : Enumerate(columnNames)) {
-            TNode value;
-            TNodeBuilder builder(&value);
-            Serialize(row[columnIdx], &builder);
-            rowNode[columnName] = value;
-        }
-        result.Add(std::move(rowNode));
-    }
-    return result.AsList();
+    THROW_ERROR_EXCEPTION("LookupRows is not supported yet via RPC client");
 }
 
 TNode::TListType TRpcRawClient::SelectRows(
-    const TString& query,
-    const TSelectRowsOptions& options)
+    const TString& /*query*/,
+    const TSelectRowsOptions& /*options*/)
 {
-    auto future = Client_->SelectRows(query, SerializeOptionsForSelectRows(options));
-    auto selectRowsResult = WaitAndProcess(future);
-
-    const auto& rowset = selectRowsResult.Rowset;
-    const auto columnNames = rowset->GetSchema()->GetColumnNames();
-
-    auto result = TNode::CreateList();
-    for (const auto& row : rowset->GetRows()) {
-        YT_VERIFY(row.GetCount() == columnNames.size());
-
-        auto rowNode = TNode::CreateMap();
-        for (const auto& [columnIdx, columnName] : Enumerate(columnNames)) {
-            TNode value;
-            TNodeBuilder builder(&value);
-            Serialize(row[columnIdx], &builder);
-            rowNode[columnName] = value;
-        }
-        result.Add(std::move(rowNode));
-    }
-    return result.AsList();
+    THROW_ERROR_EXCEPTION("SelectRows is not supported yet via RPC client");
 }
 
 void TRpcRawClient::AlterTable(
@@ -1193,7 +1132,7 @@ class TDeserializingRowStream
     : public IAsyncZeroCopyInputStream
 {
 public:
-    TDeserializingRowStream(IAsyncZeroCopyInputStreamPtr stream)
+    explicit TDeserializingRowStream(IAsyncZeroCopyInputStreamPtr stream)
         : Underlying_(std::move(stream))
     { }
 
@@ -1214,7 +1153,7 @@ class TSerializingRowStream
     : public IAsyncZeroCopyOutputStream
 {
 public:
-    TSerializingRowStream(IAsyncZeroCopyOutputStreamPtr stream)
+    explicit TSerializingRowStream(IAsyncZeroCopyOutputStreamPtr stream)
         : Underlying_(std::move(stream))
     { }
 
@@ -1235,29 +1174,6 @@ public:
     TFuture<void> Close() override
     {
         return Underlying_->Close();
-    }
-
-private:
-    const IAsyncZeroCopyOutputStreamPtr Underlying_;
-};
-
-class TSyncRpcOutputStream
-    : public IOutputStream
-{
-public:
-    TSyncRpcOutputStream(IAsyncZeroCopyOutputStreamPtr stream)
-        : Underlying_(std::move(stream))
-    { }
-
-    void DoWrite(const void* buf, size_t len) override
-    {
-        auto sharedBuffer = TSharedRef::MakeCopy<TDefaultSharedBlobTag>(TRef(buf, len));
-        WaitAndProcess(Underlying_->Write(sharedBuffer));
-    }
-
-    void DoFinish() override
-    {
-        WaitAndProcess(Underlying_->Close());
     }
 
 private:
@@ -1352,7 +1268,8 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     }
 
     auto rowStream = New<TDeserializingRowStream>(std::move(stream));
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowStream)));
+    auto syncAdapter = CreateSyncAdapter(CreateCopyingAdapter(std::move(rowStream)));
+    return std::make_unique<TSyncRpcInputStream>(std::move(syncAdapter));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadTablePartition(
@@ -1387,7 +1304,8 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTablePartition(
     }
 
     auto rowStream = New<TDeserializingRowStream>(std::move(stream));
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowStream)));
+    auto syncAdapter = CreateSyncAdapter(CreateCopyingAdapter(std::move(rowStream)));
+    return std::make_unique<TSyncRpcInputStream>(std::move(syncAdapter));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
@@ -1443,7 +1361,8 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
         options.StartPartIndex_,
         options.Offset_,
         options.PartSize_);
-    return CreateSyncAdapter(CreateCopyingAdapter(blobReader));
+    auto syncAdapter = CreateSyncAdapter(CreateCopyingAdapter(blobReader));
+    return std::make_unique<TSyncRpcInputStream>(std::move(syncAdapter));
 }
 
 void TRpcRawClient::AlterTableReplica(
@@ -1458,21 +1377,11 @@ void TRpcRawClient::AlterTableReplica(
 }
 
 void TRpcRawClient::DeleteRows(
-    const TYPath& path,
-    const TNode::TListType& keys,
-    const TDeleteRowsOptions& options)
+    const TYPath& /*path*/,
+    const TNode::TListType& /*keys*/,
+    const TDeleteRowsOptions& /*options*/)
 {
-    auto transaction = WaitAndProcess(
-        Client_->StartTransaction(
-            NTransactionClient::ETransactionType::Tablet,
-            SerializeOptionsForStartTransaction(options)));
-
-    auto nameTable = GetNameTable(keys);
-    auto keysRange = GetSharedKeysRange(nameTable, keys);
-
-    transaction->DeleteRows(path, nameTable, keysRange, SerializeOptionsForDeleteRows(options));
-
-    WaitAndProcess(transaction->Commit());
+    THROW_ERROR_EXCEPTION("DeleteRows is not supported yet via RPC client");
 }
 
 void TRpcRawClient::FreezeTable(
