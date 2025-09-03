@@ -1,0 +1,18 @@
+{
+    "meta": {
+        "name": "ytsaurus-python-packages",
+        "maintainer": "YT team",
+        "description": "YTsaurus client libraries build from source files",
+        "version": "local-{revision}",
+    },
+    "include": [
+        "yt/docker/ya-build/base/build-python-linux-aarch64.json",
+        "yt/docker/ya-build/base/data-common.json",
+        "yt/docker/ya-build/base/data-python.json",
+    ],
+    "params": {
+        "format": "docker",
+        "docker_target": "ytsaurus-python-packages",
+        "docker_platform" : "linux/arm64",
+    },
+}
