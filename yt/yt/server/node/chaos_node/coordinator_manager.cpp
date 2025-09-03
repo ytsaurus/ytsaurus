@@ -485,7 +485,8 @@ private:
             return;
         }
 
-        if (!it->second.AliveTransactions.contains(transactionId)) {
+        auto& aliveTransactions = it->second.AliveTransactions;
+        if (auto transactionIt = aliveTransactions.find(transactionId); transactionIt == aliveTransactions.end()) {
             YT_LOG_DEBUG("Trying to decrease transaction count for transaction absent shortcut "
                 "(ChaosObjectId: %v, Type: %v, TransactionId: %v)",
                 chaosObjectId,
@@ -493,11 +494,11 @@ private:
                 transactionId);
             YT_VERIFY(isAbort);
             return;
+        } else {
+            aliveTransactions.erase(transactionIt);
         }
 
-        it->second.AliveTransactions.erase(transactionId);
-
-        if (it->second.AliveTransactions.empty() && it->second.State == EShortcutState::Revoking) {
+        if (aliveTransactions.empty() && it->second.State == EShortcutState::Revoking) {
             auto chaosCellId = it->second.CellId;
             auto era = it->second.Era;
 
