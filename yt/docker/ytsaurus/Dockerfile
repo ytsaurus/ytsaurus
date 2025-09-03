@@ -176,6 +176,7 @@ ARG SOURCE_ROOT=/ytsaurus
 RUN mkdir -p ${SOURCE_ROOT}
 COPY ./yt/python ${SOURCE_ROOT}/yt/python
 COPY ./yt/yt/python ${SOURCE_ROOT}/yt/yt/python
+COPY ./yt/yt/tools ${SOURCE_ROOT}/yt/yt/tools
 COPY ./certs/cacert.pem ${SOURCE_ROOT}/certs/cacert.pem
 
 ARG BUILD_ROOT=/tmp
