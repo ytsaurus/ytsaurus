@@ -117,10 +117,97 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 
-////////////////////////////////////////////////////////////////////////////////
-
 using THLL = NYT::THyperLogLog<14>;
 static_assert(std::is_trivially_destructible<THLL>::value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+char* AllocateBytes(TExpressionContext* context, size_t byteCount)
+{
+    return context->AllocateUnaligned(byteCount, EAddressSpace::WebAssembly);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+template <typename TStringType>
+void CopyStringLike(TExpressionContext* context, TValue* result, const TStringType& str, EValueType type)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* offset = AllocateBytes(context, str.size());
+    ::memcpy(PtrFromVM(compartment, offset, str.size()), str.data(), str.size());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(type, TStringBuf(offset, str.size()));
+}
+
+template <typename TStringType>
+void CopyStringLike(TExpressionContext* context, TPIValue* result, const TStringType& str, EValueType type)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* offset = AllocateBytes(context, str.size());
+    auto* offsetAtHost = PtrFromVM(compartment, offset, str.size());
+    ::memcpy(offsetAtHost, str.data(), str.size());
+    MakePositionIndependentStringLikeValue(
+        PtrFromVM(compartment, result),
+        type,
+        TStringBuf(offsetAtHost, str.size()));
+}
+
+class TContextStringOutput
+    : public IZeroCopyOutput
+{
+public:
+    explicit TContextStringOutput(TExpressionContext* context)
+        : Context_(context)
+    { }
+
+    TStringBuf View() const
+    {
+        return {PtrToVM(GetCurrentCompartment(), Begin_), Size_};
+    }
+
+    TStringBuf HostView() const
+    {
+        return {Begin_, Size_};
+    }
+
+private:
+    TExpressionContext* Context_;
+    char* Begin_ = {};
+    size_t Size_ = 0;
+    size_t Capacity_ = 0;
+
+    static constexpr size_t BufferSizeStep = 16;
+
+    size_t DoNext(void** ptr) override
+    {
+        if (Size_ == Capacity_) {
+            Extend(Capacity_ + BufferSizeStep);
+        }
+        size_t previousSize = Size_;
+        Size_ = Capacity_;
+        *ptr = Begin_ + previousSize;
+        return Size_ - previousSize;
+    }
+
+    void DoUndo(size_t len) override
+    {
+        YT_ASSERT(len <= Size_);
+        Size_ -= len;
+    }
+
+    void Extend(size_t desiredCapacity)
+    {
+        YT_ASSERT(desiredCapacity > Capacity_);
+
+        Capacity_ = FastClp2(desiredCapacity);
+        auto* oldBegin = Begin_;
+        Begin_ = PtrFromVM(GetCurrentCompartment(), AllocateBytes(Context_, Capacity_), Capacity_);
+        ::memcpy(Begin_, oldBegin, Size_);
+    }
+};
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -899,51 +986,69 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
         TPIValue parsedValue;
         int currentArrayIndex = 0;
 
+        auto validateType = [] (EValueType expected, EValueType actual) {
+            THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join, expected %Qlv, actual %Qlv ",
+                expected,
+                actual);
+        };
+
         cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-            auto currentType = cursor->GetCurrent().GetType();
-            switch (currentType) {
+            const auto current = cursor->GetCurrent();
+            switch (current.GetType()) {
                 case EYsonItemType::EntityValue: {
                     MakePositionIndependentNullValue(&parsedValue);
                     break;
                 }
                 case EYsonItemType::Int64Value: {
-                    THROW_ERROR_EXCEPTION_IF(
-                        listItemType != EValueType::Int64,
-                        "Type mismatch in array join");
+                    validateType(listItemType, EValueType::Int64);
 
-                    auto value = cursor->GetCurrent().UncheckedAsInt64();
+                    auto value = current.UncheckedAsInt64();
                     MakePositionIndependentInt64Value(&parsedValue, value);
                     break;
                 }
                 case EYsonItemType::Uint64Value: {
-                    THROW_ERROR_EXCEPTION_IF(
-                        listItemType != EValueType::Uint64,
-                        "Type mismatch in array join");
+                    validateType(listItemType, EValueType::Uint64);
 
-                    auto value = cursor->GetCurrent().UncheckedAsUint64();
+                    auto value = current.UncheckedAsUint64();
                     MakePositionIndependentUint64Value(&parsedValue, value);
                     break;
                 }
                 case EYsonItemType::DoubleValue: {
-                    THROW_ERROR_EXCEPTION_IF(
-                        listItemType != EValueType::Double,
-                        "Type mismatch in array join");
+                    validateType(listItemType, EValueType::Double);
 
-                    auto value = cursor->GetCurrent().UncheckedAsDouble();
+                    auto value = current.UncheckedAsDouble();
                     MakePositionIndependentDoubleValue(&parsedValue, value);
                     break;
                 }
                 case EYsonItemType::StringValue: {
-                    THROW_ERROR_EXCEPTION_IF(
-                        listItemType != EValueType::String,
-                        "Type mismatch in array join");
+                    validateType(listItemType, EValueType::String);
 
-                    auto value = cursor->GetCurrent().UncheckedAsString();
-                    MakePositionIndependentStringValue(&parsedValue, value);
+                    auto value = current.UncheckedAsString();
+                    MakePositionIndependentStringLikeValue(&parsedValue, EValueType::String, value);
+                    break;
+                }
+                case EYsonItemType::BeginList:
+                case EYsonItemType::BeginMap: {
+                    THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
+                        "Type mismatch in array join, expected %Qlv or %Qlv, actual %Qlv ",
+                        EValueType::Any,
+                        EValueType::Composite,
+                        listItemType);
+
+                    NDetail::TContextStringOutput output(context);
+                    TCheckedInDebugYsonTokenWriter writer(&output);
+
+                    cursor->TransferComplexValue(&writer);
+
+                    writer.Finish();
+
+                    MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.HostView());
                     break;
                 }
                 default:
-                    THROW_ERROR_EXCEPTION("Type mismatch in array join");
+                    THROW_ERROR_EXCEPTION("Unexpected item in array join, expected value of type %Qlv, encountered %Qlv",
+                        current.GetType(),
+                        listItemType);
             }
 
             if (currentArrayIndex >= std::ssize(nestedRows)) {
@@ -959,7 +1064,11 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
                 PtrFromVM(compartment, &nestedRows[currentArrayIndex][index]),
                 parsedValue);
             currentArrayIndex++;
-            cursor->Next();
+
+            // NB(sabdenovch): If a composite value has been transferred, cursor has already been advanced.
+            if (current.GetType() != EYsonItemType::BeginList && current.GetType() != EYsonItemType::BeginMap) {
+                cursor->Next();
+            }
         });
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
@@ -1881,11 +1990,6 @@ void WriteOpHelper(
     }
 }
 
-char* AllocateBytes(TExpressionContext* context, size_t byteCount)
-{
-    return context->AllocateUnaligned(byteCount, EAddressSpace::WebAssembly);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TPIValue* LookupInRowset(
@@ -2133,54 +2237,6 @@ void ThrowQueryException(const char* error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-template <typename TStringType>
-void CopyString(TExpressionContext* context, TValue* result, const TStringType& str)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(PtrFromVM(compartment, offset, str.size()), str.data(), str.size());
-    *PtrFromVM(compartment, result) = MakeUnversionedStringValue(TStringBuf(offset, str.size()));
-}
-
-template <typename TStringType>
-void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto* offset = AllocateBytes(context, str.size());
-    auto* offsetAtHost = PtrFromVM(compartment, offset, str.size());
-    ::memcpy(offsetAtHost, str.data(), str.size());
-    MakePositionIndependentStringValue(
-        PtrFromVM(compartment, result),
-        TStringBuf(offsetAtHost, str.size()));
-}
-
-template <typename TStringType>
-void CopyAny(TExpressionContext* context, TValue* result, const TStringType& str)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(PtrFromVM(compartment, offset, str.size()), str.data(), str.size());
-    *PtrFromVM(compartment, result) = MakeUnversionedAnyValue(TStringBuf(offset, str.size()));
-}
-
-template <typename TStringType>
-void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
-{
-    auto* compartment = GetCurrentCompartment();
-    auto* offset = AllocateBytes(context, str.size());
-    auto* offsetAtHost = PtrFromVM(compartment, offset, str.size());
-    ::memcpy(offsetAtHost, str.data(), str.size());
-    MakePositionIndependentAnyValue(
-        PtrFromVM(compartment, result),
-        TStringBuf(offsetAtHost, str.size()));
-}
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 re2::RE2* RegexCreate(TValue* regexp)
 {
     auto* compartment = GetCurrentCompartment();
@@ -2263,7 +2319,7 @@ void RegexReplaceFirst(
         *re2,
         re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()));
 
-    NDetail::CopyString(context, result, rewritten);
+    NDetail::CopyStringLike(context, result, rewritten, EValueType::String);
 }
 
 void RegexReplaceAll(
@@ -2292,7 +2348,7 @@ void RegexReplaceAll(
         *re2,
         re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()));
 
-    NDetail::CopyString(context, result, rewritten);
+    NDetail::CopyStringLike(context, result, rewritten, EValueType::String);
 }
 
 void RegexExtract(
@@ -2322,7 +2378,7 @@ void RegexExtract(
         re2::StringPiece(rewriteAtHostStringBuf.data(), rewriteAtHostStringBuf.size()),
         &extracted);
 
-    NDetail::CopyString(context, result, extracted);
+    NDetail::CopyStringLike(context, result, extracted, EValueType::String);
 }
 
 void RegexEscape(
@@ -2340,7 +2396,7 @@ void RegexEscape(
     auto escaped = re2::RE2::QuoteMeta(
         re2::StringPiece(stringBuf.data(), stringBuf.size()));
 
-    NDetail::CopyString(context, result, escaped);
+    NDetail::CopyStringLike(context, result, escaped, EValueType::String);
 }
 
 static void* XdeltaAllocate(void* opaque, size_t size)
@@ -2438,11 +2494,11 @@ int XdeltaMerge(
 
 #define DEFINE_YPATH_GET_STRING \
     DEFINE_YPATH_GET_IMPL(String, \
-        NDetail::CopyString(context, result, *value);)
+        NDetail::CopyStringLike(context, result, *value, EValueType::String);)
 
 #define DEFINE_YPATH_GET_ANY \
     DEFINE_YPATH_GET_IMPL(Any, \
-        NDetail::CopyAny(context, result, *value);)
+        NDetail::CopyStringLike(context, result, *value, EValueType::Any);)
 
 DEFINE_YPATH_GET(Int64)
 DEFINE_YPATH_GET(Uint64)
@@ -2507,7 +2563,7 @@ DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
 DEFINE_CONVERT_ANY(
     Boolean,
     MakePositionIndependentBooleanValue(PtrFromVM(GetCurrentCompartment(), result), token.GetBooleanValue());)
-DEFINE_CONVERT_ANY(String, NDetail::CopyString(context, result, token.GetStringValue());)
+DEFINE_CONVERT_ANY(String, NDetail::CopyStringLike(context, result, token.GetStringValue(), EValueType::String);)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2676,9 +2732,7 @@ extern "C" void MakeMap(
 
     auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
-    // TODO(sabdenovch): migrate to std::string.
-    TString resultYson;
-    TStringOutput output(resultYson);
+    NDetail::TContextStringOutput output(context);
     NYson::TYsonWriter writer(&output);
 
     writer.OnBeginMap();
@@ -2732,7 +2786,7 @@ extern "C" void MakeMap(
     }
     writer.OnEndMap();
 
-    NDetail::CopyAny(context, result, resultYson);
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.View());
 }
 
 extern "C" void MakeList(
@@ -2745,9 +2799,7 @@ extern "C" void MakeList(
 
     auto arguments = TRange(PtrFromVM(compartment, args, argCount), argCount);
 
-    // TODO(sabdenovch): migrate to std::string.
-    TString resultYson;
-    TStringOutput output(resultYson);
+    NDetail::TContextStringOutput output(context);
     NYson::TYsonWriter writer(&output);
 
     writer.OnBeginList();
@@ -2791,7 +2843,7 @@ extern "C" void MakeList(
     }
     writer.OnEndList();
 
-    NDetail::CopyAny(context, result, resultYson);
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.View());
 }
 
 bool ListContainsNullImpl(const INodePtr& node)
@@ -2991,9 +3043,7 @@ extern "C" void NumericToString(
         return;
     }
 
-    // TODO(sabdenovch): migrate to std::string.
-    auto resultYson = TString();
-    auto output = TStringOutput(resultYson);
+    NDetail::TContextStringOutput output(context);
     auto writer = TYsonWriter(&output, EYsonFormat::Text);
 
     switch (valueAtHost->Type) {
@@ -3010,7 +3060,7 @@ extern "C" void NumericToString(
             YT_ABORT();
     }
 
-    NDetail::CopyString(context, result, resultYson);
+    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::String, output.View());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3484,9 +3534,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
     auto* resultAtHost = PtrFromVM(compartment, result);
     auto* stateAtHost = PtrFromVM(compartment, state);
 
-    // TODO(sabdenovch): migrate to std::string.
-    TString resultYson;
-    TStringOutput output(resultYson);
+    NDetail::TContextStringOutput output(context);
     NYson::TYsonWriter writer(&output);
 
     writer.OnBeginList();
@@ -3548,7 +3596,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     writer.OnEndList();
 
-    *resultAtHost = context->GetRowBuffer()->CaptureValue(MakeUnversionedAnyValue(resultYson));
+    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::Any, output.View());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3885,14 +3933,14 @@ void CompositeMemberAccessorHelper(
 
         case EValueType::String:
             if (auto parsed = TryParseValue<TString>(&cursor)) {
-                NDetail::CopyString(context, result, *parsed);
+                NDetail::CopyStringLike(context, result, *parsed, EValueType::String);
             }
             break;
 
         case EValueType::Any:
         case EValueType::Composite: {
             auto parsed = ParseAnyValue(&cursor);
-            NDetail::CopyAny(context, result, parsed);
+            NDetail::CopyStringLike(context, result, parsed, EValueType::Any);
             PtrFromVM(compartment, result)->Type = resultType;
             break;
         }
@@ -3932,11 +3980,9 @@ bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure*
 }
 
 // Build yson list from values.
-TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBuffer)
+TUnversionedValue PackValues(TRange<TUnversionedValue> values, TExpressionContext* context)
 {
-    // TODO(sabdenovch): migrate to std::string.
-    TString resultYson;
-    TStringOutput output(resultYson);
+    NDetail::TContextStringOutput output(context);
     NYson::TYsonWriter writer(&output);
 
     writer.OnBeginList();
@@ -3976,7 +4022,7 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBu
     }
     writer.OnEndList();
 
-    return rowBuffer->CaptureValue(MakeUnversionedCompositeValue(resultYson));
+    return MakeUnversionedStringLikeValue(EValueType::Composite, output.View());
 }
 
 void SubqueryWriteHelper(
@@ -3993,14 +4039,13 @@ void SubqueryWriteHelper(
 
     // Produce yson with complex_type_mode=positional.
 
-    auto* buffer = context->ExpressionContext->GetRowBuffer().Get();
     std::vector<TValue> packedResult;
 
     for (auto row : closure.OutputRowsBatch) {
-        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), buffer));
+        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), context->ExpressionContext));
     }
 
-    MakePositionIndependentFromUnversioned(&context->Result, PackValues(packedResult, buffer));
+    MakePositionIndependentFromUnversioned(&context->Result, PackValues(packedResult, context->ExpressionContext));
 }
 
 const TPIValue* SubqueryInsertGroupRow(
