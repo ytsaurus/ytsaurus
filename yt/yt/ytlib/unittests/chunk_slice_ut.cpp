@@ -141,12 +141,14 @@ public:
         block->set_chunk_row_count(ChunkRowCount_);
     }
 
-    NChunkClient::NProto::TChunkMeta Finish()
+    NChunkClient::NProto::TChunkMeta Finish(i64 compressedDataSize = 100)
     {
         {
             NProto::TMiscExt miscExt;
             miscExt.set_data_weight(ChunkDataWeight_);
             miscExt.set_row_count(ChunkRowCount_);
+            miscExt.set_uncompressed_data_size(ChunkDataWeight_);
+            miscExt.set_compressed_data_size(compressedDataSize);
             SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
         }
 
@@ -183,7 +185,7 @@ NChunkClient::NProto::TChunkMeta BuildSimpleChunk(
             /*dataWeight*/ 100);
     }
 
-    return builder.Finish();
+    return builder.Finish(/*compressedDataSize*/ 1_KB);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsOneBlock)
@@ -197,7 +199,7 @@ TEST(TChunkSlicerTest, SliceByRowsOneBlock)
         100,
         100 * DataWeightPerRow);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 50 * DataWeightPerRow);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(34 * DataWeightPerRow);
@@ -211,22 +213,28 @@ TEST(TChunkSlicerTest, SliceByRowsOneBlock)
     EXPECT_EQ(slices[0].LowerLimit.GetRowIndex(), 0);
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 34);
-    EXPECT_EQ(slices[0].DataWeight, 34 * DataWeightPerRow);
     EXPECT_EQ(slices[0].RowCount, 34);
+    EXPECT_EQ(slices[0].DataWeight, 34 * DataWeightPerRow);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 34);
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 68);
-    EXPECT_EQ(slices[1].DataWeight, 34 * DataWeightPerRow);
     EXPECT_EQ(slices[1].RowCount, 34);
+    EXPECT_EQ(slices[1].DataWeight, 34 * DataWeightPerRow);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 
     EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
     EXPECT_EQ(slices[2].LowerLimit.GetRowIndex(), 68);
     EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[2].UpperLimit.GetRowIndex(), 100);
-    EXPECT_EQ(slices[2].DataWeight, 32 * DataWeightPerRow);
     EXPECT_EQ(slices[2].RowCount, 32);
+    EXPECT_EQ(slices[2].DataWeight, 32 * DataWeightPerRow);
+    EXPECT_EQ(slices[2].UncompressedDataSize, slices[2].DataWeight);
+    EXPECT_EQ(slices[2].CompressedDataSize, slices[2].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
@@ -248,7 +256,7 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 300);
     NProto::TSliceRequest req;
 
     req.set_slice_data_weight(200);
@@ -265,6 +273,8 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
     EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 200);
     EXPECT_EQ(slices[0].DataWeight, 200);
     EXPECT_EQ(slices[0].RowCount, 200);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
     EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 200);
@@ -272,6 +282,8 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
     EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 400);
     EXPECT_EQ(slices[1].DataWeight, 200);
     EXPECT_EQ(slices[1].RowCount, 200);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 
     EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
     EXPECT_EQ(slices[2].LowerLimit.GetRowIndex(), 400);
@@ -279,6 +291,8 @@ TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
     EXPECT_EQ(slices[2].UpperLimit.GetRowIndex(), 600);
     EXPECT_EQ(slices[2].DataWeight, 200);
     EXPECT_EQ(slices[2].RowCount, 200);
+    EXPECT_EQ(slices[2].UncompressedDataSize, slices[2].DataWeight);
+    EXPECT_EQ(slices[2].CompressedDataSize, slices[2].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
@@ -310,7 +324,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 250);
 
     {
         NProto::TSliceRequest req;
@@ -330,6 +344,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 250);
         EXPECT_EQ(slices[0].DataWeight, 100);
         EXPECT_EQ(slices[0].RowCount, 100);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
         EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({4}));
         EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 250);
@@ -337,6 +353,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
         EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 350);
         EXPECT_EQ(slices[1].DataWeight, 100);
         EXPECT_EQ(slices[1].RowCount, 100);
+        EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+        EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
     }
     {
         NProto::TSliceRequest req;
@@ -356,6 +374,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 350);
         EXPECT_EQ(slices[0].DataWeight, 200);
         EXPECT_EQ(slices[0].RowCount, 200);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
     }
 }
 
@@ -368,7 +388,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits2)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 50);
     NProto::TSliceRequest req;
 
     ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 23));
@@ -387,6 +407,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits2)
     EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 34);
     EXPECT_EQ(slices[0].DataWeight, 11);
     EXPECT_EQ(slices[0].RowCount, 11);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
@@ -408,7 +430,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
     NProto::TSliceRequest req;
 
     ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 100));
@@ -427,6 +449,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
     EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 190);
     EXPECT_EQ(slices[0].DataWeight, 90);
     EXPECT_EQ(slices[0].RowCount, 90);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
     EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 190);
@@ -434,6 +458,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
     EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 200);
     EXPECT_EQ(slices[1].DataWeight, 10);
     EXPECT_EQ(slices[1].RowCount, 10);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
@@ -465,7 +491,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 250);
 
     {
         NProto::TSliceRequest req;
@@ -485,6 +511,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 190);
         EXPECT_EQ(slices[0].DataWeight, 90);
         EXPECT_EQ(slices[0].RowCount, 90);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
         EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({6}));
         EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 190);
@@ -492,6 +520,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 280);
         EXPECT_EQ(slices[1].DataWeight, 90);
         EXPECT_EQ(slices[1].RowCount, 90);
+        EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+        EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 
         EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({7}));
         EXPECT_EQ(slices[2].LowerLimit.GetRowIndex(), 280);
@@ -499,6 +529,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         EXPECT_EQ(slices[2].UpperLimit.GetRowIndex(), 370);
         EXPECT_EQ(slices[2].DataWeight, 90);
         EXPECT_EQ(slices[2].RowCount, 90);
+        EXPECT_EQ(slices[2].UncompressedDataSize, slices[2].DataWeight);
+        EXPECT_EQ(slices[2].CompressedDataSize, slices[2].DataWeight / 2);
 
         EXPECT_EQ(slices[3].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({11}));
         EXPECT_EQ(slices[3].LowerLimit.GetRowIndex(), 370);
@@ -506,6 +538,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         EXPECT_EQ(slices[3].UpperLimit.GetRowIndex(), 400);
         EXPECT_EQ(slices[3].DataWeight, 30);
         EXPECT_EQ(slices[3].RowCount, 30);
+        EXPECT_EQ(slices[3].UncompressedDataSize, slices[3].DataWeight);
+        EXPECT_EQ(slices[3].CompressedDataSize, slices[3].DataWeight / 2);
     }
 
     {
@@ -526,6 +560,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 400);
         EXPECT_EQ(slices[0].DataWeight, 300);
         EXPECT_EQ(slices[0].RowCount, 300);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
     }
 }
 
@@ -538,8 +574,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
-
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 75);  // 3:4 compression ratio.
     {
         NProto::TSliceRequest req;
         ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({2}), std::nullopt));
@@ -558,6 +593,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 90);
         EXPECT_EQ(slices[0].DataWeight, 90);
         EXPECT_EQ(slices[0].RowCount, 90);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 3 / 4);
 
         EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
         EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 90);
@@ -565,6 +602,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 100);
         EXPECT_EQ(slices[1].DataWeight, 10);
         EXPECT_EQ(slices[1].RowCount, 10);
+        EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+        EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 3 / 4);
     }
     {
         NProto::TSliceRequest req;
@@ -584,6 +623,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 90);
         EXPECT_EQ(slices[0].DataWeight, 90);
         EXPECT_EQ(slices[0].RowCount, 90);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 3 / 4);
 
         EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({1}));
         EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 90);
@@ -591,6 +632,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
         EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 100);
         EXPECT_EQ(slices[1].DataWeight, 10);
         EXPECT_EQ(slices[1].RowCount, 10);
+        EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+        EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 3 / 4);
     }
 }
 
@@ -623,8 +666,7 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
-
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 275);
     {
         NProto::TSliceRequest req;
         ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), 50));
@@ -643,6 +685,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
         EXPECT_EQ(slices[0].UpperLimit.GetRowIndex(), 210);
         EXPECT_EQ(slices[0].DataWeight, 110);
         EXPECT_EQ(slices[0].RowCount, 110);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 275 / 500);
 
         EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({7}));
         EXPECT_EQ(slices[1].LowerLimit.GetRowIndex(), 210);
@@ -650,6 +694,8 @@ TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
         EXPECT_EQ(slices[1].UpperLimit.GetRowIndex(), 320);
         EXPECT_EQ(slices[1].DataWeight, 110);
         EXPECT_EQ(slices[1].RowCount, 110);
+        EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+        EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 275 / 500);
     }
 }
 
@@ -662,7 +708,7 @@ TEST(TChunkSlicerTest, SliceByKeysOneBlock)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 50);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -676,6 +722,8 @@ TEST(TChunkSlicerTest, SliceByKeysOneBlock)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
@@ -692,7 +740,7 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 120);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -706,6 +754,8 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 120 / 200);
 
     // NB: Second block actually contains key 2, however we don't know about it
     // since only block last keys are stored in meta.
@@ -713,6 +763,8 @@ TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 120 / 200);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
@@ -729,7 +781,7 @@ TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 80);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -743,6 +795,8 @@ TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 80 / 200);
 
     // NB: Second block actually contains key 2, however we don't know about it
     // since only block last keys are stored in meta.
@@ -750,6 +804,8 @@ TEST(TChunkSlicerTest, SliceByKeysWiderRequest)
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 80 / 200);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac1)
@@ -766,7 +822,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac1)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -780,6 +836,8 @@ TEST(TChunkSlicerTest, SliceByKeysManiac1)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
     EXPECT_EQ(slices[0].DataWeight, 200);
     EXPECT_EQ(slices[0].RowCount, 200);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 150 / 200);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac2)
@@ -806,7 +864,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 160);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -820,11 +878,15 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[0].DataWeight, 300);
     EXPECT_EQ(slices[0].RowCount, 300);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 160 / 400);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 160 / 400);
 }
 
 // Same as above, but with min_maniac_data_weight.
@@ -852,7 +914,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2IsolateManiac)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 160);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -867,16 +929,22 @@ TEST(TChunkSlicerTest, SliceByKeysManiac2IsolateManiac)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({2}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 160 / 400);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
     EXPECT_EQ(slices[1].DataWeight, 400);
     EXPECT_EQ(slices[1].RowCount, 400);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 160 / 400);
 
     EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({2}));
     EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[2].DataWeight, 100);
     EXPECT_EQ(slices[2].RowCount, 100);
+    EXPECT_EQ(slices[2].UncompressedDataSize, slices[2].DataWeight);
+    EXPECT_EQ(slices[2].CompressedDataSize, slices[2].DataWeight * 160 / 400);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysManiac3)
@@ -893,7 +961,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac3)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 100);
 
     NProto::TSliceRequest req;
     ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({1}), std::nullopt));
@@ -916,6 +984,8 @@ TEST(TChunkSlicerTest, SliceByKeysManiac3)
         EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({2}));
         EXPECT_EQ(slices[0].DataWeight, 100);
         EXPECT_EQ(slices[0].RowCount, 100);
+        EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+        EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
     }
 }
 
@@ -933,7 +1003,7 @@ TEST(TChunkSlicerTest, SliceByKeysManiac4)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 180);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -948,6 +1018,8 @@ TEST(TChunkSlicerTest, SliceByKeysManiac4)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
     EXPECT_EQ(slices[0].DataWeight, 200);
     EXPECT_EQ(slices[0].RowCount, 200);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 180 / 200);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
@@ -969,7 +1041,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 90);
 
     NProto::TSliceRequest req;
     ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 50));
@@ -986,11 +1058,15 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({4}));
     EXPECT_EQ(slices[0].DataWeight, 150);
     EXPECT_EQ(slices[0].RowCount, 150);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight * 90 / 300);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({4}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({6}));
     EXPECT_EQ(slices[1].DataWeight, 40);
     EXPECT_EQ(slices[1].RowCount, 40);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight * 90 / 300);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
@@ -1012,7 +1088,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
     NProto::TSliceRequest req;
     ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 134));
@@ -1028,6 +1104,8 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({1}));
     EXPECT_EQ(slices[0].DataWeight, 1);
     EXPECT_EQ(slices[0].RowCount, 1);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, 1);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
@@ -1059,7 +1137,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 250);
 
     NProto::TSliceRequest req;
     ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
@@ -1075,6 +1153,8 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({12}));
     EXPECT_EQ(slices[0].DataWeight, 300);
     EXPECT_EQ(slices[0].RowCount, 300);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
@@ -1096,7 +1176,7 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
     NProto::TSliceRequest req;
     ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
@@ -1112,6 +1192,8 @@ TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({6}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, ManiacAtTheStart)
@@ -1135,7 +1217,7 @@ TEST(TChunkSlicerTest, ManiacAtTheStart)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -1150,11 +1232,15 @@ TEST(TChunkSlicerTest, ManiacAtTheStart)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[0].DataWeight, 300);
     EXPECT_EQ(slices[0].RowCount, 300);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({3}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, ManiacAtTheEndSmallThreshold)
@@ -1178,11 +1264,15 @@ TEST(TChunkSlicerTest, ManiacAtTheEndSmallThreshold)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({3}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, 100 * 1024 / 300 );
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({3}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[1].DataWeight, 300);
     EXPECT_EQ(slices[1].RowCount, 300);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, 300 * 1024 / 300);
 }
 
 TEST(TChunkSlicerTest, ManiacAtTheEndBigThreshold)
@@ -1206,6 +1296,8 @@ TEST(TChunkSlicerTest, ManiacAtTheEndBigThreshold)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[0].DataWeight, 300);
     EXPECT_EQ(slices[0].RowCount, 300);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, 300 * 1024 / 300);
 }
 
 TEST(TChunkSlicerTest, TwoManiacsInARow)
@@ -1233,7 +1325,7 @@ TEST(TChunkSlicerTest, TwoManiacsInARow)
             100);
     }
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 350);
 
     NProto::TSliceRequest req;
     req.set_slice_data_weight(1);
@@ -1248,16 +1340,22 @@ TEST(TChunkSlicerTest, TwoManiacsInARow)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[0].DataWeight, 400);
     EXPECT_EQ(slices[0].RowCount, 400);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({3}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({5}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 
     EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({5}));
     EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[2].DataWeight, 400);
     EXPECT_EQ(slices[2].RowCount, 400);
+    EXPECT_EQ(slices[2].UncompressedDataSize, slices[2].DataWeight);
+    EXPECT_EQ(slices[2].CompressedDataSize, slices[2].DataWeight / 2);
 }
 
 TEST(TChunkSlicerTest, DontIsolateManiacIfHaveRowLimit)
@@ -1281,7 +1379,7 @@ TEST(TChunkSlicerTest, DontIsolateManiacIfHaveRowLimit)
         100,
         100);
 
-    auto chunkMeta = chunkBuilder.Finish();
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 150);
 
     NProto::TSliceRequest req;
     ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 0));
@@ -1298,11 +1396,15 @@ TEST(TChunkSlicerTest, DontIsolateManiacIfHaveRowLimit)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({3}));
     EXPECT_EQ(slices[0].DataWeight, 200);
     EXPECT_EQ(slices[0].RowCount, 200);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({3}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 }
 
 class TChunkSlicerWithManiacIsolationTest
@@ -1332,7 +1434,7 @@ protected:
             100,
             100);
 
-        return chunkBuilder.Finish();
+        return chunkBuilder.Finish(/*compressedDataSize*/ 350);
     }
 
     std::vector<TChunkSlice> DoSliceChunk(const TUnversionedOwningRow& lowerKey, const TUnversionedOwningRow& upperKey) const
@@ -1368,6 +1470,8 @@ TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheLeftNoIntersection)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({5}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheLeftWithIntersection)
@@ -1385,11 +1489,15 @@ TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheLeftWithIntersection)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({5}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({5}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[1].DataWeight, 700);
     EXPECT_EQ(slices[1].RowCount, 700);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 }
 
 TEST_F(TChunkSlicerWithManiacIsolationTest, LimitIsExactlyManiac)
@@ -1407,6 +1515,8 @@ TEST_F(TChunkSlicerWithManiacIsolationTest, LimitIsExactlyManiac)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[0].DataWeight, 700);
     EXPECT_EQ(slices[0].RowCount, 700);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheRightWithIntersection)
@@ -1418,11 +1528,15 @@ TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheRightWithIntersection)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[0].DataWeight, 700);
     EXPECT_EQ(slices[0].RowCount, 700);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({5}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({7}));
     EXPECT_EQ(slices[1].DataWeight, 100);
     EXPECT_EQ(slices[1].RowCount, 100);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 }
 
 TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheRightNoIntersection)
@@ -1434,6 +1548,8 @@ TEST_F(TChunkSlicerWithManiacIsolationTest, LimitToTheRightNoIntersection)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({9}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 }
 
 TEST_F(TChunkSlicerWithManiacIsolationTest, LimitCoversManiacWithGaps)
@@ -1445,16 +1561,22 @@ TEST_F(TChunkSlicerWithManiacIsolationTest, LimitCoversManiacWithGaps)
     EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({5}));
     EXPECT_EQ(slices[0].DataWeight, 100);
     EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].UncompressedDataSize, slices[0].DataWeight);
+    EXPECT_EQ(slices[0].CompressedDataSize, slices[0].DataWeight / 2);
 
     EXPECT_EQ(slices[1].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({5}));
     EXPECT_EQ(slices[1].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({5}));
     EXPECT_EQ(slices[1].DataWeight, 700);
     EXPECT_EQ(slices[1].RowCount, 700);
+    EXPECT_EQ(slices[1].UncompressedDataSize, slices[1].DataWeight);
+    EXPECT_EQ(slices[1].CompressedDataSize, slices[1].DataWeight / 2);
 
     EXPECT_EQ(slices[2].LowerLimit.KeyBound(), TKeyBound::FromRow() > MakeRow({5}));
     EXPECT_EQ(slices[2].UpperLimit.KeyBound(), TKeyBound::FromRow() < MakeRow({9}));
     EXPECT_EQ(slices[2].DataWeight, 100);
     EXPECT_EQ(slices[2].RowCount, 100);
+    EXPECT_EQ(slices[2].UncompressedDataSize, slices[2].DataWeight);
+    EXPECT_EQ(slices[2].CompressedDataSize, slices[2].DataWeight / 2);
 }
 
 class TChunkSlicerStressTest

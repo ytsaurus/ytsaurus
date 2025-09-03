@@ -14,7 +14,9 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <library/cpp/yt/misc/numeric_helpers.h>
+#include <yt/yt/library/numeric/util.h>
+
+#include <library/cpp/yt/memory/non_null_ptr.h>
 
 namespace NYT::NTableClient {
 
@@ -47,29 +49,21 @@ public:
         const NChunkClient::NProto::TChunkMeta& meta,
         TOwningKeyBound chunkLowerBound,
         TOwningKeyBound chunkUpperBound)
-        : SliceReq_(sliceReq)
-        , Meta_(meta)
+        : Meta_(meta)
         , MiscExt_(GetProtoExtension<NChunkClient::NProto::TMiscExt>(Meta_.extensions()))
         , SliceComparator_(CreateSliceComparator(sliceReq, Meta_))
-        , DataWeightPerRow_([&] {
-            i64 chunkDataWeight = MiscExt_.has_data_weight()
-                ? MiscExt_.data_weight()
-                : MiscExt_.uncompressed_data_size();
-
-            i64 chunkRowCount = MiscExt_.row_count();
-            YT_VERIFY(chunkRowCount > 0);
-
-            return std::max<i64>(1, chunkDataWeight / chunkRowCount);
-        }())
+        , ChunkDataWeight_(MiscExt_.has_data_weight()
+            ? MiscExt_.data_weight()
+            : MiscExt_.uncompressed_data_size())
         , ChunkLowerBound_(ShortenKeyBound(std::move(chunkLowerBound), SliceComparator_.GetLength()))
         , ChunkUpperBound_(ShortenKeyBound(std::move(chunkUpperBound), SliceComparator_.GetLength()))
         , SliceLowerLimit_([&] {
-            TReadLimit sliceLowerLimit(SliceReq_.lower_limit(), /*isUpper*/ false, SliceReq_.key_column_count());
+            TReadLimit sliceLowerLimit(sliceReq.lower_limit(), /*isUpper*/ false, sliceReq.key_column_count());
             sliceLowerLimit.KeyBound() = ShortenKeyBound(sliceLowerLimit.KeyBound(), SliceComparator_.GetLength());
             return sliceLowerLimit;
         }())
         , SliceUpperLimit_([&] {
-            TReadLimit sliceUpperLimit(SliceReq_.upper_limit(), /*isUpper*/ true, SliceReq_.key_column_count());
+            TReadLimit sliceUpperLimit(sliceReq.upper_limit(), /*isUpper*/ true, sliceReq.key_column_count());
             sliceUpperLimit.KeyBound() = ShortenKeyBound(sliceUpperLimit.KeyBound(), SliceComparator_.GetLength());
             return sliceUpperLimit;
         }())
@@ -79,7 +73,11 @@ public:
         , SliceEndRowIndex_(SliceUpperLimit_.GetRowIndex().value_or(MiscExt_.row_count()))
         , HasRowLimits_(SliceLowerLimit_.GetRowIndex() || SliceUpperLimit_.GetRowIndex())
         , MinManiacDataWeight_(YT_OPTIONAL_FROM_PROTO(sliceReq, min_maniac_data_weight))
+        , SliceDataWeight_(sliceReq.slice_data_weight())
+        , SliceByKeys_(sliceReq.slice_by_keys())
     {
+        YT_VERIFY(MiscExt_.row_count() > 0);
+
         auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(Meta_.extensions());
         int blockCount = blockMetaExt.data_blocks_size();
         BlockDescriptors_.reserve(blockCount);
@@ -134,7 +132,7 @@ public:
         if (!MinManiacDataWeight_) {
             return {};
         }
-        YT_VERIFY(SliceReq_.slice_by_keys());
+        YT_VERIFY(SliceByKeys_);
         // Construct up to two chunks:
         // the maniac one and the preceeding one.
         //
@@ -174,9 +172,6 @@ public:
             ? BlockDescriptors_[lastFullManiacBlockIndex + 1].RowCount
             : i64(0);
 
-        i64 maniacPessimisticRowCount = block.RowCount + fullManiacRowCount + nextChunkRowCount;
-        i64 maniacPessimisticDataWeight = maniacPessimisticRowCount * DataWeightPerRow_;
-
         TFinishManiacKeyResult result;
         result.LastProcessedBlockIndex = lastFullManiacBlockIndex;
 
@@ -211,8 +206,7 @@ public:
             TChunkSlice slice;
             slice.LowerLimit.KeyBound() = currentSliceLowerBound;
             slice.UpperLimit.KeyBound() = leftSliceUpperBound;
-            slice.RowCount = block.ChunkRowCount - currentSliceStartRowIndex;
-            slice.DataWeight = slice.RowCount * DataWeightPerRow_;
+            EstimateSliceSizeFromRowCount(&slice, block.ChunkRowCount - currentSliceStartRowIndex);
             result.Slices.push_back(std::move(slice));
         }
 
@@ -224,8 +218,9 @@ public:
         maniacSlice.UpperLimit.KeyBound() = maniacKeyAsUpperBound;
 
         // We do not know how many rows have the maniac key, so take a pessimistic estimate
-        maniacSlice.RowCount = maniacPessimisticRowCount;
-        maniacSlice.DataWeight = maniacPessimisticDataWeight;
+        i64 maniacPessimisticRowCount = block.RowCount + fullManiacRowCount + nextChunkRowCount;
+        EstimateSliceSizeFromRowCount(&maniacSlice, maniacPessimisticRowCount);
+
         result.Slices.push_back(std::move(maniacSlice));
 
         return result;
@@ -234,9 +229,6 @@ public:
     std::vector<TChunkSlice> Slice() const
     {
         // TODO(coteeq): Extract this state machine at the class level.
-        i64 sliceDataWeight = SliceReq_.slice_data_weight();
-        bool sliceByKeys = SliceReq_.slice_by_keys();
-
         std::vector<TChunkSlice> slices;
 
         bool sliceStarted = false;
@@ -264,9 +256,8 @@ public:
             TChunkSlice slice;
             slice.LowerLimit.KeyBound() = currentSliceLowerBound;
             slice.UpperLimit.KeyBound() = sliceUpperBound;
-            slice.RowCount = sliceEndRowIndex - currentSliceStartRowIndex;
-            slice.DataWeight = slice.RowCount * DataWeightPerRow_;
-            if (!sliceByKeys) {
+            EstimateSliceSizeFromRowCount(&slice, sliceEndRowIndex - currentSliceStartRowIndex);
+            if (!SliceByKeys_) {
                 slice.LowerLimit.SetRowIndex(currentSliceStartRowIndex);
                 slice.UpperLimit.SetRowIndex(sliceEndRowIndex);
             }
@@ -286,12 +277,12 @@ public:
             auto blockLowerBound = blockIndex == 0
                 ? ChunkLowerBound_
                 : BlockDescriptors_[blockIndex - 1].UpperBound.Invert();
-            const auto& blockUpperBound = block.UpperBound;
 
-            if (!sliceByKeys && blockIndex > 0) {
+            if (!SliceByKeys_ && blockIndex > 0) {
                 blockLowerBound = blockLowerBound.ToggleInclusiveness();
             }
 
+            const auto& blockUpperBound = block.UpperBound;
             // This might happen if block consists of a single key.
             if (SliceComparator_.IsRangeEmpty(blockLowerBound, blockUpperBound)) {
                 blockLowerBound = blockLowerBound.ToggleInclusiveness();
@@ -341,7 +332,7 @@ public:
                 startSlice(lowerBound, startRowIndex);
             }
 
-            if (sliceByKeys) {
+            if (SliceByKeys_) {
                 // TODO(coteeq): Isolate maniac even if row limits are specified.
                 if (upperBoundIsInRange && !HasRowLimits_) {
                     auto finishManiacKeyResult = TryFinishManiacKey(
@@ -374,11 +365,12 @@ public:
                         canSliceHere = false;
                     }
                 }
-                if (canSliceHere && currentSliceRowCount * DataWeightPerRow_ >= sliceDataWeight) {
+                if (canSliceHere && EstimateDataWeight(currentSliceRowCount) >= SliceDataWeight_) {
                     endSlice(upperBound, endRowIndex);
                 }
             } else {
-                i64 rowsPerDataSlice = std::max<i64>(1, DivCeil<i64>(sliceDataWeight, DataWeightPerRow_));
+                double dataWeightPerRow = static_cast<double>(ChunkDataWeight_) / MiscExt_.row_count();
+                i64 rowsPerDataSlice = std::max<i64>(1, std::ceil(SliceDataWeight_ / dataWeightPerRow));
                 while (endRowIndex - currentSliceStartRowIndex >= rowsPerDataSlice) {
                     yielder.TryYield();
 
@@ -422,13 +414,12 @@ private:
         i64 ChunkRowCount;
     };
 
-    const NChunkClient::NProto::TSliceRequest& SliceReq_;
     const NChunkClient::NProto::TChunkMeta& Meta_;
     const NChunkClient::NProto::TMiscExt MiscExt_;
 
     const TComparator SliceComparator_;
 
-    const i64 DataWeightPerRow_ = 0;
+    const i64 ChunkDataWeight_;
 
     const TOwningKeyBound ChunkLowerBound_;
     const TOwningKeyBound ChunkUpperBound_;
@@ -444,9 +435,35 @@ private:
 
     const bool HasRowLimits_;
 
-    const std::optional<i64> MinManiacDataWeight_ = {};
+    const std::optional<i64> MinManiacDataWeight_;
+
+    const i64 SliceDataWeight_;
+    const bool SliceByKeys_;
 
     std::vector<TBlockDescriptor> BlockDescriptors_;
+
+    double ComputeRowSelectivityFactor(i64 rowCount) const
+    {
+        return static_cast<double>(rowCount) / MiscExt_.row_count();
+    }
+
+    void EstimateSliceSizeFromRowCount(TNonNullPtr<TChunkSlice> slice, i64 rowCount) const
+    {
+        YT_VERIFY(rowCount >= 0);
+        double rowSelectivityFactor = ComputeRowSelectivityFactor(rowCount);
+
+        slice->RowCount = rowCount;
+        slice->DataWeight = std::max(SignedSaturationConversion(ChunkDataWeight_ * rowSelectivityFactor), 1l);
+        // NB(apollo1321): It is possible to compute [un]compressed data size exactly for slices.
+        // I'm not sure if such precision is really needed. It may be worth supporting in the future if necessary.
+        slice->CompressedDataSize = std::max(SignedSaturationConversion(MiscExt_.compressed_data_size() * rowSelectivityFactor), 1l);
+        slice->UncompressedDataSize = std::max(SignedSaturationConversion(MiscExt_.uncompressed_data_size() * rowSelectivityFactor), 1l);
+    }
+
+    i64 EstimateDataWeight(i64 rowCount) const
+    {
+        return std::max(SignedSaturationConversion(ChunkDataWeight_ * ComputeRowSelectivityFactor(rowCount)), 1l);
+    }
 
     static TComparator CreateSliceComparator(
         const NChunkClient::NProto::TSliceRequest& sliceReq,
