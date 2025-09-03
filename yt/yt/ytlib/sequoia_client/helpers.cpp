@@ -12,6 +12,13 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TSelectRowsQuery& query, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{Where: %v, OrderBy: %v, Limit: %v}", query.WhereConjuncts, query.OrderBy, query.Limit);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMangledSequoiaPath MangleSequoiaPath(const TRealPath& path)
 {
     TString mangledPath;
