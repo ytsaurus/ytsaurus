@@ -14,7 +14,7 @@ print_usage() {
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver)]
+                    [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver, ytsaurus-rpc-driver)]
                     [--not-prepare-bindings-libraries]
                     [--apply-auditwheel]
 EOF
@@ -74,7 +74,7 @@ cd $ytsaurus_source_path/yt/python/packages
 
 bindings_library_option=""
 if [[ ${ytsaurus_package_name} == "" ]]; then
-    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver")
+    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver" "ytsaurus-rpc-driver")
     prepare_bindings_libraries=true
  else
     packages=("${ytsaurus_package_name}")
@@ -106,7 +106,7 @@ python3 -m yt_setup.prepare_python_modules \
 cd ${ytsaurus_python}
 
 if [[ ${ytsaurus_package_name} == "" ]]; then
-    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver")
+    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver" "ytsaurus-rpc-driver")
 else
     packages=("${ytsaurus_package_name}")
 fi
