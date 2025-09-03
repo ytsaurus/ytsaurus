@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from yt_odin.odinserver.common import iso_time_to_timestamp, SECONDS_IN_MINUTE
-from yt_odin.storage.db import get_cluster_client_factory_from_db_config, create_yt_table_client_from_config
+from yt_odin.storage.db import get_yt_table_client_for_cluster_factory_from_db_config, create_yt_table_client_from_db_config
 from yt_odin.logserver import (
     is_state_ok,
     UNAVAILABLE_STATE,
@@ -322,13 +322,13 @@ def main():
     config = json.load(open(args.config))
 
     global DB_TABLE_CLIENT
-    DB_TABLE_CLIENT = create_yt_table_client_from_config(config["db_config"])
+    DB_TABLE_CLIENT = create_yt_table_client_from_db_config(config["db_config"])
 
     global DB_TABLE_CLIENTS_FOR_CLUSTERS
     clusters = config["clusters"]
     for cluster in clusters:
         db_config = update(deepcopy(config["db_config"]), clusters[cluster]["db_config"])
-        DB_TABLE_CLIENTS_FOR_CLUSTERS[cluster] = get_cluster_client_factory_from_db_config(db_config)()
+        DB_TABLE_CLIENTS_FOR_CLUSTERS[cluster] = get_yt_table_client_for_cluster_factory_from_db_config(db_config)()
 
     global SERVICES
     SERVICES = config["services"]
