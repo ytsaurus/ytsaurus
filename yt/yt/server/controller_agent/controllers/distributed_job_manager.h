@@ -61,7 +61,6 @@ private:
         TJobId MainJobId;
         TCompactVector<TSecondary, 3> Secondaries;
         int Pending = 0;
-        int NotCompletedCount = 0;
 
         PHOENIX_DECLARE_TYPE(TGroup, 0x9f237b97);
     };

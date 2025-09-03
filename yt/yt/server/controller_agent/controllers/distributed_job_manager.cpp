@@ -79,7 +79,6 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
         group.MainJobId = joblet->JobId;
         joblet->CookieGroupInfo.MainJobId = group.MainJobId;
         group.Pending = GetCookieGroupSize() - 1;
-        group.NotCompletedCount = GetCookieGroupSize();
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto& group = GetOrCrash(CookieToGroup_, joblet->OutputCookie);
@@ -115,9 +114,7 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
         if (joblet->CookieGroupInfo.OutputIndex != 0) {
             group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
         }
-        --group.NotCompletedCount;
-        YT_VERIFY(group.NotCompletedCount >= 0);
-        if (!group.NotCompletedCount) {
+        if (joblet->JobId == group.MainJobId) {
             CookieToGroup_.erase(groupIt);
             return true;
         }
@@ -201,7 +198,6 @@ void TDistributedJobManager::TGroup::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, MainJobId);
     PHOENIX_REGISTER_FIELD(2, Secondaries);
     PHOENIX_REGISTER_FIELD(3, Pending);
-    PHOENIX_REGISTER_FIELD(4, NotCompletedCount);
 }
 
 PHOENIX_DEFINE_TYPE(TDistributedJobManager::TGroup);

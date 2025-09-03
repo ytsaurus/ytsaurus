@@ -940,7 +940,7 @@ echo {v = 2} >&7
             reduce(
                 in_="//tmp/in",
                 out="//tmp/out",
-                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; echo primary>&2; else echo secondary; fi',
+                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo secondary; fi',
                 reduce_by=["key"],
                 spec={"reducer": {"cookie_group_size": 2}, "job_count": 1},
             )
