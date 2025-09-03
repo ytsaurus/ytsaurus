@@ -374,10 +374,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
         }
     }
 
-    if (
-        jobSpecExt.user_job_spec().is_secondary_distributed()
-            || reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0
-    ) {
+    if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
         // Input tables are currently sorted, although this property is not utilized by this reader.
         // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
         // in the current implementation.
@@ -666,8 +663,23 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
     YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
     const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
+
+    YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
+
+    const auto& inputSpec = jobSpecExt.input_table_specs(0);
+    auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
+
     const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
     auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
+    auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
+
+    // COMPAT(gritukan)
+    if (sortColumns.empty()) {
+        for (const auto& keyColumn : keyColumns) {
+            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        }
+    }
 
     nameTable = TNameTable::FromKeyColumns(keyColumns);
 
@@ -681,7 +693,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
 
-    if (jobSpecExt.user_job_spec().is_secondary_distributed() || reduceJobSpecExt.disable_sorted_input()) {
+    if (reduceJobSpecExt.disable_sorted_input()) {
         return {
             CreateRegularReader(
                 jobSpecHelper->UnpackDataSliceDescriptors(),
@@ -697,21 +709,6 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
                 partitionTag),
             std::nullopt
         };
-    }
-
-    YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
-
-    const auto& inputSpec = jobSpecExt.input_table_specs(0);
-    auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
-
-    auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
-
-    // COMPAT(gritukan)
-    if (sortColumns.empty()) {
-        for (const auto& keyColumn : keyColumns) {
-            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
-        }
     }
 
     return {
