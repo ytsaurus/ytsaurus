@@ -14,6 +14,7 @@
 
 namespace NYT::NLsm {
 
+using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
@@ -131,6 +132,7 @@ private:
         auto mountConfig = tablet->GetMountConfig();
 
         auto [reason, stores] = PickStoresForPartitioning(eden);
+
         if (stores.empty()) {
             return {};
         }
@@ -240,11 +242,21 @@ private:
             return {};
         }
 
+        auto [hunkChunks, hunkChunkCountByReason] = PickCompactableHunkChunks(tablet, stores);
+
+        std::vector<TStoreId> storeIds;
+        storeIds.reserve(stores.size());
+        for (auto store : stores) {
+            storeIds.push_back(store->GetId());
+        }
+
         auto request = TCompactionRequest{
             .Tablet = MakeStrong(tablet),
             .PartitionId = partition->GetId(),
-            .Stores = stores,
+            .Stores = storeIds,
+            .HunkChunks = std::move(hunkChunks),
             .Reason = reason,
+            .HunkChunkCountByReason = hunkChunkCountByReason,
         };
         auto mountConfig = tablet->GetMountConfig();
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
@@ -346,10 +358,10 @@ private:
         return {EStoreCompactionReason::Regular, finalists};
     }
 
-    std::pair<EStoreCompactionReason, std::vector<TStoreId>>
+    std::pair<EStoreCompactionReason, std::vector<TStore*>>
         PickStoresForCompaction(TPartition* partition, bool allowForcedCompaction)
     {
-        std::vector<TStoreId> finalists;
+        std::vector<TStore*> finalists;
 
         const auto* tablet = partition->GetTablet();
         auto mountConfig = tablet->GetMountConfig();
@@ -432,7 +444,7 @@ private:
                 });
 
             for (auto [store, reason] : candidates) {
-                finalists.push_back(store->GetId());
+                finalists.push_back(store);
                 if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
                     break;
                 }
@@ -452,7 +464,7 @@ private:
 
             if (lastNecessaryStoreIndex != -1) {
                 for (int index = 0; index <= lastNecessaryStoreIndex; ++index) {
-                    finalists.push_back(candidates[index].Store->GetId());
+                    finalists.push_back(candidates[index].Store);
                 }
             }
 
@@ -468,7 +480,7 @@ private:
 
                 if (reason != EStoreCompactionReason::None) {
                     finalistCompactionReason = reason;
-                    finalists.push_back(store->GetId());
+                    finalists.push_back(store);
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
                         store->GetId(),
@@ -532,7 +544,7 @@ private:
             if (storeCount >= mountConfig->MinCompactionStoreCount) {
                 finalists.reserve(storeCount);
                 while (i < j) {
-                    finalists.push_back(candidates[i].Store->GetId());
+                    finalists.push_back(candidates[i].Store);
                     ++i;
                 }
                 YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
@@ -551,6 +563,95 @@ private:
         }
 
         return {EStoreCompactionReason::Regular, finalists};
+    }
+
+    std::pair<THashSet<TChunkId>, TEnumIndexedArray<EHunkCompactionReason, i64>>
+        PickCompactableHunkChunks(TTablet* tablet, const std::vector<TStore*>& storesForCompaction)
+    {
+        const auto& mountConfig = tablet->GetMountConfig();
+
+        TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason;
+
+        // Forced or garbage ratio too high. Will be compacted unconditionally.
+        THashSet<TChunkId> finalistIds;
+
+        // Too small hunk chunks. Will be compacted only if there are enough of them.
+        THashSet<THunkChunk*> smallCandidates;
+
+        for (const auto* store : storesForCompaction) {
+            for (auto hunkChunk : store->HunkChunks()) {
+                auto compactionReason = GetHunkCompactionReason(tablet, hunkChunk);
+
+                if (compactionReason == EHunkCompactionReason::None) {
+                    continue;
+                }
+
+                if (compactionReason == EHunkCompactionReason::HunkChunkTooSmall) {
+                    smallCandidates.insert(hunkChunk);
+                } else if (finalistIds.insert(hunkChunk->GetId()).second) {
+                    // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurrence.
+                    ++hunkChunkCountByReason[compactionReason];
+
+                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                        "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
+                        hunkChunk->GetId(),
+                        compactionReason);
+                }
+            }
+        }
+
+        // Fast path.
+        if (ssize(smallCandidates) < mountConfig->MinHunkCompactionChunkCount) {
+            return {std::move(finalistIds), hunkChunkCountByReason};
+        }
+
+        std::vector<THunkChunk*> sortedSmallCandidates(smallCandidates.begin(), smallCandidates.end());
+
+        std::sort(
+            sortedSmallCandidates.begin(),
+            sortedSmallCandidates.end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs->GetTotalHunkLength() < rhs->GetTotalHunkLength();
+            });
+
+        for (int i = 0; i < ssize(sortedSmallCandidates); ++i) {
+            i64 totalSize = 0;
+            int j = i;
+            while (j < ssize(sortedSmallCandidates)) {
+                if (j - i == mountConfig->MaxHunkCompactionChunkCount) {
+                    break;
+                }
+
+                i64 size = sortedSmallCandidates[j]->GetTotalHunkLength();
+                if (size > mountConfig->HunkCompactionSizeBase &&
+                    totalSize > 0 &&
+                    size > totalSize * mountConfig->HunkCompactionSizeRatio)
+                {
+                    break;
+                }
+
+                totalSize += size;
+                ++j;
+            }
+
+            if (j - i >= mountConfig->MinHunkCompactionChunkCount) {
+                while (i < j) {
+                    const auto& candidate = sortedSmallCandidates[i];
+                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
+                        "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
+                        candidate->GetId(),
+                        EHunkCompactionReason::HunkChunkTooSmall);
+
+                    ++hunkChunkCountByReason[EHunkCompactionReason::HunkChunkTooSmall];
+
+                    InsertOrCrash(finalistIds, candidate->GetId());
+                    ++i;
+                }
+                break;
+            }
+        }
+
+        return {std::move(finalistIds), hunkChunkCountByReason};
     }
 
     bool IsStoreCompactable(TStore* store)
@@ -667,6 +768,53 @@ private:
         }
 
         return EStoreCompactionReason::None;
+    }
+
+    static bool IsHunkCompactionForced(
+        const TTableMountConfigPtr& mountConfig,
+        const THunkChunk* hunkChunk)
+    {
+        auto forcedCompactionRevision = std::max(
+            mountConfig->ForcedCompactionRevision,
+            mountConfig->ForcedHunkCompactionRevision);
+
+        return RevisionFromId(hunkChunk->GetId()) <= forcedCompactionRevision.value_or(NHydra::NullRevision);
+    }
+
+    static bool IsHunkCompactionGarbageRatioTooHigh(
+        const TTableMountConfigPtr& mountConfig,
+        const THunkChunk* hunkChunk)
+    {
+        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) /
+            hunkChunk->GetTotalHunkLength();
+        return referencedHunkLengthRatio < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
+    }
+
+    static bool IsSmallHunkCompactionNeeded(
+        const TTableMountConfigPtr& mountConfig,
+        const THunkChunk* hunkChunk)
+    {
+        return hunkChunk->GetTotalHunkLength() <= mountConfig->MaxHunkCompactionSize;
+    }
+
+    static EHunkCompactionReason GetHunkCompactionReason(
+        const TTablet* tablet,
+        const THunkChunk* hunkChunk)
+    {
+        const auto& mountConfig = tablet->GetMountConfig();
+        if (IsHunkCompactionForced(mountConfig, hunkChunk)) {
+            return EHunkCompactionReason::ForcedCompaction;
+        }
+
+        if (IsHunkCompactionGarbageRatioTooHigh(mountConfig, hunkChunk)) {
+            return EHunkCompactionReason::GarbageRatioTooHigh;
+        }
+
+        if (IsSmallHunkCompactionNeeded(mountConfig, hunkChunk)) {
+            return EHunkCompactionReason::HunkChunkTooSmall;
+        }
+
+        return EHunkCompactionReason::None;
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

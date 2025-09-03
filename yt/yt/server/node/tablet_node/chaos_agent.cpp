@@ -554,7 +554,7 @@ bool AdvanceTabletReplicationProgress(
             tabletManager->ExternalizeTransactionIfNeeded(
                 tablet,
                 localTransaction,
-                "advance replication progress");
+                "advance_replication_progress");
         },
         tablet
     );

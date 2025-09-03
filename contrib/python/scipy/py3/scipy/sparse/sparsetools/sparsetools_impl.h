@@ -58,31 +58,18 @@ PyObject *expandptr_method(PyObject *, PyObject *);
 PyObject *test_throw_error_method(PyObject *, PyObject *);
 PyObject *csr_has_sorted_indices_method(PyObject *, PyObject *);
 PyObject *csr_has_canonical_format_method(PyObject *, PyObject *);
-PyObject *csc_diagonal_method(PyObject *, PyObject *);
-PyObject *csc_tocsr_method(PyObject *, PyObject *);
-PyObject *csc_matmat_maxnnz_method(PyObject *, PyObject *);
-PyObject *csc_matmat_method(PyObject *, PyObject *);
 PyObject *csc_matvec_method(PyObject *, PyObject *);
 PyObject *csc_matvecs_method(PyObject *, PyObject *);
-PyObject *csc_elmul_csc_method(PyObject *, PyObject *);
-PyObject *csc_eldiv_csc_method(PyObject *, PyObject *);
-PyObject *csc_plus_csc_method(PyObject *, PyObject *);
-PyObject *csc_minus_csc_method(PyObject *, PyObject *);
-PyObject *csc_maximum_csc_method(PyObject *, PyObject *);
-PyObject *csc_minimum_csc_method(PyObject *, PyObject *);
-PyObject *csc_ne_csc_method(PyObject *, PyObject *);
-PyObject *csc_lt_csc_method(PyObject *, PyObject *);
-PyObject *csc_gt_csc_method(PyObject *, PyObject *);
-PyObject *csc_le_csc_method(PyObject *, PyObject *);
-PyObject *csc_ge_csc_method(PyObject *, PyObject *);
 PyObject *coo_tocsr_method(PyObject *, PyObject *);
 PyObject *coo_todense_method(PyObject *, PyObject *);
 PyObject *coo_todense_nd_method(PyObject *, PyObject *);
 PyObject *coo_matvec_method(PyObject *, PyObject *);
+PyObject *dia_matmat_method(PyObject *, PyObject *);
 PyObject *coo_matvec_nd_method(PyObject *, PyObject *);
 PyObject *coo_matmat_dense_method(PyObject *, PyObject *);
 PyObject *coo_matmat_dense_nd_method(PyObject *, PyObject *);
 PyObject *dia_matvec_method(PyObject *, PyObject *);
+PyObject *dia_matvecs_method(PyObject *, PyObject *);
 PyObject *cs_graph_components_method(PyObject *, PyObject *);
 
 static struct PyMethodDef sparsetools_methods[] = {
@@ -143,31 +130,18 @@ static struct PyMethodDef sparsetools_methods[] = {
             {"test_throw_error", (PyCFunction)test_throw_error_method, METH_VARARGS, NULL},
             {"csr_has_sorted_indices", (PyCFunction)csr_has_sorted_indices_method, METH_VARARGS, NULL},
             {"csr_has_canonical_format", (PyCFunction)csr_has_canonical_format_method, METH_VARARGS, NULL},
-            {"csc_diagonal", (PyCFunction)csc_diagonal_method, METH_VARARGS, NULL},
-            {"csc_tocsr", (PyCFunction)csc_tocsr_method, METH_VARARGS, NULL},
-            {"csc_matmat_maxnnz", (PyCFunction)csc_matmat_maxnnz_method, METH_VARARGS, NULL},
-            {"csc_matmat", (PyCFunction)csc_matmat_method, METH_VARARGS, NULL},
             {"csc_matvec", (PyCFunction)csc_matvec_method, METH_VARARGS, NULL},
             {"csc_matvecs", (PyCFunction)csc_matvecs_method, METH_VARARGS, NULL},
-            {"csc_elmul_csc", (PyCFunction)csc_elmul_csc_method, METH_VARARGS, NULL},
-            {"csc_eldiv_csc", (PyCFunction)csc_eldiv_csc_method, METH_VARARGS, NULL},
-            {"csc_plus_csc", (PyCFunction)csc_plus_csc_method, METH_VARARGS, NULL},
-            {"csc_minus_csc", (PyCFunction)csc_minus_csc_method, METH_VARARGS, NULL},
-            {"csc_maximum_csc", (PyCFunction)csc_maximum_csc_method, METH_VARARGS, NULL},
-            {"csc_minimum_csc", (PyCFunction)csc_minimum_csc_method, METH_VARARGS, NULL},
-            {"csc_ne_csc", (PyCFunction)csc_ne_csc_method, METH_VARARGS, NULL},
-            {"csc_lt_csc", (PyCFunction)csc_lt_csc_method, METH_VARARGS, NULL},
-            {"csc_gt_csc", (PyCFunction)csc_gt_csc_method, METH_VARARGS, NULL},
-            {"csc_le_csc", (PyCFunction)csc_le_csc_method, METH_VARARGS, NULL},
-            {"csc_ge_csc", (PyCFunction)csc_ge_csc_method, METH_VARARGS, NULL},
             {"coo_tocsr", (PyCFunction)coo_tocsr_method, METH_VARARGS, NULL},
             {"coo_todense", (PyCFunction)coo_todense_method, METH_VARARGS, NULL},
             {"coo_todense_nd", (PyCFunction)coo_todense_nd_method, METH_VARARGS, NULL},
             {"coo_matvec", (PyCFunction)coo_matvec_method, METH_VARARGS, NULL},
+            {"dia_matmat", (PyCFunction)dia_matmat_method, METH_VARARGS, NULL},
             {"coo_matvec_nd", (PyCFunction)coo_matvec_nd_method, METH_VARARGS, NULL},
             {"coo_matmat_dense", (PyCFunction)coo_matmat_dense_method, METH_VARARGS, NULL},
             {"coo_matmat_dense_nd", (PyCFunction)coo_matmat_dense_nd_method, METH_VARARGS, NULL},
             {"dia_matvec", (PyCFunction)dia_matvec_method, METH_VARARGS, NULL},
+            {"dia_matvecs", (PyCFunction)dia_matvecs_method, METH_VARARGS, NULL},
             {"cs_graph_components", (PyCFunction)cs_graph_components_method, METH_VARARGS, NULL},
         {NULL, NULL, 0, NULL}
     };

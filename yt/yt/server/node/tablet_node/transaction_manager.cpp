@@ -498,6 +498,12 @@ public:
                 prepareSignature);
         }
 
+        if (transaction->IsExternalizedFromThisCell() && transaction->GetHasUnforwardedActions()) {
+            THROW_ERROR_EXCEPTION(
+                "Transaction %v is externalized but has actions which were not forwarded",
+                transactionId);
+        }
+
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
 
         if (persistent) {
@@ -1210,13 +1216,13 @@ private:
 
 
     template <class TRequest, class TOptions = std::monostate>
-    void ForwardTransactionIfExternalized(
+    bool ForwardTransactionIfExternalized(
         TTransaction* transaction,
         TRequest request,
         const TOptions& options)
     {
         if (!transaction->IsExternalizedFromThisCell()) {
-            return;
+            return false;
         }
 
         YT_VERIFY(!transaction->IsExternalizedToThisCell());
@@ -1224,6 +1230,8 @@ private:
         for (auto [tabletId, token] : transaction->ExternalizerTablets()) {
             ForwardTransactionIfExternalized(transaction, tabletId, token, request, options);
         }
+
+        return true;
     }
 
     template <class TRequest, class TOptions = std::monostate>
@@ -1313,7 +1321,14 @@ private:
                 signature);
         }
 
-        ForwardTransactionIfExternalized(transaction, *request, /*options*/ {});
+        if (!ForwardTransactionIfExternalized(transaction, *request, /*options*/ {})) {
+            // COMPAT(ifsmirnov)
+            if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+                ETabletReign::UnforwardedTransactionActions)
+            {
+                transaction->SetHasUnforwardedActions(true);
+            }
+        }
 
         transaction->PersistentPrepareSignature() += signature;
         // NB: May destroy transaction.

@@ -2693,10 +2693,6 @@ def comb(N, k, *, exact=False, repetition=False):
     exact : bool, optional
         For integers, if `exact` is False, then floating point precision is
         used, otherwise the result is computed exactly.
-
-        .. deprecated:: 1.14.0
-            ``exact=True`` is deprecated for non-integer `N` and `k` and will raise an
-            error in SciPy 1.16.0
     repetition : bool, optional
         If `repetition` is True, then the number of combinations with
         repetition is computed.
@@ -2737,12 +2733,9 @@ def comb(N, k, *, exact=False, repetition=False):
         if int(N) == N and int(k) == k:
             # _comb_int casts inputs to integers, which is safe & intended here
             return _comb_int(N, k)
-        # otherwise, we disregard `exact=True`; it makes no sense for
-        # non-integral arguments
-        msg = ("`exact=True` is deprecated for non-integer `N` and `k` and will raise "
-               "an error in SciPy 1.16.0")
-        warnings.warn(msg, DeprecationWarning, stacklevel=2)
-        return comb(N, k)
+        else:
+            raise ValueError("Non-integer `N` and `k` with `exact=True` is not "
+                             "supported.")
     else:
         k, N = asarray(k), asarray(N)
         cond = (k <= N) & (N >= 0) & (k >= 0)
@@ -2796,19 +2789,17 @@ def perm(N, k, exact=False):
         N = np.squeeze(N)[()]  # for backward compatibility (accepted size 1 arrays)
         k = np.squeeze(k)[()]
         if not (isscalar(N) and isscalar(k)):
-            raise ValueError("`N` and `k` must scalar integers be with `exact=True`.")
+            raise ValueError("`N` and `k` must be scalar integers with `exact=True`.")
 
         floor_N, floor_k = int(N), int(k)
         non_integral = not (floor_N == N and floor_k == k)
-        if (k > N) or (N < 0) or (k < 0):
-            if non_integral:
-                msg = ("Non-integer `N` and `k` with `exact=True` is deprecated and "
-                       "will raise an error in SciPy 1.16.0.")
-                warnings.warn(msg, DeprecationWarning, stacklevel=2)
-            return 0
         if non_integral:
             raise ValueError("Non-integer `N` and `k` with `exact=True` is not "
                              "supported.")
+
+        if (k > N) or (N < 0) or (k < 0):
+            return 0
+
         val = 1
         for i in range(floor_N - floor_k + 1, floor_N + 1):
             val *= i
@@ -2990,14 +2981,20 @@ def _factorialx_approx_core(n, k, extend):
     # scalar case separately, unified handling would be inefficient for arrays;
     # don't use isscalar due to numpy/numpy#23574; 0-dim arrays treated below
     if not isinstance(n, np.ndarray):
-        return (
-            np.power(k, (n - n_mod_k) / k)
-            * gamma(n / k + 1) / gamma(n_mod_k / k + 1)
-            * max(n_mod_k, 1)
-        )
+        with warnings.catch_warnings():
+            # large n cause overflow warnings, but infinity is fine
+            warnings.simplefilter("ignore", RuntimeWarning)
+            return (
+                np.power(k, (n - n_mod_k) / k)
+                * gamma(n / k + 1) / gamma(n_mod_k / k + 1)
+                * max(n_mod_k, 1)
+            )
 
     # factor that's independent of the residue class (see factorialk docstring)
-    result = np.power(k, n / k) * gamma(n / k + 1)
+    with warnings.catch_warnings():
+        # large n cause overflow warnings, but infinity is fine
+        warnings.simplefilter("ignore", RuntimeWarning)
+        result = np.power(k, n / k) * gamma(n / k + 1)
     # factor dependent on residue r (for `r=0` it's 1, so we skip `r=0`
     # below and thus also avoid evaluating `max(r, 1)`)
     def corr(k, r): return np.power(k, -r / k) / gamma(r / k + 1) * r
@@ -3104,8 +3101,8 @@ def _factorialx_wrapper(fname, n, k, exact, extend):
         elif n in {0, 1}:
             return 1 if exact else np.float64(1)
         elif exact and _is_subdtype(type(n), "i"):
-            # calculate with integers
-            return _range_prod(1, n, k=k)
+            # calculate with integers; cast away other int types (like unsigned)
+            return _range_prod(1, int(n), k=k)
         elif exact:
             # only relevant for factorial
             raise ValueError(msg_exact_not_possible.format(dtype=type(n)))

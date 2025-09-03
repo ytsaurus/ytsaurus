@@ -84,6 +84,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TGuid, ExternalizationToken);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasUnforwardedActions);
+
 public:
     using TTransactionBase::TTransactionBase;
 
