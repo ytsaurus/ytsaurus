@@ -183,29 +183,32 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
 
-  stop-vm:
-    name: Stop VM
+  # stop-vm:
+  #   name: Stop VM
+  #   needs:
+  #     - start-vm
+  #     - check
+  #     - docker-cmake
+  #     - docker-ya-make
+  #   runs-on: trampoline
+  #   if: ${{ always() }}
+  #   steps:
+  #     - name: Stop YC runner
+  #       uses: yc-actions/yc-github-runner@v1
+  #       with:
+  #         mode: stop
+  #         yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+  #         github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #         label: ${{ needs.start-vm.outputs.label }}
+  #         instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-notifications:
+    name: Send notifications
     needs:
       - start-vm
       - check
       - docker-cmake
       - docker-ya-make
-    runs-on: trampoline
-    if: ${{ always() }}
-    steps:
-      - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: stop
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-vm.outputs.label }}
-          instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
     runs-on: ubuntu-latest
     if: ${{ failure() }}
     steps:
