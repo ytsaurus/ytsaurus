@@ -192,6 +192,12 @@ RUN . package-env/bin/activate; \
 
 ##########################################################################################
 
+FROM scratch AS ytsaurus-python-packages
+
+COPY --from=build-ytsaurus-python-binaries /tmp/ytsaurus_python/ytsaurus_*_dist/*.whl /
+
+##########################################################################################
+
 FROM base AS copy-ytsaurus-python-binaries
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
