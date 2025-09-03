@@ -62,14 +62,17 @@ DECLARE_REFCOUNTED_STRUCT(ISecretVaultService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See https://doc.yandex-team.ru/blackbox/reference/method-sessionid-response-json.xml for reference.
+// See https://docs.yandex-team.ru/blackbox/methods/sessionid#status for reference.
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EBlackboxStatus, i64,
-    ((Valid)    (0))
-    ((NeedReset)(1))
-    ((Expired)  (2))
-    ((NoAuth)   (3))
-    ((Disabled) (4))
-    ((Invalid)  (5))
+    ((Valid)      (0))
+    ((NeedReset)  (1))
+    ((Expired)    (2))
+    ((NoAuth)     (3))
+    ((Disabled)   (4))
+    ((Invalid)    (5))
+    ((WrongGuard) (8))
+    ((Neolite)    (9))
+    ((BoriginMismatch) (10))
 );
 
 // See https://doc.yandex-team.ru/blackbox/concepts/blackboxErrors.xml

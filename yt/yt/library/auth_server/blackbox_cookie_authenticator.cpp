@@ -150,12 +150,14 @@ private:
             return TError("Blackbox returned invalid response");
         }
 
-        auto status = static_cast<EBlackboxStatus>(statusId.Value());
+        auto status = TryCheckedEnumCast<EBlackboxStatus>(statusId.Value());
         if (status != EBlackboxStatus::Valid && status != EBlackboxStatus::NeedReset) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
+            auto statusString = status.has_value() ? Format("%lv", *status) : "unknown";
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
-                << TErrorAttribute("reason", reason);
+                << TErrorAttribute("reason", reason)
+                << TErrorAttribute("bb_status_string", statusString);
         }
 
         auto login = BlackboxService_->GetLogin(data);
