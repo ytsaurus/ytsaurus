@@ -156,10 +156,18 @@ void TransformWithIndexStatement(
     auto& index = *(query->WithIndex);
     auto& table = std::get<TTableDescriptor>(query->FromClause);
 
-    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
-        .ValueOrThrow();
+    auto errorOrIndexTableInfo = WaitForFast(cache->GetTableInfo(index.Path));
     auto tableInfo = WaitForFast(cache->GetTableInfo(table.Path))
         .ValueOrThrow();
+
+    if (!errorOrIndexTableInfo.IsOK() &&
+        errorOrIndexTableInfo.FindMatching(NYTree::EErrorCode::ResolveError) &&
+        tableInfo->IsReplicated())
+    {
+        return;
+    }
+
+    auto indexTableInfo = errorOrIndexTableInfo.ValueOrThrow();
 
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();

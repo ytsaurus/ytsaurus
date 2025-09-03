@@ -1480,6 +1480,26 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
             sorted_dicts([{"keyA": i, "keyB": f"key{i}", "valueA": i, "valueB": i % 2 == 0} for i in range(5)])
         )
 
+    @authors("sabdenovch")
+    def test_postpone_index_resolve(self):
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+
+        create("table", "//tmp/index_table", driver=self.REPLICA_DRIVER, attributes={
+            "dynamic": True,
+            "schema": INDEX_ON_VALUE_SCHEMA,
+        })
+
+        self._sync_create_cells()
+        self._mount("//tmp/table")
+        sync_mount_table("//tmp/index_table", driver=self.REPLICA_DRIVER)
+
+        select_rows("* from [//tmp/table] with index [//tmp/index_table] I")
+
+        remove("//tmp/index_table", driver=self.REPLICA_DRIVER)
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows("* from [//tmp/table] with index [//tmp/index_table] I")
+
 
 ##################################################################
 
