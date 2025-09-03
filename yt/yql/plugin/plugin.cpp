@@ -19,7 +19,7 @@ TYqlPluginOptions ConvertToOptions(
     TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
     std::string maxSupportedYqlVersion,
-    bool startDqManager) 
+    bool startDqManager)
 {
     return TYqlPluginOptions {
         .SingletonsConfig = singletonsConfigString,

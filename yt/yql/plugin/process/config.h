@@ -13,20 +13,20 @@ namespace NYT::NYqlPlugin::NProcess {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYqlPluginProcessInternalConfig
+struct TProcessYqlPluginInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
 {
     int SlotIndex;
     TYqlPluginConfigPtr PluginConfig;
     TString MaxSupportedYqlVersion;
-    bool StartDqManager;
+    TSingletonsConfigPtr SingletonsConfig;
 
-    REGISTER_YSON_STRUCT(TYqlPluginProcessInternalConfig);
+    REGISTER_YSON_STRUCT(TProcessYqlPluginInternalConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlPluginProcessInternalConfig)
+DEFINE_REFCOUNTED_TYPE(TProcessYqlPluginInternalConfig)
 
 } // namespace NYT::NYqlPlugin::NProcess

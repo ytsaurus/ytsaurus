@@ -149,7 +149,6 @@ bool TTypedClientResponse<TResponseMessage>::TryDeserializeBody(TRef data, std::
 template <class T>
 TIntrusivePtr<T> TProxyBase::CreateRequest(const TMethodDescriptor& methodDescriptor) const
 {
-    YT_VERIFY(Channel_);
     auto request = New<T>(
         Channel_,
         ServiceDescriptor_,

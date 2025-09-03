@@ -57,7 +57,12 @@ message TReqGetUsedClusters
 
 message TRspGetUsedClusters
 {
-    repeated string clusters = 1;
+    message Cluster {
+        required string cluster_name = 1;
+        required string cluster_address = 2;
+    }
+
+    repeated Cluster clusters = 1;
     optional bytes error = 2; // YSON
 }
 

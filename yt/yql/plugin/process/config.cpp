@@ -5,7 +5,7 @@
 namespace NYT::NYqlPlugin {
 namespace NProcess {
 
-void TYqlPluginProcessInternalConfig::Register(TRegistrar registrar)
+void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
     registrar.Parameter("plugin_options", &TThis::PluginConfig)
@@ -13,7 +13,7 @@ void TYqlPluginProcessInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion);
 
-    registrar.Parameter("start_dq_manager", &TThis::StartDqManager);
+    registrar.Parameter("singletons_config", &TThis::SingletonsConfig);
 }
 
 } // namespace NProcess

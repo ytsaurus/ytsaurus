@@ -3,8 +3,8 @@
 #include "config.h"
 #include "plugin_service.h"
 
-#include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
@@ -31,7 +31,7 @@ class TYqlPluginProgram
     : public virtual TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramConfigMixin<TYqlPluginProcessInternalConfig>
+    , public TProgramConfigMixin<TProcessYqlPluginInternalConfig>
 {
 public:
     TYqlPluginProgram()
@@ -39,8 +39,7 @@ public:
         , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramConfigMixin(Opts_)
-    {
-    }
+    { }
 
 protected:
     void DoRun() override
@@ -63,23 +62,22 @@ protected:
 
         NProfiling::EnablePerfEventCounterProfiling();
 
-        auto ControlQueue_ = New<NConcurrency::TActionQueue>("YqlPluginServiceControl");
-        auto ControlInvoker_ = ControlQueue_->GetInvoker();
+        auto controlQueue_ = New<NConcurrency::TActionQueue>("YqlPluginServiceControl");
+        auto controlInvoker_ = controlQueue_->GetInvoker();
 
         YT_VERIFY(config->BusServer->UnixDomainSocketPath);
 
         auto options = ConvertToOptions(
             config->PluginConfig,
-            NYson::ConvertToYsonString(ConvertTo<TSingletonsConfigPtr>(config)),
-            NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")), 
+            NYson::ConvertToYsonString(config->SingletonsConfig),
+            NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
             config->MaxSupportedYqlVersion,
-            config->StartDqManager
-        );
+            false);
 
         auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
         yqlPlugin->Start();
 
-        auto yqlPluginService = CreateYqlPluginService(ControlInvoker_, std::move(yqlPlugin));
+        auto yqlPluginService = CreateYqlPluginService(controlInvoker_, std::move(yqlPlugin));
         auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
 
         rpcServer->RegisterService(yqlPluginService);
