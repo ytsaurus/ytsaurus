@@ -312,6 +312,7 @@ NTableClient::TTableReaderOptionsPtr ToInternalTableReaderOptions(const TTableRe
     result->EnableRangeIndex = options.EnableRangeIndex;
     result->EnableRowIndex = options.EnableRowIndex;
     result->EnableTabletIndex = options.EnableTabletIndex;
+    result->EnableAnyUnpacking = options.EnableAnyUnpacking;
     return result;
 }
 
