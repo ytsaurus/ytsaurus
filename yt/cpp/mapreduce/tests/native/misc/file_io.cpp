@@ -58,7 +58,9 @@ TEST(FileIo, Read)
     auto read = readNextPart();
     EXPECT_TRUE(read > 0);
 
-    EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_file") > 0);
+    if (!UseRpcClient()) {
+        EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_file") > 0);
+    }
 
     while (readNextPart()) {
     }
@@ -91,7 +93,9 @@ TEST(FileIo, ReadRange)
     auto read = readNextPart();
     EXPECT_TRUE(read > 0);
 
-    EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_file") > 0);
+    if (!UseRpcClient()) {
+        EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_file") > 0);
+    }
 
     while (readNextPart()) {
     }
@@ -111,6 +115,8 @@ void TryWriteFile(TFileWriterOptions options)
 
 TEST(FileIo, InvalidWriterOptionsFail)
 {
+    SKIP_IF_RPC();
+
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         TryWriteFile(TFileWriterOptions().WriterOptions(
             TWriterOptions()

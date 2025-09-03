@@ -7,6 +7,7 @@ SRCS(
     raw_batch_request.cpp
     raw_client.cpp
     rpc_parameters_serialization.cpp
+    wrap_rpc_error.cpp
 )
 
 PEERDIR(

@@ -1,5 +1,7 @@
 #include "raw_batch_request.h"
 
+#include "wrap_rpc_error.h"
+
 #include <yt/cpp/mapreduce/common/helpers.h>
 
 #include <yt/cpp/mapreduce/common/retry_request.h>
@@ -29,7 +31,7 @@ TRpcRawBatchRequest::TSingleRequest<TResultType>::TSingleRequest(
 template <typename TResultType>
 TFuture<TResultType> TRpcRawBatchRequest::TSingleRequest<TResultType>::GetFuture()
 {
-    return Result_.GetFuture();
+    return WrapRpcError(Result_.GetFuture());
 }
 
 template <typename TResultType>
@@ -99,9 +101,7 @@ TFuture<void> TRpcRawBatchRequest::Remove(
         [=, this] (TMutationId& mutationId) {
             RawClient_->Remove(mutationId, transactionId, path, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<bool> TRpcRawBatchRequest::Exists(
@@ -114,9 +114,7 @@ TFuture<bool> TRpcRawBatchRequest::Exists(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->Exists(transactionId, path, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TNode> TRpcRawBatchRequest::Get(
@@ -129,9 +127,7 @@ TFuture<TNode> TRpcRawBatchRequest::Get(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->Get(transactionId, path, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::Set(
@@ -145,9 +141,7 @@ TFuture<void> TRpcRawBatchRequest::Set(
         [=, this] (TMutationId& mutationId) {
             RawClient_->Set(mutationId, transactionId, path, value, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TNode::TListType> TRpcRawBatchRequest::List(
@@ -160,9 +154,7 @@ TFuture<TNode::TListType> TRpcRawBatchRequest::List(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->List(transactionId, path, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TNodeId> TRpcRawBatchRequest::Copy(
@@ -176,9 +168,7 @@ TFuture<TNodeId> TRpcRawBatchRequest::Copy(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->CopyWithoutRetries(transactionId, sourcePath, destinationPath, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TNodeId> TRpcRawBatchRequest::Move(
@@ -192,9 +182,7 @@ TFuture<TNodeId> TRpcRawBatchRequest::Move(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->MoveWithoutRetries(transactionId, sourcePath, destinationPath, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TNodeId> TRpcRawBatchRequest::Link(
@@ -208,9 +196,7 @@ TFuture<TNodeId> TRpcRawBatchRequest::Link(
         [=, this] (TMutationId& mutationId) {
             return RawClient_->Link(mutationId, transactionId, targetPath, linkPath, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TLockId> TRpcRawBatchRequest::Lock(
@@ -224,9 +210,7 @@ TFuture<TLockId> TRpcRawBatchRequest::Lock(
         [=, this] (TMutationId& mutationId) {
             return RawClient_->Lock(mutationId, transactionId, path, mode, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::Unlock(
@@ -239,9 +223,7 @@ TFuture<void> TRpcRawBatchRequest::Unlock(
         [=, this] (TMutationId& mutationId) {
             RawClient_->Unlock(mutationId, transactionId, path, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TMaybe<TYPath>> TRpcRawBatchRequest::GetFileFromCache(
@@ -255,9 +237,7 @@ TFuture<TMaybe<TYPath>> TRpcRawBatchRequest::GetFileFromCache(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->GetFileFromCache(transactionId, md5Signature, cachePath, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TYPath> TRpcRawBatchRequest::PutFileToCache(
@@ -272,9 +252,7 @@ TFuture<TYPath> TRpcRawBatchRequest::PutFileToCache(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->PutFileToCache(transactionId, filePath, md5Signature, cachePath, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TCheckPermissionResponse> TRpcRawBatchRequest::CheckPermission(
@@ -288,9 +266,7 @@ TFuture<TCheckPermissionResponse> TRpcRawBatchRequest::CheckPermission(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->CheckPermission(user, permission, path, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TOperationAttributes> TRpcRawBatchRequest::GetOperation(
@@ -302,9 +278,7 @@ TFuture<TOperationAttributes> TRpcRawBatchRequest::GetOperation(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->GetOperation(operationId, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::AbortOperation(const TOperationId& operationId)
@@ -314,9 +288,7 @@ TFuture<void> TRpcRawBatchRequest::AbortOperation(const TOperationId& operationI
         [=, this] (TMutationId& mutationId) {
             RawClient_->AbortOperation(mutationId, operationId);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::CompleteOperation(const TOperationId& operationId)
@@ -326,9 +298,7 @@ TFuture<void> TRpcRawBatchRequest::CompleteOperation(const TOperationId& operati
         [=, this] (TMutationId& mutationId) {
             RawClient_->CompleteOperation(mutationId, operationId);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::SuspendOperation(
@@ -340,9 +310,7 @@ TFuture<void> TRpcRawBatchRequest::SuspendOperation(
         [=, this] (TMutationId& mutationId) {
             RawClient_->SuspendOperation(mutationId, operationId, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::ResumeOperation(
@@ -354,9 +322,7 @@ TFuture<void> TRpcRawBatchRequest::ResumeOperation(
         [=, this] (TMutationId& mutationId) {
             RawClient_->ResumeOperation(mutationId, operationId, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<void> TRpcRawBatchRequest::UpdateOperationParameters(
@@ -368,9 +334,7 @@ TFuture<void> TRpcRawBatchRequest::UpdateOperationParameters(
         [=, this] (TMutationId& /*mutationId*/) {
             RawClient_->UpdateOperationParameters(operationId, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TRichYPath> TRpcRawBatchRequest::CanonizeYPath(const TRichYPath& path)
@@ -402,9 +366,7 @@ TFuture<TRichYPath> TRpcRawBatchRequest::CanonizeYPath(const TRichYPath& path)
                 return canonizedPath;
             });
 
-        auto future = request->GetFuture();
-        Requests_.emplace(std::move(request));
-        return future;
+        return AddRequest(std::move(request));
     }
 
     return ::NThreading::MakeFuture(result);
@@ -420,9 +382,7 @@ TFuture<TVector<TTableColumnarStatistics>> TRpcRawBatchRequest::GetTableColumnar
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->GetTableColumnarStatistics(transactionId, paths, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 TFuture<TMultiTablePartitions> TRpcRawBatchRequest::GetTablePartitions(
@@ -435,9 +395,7 @@ TFuture<TMultiTablePartitions> TRpcRawBatchRequest::GetTablePartitions(
         [=, this] (TMutationId& /*mutationId*/) {
             return RawClient_->GetTablePartitions(transactionId, paths, options);
         });
-    auto future = request->GetFuture();
-    Requests_.emplace(std::move(request));
-    return future;
+    return AddRequest(std::move(request));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

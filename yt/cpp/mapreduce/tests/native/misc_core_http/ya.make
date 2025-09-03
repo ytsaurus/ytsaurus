@@ -1,6 +1,7 @@
 UNITTEST_WITH_CUSTOM_ENTRY_POINT()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+INCLUDE(${ARCADIA_ROOT}/yt/cpp/mapreduce/tests/native/misc/misc_sources.make.inc)
 
 EXPLICIT_DATA()
 
@@ -12,35 +13,7 @@ ENV(
     YT_TESTS_USE_CORE_HTTP_CLIENT="yes"
 )
 
-SRCS(
-    ../misc/alter_table.cpp
-    ../misc/batch_request.cpp
-    ../misc/canonize_path.cpp
-    ../misc/custom_client_config.cpp
-    ../misc/cypress_client.cpp
-    ../misc/error.cpp
-    ../misc/file_io.cpp
-    ../misc/format_attribute.cpp
-    ../misc/lock.cpp
-    ../misc/protobuf_format_derivation.cpp
-    ../misc/protobuf_table_io.cpp
-    ../misc/raw_io.cpp
-    ../misc/redirect_stdout_to_stderr_spec_flag.cpp
-    ../misc/retry_config_provider.cpp
-    ../misc/schema.cpp
-    ../misc/security_client.cpp
-    ../misc/shutdown.cpp
-    ../misc/skiff_row_table_io.cpp
-    ../misc/table_io.cpp
-    ../misc/tablet_client.cpp
-    ../misc/temp_table.cpp
-    ../misc/transactions.cpp
-    ../misc/whoami.cpp
-)
-
-IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
-    SRCS(../misc/tvm_auth.cpp)
-ENDIF()
+SRCS(${MISC_SRCS})
 
 PEERDIR(
     yt/cpp/mapreduce/client

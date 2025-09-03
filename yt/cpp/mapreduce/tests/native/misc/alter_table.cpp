@@ -56,7 +56,7 @@ TEST(AlterTable, Schema)
     addRowWithRusColumn();
 }
 
-TEST(AlterTable,WithTransaction)
+TEST(AlterTable, WithTransaction)
 {
     TTestFixture fixture;
     auto client = fixture.GetClient();

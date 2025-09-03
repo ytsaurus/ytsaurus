@@ -61,7 +61,7 @@ TEST(CypressClient, TestCreateAllTypes)
         EXPECT_EQ(client->Get(nodeIdPath), GetGuidAsString(nodeId));
     }
 
-    client->Create("//sys/groups/idm-group:100500", NT_GROUP, TCreateOptions().Attributes(TNode()("name", "idm-group:100500")));
+    client->Create("", NT_GROUP, TCreateOptions().Attributes(TNode()("name", "idm-group:100500")));
 }
 
 TEST(CypressClient, TestCreate)
@@ -484,6 +484,8 @@ TEST(CypressClient, TestBatchConcatenate)
 
 TEST(CypressClient, TestRetries)
 {
+    SKIP_IF_RPC();
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -661,6 +663,8 @@ TEST(CypressClient, FileCache)
 
 TEST(CypressClient, AbortableHttpResponse)
 {
+    SKIP_IF_RPC();
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();

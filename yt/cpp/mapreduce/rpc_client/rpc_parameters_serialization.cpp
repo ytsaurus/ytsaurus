@@ -371,6 +371,19 @@ NApi::TMultisetAttributesNodeOptions SerializeOptionsForMultisetAttributes(
     return result;
 }
 
+NApi::TCreateObjectOptions SerializeOptionsForCreateObject(
+    TMutationId& mutationId,
+    const TCreateOptions& options)
+{
+    NApi::TCreateObjectOptions result;
+    SetMutationId(&result, &mutationId);
+    if (options.Attributes_) {
+        result.Attributes = NYTree::ConvertToAttributes(
+            NYson::TYsonString(NodeToYsonString(*options.Attributes_, NYson::EYsonFormat::Binary)));
+    }
+    return result;
+}
+
 NApi::TCreateNodeOptions SerializeOptionsForCreate(
     TMutationId& mutationId,
     const TTransactionId& transactionId,
@@ -929,6 +942,34 @@ NApi::TModifyRowsOptions SerializeOptionsForInsertRows(const TInsertRowsOptions&
     }
     if (options.Update_) {
         result.AllowMissingKeyColumns = *options.Update_;
+    }
+    return result;
+}
+
+NApi::TVersionedLookupRowsOptions SerializeOptionsForVersionedLookupRows(
+    const NTableClient::TNameTablePtr& nameTable,
+    const TLookupRowsOptions& options)
+{
+    NApi::TVersionedLookupRowsOptions result;
+    result.KeepMissingRows = options.KeepMissingRows_;
+    if (options.Columns_) {
+        const auto& columnNames = options.Columns_->Parts_;
+
+        std::vector<int> indexes;
+        indexes.reserve(columnNames.size());
+        for (const auto& columnName : columnNames) {
+            indexes.push_back(nameTable->GetIdOrThrow(columnName));
+        }
+
+        result.ColumnFilter = NTableClient::TColumnFilter(indexes);
+    }
+    if (options.Timeout_) {
+        result.Timeout = *options.Timeout_;
+    }
+    if (options.Versioned_) {
+        NTableClient::TVersionedReadOptions versionedReadOptions;
+        versionedReadOptions.ReadMode = NTableClient::EVersionedIOMode::Default;
+        result.VersionedReadOptions = std::move(versionedReadOptions);
     }
     return result;
 }

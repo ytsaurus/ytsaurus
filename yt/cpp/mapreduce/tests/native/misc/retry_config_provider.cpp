@@ -11,6 +11,8 @@ using namespace NYT::NTesting;
 
 TEST(RetryConfigProvider, TestRetriesTimeLimit)
 {
+    SKIP_IF_RPC();
+
     static constexpr TDuration requestTimeLimit = TDuration::Seconds(3);
     class TTestRetryConfigProvider
         : public IRetryConfigProvider

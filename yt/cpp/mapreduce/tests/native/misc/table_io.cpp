@@ -658,6 +658,8 @@ TEST(TableIo, HostsSlash)
 
 TEST(TableIo, EmptyHosts)
 {
+    SKIP_IF_RPC();
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -801,6 +803,8 @@ TEST(TableIo, OptionallyCreateChildTransactionForIO)
 
 TEST(TableIo, ReaderTakesLockOnTableIdNotPath)
 {
+    SKIP_IF_RPC();
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -834,6 +838,8 @@ TEST(TableIo, ReaderTakesLockOnTableIdNotPath)
 
 TEST(TableIo, UnsuccessfulRetries)
 {
+    SKIP_IF_RPC();
+
     TTestFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -1228,6 +1234,8 @@ TEST(TableIo, TestComplexTypeMode)
 // during which the server can drop the connections every now and then.
 TEST(TableIo, OptimisticRetries)
 {
+    SKIP_IF_RPC();
+
     TConfigSaverGuard configGuard;
     TConfig::Get()->UseAbortableResponse = true;
     TConfig::Get()->RetryCount = 2;
@@ -1513,6 +1521,8 @@ TEST(BlobTableIo, WrongPartSize)
 }
 
 TEST(BlobTableIo, TableReaderReadError_YT_12822) {
+    SKIP_IF_RPC();
+
     class TRetryConfigProvider : public IRetryConfigProvider {
         public:
             TRetryConfig CreateRetryConfig() override {

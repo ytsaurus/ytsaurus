@@ -1,6 +1,7 @@
 RECURSE(
     misc
     misc_core_http
+    misc_rpc
     operations
     operations_core_http
 )
