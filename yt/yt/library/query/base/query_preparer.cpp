@@ -970,24 +970,151 @@ TJoinClausePtr BuildArrayJoinClause(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPlanFragmentPtr PreparePlanFragment(
-    IPrepareCallbacks* callbacks,
-    TStringBuf source,
-    TYsonStringBuf placeholderValues,
-    int syntaxVersion,
-    IMemoryUsageTrackerPtr memoryTracker)
+// Default name for columns that don't have explicit name in SQL SELECT expressions for syntaxVersion>=3
+
+std::string MakeColumnNameByIndex(int index)
 {
-    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
-    return PreparePlanFragment(
-        callbacks,
-        parsedSource->Source,
-        std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
-        parsedSource->AstHead.AliasMap,
-        1,
-        std::move(memoryTracker));
+    return Format("$projection_%v", index);
 }
 
-TPlanFragmentPtr PreparePlanFragment(
+std::optional<i64> TryGetIntegerValue(NAst::TExpressionPtr expr)
+{
+    if (auto* literal = expr->As<NAst::TLiteralExpression>()) {
+        if (std::holds_alternative<i64>(literal->Value)) {
+            return std::get<i64>(literal->Value);
+        }
+    }
+
+    if (auto* unary = expr->As<NAst::TUnaryOpExpression>()) {
+        if (unary->Opcode == EUnaryOp::Minus) {
+            if (auto* innerLiteral = unary->Operand[0]->As<NAst::TLiteralExpression>()) {
+                if (std::holds_alternative<i64>(innerLiteral->Value)) {
+                    return -std::get<i64>(innerLiteral->Value);
+                }
+            }
+        }
+    }
+
+    return std::nullopt;
+}
+
+void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
+    NAst::TQuery& ast,
+    NAst::TAliasMap& aliasMap,
+    NAst::TAstHead& head)
+{
+    if (!ast.GroupExprs && ast.OrderExpressions.empty()) {
+        return;
+    }
+
+    bool hasIndexReference = false;
+
+    auto& orderExpressionList = ast.OrderExpressions;
+    auto& projections = ast.SelectExprs;
+    i64 projectionCount = 0;
+
+    if (projections) {
+        projectionCount = std::ssize(*projections);
+    }
+
+    if (ast.GroupExprs) {
+        for (auto* expr : ast.GroupExprs.value()) {
+            auto integerValue = TryGetIntegerValue(expr);
+
+            if (integerValue.has_value() && *integerValue != 0) {
+                hasIndexReference = true;
+
+                if (*integerValue < 0 || *integerValue > projectionCount) {
+                    THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
+                    << TErrorAttribute("index", *integerValue);
+                }
+            }
+        }
+    }
+
+    for (auto& orderExpr : orderExpressionList) {
+        for (auto* expr : orderExpr.Expressions) {
+            auto integerValue = TryGetIntegerValue(expr);
+
+            if (integerValue.has_value() && *integerValue != 0) {
+                hasIndexReference = true;
+
+                if (*integerValue < 0 || *integerValue > projectionCount) {
+                    THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
+                    << TErrorAttribute("index", *integerValue);
+                }
+            }
+        }
+    }
+
+    if (!hasIndexReference) {
+        return;
+    }
+
+    if (!projections) {
+        THROW_ERROR_EXCEPTION("Projections are not specified, but projection indices are used in GROUP BY key or ORDER BY key");
+    }
+
+    auto indexToAlias = THashMap<i64, std::string>();
+
+    for (i64 projectionIndex = 0; projectionIndex < std::ssize(*projections); ++projectionIndex) {
+        auto& expr = (*projections)[projectionIndex];
+        auto aliasExpressionAst = expr->As<NAst::TAliasExpression>();
+        if (aliasExpressionAst) {
+            indexToAlias[projectionIndex + 1] = aliasExpressionAst->Name; // NB: Here the SQL standard uses one-based indexing.
+            continue;
+        }
+
+        auto referenceExpressionAst = expr->As<NAst::TReferenceExpression>();
+        if (referenceExpressionAst) {
+            indexToAlias[projectionIndex + 1] = referenceExpressionAst->Reference.ColumnName; // NB: Here the SQL standard uses one-based indexing.
+            continue;
+        }
+
+        auto newAlias = MakeColumnNameByIndex(projectionIndex + 1);
+        indexToAlias[projectionIndex + 1] = newAlias;  // NB: Here the SQL standard uses one-based indexing.
+        aliasMap[newAlias] = expr;
+
+        auto* newExpr = head.New<NAst::TAliasExpression>(expr->SourceLocation, expr, newAlias);
+        (*projections)[projectionIndex] = newExpr;
+    }
+
+    if (ast.GroupExprs) {
+        NAst::TExpressionList& groupExpressionList = *ast.GroupExprs;
+
+        for (i64 index = 0; index < std::ssize(groupExpressionList); ++index) {
+            auto& expr = groupExpressionList[index];
+            auto integerValue = TryGetIntegerValue(expr);
+
+            if (integerValue.has_value()) {
+                auto& aliasName = indexToAlias[*integerValue];
+                auto* newExpr = head.New<NAst::TReferenceExpression>(
+                    expr->SourceLocation,
+                    aliasName);
+                groupExpressionList[index] = newExpr;
+            }
+        }
+    }
+
+    for (auto& orderExpr : orderExpressionList) {
+        for (i64 index = 0; index < std::ssize(orderExpr.Expressions); ++index) {
+            auto& expr = orderExpr.Expressions[index];
+            auto integerValue = TryGetIntegerValue(expr);
+
+            if (integerValue.has_value()) {
+                auto& aliasName = indexToAlias[*integerValue];
+                auto* newExpr = head.New<NAst::TReferenceExpression>(
+                    expr->SourceLocation,
+                    aliasName);
+                orderExpr.Expressions[index] = newExpr;
+            }
+        }
+    }
+
+    return;
+}
+
+TPlanFragmentPtr PreparePlanFragmentImpl(
     IPrepareCallbacks* callbacks,
     TStringBuf source,
     const NAst::TQuery& queryAst,
@@ -1004,7 +1131,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
     Visit(queryAst.FromClause,
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
-            fragment->SubqueryFragment = PreparePlanFragment(
+            fragment->SubqueryFragment = PreparePlanFragmentImpl(
                 callbacks,
                 source,
                 subquery->Ast,
@@ -1180,6 +1307,51 @@ TPlanFragmentPtr PreparePlanFragment(
     fragment->Query = query;
 
     return fragment;
+}
+
+TPlanFragmentPtr PreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    TStringBuf source,
+    NYson::TYsonStringBuf placeholderValues,
+    int syntaxVersion,
+    IMemoryUsageTrackerPtr memoryTracker)
+{
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
+
+    return PreparePlanFragment(
+        callbacks,
+        source,
+        std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+        parsedSource->AstHead,
+        /*builderVersion*/ 1,
+        memoryTracker,
+        syntaxVersion);
+}
+
+TPlanFragmentPtr PreparePlanFragment(
+    IPrepareCallbacks* callbacks,
+    TStringBuf source,
+    NAst::TQuery& queryAst,
+    NAst::TAstHead& astHead,
+    int builderVersion,
+    IMemoryUsageTrackerPtr memoryTracker,
+    int syntaxVersion,
+    int depth)
+{
+    auto aliasMap = astHead.AliasMap;
+
+    if (syntaxVersion >= 3) {
+        RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(queryAst, aliasMap, astHead);
+    }
+
+    return PreparePlanFragmentImpl(
+        callbacks,
+        source,
+        queryAst,
+        aliasMap,
+        builderVersion,
+        std::move(memoryTracker),
+        depth);
 }
 
 TQueryPtr PrepareJobQuery(
