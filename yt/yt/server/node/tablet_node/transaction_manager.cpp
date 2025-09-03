@@ -91,7 +91,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), BeforeTransactionCoarselySerialized);
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionAborted);
     DEFINE_SIGNAL_OVERRIDE(void(TTimestamp), TransactionBarrierHandled);
-    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionTransientReset);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*, TTimestamp), TransactionTransientReset);
 
 public:
     TTransactionManager(
@@ -1124,7 +1124,12 @@ private:
         // Drop all transient transactions.
         for (auto [transactionId, transaction] : TransientTransactionMap_) {
             transaction->ResetFinished();
-            TransactionTransientReset_.Fire(transaction);
+
+            TTimestamp transientPrepareTimestamp = transaction->GetTransientState() == ETransactionState::TransientCommitPrepared
+                ? transaction->GetPrepareTimestamp()
+                : NullTimestamp;
+            TransactionTransientReset_.Fire(transaction, transientPrepareTimestamp);
+
             UnregisterPrepareTimestamp(transaction);
         }
         TransientTransactionMap_.Clear();
@@ -1135,7 +1140,11 @@ private:
         // Mark all transactions as finished to release pending readers.
         // Clear all lease flags.
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
+            auto transientPrepareTimestamp = NullTimestamp;
+
             if (transaction->GetTransientState() == ETransactionState::TransientCommitPrepared) {
+                YT_ASSERT(transaction->GetPrepareTimestamp() != NullTimestamp);
+                transientPrepareTimestamp = transaction->GetPrepareTimestamp();
                 UnregisterPrepareTimestamp(transaction);
                 transaction->SetPrepareTimestamp(NullTimestamp);
             }
@@ -1145,7 +1154,7 @@ private:
             transaction->SetTransientGeneration(transaction->GetPersistentGeneration());
             transaction->ResetFinished();
             transaction->SetHasLease(false);
-            TransactionTransientReset_.Fire(transaction);
+            TransactionTransientReset_.Fire(transaction, transientPrepareTimestamp);
         }
     }
 
