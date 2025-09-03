@@ -98,14 +98,17 @@ private:
             }
         }
 
-        bool allowForcedCompaction = true;
-
         if (auto request = ScanPartitionForCompaction(tablet->Eden().get(), /*allowForcedCompaction*/ true)) {
             batch.Compactions.push_back(std::move(*request));
-            if (request->Reason == EStoreCompactionReason::Forced &&
-                config->PrioritizeEdenForcedCompaction)
-            {
-                allowForcedCompaction = false;
+        }
+
+        bool allowForcedCompaction = true;
+
+        if (config->PrioritizeEdenForcedCompaction) {
+            for (const auto& store : tablet->Eden()->Stores()) {
+                if (IsStoreCompactionForced(store.get())) {
+                    allowForcedCompaction = false;
+                }
             }
         }
 
