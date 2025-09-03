@@ -685,7 +685,9 @@ private:
 
                 AddPersistentAffectedTablet(transaction, tablet);
 
-                AddPersistentLeases(transaction, prerequisiteTransactionIds);
+                if (tablet->IsActiveServant()) {
+                    AddPersistentLeases(transaction, prerequisiteTransactionIds);
+                }
 
                 YT_LOG_DEBUG(
                     "Performing atomic write as follower (TabletId: %v, TransactionId: %v@%v, "
