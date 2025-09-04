@@ -383,6 +383,8 @@ public:
     // Returns true iff the node has at least one location belonging to the
     // specified medium.
     bool HasMedium(int mediumIndex) const;
+    //! Returns indexes of all media present on this node.
+    TMediumSet GetMediumSet() const;
 
     int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 

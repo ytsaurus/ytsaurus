@@ -73,13 +73,13 @@ using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
 using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
+using NChunkClient::RealMediumIndexBound;
 using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
 using NChunkClient::TChunkLocationUuid;
 using NChunkClient::TMediumMap;
-using NChunkClient::TCompactMediumMap;
 using NChunkClient::TConsistentReplicaPlacementHash;
 using NChunkClient::NullConsistentReplicaPlacementHash;
 using NChunkClient::ChunkReplicaIndexBound;
@@ -299,7 +299,8 @@ struct TChunkPartLossTimeComparer
 
 using TOldestPartMissingChunkSet = std::set<TChunk*, TChunkPartLossTimeComparer>;
 
-using TMediumSet = std::bitset<MaxMediumCount>;
+// NB: Remember that compact set iterators may be invalidated on any modification!
+using TMediumSet = TCompactSet<int, NChunkClient::TypicalMediumCount>;
 
 constexpr int MediumDefaultPriority = 0;
 
