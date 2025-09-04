@@ -327,7 +327,9 @@ TPState<K, S>::TPState(NPrivate::TRawPStateNodePtr rawPStateNode, NPrivate::TRaw
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NPrivate::TAttributeSetter Name(TString trnasformName);
+NPrivate::TAttributeSetter Name(TString transformName);
+
+NPrivate::TAttributeSetter SetStreamId(TString streamId);
 
 template <CRow TInputRow, class TTransformApplicator>
     requires CApplicableTo<TTransformApplicator, TPCollection<TInputRow>>
@@ -346,6 +348,13 @@ TPCollection<TRow> operator|(const std::vector<TPCollection<TRow>>& pCollectionL
     const auto& rawPipeline = NPrivate::GetRawPipeline(pCollectionList[0]);
     auto guard = rawPipeline->StartTransformGuard(applicator.GetName());
     return applicator.ApplyTo(pCollectionList);
+}
+
+template <typename TRow>
+TPCollection<TRow> operator|(const TPCollection<TRow>& pCollection, const NPrivate::TAttributeSetter& attributeSetter)
+{
+    NPrivate::MergeAttributes(*NPrivate::GetRawDataNode(pCollection).Get(), attributeSetter);
+    return pCollection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

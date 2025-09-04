@@ -9,10 +9,16 @@ namespace NRoren {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTypeTag<TString> TransformNameTag("TransformName");
+TTypeTag<TString> StreamIdTag("StreamId");
 
-NPrivate::TAttributeSetter Name(TString trnasformName)
+NPrivate::TAttributeSetter Name(TString transformName)
 {
-    return NPrivate::TAttributeSetter(TransformNameTag, std::move(trnasformName));
+    return NPrivate::TAttributeSetter(TransformNameTag, std::move(transformName));
+}
+
+NPrivate::TAttributeSetter SetStreamId(TString streamId)
+{
+    return NPrivate::TAttributeSetter(StreamIdTag, std::move(streamId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
