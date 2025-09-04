@@ -542,13 +542,26 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     futureReplicas.reserve(tableInfos.size());
     if (options.CachedSyncReplicasTimeout) {
         auto deadline = TInstant::Now() - *options.CachedSyncReplicasTimeout;
-        for (const auto& table : tableInfos) {
+        for (int index = 0; index < std::ssize(tableInfos); ++index) {
+            const auto& table = tableInfos[index];
+            const auto& hint = tableHints[index];
             futureReplicas.push_back(replicaSynchronicityCache
-                ->GetReplicaSynchronicities(connection, table, deadline, options));
+                ->GetReplicaSynchronicities(
+                    connection,
+                    table,
+                    deadline,
+                    options,
+                    !hint->RequireSyncReplica));
         }
     } else {
-        for (const auto& table : tableInfos) {
-            futureReplicas.push_back(FetchReplicaSynchronicities(connection, table, options));
+        for (int index = 0; index < std::ssize(tableInfos); ++index) {
+            const auto& table = tableInfos[index];
+            const auto& hint = tableHints[index];
+            futureReplicas.push_back(FetchReplicaSynchronicities(
+                connection,
+                table,
+                options,
+                !hint->RequireSyncReplica));
         }
     }
 

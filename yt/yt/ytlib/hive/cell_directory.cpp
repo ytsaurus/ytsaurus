@@ -427,7 +427,8 @@ public:
     {
         auto result = FindDescriptorByCellId(cellId);
         if (!result) {
-            THROW_ERROR_EXCEPTION("Unknown cell %v",
+            THROW_ERROR_EXCEPTION(EErrorCode::UnknownCell,
+                "Unknown cell %v",
                 cellId);
         }
         return result;
