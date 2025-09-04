@@ -20,4 +20,21 @@ const std::string DefaultSlotsMediumName("default");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static_assert(TypicalMediumCount <= MaxMediumCount, "Typical medium count exceeds max medium count");
+static_assert(MaxMediumCount <= RealMediumIndexBound, "Max medium count exceeds bound on real medium indexes");
+static_assert(RealMediumIndexBound <= MediumIndexBound, "Real medium index bound exceeds medium index bound");
+
+bool IsSentinelMediumIndex(int mediumIndex)
+{
+    return mediumIndex == GenericMediumIndex || mediumIndex == AllMediaIndex || (MediumIndexBound <= mediumIndex && mediumIndex < MediumIndexBound);
+}
+
+bool IsValidRealMediumIndex(int mediumIndex)
+{
+    return mediumIndex >= 0 && mediumIndex < RealMediumIndexBound &&
+        mediumIndex != GenericMediumIndex && mediumIndex != AllMediaIndex;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

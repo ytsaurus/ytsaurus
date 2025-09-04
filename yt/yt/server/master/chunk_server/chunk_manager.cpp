@@ -2133,7 +2133,7 @@ public:
         return chunkList;
     }
 
-    void CreateMediumPrologue(const std::string& name)
+    void CreateMediumPrologue(const std::string& name, std::optional<int> hintIndex)
     {
         ValidateMediumName(name);
 
@@ -2148,6 +2148,18 @@ public:
             THROW_ERROR_EXCEPTION("Medium count limit %v is reached",
                 MaxMediumCount);
         }
+
+        if (hintIndex && !IsValidRealMediumIndex(*hintIndex)) {
+            THROW_ERROR_EXCEPTION("Requested medium index %v is not allowed for actual media objects",
+                *hintIndex);
+        }
+
+        if (hintIndex && FindMediumByIndex(*hintIndex)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Medium with requested index %v already exists",
+                *hintIndex);
+        }
     }
 
     TDomesticMedium* CreateDomesticMedium(
@@ -2157,7 +2169,7 @@ public:
         std::optional<int> hintIndex,
         TObjectId hintId) override
     {
-        CreateMediumPrologue(name);
+        CreateMediumPrologue(name, hintIndex);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::DomesticMedium, hintId);
@@ -2177,7 +2189,7 @@ public:
         std::optional<int> hintIndex,
         TObjectId hintId) override
     {
-        CreateMediumPrologue(name);
+        CreateMediumPrologue(name, hintIndex);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::S3Medium, hintId);
@@ -2280,9 +2292,7 @@ public:
 
     TMedium* FindMediumByIndex(int index) const override
     {
-        return index >= 0 && index < MaxMediumCount
-            ? IndexToMediumMap_[index]
-            : nullptr;
+        return GetOrDefault(IndexToMediumMap_, index, nullptr);
     }
 
     TMedium* GetMediumByIndexOrThrow(int index) const override
@@ -2606,8 +2616,7 @@ private:
 
     NHydra::TEntityMap<TMedium, TEntityMapTypeTraits<TMedium>> MediumMap_;
     THashMap<std::string, TMedium*> NameToMediumMap_;
-    std::vector<TMedium*> IndexToMediumMap_;
-    TMediumSet UsedMediumIndexes_;
+    TMediumMap<TMedium*> IndexToMediumMap_;
 
     TMediumId DefaultStoreMediumId_;
     TMedium* DefaultStoreMedium_ = nullptr;
@@ -5262,8 +5271,7 @@ private:
 
         MediumMap_.Clear();
         NameToMediumMap_.clear();
-        IndexToMediumMap_ = std::vector<TMedium*>(MaxMediumCount, nullptr);
-        UsedMediumIndexes_.reset();
+        IndexToMediumMap_.clear();
 
         ChunksCreated_ = 0;
         ChunksDestroyed_ = 0;
@@ -6452,12 +6460,16 @@ private:
 
     int GetFreeMediumIndex()
     {
-        for (int index = 0; index < MaxMediumCount; ++index) {
-            if (!UsedMediumIndexes_[index]) {
-                return index;
-            }
+        YT_VERIFY(IndexToMediumMap_.size() < MaxMediumCount);
+
+        int candidate = 0;
+        while (IndexToMediumMap_.contains(candidate) || IsSentinelMediumIndex(candidate)) {
+            ++candidate;
         }
-        YT_ABORT();
+
+        YT_VERIFY(candidate < RealMediumIndexBound);
+
+        return candidate;
     }
 
     TDomesticMedium* DoCreateDomesticMedium(
@@ -6520,11 +6532,8 @@ private:
         EmplaceOrCrash(NameToMediumMap_, medium->GetName(), medium);
 
         auto mediumIndex = medium->GetIndex();
-        YT_VERIFY(!UsedMediumIndexes_[mediumIndex]);
-        UsedMediumIndexes_.set(mediumIndex);
 
-        YT_VERIFY(!IndexToMediumMap_[mediumIndex]);
-        IndexToMediumMap_[mediumIndex] = medium;
+        EmplaceOrCrash(IndexToMediumMap_, mediumIndex, medium);
     }
 
     void UnregisterMedium(TMedium* medium)
@@ -6532,11 +6541,9 @@ private:
         EraseOrCrash(NameToMediumMap_, medium->GetName());
 
         auto mediumIndex = medium->GetIndex();
-        YT_VERIFY(UsedMediumIndexes_[mediumIndex]);
-        UsedMediumIndexes_.reset(mediumIndex);
 
-        YT_VERIFY(IndexToMediumMap_[mediumIndex] == medium);
-        IndexToMediumMap_[mediumIndex] = nullptr;
+        YT_VERIFY(FindMediumByIndex(mediumIndex) == medium);
+        IndexToMediumMap_.erase(mediumIndex);
     }
 
     void InitializeMediumConfig(TDomesticMedium* medium)
