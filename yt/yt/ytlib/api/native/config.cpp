@@ -485,9 +485,6 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
 
-    registrar.Parameter("use_find_chaos_object", &TThis::UseFindChaosObject)
-        .Default(true);
-
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
         .Default(true);
 
