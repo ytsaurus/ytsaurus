@@ -11,38 +11,46 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A compact representation for |(T*, index1, index2, replica_state)|.
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
+//! Compact indices are stored in the upper 16 bits of the pointer value.
+//! Extra indices are stored as plain integer fields.
+//! NB: Storing replica state requires T* to be aligned to at least 4 bytes.
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
 class TAugmentedPtr
-    : public TAugmentationAccessor<TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>>
+    : public TAugmentationAccessor<TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>>
 {
 private:
-    static_assert(1 <= IndexCount && IndexCount <= 2);
-    friend class TAugmentationAccessor<TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>>;
-    friend class TAugmentedPtr<T, !WithReplicaState, IndexCount, TAugmentationAccessor>;
+    static constexpr int TotalIndexCount = CompactIndexCount + ExtraIndexCount;
+
+    static_assert(0 <= CompactIndexCount && CompactIndexCount <= 2);
+    static_assert(0 <= ExtraIndexCount && ExtraIndexCount <= 1);
+    static_assert(1 <= TotalIndexCount && TotalIndexCount <= 2);
+
+    friend class TAugmentationAccessor<TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>>;
+    friend class TAugmentedPtr<T, !WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>;
 
 public:
     TAugmentedPtr();
 
     TAugmentedPtr(T* ptr, int index)
-        requires (!WithReplicaState && IndexCount == 1);
+        requires (!WithReplicaState && TotalIndexCount == 1);
 
     TAugmentedPtr(T* ptr, int index, EChunkReplicaState replicaState = EChunkReplicaState::Generic)
-        requires (WithReplicaState && IndexCount == 1);
+        requires (WithReplicaState && TotalIndexCount == 1);
 
     TAugmentedPtr(T* ptr, int firstIndex, int secondIndex)
-        requires (!WithReplicaState && IndexCount == 2);
+        requires (!WithReplicaState && TotalIndexCount == 2);
 
     TAugmentedPtr(T* ptr, int firstIndex, int secondIndex, EChunkReplicaState = EChunkReplicaState::Generic)
-        requires (WithReplicaState && IndexCount == 2);
+        requires (WithReplicaState && TotalIndexCount == 2);
 
-    explicit TAugmentedPtr(TAugmentedPtr<T, true, IndexCount, TAugmentationAccessor> other)
+    explicit TAugmentedPtr(TAugmentedPtr<T, true, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> other)
         requires (!WithReplicaState);
 
-    explicit TAugmentedPtr(TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor> other)
+    explicit TAugmentedPtr(TAugmentedPtr<T, false, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> other)
         requires WithReplicaState;
 
     TAugmentedPtr(
-        TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor> other,
+        TAugmentedPtr<T, false, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> other,
         EChunkReplicaState state)
         requires WithReplicaState;
 
@@ -57,10 +65,15 @@ public:
     bool operator> (TAugmentedPtr other) const;
     bool operator>=(TAugmentedPtr other) const;
 
+    // COMPAT(achulkov2): There is nothing wrong with implementing Save/Load for extra indexes, however,
+    // forbidding them helps us double check that is no place where medium index is currently serialized
+    // as part of this class. At some point this limitation should be removed.
     template <class C>
-    void Save(C& context) const;
+    void Save(C& context) const
+        requires (ExtraIndexCount == 0);
     template <class C>
-    void Load(C& context);
+    void Load(C& context)
+        requires (ExtraIndexCount == 0);
 
     TAugmentedPtr ToGenericState() const
         requires WithReplicaState;
@@ -69,14 +82,17 @@ public:
         requires WithReplicaState;
 
 private:
-    static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
+    static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
 
-    // Use compact 8-byte representation with index occupying the highest 8 bits.
+    //! Uses compact 8-byte representation with indices occupying the highest 16 bits.
     uintptr_t Value_;
+
+    //! Extra full-sized index. Zero-cost if not requested.
+    [[no_unique_address]] std::conditional_t<ExtraIndexCount >= 1, int, std::monostate> ExtraIndex1_{};
 
     template <int Index>
     int GetIndex() const
-        requires (Index <= IndexCount);
+        requires (Index <= TotalIndexCount);
 };
 
 namespace NDetail {
@@ -164,35 +180,40 @@ template <class T>
 using TPtrWithMediumIndex = TAugmentedPtr<
     T,
     /*WithReplicaState*/ false,
-    /*IndexCount*/ 1,
+    /*CompactIndexCount*/ 0,
+    /*ExtraIndexCount*/ 1,
     NDetail::TAugmentedPtrMediumIndexAccessor>;
 
 template <class T>
 using TPtrWithReplicaIndex = TAugmentedPtr<
     T,
     /*WithReplicaState*/ false,
-    /*IndexCount*/ 1,
+    /*CompactIndexCount*/ 1,
+    /*ExtraIndexCount*/ 0,
     NDetail::TAugmentedPtrReplicaIndexAccessor>;
 
 template <class T>
 using TPtrWithReplicaInfo = TAugmentedPtr<
     T,
     /*WithReplicaState*/ true,
-    /*IndexCount*/ 1,
+    /*CompactIndexCount*/ 1,
+    /*ExtraIndexCount*/ 0,
     NDetail::TAugmentedPtrReplicaIndexAccessor>;
 
 template <class T>
 using TPtrWithReplicaAndMediumIndex = TAugmentedPtr<
     T,
     /*WithReplicaState*/ false,
-    /*IndexCount*/ 2,
+    /*CompactIndexCount*/ 1,
+    /*ExtraIndexCount*/ 1,
     NDetail::TAugmentedPtrReplicaAndMediumIndexAccessor>;
 
 template <class T>
 using TPtrWithReplicaInfoAndMediumIndex = TAugmentedPtr<
     T,
     /*WithReplicaState*/ true,
-    /*IndexCount*/ 2,
+    /*CompactIndexCount*/ 1,
+    /*ExtraIndexCount*/ 1,
     NDetail::TAugmentedPtrReplicaAndMediumIndexAccessor>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,8 +226,6 @@ using TNodePtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex<NNodeTra
 using TNodePtrWithReplicaAndMediumIndexList = TCompactVector<TNodePtrWithReplicaAndMediumIndex, TypicalReplicaCount>;
 using TNodePtrWithReplicaInfoAndMediumIndex = TPtrWithReplicaInfoAndMediumIndex<NNodeTrackerServer::TNode>;
 using TNodePtrWithReplicaInfoAndMediumIndexList = TCompactVector<TNodePtrWithReplicaInfoAndMediumIndex, TypicalReplicaCount>;
-using TNodePtrWithMediumIndex = TPtrWithMediumIndex<NNodeTrackerServer::TNode>;
-using TNodePtrWithMediumIndexList = TCompactVector<TNodePtrWithMediumIndex, TypicalReplicaCount>;
 
 using TChunkLocationPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunkLocation>;
 using TChunkLocationPtrWithReplicaIndexList = TCompactVector<TChunkLocationPtrWithReplicaIndex, TypicalReplicaCount>;

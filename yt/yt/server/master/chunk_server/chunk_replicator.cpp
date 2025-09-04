@@ -371,12 +371,6 @@ TChunkReplicator::TChunkReplicator(
         Config_->RepairQueueBalancerWeightDecayFactor,
         Config_->RepairQueueBalancerWeightDecayInterval)
 {
-    for (int i = 0; i < MaxMediumCount; ++i) {
-        // We "balance" medium indexes, not the repair queues themselves.
-        MissingPartChunkRepairQueueBalancer_.AddContender(i);
-        DecommissionedPartChunkRepairQueueBalancer_.AddContender(i);
-    }
-
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
 
@@ -467,7 +461,7 @@ void TChunkReplicator::OnEpochFinished()
     ChunkListIdsWithFinishedRequisitionTraverse_.clear();
 
     for (auto queueKind : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
-        for (auto& queue : ChunkRepairQueues(queueKind)) {
+        for (auto& [mediumIndex, queue] : ChunkRepairQueues(queueKind)) {
             for (auto chunkWithIndexes : queue) {
                 chunkWithIndexes.GetPtr()->SetRepairQueueIterator(
                     chunkWithIndexes.GetMediumIndex(),
@@ -537,12 +531,12 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
     TouchChunkInRepairQueues(chunk);
 }
 
-TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
+TMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas,
     const TMediumPtrWithReplicaInfoList& offshoreReplicas)
 {
-    TCompactMediumMap<EChunkStatus> result;
+    TMediumMap<EChunkStatus> result;
 
     auto statistics = ComputeChunkStatistics(chunk, replicas, offshoreReplicas);
 
@@ -593,19 +587,19 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
 
-    TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
-    TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    TMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
+    TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
     // TODO(gritukan): YT-16557.
-    TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
+    TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
-    TCompactMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
+    TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
     // An arbitrary replica that violates consistent placement requirements - per medium.
-    TCompactMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
+    TMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
-    TCompactMediumMap<int> replicaCount;
-    TCompactMediumMap<int> decommissionedReplicaCount;
-    TCompactMediumMap<int> temporarilyUnavailableReplicaCount;
+    TMediumMap<int> replicaCount;
+    TMediumMap<int> decommissionedReplicaCount;
+    TMediumMap<int> temporarilyUnavailableReplicaCount;
 
     NErasure::TPartIndexSet replicaIndexes;
 
@@ -674,7 +668,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     bool allMediaTransient = true;
     bool allMediaDataPartsOnly = true;
-    TCompactMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
+    TMediumMap<NErasure::TPartIndexSet> mediumToErasedIndexes;
     TMediumSet activeMedia;
 
     for (const auto& entry : chunkReplication) {
@@ -710,7 +704,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         allMediaTransient = allMediaTransient && mediumTransient;
         allMediaDataPartsOnly = allMediaDataPartsOnly && dataPartsOnly;
 
-        activeMedia.set(mediumIndex);
+        activeMedia.insert(mediumIndex);
 
         auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
 
@@ -739,7 +733,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     return result;
 }
 
-TCompactMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
+TMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
     const TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas)
 {
@@ -753,7 +747,7 @@ TCompactMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    TCompactMediumMap<TNodeList> result;
+    TMediumMap<TNodeList> result;
     auto chunkReplication = GetChunkAggregatedReplication(chunk, replicas, /*offshoreReplicas*/ {});
     for (const auto& entry : chunkReplication) {
         auto mediumPolicy = entry.Policy();
@@ -905,7 +899,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     NErasure::ICodec* codec,
     bool allMediaTransient,
     bool allMediaDataPartsOnly,
-    const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+    const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
     const TMediumSet& activeMedia,
     const NErasure::TPartIndexSet& replicaIndexes,
     bool totallySealed)
@@ -917,15 +911,11 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     // In contrast to regular chunks, erasure chunk being "lost" on every medium
     // doesn't mean it's lost for good: across all media, there still may be
     // enough parts to make it repairable.
-
-    std::bitset<MaxMediumCount> transientMedia;
-    if (allMediaTransient) {
-        transientMedia.flip();
-    } else {
-        for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-            auto* medium = mediumIdAndPtrPair.second;
-            if (medium->IsDomestic()) {
-                transientMedia.set(medium->GetIndex(), medium->AsDomestic()->GetTransient());
+    TMediumSet transientMedia;
+    if (!allMediaTransient) {
+        for (auto* medium : GetValues(Bootstrap_->GetChunkManager()->Media())) {
+            if (medium->IsDomestic() && medium->AsDomestic()->GetTransient()) {
+                transientMedia.insert(medium->GetIndex());
             }
         }
     }
@@ -939,14 +929,11 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     static const NErasure::TPartIndexSet emptySet;
 
     auto deficient = false;
-    for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
-        if (!activeMedia[mediumIndex]) {
-            continue;
-        }
+    for (auto mediumIndex : activeMedia) {
         auto it = mediumToErasedIndexes.find(mediumIndex);
         const auto& erasedIndexes = it == mediumToErasedIndexes.end() ? emptySet : it->second;
         crossMediumErasedIndexes &= erasedIndexes;
-        if (!transientMedia.test(mediumIndex)) {
+        if (!allMediaTransient && !transientMedia.contains(mediumIndex)) {
             crossMediumErasedIndexesNoTransient &= erasedIndexes;
         }
 
@@ -1085,7 +1072,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         if (chunk->IsJournal() && replica.GetReplicaState() != EChunkReplicaState::Sealed) {
             totallySealed = false;
         } else {
-            hasSealedReplica[mediumIndex] = true;
+            hasSealedReplica.insert(mediumIndex);
             hasSealedReplicas = true;
         }
 
@@ -1136,7 +1123,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     bool precarious = true;
     bool allMediaTransient = true;
-    TCompactVector<int, MaxMediumCount> mediaOnWhichLost;
+    std::vector<int> mediaOnWhichLost;
     bool hasMediumOnWhichPresent = false;
     bool hasMediumOnWhichUnderreplicated = false;
     bool hasMediumOnWhichSealedMissing = false;
@@ -1179,7 +1166,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             mediumDecommissionedReplicaCount,
             mediumTemporarilyUnavailableReplicaCount,
             decommissionedReplicas[mediumIndex],
-            hasSealedReplica[mediumIndex],
+            hasSealedReplica.contains(mediumIndex),
             totallySealed,
             unsafelyPlacedReplicas[mediumIndex],
             inconsistentlyPlacedReplica[mediumIndex],
@@ -1306,7 +1293,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     bool hasSealedReplicas,
     bool precarious,
     bool allMediaTransient,
-    const TCompactVector<int, MaxMediumCount>& mediaOnWhichLost,
+    const std::vector<int>& mediaOnWhichLost,
     bool hasMediumOnWhichPresent,
     bool hasMediumOnWhichUnderreplicated,
     bool hasMediumOnWhichSealedMissing)
@@ -1577,13 +1564,15 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Replication job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v, IsPullReplicationJob: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v, IsPullReplicationJob: %v, TargetMediumIndex: %v, TargetMediumName: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndex,
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
-        isPullReplicationJob);
+        isPullReplicationJob,
+        targetMediumIndex,
+        targetMedium->GetName());
 
     if (targetNode) {
         replicasNeeded = 1;
@@ -1636,11 +1625,12 @@ bool TChunkReplicator::TryScheduleRemovalJob(
     }
 
     YT_LOG_DEBUG("Removal job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, MediumIndex: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
-        chunkIdWithIndexes);
+        chunkIdWithIndexes,
+        location->GetEffectiveMediumIndex());
 
     return true;
 }
@@ -1766,7 +1756,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
         repairQueue == EChunkRepairQueue::Decommissioned);
     context->ScheduleJob(job);
 
-    ChunkRepairQueueBalancer(repairQueue).AddWeight(
+    ChunkRepairQueueBalancer(repairQueue).AddWeightWithDefault(
         mediumIndex,
         job->ResourceUsage().repair_data_size() * job->TargetReplicas().size());
 
@@ -1912,23 +1902,21 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 
             for (const auto& replica : replicasOrError.Value()) {
                 auto* pushNode = replica.GetPtr()->GetNode();
-                for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
-                    if (mediumIndexSet.test(mediumIndex)) {
-                        if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
-                            // Replication is already planned with another node as a destination.
-                            continue;
-                        }
-
-                        if (desiredReplica.ReplicaIndex != replica.GetReplicaIndex()) {
-                            continue;
-                        }
-
-                        TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
-                        pushNode->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
-                        pushNode->AddTargetReplicationNodeId(chunkId, mediumIndex, node);
-
-                        node->RefChunkBeingPulled(chunkId, mediumIndex);
+                for (auto mediumIndex : mediumIndexSet) {
+                    if (pushNode->GetTargetReplicationNodeId(chunkId, mediumIndex) != InvalidNodeId) {
+                        // Replication is already planned with another node as a destination.
+                        continue;
                     }
+
+                    if (desiredReplica.ReplicaIndex != replica.GetReplicaIndex()) {
+                        continue;
+                    }
+
+                    TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+                    pushNode->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
+                    pushNode->AddTargetReplicationNodeId(chunkId, mediumIndex, node);
+
+                    node->RefChunkBeingPulled(chunkId, mediumIndex);
                 }
             }
 
@@ -2005,64 +1993,70 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                 continue;
             }
 
+            YT_LOG_DEBUG("KekKekKek Handling chunk in ScheduleReplicationJobs (Chunk: %v, MediumSet: %v)", chunkIdWithIndex, std::vector<int>{it->second.begin(), it->second.end()});
+
             auto& mediumIndexSet = it->second;
+            std::vector<int> mediumIndexesToRemove;
+            mediumIndexesToRemove.reserve(mediumIndexSet.size());
             const auto& replicas = replicasOrError.Value();
             const auto& offshoreReplicas = GetOrDefault(offshoreChunkReplicas, chunkId);
-            for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
-                if (mediumIndexSet.test(mediumIndex)) {
-                    auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                    if (!IsObjectAlive(medium)) {
-                        YT_LOG_ALERT(
-                            "Attempted to schedule replication job for non-existent medium, ignored "
-                            "(ChunkId: %v, MediumIndex: %v)",
-                            chunk->GetId(),
-                            mediumIndex);
-                        ++misscheduledPushReplicationJobsPerPriority[priority];
-                        // Something bad happened, let's try to forget it.
-                        mediumIndexSet.reset(mediumIndex);
+            for (auto mediumIndex : mediumIndexSet) {
+                auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                if (!IsObjectAlive(medium)) {
+                    YT_LOG_ALERT(
+                        "Attempted to schedule replication job for non-existent medium, ignored "
+                        "(ChunkId: %v, MediumIndex: %v)",
+                        chunk->GetId(),
+                        mediumIndex);
+                    ++misscheduledPushReplicationJobsPerPriority[priority];
+                    // Something bad happened, let's try to forget it.
+                    mediumIndexesToRemove.push_back(mediumIndex);
+                    ScheduleChunkRefresh(chunk.Get());
+                    continue;
+                }
+
+                if (medium->IsOffshore()) {
+                    YT_LOG_ALERT(
+                        "Attempted to schedule replication job for offshore medium, ignored "
+                        "(ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
+                        chunk->GetId(),
+                        medium->GetIndex(),
+                        medium->GetName(),
+                        medium->GetType());
+                    ++misscheduledPushReplicationJobsPerPriority[priority];
+                    // Something bad happened, let's try to forget it.
+                    mediumIndexesToRemove.push_back(mediumIndex);
+                    ScheduleChunkRefresh(chunk.Get());
+                    continue;
+                }
+
+                auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
+                node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
+
+                if (TryScheduleReplicationJob(
+                    context,
+                    {chunk.Get(), chunkIdWithIndex.ReplicaIndex},
+                    medium->AsDomestic(),
+                    nodeId,
+                    replicas,
+                    offshoreReplicas))
+                {
+                    mediumIndexesToRemove.push_back(mediumIndex);
+                } else {
+                    ++misscheduledPushReplicationJobsPerPriority[priority];
+                    if (nodeId != InvalidNodeId) {
+                        mediumIndexesToRemove.push_back(mediumIndex);
+                        // Move all CRP-enabled chunks with misscheduled jobs back to pull queue.
                         ScheduleChunkRefresh(chunk.Get());
-                        continue;
-                    }
-
-                    if (medium->IsOffshore()) {
-                        YT_LOG_ALERT(
-                            "Attempted to schedule replication job for offshore medium, ignored "
-                            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, MediumType: %v)",
-                            chunk->GetId(),
-                            medium->GetIndex(),
-                            medium->GetName(),
-                            medium->GetType());
-                        ++misscheduledPushReplicationJobsPerPriority[priority];
-                        // Something bad happened, let's try to forget it.
-                        mediumIndexSet.reset(mediumIndex);
-                        ScheduleChunkRefresh(chunk.Get());
-                        continue;
-                    }
-
-                    auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
-                    node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
-
-                    if (TryScheduleReplicationJob(
-                        context,
-                        {chunk.Get(), chunkIdWithIndex.ReplicaIndex},
-                        medium->AsDomestic(),
-                        nodeId,
-                        replicas,
-                        offshoreReplicas))
-                    {
-                        mediumIndexSet.reset(mediumIndex);
-                    } else {
-                        ++misscheduledPushReplicationJobsPerPriority[priority];
-                        if (nodeId != InvalidNodeId) {
-                            mediumIndexSet.reset(mediumIndex);
-                            // Move all CRP-enabled chunks with misscheduled jobs back to pull queue.
-                            ScheduleChunkRefresh(chunk.Get());
-                        }
                     }
                 }
             }
 
-            if (mediumIndexSet.none()) {
+            for (int mediumIndex : mediumIndexesToRemove) {
+                mediumIndexSet.erase(mediumIndex);
+            }
+
+            if (mediumIndexSet.empty()) {
                 queue.Erase(it);
             }
         }
@@ -2228,7 +2222,13 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
     // be repaired before part-decommissioned chunks.
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
         TMediumMap<std::pair<TChunkRepairQueue::iterator, TChunkRepairQueue::iterator>> iteratorPerRepairQueue;
-        for (int mediumIndex = 0; mediumIndex < MaxMediumCount; ++mediumIndex) {
+        for (auto& [mediumId, medium] : chunkManager->Media()) {
+            // There won't be any repair activity for offshore media for the forseeable future, so no point in considering them.
+            if (medium->IsOffshore()) {
+                continue;
+            }
+
+            auto mediumIndex = medium->GetIndex();
             auto& chunkRepairQueue = ChunkRepairQueue(mediumIndex, queue);
             if (!chunkRepairQueue.empty()) {
                 iteratorPerRepairQueue[mediumIndex] = std::pair(chunkRepairQueue.begin(), chunkRepairQueue.end());
@@ -2236,15 +2236,16 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
         }
 
         while (std::ssize(chunks) < maxRepairJobs) {
-            auto winner = ChunkRepairQueueBalancer(queue).TakeWinnerIf(
-                [&] (int mediumIndex) {
-                    // Don't repair chunks on nodes without relevant medium.
-                    // In particular, this avoids repairing non-cloud tables in the cloud.
-                    const auto it = iteratorPerRepairQueue.find(mediumIndex);
-                    return node->HasMedium(mediumIndex)
-                        && it != iteratorPerRepairQueue.end()
-                        && it->second.first != it->second.second;
-                });
+            // We don't repair chunks on nodes without relevant medium.
+            // In particular, this avoids repairing non-cloud tables in the cloud.
+            TMediumSet relevantMediumIndexes;
+            for (auto mediumIndex : node->GetMediumSet()) {
+                auto it = iteratorPerRepairQueue.find(mediumIndex);
+                if (it != iteratorPerRepairQueue.end() && it->second.first != it->second.second) {
+                    relevantMediumIndexes.insert(mediumIndex);
+                }
+            }
+            auto winner = ChunkRepairQueueBalancer(queue).ChooseRangeWinner(relevantMediumIndexes);
 
             if (!winner) {
                 break; // Nothing to repair on relevant media.
@@ -2473,6 +2474,7 @@ void TChunkReplicator::RefreshChunk(
                             }
 
                             TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+                            YT_LOG_DEBUG("KekKekKek Adding chunk to push replication queue (Chunk: %v, MediumIndex: %v)", chunkIdWithIndex, mediumIndex);
                             node->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
                         }
                     }
@@ -3712,7 +3714,7 @@ TChunkRepairQueue& TChunkReplicator::ChunkRepairQueue(int mediumIndex, EChunkRep
     return ChunkRepairQueues(queue)[mediumIndex];
 }
 
-std::array<TChunkRepairQueue, MaxMediumCount>& TChunkReplicator::ChunkRepairQueues(EChunkRepairQueue queue)
+TMediumMap<TChunkRepairQueue>& TChunkReplicator::ChunkRepairQueues(EChunkRepairQueue queue)
 {
     switch (queue) {
         case EChunkRepairQueue::Missing:

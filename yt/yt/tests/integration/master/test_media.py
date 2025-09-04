@@ -1,3 +1,4 @@
+from py import builtin
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
@@ -6,7 +7,7 @@ from yt_commands import (
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
     get_media, set_node_banned, set_all_nodes_banned, create_rack,
-    make_random_string, map)
+    make_random_string, map, print_debug, update_nodes_dynamic_config)
 
 from yt.common import YtError
 
@@ -16,11 +17,130 @@ from flaky import flaky
 from copy import deepcopy
 import builtins
 
+import hashlib
 
 ################################################################################
 
 
-class TestMedia(YTEnvSetup):
+class TestMediaBase(YTEnvSetup):
+    def _check_all_chunks_on_medium(self, tbl, medium):
+        chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
+        for chunk_id in chunk_ids:
+            replicas = get("#" + chunk_id + "/@stored_replicas")
+            for replica in replicas:
+                if replica.attributes["medium"] != medium:
+                    return False
+        return True
+    
+    def _count_chunks_on_medium(self, tbl, medium):
+        chunk_count = 0
+        chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
+        for chunk_id in chunk_ids:
+            replicas = get("#" + chunk_id + "/@stored_replicas")
+            for replica in replicas:
+                if replica.attributes["medium"] == medium:
+                    chunk_count += 1
+
+        return chunk_count
+    
+    def _remove_zeros(self, d):
+        for k in list(d.keys()):
+            if d[k] == 0:
+                del d[k]
+    
+    def _check_account_and_table_usage_equal(self, tbl):
+        account_usage = self._remove_zeros(get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium"))
+        table_usage = self._remove_zeros(get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl)))
+        return account_usage == table_usage
+
+    def _check_chunk_ok(self, ok, chunk_id, media, print_progress=False):
+        available = get("#%s/@available" % chunk_id)
+        replication_status = get("#%s/@replication_status" % chunk_id)
+        lvc = ls("//sys/lost_vital_chunks")
+        media_in_unexpected_state = 0
+        for medium in media:
+            if ok:
+                if (
+                        not available
+                        or medium not in replication_status
+                        or replication_status[medium]["underreplicated"]
+                        or replication_status[medium]["lost"]
+                        or replication_status[medium]["data_missing"]
+                        or replication_status[medium]["parity_missing"]
+                        or len(lvc) != 0
+                ):
+                    media_in_unexpected_state += 1
+            else:
+                if (
+                        available
+                        or medium not in replication_status
+                        or not replication_status[medium]["lost"]
+                        or not replication_status[medium]["data_missing"]
+                        or not replication_status[medium]["parity_missing"]
+                        or len(lvc) == 0
+                ):
+                    media_in_unexpected_state += 1
+        if print_progress and media_in_unexpected_state > 0:
+            print_debug(f"Chunk {chunk_id} is {'not ok' if ok else 'ok'} on {media_in_unexpected_state} media")
+        return media_in_unexpected_state == 0
+
+    def _get_chunk_replica_nodes(self, chunk_id):
+        return builtins.set(str(r) for r in get("#{0}/@stored_replicas".format(chunk_id)))
+
+    def _get_chunk_replica_media(self, chunk_id):
+        return builtins.set(r.attributes["medium"] for r in get("#{0}/@stored_replicas".format(chunk_id)))
+
+    def _ban_nodes(self, nodes):
+        banned = False
+        for node in ls("//sys/cluster_nodes"):
+            if node in nodes:
+                set_node_banned(node, True)
+                banned = True
+        assert banned
+
+    def _get_locations(self, node):
+        return {
+            location["location_uuid"]: location
+            for location in get(node + "/@statistics/locations")
+        }
+
+    def _get_non_existent_location(self, node):
+        locations = self._get_locations(node)
+        for i in range(2**10):
+            location_uuid = "1-1-1-{}".format(hex(i)[2:])
+            if location_uuid not in locations:
+                return location_uuid
+        assert False, "BINGO!!!"
+
+    def _create_domestic_medium(self, medium):
+        if not exists(f"//sys/media/{medium}"):
+            create_domestic_medium(medium)
+
+    def _sync_set_medium_overrides(self, overrides):
+        for location, medium in overrides:
+            path = f"//sys/chunk_locations/{location}/@medium_override"
+            set(path, medium)
+        for location, medium in overrides:
+            wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
+
+    def _validate_empty_medium_overrides(self):
+        for location in ls("//sys/chunk_locations"):
+            remove(f"//sys/chunk_locations/{location}/@medium_override")
+
+        def medium_overrides_applied():
+            for location in ls("//sys/chunk_locations"):
+                if get(f"//sys/chunk_locations/{location}/@statistics/medium_name") != "default":
+                    return False
+            return True
+
+        wait(medium_overrides_applied)
+
+    def _set_medium_override_and_wait(self, location, medium):
+        set(f"//sys/chunk_locations/{location}/@medium_override", medium)
+        wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
+
+
+class TestMedia(TestMediaBase):
     NUM_MASTERS = 1
     NUM_NODES = 10
     STORE_LOCATION_COUNT = 3
@@ -59,78 +179,6 @@ class TestMedia(YTEnvSetup):
             "secret_access_key": "nope",
         })
 
-    def _check_all_chunks_on_medium(self, tbl, medium):
-        chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
-        for chunk_id in chunk_ids:
-            replicas = get("#" + chunk_id + "/@stored_replicas")
-            for replica in replicas:
-                if replica.attributes["medium"] != medium:
-                    return False
-        return True
-
-    def _count_chunks_on_medium(self, tbl, medium):
-        chunk_count = 0
-        chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
-        for chunk_id in chunk_ids:
-            replicas = get("#" + chunk_id + "/@stored_replicas")
-            for replica in replicas:
-                if replica.attributes["medium"] == medium:
-                    chunk_count += 1
-
-        return chunk_count
-
-    def _remove_zeros(self, d):
-        for k in list(d.keys()):
-            if d[k] == 0:
-                del d[k]
-
-    def _check_account_and_table_usage_equal(self, tbl):
-        account_usage = self._remove_zeros(get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium"))
-        table_usage = self._remove_zeros(get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl)))
-        return account_usage == table_usage
-
-    def _check_chunk_ok(self, ok, chunk_id, media):
-        available = get("#%s/@available" % chunk_id)
-        replication_status = get("#%s/@replication_status" % chunk_id)
-        lvc = ls("//sys/lost_vital_chunks")
-        for medium in media:
-            if ok:
-                if (
-                        not available
-                        or medium not in replication_status
-                        or replication_status[medium]["underreplicated"]
-                        or replication_status[medium]["lost"]
-                        or replication_status[medium]["data_missing"]
-                        or replication_status[medium]["parity_missing"]
-                        or len(lvc) != 0
-                ):
-                    return False
-            else:
-                if (
-                        available
-                        or medium not in replication_status
-                        or not replication_status[medium]["lost"]
-                        or not replication_status[medium]["data_missing"]
-                        or not replication_status[medium]["parity_missing"]
-                        or len(lvc) == 0
-                ):
-                    return False
-        return True
-
-    def _get_chunk_replica_nodes(self, chunk_id):
-        return builtins.set(str(r) for r in get("#{0}/@stored_replicas".format(chunk_id)))
-
-    def _get_chunk_replica_media(self, chunk_id):
-        return builtins.set(r.attributes["medium"] for r in get("#{0}/@stored_replicas".format(chunk_id)))
-
-    def _ban_nodes(self, nodes):
-        banned = False
-        for node in ls("//sys/cluster_nodes"):
-            if node in nodes:
-                set_node_banned(node, True)
-                banned = True
-        assert banned
-
     @authors()
     def test_default_store_medium_name(self):
         assert get("//sys/media/default/@name") == "default"
@@ -147,11 +195,6 @@ class TestMedia(YTEnvSetup):
     def test_create_simple(self):
         assert get("//sys/media/hdd4/@name") == "hdd4"
         assert get("//sys/media/hdd4/@index") > 0
-
-    @authors()
-    def test_create_too_many_fails(self):
-        with pytest.raises(YtError):
-            create_domestic_medium("excess_medium")
 
     @authors("aozeritsky", "shakurov")
     def test_rename(self):
@@ -430,7 +473,7 @@ class TestMedia(YTEnvSetup):
 
     @authors("babenko", "shakurov")
     def test_chunk_statuses_1_media(self):
-        codec = "reed_solomon_6_3"
+        codec = "isa_reed_solomon_6_3"
         codec_replica_count = 9
 
         create("table", "//tmp/t9")
@@ -452,7 +495,7 @@ class TestMedia(YTEnvSetup):
 
     @authors("shakurov")
     def test_chunk_statuses_2_media(self):
-        codec = "reed_solomon_6_3"
+        codec = "isa_reed_solomon_6_3"
         codec_replica_count = 9
 
         create("table", "//tmp/t9")
@@ -700,7 +743,7 @@ class TestMediaMulticell(TestMedia):
 ################################################################################
 
 
-class TestDynamicMedia(YTEnvSetup):
+class TestDynamicMedia(TestMediaBase):
     NUM_MASTERS = 1
     NUM_NODES = 1
     STORE_LOCATION_COUNT = 2
@@ -716,18 +759,6 @@ class TestDynamicMedia(YTEnvSetup):
         }
     }
 
-    def _validate_empty_medium_overrides(self):
-        for location in ls("//sys/chunk_locations"):
-            remove(f"//sys/chunk_locations/{location}/@medium_override")
-
-        def medium_overrides_applied():
-            for location in ls("//sys/chunk_locations"):
-                if get(f"//sys/chunk_locations/{location}/@statistics/medium_name") != "default":
-                    return False
-            return True
-
-        wait(medium_overrides_applied)
-
     def teardown_method(self, method):
         for node in ls("//sys/data_nodes"):
             for location in self._get_locations(f"//sys/data_nodes/{node}"):
@@ -735,41 +766,12 @@ class TestDynamicMedia(YTEnvSetup):
 
         super(TestDynamicMedia, self).teardown_method(method)
 
-    def _set_medium_override_and_wait(self, location, medium):
-        set(f"//sys/chunk_locations/{location}/@medium_override", medium)
-        wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
-
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         assert len(config["data_node"]["store_locations"]) == 2
 
         config["data_node"]["store_locations"][0]["medium_name"] = "default"
         config["data_node"]["store_locations"][1]["medium_name"] = "default"
-
-    def _get_locations(self, node):
-        return {
-            location["location_uuid"]: location
-            for location in get(node + "/@statistics/locations")
-        }
-
-    def _get_non_existent_location(self, node):
-        locations = self._get_locations(node)
-        for i in range(2**10):
-            location_uuid = "1-1-1-{}".format(hex(i)[2:])
-            if location_uuid not in locations:
-                return location_uuid
-        assert False, "BINGO!!!"
-
-    def _create_domestic_medium(self, medium):
-        if not exists(f"//sys/media/{medium}"):
-            create_domestic_medium(medium)
-
-    def _sync_set_medium_overrides(self, overrides):
-        for location, medium in overrides:
-            path = f"//sys/chunk_locations/{location}/@medium_override"
-            set(path, medium)
-        for location, medium in overrides:
-            wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
 
     @authors("kvk1920")
     def test_medium_change_simple(self):
@@ -918,3 +920,280 @@ class TestDynamicMedia(YTEnvSetup):
 
         set(f"{t}/@media", {m1: {"replication_factor": 1, "data_parts_only": False}})
         wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 1)
+
+
+################################################################################
+
+
+# As media cannot be deleted, for now, it is best to use a separate test suite for tests with a significant number of them.
+# NB: Some new media are created during the runtime of the tests, be careful when writing new ones!
+class TestManyMedia(TestMediaBase):
+    NON_DEFAULT_MEDIUM_COUNT = 300
+    NON_DEFAULT_MEDIA = [f"hdd{i}" for i in range(NON_DEFAULT_MEDIUM_COUNT)]
+
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    # Each non-default medium will have a single location assigned to it.
+    # Default medium will have one location on each node.
+    STORE_LOCATION_COUNT = NON_DEFAULT_MEDIUM_COUNT // NUM_NODES + 1
+
+    # The periods below are set to extremely low values to speed up replication.
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_refresh_period": 2,
+            "chunk_requisition_update_period": 2,
+        },
+    }
+
+    # The periods below are set to extremely low values to speed up replication.
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "incremental_heartbeat_period": 2,
+        },
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 10,
+            }
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "resource_limits": {
+                "overrides": {
+                    "replication_slots": 64,
+                },
+            },
+        },
+    }
+
+    # It is impossible to modify data node configurations non-uniformely, so let's use a sledge-hammer to crack a nut.
+    # TODO(achulkov2): It is better to pass node index to modify_node_config, but that warrants a separate refactoring PR.
+    @classmethod
+    def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
+        super(TestManyMedia, cls).apply_config_patches(configs, ytserver_version, cluster_index, cluster_path)
+
+        for node_index, config in enumerate(configs["node"]):
+            locations = config["data_node"]["store_locations"]
+            assert len(locations) == cls.STORE_LOCATION_COUNT
+
+            locations[0]["medium_name"] = "default"
+
+            for i in range(1, cls.STORE_LOCATION_COUNT):
+                medium = cls.NON_DEFAULT_MEDIA[node_index * (cls.STORE_LOCATION_COUNT - 1) + (i - 1)]
+                locations[i]["medium_name"] = medium
+
+    @classmethod
+    def on_masters_started(cls):
+        for medium in cls.NON_DEFAULT_MEDIA:
+            create_domestic_medium(medium)
+
+    @classmethod
+    def setup_class(cls, *args, **kwargs):
+        super(TestManyMedia, cls).setup_class(*args, **kwargs)
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        for medium in cls.NON_DEFAULT_MEDIA:
+            set_account_disk_space_limit("tmp", disk_space_limit, medium)
+
+    # Returns a deterministic sample based on the given seed.
+    @staticmethod
+    def get_deterministic_sample(objects, sample_size, seed):
+        assert sample_size <= len(objects)
+
+        seed_bytes = str(seed).encode("utf-8")
+
+        def key(obj):
+            return hashlib.sha256(seed_bytes + str(obj).encode("utf-8")).digest(), obj
+
+        shuffled = sorted(objects, key=key)
+
+        return shuffled[:sample_size]
+
+    # Returns a deterministic sample of non-default media based on the given seed.
+    @classmethod
+    def get_nondefault_media_sample(cls, sample_size, seed):
+        return cls.get_deterministic_sample(cls.NON_DEFAULT_MEDIA, sample_size, seed)
+    
+    @classmethod
+    def enumerate_nondefault_media_sample(cls, sample_size, seed):
+        indexes = cls.get_deterministic_sample(range(len(cls.NON_DEFAULT_MEDIA)), sample_size, seed)
+        for i in indexes:
+            yield i, cls.NON_DEFAULT_MEDIA[i]
+
+    @authors("achulkov2")
+    def test_medium_index_assignment(self):
+        assert get("//sys/media/default/@index") == 0
+
+        for i, medium in self.enumerate_nondefault_media_sample(sample_size=30, seed=42):
+            # Indexes 126 and 127 are historical sentinels.
+            expected_medium_index = i + 1 if i + 1 < 126 else i + 3
+            assert get(f"//sys/media/{medium}/@index") == expected_medium_index
+
+        with pytest.raises(YtError):
+            create_domestic_medium("excess_medium_same_index", attributes={"index": 42})
+
+        # TODO(achulkov2): Test out of bounds index.
+
+        create_domestic_medium("excess_medium_666", attributes={"index": 666})
+        assert get("//sys/media/excess_medium_666/@index") == 666
+
+        create_domestic_medium("excess_medium_get_mex")
+        # Default medium + 2 sentinels + 300 non-default media => first free index is 303.
+        assert get("//sys/media/excess_medium_get_mex/@index") == 1 + 2 + 300
+
+    @authors("achulkov2")
+    def test_chunk_movement(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        write_table("//tmp/t", [{"a": 1}])
+
+        assert self._check_all_chunks_on_medium("t", "default")
+
+        for medium in self.get_nondefault_media_sample(sample_size=10, seed=1543):
+            print_debug(f"Moving table to medium {medium}")
+            set("//tmp/t/@primary_medium", medium)
+            wait(lambda: self._check_all_chunks_on_medium("t", medium) and self._check_account_and_table_usage_equal("t"))
+
+        set("//tmp/t/@primary_medium", "default")
+        wait(lambda: self._check_all_chunks_on_medium("t", "default") and self._check_account_and_table_usage_equal("t"))
+
+    @authors("achulkov2")
+    def test_many_replicas_with_removal(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        write_table("//tmp/t", [{"a": 1}])
+
+        tbl_media = get("//tmp/t/@media")
+
+        # This is a reasonably large number of replicas across newly indexed media,
+        # but small enough for us to check both replication and removal.
+        media_sample = self.get_nondefault_media_sample(sample_size=33, seed=179)
+
+        for medium in media_sample:
+            tbl_media[medium] = {"replication_factor": 1, "data_parts_only": False}
+
+        set("//tmp/t/@media", tbl_media)
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        expected_chunk_media = builtin.set(media_sample) | {"default"}
+
+        # This takes around 15 seconds on a local machine, so should be fine.
+        wait(
+            lambda:
+                self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
+                and self._get_chunk_replica_media(chunk_id) == expected_chunk_media)
+        
+        chunk_replica_nodes = self._get_chunk_replica_nodes(chunk_id)
+
+        # We stop chunks from being removed to be able to test removal job scheduling.
+        for node in chunk_replica_nodes:
+            set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/removal_slots", 0)
+
+        remove("//tmp/t")
+
+        # Removal jobs should be scheduled properly.
+        wait(lambda: all(get(f"//sys/cluster_nodes/{node}/@destroyed_chunk_replica_count") > 0 for node in chunk_replica_nodes))
+
+        for node in chunk_replica_nodes:
+            remove(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/removal_slots")
+
+        # We somewhat rely on nothing being removed at the same time as this test is running.
+        # If that turns out not to be the case, there are ways to improve, but let's keep it simple for now.
+        wait(lambda: all(get(f"//sys/cluster_nodes/{node}/@destroyed_chunk_replica_count") == 0 for node in chunk_replica_nodes))
+
+    @authors("achulkov2")
+    @pytest.mark.timeout(300)
+    def test_extreme_replica_count(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        write_table("//tmp/t", [{"a": 1}])
+
+        tbl_media = get("//tmp/t/@media")
+
+        # We want to test a number of replicas larger than 8 bits.
+        # This takes a while, as we only schedule one replication job at once,
+        # and there is no easy way (or reason) to change that.
+        media_sample = self.get_nondefault_media_sample(sample_size=257, seed=179)
+
+        for medium in media_sample:
+            tbl_media[medium] = {"replication_factor": 1, "data_parts_only": False}
+
+        set("//tmp/t/@media", tbl_media)
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        expected_chunk_media = builtin.set(media_sample) | {"default"}
+
+        # NB: This large wait is impossible to avoid with such number of replicas.
+        # It takes around 130 seconds on local machine, so we give some margin.
+        wait(
+            lambda:
+                self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
+                and self._get_chunk_replica_media(chunk_id) == expected_chunk_media,
+            timeout=180)
+        
+    # TODO(achulkov2): Finish this test.
+        
+    # @authors("achulkov2")
+    # def test_medium_overrides(self):
+    #     media_sample = self.get_nondefault_media_sample(sample_size=29, seed=2007)
+
+    #     create("table", "//tmp/t", attributes={"replication_factor": 1, "primary_medium": media_sample[0]})
+
+    #     # TODO(achulkov2): Create helper for this.
+    #     tbl_media = get("//tmp/t/@media")
+    #     for medium in media_sample[1:]:
+    #         tbl_media[medium] = {"replication_factor": 1, "data_parts_only": False}
+
+    #     set("//tmp/t/@media", tbl_media)
+
+    #     write_table("//tmp/t", [{"a": 1}])
+
+    #     chunk_id = get_singular_chunk_id("//tmp/t")
+
+    #     wait(
+    #         lambda:
+    #             self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
+    #             and self._get_chunk_replica_media(chunk_id) == builtin.set(media_sample))
+
+    #     location_to_node = {}
+
+    #     for node in ls("//sys/data_nodes"):
+    #         for location in self._get_locations(node).keys():
+    #             location_to_node[location] = node
+        
+    #     medium_overrides = []
+    #     new_nodes_for_medium = {}
+
+    #     shuffled_nondefault_media = self.get_nondefault_media_sample(sample_size=len(self.NON_DEFAULT_MEDIA), seed=1329)
+
+    #     next_medium_index = 0
+    #     for location in ls("//sys/chunk_locations", attributes=["statistics", "medium_override"]):
+    #         assert "medium_override" not in location.attributes
+
+    #         medium = get(f"//sys/chunk_locations/{location}/@statistics/medium_name")
+
+    #         if medium == "default":
+    #             continue
+
+    #         new_medium = shuffled_nondefault_media[next_medium_index]
+    #         next_medium_index += 1
+
+    #         medium_overrides.append((str(location), new_medium))
+
+
+
+
+    #     nodes = ls("//sys/data_nodes")
+        
+    #     for replica in get(f"#{chunk_id}/@stored_replicas"):
+    #         node = str(replica)
+    #         medium = replica.attributes["medium"]
+    #         location = replica.attributes["location_uuid"]
+
+    #         new_node = self.get_deterministic_sample(
+    #             [node for node in nodes if node != node],
+    #             sample_size=1,
+    #             seed=hashlib.sha256(f"{node}-{medium}-{location}".encode()).hexdigest())[0]
+    #         medium_overrides.append((location, new_node))
+
+        # Test outline:
+        #   1. Create a table on a sample of media.
+        #   2. Shuffle these media among nodes by setting medium overrides.
+        #   3. Expect replicator to move replicas.

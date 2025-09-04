@@ -112,12 +112,15 @@ constexpr int MinReplicationFactor = 1;
 constexpr int MaxReplicationFactor = 20;
 constexpr int DefaultReplicationFactor = 3;
 
-constexpr int MaxMediumCount = 120; // leave some room for sentinels
+//! Some room starting from this index is reserved for sentinels.
+//! For historical reasons indexes 126 and 127 are also reserved for sentinels.
+constexpr int MaxMediumCount = 63900;
+//! The average reasonable number of media on a cluster.
+//! Used for initializing compact containers.
+constexpr int TypicalMediumCount = 4;
 
 template <typename T>
 using TMediumMap = THashMap<int, T>;
-template <typename T>
-using TCompactMediumMap = TCompactFlatMap<int, T, 4>;
 
 //! Used as an expected upper bound in TCompactVector.
 /*
@@ -136,7 +139,8 @@ constexpr int DefaultStoreMediumIndex =   0;
 constexpr int DefaultSlotsMediumIndex =   0;
 
 //! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
-constexpr int MediumIndexBound = AllMediaIndex + 1;
+//! A small amount of room is reserved for sentinels.
+constexpr int MediumIndexBound = MaxMediumCount + 100;
 
 class TChunkReplicaWithMedium;
 using TChunkReplicaWithMediumList = TCompactVector<TChunkReplicaWithMedium, TypicalReplicaCount>;

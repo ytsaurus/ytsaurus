@@ -86,9 +86,11 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
-    : MediumIndex_(static_cast<ui8>(mediumIndex))
+    : MediumIndex_(static_cast<ui16>(mediumIndex))
     , Policy_(policy)
-{ }
+{
+    YT_ASSERT(MediumIndex_ == mediumIndex);
+}
 
 void TChunkReplication::TEntry::Save(NCellMaster::TSaveContext& context) const
 {
@@ -102,14 +104,17 @@ void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MediumIndexSizeofReduction) {
+    // COMPAT(achulkov2)
+    if (context.GetTractoVersion() >= NCellMaster::ETractoMasterReign::MaxMediumCountIncrease) {
         Load(context, MediumIndex_);
     } else {
-        auto mediumIndex = Load<ui16>(context);
-        YT_VERIFY(mediumIndex <= MaxMediumCount);
-        MediumIndex_ = static_cast<ui8>(mediumIndex);
+        MediumIndex_ = Load<ui8>(context);
     }
+
+    // NB(achulkov2): There was a previous NCellMaster::EMasterReign::MediumIndexSizeofReduction
+    // compat by cherepashka@ that reduced size from 16 bits to 8 bits. It was added in 24.1, so
+    // our 24.2 compat above overrides it.
+
     Load(context, Policy_);
 }
 

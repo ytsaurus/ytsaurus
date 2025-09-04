@@ -20,4 +20,9 @@ const TString DefaultSlotsMediumName("default");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static_assert(TypicalMediumCount <= MaxMediumCount, "Typical medium count exceeds max medium count");
+static_assert(MaxMediumCount <= MediumIndexBound, "Max medium count exceeds medium index bound");
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

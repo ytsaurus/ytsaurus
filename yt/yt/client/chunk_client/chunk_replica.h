@@ -42,7 +42,7 @@ private:
      *  Bits:
      *   0-23: node id (24 bits)
      *  24-28: replica index (5 bits)
-     *  29-37: medium index (7 bits)
+     *  29-44: medium index (16 bits)
      */
     ui64 Value_;
 
