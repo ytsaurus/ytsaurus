@@ -2,6 +2,7 @@ SET(MISC_SRCS_ROOT ${ARCADIA_ROOT}/yt/cpp/mapreduce/tests/native/misc)
 
 SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/alter_table.cpp
+    ${MISC_SRCS_ROOT}/append_debug_options_spec_flag.cpp
     ${MISC_SRCS_ROOT}/batch_request.cpp
     ${MISC_SRCS_ROOT}/canonize_path.cpp
     ${MISC_SRCS_ROOT}/custom_client_config.cpp
