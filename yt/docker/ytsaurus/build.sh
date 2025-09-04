@@ -77,7 +77,7 @@ mkdir ${output_path}/credits
 if [[ "${component}" == "ytsaurus" ]]; then
 
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
-    gpuagent="${ytsaurus_source_path}/yt/yt/go/gpuagent/gpuagent"
+    gpuagent="${ytsaurus_source_path}/yt/yt/gpuagent/gpuagent"
     init_queue_agent_state="${ytsaurus_source_path}/yt/python/yt/environment/init_queue_agent_state.py"
     init_operations_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operations_archive.py"
     credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"

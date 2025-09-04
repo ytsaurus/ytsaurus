@@ -17,9 +17,9 @@ import (
 	logzap "go.ytsaurus.tech/library/go/core/log/zap"
 	"go.ytsaurus.tech/library/go/core/log/zap/asynczap"
 	"go.ytsaurus.tech/yt/go/ytlog/selfrotate"
-	"go.ytsaurus.tech/yt/yt/go/gpuagent/internal/agent"
-	"go.ytsaurus.tech/yt/yt/go/gpuagent/internal/agent/nv"
-	"go.ytsaurus.tech/yt/yt/go/gpuagent/internal/pb"
+	"go.ytsaurus.tech/yt/yt/gpuagent/internal/agent"
+	"go.ytsaurus.tech/yt/yt/gpuagent/internal/agent/nv"
+	"go.ytsaurus.tech/yt/yt/gpuagent/internal/pb"
 )
 
 type args struct {

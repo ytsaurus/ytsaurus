@@ -19,7 +19,7 @@
 
 #include <library/cpp/testing/common/network.h>
 
-#include <yt/yt/go/gpuagent/api/api.pb.h>
+#include <yt/yt/gpuagent/api/api.pb.h>
 
 namespace NYT::NGpu {
 namespace {
