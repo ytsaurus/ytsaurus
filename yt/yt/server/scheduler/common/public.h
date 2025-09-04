@@ -22,6 +22,7 @@ DECLARE_REFCOUNTED_CLASS(TExecNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EUnutilizedResourceReason,
+    (Utilized)
     (Unknown)
     (Timeout)
     (Throttling)
