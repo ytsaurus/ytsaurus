@@ -133,6 +133,12 @@ def test_ypath_split():
 
     assert ypath_split("#a-b-c-d/a/b") == ("#a-b-c-d/a", "b")
     assert ypath_split("//a/b\\\\\\/c") == ("//a", "b\\\\\\/c")
+    assert ypath_split("//a/b\\/") == ("//a", "b\\/")
+    assert ypath_split("//a/b\\//c") == ("//a/b\\/", "c")
+    with pytest.raises(yt.YtError):
+        ypath_split("//a/b/")  # Unexpected "/" at the end of YPath
+    with pytest.raises(yt.YtError):
+        ypath_split("//a/b//c")  # Unexpected "/" at position 5
 
 
 @authors("asaitgalin")
@@ -144,7 +150,9 @@ def test_ypath_dirname():
     assert ypath_dirname("//a/b\\/c") == "//a"
     with pytest.raises(yt.YtError):
         ypath_dirname("//a/")
-    assert ypath_dirname("//a\\/") == "/"
+    assert ypath_dirname("//a\\/\\/") == "/"
+    assert ypath_dirname("//a\\/b") == "/"
+    assert ypath_dirname("//a\\//b") == "//a\\/"
     with pytest.raises(yt.YtError):
         ypath_dirname("//a//b")
     with pytest.raises(yt.YtError):

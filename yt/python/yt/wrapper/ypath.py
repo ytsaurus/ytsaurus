@@ -123,9 +123,13 @@ def ypath_split(path):
     while index >= index_lower_bound:
         if path[index] == tokens.slash:
             if slash_pos is not None and not slash_escaped:
-                raise YtError('Unexpected "/" at position ' + str(index))
-            slash_pos = index
-            slash_escaped = False
+                if index > 0 and path[index - 1] == tokens.to_path_type("\\"):
+                    slash_escaped = True
+                else:
+                    raise YtError(f"Unexpected \"/\" at position {index} (\"{path}\")")
+            else:
+                slash_pos = index
+                slash_escaped = False
         elif path[index] == tokens.to_path_type("\\"):
             if slash_pos is not None:
                 slash_escaped = not slash_escaped
