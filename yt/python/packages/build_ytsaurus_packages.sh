@@ -1,6 +1,10 @@
 #!/bin/bash -ex
 
-pip3 install wheel auditwheel patchelf
+rm -f venv
+python3 -m venv venv
+. venv/bin/activate
+
+pip3 install setuptools wheel auditwheel patchelf
 
 script_name=$0
 ytsaurus_source_path="."
@@ -63,7 +67,7 @@ ytsaurus_python=$(realpath "${ytsaurus_build_path}/ytsaurus_python")
 
 mkdir -p ${ytsaurus_python}
 cd ${ytsaurus_source_path}
-pip3 install -e yt/python/packages
+# pip3 install -e yt/python/packages
 
 $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
     --source-root ${ytsaurus_source_path} \
