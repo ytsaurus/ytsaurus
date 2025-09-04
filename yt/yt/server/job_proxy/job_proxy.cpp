@@ -1058,6 +1058,20 @@ void TJobProxy::ReportResult(
     if (job) {
         FillStatistics(req, job, GetEnrichedStatistics());
     }
+
+    // Check that data statistics do not contradict with the actual
+    // resulting chunk specs.
+    // NB(coteeq): RemoteCopy jobs do not send chunk specs to the controller.
+    // NB(coteeq): If job finished with an error, the check may not be applicable.
+    if (GetJobSpecHelper()->GetJobType() != EJobType::RemoteCopy && !result.has_error()){
+        const auto& jobResultExt = result.GetExtension(TJobResultExt::job_result_ext);
+        i64 totalChunkCount = 0;
+        for (const auto& statistics : req->output_data_statistics()) {
+            totalChunkCount += statistics.chunk_count();
+        }
+        YT_VERIFY((totalChunkCount > 0) == (jobResultExt.output_chunk_specs_size() > 0));
+    }
+
     if (job && GetJobSpecHelper()->GetJobSpecExt().has_user_job_spec()) {
         ToProto(req->mutable_core_infos(), job->GetCoreInfos());
 
