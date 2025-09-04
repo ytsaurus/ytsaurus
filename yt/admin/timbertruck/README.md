@@ -101,6 +101,12 @@ json_logs:
   # Default value is 16777216 (16 MiB).
   text_file_line_limit: 1048576
 
+  # OPTIONAL
+  # Flag that determines whether secret masking should be applied to log lines before sending.
+  # Default: true.
+  # Note: Secret masking is not available in the opensource version.
+  mask_secrets: false
+
   # REQUIRED
   # Description of YTQueue to send logs to.
   yt_queue:
@@ -119,6 +125,7 @@ text_logs:
   # Described above
   queue_batch_size: 1048576
   text_file_line_limit: 1048576
+  mask_secrets: false
 
   # Described above
   log_file: /yt/disk2/freud-data/master-logs/master-sas5-9603.debug.log
