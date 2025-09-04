@@ -29,7 +29,7 @@ func newTableReader(rows []wire.Row, d *rpc_proxy.TRowsetDescriptor) (*tableRead
 		return nil, err
 	}
 
-	schema, err := schema.ConvertFromRPCProxy(d.GetSchema())
+	schema, err := schema.ConvertFromProto(d.GetSchema())
 	if err != nil {
 		return nil, err
 	}

@@ -8,7 +8,7 @@ import (
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 )
 
-func TestConvertFromRPCProxy_SimpleColumn(t *testing.T) {
+func TestConvertFromProto_SimpleColumn(t *testing.T) {
 	rpcSchema := &rpc_proxy.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
@@ -26,7 +26,7 @@ func TestConvertFromRPCProxy_SimpleColumn(t *testing.T) {
 		},
 	}
 
-	result, err := ConvertFromRPCProxy(rpcSchema)
+	result, err := ConvertFromProto(rpcSchema)
 	require.NoError(t, err)
 
 	require.NotNil(t, result.Strict)
@@ -46,7 +46,7 @@ func TestConvertFromRPCProxy_SimpleColumn(t *testing.T) {
 	require.Nil(t, col.ComplexType)
 }
 
-func TestConvertFromRPCProxy_WithComplexType(t *testing.T) {
+func TestConvertFromProto_WithComplexType(t *testing.T) {
 	typeV3 := []byte(`{type_name=struct;members=[{name=id;type=int64};{name=name;type=utf8}]}`)
 
 	rpcSchema := &rpc_proxy.TTableSchema{
@@ -66,7 +66,7 @@ func TestConvertFromRPCProxy_WithComplexType(t *testing.T) {
 		},
 	}
 
-	result, err := ConvertFromRPCProxy(rpcSchema)
+	result, err := ConvertFromProto(rpcSchema)
 	require.NoError(t, err)
 
 	require.Len(t, result.Columns, 1)
@@ -84,7 +84,7 @@ func TestConvertFromRPCProxy_WithComplexType(t *testing.T) {
 	require.Equal(t, TypeString, structType.Members[1].Type)
 }
 
-func TestConvertFromRPCProxy_EmptyTypeV3(t *testing.T) {
+func TestConvertFromProto_EmptyTypeV3(t *testing.T) {
 	rpcSchema := &rpc_proxy.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
@@ -102,7 +102,7 @@ func TestConvertFromRPCProxy_EmptyTypeV3(t *testing.T) {
 		},
 	}
 
-	result, err := ConvertFromRPCProxy(rpcSchema)
+	result, err := ConvertFromProto(rpcSchema)
 	require.NoError(t, err)
 
 	require.Len(t, result.Columns, 1)
@@ -111,7 +111,7 @@ func TestConvertFromRPCProxy_EmptyTypeV3(t *testing.T) {
 	require.Nil(t, col.ComplexType)
 }
 
-func TestConvertFromRPCProxy_InvalidYSON(t *testing.T) {
+func TestConvertFromProto_InvalidYSON(t *testing.T) {
 	rpcSchema := &rpc_proxy.TTableSchema{
 		Strict:     ptr.Bool(true),
 		UniqueKeys: ptr.Bool(false),
@@ -129,7 +129,7 @@ func TestConvertFromRPCProxy_InvalidYSON(t *testing.T) {
 		},
 	}
 
-	_, err := ConvertFromRPCProxy(rpcSchema)
+	_, err := ConvertFromProto(rpcSchema)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to unmarshal complex type")
 }

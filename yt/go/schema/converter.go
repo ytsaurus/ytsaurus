@@ -8,7 +8,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
-func ConvertFromRPCProxy(rpcSchema *rpc_proxy.TTableSchema) (Schema, error) {
+func ConvertFromProto(rpcSchema *rpc_proxy.TTableSchema) (Schema, error) {
 	schema := Schema{
 		Strict:     ptr.Bool(rpcSchema.GetStrict()),
 		UniqueKeys: rpcSchema.GetUniqueKeys(),
