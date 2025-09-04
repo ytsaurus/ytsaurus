@@ -111,24 +111,6 @@ void MakePositionIndependentStringLikeValue(TPIValue* result, EValueType valueTy
     MakePositionIndependentFromUnversioned(result, asUnversioned);
 }
 
-void MakePositionIndependentStringValue(TPIValue* result, TStringBuf value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedStringValue(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentAnyValue(TPIValue* result, TStringBuf value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedAnyValue(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
-void MakePositionIndependentCompositeValue(TPIValue* result, TStringBuf value, int id, EValueFlags flags)
-{
-    auto asUnversioned = MakeUnversionedCompositeValue(value, id, flags);
-    MakePositionIndependentFromUnversioned(result, asUnversioned);
-}
-
 void MakePositionIndependentValueHeader(TPIValue* result, EValueType type, int id, EValueFlags flags)
 {
     auto asUnversioned = MakeUnversionedValueHeader(type, id, flags);

@@ -5680,6 +5680,46 @@ TEST_F(TQueryEvaluateTest, ArrayJoinWithPredicate)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, ArrayJoinComposite)
+{
+    TSource source{
+        "a=1;nestedA=[{a=1};{a=2};{a=3};{a=4}];nestedB=[[-1];[-2];[-3]]",
+        "a=3;nestedA=[{a=5};{a=6};{a=7};];nestedB=[[-5];[-6];[-7];[-8]]",
+        "a=5;nestedA=[];nestedB=[]",
+    };
+
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"nestedA", ListLogicalType(StructLogicalType({{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}}))},
+        {"nestedB", ListLogicalType(TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int64)}))},
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"flattenedA", StructLogicalType({{"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})},
+        {"flattenedB", TupleLogicalType({SimpleLogicalType(ESimpleLogicalValueType::Int64)})},
+    });
+
+    auto result = YsonToRows({
+        "a=1; flattenedA={a=1}; flattenedB=[-1]",
+        "a=1; flattenedA={a=2}; flattenedB=[-2]",
+        "a=1; flattenedA={a=3}; flattenedB=[-3]",
+        "a=1; flattenedA={a=4};              ",
+        "a=3; flattenedA={a=5}; flattenedB=[-5]",
+        "a=3; flattenedA={a=6}; flattenedB=[-6]",
+        "a=3; flattenedA={a=7}; flattenedB=[-7]",
+        "a=3;                   flattenedB=[-8]",
+    }, resultSplit);
+
+    Evaluate(
+        "a, flattenedA, flattenedB FROM [//t] ARRAY JOIN nestedA AS flattenedA, nestedB AS flattenedB",
+        split,
+        source,
+        ResultMatcher(result));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, JoinEmpty)
 {
     TSplitMap splits;
