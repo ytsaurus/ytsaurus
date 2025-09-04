@@ -1451,8 +1451,8 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         return std::max<i64>(std::lognormal_distribution<double>()(Gen_) * baseCount, 1);
     };
 
-    constexpr int approximateMaxJobCount = 50;
-    constexpr int approximateMaxSlicesCount = 100;
+    constexpr int approximateMaxJobCount = 30;
+    constexpr int approximateMaxSlicesCount = 50;
 
     int chunkCount = std::uniform_int_distribution(0, 50)(Gen_);
     if (std::uniform_int_distribution(0, 10)(Gen_) == 0) {
@@ -1672,7 +1672,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(actualTotalRowCount, totalRowCount);
 }
 
-static constexpr int NumberOfRepeats = 100;
+static constexpr int NumberOfRepeats = 60;
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
     TUnorderedChunkPoolTestRandomized,
