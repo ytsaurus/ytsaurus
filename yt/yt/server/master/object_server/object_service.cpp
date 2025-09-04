@@ -187,6 +187,7 @@ public:
             BIND(&TObjectService::ProcessSessions, MakeWeak(this))))
         , LocalReadScheduler_(CreateFairScheduler<TClosure>())
         , AutomatonScheduler_(CreateFairScheduler<TExecuteSessionPtr>())
+        , LocalReadRequestThrottler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()))
         , LocalWriteRequestThrottler_(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()))
         , LocalReadCallbackProvider_(New<TLocalReadCallbackProvider>(LocalReadScheduler_))
         , LocalReadExecutor_(CreateQuantizedExecutor(
@@ -270,6 +271,7 @@ private:
 
     //! Scheduler of sessions to process in automaton.
     const IFairSchedulerPtr<TExecuteSessionPtr> AutomatonScheduler_;
+    const IReconfigurableThroughputThrottlerPtr LocalReadRequestThrottler_;
     const IReconfigurableThroughputThrottlerPtr LocalWriteRequestThrottler_;
 
     class TLocalReadCallbackProvider
@@ -1840,16 +1842,13 @@ private:
 
             auto throttlerFuture = securityManager->ThrottleUser(User_.Get(), 1, WorkloadType);
 
-            if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalWrite) {
+            if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalRead) {
                 if (User_.Get() != securityManager->GetRootUser()) {
-                    // We chain futures like this to avoid dealing with of ownership of the underlying promise of an AllSet combiner.
-                    // Note that the strong ref to the session ends up somewhere within the user throttler object.
-                    // Also keep in mind that we must obtain the user throttler future here, and not in a an arbitrary callback thread,
-                    // because we can only dereference the user pointer from a persistent-state-read thread.
-                    throttlerFuture = throttlerFuture.Apply(
-                        BIND_NO_PROPAGATE([localWriteThrottlerFuture = Owner_->LocalWriteRequestThrottler_->Throttle(1)] {
-                            return localWriteThrottlerFuture;
-                        }));
+                    throttlerFuture = AllSucceeded(std::vector{throttlerFuture, Owner_->LocalReadRequestThrottler_->Throttle(1)});
+                }
+            } else if constexpr (SubrequestType == EExecutionSessionSubrequestType::LocalWrite) {
+                if (User_.Get() != securityManager->GetRootUser()) {
+                    throttlerFuture = AllSucceeded(std::vector{throttlerFuture, Owner_->LocalWriteRequestThrottler_->Throttle(1)});
                 }
             }
 
@@ -2528,6 +2527,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     LocalReadExecutor_->SetThreadCount(objectServiceConfig->LocalReadThreadCount);
     LocalReadOffloadPool_->SetThreadCount(objectServiceConfig->LocalReadOffloadThreadCount);
     ProcessSessionsExecutor_->SetPeriod(objectServiceConfig->ProcessSessionsPeriod);
+    LocalReadRequestThrottler_->Reconfigure(objectServiceConfig->LocalReadRequestThrottler);
     LocalWriteRequestThrottler_->Reconfigure(objectServiceConfig->LocalWriteRequestThrottler);
 }
 
