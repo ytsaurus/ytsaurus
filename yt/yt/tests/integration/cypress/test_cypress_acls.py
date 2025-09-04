@@ -2273,7 +2273,7 @@ class TestRowAcls(YTEnvSetup):
         assert response["rl_acl"] == []
 
     @authors("coteeq")
-    @pytest.mark.parametrize("mode", ["ignore", "deny"])
+    @pytest.mark.parametrize("mode", ["ignore", "fail"])
     @pytest.mark.parametrize("invalid_reason", ["non_existent_column", "column_type_invalid", "not_boolean", "syntax"])
     def test_invalid_expression(self, mode, invalid_reason):
         create_user("u")
@@ -2300,7 +2300,7 @@ class TestRowAcls(YTEnvSetup):
             ],
         )
 
-        if mode == "deny":
+        if mode == "fail":
             with raises_yt_error(error):
                 assert self._read("u")
         else:
