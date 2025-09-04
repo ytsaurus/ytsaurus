@@ -134,6 +134,75 @@ func TestConvertFromProto_InvalidYSON(t *testing.T) {
 	require.Contains(t, err.Error(), "failed to unmarshal complex type")
 }
 
+func TestConvertType(t *testing.T) {
+	tests := []struct {
+		name      string
+		valueType *int32
+		expected  Type
+	}{
+		{
+			name:      "nil value type",
+			valueType: nil,
+			expected:  TypeAny,
+		},
+		{
+			name:      "null type",
+			valueType: ptr.Int32(0x02),
+			expected:  TypeNull,
+		},
+		{
+			name:      "int64 type",
+			valueType: ptr.Int32(0x03),
+			expected:  TypeInt64,
+		},
+		{
+			name:      "string type",
+			valueType: ptr.Int32(0x10),
+			expected:  TypeBytes,
+		},
+		{
+			name:      "any type",
+			valueType: ptr.Int32(0x11),
+			expected:  TypeAny,
+		},
+		{
+			name:      "unknown type",
+			valueType: ptr.Int32(0xFFFF),
+			expected:  TypeAny,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertType(tt.valueType)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestConvertFromProto_NullColumn(t *testing.T) {
+	rpcSchema := &rpc_proxy.TTableSchema{
+		Strict:     ptr.Bool(true),
+		UniqueKeys: ptr.Bool(false),
+		Columns: []*rpc_proxy.TColumnSchema{
+			{
+				Name:     ptr.String("null_column"),
+				Type:     ptr.Int32(0x02), // Null type
+				Required: ptr.Bool(false),
+			},
+		},
+	}
+
+	result, err := ConvertFromProto(rpcSchema)
+	require.NoError(t, err)
+
+	require.Len(t, result.Columns, 1)
+	col := result.Columns[0]
+	require.Equal(t, "null_column", col.Name)
+	require.Equal(t, TypeNull, col.Type)
+	require.False(t, col.Required)
+}
+
 func TestConvertSortOrder(t *testing.T) {
 	tests := []struct {
 		name      string

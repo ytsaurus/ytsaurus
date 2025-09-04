@@ -63,7 +63,7 @@ func convertType(valueType *int32) Type {
 	// Based on ESimpleLogicalValueType from yt/yt/client/table_client/row_base.h
 	switch *valueType {
 	case 0x02: // Null
-		return TypeAny // No direct null type in schema, use Any
+		return TypeNull
 	case 0x03:
 		return TypeInt64
 	case 0x04:

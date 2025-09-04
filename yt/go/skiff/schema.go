@@ -371,6 +371,8 @@ func fromYTType(typ schema.Type) WireType {
 		return TypeString32
 	case schema.TypeAny:
 		return TypeYSON32
+	case schema.TypeNull:
+		return TypeNothing
 	case schema.TypeDate:
 		return TypeUint64
 	case schema.TypeDatetime:
