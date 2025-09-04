@@ -376,7 +376,7 @@ private:
         for (const auto& cluster : result.Clusters) {
             *rpcResponse->add_clusters() = cluster;
         }
-        rpcResponse->set_engines_info(ToProto(result.EnginesInfo));
+        rpcResponse->set_engines_info(ToProto(result.EnginesInfo.value_or(TYsonString(TString("{}")))));
 
         context->Reply();
     }
