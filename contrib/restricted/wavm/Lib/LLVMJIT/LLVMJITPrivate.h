@@ -394,9 +394,11 @@ namespace WAVM { namespace LLVMJIT {
 #endif
 
 		Module(const std::vector<U8>& inObjectBytes,
-			   const HashMap<std::string, Uptr>& importedSymbolMap,
+			   HashMap<std::string, Uptr>* importedSymbolMap,
 			   bool shouldLogMetrics,
-			   std::string&& inDebugName);
+			   std::string&& inDebugName,
+			   const std::unordered_map<std::string, std::string>& weakFunctionsToPatch = {});
+
 		~Module();
 
 	private:

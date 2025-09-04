@@ -39,7 +39,7 @@ void Runtime::invokeFunction(Context* context,
 
 	// Assert that the function, the context, and any reference arguments are all in the same
 	// compartment.
-	if(WAVM_ENABLE_ASSERTS)
+	if(false)
 	{
 		WAVM_ASSERT(isInCompartment(asObject(function), context->compartment));
 		for(Uptr argumentIndex = 0; argumentIndex < invokeSig.params().size(); ++argumentIndex)

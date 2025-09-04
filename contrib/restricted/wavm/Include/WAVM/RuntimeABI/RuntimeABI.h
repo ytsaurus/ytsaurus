@@ -5,6 +5,7 @@
 //
 
 #include <atomic>
+#include <cassert>
 #include <map>
 #include "WAVM/IR/Types.h"
 #include "WAVM/IR/Value.h"
@@ -42,6 +43,8 @@ namespace WAVM { namespace Runtime {
 		context,
 		compartment,
 		foreign,
+
+		dynamicLinkingWeakFunctionImport,
 	};
 	static_assert(Uptr(IR::ExternKind::function) == Uptr(ObjectKind::function),
 				  "IR::ExternKind::function != ObjectKind::function");
@@ -159,6 +162,19 @@ namespace WAVM { namespace Runtime {
 		const ObjectKind kind;
 	};
 
+	struct WeakFunction
+		: public Object
+	{
+		const std::string name;
+		const Uptr index; // The index in the array with such layout: [imports][functions].
+
+		WeakFunction(std::string name, Uptr index)
+			: Object(ObjectKind::dynamicLinkingWeakFunctionImport)
+			, name(std::move(name))
+			, index(index)
+		{ }
+	};
+
 	typedef Runtime::ContextRuntimeData* (*InvokeThunkPointer)(const Runtime::Function*,
 															   Runtime::ContextRuntimeData*,
 															   const IR::UntaggedValue* arguments,
@@ -185,7 +201,7 @@ namespace WAVM { namespace Runtime {
 
 		~FunctionMutableData()
 		{
-			WAVM_ASSERT(numRootReferences.load(std::memory_order_acquire) == 0);
+			assert(numRootReferences.load(std::memory_order_acquire) == 0);
 			if(finalizeUserData) { (*finalizeUserData)(userData); }
 		}
 	};

@@ -125,6 +125,7 @@ namespace WAVM { namespace LLVMJIT {
 		InstanceBinding instance,
 		Uptr tableReferenceBias,
 		const std::vector<Runtime::FunctionMutableData*>& functionDefMutableDatas,
+		const std::unordered_map<Uptr, Uptr>& importIndexToSelfDefinedFunctionIndex,
 		std::string&& debugName);
 
 	struct InstructionSource

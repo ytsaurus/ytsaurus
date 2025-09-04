@@ -211,6 +211,9 @@ std::vector<U8> LLVMJIT::compileModule(const IR::Module& irModule, const TargetS
 	std::unique_ptr<llvm::TargetMachine> targetMachine
 		= getAndValidateTargetMachine(irModule.featureSpec, targetSpec);
 
+	targetMachine->setFastISel(true);
+	targetMachine->setOptLevel(llvm::CodeGenOptLevel::None);
+
 	// Emit LLVM IR for the module.
 	LLVMContext llvmContext;
 	llvm::Module llvmModule("", llvmContext);
@@ -226,6 +229,9 @@ std::string LLVMJIT::emitLLVMIR(const IR::Module& irModule,
 {
 	std::unique_ptr<llvm::TargetMachine> targetMachine
 		= getAndValidateTargetMachine(irModule.featureSpec, targetSpec);
+
+	targetMachine->setFastISel(true);
+	targetMachine->setOptLevel(llvm::CodeGenOptLevel::None);
 
 	// Emit LLVM IR for the module.
 	LLVMContext llvmContext;
