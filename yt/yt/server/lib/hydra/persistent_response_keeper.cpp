@@ -230,7 +230,7 @@ public:
         Load(context, ResponseEvictionQueue_);
     }
 
-    void Evict(TDuration expirationTimeout, int maxResponseCountPerEvictionPass) override
+    void Evict(TDuration expirationTimeout, int maxResponseCountPerEvictionPass, i64 maxResponsesSpace) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
@@ -245,13 +245,13 @@ public:
         auto deadline = GetCurrentMutationContext()->GetTimestamp() - expirationTimeout;
         while (!ResponseEvictionQueue_.empty()) {
             const auto& item = ResponseEvictionQueue_.front();
-            if (item.When > deadline) {
+            if (item.When > deadline && FinishedResponseSpace_ <= maxResponsesSpace) {
                 break;
             }
 
             if (counter > maxResponseCountPerEvictionPass) {
-                YT_LOG_DEBUG("Response keeper eviction pass interrupted (ResponseCount: %v)",
-                    counter);
+                YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
+                    counter, FinishedResponseCount_, FinishedResponseSpace_);
                 break;
             }
 

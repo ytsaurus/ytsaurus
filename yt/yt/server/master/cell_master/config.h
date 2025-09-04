@@ -247,6 +247,8 @@ struct TDynamicResponseKeeperConfig
 
     TDuration EvictionPeriod;
 
+    i64 MaxResponsesSpace;
+
     REGISTER_YSON_STRUCT(TDynamicResponseKeeperConfig);
 
     static void Register(TRegistrar registrar);
