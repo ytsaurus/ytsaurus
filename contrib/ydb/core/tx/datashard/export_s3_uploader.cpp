@@ -10,6 +10,7 @@
 #include <contrib/ydb/library/services/services.pb.h>
 #include <contrib/ydb/core/backup/common/checksum.h>
 #include <contrib/ydb/core/backup/common/metadata.h>
+#include <contrib/ydb/core/wrappers/retry_policy.h>
 #include <contrib/ydb/core/wrappers/s3_storage_config.h>
 #include <contrib/ydb/core/wrappers/s3_wrapper.h>
 #include <contrib/ydb/core/wrappers/events/common.h>
@@ -677,20 +678,8 @@ class TS3Uploader: public TActorBootstrapped<TS3Uploader> {
         return false;
     }
 
-    static bool ShouldRetry(const Aws::S3::S3Error& error) {
-        if (error.ShouldRetry()) {
-            return true;
-        }
-
-        if ("TooManyRequests" == error.GetExceptionName()) {
-            return true;
-        }
-
-        return false;
-    }
-
     bool CanRetry(const Aws::S3::S3Error& error) const {
-        return Attempt < Retries && ShouldRetry(error);
+        return Attempt < Retries && NWrappers::ShouldRetry(error);
     }
 
     void Retry() {
