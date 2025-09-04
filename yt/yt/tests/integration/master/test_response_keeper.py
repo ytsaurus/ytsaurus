@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, generate_uuid, get, create, raises_yt_error, remove
+from yt_commands import authors, generate_uuid, get, create, get_active_primary_master_leader_address, raises_yt_error, remove, set, wait
 
+from yt_helpers import profiler_factory
 from yt_sequoia_helpers import lookup_rows_in_ground
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -65,6 +66,26 @@ class TestResponseKeeper(YTEnvSetup):
 
         # All host names are equal to "localhost", so the sanitized host name is also "localhost".
         assert err[0].inner_errors[0]["attributes"]["host"] == "localhost"
+
+    @authors("grphil")
+    def test_too_much_space(self):
+        set("//sys/@config/cell_master/response_keeper/expiration_timeout", 1000000)
+        mutation_id = generate_uuid()
+        table_id = create("table", "//tmp/t", mutation_id=mutation_id)
+
+        assert table_id == create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
+
+        set("//sys/@config/cell_master/response_keeper/max_responses_space", 0)
+
+        def get_responses_space():
+            leader_address = get_active_primary_master_leader_address(self)
+            profiler = profiler_factory().at_primary_master(leader_address)
+            return profiler.gauge("object_server/response_keeper/kept_response_space").get()
+
+        wait(lambda: get_responses_space() == 0)
+
+        with raises_yt_error("Mutation is already applied"):
+            create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
 
 
 @pytest.mark.enabled_multidaemon
