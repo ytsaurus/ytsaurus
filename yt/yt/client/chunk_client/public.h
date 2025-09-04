@@ -120,12 +120,30 @@ constexpr int MaxReplicationFactor = 20;
 constexpr int DefaultReplicationFactor = 3;
 constexpr int DefaultIntermediateDataReplicationFactor = 2;
 
-constexpr int MaxMediumCount = 120; // leave some room for sentinels
+//! Maximum allowed number of real media objects on a cluster.
+//! NB: The bound on medium indexes for actual master media
+//! objects is *not* equal to this value. Be very careful.
+constexpr int MaxMediumCount = 64000;
+//! The average reasonable number of media on a cluster.
+//! Used for initializing compact containers.
+constexpr int TypicalMediumCount = 4;
+//! The actual upper bound on medium indexes of real media, accounting for
+//! historical sentinels |GenericMediumIndex| and |AllMediaIndex|.
+//! NB: This value is *not* equal to |MaxMediumCount|. Be very careful.
+constexpr int RealMediumIndexBound = MaxMediumCount + 2;
+//! All valid medium indexes (including sentinels) are in range |[0, MediumIndexBound)|.
+//! A small amount of room is reserved for sentinels.
+constexpr int MediumIndexBound = MaxMediumCount + 100;
+
+//! Returns true if |mediumIndex| falls within the sentinel range:
+//!   |{GenericMediumIndex=126} + {AllMediaIndex=127} + [RealMediumIndexBound, MediumIndexBound)|.
+bool IsSentinelMediumIndex(int mediumIndex);
+//! Returns true if |mediumIndex| is a valid medium index: in range |[0, RealMediumIndexBound)|
+//! and not equal to any of the reserved sentinel values (see |IsSentinelMediumIndex|).
+bool IsValidRealMediumIndex(int mediumIndex);
 
 template <typename T>
 using TMediumMap = THashMap<int, T>;
-template <typename T>
-using TCompactMediumMap = TCompactFlatMap<int, T, 4>;
 
 //! Used as an expected upper bound in TCompactVector.
 /*
@@ -143,9 +161,6 @@ constexpr int GenericMediumIndex      = 126; // internal sentinel meaning "no sp
 constexpr int AllMediaIndex           = 127; // passed to various APIs to indicate that any medium is OK
 constexpr int DefaultStoreMediumIndex =   0;
 constexpr int DefaultSlotsMediumIndex =   0;
-
-//! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
-constexpr int MediumIndexBound = AllMediaIndex + 1;
 
 class TChunkReplicaWithMedium;
 using TChunkReplicaWithMediumList = TCompactVector<TChunkReplicaWithMedium, TypicalReplicaCount>;
