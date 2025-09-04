@@ -153,6 +153,10 @@ public:
 
             AddArguments(process, slotIndex);
 
+            for (const auto& variable: config->EnvironmentVariables) {
+                process->AddEnvVar(Format("%v=%v", variable->Name, variable->LoadValue()));
+            }
+
             YT_LOG_INFO("Spawn job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
                 slotType,
                 slotIndex,
