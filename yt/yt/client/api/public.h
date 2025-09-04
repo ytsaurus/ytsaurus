@@ -41,6 +41,11 @@ DEFINE_ENUM(EMasterChannelKind,
     ((ClientSideCache)       (4)) // local (per-connection) cache
 );
 
+// COMPAT(coteeq)
+void Deserialize(EMasterChannelKind& value, NYson::TYsonPullParserCursor* cursor);
+void Deserialize(EMasterChannelKind& value, NYTree::INodePtr node);
+
+
 DEFINE_ENUM(EUserWorkloadCategory,
     (Batch)
     (Interactive)
