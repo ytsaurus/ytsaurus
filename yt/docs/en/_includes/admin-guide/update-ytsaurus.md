@@ -79,7 +79,7 @@ If that happens, restore the previous specification value to prevent the compone
 
 ## Manual intervention
 
-While updating, you might encounter some issues that will require manual intervention. When that happens, set the `isManaged=false` flag in the `Ytsaurus` specification. This prevents the operator from performing any operations on the cluster, so you can take whatever manual measures are necessary.
+While updating, you might encounter some issues that will require manual intervention. When that happens, set the `isManaged: false` flag in the `Ytsaurus` specification. This prevents the operator from performing any operations on the cluster, so you can take whatever manual measures are necessary.
 
 {% note warning "Attention" %}
 
@@ -139,5 +139,5 @@ You can remove unrecognized master options either manually or by running the scr
 
 Different operator versions may generate different configs for the same components (for example, a new field may be added in the new operator version). In that case, the cluster update is initiated immediately after starting the operator.
 
-If an update is [impossible](#impossible), the cluster remains in the `Updating` state, and the update status is set to `ImpossibleToStart`. If that happens, you can roll back the operator to cancel the update, and the cluster will enter the `Running` state. Alternatively, you can set the `enableFullUpdate = false` flag in the `Ytsaurus` specification, which also cancels the update and stops the new operator from trying to initiate another cluster update. You can then restore the cluster to a healthy state and retry the update by setting the `enableFullUpdate = true` flag.
+If an update is [impossible](#impossible), the cluster remains in the `Updating` state, and the update status is set to `ImpossibleToStart`. If that happens, you can roll back the operator to cancel the update, and the cluster will enter the `Running` state. Alternatively, you can set the `enableFullUpdate: false` flag in the `Ytsaurus` specification, which also cancels the update and stops the new operator from trying to initiate another cluster update. You can then restore the cluster to a healthy state and retry the update by setting the `enableFullUpdate: true` flag.
 

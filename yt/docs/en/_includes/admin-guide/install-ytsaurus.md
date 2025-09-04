@@ -228,9 +228,15 @@ Status:
 
 {% endcut %}
 
-One possible reason for the cluster getting stuck in the `Initializing` state could be that one of the init jobs is still running, either because it didn't have had enough time to complete or failed. Check the job logs using the command `kubectl logs <init-job-pod-name> -n <namespace>`.
+#### Issues with init job
 
-Another possible reason is that K8s isn't able to schedule cluster sub-nodes due to a shortage of K8s nodes satisfying `resources.requests` components.
+One possible reason for a cluster getting stuck in the `Initializing` state is that one of the init jobs has not completed. The job might not have had time to run yet, or it might have failed. You need to check the job logs using `kubectl logs <init-job-pod-name> -n <namespace>`.
+
+#### Issues with pod scheduling
+
+A possible reason why the cluster is stuck in the `Initializing` state could be a problem with pod scheduling in the k8s cluster.
+
+For example, there might not be enough k8s nodes to satisfy the component’s `resources.requests`.
 
 {% cut "Sample pod that can't be deployed" %}
 
@@ -281,6 +287,9 @@ Events:
 ```
 
 {% endcut %}
+
+Another possible reason is that pods cannot be scheduled due to an insufficient number of k8s nodes. If your k8s cluster has fewer nodes than the number of {{product-name}} master servers, they will not be able to start because of antiaffinity constraints. To disable this restriction, set the option `ephemeralCluster: true`.
+
 
 ## Installing {{product-name}} UI helm chart
 
