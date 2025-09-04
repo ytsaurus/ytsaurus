@@ -170,8 +170,9 @@ InvokeThunkPointer LLVMJIT::getInvokeThunk(FunctionType functionType)
 		= compileLLVMModule(llvmContext, std::move(llvmModule), false, targetMachine.get());
 
 	// Load the object code.
+	auto importedSymbolMap = HashMap<std::string, Uptr>();
 	auto jitModule
-		= new LLVMJIT::Module(objectBytes, {}, false, std::string(functionMutableData->debugName));
+		= new LLVMJIT::Module(objectBytes, &importedSymbolMap, false, std::string(functionMutableData->debugName));
 	invokeThunkCache.modules.push_back(std::unique_ptr<LLVMJIT::Module>(jitModule));
 
 	invokeThunkFunction = jitModule->nameToFunctionMap[mangleSymbol("thunk")];

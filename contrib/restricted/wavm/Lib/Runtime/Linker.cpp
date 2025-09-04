@@ -5,6 +5,7 @@
 #include "WAVM/Inline/Assert.h"
 #include "WAVM/Logging/Logging.h"
 #include "WAVM/Runtime/Runtime.h"
+#include "WAVM/RuntimeABI/RuntimeABI.h"
 
 using namespace WAVM;
 using namespace WAVM::IR;
@@ -157,7 +158,7 @@ static void linkImport(const IR::Module& module,
 	{
 		// Sanity check that the resolver returned an object of the right type.
 		WAVM_ASSERT(importValue);
-		WAVM_ASSERT(isA(importValue, resolvedType));
+		WAVM_ASSERT(importValue->kind == ObjectKind::dynamicLinkingWeakFunctionImport || isA(importValue, resolvedType));
 		linkResult.resolvedImports.push_back(importValue);
 	}
 	else

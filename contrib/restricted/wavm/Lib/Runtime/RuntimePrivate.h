@@ -401,6 +401,7 @@ namespace WAVM { namespace Runtime {
 	Instance* instantiateModuleInternal(Compartment* compartment,
 										ModuleConstRefParam module,
 										std::vector<FunctionImportBinding>&& functionImports,
+										std::unordered_map<Uptr, Uptr>&& importIndexToSelfDefinedFunctionIndex,
 										std::vector<Table*>&& tableImports,
 										std::vector<Memory*>&& memoryImports,
 										std::vector<Global*>&& globalImports,

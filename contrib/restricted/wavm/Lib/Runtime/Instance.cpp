@@ -77,6 +77,7 @@ Instance* Runtime::instantiateModule(Compartment* compartment,
 {
 	// Check the types of the Instance's imports, and build per-kind import arrays.
 	std::vector<FunctionImportBinding> functionImports;
+	std::unordered_map<Uptr, Uptr> importIndexToSelfDefinedFunctionIndex;
 	std::vector<Table*> tableImports;
 	std::vector<Memory*> memoryImports;
 	std::vector<Global*> globalImports;
@@ -88,18 +89,23 @@ Instance* Runtime::instantiateModule(Compartment* compartment,
 		Object* importObject = imports[importIndex];
 
 		WAVM_ERROR_UNLESS(importObject);
-		WAVM_ERROR_UNLESS(isInCompartment(importObject, compartment));
-		WAVM_ERROR_UNLESS(importObject->kind == ObjectKind(kindIndex.kind));
+		WAVM_ERROR_UNLESS((importObject->kind == ObjectKind::dynamicLinkingWeakFunctionImport) || (isInCompartment(importObject, compartment) && importObject->kind == ObjectKind(kindIndex.kind)));
 
 		switch(kindIndex.kind)
 		{
 		case ExternKind::function: {
-			Function* function = asFunction(importObject);
-			const auto& importType
-				= module->ir.types[module->ir.functions.getType(kindIndex.index).index];
-			WAVM_ERROR_UNLESS(function->encodedType == importType);
-			WAVM_ERROR_UNLESS(importType.callingConvention() == CallingConvention::wasm);
-			functionImports.push_back({function});
+			if (importObject->kind == ObjectKind::dynamicLinkingWeakFunctionImport) {
+				auto* weakFunction = static_cast<WeakFunction*>(importObject);
+				importIndexToSelfDefinedFunctionIndex[functionImports.size()] = weakFunction->index;
+				functionImports.push_back({static_cast<Function*>(nullptr)});
+			} else {
+				Function* function = asFunction(importObject);
+				const auto& importType
+					= module->ir.types[module->ir.functions.getType(kindIndex.index).index];
+				WAVM_ERROR_UNLESS(function->encodedType == importType);
+				WAVM_ERROR_UNLESS(importType.callingConvention() == CallingConvention::wasm);
+				functionImports.push_back({function});
+			}
 			break;
 		}
 		case ExternKind::table: {
@@ -138,6 +144,7 @@ Instance* Runtime::instantiateModule(Compartment* compartment,
 	return instantiateModuleInternal(compartment,
 									 module,
 									 std::move(functionImports),
+									 std::move(importIndexToSelfDefinedFunctionIndex),
 									 std::move(tableImports),
 									 std::move(memoryImports),
 									 std::move(globalImports),
@@ -149,6 +156,7 @@ Instance* Runtime::instantiateModule(Compartment* compartment,
 Instance* Runtime::instantiateModuleInternal(Compartment* compartment,
 											 ModuleConstRefParam module,
 											 std::vector<FunctionImportBinding>&& functionImports,
+											 std::unordered_map<Uptr, Uptr>&& importIndexToSelfDefinedFunctionIndex,
 											 std::vector<Table*>&& tables,
 											 std::vector<Memory*>&& memories,
 											 std::vector<Global*>&& globals,
@@ -167,7 +175,7 @@ Instance* Runtime::instantiateModuleInternal(Compartment* compartment,
 		Platform::RWMutex::ExclusiveLock compartmentLock(compartment->mutex);
 		id = compartment->instances.add(UINTPTR_MAX, nullptr);
 	}
-	if(id == UINTPTR_MAX) { return nullptr; }
+	WAVM_ASSERT(id != UINTPTR_MAX);
 
 	// Deserialize the disassembly names.
 	DisassemblyNames disassemblyNames;
@@ -327,6 +335,7 @@ Instance* Runtime::instantiateModuleInternal(Compartment* compartment,
 							  {id},
 							  reinterpret_cast<Uptr>(getOutOfBoundsElement()),
 							  functionDefMutableDatas,
+							  importIndexToSelfDefinedFunctionIndex,
 							  std::string(moduleDebugName));
 
 	// LLVMJIT::loadModule filled in the functionDefMutableDatas' function pointers with the
