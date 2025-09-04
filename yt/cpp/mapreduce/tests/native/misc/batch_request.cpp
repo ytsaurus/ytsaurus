@@ -623,15 +623,10 @@ TEST(BatchRequestSuite, TestLink) {
 
     checkLink(tx, workingDir + "/tx_simple", workingDir + "/tx_simple_link", txRes.GetValue());
 
-    if (UseRpcClient()) {
-        EXPECT_THROW_MESSAGE_HAS_SUBSTR(
-            attributesRes.GetValue(),
-            yexception,
-            "not supported");
-    }
-    else {
-        checkLink(client, workingDir + "/simple", workingDir + "/simple_link_with_attributes", attributesRes.GetValue());
+    checkLink(client, workingDir + "/simple", workingDir + "/simple_link_with_attributes", attributesRes.GetValue());
 
+    // Remove branch when precompiled server binary is updated (or with -DYT_RECIPE_BUILD_FROM_SOURCE=yes)
+    if (!UseRpcClient()) {
         EXPECT_EQ(
             client->Get(workingDir + "/simple_link_with_attributes&/@attr_name").AsString(),
             "attr_value");

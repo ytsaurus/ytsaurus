@@ -2275,6 +2275,9 @@ private:
         if (request->has_lock_existing()) {
             options.LockExisting = request->lock_existing();
         }
+        if (request->has_attributes()) {
+            options.Attributes = NYTree::FromProto(request->attributes());
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
