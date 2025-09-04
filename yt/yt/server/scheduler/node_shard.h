@@ -39,6 +39,11 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const TString ProfilingUndefinedPoolTreeValue{"undefined_tree"};
+inline const TString ProfilingWithinHeartbeatKey{"withinHeartbeat"};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct INodeShardHost
 {
     virtual ~INodeShardHost() = default;
@@ -424,12 +429,17 @@ private:
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 
-    void UpdateUnutilizedResourceCounters(const TExecNodePtr& node);
+    void UpdateUnutilizedResourceCounters(
+        const TExecNodePtr& node,
+        std::optional<std::string> poolTree,
+        bool withinHeartbeat);
     void UpdateUnutilizedResourcesOnHeartbeatStart(
-        const TExecNodePtr& node);
+        const TExecNodePtr& node,
+        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy);
     void UpdateUnutilizedResourcesOnHeartbeatEnd(
         const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const TExecNodePtr& node,
+        const NStrategy::INodeHeartbeatStrategyProxyPtr& strategyProxy,
         const TJobResources& minSpareResources,
         bool isThrottlingActive,
         bool hasWaitingAllocations);

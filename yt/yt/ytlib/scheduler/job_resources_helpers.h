@@ -68,7 +68,9 @@ public:
         NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
     void Start();
     void Stop();
-    void Update(const TJobResources& resources);
+    void Update(
+        const TJobResources& resources,
+        TCompactVector<NProfiling::TTag, 2> tags = {});
 
 private:
     NProfiling::TBufferedProducerPtr Producer_;
