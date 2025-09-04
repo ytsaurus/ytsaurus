@@ -113,7 +113,7 @@ public:
 
     void TouchChunk(TChunk* chunk);
 
-    TCompactMediumMap<EChunkStatus> ComputeChunkStatuses(
+    TMediumMap<EChunkStatus> ComputeChunkStatuses(
         TChunk* chunk,
         const TStoredChunkReplicaList& replicas);
     ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(
@@ -181,7 +181,7 @@ private:
 
     struct TChunkStatistics
     {
-        TCompactMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
+        TMediumMap<TPerMediumChunkStatistics> PerMediumStatistics;
         ECrossMediumChunkStatus Status = ECrossMediumChunkStatus::None;
     };
 
@@ -235,8 +235,8 @@ private:
     //! In each queue, a single chunk may only appear once.
     // NB: Queues are not modified when a replicator shard is disabled, so one should
     // take care of such a chunks.
-    std::array<TChunkRepairQueue, MaxMediumCount> MissingPartChunkRepairQueues_ = {};
-    std::array<TChunkRepairQueue, MaxMediumCount> DecommissionedPartChunkRepairQueues_ = {};
+    TMediumMap<TChunkRepairQueue> MissingPartChunkRepairQueues_ = {};
+    TMediumMap<TChunkRepairQueue> DecommissionedPartChunkRepairQueues_ = {};
     NServer::TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
     NServer::TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
@@ -325,7 +325,7 @@ private:
         bool hasSealedReplicas,
         bool precarious,
         bool allMediaTransient,
-        const TCompactVector<int, MaxMediumCount>& mediaOnWhichLost,
+        const std::vector<int>& mediaOnWhichLost,
         bool hasMediumOnWhichPresent,
         bool hasMediumOnWhichUnderreplicated,
         bool hasMediumOnWhichSealedMissing);
@@ -348,7 +348,7 @@ private:
         NErasure::ICodec* codec,
         bool allMediaTransient,
         bool allMediaDataPartsOnly,
-        const TCompactMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+        const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
         const TMediumSet& activeMedia,
         const NErasure::TPartIndexSet& replicaIndexes,
         bool totallySealed);
@@ -409,10 +409,10 @@ private:
     const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;
 
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
-    std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
+    TMediumMap<TChunkRepairQueue>& ChunkRepairQueues(EChunkRepairQueue queue);
     NServer::TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
-    TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(
+    TMediumMap<TNodeList> GetChunkConsistentPlacementNodes(
         const TChunk* chunk,
         const TStoredChunkReplicaList& replicas);
 

@@ -18,8 +18,8 @@ static_assert(
     ChunkReplicaIndexBound <= (1LL << 5),
     "Replica index must fit into 5 bits.");
 static_assert(
-    MediumIndexBound <= (1LL << 7),
-    "Medium index must fit into 7 bits.");
+    MediumIndexBound <= (1LL << 16),
+    "Medium index must fit into 16 bits.");
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium()
     : Value_(NNodeTrackerClient::InvalidNodeId.Underlying())

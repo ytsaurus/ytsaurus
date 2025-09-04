@@ -86,9 +86,11 @@ void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
-    : MediumIndex_(static_cast<ui8>(mediumIndex))
+    : MediumIndex_(static_cast<ui16>(mediumIndex))
     , Policy_(policy)
-{ }
+{
+    YT_ASSERT(MediumIndex_ == mediumIndex);
+}
 
 void TChunkReplication::TEntry::Save(NCellMaster::TSaveContext& context) const
 {
@@ -102,7 +104,13 @@ void TChunkReplication::TEntry::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, MediumIndex_);
+    // COMPAT(achulkov2)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::MaxMediumCountIncrease) {
+        Load(context, MediumIndex_);
+    } else {
+        MediumIndex_ = Load<ui8>(context);
+    }
+
     Load(context, Policy_);
 }
 
