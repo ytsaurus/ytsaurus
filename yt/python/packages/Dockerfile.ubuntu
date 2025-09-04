@@ -1,0 +1,165 @@
+# syntax=docker/dockerfile:1
+
+ARG UBUNTU_CODENAME=noble
+ARG UBUNTU_IMAGE=mirror.gcr.io/ubuntu:${UBUNTU_CODENAME}
+
+ARG UBUNTU_MIRROR=http://archive.ubuntu.com/ubuntu/
+ARG UBUNTU_FOREIGN_MIRROR=http://ports.ubuntu.com/ubuntu-ports/
+
+ARG UBUNTU_ARCH=amd64
+ARG UBUNTU_FOREIGN_ARCH=arm64
+
+# default: all
+# values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver, ytsaurus-rpc-driver
+ARG YTSAURUS_PACKAGE_NAME=""
+
+##########################################################################################
+
+FROM ${UBUNTU_IMAGE} AS builder
+
+ARG UBUNTU_CODENAME
+ARG UBUNTU_MIRROR
+ARG UBUNTU_FOREIGN_MIRROR
+ARG UBUNTU_ARCH
+ARG UBUNTU_FOREIGN_ARCH
+
+RUN \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    --mount=type=cache,target=/var/cache/apt,sharing=locked \
+<<-EOT
+#!/bin/bash
+set -eux -o pipefail
+
+# cache packages in docker cache mount
+rm /etc/apt/apt.conf.d/docker-clean
+
+# remove default sources
+rm -f etc/apt/sources.list
+
+tee etc/apt/sources.list.d/ubuntu.sources <<EOF
+Types: deb
+URIs: ${UBUNTU_MIRROR}
+Suites: ${UBUNTU_CODENAME} ${UBUNTU_CODENAME}-updates ${UBUNTU_CODENAME}-backports
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: ${UBUNTU_ARCH}
+
+## Ubuntu security updates. Aside from URIs and Suites,
+## this should mirror your choices in the previous section.
+Types: deb
+URIs: ${UBUNTU_MIRROR}
+Suites: ${UBUNTU_CODENAME}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: ${UBUNTU_ARCH}
+EOF
+
+tee /etc/apt/sources.list.d/ubuntu-${UBUNTU_FOREIGN_ARCH}.sources <<EOF
+Types: deb
+URIs: ${UBUNTU_FOREIGN_MIRROR}
+Suites: ${UBUNTU_CODENAME} ${UBUNTU_CODENAME}-updates ${UBUNTU_CODENAME}-backports
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: ${UBUNTU_FOREIGN_ARCH}
+
+## Ubuntu security updates. Aside from URIs and Suites,
+## this should mirror your choices in the previous section.
+Types: deb
+URIs: ${UBUNTU_FOREIGN_MIRROR}
+Suites: ${UBUNTU_CODENAME}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: ${UBUNTU_FOREIGN_ARCH}
+EOF
+
+export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+
+dpkg --add-architecture ${UBUNTU_FOREIGN_ARCH}
+
+packages=(
+    build-essential
+    ca-certificates
+    curl
+    docker.io
+    git
+    less
+    libpython3-dev:${UBUNTU_FOREIGN_ARCH}
+    lsb-release
+    python3-dev
+    python3-pip
+    python3-venv
+    python3-setuptools
+    # protobuf-compiler
+)
+
+groupadd docker --gid 123
+
+apt-get update -q --error-on=any
+apt-get dist-upgrade -y
+apt-get install -y --no-install-recommends "${packages[@]}"
+
+# Fix include "pyconfig.h" without -I/usr/include
+python_include_dir=$(python3-config --includes | sed -n 's/^-I\(\S\+\) .*/\1/p')
+for arch in $UBUNTU_ARCH $UBUNTU_FOREIGN_ARCH; do
+    python_basename=$(basename $python_include_dir)
+    triplet=$(dpkg-architecture -a $arch -q DEB_HOST_MULTIARCH)
+    mkdir -p ${python_include_dir}/${triplet}
+    ln -s ../../${triplet}/${python_basename} ${python_include_dir}/${triplet}/${python_basename}
+done
+
+EOT
+
+##########################################################################################
+
+FROM builder AS build-python-packages
+
+ARG YTSAURUS_PACKAGE_NAME
+
+RUN \
+    --mount=type=cache,target=/root/.ya,sharing=locked \
+    --mount=from=ytsaurus-sources,source=/,target=/ytsaurus,ro \
+<<-EOT
+#!/bin/bash
+set -eux -o pipefail
+
+make_targets=(
+    contrib/tools/protoc/bin
+)
+
+if [ "${YTSAURUS_PACKAGE_NAME:-ytsaurus-yson}" = "ytsaurus-yson" ]; then
+    make_targets+=(yt/yt/python/yson_shared)
+fi
+
+if [ "${YTSAURUS_PACKAGE_NAME:-ytsaurus-rpc-driver}" = "ytsaurus-rpc-driver" ]; then
+    make_targets+=(yt/yt/python/driver/rpc_shared)
+fi
+
+if [ "${YTSAURUS_PACKAGE_NAME:-ytsaurus-native-driver}" = "ytsaurus-native-driver" ]; then
+    make_targets+=(yt/yt/python/driver/native_shared)
+fi
+
+if [ ${#make_targets[@]} -gt 0 ] ; then
+    pushd /ytsaurus
+    ./ya make -T --no-src-links -o /output \
+        --build=relwithdebinfo --thinlto -DSTRIP=yes \
+        -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON=yes -DPYTHON_BIN=python3 -DPYTHON_CONFIG=python3-config \
+        "${make_targets[@]}"
+    popd
+fi
+
+ln -s /output/contrib/tools/protoc/bin/protoc /usr/local/bin/
+
+/ytsaurus/yt/python/packages/build_ytsaurus_packages.sh \
+    --ytsaurus-source-path /ytsaurus \
+    --ytsaurus-build-path /output \
+    --apply-auditwheel \
+    --ytsaurus-package-name "${YTSAURUS_PACKAGE_NAME}"
+
+EOT
+
+##########################################################################################
+
+FROM scratch AS result
+
+COPY --from=build-python-packages /output/*/*.whl /
