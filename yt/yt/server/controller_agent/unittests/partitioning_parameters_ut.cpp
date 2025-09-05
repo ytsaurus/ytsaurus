@@ -14,7 +14,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitioningParametersLegacyTest
+class TPartitioningParametersTest
     : public ::testing::Test
 {
 protected:
@@ -44,20 +44,9 @@ protected:
     }
 };
 
-class TPartitioningParametersNewTest
-    : public TPartitioningParametersLegacyTest
-{
-protected:
-    void SetUp()
-    {
-        TPartitioningParametersLegacyTest::SetUp();
-        Spec_->UseNewPartitionsHeuristic = true;
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsSet)
+TEST_F(TPartitioningParametersTest, PartitionCountIsSet)
 {
     Spec_->SamplesPerPartition = 10;
     Spec_->PartitionCount = 16;
@@ -78,26 +67,8 @@ TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsSet)
     EXPECT_EQ(evaluator->SuggestMaxPartitionFactor(16), 16);
 }
 
-TEST_F(TPartitioningParametersLegacyTest, PartitionDataWeightIsSet)
-{
-    Spec_->PartitionDataWeight = 1_GB;
-
-    auto evaluator = CreatePartitioningParametersEvaluator(
-        Spec_,
-        Options_,
-        /*totalEstimatedInputDataWeight*/ 6_TB,
-        /*totalEstimatedInputUncompressedDataSize*/ 6_TB,
-        /*totalEstimatedInputValueCount*/ 1'000'000,
-        /*inputCompressionRatio*/ 1.0,
-        /*partitionJobCount*/ 3000);
-
-    int expected = 6_TB / 1_GB;
-    EXPECT_NEAR(evaluator->SuggestPartitionCount(), expected, expected / 100);
-    EXPECT_EQ(evaluator->SuggestMaxPartitionFactor(expected), static_cast<int>(expected));
-}
-
 // Example from https://wiki.yandex-team.ru/yt/design/partitioncount/
-TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsComputedByBlockSize)
+TEST_F(TPartitioningParametersTest, PartitionCountIsComputedByBlockSize)
 {
     Options_->CompressedBlockSize = 10_MB;
 
@@ -113,7 +84,7 @@ TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsComputedByBlockSize)
     EXPECT_NEAR(evaluator->SuggestPartitionCount(), 142, 10);
 }
 
-TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsAdjustedWrtBufferSize)
+TEST_F(TPartitioningParametersTest, PartitionCountIsAdjustedWrtBufferSize)
 {
     Spec_->PartitionCount = 1'000'000;
 
@@ -126,14 +97,13 @@ TEST_F(TPartitioningParametersLegacyTest, PartitionCountIsAdjustedWrtBufferSize)
         /*inputCompressionRatio*/ 1.0,
         /*partitionJobCount*/ 3000);
 
-    // Partition count is too large, it should be adjusted
-    // w.r.t. MinUncompressedBlockSize, which is 100KB by default.
-    EXPECT_NEAR(evaluator->SuggestPartitionCount(), 34, 10);
+    EXPECT_EQ(evaluator->SuggestPartitionCount(), 1'000'000);
+    EXPECT_EQ(evaluator->SuggestMaxPartitionFactor(1'000'000), 100);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TPartitioningParametersNewTest, MaxPartitionFactorIsSmall)
+TEST_F(TPartitioningParametersTest, MaxPartitionFactorIsSmall)
 {
     Spec_->SamplesPerPartition = 10;
     Spec_->PartitionCount = 19;
@@ -156,7 +126,7 @@ TEST_F(TPartitioningParametersNewTest, MaxPartitionFactorIsSmall)
     EXPECT_EQ(evaluator->SuggestMaxPartitionFactor(19), 5);
 }
 
-TEST_F(TPartitioningParametersNewTest, PartitionDataWeightIsSet)
+TEST_F(TPartitioningParametersTest, PartitionDataWeightIsSet)
 {
     Spec_->PartitionDataWeight = 16_MB;
     Spec_->PartitionJobIO->TableWriter->MaxBufferSize = 16_MB;
@@ -176,7 +146,7 @@ TEST_F(TPartitioningParametersNewTest, PartitionDataWeightIsSet)
     EXPECT_NEAR(evaluator->SuggestMaxPartitionFactor(evaluator->SuggestPartitionCount()), 14, 5);
 }
 
-TEST_F(TPartitioningParametersNewTest, PartitionCountIsComputedBySortJobSize)
+TEST_F(TPartitioningParametersTest, PartitionCountIsComputedBySortJobSize)
 {
     Spec_->DataWeightPerShuffleJob = 1_GB;
 
@@ -196,7 +166,7 @@ TEST_F(TPartitioningParametersNewTest, PartitionCountIsComputedBySortJobSize)
     EXPECT_NEAR(evaluator->SuggestPartitionCount(), expected, expected / 100);
 }
 
-TEST_F(TPartitioningParametersNewTest, InputDataWeightIsVeryLarge)
+TEST_F(TPartitioningParametersTest, InputDataWeightIsVeryLarge)
 {
     Spec_->DataWeightPerShuffleJob = 16_MB;
 
@@ -209,7 +179,7 @@ TEST_F(TPartitioningParametersNewTest, InputDataWeightIsVeryLarge)
         /*inputCompressionRatio*/ 1.0,
         /*partitionJobCount*/ 300000);
 
-    EXPECT_EQ(evaluator->SuggestPartitionCount(), Options_->MaxNewPartitionCount);
+    EXPECT_EQ(evaluator->SuggestPartitionCount(), Options_->MaxPartitionCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

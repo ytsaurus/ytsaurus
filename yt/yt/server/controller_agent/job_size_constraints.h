@@ -68,7 +68,8 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,
     const NControllerAgent::TSortOperationOptionsBasePtr& options,
-    int outputTableCount);
+    int outputTableCount,
+    int partitionCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

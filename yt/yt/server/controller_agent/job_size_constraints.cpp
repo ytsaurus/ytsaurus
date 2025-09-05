@@ -1127,17 +1127,18 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
-    int outputTableCount)
+    int outputTableCount,
+    int partitionCount)
 {
+    YT_VERIFY(partitionCount > 0);
     // NB(psushin): I don't know real partition size at this point,
     // but I assume at least 2 sort jobs per partition.
-    // Also I don't know exact partition count, so I take the worst case scenario.
-    i64 jobsPerPartition = DivCeil(
+    i64 jobsPerPartition = DivCeil<i64>(
         options->MaxOutputTablesTimesJobsCount,
-        outputTableCount * options->MaxPartitionCount);
+        static_cast<i64>(outputTableCount) * partitionCount);
     i64 estimatedDataSizePerPartition = 2 * spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob);
 
-    i64 minDataWeightPerJob = std::max(estimatedDataSizePerPartition / jobsPerPartition, (i64)1);
+    i64 minDataWeightPerJob = std::max<i64>(estimatedDataSizePerPartition / jobsPerPartition, 1);
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(

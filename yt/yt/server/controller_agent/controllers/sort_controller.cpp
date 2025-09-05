@@ -2548,22 +2548,6 @@ protected:
             (i64) 4 * stat.RowCount;                          // SortedIndexes
     }
 
-    void SetAlertIfPartitionHeuristicsDifferSignificantly(int oldEstimation, int newEstimation)
-    {
-        auto [min, max] = std::minmax(newEstimation, oldEstimation);
-        YT_VERIFY(min > 0);
-        const auto ratio = static_cast<double>(max) / static_cast<double>(min);
-        if (ratio >= Options_->CriticalNewPartitionDifferenceRatio) {
-            SetOperationAlert(
-                EOperationAlertType::NewPartitionsCountIsSignificantlyLarger,
-                TError(
-                    "Partition count, estimated by the new partition heuristic, is significantly larger "
-                    "than old heuristic estimation. This may lead to inadequate number of partitions.")
-                    << TErrorAttribute("old_estimation", oldEstimation)
-                    << TErrorAttribute("new_estimation", newEstimation));
-        }
-    }
-
     // Partition progress.
 
     struct TPartitionProgress
@@ -2737,7 +2721,8 @@ protected:
         chunkPoolOptions.JobSizeConstraints = CreatePartitionBoundSortedJobSizeConstraints(
             Spec_,
             Options_,
-            GetOutputTablePaths().size());
+            GetOutputTablePaths().size(),
+            PartitionCount_);
         chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
         if (Config_->EnableSortedMergeInSortJobSizeAdjustment) {
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
@@ -2826,14 +2811,11 @@ protected:
             partitionKeys.emplace_back(upperBound);
         }
 
-        int maxPartitionCount = Spec_->UseNewPartitionsHeuristic ?
-            Options_->MaxNewPartitionCount : Options_->MaxPartitionCount;
-
         THROW_ERROR_EXCEPTION_IF(
-            std::ssize(partitionKeys) + 1 > maxPartitionCount,
+            std::ssize(partitionKeys) + 1 > Options_->MaxPartitionCount,
             "Pivot keys count %v exceeds maximum number of pivot keys %v",
             std::ssize(partitionKeys),
-            maxPartitionCount - 1);
+            Options_->MaxPartitionCount - 1);
 
         return partitionKeys;
     }
@@ -3335,14 +3317,6 @@ private:
             PartitionCount_,
             MaxPartitionFactor_,
             SimpleSort_);
-
-        if (Spec_->UseNewPartitionsHeuristic) {
-            SetAlertIfPartitionHeuristicsDifferSignificantly(
-                PartitioningParametersEvaluator_->SuggestPartitionCount(
-                    /*fetchedSamplesCount*/ std::nullopt,
-                    /*forceLegacy*/ true),
-                PartitionCount_);
-        }
 
         BuildPartitionTree(PartitionCount_,MaxPartitionFactor_);
 
@@ -4294,14 +4268,6 @@ private:
         YT_LOG_DEBUG("Final partitioning parameters (PartitionCount: %v, MaxPartitionFactor: %v)",
             PartitionCount_,
             MaxPartitionFactor_);
-
-        if (Spec_->UseNewPartitionsHeuristic) {
-            SetAlertIfPartitionHeuristicsDifferSignificantly(
-                PartitioningParametersEvaluator_->SuggestPartitionCount(
-                    /*fetchedSamplesCount*/ std::nullopt,
-                    /*forceLegacy*/ true),
-                PartitionCount_);
-        }
 
         CreateShufflePools();
 
