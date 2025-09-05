@@ -1399,7 +1399,7 @@ def run_query(*args, format=None, structured=None, **kwargs):
         if len(query_results) == 1:
             query_result = query_results[0]
             write_silently(chunk_iter_stream(query_result.read_rows(format=format), yt.config["read_buffer_size"]))
-        else:
+        elif len(query_results) > 1:
             raise yt.YtError("Multiple query results are not supported when format is specified")
 
 
