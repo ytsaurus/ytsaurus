@@ -625,7 +625,7 @@ class YTInstance(object):
             if self.yt_config.http_proxy_count > 0:
                 self.start_http_proxy(sync=False)
 
-            self.start_master_cell(sync=False)
+            self.start_master_cell(sync=False, set_config=not self._load_existing_environment)
 
             if self.yt_config.clock_count > 0:
                 self.start_clock(sync=False)
@@ -666,7 +666,7 @@ class YTInstance(object):
                 self.create_admin_user()
 
             if not self.yt_config.defer_secondary_cell_start:
-                self.start_secondary_master_cells(sync=False)
+                self.start_secondary_master_cells(sync=False, set_config=not self._load_existing_environment)
                 self.synchronize()
 
             client = self._create_cluster_client()
@@ -680,13 +680,14 @@ class YTInstance(object):
             if on_masters_started_func is not None:
                 on_masters_started_func(client)
 
-            patched_node_config = self._apply_nodes_dynamic_config(client)
+            if not self._load_existing_environment:
+                patched_node_config = self._apply_nodes_dynamic_config(client)
 
-            queue_agent_dynamic_config = None
-            if self.yt_config.queue_agent_count > 0:
-                queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
+                queue_agent_dynamic_config = None
+                if self.yt_config.queue_agent_count > 0:
+                    queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
 
-            # TODO(nadya73): fill kafka proxy dynamic config.
+                # TODO(nadya73): fill kafka proxy dynamic config.
 
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
                 self.start_nodes(sync=False)
@@ -723,10 +724,12 @@ class YTInstance(object):
                             self.yt_config.meta_files_suffix,
                             client)
 
-            self._wait_for_dynamic_config_update(patched_node_config, client)
-            if queue_agent_dynamic_config is not None:
-                self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
-            # TODO(nadya73): update kafka proxy dynamic config
+            if not self._load_existing_environment:
+                self._wait_for_dynamic_config_update(patched_node_config, client)
+                if queue_agent_dynamic_config is not None:
+                    self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
+                # TODO(nadya73): update kafka proxy dynamic config
+
             self._write_environment_info_to_file()
 
             logger.info("Environment started")
