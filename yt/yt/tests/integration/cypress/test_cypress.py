@@ -2908,6 +2908,16 @@ class TestCypress(YTEnvSetup):
 
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", False)
 
+    @authors("cherepashka")
+    def test_prerequisite_revision_validation_on_removal(self):
+        create("table", "//tmp/t")
+        target_revision = get("//tmp/t/@revision")
+
+        with raises_yt_error(f"revision mismatch: expected {target_revision + 1:x}, found {target_revision:x}"):
+            remove("//tmp/t", prerequisite_revisions=[{"path": "//tmp/t&", "revision": target_revision + 1}])
+
+        remove("//tmp/t", prerequisite_revisions=[{"path": "//tmp/t&", "revision": target_revision}])
+
     @authors("babenko")
     # COMPAT(babenko): YT-11903
     @not_implemented_in_sequoia
