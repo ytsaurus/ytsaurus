@@ -1071,6 +1071,7 @@ public:
         DB::ContextPtr context,
         bool /*asyncInsert*/) override
     {
+        QueryContext_->SetRuntimeVariable("output_table", getStorageID().getFullTableName());
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
         auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/write"_SP);
 
@@ -1167,6 +1168,7 @@ public:
 
     std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
     {
+        QueryContext_->SetRuntimeVariable("output_table", getStorageID().getFullTableName());
         TCurrentTraceContextGuard guard(QueryContext_->TraceContext);
         auto timerGuard = QueryContext_->CreateStatisticsTimerGuard("/storage_distributor/distributed_write"_SP);
 
