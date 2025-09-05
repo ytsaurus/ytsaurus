@@ -55,6 +55,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <util/generic/cast.h>
@@ -686,12 +687,12 @@ void TSortedStoreManager::PopulateReplicateTabletContentRequest(
             store->AsSorted()->GetPartition()->GetId());
     };
 
-    for (const auto& store : Tablet_->GetEden()->Stores()) {
-        onStore(store);
+    for (auto it : GetSortedIterators(Tablet_->GetEden()->Stores())) {
+        onStore(*it);
     }
     for (const auto& partition : Tablet_->PartitionList()) {
-        for (const auto& store : partition->Stores()) {
-            onStore(store);
+        for (auto it : GetSortedIterators(partition->Stores())) {
+            onStore(*it);
         }
     }
 
