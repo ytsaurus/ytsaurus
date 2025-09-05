@@ -10,6 +10,7 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/local/impl/yql_yt_table_data_service_local.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
+#include <yt/yql/providers/yt/fmr/yt_job_service/file/yql_yt_file_yt_job_service.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/impl/yql_yt_job_service_impl.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
@@ -26,6 +27,8 @@ struct TWorkerRunOptions {
     TString TableDataServiceDiscoveryFilePath;
     TString FmrJobBinaryPath;
     int Verbosity;
+    TString UnderlyingGatewayType;
+    ui16 Port;
 
     void InitLogger() {
         NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
@@ -50,13 +53,23 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('w', "worker-id", "Fast map reduce worker id").Required().StoreResult(&options.WorkerId);
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption('b', "fmrjob-binary-path", "Path to fmrjob map binary").StoreResult(&options.FmrJobBinaryPath);
-        opts.AddLongOption('p', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
+        opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
+        opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
+        opts.AddLongOption('p', "port", "Worker server port").StoreResult(&options.Port).DefaultValue(7007);
         opts.SetFreeArgsMax(0);
+
+        // TODO (@akozelskikh) - use port value for Http worker server
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
 
         options.InitLogger();
+
+        TString underlyingGatewayType = options.UnderlyingGatewayType;
+        if (underlyingGatewayType != "native" && underlyingGatewayType != "file") {
+            throw yexception() << " Incorrect gateway type " << underlyingGatewayType << " passed in parameters";
+        }
+        bool isNative = underlyingGatewayType == "native";
 
         TFmrWorkerSettings workerSettings{};
         workerSettings.WorkerId = options.WorkerId;
@@ -70,7 +83,7 @@ int main(int argc, const char *argv[]) {
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
-        auto fmrYtJobSerivce = MakeYtJobSerivce();
+        auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobSerivce();
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(true, options.FmrJobBinaryPath);
         // TODO - add different job Settings here
         auto func = [options, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {

@@ -7,8 +7,10 @@ RECURSE(
     job_launcher
     process
     proto
+    recipe
     request_options
     table_data_service
+    tests
     test_tools
     utils
     worker
@@ -16,5 +18,6 @@ RECURSE(
 )
 
 RECURSE_FOR_TESTS(
+    tests
     ut
 )
