@@ -20,6 +20,9 @@ jobs:
       revision: "${{ github.sha }}"
       cli-version: "latest"
       ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
+      ALGOLIA_APP_ID: WW7EWG7Y6T
+      ALGOLIA_INDEX_NAME: ytsaurus-docs
+      ALGOLIA_SEARCH_API_KEY: f039bc42de5c29003db67eb703353c1d
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +42,7 @@ jobs:
           set +e
           set -o pipefail
 
-          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" 2>&1 | tee './build-html.log'
+          yfm -i --index ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" 2>&1 | tee './build-html.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
         shell: bash
@@ -142,9 +145,9 @@ jobs:
           name: build-output-html
           path: ./_docs-build # Куда загружаем
 
-      - name: Upload index to Algolia
-        run: |
-         yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
+    #  - name: Upload index to Algolia
+    #    run: |
+    #     yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
 
 
 
