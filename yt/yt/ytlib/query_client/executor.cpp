@@ -2,6 +2,7 @@
 #include "functions_cache.h"
 #include "query_service_proxy.h"
 
+#include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
@@ -452,7 +453,6 @@ public:
 private:
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const NNative::IConnectionPtr Connection_;
-    const IInvokerPtr Invoker_;
     const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const IEvaluatorPtr Evaluator_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
@@ -599,21 +599,45 @@ private:
             FunctionImplCache_,
             chunkReadOptions);
 
-        // TODO(sabdenovch): Support SELECT FROM (SELECT...) JOIN ...
-        THROW_ERROR_EXCEPTION_IF(!query->JoinClauses.empty(),
-            "Joins are currently not supported when selecting from subquery");
+        auto executePlanCallback = GetExecutePlanCallback(
+            externalCGInfo,
+            options,
+            requestFeatureFlags);
 
-        return Evaluator_->Run(
+        auto subqueryResults = New<TMpscStack<TQueryStatistics>>();
+
+        std::vector<IJoinProfilerPtr> joinProfilers;
+        for (int joinIndex = 0; joinIndex < std::ssize(query->JoinClauses); ++joinIndex) {
+            joinProfilers.push_back(CreateJoinSubqueryProfiler(
+                query->JoinClauses[joinIndex],
+                executePlanCallback,
+                [subqueryResults] (TQueryStatistics statistics) mutable {
+                    subqueryResults->Enqueue(std::move(statistics));
+                },
+                [] { return std::nullopt; },
+                MemoryChunkProvider_,
+                options.UseOrderByInJoinSubqueries,
+                Logger));
+        }
+
+        auto statistics = Evaluator_->Run(
             query,
             reader,
             writer,
-            /*joinProfilers*/ {},
+            std::move(joinProfilers),
             functionGenerators,
             aggregateGenerators,
             MemoryChunkProvider_,
             options,
             requestFeatureFlags,
             MakeFuture(MostFreshFeatureFlags()));
+
+        TQueryStatistics dequeuedStatistics;
+        while (subqueryResults->TryDequeue(&dequeuedStatistics)) {
+            statistics.AddInnerStatistics(std::move(dequeuedStatistics));
+        }
+
+        return statistics;
     }
 
     TQueryStatistics DoCoordinateAndExecute(
@@ -780,6 +804,28 @@ private:
         resultReader->Initialize(req->Invoke());
 
         return {resultReader, resultReader->GetQueryResult(), resultReader->GetResponseFeatureFlags()};
+    }
+
+    TExecutePlan GetExecutePlanCallback(
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags)
+    {
+        return [=, this_ = MakeStrong(this), invoker = GetCurrentInvoker()] (
+            TPlanFragment planFragment,
+            IUnversionedRowsetWriterPtr writer
+        ) {
+            return BIND(
+                &IExecutor::Execute,
+                this_,
+                planFragment,
+                externalCGInfo,
+                writer,
+                options,
+                requestFeatureFlags)
+                .AsyncVia(invoker)
+                .Run();
+        };
     }
 };
 
