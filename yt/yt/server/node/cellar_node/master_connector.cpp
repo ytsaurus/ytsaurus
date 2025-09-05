@@ -10,7 +10,6 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
@@ -75,7 +74,6 @@ public:
 
         TMasterHeartbeatReporterBase::Initialize();
 
-        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -215,13 +213,6 @@ private:
         if (!SolomonTagAlert_.IsOK()) {
             alerts->push_back(SolomonTagAlert_);
         }
-    }
-
-    void OnMasterConnected(TNodeId /*nodeId*/)
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        StartNodeHeartbeats();
     }
 
     void OnDynamicConfigChanged(

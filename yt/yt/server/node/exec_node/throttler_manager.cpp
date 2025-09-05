@@ -1,11 +1,10 @@
 #include "throttler_manager.h"
 #include "bootstrap.h"
-#include "job_controller.h"
 #include "master_connector.h"
 #include "public.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -574,8 +573,9 @@ TThrottlerManager::TThrottlerManager(
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
     masterConnector->SubscribeJobsDisabledByMasterUpdated(JobsDisabledByMasterUpdatedCallback_);
 
-    masterConnector->SubscribeMasterConnected(MasterConnectedCallback_);
-    masterConnector->SubscribeMasterDisconnected(MasterDisconnectedCallback_);
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    clusterNodeMasterConnector->SubscribeMasterConnected(MasterConnectedCallback_);
+    clusterNodeMasterConnector->SubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
 
 TThrottlerManager::~TThrottlerManager()
@@ -585,8 +585,9 @@ TThrottlerManager::~TThrottlerManager()
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
     masterConnector->UnsubscribeJobsDisabledByMasterUpdated(JobsDisabledByMasterUpdatedCallback_);
 
-    masterConnector->UnsubscribeMasterConnected(MasterConnectedCallback_);
-    masterConnector->UnsubscribeMasterDisconnected(MasterDisconnectedCallback_);
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    clusterNodeMasterConnector->UnsubscribeMasterConnected(MasterConnectedCallback_);
+    clusterNodeMasterConnector->UnsubscribeMasterDisconnected(MasterDisconnectedCallback_);
 }
 
 TFuture<void> TThrottlerManager::Start()

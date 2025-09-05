@@ -10,7 +10,6 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
@@ -40,8 +39,6 @@ class TMasterConnector
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(bool), JobsDisabledByMasterUpdated);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterConnected);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
 
 public:
     TMasterConnector(IBootstrap* bootstrap)
@@ -58,9 +55,6 @@ public:
     void Initialize() override
     {
         TMasterHeartbeatReporterBase::Initialize();
-
-        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
 
         Reconfigure(DynamicConfig_->HeartbeatExecutor);
     }
@@ -165,22 +159,6 @@ private:
         Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
 
         JobsDisabledByMasterUpdated_.Fire(disableSchedulerJobs);
-    }
-
-    void OnMasterConnected(TNodeId /*nodeId*/)
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        StartNodeHeartbeats();
-
-        MasterConnected_.Fire();
-    }
-
-    void OnMasterDisconnected()
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        MasterDisconnected_.Fire();
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
