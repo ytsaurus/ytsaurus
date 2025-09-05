@@ -12,22 +12,110 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions: write-all
+    env:
+      src-root: "./yt/docs"
+      build-root: "./_docs-build"
+      lint-root: "./_docs-lint"
+      index-name: "ytsaurus-doc"
+      revision: "${{ github.sha }}"
+      cli-version: "latest"
+      api-key: ${{ secrets.ALGOLIA_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build
-        uses: diplodoc-platform/docs-build-action@v3.1.14
+
+      - uses: actions/setup-node@v4
         with:
-          revision: "${{ github.sha }}"
-          src-root: "./yt/docs"
-          api-key: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
-          app-id: WW7EWG7Y6T
-          index-name: "test_ytsaurus-doc"
-      - name: Upload built docs as artifact
+          node-version: 22
+
+      - run: |
+          npm install -g @diplodoc/cli
+          npm install -g @diplodoc/algolia-extension
+        shell: bash
+
+      - name: Build doc md2html
+        id: build-md2html
+        run: |
+          set +e
+          set -o pipefail
+
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" 2>&1 | tee './build-html.log'
+
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build md2md
+        id: build-md2md
+        run: |
+          set +e
+          set -o pipefail
+
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log'
+
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Save inputs
+        run: |
+          mkdir -p ./inputs
+          echo ${{ env.revision }} > ./inputs/revision
+          echo ${{ github.event.number }} > ./inputs/pr-number
+        shell: bash
+
+      - name: Upload inputs
         uses: actions/upload-artifact@v4
         with:
-          name: built-docs  # Имя артефакта (можно изменить; если в docs указано иное — используйте то)
-          path: ./_docs-build  # Дефолтный путь из документации
+          name: inputs
+          path: inputs/
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-md
+          include-hidden-files: true
+          path: ${{ env.build-root }}
+          retention-days: 1
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-html
+          path: ./build-html.log
+          retention-days: 1
+
+      - name: Checking local index
+        run: |
+          ls ${{ env.lint-root }}/
+
+      - name: Upload local index
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-index
+          path: ${{ env.lint-root }}/_search
+          retention-days: 1
+
+      - name: Exit
+        run: |
+          exitcode=${{ steps.build-md2html.outputs.exitcode }}
+
+          if [ "$exitcode" -eq 0 ]; then
+              echo "Build exited successfully."
+          else
+            echo "Build exited with an error. Exit code: $exitcode"
+            exit $exitcode
+          fi
+        shell: bash
+
+    #  - name: Build
+     #   uses: diplodoc-platform/docs-build-action@v3.1.14
+    #    with:
+    #      revision: "${{ github.sha }}"
+    #      src-root: "./yt/docs"
+    #      api-key: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
+    #      app-id: WW7EWG7Y6T
+    #      index-name: "test_ytsaurus-doc"
 
 
   algolia-index:
@@ -41,12 +129,13 @@ jobs:
       - name: Download built docs artifact
         uses: actions/download-artifact@v4
         with:
-          name: built-docs  # Должно совпадать с именем в upload
-          path: ./_docs-build
+          #name: built-docs  # Должно совпадать с именем в upload
+          name: build-output-md
+          path: ./_docs-build # Куда загружаем
 
-      - name: List output docs
+      - name: Checking output docs
         run: |
-          ls ./_docs-build/ru/
+          ls ./_docs-build/
 
       - name: Upload index to Algolia
         env:
@@ -54,7 +143,6 @@ jobs:
           ALGOLIA_APP_ID: WW7EWG7Y6T
           ALGOLIA_INDEX_NAME: "test_ytsaurus-doc"
         run: |
-         npm install -g @diplodoc/cli @diplodoc/algolia-extension
          yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
          ls -la ./_docs-build/
 
