@@ -147,6 +147,8 @@ void TChunkScraperConfig::Register(TRegistrar registrar)
         .Default(10000)
         .GreaterThan(0)
         .LessThan(100000);
+    registrar.Parameter("prioritize_unavailable_chunks", &TThis::PrioritizeUnavailableChunks)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -119,7 +119,7 @@ private:
         for (const auto& chunkSpec : chunkSpecs) {
             auto chunkId = chunkSpec->GetChunkId();
             chunkIds.insert(chunkId);
-            Scraper_->Add(chunkId);
+            Scraper_->AddUnavailable(chunkId);
             ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
         }
         UnavailableFetcherChunkCount_.store(chunkIds.size());
