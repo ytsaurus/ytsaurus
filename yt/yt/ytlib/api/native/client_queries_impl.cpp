@@ -315,7 +315,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
         .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
-        .EnginesInfo = TYsonString(rpcResponse.engines_info()),
+        .EnginesInfo = rpcResponse.has_engines_info() ? std::optional(TYsonString(rpcResponse.engines_info())) : std::nullopt,
     };
 }
 

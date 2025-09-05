@@ -372,7 +372,7 @@ private:
         for (const auto& cluster : result.Clusters) {
             *rpcResponse->add_clusters() = cluster;
         }
-        rpcResponse->set_engines_info(result.EnginesInfo.ToString());
+        rpcResponse->set_engines_info(result.EnginesInfo.value_or(TYsonString(TString("{}"))).ToString());
 
         context->Reply();
     }
