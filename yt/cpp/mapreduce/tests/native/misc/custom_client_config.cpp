@@ -26,6 +26,8 @@ static TInstant GetLastPingTime(const IClientBasePtr& client, const ITransaction
 
 TEST(CustomClientConfig, TestRetries)
 {
+    SKIP_IF_RPC();
+
     TConfigPtr config = MakeIntrusive<TConfig>();
     config->RetryCount = 4;
 

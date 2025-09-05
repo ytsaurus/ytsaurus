@@ -1,42 +1,35 @@
 #pragma once
 
 #include <cstdarg>
+#include <stdexcept>
 #include "WAVM/Inline/Config.h"
 #include "WAVM/Platform/Defines.h"
 #include "WAVM/Platform/Error.h"
 
-#define WAVM_ENABLE_ASSERTS (WAVM_DEBUG || WAVM_ENABLE_RELEASE_ASSERTS)
+#define WAVM_ENABLE_ASSERTS 1
 
-#if WAVM_ENABLE_ASSERTS
-#define WAVM_ASSERT(condition)                                                                     \
-	if(!(condition))                                                                               \
-	{                                                                                              \
-		for(static const WAVM::Platform::AssertMetadata wavmAssertMetadata{                        \
-				#condition, __FILE__, __LINE__};                                                   \
-			;)                                                                                     \
-		{                                                                                          \
-			WAVM::Platform::handleAssertionFailure(wavmAssertMetadata);                            \
-			WAVM_DEBUG_TRAP();                                                                     \
-			break;                                                                                 \
-		}                                                                                          \
-	}
-#else
-#define WAVM_ASSERT(condition)                                                                     \
-	if(false && !(condition)) {}
+#ifndef STRINGIZE
+#define STRINGIZE_DETAIL(x) #x
+#define STRINGIZE(x) STRINGIZE_DETAIL(x)
 #endif
 
-#define WAVM_ERROR_UNLESS(condition)                                                               \
-	if(!(condition))                                                                               \
-	{                                                                                              \
-		for(static const WAVM::Platform::AssertMetadata wavmAssertMetadata{                        \
-				#condition, __FILE__, __LINE__};                                                   \
-			;)                                                                                     \
-		{                                                                                          \
-			WAVM::Platform::handleAssertionFailure(wavmAssertMetadata);                            \
-			WAVM_UNREACHABLE();                                                                    \
-			break;                                                                                 \
-		}                                                                                          \
+#define WAVM_ASSERT(condition)                                                                                  \
+	if(!(condition))                                                                                            \
+	{                                                                                                           \
+		const char* message = "WAVM assertion failed at " __FILE__ ":" STRINGIZE(__LINE__) " (" #condition ")"; \
+		throw std::runtime_error(message);                                                                      \
 	}
 
-#define WAVM_UNREACHABLE()                                                                         \
-	while(true) { WAVM_DEBUG_TRAP(); };
+#define WAVM_ERROR_UNLESS(condition)                                                                               \
+	if(!(condition))                                                                                               \
+	{                                                                                                              \
+		const char* message = "WAVM error unless failed at " __FILE__ ":" STRINGIZE(__LINE__) " (" #condition ")"; \
+		throw std::runtime_error(message);                                                                         \
+	}
+
+#define WAVM_UNREACHABLE(condition)                                                                        \
+	while(true)                                                                                            \
+	{                                                                                                      \
+		const char* message = "WAVM unreachable at " __FILE__ ":" STRINGIZE(__LINE__) " (" #condition ")"; \
+		throw std::runtime_error(message);                                                                 \
+	}

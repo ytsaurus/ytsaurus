@@ -14,6 +14,7 @@
 #include <contrib/ydb/library/services/services.pb.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
 #include <contrib/ydb/core/tablet/resource_broker.h>
+#include <contrib/ydb/core/wrappers/retry_policy.h>
 #include <contrib/ydb/core/wrappers/s3_wrapper.h>
 #include <contrib/ydb/core/wrappers/s3_storage.h>
 #include <contrib/ydb/core/wrappers/s3_storage_config.h>
@@ -922,7 +923,7 @@ class TS3Downloader: public TActorBootstrapped<TS3Downloader> {
     }
 
     static bool ShouldRetry(const Aws::S3::S3Error& error) {
-        return error.ShouldRetry();
+        return NWrappers::ShouldRetry(error);
     }
 
     static bool ShouldRetry(const TString&) {

@@ -374,9 +374,6 @@ struct TConnectionDynamicConfig
     // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
-    // COMPAT(gryzlov-ad)
-    bool UseFindChaosObject;
-
     // COMPAT(sabdenovch)
     bool AllowUnaliasedSecondaryIndex;
 

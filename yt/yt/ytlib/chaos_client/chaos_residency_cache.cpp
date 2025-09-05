@@ -295,29 +295,25 @@ public:
         auto defaultTimeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
         auto channelFuture = EnsureChaosCellChannel(connection, CellTag_);
         // COMPAT(gryzlov-ad)
-        bool useFindChaosObject = connection->GetConfig()->UseFindChaosObject;
         auto checkLastSeenResidencyFuture = channelFuture.IsSet()
             ? CheckLastSeenResidency(
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
-                useFindChaosObject,
                 std::move(channelFuture.GetUnique()
                     .ValueOrDefault(nullptr)))
             : channelFuture.ApplyUnique(BIND(
                 TGetSession::CheckLastSeenResidency,
                 ObjectId_,
                 CellTag_,
-                defaultTimeout,
-                useFindChaosObject));
+                defaultTimeout));
 
         auto fullLookupFuture = checkLastSeenResidencyFuture.ApplyUnique(BIND(
             [
                 this,
                 this_ = MakeStrong(this),
                 connection = std::move(connection),
-                defaultTimeout,
-                useFindChaosObject
+                defaultTimeout
             ] (TErrorOr<TCellTag>&& sameResidency)
             {
                 auto sameResidencyValue = sameResidency.ValueOrDefault(InvalidCellTag);
@@ -327,8 +323,7 @@ public:
 
                 return LookForObjectOnAllChaosCells(
                     connection->GetCellDirectory(),
-                    defaultTimeout,
-                    useFindChaosObject);
+                    defaultTimeout);
             }
         ));
 
@@ -342,7 +337,6 @@ private:
         const TObjectId& objectId,
         TCellTag cellTag,
         TDuration timeout,
-        bool useFindChaosObject,
         IChannelPtr&& channel)
     {
         if (!channel) {
@@ -352,40 +346,23 @@ private:
         auto proxy = TChaosNodeServiceProxy(channel);
         proxy.SetDefaultTimeout(timeout);
 
-        // COMPAT(gryzlov-ad)
-        if (useFindChaosObject) {
-            auto req = proxy.FindChaosObject();
-            ToProto(req->mutable_chaos_object_id(), objectId);
+        auto req = proxy.FindChaosObject();
+        ToProto(req->mutable_chaos_object_id(), objectId);
 
-            return req->Invoke()
-                .ApplyUnique(BIND(
-                    [
-                        cellTag = cellTag
-                    ] (TErrorOr<TChaosNodeServiceProxy::TRspFindChaosObjectPtr>&& rspOrError)
-                    {
-                        return rspOrError.IsOK() ? cellTag : InvalidCellTag;
-                    }
-                ));
-        } else {
-            auto req = proxy.FindReplicationCard();
-            ToProto(req->mutable_replication_card_id(), objectId);
-
-            return req->Invoke()
-                .ApplyUnique(BIND(
-                    [
-                        cellTag = cellTag
-                    ] (TErrorOr<TChaosNodeServiceProxy::TRspFindReplicationCardPtr>&& rspOrError)
-                    {
-                        return rspOrError.IsOK() ? cellTag : InvalidCellTag;
-                    }
-                ));
-        }
+        return req->Invoke()
+            .ApplyUnique(BIND(
+                [
+                    cellTag = cellTag
+                ] (TErrorOr<TChaosNodeServiceProxy::TRspFindChaosObjectPtr>&& rspOrError)
+                {
+                    return rspOrError.IsOK() ? cellTag : InvalidCellTag;
+                }
+            ));
     }
 
     TFuture<TCellTag> LookForObjectOnAllChaosCells(
         const ICellDirectoryPtr& cellDirectory,
-        TDuration timeout,
-        bool useFindChaosObject)
+        TDuration timeout)
     {
         std::vector<TFuture<void>> foundFutures;
         std::vector<TCellTag> futureCellTags;
@@ -400,16 +377,9 @@ private:
             auto proxy = TChaosNodeServiceProxy(channel);
             proxy.SetDefaultTimeout(timeout);
 
-            // COMPAT(gryzlov-ad)
-            if (useFindChaosObject) {
-                auto req = proxy.FindChaosObject();
-                ToProto(req->mutable_chaos_object_id(), ObjectId_);
-                foundFutures.push_back(req->Invoke().AsVoid());
-            } else {
-                auto req = proxy.FindReplicationCard();
-                ToProto(req->mutable_replication_card_id(), ObjectId_);
-                foundFutures.push_back(req->Invoke().AsVoid());
-            }
+            auto req = proxy.FindChaosObject();
+            ToProto(req->mutable_chaos_object_id(), ObjectId_);
+            foundFutures.push_back(req->Invoke().AsVoid());
 
             futureCellTags.push_back(cellTag);
         }

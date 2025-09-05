@@ -49,6 +49,7 @@ const TRawPipelinePtr& GetRawPipeline(const TPState<K, S>& pState);
 
 DECLARE_ROREN_TAG(KeyColumns, NRoren::NPrivate::TPCollectionNode, std::vector<TString>);
 DECLARE_ROREN_TAG(EventTimestampColumn, NRoren::NPrivate::TPCollectionNode, TString);
+DECLARE_ROREN_TAG(StreamId, NRoren::NPrivate::TPCollectionNode, TString);
 
 class TPCollectionNode
     : public virtual NYT::TRefCounted

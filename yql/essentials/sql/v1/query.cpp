@@ -584,7 +584,12 @@ public:
 
                 if (func.StartsWith("regexp")) {
                     if (!ctx.PragmaRegexUseRe2) {
-                        ctx.Warning(Pos_, TIssuesIds::CORE_LEGACY_REGEX_ENGINE) << "Legacy regex engine works incorrectly with unicode. Use PRAGMA RegexUseRe2='true';";
+                        if (!ctx.Warning(Pos_, TIssuesIds::CORE_LEGACY_REGEX_ENGINE, [&](auto& out) {
+                            out << "Legacy regex engine works incorrectly with unicode. "
+                                << "Use PRAGMA RegexUseRe2='true';";
+                        })) {
+                            return nullptr;
+                        }
                     }
 
                     auto pattern = Args_[1].Id;
@@ -742,8 +747,12 @@ public:
                     postHandler = arg.Expr;
                 }
                 else {
-                    ctx.Warning(Pos_, DEFAULT_ERROR) << "Unsupported named argument: "
-                        << label << " in " << Func_;
+                    if (!ctx.Warning(Pos_, DEFAULT_ERROR, [&](auto& out) {
+                        out << "Unsupported named argument: "
+                            << label << " in " << Func_;
+                    })) {
+                        return nullptr;
+                    }
                 }
             }
             if (rootAttributes == nullptr) {
@@ -4141,6 +4150,168 @@ TNodePtr BuildRestore(
     const TObjectOperatorContext& context)
 {
     return new TRestoreNode(pos, prefix, id, params, context);
+}
+
+class TSecretNode : public TAstListNode {
+    using TBase = TAstListNode;
+public:
+    TSecretNode(
+        TPosition pos,
+        const TString& objectId,
+        const TSecretParameters& params,
+        const TObjectOperatorContext& context,
+        TScopedStatePtr scoped
+    )
+        : TBase(pos)
+        , Pos_(pos)
+        , ObjectId_(objectId)
+        , Params_(params)
+        , Context_(context)
+        , Scoped_ (scoped)
+    {
+    }
+
+    bool DoInit(TContext& ctx, ISource* src) final {
+        Scoped_->UseCluster(Context_.ServiceId, Context_.Cluster);
+        const auto keys = Y("Key", Q(Y(Q("secret"), Y("String", BuildQuotedAtom(Pos_, ObjectId_)))));
+        const auto options = BuildOptions();
+
+        Add("block", Q(Y(
+            Y("let", "sink", Y("DataSink", BuildQuotedAtom(Pos_, Context_.ServiceId), Scoped_->WrapCluster(Context_.Cluster, ctx))),
+            Y("let", "world", Y(TString(WriteName), "world", "sink", keys, Y("Void"), Q(options))),
+            Y("return", ctx.PragmaAutoCommit ? Y(TString(CommitName), "world", "sink") : AstNode("world"))
+        )));
+
+        return TAstListNode::DoInit(ctx, src);
+    }
+
+protected:
+    virtual TString GetMode() = 0;
+
+private:
+    TPtr BuildOptions() {
+        auto options = Y();
+        options = L(options, Q(Y(Q("mode"), Q(GetMode()))));
+        if (Params_.Value) {
+            if (Params_.Value->HasNode()) {
+                options = L(options, Q(Y(BuildQuotedAtom(Pos_, "value"), Params_.Value->Build())));
+            } else {
+                options = L(options, Q(Y(BuildQuotedAtom(Pos_, "value"))));
+            }
+        }
+        if (Params_.InheritPermissions) {
+            if (Params_.InheritPermissions->HasNode()) {
+                options = L(options, Q(Y(BuildQuotedAtom(Pos_, "inherit_permissions"), Params_.InheritPermissions->Build())));
+            } else {
+                options = L(options, Q(Y(BuildQuotedAtom(Pos_, "inherit_permissions"))));
+            }
+        }
+        return options;
+    }
+
+protected:
+    TPosition Pos_;
+    const TString ObjectId_;
+    const TSecretParameters Params_;
+    const TObjectOperatorContext Context_;
+    TScopedStatePtr Scoped_;
+};
+
+class TCreateSecretNode : public TSecretNode {
+    using TBase = TSecretNode;
+public:
+    TCreateSecretNode(
+            TPosition pos,
+            const TString& objectId,
+            const TSecretParameters& params,
+            const TObjectOperatorContext& context,
+            TScopedStatePtr scoped)
+        : TBase(pos, objectId, params, context, scoped)
+    {
+    }
+
+protected:
+    TString GetMode() override {
+        return "create";
+    }
+
+    TPtr DoClone() const final {
+        return new TCreateSecretNode(Pos_, ObjectId_, Params_, Context_, Scoped_);
+    }
+};
+
+TNodePtr BuildCreateSecret(
+    TPosition pos,
+    const TString& objectId,
+    const TSecretParameters& secretParams,
+    const TObjectOperatorContext& context,
+    TScopedStatePtr scoped
+) {
+    return new TCreateSecretNode(pos, objectId, secretParams, context, scoped);
+}
+
+class TAlterSecretNode : public TSecretNode {
+    using TBase = TSecretNode;
+public:
+    TAlterSecretNode(
+            TPosition pos,
+            const TString& objectId,
+            const TSecretParameters& params,
+            const TObjectOperatorContext& context,
+            TScopedStatePtr scoped)
+        : TBase(pos, objectId, params, context, scoped)
+    {
+    }
+
+protected:
+    TString GetMode() override {
+        return "alter";
+    }
+
+    TPtr DoClone() const final {
+        return new TAlterSecretNode(Pos_, ObjectId_, Params_, Context_, Scoped_);
+    }
+};
+
+TNodePtr BuildAlterSecret(
+    TPosition pos,
+    const TString& objectId,
+    const TSecretParameters& secretParams,
+    const TObjectOperatorContext& context,
+    TScopedStatePtr scoped
+) {
+    return new TAlterSecretNode(pos, objectId, secretParams, context, scoped);
+}
+
+class TDropSecretNode : public TSecretNode {
+    using TBase = TSecretNode;
+public:
+    TDropSecretNode(
+            TPosition pos,
+            const TString& objectId,
+            const TObjectOperatorContext& context,
+            TScopedStatePtr scoped)
+        : TBase(pos, objectId, TSecretParameters{}, context, scoped)
+    {
+    }
+
+protected:
+    TPtr DoClone() const final {
+        return new TDropSecretNode(Pos_, ObjectId_, Context_, Scoped_);
+    }
+
+    TString GetMode() override {
+        return "drop";
+    }
+};
+
+TNodePtr BuildDropSecret(
+    TPosition pos,
+    const TString& objectId,
+    const TObjectOperatorContext& context,
+    TScopedStatePtr scoped
+) {
+    return new TDropSecretNode(pos, objectId, context, scoped);
 }
 
 } // namespace NSQLTranslationV1

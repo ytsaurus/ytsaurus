@@ -2,6 +2,8 @@
 
 Для работы кластера {{product-name}} его компонентам требуется рабочее место на дисках — для хранения персистентных, временных и отладочных данных. Пути до каталогов в файловой системе, предназначенных для работы {{product-name}}, задаются в статических конфигах компонент, генерируемых k8s-оператором. В спецификации {{product-name}} для указания данных путей используется секция Locations. Типы локаций соответствуют компонентам. Для выделения томов под локации используются стандартные понятия Kubernetes: `volumeMounts`, `volumes` (для выделения неперсистентных вольюмов) и `volumeClaimTemplates` (для выделения персистентных вольюмов).
 
+В случае использования k8s в облаке как правило необходимо указать специфичный для конкретного облака `storageClassName` в `spec` в шаблоне заказа дисков `volumeClaimTemplates`. Например, в случае [AWS](https://docs.aws.amazon.com/eks/latest/userguide/create-storage-class.html) в качестве `storageClassName` стоит использовать `auto-ebs-sc`.
+
 ## Типы локаций { #location_types }
 
 ### MasterChangelogs, MasterSnapshots { #location_master }
@@ -35,20 +37,16 @@ primaryMasters:
   # Other master parameters.
 
   volumeClaimTemplates:
-    # Persistent volume for master changelogs, uses dynamic volume provisioner in YC, non-replicated SSD storage class.
     - metadata:
         name: master-changelogs
       spec:
-        storageClassName: yc-network-ssd-nonreplicated
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
             storage: 200Gi
-    # Persistent volume for master snapshots, uses dynamic volume provisioner in YC, HDD storage class.
     - metadata:
         name: master-snapshots
       spec:
-        storageClassName: yc-network-hdd
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
@@ -82,29 +80,23 @@ primaryMasters:
 ```yaml
 dataNodes:
   volumeClaimTemplates:
-    # Persistent volume for chunk stores on HDD.
     - metadata:
         name: chunk-store-hdd
       spec:
-        storageClassName: yc-network-hdd
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
             storage: 300Gi
-    # Persistent volume for chunk stores on SSD.
     - metadata:
         name: chunk-store-ssd
       spec:
-        storageClassName: yc-network-ssd
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
             storage: 300Gi
-    # Persistent volume for debug logs.
     - metadata:
         name: node-logs
       spec:
-        storageClassName: yc-network-hdd
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
@@ -131,7 +123,7 @@ dataNodes:
 
 ## Настройка томов для кластеров k8s без Dynamic Volume Provisioning { #volumes_without_dvp }
 Для разметки дисков и создания персистентных томов на кластерах без динамической провизии вольюмов можно использовать два подхода:
- * использование вольюмов типа hostPath;
+ * использование вольюмов типа `hostPath`;
  * ручное создание персистентных томов с указанием [claimRef](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/preexisting-pd?authuser=0#pv_to_statefulset).
 
 ### Использование hostPath вольюмов { #host_path_volumes }

@@ -8,6 +8,7 @@
 #include <contrib/ydb/core/tablet/tablet_counters.h>
 #include <contrib/ydb/core/tablet/tablet_pipe_client_cache.h>
 #include <contrib/ydb/core/base/tablet_pipe.h>
+#include <contrib/ydb/core/jaeger_tracing/sampling_throttling_control.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <contrib/ydb/core/tx/time_cast/time_cast.h>
@@ -598,6 +599,18 @@ private:
     void BeginDeleteTransaction(const TActorContext& ctx,
                                 TDistributedTransaction& tx,
                                 NKikimrPQ::TTransaction::EState state);
+
+    void ResendSplitMergeRequests(const TActorContext& ctx);
+
+
+    TIntrusivePtr<NJaegerTracing::TSamplingThrottlingControl> SamplingControl;
+    NWilson::TSpan WriteTxsSpan;
+
+    void InitPipeClientCache();
+
+    bool HasTxPersistSpan = false;
+    bool HasTxDeleteSpan = false;
+    ui8 WriteTxsSpanVerbosity = 0;
 };
 
 

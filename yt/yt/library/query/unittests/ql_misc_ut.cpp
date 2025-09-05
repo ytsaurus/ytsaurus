@@ -104,7 +104,7 @@ TEST(TTopCollectorTest, LargeRow)
     largeString.resize(600_KB);
 
     auto data = std::vector<TPIValue>(dataLength);
-    MakePositionIndependentStringValue(&data[0], largeString);
+    MakePositionIndependentStringLikeValue(&data[0], EValueType::String, largeString);
 
     ::memset(std::bit_cast<void*>(largeString.begin()), 'c', 600_KB);
     topCollector.AddRow(&data[0]);

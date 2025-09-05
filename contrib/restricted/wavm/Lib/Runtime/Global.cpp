@@ -41,6 +41,7 @@ Global* Runtime::createGlobal(Compartment* compartment,
 		if(global->id == UINTPTR_MAX)
 		{
 			delete global;
+			WAVM_ASSERT(global->id != UINTPTR_MAX);
 			return nullptr;
 		}
 	}

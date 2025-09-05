@@ -54,23 +54,26 @@ struct TEvPrivate {
 
 class TActorCoordinator : public TActorBootstrapped<TActorCoordinator> {
 
-    const ui64 PrintStatePeriodSec = 300;
-    const ui64 PrintStateToLogSplitSize = 64000;
+    static constexpr ui64 PrintStatePeriodSec = 300;
+    static constexpr ui64 PrintStateToLogSplitSize = 64000;
+    static constexpr TDuration NodesManagerRetryPeriod = TDuration::Seconds(1);
 
     struct TTopicKey {
         TString Endpoint;
         TString Database;
+        TString ReadGroup;
         TString TopicName;
 
         size_t Hash() const noexcept {
             ui64 hash = std::hash<TString>()(Endpoint);
             hash = CombineHashes<ui64>(hash, std::hash<TString>()(Database));
+            hash = CombineHashes<ui64>(hash, std::hash<TString>()(ReadGroup));
             hash = CombineHashes<ui64>(hash, std::hash<TString>()(TopicName));
             return hash;
         }
         bool operator==(const TTopicKey& other) const {
             return Endpoint == other.Endpoint && Database == other.Database
-                && TopicName == other.TopicName;
+                && ReadGroup == other.ReadGroup && TopicName == other.TopicName;
         }
     };
 
@@ -256,7 +259,7 @@ void TActorCoordinator::Bootstrap() {
     Become(&TActorCoordinator::StateFunc);
     Send(LocalRowDispatcherId, new NFq::TEvRowDispatcher::TEvCoordinatorChangesSubscribe());
 
-    Send(NodesManagerId, new NFq::TEvNodesManager::TEvGetNodesRequest());
+    Send(NodesManagerId, new NFq::TEvNodesManager::TEvGetNodesRequest(), IEventHandle::FlagTrackDelivery);
 
     Schedule(TDuration::Seconds(PrintStatePeriodSec), new TEvPrivate::TEvPrintState());
     LOG_ROW_DISPATCHER_DEBUG("Successfully bootstrapped coordinator, id " << SelfId());
@@ -362,6 +365,12 @@ void TActorCoordinator::HandleDisconnected(TEvInterconnect::TEvNodeDisconnected:
 void TActorCoordinator::Handle(NActors::TEvents::TEvUndelivered::TPtr& ev) {
     LOG_ROW_DISPATCHER_DEBUG("TEvUndelivered, ev: " << ev->Get()->ToString());
 
+    if (ev->Sender == NodesManagerId) {
+        LOG_ROW_DISPATCHER_INFO("TEvUndelivered, from nodes manager, reason: " << ev->Get()->Reason);
+        NActors::TActivationContext::Schedule(NodesManagerRetryPeriod, new IEventHandle(NodesManagerId, SelfId(), new NFq::TEvNodesManager::TEvGetNodesRequest(), IEventHandle::FlagTrackDelivery));
+        return;
+    }
+
     for (auto& [actorId, info] : RowDispatchers) {
         if (ev->Sender != actorId) {
             continue;
@@ -458,7 +467,7 @@ bool TActorCoordinator::ComputeCoordinatorRequest(TActorId readActorId, const TC
     bool hasPendingPartitions = false;
     TMap<NActors::TActorId, TSet<ui64>> tmpResult;
     for (auto& partitionId : request.Record.GetPartitionIds()) {
-        TTopicKey topicKey{source.GetEndpoint(), source.GetDatabase(), source.GetTopicPath()};
+        TTopicKey topicKey{source.GetEndpoint(), source.GetDatabase(), source.GetReadGroup(), source.GetTopicPath()};
         TPartitionKey key {topicKey, partitionId};
         auto locationIt = PartitionLocations.find(key);
         NActors::TActorId rowDispatcherId;
@@ -519,7 +528,7 @@ void TActorCoordinator::Handle(NFq::TEvNodesManager::TEvGetNodesResponse::TPtr& 
     NodesCount = ev->Get()->NodeIds.size();
     LOG_ROW_DISPATCHER_DEBUG("TEvGetNodesResponse, nodes count " << NodesCount);
     if (!NodesCount) {
-        NActors::TActivationContext::Schedule(TDuration::Seconds(1), new IEventHandle(NodesManagerId, SelfId(), new NFq::TEvNodesManager::TEvGetNodesRequest()));
+        NActors::TActivationContext::Schedule(NodesManagerRetryPeriod, new IEventHandle(NodesManagerId, SelfId(), new NFq::TEvNodesManager::TEvGetNodesRequest(), IEventHandle::FlagTrackDelivery));
     }
     UpdatePendingReadActors();
 }

@@ -45,12 +45,11 @@ func NewTextLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 		tskv = pipelines.Apply(options.AntisecretTransform, tskv)
 	}
 
-	rows := pipelines.ApplyFunc(func(ctx context.Context, meta pipelines.RowMeta, tskv []byte, emit pipelines.EmitFunc[pipelines.Row]) {
+	rows := pipelines.ApplyFunc(func(ctx context.Context, meta pipelines.RowMeta, value []byte, emit pipelines.EmitFunc[pipelines.Row]) {
 		emit(ctx, meta, pipelines.Row{
-			Payload: tskv,
+			Payload: value,
 			SeqNo:   meta.End.LogicalOffset,
 		})
-		task.Controller.NotifyProgress(meta.End)
 	}, tskv)
 
 	pipelines.ApplyOutput(output, rows)
@@ -82,7 +81,6 @@ func NewJSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 			Payload: value,
 			SeqNo:   meta.End.LogicalOffset,
 		})
-		task.Controller.NotifyProgress(meta.End)
 	}, batched)
 
 	pipelines.ApplyOutput(output, rows)
@@ -114,7 +112,6 @@ func NewYSONLogPipeline(task timbertruck.TaskArgs, output pipelines.Output[pipel
 			Payload: value,
 			SeqNo:   meta.End.LogicalOffset,
 		})
-		task.Controller.NotifyProgress(meta.End)
 	}, batched)
 
 	pipelines.ApplyOutput(output, rows)

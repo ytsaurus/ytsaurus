@@ -12,6 +12,7 @@ SRCS(
     GLOBAL ql_query_ut.cpp
     GLOBAL ql_range_inference_ut.cpp
     GLOBAL ql_range_coordination_ut.cpp
+    test_evaluate.cpp
 )
 
 IF (OPENSOURCE)

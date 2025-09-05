@@ -6,6 +6,7 @@ PY_SRCS(
     NAMESPACE yt_odin.common
 
     __init__.py
+    token.py
     prctl.py
 )
 

@@ -625,9 +625,12 @@ TEST(BatchRequestSuite, TestLink) {
 
     checkLink(client, workingDir + "/simple", workingDir + "/simple_link_with_attributes", attributesRes.GetValue());
 
-    EXPECT_EQ(
-        client->Get(workingDir + "/simple_link_with_attributes&/@attr_name").AsString(),
-        "attr_value");
+    // Remove branch when precompiled server binary is updated (or with -DYT_RECIPE_BUILD_FROM_SOURCE=yes)
+    if (!UseRpcClient()) {
+        EXPECT_EQ(
+            client->Get(workingDir + "/simple_link_with_attributes&/@attr_name").AsString(),
+            "attr_value");
+    }
 
     EXPECT_THROW(noRecursiveRes.GetValue(), TErrorResponse);
     EXPECT_EQ(client->Exists(workingDir + "/missing_dir"), false);

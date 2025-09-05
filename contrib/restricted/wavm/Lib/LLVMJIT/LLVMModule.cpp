@@ -323,9 +323,10 @@ private:
 };
 
 Module::Module(const std::vector<U8>& objectBytes,
-			   const HashMap<std::string, Uptr>& importedSymbolMap,
+			   HashMap<std::string, Uptr>* importedSymbolMap,
 			   bool shouldLogMetrics,
-			   std::string&& inDebugName)
+			   std::string&& inDebugName,
+			   const std::unordered_map<std::string, std::string>& weakFunctionsToPatch)
 : debugName(std::move(inDebugName))
 , memoryManager(new ModuleMemoryManager())
 , globalModuleState(GlobalModuleState::get())
@@ -403,7 +404,7 @@ Module::Module(const std::vector<U8>& objectBytes,
 			}
 		}
 	};
-	SymbolResolver symbolResolver(importedSymbolMap);
+	SymbolResolver symbolResolver(*importedSymbolMap);
 	llvm::RuntimeDyld loader(*memoryManager, symbolResolver);
 	// Process all sections on non-Windows platforms. On Windows, this triggers errors due to
 	// unimplemented relocation types in the debug sections.
@@ -467,6 +468,12 @@ Module::Module(const std::vector<U8>& objectBytes,
 
 	// Use the LLVM object loader to load the object.
 	std::unique_ptr<llvm::RuntimeDyld::LoadedObjectInfo> loadedObject = loader.loadObject(*object);
+	auto symbolTable = loader.getSymbolTable();
+	for (auto& [function, import] : weakFunctionsToPatch) {
+		WAVM_ASSERT(symbolTable.contains(function));
+		WAVM_ASSERT(importedSymbolMap->contains(import));
+		(*importedSymbolMap)[import] = symbolTable[function].getAddress();
+	}
 	loader.finalizeWithMemoryManagerLocking();
 	if(loader.hasError())
 	{ Errors::fatalf("RuntimeDyld failed: %s", loader.getErrorString().data()); }
@@ -661,6 +668,7 @@ std::shared_ptr<LLVMJIT::Module> LLVMJIT::loadModule(
 	InstanceBinding instance,
 	Uptr tableReferenceBias,
 	const std::vector<Runtime::FunctionMutableData*>& functionDefMutableDatas,
+	const std::unordered_map<Uptr, Uptr>& importIndexToSelfDefinedFunctionIndex,
 	std::string&& debugName)
 {
 	// Bind undefined symbols in the compiled object to values.
@@ -684,8 +692,10 @@ std::shared_ptr<LLVMJIT::Module> LLVMJIT::loadModule(
 	// Bind imported function symbols.
 	for(Uptr importIndex = 0; importIndex < functionImports.size(); ++importIndex)
 	{
-		importedSymbolMap.addOrFail(getExternalName("functionImport", importIndex),
-									reinterpret_cast<Uptr>(functionImports[importIndex].code));
+		if (!importIndexToSelfDefinedFunctionIndex.contains(importIndex)) {
+			importedSymbolMap.addOrFail(getExternalName("functionImport", importIndex),
+										reinterpret_cast<Uptr>(functionImports[importIndex].code));
+		}
 	}
 
 	// Bind the table symbols. The compiled module uses the symbol's value as an offset into
@@ -736,6 +746,15 @@ std::shared_ptr<LLVMJIT::Module> LLVMJIT::loadModule(
 									exceptionTypes[exceptionTypeIndex].id + 1);
 	}
 
+	std::unordered_map<Uptr, Uptr> selfDefinedFunctionIndexToimportIndex;
+	for (auto [importIndex, selfDefinedFunctionIndex] : importIndexToSelfDefinedFunctionIndex) {
+		selfDefinedFunctionIndexToimportIndex[selfDefinedFunctionIndex] = importIndex;
+	}
+
+	WAVM_ASSERT(selfDefinedFunctionIndexToimportIndex.size() == importIndexToSelfDefinedFunctionIndex.size());
+
+	std::unordered_map<std::string, std::string> weakFunctionsToPatch;
+
 	// Allocate FunctionMutableData objects for each function def, and bind them to the symbols
 	// imported by the compiled module.
 	for(Uptr functionDefIndex = 0; functionDefIndex < functionDefMutableDatas.size();
@@ -745,7 +764,18 @@ std::shared_ptr<LLVMJIT::Module> LLVMJIT::loadModule(
 			= functionDefMutableDatas[functionDefIndex];
 		importedSymbolMap.addOrFail(getExternalName("functionDefMutableDatas", functionDefIndex),
 									reinterpret_cast<Uptr>(functionMutableData));
+
+		Uptr indexWithFunctionOffsets = functionDefIndex + functionImports.size();
+		auto it = selfDefinedFunctionIndexToimportIndex.find(indexWithFunctionOffsets);
+		if (it != selfDefinedFunctionIndexToimportIndex.end()) {
+			Uptr importIndex = it->second;
+			WAVM_ASSERT(!weakFunctionsToPatch.contains(getExternalName("functionDef", functionDefIndex)));
+			weakFunctionsToPatch[getExternalName("functionDef", functionDefIndex)] = getExternalName("functionImport", importIndex);
+			importedSymbolMap.addOrFail(getExternalName("functionImport", importIndex), 0ul);
+		}
 	}
+
+	WAVM_ASSERT(weakFunctionsToPatch.size() == importIndexToSelfDefinedFunctionIndex.size());
 
 	// Bind the instance symbol to point to the Instance.
 	WAVM_ASSERT(instance.id != UINTPTR_MAX);
@@ -762,15 +792,17 @@ std::shared_ptr<LLVMJIT::Module> LLVMJIT::loadModule(
 #if !USE_WINDOWS_SEH
 	// Use __cxxabiv1::__cxa_current_exception_type to get a reference to the std::type_info for
 	// Runtime::Exception* without enabling RTTI.
-	std::type_info* runtimeExceptionPointerTypeInfo = nullptr;
-	try
-	{
-		throw(Runtime::Exception*) nullptr;
-	}
-	catch(Runtime::Exception*)
-	{
-		runtimeExceptionPointerTypeInfo = __cxxabiv1::__cxa_current_exception_type();
-	}
+	static auto* runtimeExceptionPointerTypeInfo = [] -> std::type_info* {
+		try
+		{
+			throw(Runtime::Exception*) nullptr;
+		}
+		catch(Runtime::Exception*)
+		{
+			return __cxxabiv1::__cxa_current_exception_type();
+		}
+		return nullptr;
+	}();
 
 	// Bind the std::type_info for Runtime::Exception.
 	importedSymbolMap.addOrFail("runtimeExceptionTypeInfo",
@@ -778,7 +810,7 @@ std::shared_ptr<LLVMJIT::Module> LLVMJIT::loadModule(
 #endif
 
 	// Load the module.
-	return std::make_shared<Module>(objectFileBytes, importedSymbolMap, true, std::move(debugName));
+	return std::make_shared<Module>(objectFileBytes, &importedSymbolMap, true, std::move(debugName), weakFunctionsToPatch);
 }
 
 bool LLVMJIT::getInstructionSourceByAddress(Uptr address, InstructionSource& outSource)

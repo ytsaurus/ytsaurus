@@ -49,6 +49,16 @@ func (c *compressor) close() {
 func newZstdEncoderLevel(codecName string) zstd.EncoderLevel {
 	var level int
 	switch codecName {
+	case compression.CodecIDZstd1.String():
+		level = 1
+	case compression.CodecIDZstd2.String():
+		level = 2
+	case compression.CodecIDZstd3.String():
+		level = 3
+	case compression.CodecIDZstd4.String():
+		level = 4
+	case compression.CodecIDZstd5.String():
+		level = 5
 	case compression.CodecIDZstd6.String():
 		level = 6
 	default:

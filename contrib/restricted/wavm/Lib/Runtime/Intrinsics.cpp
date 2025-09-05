@@ -232,6 +232,7 @@ Instance* Intrinsics::instantiateModule(
 												   {},
 												   {},
 												   {},
+												   {},
 												   std::move(debugName));
 
 	Timing::logTimer("Instantiated intrinsic module", timer);

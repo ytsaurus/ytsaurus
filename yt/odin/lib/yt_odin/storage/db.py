@@ -1,5 +1,6 @@
 from .storage import Storage, StorageForCluster, OdinDBRecord
 
+from yt_odin.common.token import get_token
 from yt_odin.logging import TaskLoggerAdapter
 from yt.wrapper import YtClient
 
@@ -73,7 +74,7 @@ class OdinYtTableClient(Storage):
             return '("' + '","'.join(items) + '")'
 
 
-class OdinTableClientForCluster(StorageForCluster):
+class OdinYtTableClientForCluster(StorageForCluster):
     def __init__(self, storage, cluster):
         self._storage = storage
         self._cluster = cluster
@@ -97,22 +98,24 @@ def create_yt_table_client(table, proxy, token, config=None):
 
 def create_yt_table_client_for_cluster(table, cluster, proxy, token, config=None):
     table_client = create_yt_table_client(table, proxy, token, config)
-    return OdinTableClientForCluster(table_client, cluster)
+    return OdinYtTableClientForCluster(table_client, cluster)
 
 
-def create_yt_table_client_from_config(db_config):
-    db_options = db_config["options"]
-    return create_yt_table_client(db_options["table"], db_options["proxy"], db_options["token"],
-                                  db_options.get("config"))
+def _get_yt_table_client_params(db_config):
+    options = db_config["options"]
+    params = {key: options[key] for key in ("table", "cluster", "proxy", "config") if key in options}
+    params["token"] = get_token(options.get("token"), options.get("token_env_variable"))
+    return params
 
 
-def get_cluster_client_factory_from_db_config(db_config):
+def create_yt_table_client_from_db_config(db_config):
+    return create_yt_table_client(**_get_yt_table_client_params(db_config))
+
+
+def get_yt_table_client_for_cluster_factory_from_db_config(db_config):
     storage_type = db_config["type"]
     if storage_type == "yt":
-        allowed_options = ("table", "cluster", "proxy", "token", "config")
-        options = db_config["options"]
-        options = {key: options[key] for key in allowed_options if key in options}
-        return lambda: create_yt_table_client_for_cluster(**options)
+        return lambda: create_yt_table_client_for_cluster(**_get_yt_table_client_params(db_config))
     else:
         raise RuntimeError("Unsupported storage type: {}".format(repr(storage_type)))
 

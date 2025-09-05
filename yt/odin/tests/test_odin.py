@@ -90,6 +90,7 @@ class OdinTestEnv(object):
                     self.cluster_name,
                     self.client.config["proxy"]["url"],
                     token=None,  # Use root on local cluster
+                    token_env_variable=None,
                     checks_path=self.tmp_checks_path,
                     log_server_socket_path=self.socket_path,
                     log_server_max_write_batch_size=256,

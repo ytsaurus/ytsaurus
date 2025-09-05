@@ -116,12 +116,6 @@ void MakePositionIndependentBooleanValue(TPIValue* result, bool value, int id = 
 
 void MakePositionIndependentStringLikeValue(TPIValue* result, EValueType valueType, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None);
 
-void MakePositionIndependentStringValue(TPIValue* result, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None);
-
-void MakePositionIndependentAnyValue(TPIValue* result, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None);
-
-void MakePositionIndependentCompositeValue(TPIValue* result, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None);
-
 void MakePositionIndependentValueHeader(TPIValue* result, EValueType type, int id = 0, EValueFlags flags = EValueFlags::None);
 
 ////////////////////////////////////////////////////////////////////////////////

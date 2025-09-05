@@ -23,6 +23,7 @@ PEERDIR(
     contrib/ydb/core/base
     contrib/ydb/core/client/minikql_compile
     contrib/ydb/core/formats
+    contrib/ydb/core/fq/libs/checkpointing
     contrib/ydb/core/kqp/common
     contrib/ydb/core/kqp/compute_actor
     contrib/ydb/core/kqp/executer_actor/shards_resolver

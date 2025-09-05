@@ -82,7 +82,7 @@ jobs:
     steps:
       - name: Build GPU Agent
         run: |
-          cd ../ytsaurus/ytsaurus/yt/yt/go/gpuagent
+          cd ../ytsaurus/ytsaurus/yt/yt/gpuagent
           export HOME=${RUNNER_WORKSPACE}
           /opt/go/bin/go build -o gpuagent ./cmd/agent
 

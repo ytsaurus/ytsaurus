@@ -193,9 +193,15 @@ void TJobResourcesProfiler::Start()
     Producer_->SetEnabled(true);
 }
 
-void TJobResourcesProfiler::Update(const TJobResources& resources)
+void TJobResourcesProfiler::Update(
+    const TJobResources& resources,
+    TCompactVector<TTag, 2> tags)
 {
     TSensorBuffer sensorBuffer;
+    for (const auto& tag : tags) {
+        sensorBuffer.PushTag(tag);
+    }
+
     ProfileResources(&sensorBuffer, resources, "", MetricType_);
     Producer_->Update(std::move(sensorBuffer));
 }

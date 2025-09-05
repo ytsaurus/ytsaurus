@@ -285,6 +285,17 @@ void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDyn
     rowRef.Store->PrepareRow(transaction, rowRef.Row);
 }
 
+void TSortedStoreManager::UnprepareRow(
+    TTransaction* transaction,
+    const TSortedDynamicRowRef& rowRef,
+    TTimestamp transientPrepareTimestamp)
+{
+    // Per-row transactions are always 2PC and Unprepare can be called only for transiently prepared ones (1PC in other words).
+    YT_VERIFY(Tablet_->GetSerializationType() != ETabletTransactionSerializationType::PerRow);
+
+    rowRef.Store->UnprepareRow(transaction, rowRef.Row, transientPrepareTimestamp);
+}
+
 void TSortedStoreManager::CommitRow(
     TTransaction* transaction,
     const NTableClient::TWireProtocolWriteCommand& command,

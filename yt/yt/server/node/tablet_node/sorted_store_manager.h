@@ -57,6 +57,10 @@ public:
     void LockRow(TWriteContext* context, bool prelock, const TSortedDynamicRowRef& rowRef);
     void ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
+    void UnprepareRow(
+        TTransaction* transaction,
+        const TSortedDynamicRowRef& rowRef,
+        TTimestamp transientPrepareTimestamp);
 
     void CommitPerRowsSerializedLockGroup(
         TTransaction* transaction,

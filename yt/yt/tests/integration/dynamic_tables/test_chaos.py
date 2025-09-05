@@ -21,7 +21,7 @@ from yt_commands import (
     create_table_replica, sync_enable_table_replica, get_tablet_infos, get_table_mount_info, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
     sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link,
-    execute_batch, make_batch_request, ping_chaos_lease)
+    execute_batch, make_batch_request, ping_chaos_lease, get_safe_trim_row_count)
 
 from yt_type_helpers import make_schema
 
@@ -4742,14 +4742,9 @@ class TestChaos(ChaosTestBase):
         ts = generate_timestamp()
 
         def _get_safe_trim_row_count(path: str, tablet_index: int):
-            requests = [{"path": path, "tablet_index": tablet_index, "timestamp": ts}]
-            results = execute_command(
-                "get_ordered_tablet_safe_trim_row_count",
-                parameters={
-                    "requests": requests,
-                    "driver": self.native_driver,
-                },
-                parse_yson=True
+            results = get_safe_trim_row_count(
+                [(path, tablet_index, ts)],
+                driver=self.native_driver
             )
             assert len(results) == 1
             return results[0]["value"]

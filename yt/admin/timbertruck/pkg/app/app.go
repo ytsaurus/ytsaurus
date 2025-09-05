@@ -510,7 +510,8 @@ func (c *oneShotAppTaskController) Logger() *slog.Logger {
 	return &c.logger
 }
 
-func (c *oneShotAppTaskController) NotifyProgress(_ pipelines.FilePosition) {
+func (c *oneShotAppTaskController) NotifyProgress(pos pipelines.FilePosition) {
+	c.logger.Debug("Task progress", "progress", pos)
 }
 
 type oneShotApp struct {
@@ -526,7 +527,12 @@ func newOneShotApp() (a App, err error) {
 	app := &oneShotApp{}
 	app.ctx, app.ctxCancel = context.WithCancel(context.Background())
 	cancelOnSignals(app.ctxCancel)
-	app.logger = slog.Default()
+
+	app.logger = slog.New(
+		slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}),
+	)
 
 	a = app
 	return
@@ -569,6 +575,7 @@ func (app *oneShotApp) Run() error {
 		if err != nil {
 			return err
 		}
+		pipeline.NotifyComplete()
 		err = pipeline.Run(app.ctx)
 		if err != nil {
 			return err

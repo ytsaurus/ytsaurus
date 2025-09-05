@@ -1,6 +1,7 @@
 UNITTEST_WITH_CUSTOM_ENTRY_POINT()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
+INCLUDE(misc_sources.make.inc)
 
 EXPLICIT_DATA()
 
@@ -8,35 +9,7 @@ IF (OPENSOURCE)
     TAG(ya:not_autocheck)
 ENDIF()
 
-SRCS(
-    alter_table.cpp
-    batch_request.cpp
-    canonize_path.cpp
-    custom_client_config.cpp
-    cypress_client.cpp
-    error.cpp
-    file_io.cpp
-    format_attribute.cpp
-    lock.cpp
-    protobuf_format_derivation.cpp
-    protobuf_table_io.cpp
-    raw_io.cpp
-    redirect_stdout_to_stderr_spec_flag.cpp
-    retry_config_provider.cpp
-    schema.cpp
-    security_client.cpp
-    shutdown.cpp
-    skiff_row_table_io.cpp
-    table_io.cpp
-    tablet_client.cpp
-    temp_table.cpp
-    transactions.cpp
-    whoami.cpp
-)
-
-IF (NOT OPENSOURCE AND NOT USE_VANILLA_PROTOC)
-    SRCS(tvm_auth.cpp)
-ENDIF()
+SRCS(${MISC_SRCS})
 
 PEERDIR(
     yt/cpp/mapreduce/client

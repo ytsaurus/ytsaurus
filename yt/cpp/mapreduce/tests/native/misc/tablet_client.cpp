@@ -112,6 +112,8 @@ TEST(TabletClient, TestFreezeUnfreeze)
 
 TEST(TabletClient, TestReshard)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -146,6 +148,8 @@ TEST(TabletClient, TestReshard)
 
 TEST(TabletClient, TestInsertLookupDelete)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -183,6 +187,8 @@ TEST(TabletClient, TestInsertLookupDelete)
 
 TEST(TabletClient, TestTrimRows)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -220,6 +226,8 @@ TEST(TabletClient, TestTrimRows)
 
 TEST(TabletClient, TestAtomicityNoneInsert)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -262,6 +270,8 @@ TEST(TabletClient, TestAtomicityNoneInsert)
 
 TEST(TabletClient, TestTimeoutType)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -296,6 +306,8 @@ TEST(TabletClient, TestTimeoutType)
 
 TEST(TabletClient, TestUpdateInsert)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -329,6 +341,8 @@ TEST(TabletClient, TestUpdateInsert)
 
 TEST(TabletClient, TestAggregateInsert)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -362,6 +376,8 @@ TEST(TabletClient, TestAggregateInsert)
 
 TEST(TabletClient, TestVersionedLookup)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
     auto workingDir = fixture.GetWorkingDir();
@@ -433,6 +449,8 @@ TEST(TabletClient, TestGetTabletInfos)
 
 TEST(TabletClient, TestInsertRowsEarlyError)
 {
+    SKIP_IF_RPC();
+
     TTabletFixture fixture;
     auto client = fixture.GetClient();
 

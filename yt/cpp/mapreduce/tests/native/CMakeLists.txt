@@ -15,5 +15,6 @@
 add_subdirectory(proto_lib)
 add_subdirectory(misc)
 add_subdirectory(misc_core_http)
+add_subdirectory(misc_rpc)
 add_subdirectory(operations)
 add_subdirectory(operations_core_http)

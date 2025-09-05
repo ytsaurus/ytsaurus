@@ -1179,8 +1179,6 @@ print("x={0}\ty={1}".format(x, y))
     @pytest.mark.parametrize("ordered", [True, False])
     def test_map_reduce_job_size_adjuster_boost(self, ordered):
         skip_if_old(self.Env, (25, 2), "No multiple_jobs in 25.1")
-        if ordered:
-            skip_if_old(self.Env, (25, 3), "No ordered adjuster in 25.2")
 
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data

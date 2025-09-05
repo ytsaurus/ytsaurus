@@ -5,7 +5,7 @@ from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_u
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
-                         get_operation)
+                         get_operation, issue_token)
 
 from yt_helpers import profiler_factory
 
@@ -1017,6 +1017,30 @@ class TestQueriesYqlAuth(TestQueriesYqlSimpleBase):
     @pytest.mark.timeout(180)
     def test_yql_agent_impersonation_allow(self, query_tracker, yql_agent):
         self._test_simple_query("select a + 1 as b from primary.`//tmp/t`;", [{"b": 43}], authenticated_user="allowed_user")
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_pragma_auth(self, query_tracker, yql_agent):
+        def run_query(username):
+            token, token_hash = issue_token(username)
+
+            vault_token_path = f"//tmp/vault/{username}_token"
+            create(
+                "document", vault_token_path,
+                attributes={"value": token},
+                recursive=True,
+            )
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user")
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user")
 
 
 class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlSimpleBase):

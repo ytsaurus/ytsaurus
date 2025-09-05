@@ -51,6 +51,7 @@
 #include <util/generic/guid.h>
 #include <util/generic/ptr.h>
 #include <util/generic/queue.h>
+#include <util/generic/set.h>
 #include <util/generic/vector.h>
 
 namespace NKikimr {
@@ -171,7 +172,7 @@ private:
 struct TPartitionConfigMerger {
     static constexpr ui32 MaxFollowersCount = 3;
 
-    static NKikimrSchemeOp::TPartitionConfig DefaultConfig(const TAppData* appData);
+    static NKikimrSchemeOp::TPartitionConfig DefaultConfig(const TAppData* appData, const std::optional<TString>& defaultPoolKind);
     static bool ApplyChanges(
         NKikimrSchemeOp::TPartitionConfig& result,
         const NKikimrSchemeOp::TPartitionConfig& src, const NKikimrSchemeOp::TPartitionConfig& changes,
@@ -998,8 +999,8 @@ struct TTopicTabletInfo : TSimpleRefCount<TTopicTabletInfo> {
         // Split and merge operations form the partitions graph. Each partition created in this way has a parent
         // partition. In turn, the parent partition knows about the partitions formed after the split and merge
         // operations.
-        THashSet<ui32> ParentPartitionIds;
-        THashSet<ui32> ChildPartitionIds;
+        TSet<ui32> ParentPartitionIds;
+        TSet<ui32> ChildPartitionIds;
 
         TShardIdx ShardIdx;
 
@@ -3152,6 +3153,7 @@ struct TIndexBuildInfo: public TSimpleRefCount<TIndexBuildInfo> {
         };
         ui32 Level = 1;
         ui32 Round = 0;
+        bool IsEmpty = false;
 
         EState State = Sample;
 
@@ -3180,7 +3182,7 @@ struct TIndexBuildInfo: public TSimpleRefCount<TIndexBuildInfo> {
         void Set(ui32 level,
             NTableIndex::TClusterId parentBegin, NTableIndex::TClusterId parent,
             NTableIndex::TClusterId childBegin, NTableIndex::TClusterId child,
-            ui32 state, ui64 tableSize, ui32 round);
+            ui32 state, ui64 tableSize, ui32 round, bool isEmpty);
 
         NKikimrTxDataShard::EKMeansState GetUpload() const;
 

@@ -239,6 +239,9 @@ void TDynamicResponseKeeperConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("eviction_period", &TThis::EvictionPeriod)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("max_responses_space", &TThis::MaxResponsesSpace)
+        .Default(5_GB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

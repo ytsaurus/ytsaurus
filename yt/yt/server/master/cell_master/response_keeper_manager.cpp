@@ -69,7 +69,10 @@ private:
     void HydraEvictKeptResponses(TReqEvictKeptResponses* /*request*/)
     {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->ResponseKeeper;
-        ResponseKeeper_->Evict(config->ExpirationTimeout, config->MaxResponseCountPerEvictionPass);
+        ResponseKeeper_->Evict(
+            config->ExpirationTimeout,
+            config->MaxResponseCountPerEvictionPass,
+            config->MaxResponsesSpace);
     }
 
     void OnLeaderActive() override

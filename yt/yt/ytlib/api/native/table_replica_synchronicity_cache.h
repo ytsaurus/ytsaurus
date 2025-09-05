@@ -15,6 +15,7 @@ struct TReplicaSynchronicity
     NTabletClient::TTableReplicaInfoPtr ReplicaInfo;
     NTableClient::TTimestamp MinReplicationTimestamp = NTransactionClient::NullTimestamp;
     bool IsInSync = false;
+    bool IsDummy = false;
 };
 
 struct TTimestampedReplicaSynchronicities
@@ -30,7 +31,8 @@ void FormatValue(TStringBuilderBase* builder, const TReplicaSynchronicity& repli
 TFuture<TReplicaSynchronicityList> FetchReplicaSynchronicities(
     const IConnectionPtr& connection,
     const NTabletClient::TTableMountInfoPtr& tableMountInfo,
-    const TTabletReadOptions& options);
+    const TTabletReadOptions& options,
+    bool allowDummy = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +43,8 @@ struct ITableReplicaSynchronicityCache
         const IConnectionPtr& connection,
         const NTabletClient::TTableMountInfoPtr& table,
         TInstant deadline,
-        const TTabletReadOptions& options) = 0;
+        const TTabletReadOptions& options,
+        bool allowDummy = false) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITableReplicaSynchronicityCache)
