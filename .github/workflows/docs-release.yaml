@@ -111,44 +111,33 @@ jobs:
           fi
         shell: bash
 
-    #  - name: Build
-     #   uses: diplodoc-platform/docs-build-action@v3.1.14
-    #    with:
-    #      revision: "${{ github.sha }}"
-    #      src-root: "./yt/docs"
-    #      api-key: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
-    #      app-id: WW7EWG7Y6T
-    #      index-name: "test_ytsaurus-doc"
-
-
-  algolia-index:
+  upload:
     needs: build
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Upload
+        uses: diplodoc-platform/docs-upload-action@v1
         with:
-          node-version: 22
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          project-link: ${{ vars.DIPLODOC_PROJECT_LINK }}
+          storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
+          storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
+          storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
+          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
+          src-root: ${{ env.src-root }}
 
-      - run: |
-          npm install -g @diplodoc/cli
-          npm install -g @diplodoc/algolia-extension
-        shell: bash
-
-      - name: Download built docs artifact
-        uses: actions/download-artifact@v4
+  release:
+    needs: upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        uses: diplodoc-platform/docs-release-action@v2
         with:
-          #name: built-docs  # Должно совпадать с именем в upload
-          name: build-output-html
-          path: ./_docs-build # Куда загружаем
-
-    #  - name: Upload index to Algolia
-    #    run: |
-    #     yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
-
-
-
-
+          revision: "${{ github.sha }}"
+          storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
+          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
+          src-root: ${{ env.src-root }}
+          server: "https://viewer.ydocs.io"
