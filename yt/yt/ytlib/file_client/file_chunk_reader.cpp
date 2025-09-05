@@ -94,7 +94,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         i64 startOffset,
         i64 endOffset,
-        const NChunkClient::TDataSource& dataSource,
+        const NChunkClient::TDataSourcePtr& dataSource,
         TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder)
         : Config_(std::move(config))
         , ChunkReader_(std::move(chunkReader))
@@ -356,7 +356,7 @@ IFileReaderPtr CreateFileChunkReader(
     const TClientChunkReadOptions& chunkReadOptions,
     i64 startOffset,
     i64 endOffset,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder)
 {
     return New<TFileChunkReader>(
@@ -458,7 +458,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     TChunkReaderHostPtr chunkReaderHost,
     const TClientChunkReadOptions& chunkReadOptions,
     const std::vector<TChunkSpec>& chunkSpecs,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {

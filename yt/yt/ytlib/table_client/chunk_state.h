@@ -24,7 +24,7 @@ struct TChunkState final
     TKeyComparer KeyComparer;
     TVirtualValueDirectoryPtr VirtualValueDirectory;
     TTableSchemaPtr TableSchema;
-    std::optional<NChunkClient::TDataSource> DataSource;
+    std::optional<NChunkClient::TDataSourcePtr> DataSource;
     TChunkColumnMappingPtr ChunkColumnMapping;
     IRlsCheckerPtr RlsChecker;
 };

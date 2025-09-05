@@ -49,64 +49,64 @@ TComparator TDataSource::GetComparator() const
     return Schema_->ToComparator();
 }
 
-void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource, TSchemaDictionary* schemaDictionary, TColumnFilterDictionary* columnFilterDictionary)
+void ToProto(NProto::TDataSource* protoDataSource, const TDataSourcePtr& dataSource, TSchemaDictionary* schemaDictionary, TColumnFilterDictionary* columnFilterDictionary)
 {
     using NYT::ToProto;
 
-    protoDataSource->set_type(ToProto(dataSource.GetType()));
+    protoDataSource->set_type(ToProto(dataSource->GetType()));
 
-    if (dataSource.Schema()) {
+    if (dataSource->Schema()) {
         if (schemaDictionary) {
-            int id = schemaDictionary->GetIdOrRegisterTable(*dataSource.Schema());
+            int id = schemaDictionary->GetIdOrRegisterTable(*dataSource->Schema());
             protoDataSource->set_table_schema_id(id);
         } else {
-            ToProto(protoDataSource->mutable_table_schema(), *dataSource.Schema());
+            ToProto(protoDataSource->mutable_table_schema(), *dataSource->Schema());
         }
     }
 
-    if (dataSource.Columns()) {
+    if (dataSource->Columns()) {
         if (columnFilterDictionary) {
-            int id = columnFilterDictionary->GetIdOrRegisterAdmittedColumns(*dataSource.Columns());
+            int id = columnFilterDictionary->GetIdOrRegisterAdmittedColumns(*dataSource->Columns());
             protoDataSource->set_column_filter_id(id);
         } else {
-            ToProto(protoDataSource->mutable_column_filter()->mutable_admitted_names(), *dataSource.Columns());
+            ToProto(protoDataSource->mutable_column_filter()->mutable_admitted_names(), *dataSource->Columns());
         }
     }
 
-    ToProto(protoDataSource->mutable_omitted_inaccessible_columns(), dataSource.OmittedInaccessibleColumns());
+    ToProto(protoDataSource->mutable_omitted_inaccessible_columns(), dataSource->OmittedInaccessibleColumns());
 
-    if (dataSource.GetPath()) {
-        protoDataSource->set_path(*dataSource.GetPath());
+    if (dataSource->GetPath()) {
+        protoDataSource->set_path(*dataSource->GetPath());
     }
 
-    if (dataSource.GetTimestamp() != NullTimestamp) {
-        protoDataSource->set_timestamp(dataSource.GetTimestamp());
+    if (dataSource->GetTimestamp() != NullTimestamp) {
+        protoDataSource->set_timestamp(dataSource->GetTimestamp());
     }
 
-    if (dataSource.GetRetentionTimestamp() != NullTimestamp) {
-        protoDataSource->set_retention_timestamp(dataSource.GetRetentionTimestamp());
+    if (dataSource->GetRetentionTimestamp() != NullTimestamp) {
+        protoDataSource->set_retention_timestamp(dataSource->GetRetentionTimestamp());
     }
 
-    protoDataSource->set_foreign(dataSource.GetForeign());
+    protoDataSource->set_foreign(dataSource->GetForeign());
 
-    ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource.ColumnRenameDescriptors());
+    ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource->ColumnRenameDescriptors());
 
-    protoDataSource->set_virtual_key_prefix_length(dataSource.GetVirtualKeyPrefixLength());
-    if (dataSource.GetVirtualValueDirectory()) {
-        ToProto(protoDataSource->mutable_virtual_value_directory(), dataSource.GetVirtualValueDirectory());
+    protoDataSource->set_virtual_key_prefix_length(dataSource->GetVirtualKeyPrefixLength());
+    if (dataSource->GetVirtualValueDirectory()) {
+        ToProto(protoDataSource->mutable_virtual_value_directory(), dataSource->GetVirtualValueDirectory());
     }
 
-    if (dataSource.GetObjectId()) {
-        ToProto(protoDataSource->mutable_object_id(), dataSource.GetObjectId());
+    if (dataSource->GetObjectId()) {
+        ToProto(protoDataSource->mutable_object_id(), dataSource->GetObjectId());
     }
 
-    if (dataSource.GetAccount()) {
-        protoDataSource->set_account(*dataSource.GetAccount());
+    if (dataSource->GetAccount()) {
+        protoDataSource->set_account(*dataSource->GetAccount());
     }
 
-    YT_OPTIONAL_TO_PROTO(protoDataSource, cluster_name, dataSource.GetClusterName().Underlying());
+    YT_OPTIONAL_TO_PROTO(protoDataSource, cluster_name, dataSource->GetClusterName().Underlying());
 
-    YT_OPTIONAL_TO_PROTO(protoDataSource, rls_read_spec, dataSource.GetRlsReadSpec());
+    YT_OPTIONAL_TO_PROTO(protoDataSource, rls_read_spec, dataSource->GetRlsReadSpec());
 }
 
 void FromProto(
@@ -179,7 +179,17 @@ void FromProto(
     dataSource->SetRlsReadSpec(YT_OPTIONAL_FROM_PROTO(protoDataSource, rls_read_spec, TRlsReadSpec));
 }
 
-TDataSource MakeVersionedDataSource(
+void FromProto(
+    TDataSourcePtr* dataSource,
+    const NProto::TDataSource& protoDataSource,
+    const TSchemaDictionary* schemaDictionary,
+    const TColumnFilterDictionary* columnFilterDictionary)
+{
+    *dataSource = New<TDataSource>();
+    FromProto(dataSource->Get(), protoDataSource, schemaDictionary, columnFilterDictionary);
+}
+
+TDataSourcePtr MakeVersionedDataSource(
     const std::optional<TYPath>& path,
     TTableSchemaPtr schema,
     const std::optional<std::vector<std::string>>& columns,
@@ -188,7 +198,7 @@ TDataSource MakeVersionedDataSource(
     NTransactionClient::TTimestamp retentionTimestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
-    return TDataSource(
+    return New<TDataSource>(
         EDataSourceType::VersionedTable,
         path,
         schema,
@@ -200,14 +210,14 @@ TDataSource MakeVersionedDataSource(
         columnRenameDescriptors);
 }
 
-TDataSource MakeUnversionedDataSource(
+TDataSourcePtr MakeUnversionedDataSource(
     const std::optional<TYPath>& path,
     TTableSchemaPtr schema,
     const std::optional<std::vector<std::string>>& columns,
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
-    return TDataSource(
+    return New<TDataSource>(
         EDataSourceType::UnversionedTable,
         path,
         schema,
@@ -220,18 +230,18 @@ TDataSource MakeUnversionedDataSource(
 }
 
 
-TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
+TDataSourcePtr MakeFileDataSource(const std::optional<TYPath>& path)
 {
-    return TDataSource(
+    return New<TDataSource>(
         EDataSourceType::File,
         path,
         /*schema*/ nullptr,
         /*virtualPrefixLength*/ 0,
         /*columns*/ std::nullopt,
-        /*omittedInaccessibleColumns*/ {},
+        /*omittedInaccessibleColumns*/ std::vector<std::string>{},
         /*timestamp*/ NullTimestamp,
         /*retentionTimestamp*/ NullTimestamp,
-        /*columnRenameDescriptors*/ {});
+        /*columnRenameDescriptors*/ TColumnRenameDescriptors{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,7 +253,7 @@ EDataSourceType TDataSourceDirectory::GetCommonTypeOrThrow() const
     }
     THashSet<EDataSourceType> dataSourceTypes;
     for (const auto& dataSource : DataSources_) {
-        dataSourceTypes.emplace(dataSource.GetType());
+        dataSourceTypes.emplace(dataSource->GetType());
     }
     if (dataSourceTypes.size() > 1) {
         THROW_ERROR_EXCEPTION("Mixing data sources of different kind is not allowed: %v", dataSourceTypes);
@@ -281,7 +291,7 @@ void FromProto(
     FromProto(&columnFilterDictionary, protoDataSourceDirectory.column_filter_dictionary());
 
     for (const auto& protoDataSource : protoDataSourceDirectory.data_sources()) {
-        TDataSource dataSource;
+        TDataSourcePtr dataSource;
         FromProto(&dataSource, protoDataSource, &schemaDictionary, &columnFilterDictionary);
         dataSources.emplace_back(std::move(dataSource));
     }

@@ -146,7 +146,7 @@ TTableReadSpec FetchRegularTableReadSpec(
         }
     }
 
-    TDataSource dataSource;
+    TDataSourcePtr dataSource;
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
     if (dynamic && schema->IsSorted()) {
         dataSource = MakeVersionedDataSource(
@@ -157,8 +157,8 @@ TTableReadSpec FetchRegularTableReadSpec(
             options.RichPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
             options.RichPath.GetRetentionTimestamp().value_or(NullTimestamp),
             /*columnRenameDescriptors*/ {});
-        dataSource.SetObjectId(userObject->ObjectId);
-        dataSource.SetAccount(account);
+        dataSource->SetObjectId(userObject->ObjectId);
+        dataSource->SetAccount(account);
         dataSliceDescriptors.emplace_back(std::move(chunkSpecs));
     } else {
         dataSource = MakeUnversionedDataSource(
@@ -167,14 +167,14 @@ TTableReadSpec FetchRegularTableReadSpec(
             options.RichPath.GetColumns(),
             userObject->OmittedInaccessibleColumns,
             /*columnRenameDescriptors*/ {});
-        dataSource.SetObjectId(userObject->ObjectId);
-        dataSource.SetAccount(account);
+        dataSource->SetObjectId(userObject->ObjectId);
+        dataSource->SetAccount(account);
         for (auto& chunkSpec : chunkSpecs) {
             dataSliceDescriptors.emplace_back(std::move(chunkSpec));
         }
     }
     if (userObject->RlAcl) {
-        dataSource.SetRlsReadSpec(
+        dataSource->SetRlsReadSpec(
             TRlsReadSpec::BuildFromRlAcl(
                 schema,
                 *userObject->RlAcl,

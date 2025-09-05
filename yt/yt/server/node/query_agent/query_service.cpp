@@ -421,7 +421,7 @@ private:
             queryOptions.MemoryLimitPerNode,
             MemoryTracker_);
 
-        auto dataSources = FromProto<std::vector<TDataSource>>(request->data_sources(), memoryChunkProvider);
+        auto dataSources = FromProto<std::vector<NQueryClient::TDataSource>>(request->data_sources(), memoryChunkProvider);
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "

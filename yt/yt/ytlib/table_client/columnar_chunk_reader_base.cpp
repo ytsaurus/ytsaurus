@@ -32,7 +32,7 @@ using NYT::FromProto;
 
 TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     TColumnarChunkMetaPtr chunkMeta,
-    const std::optional<NChunkClient::TDataSource>& dataSource,
+    const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TRange<ESortOrder> sortOrders,

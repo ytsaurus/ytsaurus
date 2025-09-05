@@ -43,7 +43,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         int partitionTag,
-        const NChunkClient::TDataSource& dataSource,
+        const NChunkClient::TDataSourcePtr& dataSource,
         NChunkClient::TChunkReaderMemoryManagerHolderPtr chunkReaderMemoryManagerHolder = nullptr);
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
