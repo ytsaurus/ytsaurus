@@ -2530,13 +2530,71 @@ class TestQuery(DynamicTablesBase):
             [{"small": "Boulevard", "big": "Warrior"}, {"small": "Alpha", "big": "Traitor"}],
             select_rows("min(X.[T.v]) AS small, max(X.[D.s]) as big FROM "
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
-        with raises_yt_error("Joins are currently not supported when selecting from subquery"):
-            query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
-            select_rows(query, allow_join_without_index=True)
 
         assert select_rows("cardinality_merge(Subquery.x) AS c FROM "
                            "(SELECT cardinality_state(k_2) AS x FROM `//tmp/t` GROUP BY k_1) AS Subquery "
                            "GROUP BY 1")[0]["c"] == 4
+
+    @authors("sabdenovch")
+    def test_join_after_subquery(self):
+        sync_create_cells(1)
+
+        create_dynamic_table("//tmp/t", schema=[
+            make_sorted_column("key", "int64"),
+            make_column("v", "string"),
+        ])
+        create_dynamic_table("//tmp/fulltext_index", schema=[
+            make_sorted_column("tri", "string"),
+            make_sorted_column("key", "int64"),
+            make_column("$empty", optional_type("int64")),
+        ])
+
+        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/fulltext_index")
+        rowset = [
+            {"key": 1, "v": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "},
+            {"key": 2, "v": "Cras sed est et nisi tempor iaculis vel et ante. "},
+            {"key": 3, "v": "Maecenas aliquet arcu sit amet venenatis ultrices. "},
+            {"key": 4, "v": "Cras dolor lectus, rutrum sit amet ullamcorper eu, mollis non libero. "},
+            {"key": 5, "v": "Aenean velit diam, pulvinar sit amet lacus a, tincidunt faucibus odio. "},
+            {"key": 6, "v": "Vestibulum feugiat, nibh ut placerat fringilla, risus felis maximus arcu, at posuere metus dolor in est. "},
+            {"key": 7, "v": "Curabitur rutrum odio non cursus suscipit. "},
+        ]
+        insert_rows("//tmp/t", rowset)
+
+        def make_trigrams(text):
+            if len(text) < 3:
+                return []
+
+            trigrams = []
+            for i in range(len(text) - 2):
+                trigram = text[i : i + 3]
+                trigrams.append(trigram)
+
+            return list(builtins.set(trigrams))
+
+        for row in rowset:
+            trigrams = make_trigrams(row["v"])
+            insert_rows("//tmp/fulltext_index", [{"key": row["key"], "tri": t} for t in trigrams])
+
+        searched_word = "placer##t fringilla risus"
+        search_trigrams = ", ".join("\"" + t + "\"" for t in make_trigrams(searched_word))
+
+        result = select_rows(f"""
+            key, v
+            from (
+                select key, sum(1) as score
+                from [//tmp/fulltext_index]
+                where tri in ({search_trigrams})
+                group by key
+            )
+            join [//tmp/t] using key
+            order by score desc
+            limit 1
+        """)
+
+        assert result[0]["key"] == 6
+        assert result[0]["v"] == "Vestibulum feugiat, nibh ut placerat fringilla, risus felis maximus arcu, at posuere metus dolor in est. "
 
     @authors("sabdenovch")
     def test_push_down_group_by_primary_key(self):
