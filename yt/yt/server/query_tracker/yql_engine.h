@@ -12,8 +12,4 @@ IQueryEnginePtr CreateYqlEngine(const NApi::IClientPtr& stateClient, const NYPat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEngineInfoProviderPtr CreateYqlEngineInfoProvider(const NApi::IClientPtr& stateClient, const NYPath::TYPath& stateRoot);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NQueryTracker

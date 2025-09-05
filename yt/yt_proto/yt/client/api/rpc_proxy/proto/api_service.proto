@@ -3514,7 +3514,6 @@ message TReqGetQueryTrackerInfo
 {
     required string query_tracker_stage = 1;
     optional NYT.NYTree.NProto.TAttributeFilter attributes = 2;
-    optional bytes settings = 3; // YSON
 }
 
 message TRspGetQueryTrackerInfo
@@ -3524,7 +3523,6 @@ message TRspGetQueryTrackerInfo
     repeated string access_control_objects = 3;
     optional string query_tracker_stage = 4;
     repeated string clusters = 5;
-    optional bytes engines_info = 6; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////

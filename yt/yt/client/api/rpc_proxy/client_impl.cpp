@@ -2580,18 +2580,14 @@ TFuture<TGetQueryTrackerInfoResult> TClient::GetQueryTrackerInfo(
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), options.Attributes);
     }
-    if (options.Settings) {
-        ToProto(req->mutable_settings(), ConvertToYsonString(options.Settings).ToString());
-    }
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetQueryTrackerInfoPtr& rsp) {
         return TGetQueryTrackerInfoResult{
             .QueryTrackerStage = FromProto<TString>(rsp->query_tracker_stage()),
             .ClusterName = FromProto<TString>(rsp->cluster_name()),
             .SupportedFeatures = TYsonString(rsp->supported_features()),
-            .AccessControlObjects = FromProto<std::vector<std::string>>(rsp->access_control_objects()),
-            .Clusters = FromProto<std::vector<std::string>>(rsp->clusters()),
-            .EnginesInfo = TYsonString(rsp->engines_info()),
+            .AccessControlObjects = FromProto<std::vector<TString>>(rsp->access_control_objects()),
+            .Clusters = FromProto<std::vector<TString>>(rsp->clusters())
         };
     }));
 }

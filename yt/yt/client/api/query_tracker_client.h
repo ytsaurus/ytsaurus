@@ -166,7 +166,6 @@ struct TGetQueryTrackerInfoOptions
     , public TQueryTrackerOptions
 {
     NYTree::TAttributeFilter Attributes;
-    NYTree::INodePtr Settings;
 };
 
 struct TGetQueryTrackerInfoResult
@@ -174,9 +173,8 @@ struct TGetQueryTrackerInfoResult
     TString QueryTrackerStage;
     TString ClusterName;
     NYson::TYsonString SupportedFeatures;
-    std::vector<std::string> AccessControlObjects;
-    std::vector<std::string> Clusters;
-    NYson::TYsonString EnginesInfo;
+    std::vector<TString> AccessControlObjects;
+    std::vector<TString> Clusters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

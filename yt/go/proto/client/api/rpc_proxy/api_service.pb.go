@@ -23399,7 +23399,6 @@ type TReqGetQueryTrackerInfo struct {
 
 	QueryTrackerStage *string                 `protobuf:"bytes,1,req,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
 	Attributes        *ytree.TAttributeFilter `protobuf:"bytes,2,opt,name=attributes" json:"attributes,omitempty"`
-	Settings          []byte                  `protobuf:"bytes,3,opt,name=settings" json:"settings,omitempty"` // YSON
 }
 
 func (x *TReqGetQueryTrackerInfo) Reset() {
@@ -23448,13 +23447,6 @@ func (x *TReqGetQueryTrackerInfo) GetAttributes() *ytree.TAttributeFilter {
 	return nil
 }
 
-func (x *TReqGetQueryTrackerInfo) GetSettings() []byte {
-	if x != nil {
-		return x.Settings
-	}
-	return nil
-}
-
 type TRspGetQueryTrackerInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -23465,7 +23457,6 @@ type TRspGetQueryTrackerInfo struct {
 	AccessControlObjects []string `protobuf:"bytes,3,rep,name=access_control_objects,json=accessControlObjects" json:"access_control_objects,omitempty"`
 	QueryTrackerStage    *string  `protobuf:"bytes,4,opt,name=query_tracker_stage,json=queryTrackerStage" json:"query_tracker_stage,omitempty"`
 	Clusters             []string `protobuf:"bytes,5,rep,name=clusters" json:"clusters,omitempty"`
-	EnginesInfo          []byte   `protobuf:"bytes,6,opt,name=engines_info,json=enginesInfo" json:"engines_info,omitempty"` // YSON
 }
 
 func (x *TRspGetQueryTrackerInfo) Reset() {
@@ -23531,13 +23522,6 @@ func (x *TRspGetQueryTrackerInfo) GetQueryTrackerStage() string {
 func (x *TRspGetQueryTrackerInfo) GetClusters() []string {
 	if x != nil {
 		return x.Clusters
-	}
-	return nil
-}
-
-func (x *TRspGetQueryTrackerInfo) GetEnginesInfo() []byte {
-	if x != nil {
-		return x.EnginesInfo
 	}
 	return nil
 }

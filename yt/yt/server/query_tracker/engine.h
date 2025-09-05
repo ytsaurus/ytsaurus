@@ -48,14 +48,4 @@ DEFINE_REFCOUNTED_TYPE(IQueryEngine)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IQueryEngineInfoProvider
-    : public TRefCounted
-{
-    virtual NYson::TYsonString GetEngineInfo(NYTree::IMapNodePtr settingsMap) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IQueryEngineInfoProvider)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NQueryTracker
