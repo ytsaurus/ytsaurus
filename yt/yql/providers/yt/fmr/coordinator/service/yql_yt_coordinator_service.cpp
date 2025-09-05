@@ -2,6 +2,8 @@
 #include <library/cpp/yson/node/node_io.h>
 #include <util/stream/file.h>
 #include <util/system/interrupt_signals.h>
+#include <yt/yql/providers/yt/fmr/coordinator/yt_coordinator_service/file/yql_yt_file_coordinator_service.h>
+#include <yt/yql/providers/yt/fmr/coordinator/yt_coordinator_service/impl/yql_yt_coordinator_service_impl.h>
 #include <yt/yql/providers/yt/fmr/coordinator/server/yql_yt_coordinator_server.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
 #include <yt/yql/providers/yt/fmr/gc_service/impl/yql_yt_gc_service_impl.h>
@@ -25,6 +27,7 @@ public:
     int Verbosity;
     TString FmrOperationSpecFilePath;
     TString TableDataServiceDiscoveryFilePath;
+    TString UnderlyingGatewayType;
 
     void InitLogger() {
         NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
@@ -52,6 +55,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.AddLongOption('s', "fmr-operation-spec-path", "Path to file with fmr operation spec settings").Optional().StoreResult(&options.FmrOperationSpecFilePath);
         opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
+        opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
         opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
@@ -60,6 +64,12 @@ int main(int argc, const char *argv[]) {
 
         TFmrCoordinatorSettings coordinatorSettings{};
         coordinatorSettings.WorkersNum = options.WorkersNum;
+
+        TString underlyingGatewayType = options.UnderlyingGatewayType;
+        if (underlyingGatewayType != "native" && underlyingGatewayType != "file") {
+            throw yexception() << " Incorrect gateway type " << underlyingGatewayType << " passed in parameters";
+        }
+        bool isNative = underlyingGatewayType == "native";
 
         if (options.FmrOperationSpecFilePath) {
             TFileInput input(options.FmrOperationSpecFilePath);
@@ -74,7 +84,8 @@ int main(int argc, const char *argv[]) {
         }
 
         auto gcService = MakeGcService(tableDataService);
-        auto coordinator = MakeFmrCoordinator(coordinatorSettings, MakeYtCoordinatorService(), gcService);
+        IYtCoordinatorService::TPtr ytCoordinatorService = isNative ? MakeYtCoordinatorService() : MakeFileYtCoordinatorService();
+        auto coordinator = MakeFmrCoordinator(coordinatorSettings, ytCoordinatorService, gcService);
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();
 

@@ -1,0 +1,7 @@
+IF (NOT OPENSOURCE)
+
+RECURSE(
+    part0
+)
+
+ENDIF()
