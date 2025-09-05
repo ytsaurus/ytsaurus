@@ -23,8 +23,6 @@ import time
 @pytest.fixture(params=[False, True])
 def yt_cli(request: pytest.FixtureRequest, yt_env_for_yamr: YtTestEnvironment):
     env = get_environment_for_binary_test(yt_env_for_yamr)
-    env["FALSE"] = "false"
-    env["TRUE"] = "true"
     env["YT_PREFIX"] = "//home/wrapper_tests/"
 
     if request.param:

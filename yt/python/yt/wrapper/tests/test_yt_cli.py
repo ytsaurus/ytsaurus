@@ -29,8 +29,6 @@ import uuid
 def yt_cli(request: pytest.FixtureRequest, yt_env_job_archive: YtTestEnvironment):
     yt.create("map_node", "//home/wrapper_test", ignore_existing=True, recursive=True)
     env = get_environment_for_binary_test(yt_env_job_archive)
-    env["FALSE"] = "%false"
-    env["TRUE"] = "%true"
 
     sandbox_root: str = get_tests_sandbox()  # type: ignore
 
