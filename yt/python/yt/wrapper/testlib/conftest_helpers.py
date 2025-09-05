@@ -597,13 +597,10 @@ def yt_env_with_increased_memory(request, test_environment_with_increased_memory
     return test_environment_with_increased_memory
 
 
-@pytest.fixture(scope="class")
-def yt_query_tracker(test_environment):
+def _yt_query_tracker(test_env):
     """ YT cluster fixture for tests that require query tracker
     """
-    if test_environment.config["api_version"] == "v3":
-        pytest.skip("Query tracker is not supported in v3")
-    env = test_environment.env
+    env = test_env.env
     cell_id = yt.create("tablet_cell")
     wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
     query_tracker = QueryTracker()
@@ -616,6 +613,18 @@ def yt_query_tracker(test_environment):
     query_tracker.wait()
 
     return query_tracker
+
+
+@pytest.fixture(scope="class")
+def yt_query_tracker(test_environment):
+    if test_environment.config["api_version"] == "v3":
+        pytest.skip("Query tracker is not supported in v3")
+    return _yt_query_tracker(test_environment)
+
+
+@pytest.fixture(scope="class")
+def yt_query_tracker_v4(test_environment_v4):
+    return _yt_query_tracker(test_environment_v4)
 
 
 @pytest.fixture(scope="function")
