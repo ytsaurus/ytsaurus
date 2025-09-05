@@ -144,6 +144,7 @@ DEFINE_ENUM(EGpuSchedulingLogEventType,
 );
 
 DEFINE_ENUM(EUnutilizedResourceReason,
+    (Utilized)
     (Unknown)
     (Timeout)
     (Throttling)

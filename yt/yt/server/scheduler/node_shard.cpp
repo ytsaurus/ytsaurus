@@ -561,7 +561,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         response->set_operations_archive_version(ManagerHost_->GetOperationsArchiveVersion());
 
-        UpdateUnutilizedResourcesOnHeartbeatStart(node);
+        UpdateUnutilizedResourcesOnHeartbeatStart(node, strategyProxy);
 
         BeginNodeHeartbeatProcessing(node);
     }
@@ -655,6 +655,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     UpdateUnutilizedResourcesOnHeartbeatEnd(
         schedulingContext,
         node,
+        strategyProxy,
         minSpareResources,
         isThrottlingActive,
         hasWaitingAllocations && skipScheduleAllocations
@@ -2378,7 +2379,10 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
     }
 }
 
-void TNodeShard::UpdateUnutilizedResourceCounters(const TExecNodePtr& node)
+void TNodeShard::UpdateUnutilizedResourceCounters(
+    const TExecNodePtr& node,
+    std::optional<std::string> poolTree,
+    bool withinHeartbeat)
 {
     auto now = TInstant::Now();
     auto secondsSinceLastUpdate = (now - node->LastUnutilisedCountersUpdateTime()).SecondsFloat();
@@ -2387,7 +2391,12 @@ void TNodeShard::UpdateUnutilizedResourceCounters(const TExecNodePtr& node)
     for (auto reason : TEnumTraits<EUnutilizedResourceReason>::GetDomainValues()) {
         if (unutilizedResources[reason]) {
             auto unutilizedVolume = unutilizedResources[reason].value() * secondsSinceLastUpdate;
-            UnutilizedResourcesCounterByReason_[reason].Update(unutilizedVolume);
+            UnutilizedResourcesCounterByReason_[reason].Update(
+                unutilizedVolume,
+                {
+                    {ProfilingPoolTreeKey, poolTree.value_or(ProfilingUndefinedPoolTreeValue)},
+                    {ProfilingWithinHeartbeatKey, ToString(withinHeartbeat)},
+                });
         }
     }
 
@@ -2395,26 +2404,35 @@ void TNodeShard::UpdateUnutilizedResourceCounters(const TExecNodePtr& node)
 }
 
 void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatStart(
-    const TExecNodePtr& node)
+    const TExecNodePtr& node,
+    const INodeHeartbeatStrategyProxyPtr& strategyProxy)
 {
-    UpdateUnutilizedResourceCounters(node);
+    UpdateUnutilizedResourceCounters(
+        node,
+        strategyProxy->GetMaybeTreeId(),
+        /*withinHeartbeat*/ false);
 
     auto freeResources = node->ResourceLimits() - node->ResourceUsage();
     auto freedSinceLastHeartbeat = Max(freeResources - node->LastHeartbeatUnutilizedResources(), TJobResources());
     if (freedSinceLastHeartbeat != TJobResources()) {
         node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::FinishedJobs] = freedSinceLastHeartbeat;
     }
+    node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::Utilized] = node->ResourceUsage();
 }
 
 void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
     const ISchedulingContextPtr& schedulingContext,
     const TExecNodePtr& node,
+    const INodeHeartbeatStrategyProxyPtr& strategyProxy,
     const TJobResources& minSpareResources,
     bool isThrottlingActive,
     bool hasWaitingAllocations)
 {
     // Update counters.
-    UpdateUnutilizedResourceCounters(node);
+    UpdateUnutilizedResourceCounters(
+        node,
+        strategyProxy->GetMaybeTreeId(),
+        /*withinHeartbeat*/ true);
 
     // Reset all resource reasons.
     node->UnutilizedResourcesByReason() = {};
@@ -2440,6 +2458,8 @@ void TNodeShard::UpdateUnutilizedResourcesOnHeartbeatEnd(
         node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::AcceptableFragmentation] = acceptableFragmentation;
         node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::ExcessiveFragmentation] = excessiveFragmentation;
     }
+
+    node->UnutilizedResourcesByReason()[EUnutilizedResourceReason::Utilized] = node->ResourceUsage();
 
     node->LastHeartbeatUnutilizedResources() = nodeFreeResources;
 }
