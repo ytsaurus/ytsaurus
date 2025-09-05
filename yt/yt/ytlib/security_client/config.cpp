@@ -25,6 +25,7 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
         config->ExpireAfterAccessTime = TDuration::Minutes(5);
         config->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(3);
         config->RefreshTime = TDuration::Minutes(1);
+        config->ExpirationPeriod = TDuration::Minutes(1);
         config->BatchUpdate = true;
     });
 

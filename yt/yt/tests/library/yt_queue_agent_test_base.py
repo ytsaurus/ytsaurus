@@ -742,6 +742,7 @@ class TestQueueAgentBase(YTEnvSetup):
                     "expire_after_failed_update_time": 0,
                     "expire_after_access_time": 0,
                     "refresh_time": 0,
+                    "expiration_period": 0,
                 },
                 "transaction_manager": {
                     "retry_attempts": 1,

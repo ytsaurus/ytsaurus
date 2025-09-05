@@ -312,6 +312,7 @@ void TCachingSecretVaultServiceConfig::Register(TRegistrar registrar)
 
     registrar.Preprocessor([] (TThis* config) {
         config->Cache->RefreshTime = std::nullopt;
+        config->Cache->ExpirationPeriod = std::nullopt;
         config->Cache->ExpireAfterAccessTime = TDuration::Seconds(60);
         config->Cache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
         config->Cache->ExpireAfterFailedUpdateTime = TDuration::Seconds(60);
