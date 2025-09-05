@@ -224,6 +224,9 @@ struct TChunkScraperConfig
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerRequest;
 
+    //! COMPAT(namorniradnug): enable by default in 25.4
+    bool PrioritizeUnavailableChunks;
+
     REGISTER_YSON_STRUCT(TChunkScraperConfig);
 
     static void Register(TRegistrar registrar);

@@ -7,7 +7,7 @@ from yt_commands import (
     write_table, map, reduce, map_reduce, sort, alter_table, start_op,
     abandon_job, abort_job, get_operation,
     raises_yt_error,
-    set_node_banned, get_table_columnar_statistics)
+    set_node_banned, get_table_columnar_statistics, update_controller_agent_config)
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
@@ -872,7 +872,10 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_lost_jobs(self, ordered):
+    @pytest.mark.parametrize("prioritize_unavailable_chunks", [True, False])
+    def test_lost_jobs(self, ordered, prioritize_unavailable_chunks):
+        update_controller_agent_config("chunk_scraper/prioritize_unavailable_chunks", prioritize_unavailable_chunks)
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -913,7 +916,10 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_unavailable_intermediate_chunks(self, ordered):
+    @pytest.mark.parametrize("prioritize_unavailable_chunks", [True, False])
+    def test_unavailable_intermediate_chunks(self, ordered, prioritize_unavailable_chunks):
+        update_controller_agent_config("chunk_scraper/prioritize_unavailable_chunks", prioritize_unavailable_chunks)
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
