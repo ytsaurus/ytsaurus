@@ -94,6 +94,12 @@ class Clique(object):
             Is generated randomly if not provided.
         """
 
+        self.yt_client = YtClient(config={
+            "enable_token": False,
+            "backend": "native",
+            "driver_config": get_driver().get_config(),
+        })
+
         self.alias = (alias.removeprefix("*")
                       if alias is not None
                       else _generate_random_alias())
@@ -208,9 +214,10 @@ class Clique(object):
             stderr_file=os.path.join(self.stderr_root, "stderr.clickhouse-$YT_JOB_INDEX"),
             ytserver_readiness_timeout=15,
             tvm_secret=Clique.tvm_secret,
+            client=self.yt_client,
             **kwargs
         )
-        self.spec = simplify_structure(spec_builder.build())
+        self.spec = simplify_structure(spec_builder.build(client=self.yt_client))
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
 
@@ -670,14 +677,9 @@ class Clique(object):
         if not instance_id:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
-        yt_client = YtClient(config={
-            "enable_token": False,
-            "backend": "native",
-            "driver_config": get_driver().get_config(),
-        })
         sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
 
-        return Profiler(yt_client, sensors_path)
+        return Profiler(self.yt_client, sensors_path)
 
     def get_profiler_counter(self, sensor, instance_id=None):
         return self.get_profiler(instance_id).counter(sensor)
