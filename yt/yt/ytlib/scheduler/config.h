@@ -1999,8 +1999,6 @@ struct TSortOperationSpecBase
 
     std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
 
-    bool UseNewPartitionsHeuristic;
-
     double PartitionSizeFactor;
 
     bool UseNewSortedPool;

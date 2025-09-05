@@ -1885,8 +1885,6 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("pivot_keys", &TThis::PivotKeys)
         .Default();
-    registrar.Parameter("use_new_partitions_heuristic", &TThis::UseNewPartitionsHeuristic)
-        .Default(false);
     registrar.Parameter("partition_size_factor", &TThis::PartitionSizeFactor)
         .GreaterThan(0)
         .LessThanOrEqual(1)

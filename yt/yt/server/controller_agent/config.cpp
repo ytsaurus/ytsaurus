@@ -536,11 +536,7 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .Default(500'000)
         .GreaterThan(0);
 
-    registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
-        .Default(200'000)
-        .GreaterThan(0);
-
-    registrar.Parameter("max_new_partition_count", &TThis::MaxNewPartitionCount)
+    registrar.Parameter("max_new_partition_count", &TThis::MaxPartitionCount)
         .Default(2'000'000)
         .GreaterThan(0);
 
@@ -580,10 +576,6 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
 
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
         .DefaultNew();
-
-    registrar.Parameter("critical_new_partition_difference_ratio", &TThis::CriticalNewPartitionDifferenceRatio)
-        .Default(10.0)
-        .GreaterThan(0.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

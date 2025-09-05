@@ -3444,6 +3444,7 @@ while True:
                 "sort_job_io": job_io,
                 "reduce_job_io": job_io,
                 "try_avoid_duplicating_jobs": True,
+                "partition_count": 1,
             },
             mapper_command=f"""
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;

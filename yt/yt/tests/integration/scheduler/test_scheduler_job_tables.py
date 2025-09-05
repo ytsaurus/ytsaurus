@@ -339,7 +339,7 @@ class TestStderrTable(YTEnvSetup):
             sort_by=["key"],
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
-                "partition_count": 2,
+                "partition_count": 1,
                 "map_job_count": 2,
                 "data_size_per_sort_job": 10,
                 "data_size_per_reduce_job": 1000,
@@ -1509,7 +1509,7 @@ class TestJobProfiling(YTEnvSetup):
             "profiling_probability": 0.5,
 
             "map_job_count": 20,
-            "partition_count": 20,
+            "partition_count": 1,
             "data_size_per_sort_job": 1,
         }
 
