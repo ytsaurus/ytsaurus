@@ -17,6 +17,7 @@ IF (NOT OPENSOURCE)
         beam-ytsaurus/play
         benchmarks
         canonize-schema
+        flow
         jdbc
         jdbc/ub
         ytclient
