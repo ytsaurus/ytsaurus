@@ -16,7 +16,7 @@ void TChunkReplicationQueue::TChunkReplicationQueue::Add(
     if (inserted) {
         RandomIterator_ = it;
     }
-    it->second.set(targetMediumIndex);
+    it->second.insert(targetMediumIndex);
 }
 
 void TChunkReplicationQueue::TChunkReplicationQueue::Erase(
@@ -25,9 +25,9 @@ void TChunkReplicationQueue::TChunkReplicationQueue::Erase(
 {
     auto it = Queue_.find(chunkIdWithIndex);
     YT_VERIFY(it != Queue_.end());
-    it->second.reset(targetMediumIndex);
+    it->second.erase(targetMediumIndex);
 
-    if (it->second.none()) {
+    if (it->second.empty()) {
         Erase(it);
     }
 }

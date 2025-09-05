@@ -180,6 +180,7 @@ DEFINE_ENUM(EMasterReign,
     ((KindaFixHunkChunkListInReshard)                               (3025))  // babenko
     ((PreserveUnflushedTimestampForUnmountedTablets)                (3026))  // ifsmirnov
     ((LocalUserRequestThrottlers)                                   (3027))  // faucct
+    ((MaxMediumCountIncrease)                                       (3028))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
