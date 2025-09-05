@@ -3,8 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
-      - stable/[0-9]+\.[0-9]+
+      - members/mpereskokova/test-qt-0011
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -195,19 +194,3 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-alert:
-    needs:
-      - check
-      - build-cmake
-      - build-ya-make
-      - docker-ya-make
-      - docker-cmake
-      - build-strawberry
-    if: always()
-    uses: ./.github/workflows/check-status-and-send-alert.yaml
-    with:
-      is_failure: ${{ contains(join(needs.*.result, ','), 'failure') }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
