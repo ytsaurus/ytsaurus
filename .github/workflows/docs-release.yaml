@@ -126,6 +126,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: |
+          npm install -g @diplodoc/cli
+          npm install -g @diplodoc/algolia-extension
+        shell: bash
+
       - name: Download built docs artifact
         uses: actions/download-artifact@v4
         with:
