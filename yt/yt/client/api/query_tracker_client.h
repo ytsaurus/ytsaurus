@@ -159,7 +159,7 @@ struct TGetQueryTrackerInfoResult
     NYson::TYsonString SupportedFeatures;
     std::vector<std::string> AccessControlObjects;
     std::vector<std::string> Clusters;
-    NYson::TYsonString EnginesInfo;
+    std::optional<NYson::TYsonString> EnginesInfo;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
