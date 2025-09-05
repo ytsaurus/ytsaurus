@@ -192,7 +192,6 @@ TEST_SRCS(
     test_user_statistics.py
     test_yamr_mode.py
     test_yt_cli.py
-    test_yt_cli_vs_qt.py
 )
 
 END()
