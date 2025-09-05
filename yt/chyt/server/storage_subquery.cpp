@@ -38,15 +38,15 @@ std::vector<TColumnSchema> GetColumnSchemas(
 
     TTableSchemaPtr virtualValueSchema;
     if (!subquerySpec.DataSourceDirectory->DataSources().empty()) {
-        auto virtualValueDirectory = subquerySpec.DataSourceDirectory->DataSources().front().GetVirtualValueDirectory();
+        auto virtualValueDirectory = subquerySpec.DataSourceDirectory->DataSources().front()->GetVirtualValueDirectory();
 
         // Sanity check.
         for (const auto& dataSource : subquerySpec.DataSourceDirectory->DataSources()) {
             if (virtualValueDirectory) {
-                YT_VERIFY(dataSource.GetVirtualValueDirectory());
-                YT_VERIFY(*dataSource.GetVirtualValueDirectory()->Schema == *virtualValueDirectory->Schema);
+                YT_VERIFY(dataSource->GetVirtualValueDirectory());
+                YT_VERIFY(*dataSource->GetVirtualValueDirectory()->Schema == *virtualValueDirectory->Schema);
             } else {
-                YT_VERIFY(!dataSource.GetVirtualValueDirectory());
+                YT_VERIFY(!dataSource->GetVirtualValueDirectory());
             }
         }
 
@@ -286,7 +286,7 @@ public:
                 }
                 ++dataSliceCount;
 
-                if (SubquerySpec_.DataSourceDirectory->DataSources().front().GetType() == EDataSourceType::UnversionedTable) {
+                if (SubquerySpec_.DataSourceDirectory->DataSources().front()->GetType() == EDataSourceType::UnversionedTable) {
                     for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
                         if (FromProto<TTabletId>(chunkSpec.tablet_id()) != NullTabletId) {
                             // In case of ordered dynamic tables, dynamic stores do not have misc ext.

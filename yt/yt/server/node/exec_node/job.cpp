@@ -640,7 +640,7 @@ void TJob::PrepareArtifact(
             auto baggage = traceContext->UnpackOrCreateBaggage();
             const char* jobIOKind = artifact.BypassArtifactCache ? "artifact_bypass_cache" : "artifact_copy";
             AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, jobIOKind);
-            AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(artifact.Key.data_source()));
+            AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSourcePtr>(artifact.Key.data_source()));
             traceContext->PackBaggage(std::move(baggage));
 
             if (artifact.BypassArtifactCache) {

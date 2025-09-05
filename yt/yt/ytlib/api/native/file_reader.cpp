@@ -243,8 +243,8 @@ private:
         }
 
         auto dataSource = MakeFileDataSource(userObject.Path.GetPath());
-        dataSource.SetObjectId(userObject.ObjectId);
-        dataSource.SetAccount(userObject.Account);
+        dataSource->SetObjectId(userObject.ObjectId);
+        dataSource->SetAccount(userObject.Account);
 
         Reader_ = CreateFileMultiChunkReader(
             Config_,

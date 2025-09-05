@@ -373,7 +373,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
     TClientChunkReadOptions chunkReadOptions,
     TCachedVersionedChunkMetaPtr chunkMeta,
     IInvokerPtr sessionInvoker,
-    const std::optional<NYT::NChunkClient::TDataSource>& dataSource)
+    const std::optional<NChunkClient::TDataSourcePtr>& dataSource)
 {
     return [=] (std::vector<TGroupBlockHolder> blockHolders, TRange<TSpanMatching> windowsList) -> std::unique_ptr<IBlockManager> {
         auto traceContext = NTracing::CreateTraceContextFromCurrent("ChunkReader");

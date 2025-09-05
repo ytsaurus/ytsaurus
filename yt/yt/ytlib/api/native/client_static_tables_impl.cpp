@@ -236,8 +236,8 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
     std::vector<TTableSchemaPtr> schemas;
     std::vector<TColumnNameFilter> columnFilters;
     for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-        schemas.push_back(dataSource.Schema());
-        columnFilters.push_back(dataSource.Columns());
+        schemas.push_back(dataSource->Schema());
+        columnFilters.push_back(dataSource->Columns());
     }
 
     return MakeFuture(NApi::CreateTablePartitionReader(reader, schemas, columnFilters));

@@ -179,8 +179,8 @@ void TMultiTablePartitioner::CollectInput()
         YT_LOG_DEBUG("Fetching chunks (Path: %v)", Paths_[inputTable.TableIndex]);
 
         const auto& dataSource = DataSourceDirectory_->DataSources()[inputTable.TableIndex];
-        auto dynamic = dataSource.GetType() == EDataSourceType::VersionedTable;
-        auto sorted = dataSource.Schema()->IsSorted();
+        auto dynamic = dataSource->GetType() == EDataSourceType::VersionedTable;
+        auto sorted = dataSource->Schema()->IsSorted();
 
         if (dynamic && sorted) {
             RequestVersionedDataSlices(inputTable);
@@ -389,7 +389,7 @@ TComparator TMultiTablePartitioner::GetComparator(int tableIndex)
 {
     YT_VERIFY(tableIndex < std::ssize(DataSourceDirectory_->DataSources()));
 
-    return DataSourceDirectory_->DataSources()[tableIndex].Schema()->ToComparator();
+    return DataSourceDirectory_->DataSources()[tableIndex]->Schema()->ToComparator();
 }
 
 void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
@@ -399,8 +399,8 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
     YT_VERIFY(tableIndex < std::ssize(DataSourceDirectory_->DataSources()));
 
     const auto& dataSource = DataSourceDirectory_->DataSources()[tableIndex];
-    auto dynamic = dataSource.GetType() == EDataSourceType::VersionedTable;
-    auto sorted = dataSource.Schema()->IsSorted();
+    auto dynamic = dataSource->GetType() == EDataSourceType::VersionedTable;
+    auto sorted = dataSource->Schema()->IsSorted();
 
     if (!dynamic || sorted) {
         return;

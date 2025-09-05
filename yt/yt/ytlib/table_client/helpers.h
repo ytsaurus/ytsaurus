@@ -181,17 +181,17 @@ struct TExtraChunkTags
 
 TExtraChunkTags MakeExtraChunkTags(const NChunkClient::NProto::TMiscExt& miscExt);
 
-void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSource& dataSource);
+void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSourcePtr& dataSource);
 void AddTagsFromDataSink(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSink& dataSink);
 
 void AddExtraChunkTags(const NYTree::IAttributeDictionaryPtr& baggage, const TExtraChunkTags& extraTags);
 
-void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource);
+void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSourcePtr& dataSource);
 void PackBaggageFromExtraChunkTags(const NTracing::TTraceContextPtr& context, const TExtraChunkTags& extraTags);
 
 void PackBaggageForChunkReader(
     const NTracing::TTraceContextPtr& context,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     const TExtraChunkTags& extraTags);
 
 void PackBaggageForChunkWriter(

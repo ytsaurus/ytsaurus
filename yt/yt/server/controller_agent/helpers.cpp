@@ -110,8 +110,8 @@ void BuildFileSpec(
             file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
             file.Path.GetRetentionTimestamp().value_or(NullTimestamp),
             file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
-        dataSource.SetObjectId(file.ObjectId);
-        dataSource.SetAccount(file.Account);
+        dataSource->SetObjectId(file.ObjectId);
+        dataSource->SetAccount(file.Account);
 
         ToProto(descriptor->mutable_data_source(), dataSource);
     } else {
@@ -123,8 +123,8 @@ void BuildFileSpec(
                 file.Path.GetColumns(),
                 file.OmittedInaccessibleColumns,
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
-        dataSource.SetObjectId(file.ObjectId);
-        dataSource.SetAccount(file.Account);
+        dataSource->SetObjectId(file.ObjectId);
+        dataSource->SetAccount(file.Account);
 
         ToProto(descriptor->mutable_data_source(), dataSource);
     }
@@ -203,7 +203,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
             /*columns*/ std::nullopt,
             /*omittedInaccessibleColumns*/ {},
             /*columnRenameDescriptors*/ {}));
-        dataSourceDirectory->DataSources().back().SetAccount(intermediateAccount);
+        dataSourceDirectory->DataSources().back()->SetAccount(intermediateAccount);
     } else {
         for (int index = 0; index < std::ssize(schemas); ++index) {
             dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
@@ -212,7 +212,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
                 /*columns*/ std::nullopt,
                 /*omittedInaccessibleColumns*/ {},
                 /*columnRenameDescriptors*/ {}));
-            dataSourceDirectory->DataSources().back().SetAccount(intermediateAccount);
+            dataSourceDirectory->DataSources().back()->SetAccount(intermediateAccount);
         }
     }
 

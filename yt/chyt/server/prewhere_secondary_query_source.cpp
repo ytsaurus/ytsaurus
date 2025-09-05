@@ -241,7 +241,7 @@ DB::SourcePtr CreatePrewhereSecondaryQuerySource(
     TCallback<void(const TStatistics&)> statisticsCallback)
 {
     for (const auto& dataSource : subquerySpec.DataSourceDirectory->DataSources()) {
-        if (dataSource.GetType() == EDataSourceType::VersionedTable) {
+        if (dataSource->GetType() == EDataSourceType::VersionedTable) {
             THROW_ERROR_EXCEPTION("PREWHERE stage is not supported for dynamic tables (CHYT-462)");
         }
     }

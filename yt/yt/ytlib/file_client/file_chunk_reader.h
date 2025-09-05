@@ -45,7 +45,7 @@ IFileReaderPtr CreateFileChunkReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     i64 startOffset,
     i64 endOffset,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

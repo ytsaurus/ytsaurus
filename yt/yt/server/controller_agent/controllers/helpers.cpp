@@ -100,10 +100,10 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
                 inputTable->OmittedInaccessibleColumns,
                 inputTable->ColumnRenameDescriptors);
 
-        dataSource.SetObjectId(inputTable->ObjectId);
-        dataSource.SetAccount(inputTable->Account);
-        dataSource.SetForeign(inputTable->IsForeign());
-        dataSource.SetClusterName(inputTable->ClusterName);
+        dataSource->SetObjectId(inputTable->ObjectId);
+        dataSource->SetAccount(inputTable->Account);
+        dataSource->SetForeign(inputTable->IsForeign());
+        dataSource->SetClusterName(inputTable->ClusterName);
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
 

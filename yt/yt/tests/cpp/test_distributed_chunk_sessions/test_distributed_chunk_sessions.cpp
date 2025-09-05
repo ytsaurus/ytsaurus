@@ -83,16 +83,16 @@ protected:
     static std::vector<TUnversionedOwningRow> ReadAllChunkRows(TChunkId chunkId)
     {
         auto dataSourceDirectory = New<TDataSourceDirectory>();
-        dataSourceDirectory->DataSources().emplace_back(TDataSource(
+        dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
             EDataSourceType::UnversionedTable,
             /*path*/ "",
             New<TTableSchema>(),
             /*virtualKeyPrefixLength*/ 0,
             /*columns*/ std::nullopt,
-            /*omittedInaccessibleColumns*/ {},
+            /*omittedInaccessibleColumns*/ std::vector<std::string>{},
             /*timestamp*/ NullTimestamp,
             /*retentionTimestamp*/ NullTimestamp,
-            /*columnRenameDescriptors*/ {}));
+            /*columnRenameDescriptors*/ TColumnRenameDescriptors{}));
 
         NChunkClient::NProto::TChunkSpec chunkSpec;
         chunkSpec.set_row_count_override(0);
