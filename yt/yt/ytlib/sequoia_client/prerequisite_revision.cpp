@@ -1,5 +1,7 @@
 #include "prerequisite_revision.h"
 
+#include "helpers.h"
+
 #include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -22,7 +24,7 @@ void FormatValue(TStringBuilderBase* builder, const TPrerequisiteRevision& prere
 
 void FromProto(TPrerequisiteRevision* revision, const NObjectClient::NProto::TPrerequisiteRevision& protoRevision)
 {
-    revision->Path = FromProto<TYPath>(protoRevision.path());
+    revision->Path = ValidateAndMakeYPath(TRawYPath(protoRevision.path()));
     revision->Revision = FromProto<NHydra::TRevision>(protoRevision.revision());
 }
 
