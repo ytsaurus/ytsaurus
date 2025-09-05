@@ -7,7 +7,7 @@ from yt_commands import (
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
     get_media, set_node_banned, set_all_nodes_banned, create_rack,
-    print_debug, update_nodes_dynamic_config)
+    print_debug, execute_batch, make_batch_request)
 
 from yt.common import YtError
 
@@ -21,6 +21,7 @@ import hashlib
 
 ################################################################################
 
+
 class TestMediaBase(YTEnvSetup):
     def _check_all_chunks_on_medium(self, tbl, medium):
         chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
@@ -30,7 +31,7 @@ class TestMediaBase(YTEnvSetup):
                 if replica.attributes["medium"] != medium:
                     return False
         return True
-    
+
     def _count_chunks_on_medium(self, tbl, medium):
         chunk_count = 0
         chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
@@ -41,12 +42,12 @@ class TestMediaBase(YTEnvSetup):
                     chunk_count += 1
 
         return chunk_count
-    
+
     def _remove_zeros(self, d):
         for k in list(d.keys()):
             if d[k] == 0:
                 del d[k]
-    
+
     def _check_account_and_table_usage_equal(self, tbl):
         account_usage = self._remove_zeros(get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium"))
         table_usage = self._remove_zeros(get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl)))
@@ -140,6 +141,20 @@ class TestMediaBase(YTEnvSetup):
 
     def _get_chunk_locations(self, chunk_id):
         return {replica.attributes["location_uuid"] for replica in get(f"#{chunk_id}/@stored_replicas")}
+
+    @staticmethod
+    def _batch_set_account_disk_space_limit(account, limit, media):
+        execute_batch([
+            make_batch_request("set", path=f"//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{medium}", input=limit)
+            for medium in media
+        ], concurrency=100, verbose=False)
+
+    @staticmethod
+    def _batch_create_media(media, batch_size=1000, concurrency=1000):
+        execute_batch([
+            make_batch_request("create", type="domestic_medium", attributes={"name": medium})
+            for medium in media
+        ], concurrency=500, verbose=False)
 
 
 @pytest.mark.enabled_multidaemon
@@ -485,7 +500,6 @@ class TestMedia(TestMediaBase):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
     @authors("babenko", "shakurov")
-    @pytest.mark.ignore_in_opensource_ci
     def test_chunk_statuses_1_media(self):
         codec = "isa_reed_solomon_6_3"
         codec_replica_count = 9
@@ -508,7 +522,6 @@ class TestMedia(TestMediaBase):
         wait(lambda: self._check_chunk_ok(False, chunk_id, {"default"}))
 
     @authors("shakurov")
-    @pytest.mark.ignore_in_opensource_ci
     def test_chunk_statuses_2_media(self):
         codec = "isa_reed_solomon_6_3"
         codec_replica_count = 9
@@ -1035,6 +1048,7 @@ class TestManyMedia(TestMediaBase):
 
     @classmethod
     def on_masters_started(cls):
+        # No batching so that media are created in order.
         for medium in cls.NON_DEFAULT_MEDIA:
             create_domestic_medium(medium)
 
@@ -1042,12 +1056,11 @@ class TestManyMedia(TestMediaBase):
     def setup_class(cls, *args, **kwargs):
         super(TestManyMedia, cls).setup_class(*args, **kwargs)
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
-        for medium in cls.NON_DEFAULT_MEDIA:
-            set_account_disk_space_limit("tmp", disk_space_limit, medium)
+        cls._batch_set_account_disk_space_limit("tmp", disk_space_limit, cls.NON_DEFAULT_MEDIA)
 
     # Returns a deterministic sample based on the given seed.
     @staticmethod
-    def get_deterministic_sample(objects, sample_size, seed):
+    def _get_deterministic_sample(objects, sample_size, seed):
         assert sample_size <= len(objects)
 
         seed_bytes = str(seed).encode("utf-8")
@@ -1061,17 +1074,17 @@ class TestManyMedia(TestMediaBase):
 
     # Returns a deterministic sample of non-default media based on the given seed.
     @classmethod
-    def get_nondefault_media_sample(cls, sample_size, seed):
-        return cls.get_deterministic_sample(cls.NON_DEFAULT_MEDIA, sample_size, seed)
-    
+    def _get_nondefault_media_sample(cls, sample_size, seed):
+        return cls._get_deterministic_sample(cls.NON_DEFAULT_MEDIA, sample_size, seed)
+
     @classmethod
-    def enumerate_nondefault_media_sample(cls, sample_size, seed):
-        indexes = cls.get_deterministic_sample(range(len(cls.NON_DEFAULT_MEDIA)), sample_size, seed)
+    def _enumerate_nondefault_media_sample(cls, sample_size, seed):
+        indexes = cls._get_deterministic_sample(range(len(cls.NON_DEFAULT_MEDIA)), sample_size, seed)
         for i in indexes:
             yield i, cls.NON_DEFAULT_MEDIA[i]
 
     @classmethod
-    def get_locations_for_nondefault_media(cls, media):
+    def _get_locations_for_nondefault_media(cls, media):
         medium_to_location = {}
         for location in ls("//sys/chunk_locations", attributes=["statistics"]):
             medium = location.attributes["statistics"]["medium_name"]
@@ -1083,7 +1096,7 @@ class TestManyMedia(TestMediaBase):
     def test_medium_index_assignment(self):
         assert get("//sys/media/default/@index") == 0
 
-        for i, medium in self.enumerate_nondefault_media_sample(sample_size=30, seed=42):
+        for i, medium in self._enumerate_nondefault_media_sample(sample_size=30, seed=42):
             # Indexes 126 and 127 are historical sentinels.
             expected_medium_index = i + 1 if i + 1 < 126 else i + 3
             assert get(f"//sys/media/{medium}/@index") == expected_medium_index
@@ -1117,7 +1130,7 @@ class TestManyMedia(TestMediaBase):
 
         assert self._check_all_chunks_on_medium("t", "default")
 
-        for medium in self.get_nondefault_media_sample(sample_size=10, seed=1543):
+        for medium in self._get_nondefault_media_sample(sample_size=10, seed=1543):
             print_debug(f"Moving table to medium {medium}")
             set("//tmp/t/@primary_medium", medium)
             wait(lambda: self._check_all_chunks_on_medium("t", medium) and self._check_account_and_table_usage_equal("t"))
@@ -1134,7 +1147,7 @@ class TestManyMedia(TestMediaBase):
 
         # This is a reasonably large number of replicas across newly indexed media,
         # but small enough for us to check both replication and removal.
-        media_sample = self.get_nondefault_media_sample(sample_size=33, seed=179)
+        media_sample = self._get_nondefault_media_sample(sample_size=33, seed=179)
 
         for medium in media_sample:
             tbl_media[medium] = {"replication_factor": 1, "data_parts_only": False}
@@ -1149,7 +1162,7 @@ class TestManyMedia(TestMediaBase):
             lambda:
                 self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
                 and self._get_chunk_replica_media(chunk_id) == expected_chunk_media)
-        
+
         chunk_replica_nodes = self._get_chunk_replica_nodes(chunk_id)
 
         # We stop chunks from being removed to be able to test removal job scheduling.
@@ -1179,7 +1192,7 @@ class TestManyMedia(TestMediaBase):
         # We want to test a number of replicas larger than 8 bits.
         # This takes a while, as we only schedule one replication job at once,
         # and there is no easy way (or reason) to change that.
-        media_sample = self.get_nondefault_media_sample(sample_size=257, seed=179)
+        media_sample = self._get_nondefault_media_sample(sample_size=257, seed=179)
 
         for medium in media_sample:
             tbl_media[medium] = {"replication_factor": 1, "data_parts_only": False}
@@ -1196,10 +1209,10 @@ class TestManyMedia(TestMediaBase):
                 self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
                 and self._get_chunk_replica_media(chunk_id) == expected_chunk_media,
             timeout=180)
-        
+
     @authors("achulkov2")
     def test_medium_overrides(self):
-        media_sample = self.get_nondefault_media_sample(sample_size=29, seed=2007)
+        media_sample = self._get_nondefault_media_sample(sample_size=29, seed=2007)
 
         create("table", "//tmp/t", attributes={"replication_factor": 1, "primary_medium": media_sample[0]})
 
@@ -1218,11 +1231,11 @@ class TestManyMedia(TestMediaBase):
                 self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
                 and self._get_chunk_replica_media(chunk_id) == builtin.set(media_sample))
 
-        assert self._get_chunk_locations(chunk_id) == self.get_locations_for_nondefault_media(media_sample)
-        
+        assert self._get_chunk_locations(chunk_id) == self._get_locations_for_nondefault_media(media_sample)
+
         medium_overrides = []
 
-        shuffled_nondefault_media = self.get_nondefault_media_sample(sample_size=len(self.NON_DEFAULT_MEDIA), seed=1329)
+        shuffled_nondefault_media = self._get_nondefault_media_sample(sample_size=len(self.NON_DEFAULT_MEDIA), seed=1329)
         shuffled_index = 0
 
         for location in ls("//sys/chunk_locations", attributes=["statistics", "medium_override"]):
@@ -1240,7 +1253,32 @@ class TestManyMedia(TestMediaBase):
 
         self._sync_set_medium_overrides(medium_overrides)
 
-        wait(lambda:
-            self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
-            and self._get_chunk_replica_media(chunk_id) == builtin.set(media_sample)
-            and self._get_chunk_locations(chunk_id) == self.get_locations_for_nondefault_media(media_sample))
+        wait(
+            lambda:
+                self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
+                and self._get_chunk_replica_media(chunk_id) == builtin.set(media_sample)
+                and self._get_chunk_locations(chunk_id) == self._get_locations_for_nondefault_media(media_sample))
+
+
+################################################################################
+
+
+# As media cannot be deleted, for now, it is best to use a separate test suite for this single test.
+class TestMaxMediumCount(TestMediaBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    MAX_MEDIUM_COUNT = 64000
+
+    @authors("achulkov2")
+    @pytest.mark.timeout(120)
+    def test_max_medium_count(self):
+        # One medium already exists — default.
+        media = [f"hdd{i}" for i in range(self.MAX_MEDIUM_COUNT - 1)]
+        self._batch_create_media(media, batch_size=100000, concurrency=10000)
+
+        with pytest.raises(YtError):
+            create_domestic_medium("excess_medium")
+
+        medium_indexes = {medium.attributes["index"] for medium in ls("//sys/media", attributes=["index"], max_size=self.MAX_MEDIUM_COUNT)}
+        assert medium_indexes == builtins.set(range(self.MAX_MEDIUM_COUNT + 2)) - {126, 127}
