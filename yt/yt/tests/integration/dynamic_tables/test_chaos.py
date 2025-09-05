@@ -5083,6 +5083,7 @@ class TestChaosRpcProxy(TestChaos):
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+            "expiration_period": 0,
         },
     }
 
@@ -5378,6 +5379,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+            "expiration_period": 0,
         },
     }
     DELTA_RPC_PROXY_CONFIG = {
@@ -5387,6 +5389,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 "expire_after_failed_update_time": 60000,
                 "expire_after_access_time": 60000,
                 "refresh_time": 10000,
+                "expiration_period": 10000,
                 "soft_backoff_time": 10000,
                 "hard_backoff_time":  10000,
             },
@@ -5399,6 +5402,7 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
                 "expire_after_failed_update_time": 60000,
                 "expire_after_access_time": 60000,
                 "refresh_time": 10000,
+                "expiration_period": 10000,
                 "soft_backoff_time": 10000,
                 "hard_backoff_time":  10000,
             },
@@ -6439,6 +6443,7 @@ class TestChaosClockRpcProxy(ChaosClockBase):
                     "expire_after_failed_update_time": 0,
                     "expire_after_access_time": 0,
                     "refresh_time": 0,
+                    "expiration_period": 0,
                 },
             },
         }

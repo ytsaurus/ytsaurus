@@ -361,6 +361,7 @@ class ChaosTestBase(DynamicTablesBase):
                 "expire_after_failed_update_time": 100,
                 "expire_after_access_time": 100,
                 "refresh_time": 50,
+                "expiration_period": 50,
             }, driver=driver)
 
     def setup_method(self, method):

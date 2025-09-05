@@ -1594,6 +1594,7 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
                     "user_cache": {
                         "expire_after_successful_update_time": 0,
                         "refresh_time": 0,
+                        "expiration_period": 0,
                         "expire_after_failed_update_time": 0,
                         "expire_after_access_time": 0,
                     }
@@ -1705,12 +1706,14 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+            "expiration_period": 0,
         },
         "sync_replica_cache": {
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+            "expiration_period": 0,
         },
         "queue_agent": {
             "stages": {
@@ -1729,6 +1732,7 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+            "expiration_period": 0,
         },
         "group_attribute_cache": {
             "expire_after_successful_update_time": 0,
@@ -1746,6 +1750,7 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
             "refresh_time": 0,
+            "expiration_period": 0,
         },
         "scheduler": {
             "enable_exponential_retry_backoffs": True,
@@ -1829,6 +1834,7 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_failed_update_time": 100,
             "expire_after_access_time": 100,
             "refresh_time": 50,
+            "expiration_period": 50,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
             "addresses": master_cache_addresses,
@@ -1848,7 +1854,8 @@ def _build_cluster_connection_config(yt_config,
             "expire_after_successful_update_time": 0,
             "expire_after_failed_update_time": 0,
             "expire_after_access_time": 0,
-            "refresh_time": 0
+            "refresh_time": 0,
+            "expiration_period": 0,
         }
 
     if yt_config.internal_ca_cert is not None:
