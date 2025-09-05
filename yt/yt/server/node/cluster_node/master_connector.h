@@ -27,7 +27,10 @@ struct IMasterConnector
     DECLARE_INTERFACE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 
     //! Raised when node successfully connects and registers at the primary master.
-    DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
+    DECLARE_INTERFACE_SIGNAL(void(), MasterConnected);
+
+    //! Raised when node is ready to start reporting heartbeats to master.
+    DECLARE_INTERFACE_SIGNAL(void(), StartHeartbeats);
 
     //! Raised when node disconnects from masters.
     DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);

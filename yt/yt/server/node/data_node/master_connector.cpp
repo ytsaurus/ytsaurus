@@ -140,8 +140,9 @@ public:
 
         ShuffleRange(JobTrackerAddresses_);
 
-        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+        clusterNodeMasterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        clusterNodeMasterConnector->SubscribeStartHeartbeats(BIND_NO_PROPAGATE(&TMasterConnector::OnStartHeartbeats, MakeWeak(this)));
+        clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
         Bootstrap_->SubscribeSecondaryMasterCellListChanged(
             BIND_NO_PROPAGATE(&TMasterConnector::OnSecondaryMasterCellListChanged, MakeWeak(this))
                 .Via(controlInvoker));
@@ -922,6 +923,13 @@ private:
         return IncrementalHeartbeatCounters_.emplace(cellTag, std::move(counters)).first->second;
     }
 
+    void OnStartHeartbeats()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        DoScheduleJobHeartbeat(/*immediately*/ true);
+    }
+
     void OnMasterDisconnected()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -945,7 +953,7 @@ private:
         JobHeartbeatJobTrackerIndex_ = 0;
     }
 
-    void OnMasterConnected(TNodeId /*nodeId*/)
+    void OnMasterConnected()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -956,8 +964,6 @@ private:
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Registered;
         }
-
-        StartHeartbeats();
     }
 
     void InitPerCellData(TCellTag cellTag, const std::vector<std::string>& masterAddresses)
@@ -1031,19 +1037,6 @@ private:
         }
 
         YT_LOG_INFO("Dynamic config changed");
-    }
-
-    void StartHeartbeats()
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_INFO(
-            "Starting data node and job heartbeats (NodeId: %v)",
-            Bootstrap_->GetNodeId());
-
-        StartNodeHeartbeats();
-
-        DoScheduleJobHeartbeat(/*immediately*/ true);
     }
 
     // TODO(cherepashka): refactor report of job heartbeats.

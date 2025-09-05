@@ -252,8 +252,6 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
     DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
     DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
@@ -1627,10 +1625,8 @@ private:
         }
     }
 
-    void OnMasterConnected(TNodeId nodeId)
+    void OnMasterConnected()
     {
-        MasterConnected_.Fire(nodeId);
-
         for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->RegisterService(cachingObjectService);
         }
@@ -1638,8 +1634,6 @@ private:
 
     void OnMasterDisconnected()
     {
-        MasterDisconnected_.Fire();
-
         for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->UnregisterService(cachingObjectService);
         }
@@ -1807,14 +1801,6 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
     : Bootstrap_(bootstrap)
 {
     // Cycles are fine for bootstrap.
-    Bootstrap_->SubscribeMasterConnected(
-        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (TNodeId nodeId) {
-            MasterConnected_.Fire(nodeId);
-        }));
-    Bootstrap_->SubscribeMasterDisconnected(
-        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
-            MasterDisconnected_.Fire();
-        }));
     Bootstrap_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
             PopulateAlerts_.Fire(alerts);

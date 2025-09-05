@@ -14,7 +14,6 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 
 #include <yt/yt/server/node/cellar_node/master_connector.h>
@@ -84,8 +83,6 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TMasterHeartbeatReporterBase::Initialize();
-
-        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
 
         const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
         cellarNodeMasterConnector->SubscribeHeartbeatRequested(BIND_NO_PROPAGATE(&TMasterConnector::OnCellarNodeHeartbeatRequested, MakeWeak(this)));
@@ -160,13 +157,6 @@ private:
     THashMap<TCellTag, TFuture<TTabletNodeTrackerServiceProxy::TRspHeartbeatPtr>> CellTagToHeartbeatRspFuture_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    void OnMasterConnected(TNodeId /*nodeId*/)
-    {
-        YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-        StartNodeHeartbeats();
-    }
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,

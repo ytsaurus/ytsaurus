@@ -4,7 +4,6 @@
 #include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
-#include "master_connector.h"
 #include "private.h"
 #include "throttler_manager.h"
 
@@ -540,11 +539,11 @@ void TControllerAgentConnectorPool::Initialize()
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
 
-    const auto& masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    clusterNodeMasterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(
         &TControllerAgentConnectorPool::OnMasterConnected,
         MakeWeak(this)));
-    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
+    clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
         &TControllerAgentConnectorPool::OnMasterDisconnected,
         MakeWeak(this)));
 }
