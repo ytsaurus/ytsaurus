@@ -19,7 +19,7 @@ jobs:
       index-name: "ytsaurus-doc"
       revision: "${{ github.sha }}"
       cli-version: "latest"
-      api-key: ${{ secrets.ALGOLIA_API_KEY }}
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,6 +78,13 @@ jobs:
           path: ${{ env.build-root }}
           retention-days: 1
 
+      - name: Upload build html doc
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-html
+          path: ${{ env.lint-root }}
+          retention-days: 1
+
       - name: Upload build log
         uses: actions/upload-artifact@v4
         with:
@@ -88,13 +95,6 @@ jobs:
       - name: Checking local index
         run: |
           ls ${{ env.lint-root }}/
-
-      - name: Upload local index
-        uses: actions/upload-artifact@v4
-        with:
-          name: local-index
-          path: ${{ env.lint-root }}/_search
-          retention-days: 1
 
       - name: Exit
         run: |
@@ -139,21 +139,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           #name: built-docs  # Должно совпадать с именем в upload
-          name: build-output-md
+          name: build-output-html
           path: ./_docs-build # Куда загружаем
 
-      - name: Checking output docs
-        run: |
-          ls ./_docs-build/
-
       - name: Upload index to Algolia
-        env:
-          ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }} # Это Write Key
-          ALGOLIA_APP_ID: WW7EWG7Y6T
-          ALGOLIA_INDEX_NAME: "test_ytsaurus-doc"
         run: |
          yfm index -i ./_docs-build --extensions "$(npm root -g)/@diplodoc/algolia-extension"
-         ls -la ./_docs-build/
 
 
 
