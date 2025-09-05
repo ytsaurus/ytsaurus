@@ -29,6 +29,9 @@ public enum CypressNodeType implements StringValueEnum {
     TABLET_CELL_BUNDLE(706, "tablet_cell_bundle"),
     TABLE_REPLICA(709, "table_replica"),
 
+    // YT Flow Pipeline.
+    PIPELINE(1600, "pipeline"),
+
     // Portals.
     PORTAL_ENTRANCE(11000, "portal_entrance"),
     PORTAL_EXIT(11001, "portal_exit");
