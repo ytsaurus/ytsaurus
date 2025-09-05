@@ -135,9 +135,8 @@ constexpr int RealMediumIndexBound = MaxMediumCount + 2;
 //! A small amount of room is reserved for sentinels.
 constexpr int MediumIndexBound = MaxMediumCount + 100;
 
-//! Returns true if |mediumIndex| falls within the sentinel range:
-//!   |{GenericMediumIndex=126} + {AllMediaIndex=127} + [RealMediumIndexBound, MediumIndexBound)|.
-bool IsSentinelMediumIndex(int mediumIndex);
+//! Returns a list of all sentinel medium indexes: |GenericMediumIndex|, |AllMediaIndex| and |[RealMediumIndexBound, MediumIndexBound)|.
+std::vector<int> GetSentinelMediumIndexes();
 //! Returns true if |mediumIndex| is a valid medium index: in range |[0, RealMediumIndexBound)|
 //! and not equal to any of the reserved sentinel values (see |IsSentinelMediumIndex|).
 bool IsValidRealMediumIndex(int mediumIndex);

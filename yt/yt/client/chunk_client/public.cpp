@@ -24,9 +24,14 @@ static_assert(TypicalMediumCount <= MaxMediumCount, "Typical medium count exceed
 static_assert(MaxMediumCount <= RealMediumIndexBound, "Max medium count exceeds bound on real medium indexes");
 static_assert(RealMediumIndexBound <= MediumIndexBound, "Real medium index bound exceeds medium index bound");
 
-bool IsSentinelMediumIndex(int mediumIndex)
+std::vector<int> GetSentinelMediumIndexes()
 {
-    return mediumIndex == GenericMediumIndex || mediumIndex == AllMediaIndex || (MediumIndexBound <= mediumIndex && mediumIndex < MediumIndexBound);
+    std::vector<int> sentinels = {GenericMediumIndex, AllMediaIndex};
+    sentinels.reserve(sentinels.size() + (MediumIndexBound - RealMediumIndexBound));
+    for (int index = RealMediumIndexBound; index < MediumIndexBound; ++index) {
+        sentinels.push_back(index);
+    }
+    return sentinels;
 }
 
 bool IsValidRealMediumIndex(int mediumIndex)
