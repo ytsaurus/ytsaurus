@@ -267,6 +267,9 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer
 
+# GPU agent.
+COPY ./gpuagent /usr/bin/gpuagent
+
 # YTsaurus credits files.
 COPY ./credits/*.CREDITS /usr/bin/
 
