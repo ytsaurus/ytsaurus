@@ -150,6 +150,8 @@
 
 #include <yt/yt/core/yson/string.h>
 
+#include <yt/yt/core/misc/mex_set.h>
+
 #include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
@@ -206,6 +208,35 @@ struct TChunkToLinkedListNode
     auto operator() (TChunk* chunk) const
     {
         return &chunk->GetDynamicData()->LinkedListNode;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Initializes itself with all sentinels. Required because history has left us with
+//! sentinels inside the valid medium index range.
+class TUsedMediumIndexSet
+    : public TMexSet
+{
+public:
+    TUsedMediumIndexSet()
+        : TMexSet()
+    {
+        FillSentinels();
+    }
+
+    void Clear()
+    {
+        TMexSet::Clear();
+        FillSentinels();
+    }
+
+private:
+    void FillSentinels()
+    {
+        for (auto mediumIndex : GetSentinelMediumIndexes()) {
+            Insert(mediumIndex);
+        }
     }
 };
 
@@ -2595,6 +2626,7 @@ private:
     NHydra::TEntityMap<TMedium, TEntityMapTypeTraits<TMedium>> MediumMap_;
     THashMap<std::string, TMedium*> NameToMediumMap_;
     TMediumMap<TMedium*> IndexToMediumMap_;
+    TUsedMediumIndexSet UsedMediumIndexes_;
 
     TMediumId DefaultStoreMediumId_;
     TMedium* DefaultStoreMedium_ = nullptr;
@@ -5210,6 +5242,7 @@ private:
         MediumMap_.Clear();
         NameToMediumMap_.clear();
         IndexToMediumMap_.clear();
+        UsedMediumIndexes_.Clear();
 
         ChunksCreated_ = 0;
         ChunksDestroyed_ = 0;
@@ -6404,14 +6437,10 @@ private:
     {
         YT_VERIFY(IndexToMediumMap_.size() < MaxMediumCount);
 
-        int candidate = 0;
-        while (IndexToMediumMap_.contains(candidate) || IsSentinelMediumIndex(candidate)) {
-            ++candidate;
-        }
+        auto mediumIndex = UsedMediumIndexes_.GetMex();
+        YT_VERIFY(IsValidRealMediumIndex(mediumIndex));
 
-        YT_VERIFY(candidate < RealMediumIndexBound);
-
-        return candidate;
+        return mediumIndex;
     }
 
     TDomesticMedium* DoCreateDomesticMedium(
@@ -6476,6 +6505,7 @@ private:
         auto mediumIndex = medium->GetIndex();
 
         EmplaceOrCrash(IndexToMediumMap_, mediumIndex, medium);
+        YT_VERIFY(UsedMediumIndexes_.Insert(mediumIndex));
     }
 
     void UnregisterMedium(TMedium* medium)
@@ -6485,7 +6515,8 @@ private:
         auto mediumIndex = medium->GetIndex();
 
         YT_VERIFY(FindMediumByIndex(mediumIndex) == medium);
-        IndexToMediumMap_.erase(mediumIndex);
+        EraseOrCrash(IndexToMediumMap_, mediumIndex);
+        YT_VERIFY(UsedMediumIndexes_.Erase(mediumIndex));
     }
 
     void InitializeMediumConfig(TDomesticMedium* medium)

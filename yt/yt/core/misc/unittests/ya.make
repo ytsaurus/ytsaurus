@@ -46,6 +46,7 @@ SRCS(
     lock_free_hash_table_ut.cpp
     lru_cache_ut.cpp
     maybe_inf_ut.cpp
+    mex_set_ut.cpp
     moving_average_ut.cpp
     mpl_ut.cpp
     mpsc_fair_share_queue_ut.cpp
