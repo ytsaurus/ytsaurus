@@ -484,7 +484,7 @@ void ProcessNodesReleasements(
                 nodeName);
 
             mutations->AlertsToFire.push_back({
-                .Id = "node_releasment_is_stuck",
+                .Id = "node_releasement_is_stuck",
                 .BundleName = bundleName,
                 .Description = Format("Releasing node %v for bundle %v is taking more time than expected",
                     bundleName,
