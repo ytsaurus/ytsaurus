@@ -2977,7 +2977,7 @@ private:
         const auto& config = GetDynamicConfig();
         if (config->AlertOnListNodeLoad) {
             for (auto [nodeId, node] : NodeMap_) {
-                YT_LOG_ALERT_IF(
+                YT_LOG_FATAL_IF(
                     node->GetType() == EObjectType::ListNode,
                     "A list node encountered during snapshot load; list nodes are deprecated "
                     "and the ability to load them will be removed completely in the next major version. "
