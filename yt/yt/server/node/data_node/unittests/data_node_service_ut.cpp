@@ -338,6 +338,7 @@ struct TIOEngineConfig
     int ReadThreadCount;
     int WriteThreadCount;
     NIO::EDirectIOPolicy UseDirectIOForReads;
+    i64 MinRequestSizeToUseHugePages;
 
     REGISTER_YSON_STRUCT(TIOEngineConfig);
 
@@ -349,6 +350,9 @@ struct TIOEngineConfig
         registrar.Parameter("write_thread_count", &TThis::WriteThreadCount)
             .GreaterThanOrEqual(1)
             .Default(1);
+        registrar.Parameter("min_request_size_to_use_huge_pages", &TThis::MinRequestSizeToUseHugePages)
+            .GreaterThanOrEqual(0)
+            .Default(2_MB);
 
         registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
             .Default(NIO::EDirectIOPolicy::Never);
@@ -368,6 +372,7 @@ public:
         NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
         bool EnableHugePageManager = false;
         NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
+        i64 MinRequestSizeToUseHugePages = 2_MB;
         bool EnableSequentialIORequests = true;
         i64 CoalescedReadMaxGapSize = 10_MB;
         int ClusterConnectionThreadPoolSize = 4;
@@ -395,6 +400,7 @@ public:
         ioEngineConfig->ReadThreadCount = TestParams_.ReadThreadCount;
         ioEngineConfig->WriteThreadCount = TestParams_.WriteThreadCount;
         ioEngineConfig->UseDirectIOForReads = TestParams_.UseDirectIOForReads;
+        ioEngineConfig->MinRequestSizeToUseHugePages = TestParams_.MinRequestSizeToUseHugePages;
         storeLocationConfig->IOConfig = NYTree::ConvertToNode(ioEngineConfig);
         storeLocationConfig->IOWeight = ioWeight;
         storeLocationConfig->SessionCountLimit = sessionCountLimit;
@@ -745,6 +751,7 @@ struct TGetBlockSetTestCase
     NIO::EHugeManagerType HugePageManagerType = NIO::EHugeManagerType::Transparent;
     bool EnableHugePageManager = false;
     NIO::EDirectIOPolicy UseDirectIOForReads = NIO::EDirectIOPolicy::Never;
+    i64 MinRequestSizeToUseHugePages = 2_MB;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -760,6 +767,7 @@ public:
                 .HugePageManagerType = GetParam().HugePageManagerType,
                 .EnableHugePageManager = GetParam().EnableHugePageManager,
                 .UseDirectIOForReads = GetParam().UseDirectIOForReads,
+                .MinRequestSizeToUseHugePages = GetParam().MinRequestSizeToUseHugePages,
                 .EnableSequentialIORequests = GetParam().EnableSequentialIORequests,
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4
@@ -992,6 +1000,15 @@ TEST_P(TGetBlockSetTest, GetBlockSetTest)
     auto getBlockSetFuturesResult = allsucceededGetBlockSetFutures.TryGet();
     EXPECT_TRUE(getBlockSetFuturesResult.has_value());
     EXPECT_TRUE(getBlockSetFuturesResult.has_value() && getBlockSetFuturesResult->IsOK());
+
+    if (testCase.EnableHugePageManager) {
+        if (testCase.HugePageManagerType == NIO::EHugeManagerType::Transparent) {
+            YT_VERIFY(GetDataNodeBootstrap()->GetHugePageManager()->GetHugePageSize() > 0);
+            EXPECT_GT(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
+        }
+    } else {
+        EXPECT_EQ(GetDataNodeBootstrap()->GetHugePageManager()->GetUsedHugePageCount(), 0);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1086,7 +1103,8 @@ INSTANTIATE_TEST_SUITE_P(
             .FetchFromDisk = true,
             .HugePageManagerType = NIO::EHugeManagerType::Transparent,
             .EnableHugePageManager = true,
-            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always
+            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always,
+            .MinRequestSizeToUseHugePages = 0
         },
         TGetBlockSetTestCase{
             .BlockCount = 100,
@@ -1098,7 +1116,8 @@ INSTANTIATE_TEST_SUITE_P(
             .FetchFromDisk = true,
             .HugePageManagerType = NIO::EHugeManagerType::Preallocated,
             .EnableHugePageManager = true,
-            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always
+            .UseDirectIOForReads = NIO::EDirectIOPolicy::Always,
+            .MinRequestSizeToUseHugePages = 0
         }
     )
 );
