@@ -349,6 +349,8 @@ message TUserJobSpec
     map<string, TSidecarJobSpec> sidecars = 84;
 
     optional bool append_debug_options = 85 [default = false];
+
+    optional bool is_secondary_distributed = 86;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

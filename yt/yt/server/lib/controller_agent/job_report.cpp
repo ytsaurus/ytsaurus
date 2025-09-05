@@ -39,6 +39,18 @@ TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::JobCookieGroupIndex(ui64 jobCookie)
+{
+    JobCookieGroupIndex_ = jobCookie;
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::MainJobId(TJobId mainJobId)
+{
+    MainJobId_ = mainJobId;
+    return std::move(*this);
+}
+
 TControllerJobReport TControllerJobReport::Address(std::optional<std::string> address)
 {
     Address_ = address;
