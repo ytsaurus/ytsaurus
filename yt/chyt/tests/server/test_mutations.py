@@ -689,7 +689,7 @@ class TestMutations(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_create_table_clear_cache(self):
-        patch = get_object_attribute_cache_config(15000, 15000, 500)
+        patch = get_object_attribute_cache_config(15000, 15000, 500, 500)
         with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
 

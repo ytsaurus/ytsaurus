@@ -557,7 +557,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("max42", "dakovalkov", "evgenstf")
     @pytest.mark.parametrize("remove_method", ["yt", "chyt"])
     def test_schema_caching(self, remove_method):
-        patch = get_object_attribute_cache_config(2000, 2000, None)
+        patch = get_object_attribute_cache_config(2000, 2000, None, None)
 
         with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -581,7 +581,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_cache_auto_update(self):
         # Will never expire.
-        patch = get_object_attribute_cache_config(100500, 100500, 100)
+        patch = get_object_attribute_cache_config(100500, 100500, 100, 100)
 
         with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -604,7 +604,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_invalidate_cached_object_attributes(self):
         # Will never expire.
-        patch = get_object_attribute_cache_config(100500, 100500, None)
+        patch = get_object_attribute_cache_config(100500, 100500, None, None)
 
         table_attributes = {"schema": [{"name": "a", "type": "int64"}]}
 
@@ -656,7 +656,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         write_table("//tmp/t0", [{"a": 1}])
 
         # Will never expire.
-        patch = get_object_attribute_cache_config(100500, 100500, None)
+        patch = get_object_attribute_cache_config(100500, 100500, None, None)
 
         with Clique(2, config_patch=patch) as clique:
             for i in range(10):
@@ -2092,9 +2092,11 @@ class TestClickHouseNoCache(ClickHouseTestBase):
             "yt": {
                 "permission_cache": {
                     "refresh_time": 250,
+                    "expiration_period": 250,
                 },
                 "table_attribute_cache": {
                     "refresh_time": 250,
+                    "expiration_period": 250,
                 },
             }
         }

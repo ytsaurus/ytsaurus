@@ -18,6 +18,7 @@ class TestColumnarRead(ClickHouseTestBase):
                 "expire_after_successful_update_time": 0,
                 "expire_after_failed_update_time": 0,
                 "refresh_time": 0,
+                "expiration_period": 0,
                 "expire_after_access_time": 0,
             },
         }

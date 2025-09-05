@@ -11,7 +11,7 @@ import time
 class TestClickHouseDdl(ClickHouseTestBase):
     @authors("evgenstf")
     def test_drop_nonexistent_table(self):
-        patch = get_object_attribute_cache_config(500, 500, None)
+        patch = get_object_attribute_cache_config(500, 500, None, None)
         with Clique(1, config_patch=patch) as clique:
             assert not exists("//tmp/t")
             assert clique.make_query('exists "//tmp/t"') == [{"result": 0}]
@@ -20,7 +20,7 @@ class TestClickHouseDdl(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_drop_table(self):
-        patch = get_object_attribute_cache_config(500, 500, None)
+        patch = get_object_attribute_cache_config(500, 500, None, None)
         with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])

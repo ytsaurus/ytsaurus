@@ -32,6 +32,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         "table_mount_cache": {
             "expire_after_successful_update_time": 60000,
             "refresh_time": 60000,
+            "expiration_period": 60000,
             "expire_after_failed_update_time": 1000,
             "expire_after_access_time": 300000,
         },

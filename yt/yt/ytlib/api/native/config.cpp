@@ -461,9 +461,11 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         config->JobShellDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
         config->JobShellDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         config->JobShellDescriptorCache->RefreshTime = TDuration::Minutes(1);
+        config->JobShellDescriptorCache->ExpirationPeriod = TDuration::Minutes(1);
 
         config->SyncReplicaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         config->SyncReplicaCache->RefreshTime = TDuration::Seconds(5);
+        config->SyncReplicaCache->ExpirationPeriod = TDuration::Seconds(5);
 
         config->BannedReplicaTrackerCache->Capacity = 1000;
     });

@@ -1181,6 +1181,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
                 "user_cache": {
                     "expire_after_successful_update_time": 1000,
                     "refresh_time": 100,
+                    "expiration_period": 100,
                     "expire_after_failed_update_time": 100,
                     "expire_after_access_time": 100,
                 }

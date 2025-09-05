@@ -22,13 +22,17 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
-        config->TableSchemaCache->RefreshTime = TDuration::Seconds(15);
+        config->TableSchemaCache->ExpirationPeriod = TDuration::Seconds(10);
+        config->TableSchemaCache->RefreshTime = std::nullopt;
         config->TableSchemaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         config->TableSchemaCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
+        config->TableSchemaCache->ExpireAfterAccessTime = TDuration::Minutes(5);
 
-        config->YsonTableSchemaCache->RefreshTime = TDuration::Seconds(15);
+        config->YsonTableSchemaCache->ExpirationPeriod = TDuration::Seconds(10);
+        config->YsonTableSchemaCache->RefreshTime = std::nullopt;
         config->YsonTableSchemaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         config->YsonTableSchemaCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(5);
+        config->YsonTableSchemaCache->ExpireAfterAccessTime = TDuration::Minutes(5);
     });
 }
 
