@@ -3,11 +3,10 @@
 #include "allocation.h"
 #include "bootstrap.h"
 #include "job_controller.h"
-#include "master_connector.h"
 #include "private.h"
 #include "slot_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -98,11 +97,11 @@ void TSchedulerConnector::Initialize()
         &TSchedulerConnector::OnResourcesReleased,
         MakeWeak(this)));
 
-    const auto& masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(
-        &TSchedulerConnector::OnMasterConnected,
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    clusterNodeMasterConnector->SubscribeStartHeartbeats(BIND_NO_PROPAGATE(
+        &TSchedulerConnector::OnStartHeartbeats,
         MakeWeak(this)));
-    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
+    clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
         &TSchedulerConnector::OnMasterDisconnected,
         MakeWeak(this)));
 }
@@ -327,7 +326,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
         : TError("Scheduling skipped");
 }
 
-void TSchedulerConnector::OnMasterConnected()
+void TSchedulerConnector::OnStartHeartbeats()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

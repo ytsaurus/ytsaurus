@@ -4,16 +4,13 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job.h"
-#include "job_info.h"
-#include "job_proxy_log_manager.h"
-#include "master_connector.h"
 #include "private.h"
 #include "scheduler_connector.h"
 #include "slot_manager.h"
 
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/job_controller.h>
@@ -171,9 +168,9 @@ public:
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
 
-        const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
-        masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TJobController::OnMasterConnected, MakeWeak(this)));
-        masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TJobController::OnMasterDisconnected, MakeWeak(this)));
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        clusterNodeMasterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TJobController::OnMasterConnected, MakeWeak(this)));
+        clusterNodeMasterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TJobController::OnMasterDisconnected, MakeWeak(this)));
     }
 
     void Start() override

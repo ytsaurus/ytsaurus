@@ -36,8 +36,6 @@ public:
         , Profiler_(std::move(profiler))
     { }
 
-    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
     DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
     DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
