@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/ignat/fix_local_image_build
       - stable/[0-9]+\.[0-9]+
 
 env:
