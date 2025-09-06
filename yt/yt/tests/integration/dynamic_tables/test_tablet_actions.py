@@ -792,6 +792,10 @@ class TestTabletActions(TabletActionsBase):
             }
         })
 
+        # Wait until the last heartbeat certainly comes and unflushed timestamp
+        # is no longer updated.
+        sleep(1)
+
         unflushed_timestamp = get("//tmp/t/@unflushed_timestamp")
 
         action_id = create("tablet_action", "", attributes={
