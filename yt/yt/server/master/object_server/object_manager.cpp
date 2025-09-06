@@ -269,16 +269,21 @@ public:
 
     TObject* ResolvePathToLocalObject(
         const TYPath& path,
+        const std::string& service,
+        const std::string& method,
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
     TObject* ResolvePathToObject(
         const TYPath& path,
+        const std::string& service,
+        const std::string& method,
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
     TObjectId ResolvePathToObjectId(
         const NYPath::TYPath& path,
+        const std::string& service,
         const std::string& method,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) override;
@@ -288,6 +293,8 @@ public:
 
     void ValidatePrerequisites(
         const NRpc::NProto::TRequestHeader& requestHeader,
+        const std::string& service,
+        const std::string& method,
         TObjectId targetObjectId,
         const std::vector<TObjectId>& additionalObjectIds,
         const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
@@ -1751,14 +1758,17 @@ void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
     multicellManager->PostToMasters(advanceRequest, replicationCellTags);
 }
 
-TObject* TObjectManager::ResolvePathToLocalObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
+TObject* TObjectManager::ResolvePathToLocalObject(
+    const TYPath& path,
+    const std::string& service,
+    const std::string& method,
+    TTransaction* transaction,
+    const TResolvePathOptions& options)
 {
-    static const std::string NullService;
-    static const std::string NullMethod;
     TPathResolver resolver(
         Bootstrap_,
-        NullService,
-        NullMethod,
+        service,
+        method,
         path,
         transaction);
 
@@ -1776,15 +1786,15 @@ TObject* TObjectManager::ResolvePathToLocalObject(const TYPath& path, TTransacti
 
 TObject* TObjectManager::ResolvePathToObject(
     const TYPath& path,
+    const std::string& service,
+    const std::string& method,
     TTransaction* transaction,
     const TResolvePathOptions& options)
 {
-    static const std::string NullService;
-    static const std::string NullMethod;
     TPathResolver resolver(
         Bootstrap_,
-        NullService,
-        NullMethod,
+        service,
+        method,
         path,
         transaction);
 
@@ -1811,13 +1821,13 @@ TObject* TObjectManager::ResolvePathToObject(
 TObjectId TObjectManager::ResolvePathToObjectId(
     const TYPath& path,
     const std::string& method,
-    TTransaction* transaction,
+    const std::string& service,
+    NTransactionServer::TTransaction* transaction,
     const TResolvePathOptions& options)
 {
-    static const std::string NullService;
     TPathResolver resolver(
         Bootstrap_,
-        NullService,
+        service,
         method,
         path,
         transaction);
@@ -1929,6 +1939,8 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
 
 void TObjectManager::ValidatePrerequisites(
     const NRpc::NProto::TRequestHeader& requestHeader,
+    const std::string& service,
+    const std::string& method,
     TObjectId targetObjectId,
     const std::vector<TObjectId>& additionalObjectIds,
     const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
@@ -1954,6 +1966,8 @@ void TObjectManager::ValidatePrerequisites(
         validatePrerequisiteTransaction(transactionId);
     }
 
+    auto transactionIdForPrerequisiteResolve = GetTransactionId(requestHeader);
+    auto* transactionForPrerequisiteResolve = transactionManager->FindTransaction(transactionIdForPrerequisiteResolve);
     for (const auto& prerequisite : prerequisites.revisions()) {
         const auto& path = prerequisite.path();
         auto revision = FromProto<TRevision>(prerequisite.revision());
@@ -1964,7 +1978,11 @@ void TObjectManager::ValidatePrerequisites(
                 auto nodeId = FromProto<TObjectId>(prerequisite.resolved_node_id_hint());
                 trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
             } else {
-                trunkNode = cypressManager->ResolvePathToTrunkNode(path);
+                if (GetDynamicConfig()->FixResolvePrerequisitePathToLocalObjectForSymlinks) {
+                    trunkNode = cypressManager->ResolvePathToTrunkNode(path, service, method, transactionForPrerequisiteResolve);
+                } else {
+                    trunkNode = cypressManager->ResolvePathToTrunkNode(path);
+                }
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
