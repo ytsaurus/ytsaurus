@@ -44,7 +44,7 @@ func (r *reader) readValue() (v Value, err error) {
 		}
 
 		v.scalar = r.readUint64()
-	case TypeBytes, TypeAny:
+	case TypeBytes, TypeAny, TypeComposite:
 		if rawLength > maxValueLength {
 			err = fmt.Errorf("value is too long: actual=%d, limit=%d", rawLength, maxValueLength)
 			return

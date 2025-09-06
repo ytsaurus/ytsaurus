@@ -48,6 +48,7 @@ const (
 
 	TypeAny  Type = "any"
 	typeYSON Type = "yson"
+	TypeNull Type = "null"
 
 	TypeDate      Type = "date"
 	TypeDatetime  Type = "datetime"

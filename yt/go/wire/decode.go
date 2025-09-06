@@ -2,9 +2,13 @@ package wire
 
 import (
 	"encoding"
+	"encoding/binary"
 	"fmt"
 	"math"
+	"math/big"
 	"reflect"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -183,10 +187,11 @@ func (e *ReflectTypeError) Error() string {
 
 type WireDecoder struct {
 	NameTable NameTable
+	Schema    *schema.Schema
 }
 
-func NewDecoder(table NameTable) *WireDecoder {
-	return &WireDecoder{NameTable: table}
+func NewDecoder(table NameTable, schema *schema.Schema) *WireDecoder {
+	return &WireDecoder{NameTable: table, Schema: schema}
 }
 
 func (d *WireDecoder) getNameTableEntry(value Value) (*NameTableEntry, error) {
@@ -265,11 +270,326 @@ func (d *WireDecoder) decodeValueGeneric(value Value, v *any) (err error) {
 		*v = value.Bool()
 	case TypeBytes:
 		*v = value.Bytes()
+	case TypeComposite:
+		return d.decodeValueComposite(value, v)
 	case TypeAny:
 		return yson.Unmarshal(value.Any(), v)
 	}
 
 	return
+}
+
+func (d *WireDecoder) decodeValueComposite(value Value, v *any) error {
+	entry, err := d.getNameTableEntry(value)
+	if err != nil {
+		return err
+	}
+
+	var columnSchema *schema.Column
+	if d.Schema != nil {
+		for _, col := range d.Schema.Columns {
+			if col.Name == entry.Name {
+				columnSchema = &col
+				break
+			}
+		}
+	}
+
+	if columnSchema == nil || columnSchema.ComplexType == nil {
+		return yson.Unmarshal(value.Any(), v)
+	}
+
+	var ysonData any
+	if err := yson.Unmarshal(value.Any(), &ysonData); err != nil {
+		return err
+	}
+
+	return d.decodeSchemaType(ysonData, columnSchema.ComplexType, v)
+}
+
+func (d *WireDecoder) decodeSchemaType(data any, complexType schema.ComplexType, v *any) error {
+	switch t := complexType.(type) {
+	case schema.Type:
+		return d.decodePrimitiveType(data, t, v)
+	case schema.Decimal:
+		return d.decodeDecimal(data, t, v)
+	case schema.Tagged:
+		return d.decodeTagged(data, t, v)
+	case schema.Optional:
+		return d.decodeOptional(data, t, v)
+	case schema.List:
+		return d.decodeList(data, t, v)
+	case schema.Struct:
+		return d.decodeStruct(data, t, v)
+	case schema.Tuple:
+		return d.decodeTuple(data, t, v)
+	case schema.Dict:
+		return d.decodeDict(data, t, v)
+	case schema.Variant:
+		return d.decodeVariant(data, t, v)
+	default:
+		return fmt.Errorf("unknown type %T", complexType)
+	}
+}
+
+func (d *WireDecoder) decodePrimitiveType(data any, t schema.Type, v *any) error {
+	switch t {
+	case schema.TypeDate:
+		return d.decodeDate(data, v)
+	case schema.TypeDatetime:
+		return d.decodeDatetime(data, v)
+	case schema.TypeTimestamp:
+		return d.decodeTimestamp(data, v)
+	case schema.TypeInterval:
+		return d.decodeInterval(data, v)
+	default:
+		*v = data
+		return nil
+	}
+}
+
+func (d *WireDecoder) decodeDate(data any, v *any) error {
+	if unixTimeDays, ok := data.(uint64); ok {
+		*v = unixTimeDays
+		return nil
+	}
+	if dateStr, ok := data.(string); ok {
+		t, err := time.Parse(time.DateOnly, dateStr)
+		if err != nil {
+			return err
+		}
+		*v = t.Unix() / (24 * 60 * 60)
+		return nil
+	}
+	return fmt.Errorf("expected uint64 or string for date, got %T", data)
+}
+
+func (d *WireDecoder) decodeDatetime(data any, v *any) error {
+	if unixTimeSeconds, ok := data.(uint64); ok {
+		*v = unixTimeSeconds
+		return nil
+	}
+	if dateStr, ok := data.(string); ok {
+		t, err := time.Parse(time.RFC3339, dateStr)
+		if err != nil {
+			return err
+		}
+
+		*v = t.Unix()
+		return nil
+	}
+	return fmt.Errorf("expected uint64 or string for datetime, got %T", data)
+}
+
+func (d *WireDecoder) decodeInterval(data any, v *any) error {
+	if interval, ok := data.(int64); ok {
+		*v = interval
+		return nil
+	}
+	return fmt.Errorf("expected int64 for interval, got %T", data)
+}
+
+func (d *WireDecoder) decodeTimestamp(data any, v *any) error {
+	if unixTimeMilliseconds, ok := data.(uint64); ok {
+		*v = unixTimeMilliseconds
+		return nil
+	}
+	if dateStr, ok := data.(string); ok {
+		t, err := time.Parse(time.RFC3339Nano, dateStr)
+		if err != nil {
+			return err
+		}
+
+		*v = t.UnixMilli()
+		return nil
+	}
+	return fmt.Errorf("expected uint64 or string for timestamp, got %T", data)
+}
+
+func (d *WireDecoder) decodeDecimal(data any, t schema.Decimal, v *any) error {
+	if decimalStr, ok := data.(string); ok {
+		*v = decimalStr
+		return nil
+	}
+
+	if binaryData, ok := data.([]byte); ok {
+		decimalStr, err := decodeDecimalFromBinary(binaryData, t.Precision, t.Scale)
+		if err != nil {
+			return fmt.Errorf("failed to decode decimal from binary: %w", err)
+		}
+		*v = decimalStr
+		return nil
+	}
+
+	return fmt.Errorf("expected string or []byte for decimal, got %T", data)
+}
+
+func (d *WireDecoder) decodeTagged(data any, t schema.Tagged, v *any) error {
+	return d.decodeSchemaType(data, t.Item, v)
+}
+
+func (d *WireDecoder) decodeOptional(data any, t schema.Optional, v *any) error {
+	if data == nil {
+		*v = nil
+		return nil
+	}
+	return d.decodeSchemaType(data, t.Item, v)
+}
+
+func (d *WireDecoder) decodeList(data any, t schema.List, v *any) error {
+	ysonList, ok := data.([]any)
+	if !ok {
+		return fmt.Errorf("expected list, got %T", data)
+	}
+
+	result := make([]any, len(ysonList))
+	for i, item := range ysonList {
+		if err := d.decodeSchemaType(item, t.Item, &result[i]); err != nil {
+			return err
+		}
+	}
+	*v = result
+	return nil
+}
+
+func (d *WireDecoder) decodeStruct(data any, t schema.Struct, v *any) error {
+	// complex_type_mode = named
+	if ysonMap, ok := data.(map[any]any); ok {
+		result := make(map[string]any)
+		for key, val := range ysonMap {
+			keyStr, ok := key.(string)
+			if !ok {
+				return fmt.Errorf("expected string key in struct map, got %T", key)
+			}
+
+			var memberType schema.ComplexType
+			for _, member := range t.Members {
+				if member.Name == keyStr {
+					memberType = member.Type
+					break
+				}
+			}
+
+			if memberType == nil {
+				continue
+			}
+
+			var decodedVal any
+			if err := d.decodeSchemaType(val, memberType, &decodedVal); err != nil {
+				return err
+			}
+			result[keyStr] = decodedVal
+		}
+		*v = result
+		return nil
+	}
+
+	// complex_type_mode = positional
+	if ysonList, ok := data.([]any); ok {
+		// Positional representation: struct is encoded as a YSON list
+		// The i-th position contains the i-th field's value
+		result := make(map[string]any)
+		for i, member := range t.Members {
+			if i < len(ysonList) {
+				var value any
+				if err := d.decodeSchemaType(ysonList[i], member.Type, &value); err != nil {
+					return err
+				}
+				result[member.Name] = value
+			} else {
+				if _, isOptional := member.Type.(schema.Optional); isOptional {
+					result[member.Name] = nil
+				}
+			}
+		}
+		*v = result
+		return nil
+	}
+
+	return fmt.Errorf("expected map or list for struct, got %T", data)
+}
+
+func (d *WireDecoder) decodeTuple(data any, t schema.Tuple, v *any) error {
+	ysonList, ok := data.([]any)
+	if !ok {
+		return fmt.Errorf("expected list for tuple, got %T", data)
+	}
+
+	result := make([]any, len(t.Elements))
+	for i, elem := range t.Elements {
+		if i >= len(ysonList) {
+			break
+		}
+		if err := d.decodeSchemaType(ysonList[i], elem.Type, &result[i]); err != nil {
+			return err
+		}
+	}
+	*v = result
+	return nil
+}
+
+func (d *WireDecoder) decodeDict(data any, t schema.Dict, v *any) error {
+	// Dict is represented by default as a YSON list, where each element is a YSON list of two elements: key and value
+	if ysonList, ok := data.([]any); ok {
+		result := make([]any, 0, len(ysonList))
+		for _, item := range ysonList {
+			kvList, ok := item.([]any)
+			if !ok || len(kvList) != 2 {
+				return fmt.Errorf("expected key-value pair list for dict item, got %T", item)
+			}
+			var decodedKey, decodedVal any
+			if err := d.decodeSchemaType(kvList[0], t.Key, &decodedKey); err != nil {
+				return err
+			}
+			if err := d.decodeSchemaType(kvList[1], t.Value, &decodedVal); err != nil {
+				return err
+			}
+			result = append(result, []any{decodedKey, decodedVal})
+		}
+		*v = result
+		return nil
+	}
+
+	return fmt.Errorf("expected a list for dict, got %T", data)
+}
+
+func (d *WireDecoder) decodeVariant(data any, t schema.Variant, v *any) error {
+	// Variant is represented as a YSON list of length 2: [alternative, value]
+	ysonList, ok := data.([]any)
+	if !ok || len(ysonList) != 2 {
+		return fmt.Errorf("expected list of length 2 for variant, got %T", data)
+	}
+
+	alternative := ysonList[0]
+	value := ysonList[1]
+
+	// named variants
+	if altName, ok := alternative.(string); ok {
+		for _, member := range t.Members {
+			if member.Name == altName {
+				var decodedValue any
+				if err := d.decodeSchemaType(value, member.Type, &decodedValue); err != nil {
+					return err
+				}
+				*v = []any{altName, decodedValue}
+				return nil
+			}
+		}
+	}
+
+	// unnamed variants (index)
+	if altIndex, ok := alternative.(int64); ok {
+		if int(altIndex) < len(t.Elements) {
+			var decodedValue any
+			if err := d.decodeSchemaType(value, t.Elements[altIndex].Type, &decodedValue); err != nil {
+				return err
+			}
+			*v = []any{altIndex, decodedValue}
+			return nil
+		}
+	}
+
+	return fmt.Errorf("expected alternative to be either string or int64, got %T", alternative)
 }
 
 func (d *WireDecoder) decodeRowReflect(row Row, v reflect.Value) error {
@@ -484,7 +804,7 @@ func (d *WireDecoder) decodeValueAny(value Value, v any) (err error) {
 		err = d.decodeValueGeneric(value, vv)
 
 	default:
-		if err := decodeReflect(value, reflect.ValueOf(v)); err != nil {
+		if err := d.decodeReflect(value, reflect.ValueOf(v)); err != nil {
 			return err
 		}
 	}
@@ -492,7 +812,7 @@ func (d *WireDecoder) decodeValueAny(value Value, v any) (err error) {
 	return
 }
 
-func decodeReflect(value Value, v reflect.Value) error {
+func (d *WireDecoder) decodeReflect(value Value, v reflect.Value) error {
 	if v.Kind() != reflect.Ptr {
 		return &UnsupportedTypeError{v.Type()}
 	}
@@ -542,11 +862,29 @@ func decodeReflect(value Value, v reflect.Value) error {
 		return nil
 
 	default:
-		if err := validateWireType(TypeAny, value.Type); err != nil {
+		if err := validateWireTypes([]ValueType{TypeAny, TypeComposite}, value.Type); err != nil {
 			return err
 		}
 
-		return yson.Unmarshal(value.Any(), v.Interface())
+		if value.Type == TypeAny {
+			return yson.Unmarshal(value.Any(), v.Interface())
+		}
+
+		res := v.Interface()
+		if err := d.decodeValueComposite(value, &res); err != nil {
+			return err
+		}
+
+		srcValue := reflect.ValueOf(res)
+		dstType := v.Elem().Type()
+
+		if !srcValue.Type().AssignableTo(dstType) {
+			return fmt.Errorf("wire: cannot decode %s into %s - type mismatch",
+				srcValue.Type(), dstType)
+		}
+
+		v.Elem().Set(srcValue)
+		return nil
 	}
 }
 
@@ -678,6 +1016,13 @@ func checkFloat32Overflow(value float64) error {
 	return nil
 }
 
+func validateWireTypes(expected []ValueType, actual ValueType) error {
+	if !slices.Contains(expected, actual) {
+		return xerrors.Errorf("wire: unable to deserialize value of type %v into any of %v", actual, expected)
+	}
+	return nil
+}
+
 func validateWireType(expected, actual ValueType) error {
 	if expected != actual {
 		return xerrors.Errorf("wire: unable to deserialize value of type %v into %v", actual, expected)
@@ -692,4 +1037,135 @@ func checkWireTypeScalar(typ ValueType) error {
 		return xerrors.Errorf("wire: expected scalar type, got %v", typ)
 	}
 	return nil
+}
+
+// decodeDecimalFromBinary decodes a decimal value from its binary representation
+// according to the YT decimal format specification.
+func decodeDecimalFromBinary(data []byte, precision, scale int) (string, error) {
+	expectedSize := getDecimalByteSize(precision)
+	if len(data) != expectedSize {
+		return "", xerrors.Errorf("wire: binary value of Decimal<%d,%d> has invalid length; expected length: %d actual length: %d",
+			precision, scale, expectedSize, len(data))
+	}
+
+	var bigInt *big.Int
+	switch len(data) {
+	case 4:
+		uintVal := binary.BigEndian.Uint32(data)
+		intVal := int64(uintVal)
+		intVal -= 1 << 31
+		bigInt = big.NewInt(intVal)
+	case 8:
+		uintVal := binary.BigEndian.Uint64(data)
+		bigInt = big.NewInt(0).SetUint64(uintVal)
+		bitInverter := big.NewInt(1)
+		bitInverter.Lsh(bitInverter, 63)
+		bigInt.Sub(bigInt, bitInverter)
+	case 16:
+		hi := binary.BigEndian.Uint64(data[:8])
+		lo := binary.BigEndian.Uint64(data[8:])
+		bigHi := big.NewInt(0).SetUint64(hi)
+		bigLo := big.NewInt(0).SetUint64(lo)
+		bigHi.Lsh(bigHi, 64)
+		bigHi.Add(bigHi, bigLo)
+
+		bitInverter := big.NewInt(1)
+		bitInverter.Lsh(bitInverter, 127)
+		bigHi.Sub(bigHi, bitInverter)
+
+		bigInt = bigHi
+	case 32:
+		p3 := binary.BigEndian.Uint64(data[:8])
+		p2 := binary.BigEndian.Uint64(data[8:16])
+		p1 := binary.BigEndian.Uint64(data[16:24])
+		p0 := binary.BigEndian.Uint64(data[24:32])
+
+		bigInt = big.NewInt(0)
+		bigP3 := big.NewInt(0).SetUint64(p3)
+		bigP2 := big.NewInt(0).SetUint64(p2)
+		bigP1 := big.NewInt(0).SetUint64(p1)
+		bigP0 := big.NewInt(0).SetUint64(p0)
+
+		// Combine the parts: p3 << 192 + p2 << 128 + p1 << 64 + p0
+		bigP3.Lsh(bigP3, 192)
+		bigP2.Lsh(bigP2, 128)
+		bigP1.Lsh(bigP1, 64)
+
+		bigInt.Add(bigInt, bigP3)
+		bigInt.Add(bigInt, bigP2)
+		bigInt.Add(bigInt, bigP1)
+		bigInt.Add(bigInt, bigP0)
+
+		bitInverter := big.NewInt(1)
+		bitInverter.Lsh(bitInverter, 255)
+		bigInt.Sub(bigInt, bitInverter)
+	default:
+		return "", xerrors.Errorf("wire: unexpected decimal binary length: %d", len(data))
+	}
+
+	if special := checkSpecialValue(bigInt, len(data)); special != "" {
+		return special, nil
+	}
+
+	// Apply scale by dividing by 10^scale
+	if scale != 0 {
+		scaleFactor := big.NewInt(10)
+		scaleFactor.Exp(scaleFactor, big.NewInt(int64(-scale)), nil)
+		bigInt.Mul(bigInt, scaleFactor)
+	}
+
+	result := bigInt.String()
+
+	if scale > 0 {
+		isNegative := false
+		if len(result) > 0 && result[0] == '-' {
+			isNegative = true
+			result = result[1:] // Remove the minus sign temporarily
+		}
+
+		if len(result) <= scale {
+			result = "0." + strings.Repeat("0", scale-len(result)) + result
+		} else {
+			result = result[:len(result)-scale] + "." + result[len(result)-scale:]
+		}
+
+		if isNegative {
+			result = "-" + result
+		}
+	}
+
+	return result, nil
+}
+
+func getDecimalByteSize(precision int) int {
+	if precision <= 0 || precision > 76 {
+		return 0 // Invalid precision
+	} else if precision <= 9 {
+		return 4
+	} else if precision <= 18 {
+		return 8
+	} else if precision <= 38 {
+		return 16
+	} else {
+		return 32
+	}
+}
+
+func checkSpecialValue(bigInt *big.Int, byteSize int) string {
+	shift := byteSize*8 - 1
+	nanValue := big.NewInt(1)
+	nanValue.Lsh(nanValue, uint(shift))
+	nanValue.Sub(nanValue, big.NewInt(1))
+
+	plusInf := big.NewInt(0).Sub(nanValue, big.NewInt(1))
+	minusInf := big.NewInt(0).Add(big.NewInt(0).Neg(nanValue), big.NewInt(1))
+
+	if bigInt.Cmp(nanValue) == 0 {
+		return "nan"
+	} else if bigInt.Cmp(plusInf) == 0 {
+		return "+inf"
+	} else if bigInt.Cmp(minusInf) == 0 {
+		return "-inf"
+	}
+	return ""
 }
