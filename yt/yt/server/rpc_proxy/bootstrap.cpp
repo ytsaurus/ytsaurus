@@ -228,19 +228,28 @@ void TBootstrap::DoInitialize()
     BusServer_ = CreateBusServer(
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
-        MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+        MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
+        RpcProxyProfiler().WithPrefix("/bus_server"),
+        GetControlInvoker());
 
     if (Config_->PublicRpcPort) {
         PublicBusServer_ = CreateBusServer(
             Config_->PublicBusServer,
             GetYTPacketTranscoderFactory(),
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+            MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc),
+            RpcProxyProfiler().WithPrefix("/public_bus_server"),
+            GetControlInvoker());
     }
 
     if (Config_->TvmOnlyRpcPort) {
         auto busConfigCopy = CloneYsonStruct(Config_->BusServer);
         busConfigCopy->Port = Config_->TvmOnlyRpcPort;
-        TvmOnlyBusServer_ = CreateBusServer(busConfigCopy);
+        TvmOnlyBusServer_ = CreateBusServer(
+            busConfigCopy,
+            GetYTPacketTranscoderFactory(),
+            GetNullMemoryUsageTracker(),
+            RpcProxyProfiler().WithPrefix("/tvm_only_bus_server"),
+            GetControlInvoker());
     }
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
@@ -450,6 +459,27 @@ void TBootstrap::DoStart()
 
         YT_LOG_INFO("Listening for GRPC requests on port %v", port);
         GrpcServer_->Start();
+    }
+
+    if (BusServer_) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/bus_server",
+            CreateVirtualNode(BusServer_->GetOrchidService()));
+    }
+
+    if (PublicBusServer_) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/public_bus_server",
+            CreateVirtualNode(PublicBusServer_->GetOrchidService()));
+    }
+
+    if (TvmOnlyBusServer_) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/tvm_only_bus_server",
+            CreateVirtualNode(TvmOnlyBusServer_->GetOrchidService()));
     }
 
     SetNodeByYPath(
