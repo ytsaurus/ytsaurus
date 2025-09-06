@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 SRCS(
     compare.go
     complex_type.go
+    converter.go
     infer.go
     infer_v3.go
     schema.go
@@ -13,6 +14,7 @@ SRCS(
 
 GO_TEST_SRCS(
     compare_test.go
+    converter_test.go
     complex_type_test.go
     infer_test.go
     infer_v3_test.go
