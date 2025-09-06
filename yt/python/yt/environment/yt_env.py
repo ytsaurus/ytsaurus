@@ -583,7 +583,8 @@ class YTInstance(object):
                 self._wait_for(check_function, name, max_wait_time=max_wait_time)
             except YtError:
                 for process in self._service_processes[name]:
-                    self._dump_backtraces(process.pid)
+                    if process is not None:
+                        self._dump_backtraces(process.pid)
                 raise
 
         if sync:
@@ -1343,7 +1344,7 @@ class YTInstance(object):
             ])
         logger.info(f"Process {pid} backtraces:")
         for line in gdb_output.splitlines():
-            logger.info(line.decode("utf-8"))
+            logger.info(line)
 
     def run_yt_component(self, component, config_paths, name=None, indexes=None, config_option=None, custom_paths=None):
         if config_option is None:
