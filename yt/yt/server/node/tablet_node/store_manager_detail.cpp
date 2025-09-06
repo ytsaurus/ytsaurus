@@ -521,8 +521,8 @@ void TStoreManagerBase::PopulateReplicateTabletContentRequest(
 {
     auto* replicatableContent = request->mutable_replicatable_content();
 
-    for (const auto& [id, hunkChunk] : Tablet_->HunkChunkMap()) {
-        hunkChunk->PopulateAddHunkChunkDescriptor(replicatableContent->add_hunk_chunks());
+    for (auto it : GetSortedIterators(Tablet_->HunkChunkMap())) {
+        it->second->PopulateAddHunkChunkDescriptor(replicatableContent->add_hunk_chunks());
     }
 
     if (const auto& activeStore = Tablet_->GetActiveStore()) {
