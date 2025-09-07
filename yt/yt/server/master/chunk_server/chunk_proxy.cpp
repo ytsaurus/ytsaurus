@@ -288,7 +288,8 @@ private:
         const TChunkLocation* location,
         int replicaIndex,
         EChunkReplicaState replicaState,
-        int mediumIndex)
+        int mediumIndex,
+        bool offshoreMedium)
     {
         auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
         fluent.Item()
@@ -298,7 +299,7 @@ private:
                     fluent
                         .Item("location_uuid").Value(location->GetUuid());
                 })
-                .DoIf(node->IsDecommissioned(), [&] (TFluentMap fluent) {
+                .DoIf(node && node->IsDecommissioned(), [&] (TFluentMap fluent) {
                     fluent
                         .Item("decommissioned").Value(true);
                 })
@@ -310,32 +311,43 @@ private:
                     fluent
                         .Item("state").Value(replicaState);
                 })
+                .DoIf(offshoreMedium, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("offshore").Value(true);
+                })
             .EndAttributes()
-            .Value(node->GetDefaultAddress());
+            // Maybe not the cleanest approach, but good enough for now.
+            .Value(node ? node->GetDefaultAddress() : TString(medium->GetName()));
     };
 
     void BuildYsonReplicas(
         IYsonConsumer* consumer,
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
-        TChunkLocationPtrWithReplicaInfoList replicas)
+        TStoredReplicaList replicas)
     {
-        SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
-            return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
+        SortBy(replicas, [] (TStoredReplica replica) {
+            return std::tuple(replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
         });
 
         BuildYsonFluently(consumer)
-            .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
-                const auto* location = replica.GetPtr();
+            .DoListFor(replicas, [&] (TFluentList fluent, TStoredReplica replica) {
+                TChunkLocation* location = nullptr;
+                TNodeRawPtr node = nullptr;
+                if (replica.IsChunkLocation()) {
+                    location = replica.AsChunkLocation().GetPtr();
+                    node = location->GetNode();
+                }
                 SerializeReplica(
                     fluent,
                     chunkManager,
                     chunkId,
-                    location->GetNode(),
+                    node,
                     location,
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
-                    location->GetEffectiveMediumIndex());
+                    location->GetEffectiveMediumIndex(),
+                    /*offshoreMedium*/ replica.IsMedium());
             });
     };
 
@@ -358,9 +370,13 @@ private:
                     break;
                 }
 
-                auto masterReplicas = chunk->StoredReplicas();
-                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
-                BuildYsonReplicas(consumer, chunkManager, chunk->GetId(), replicaList);
+                auto storedReplicas = chunk->StoredReplicas();
+                TStoredReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
+                BuildYsonReplicas(
+                    consumer,
+                    chunkManager,
+                    chunk->GetId(),
+                    replicaList);
                 return true;
             }
 
@@ -921,7 +937,8 @@ private:
                             /*location*/ nullptr,
                             replica.GetReplicaIndex(),
                             replica.GetReplicaState(),
-                            replica.GetMediumIndex());
+                            replica.GetMediumIndex(),
+                            /*offshoreMedium*/ false);
                     });
                 return true;
             }
@@ -1127,7 +1144,11 @@ private:
                         auto aliveReplicas = chunkReplicaFetcher->FilterAliveReplicas(replicas);
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
-                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, aliveReplicas);
+                                BuildYsonReplicas(
+                                    fluent.GetConsumer(),
+                                    chunkManager,
+                                    chunkId,
+                                    aliveReplicas);
                             });
                     })
                     .AsyncViaGuarded(
@@ -1146,10 +1167,14 @@ private:
                         auto it = replicas.find(chunkId);
                         const auto& chunkReplicas = it != replicas.end()
                             ? chunkReplicaFetcher->FilterAliveReplicas(it->second)
-                            : TChunkLocationPtrWithReplicaInfoList();
+                            : TStoredReplicaList();
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
-                                BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, chunkReplicas);
+                                BuildYsonReplicas(
+                                    fluent.GetConsumer(),
+                                    chunkManager,
+                                    chunkId,
+                                    chunkReplicas);
                             });
                     })
                     .AsyncViaGuarded(
