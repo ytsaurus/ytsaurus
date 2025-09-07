@@ -1251,10 +1251,13 @@ std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
 
     std::vector<TChunkReplicaDescriptor> replicas;
     for (auto replica : chunk->StoredReplicas()) {
+        if (!replica.IsChunkLocation()) {
+            continue;
+        }
         replicas.push_back({
-            replica.GetPtr()->GetNode()->GetDescriptor(),
+            replica.AsChunkLocation().GetPtr()->GetNode()->GetDescriptor(),
             replica.GetReplicaIndex(),
-            replica.GetPtr()->GetEffectiveMediumIndex(),
+            replica.GetEffectiveMediumIndex(),
         });
     }
     return replicas;
@@ -1266,6 +1269,7 @@ void SerializeMediumDirectory(
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
         auto* protoItem = protoMediumDirectory->add_items();
+
         protoItem->set_index(medium->GetIndex());
         protoItem->set_name(medium->GetName());
         protoItem->set_priority(medium->GetPriority());

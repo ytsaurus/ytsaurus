@@ -517,6 +517,7 @@
     XX(Statistics, statistics) \
     XX(Status, status) \
     XX(StoredMasterReplicas, stored_master_replicas) \
+    XX(StoredOffshoreReplicas, stored_offshore_replicas) \
     XX(StoredReplicas, stored_replicas) \
     XX(StoredSequoiaReplicas, stored_sequoia_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \

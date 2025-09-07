@@ -3,7 +3,6 @@
 #include "s3_medium.h"
 #include "s3_medium_proxy.h"
 #include "chunk_manager.h"
-#include "config.h"
 #include "medium_type_handler_base.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
