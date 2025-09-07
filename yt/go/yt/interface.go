@@ -562,6 +562,7 @@ type TableClient interface {
 	// ReadTable opens a low-level table reader.
 	//
 	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
 	// http:verb:"read_table"
 	// http:params:"path"
 	ReadTable(
@@ -1352,6 +1353,7 @@ type TabletClient interface {
 	// Use strconv.Quote or %q format to escape string literals inside query.
 	//
 	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
 	// http:verb:"select_rows"
 	// http:params:"query"
 	SelectRows(
@@ -1370,6 +1372,7 @@ type TabletClient interface {
 	// from the table, corresponding row will be nil.
 	//
 	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
 	// http:verb:"lookup_rows"
 	// http:params:"path"
 	// http:extra
@@ -1731,8 +1734,11 @@ type QueryTrackerClient interface {
 		options *GetQueryResultOptions,
 	) (result *QueryResult, err error)
 
-	// http:verb:"read_query_result"
+	// ReadQueryResult reads query result.
+	//
 	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
+	// http:verb:"read_query_result"
 	// http:params:"query_id","result_index"
 	ReadQueryResult(
 		ctx context.Context,
