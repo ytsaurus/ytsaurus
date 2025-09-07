@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
+#include <yt/yt/server/master/chunk_server/stored_chunk_replica.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
@@ -24,6 +25,8 @@ public:
     void Add(TRange<NChunkServer::TNodePtrWithReplicaAndMediumIndex> nodeList);
     void Add(NChunkServer::TChunkLocationPtrWithReplicaInfo location);
     void Add(TRange<NChunkServer::TChunkLocationPtrWithReplicaInfo> locationList);
+    void Add(NChunkServer::TStoredReplica replica);
+    void Add(TRange<NChunkServer::TStoredReplica> replicaList);
 
 private:
     NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory_;

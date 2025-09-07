@@ -756,12 +756,10 @@ public:
             this);
     }
 
-
-
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredReplicaList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -785,7 +783,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredReplicaList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -809,7 +807,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredReplicaList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -831,7 +829,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredReplicaList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -1125,8 +1123,8 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
-        bool isErasure = IsErasureChunkType(chunkType);
-        bool isJournal = IsJournalChunkType(chunkType);
+        auto isErasure = IsErasureChunkType(chunkType);
+        auto isJournal = IsJournalChunkType(chunkType);
 
         auto* chunk = hintId ? DoCreateChunk(hintId) : DoCreateChunk(chunkType);
         chunk->SetReadQuorum(readQuorum);
@@ -1168,12 +1166,13 @@ public:
         YT_LOG_DEBUG(
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, Medium: %v, "
-            "ReplicationFactor: %v, ErasureCodec: %v, Movable: %v, Vital: %v%v%v)",
+            "RequisitionIndex: %v, ReplicationFactor: %v, ErasureCodec: %v, Movable: %v, Vital: %v%v%v)",
             chunk->GetId(),
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
             medium->GetName(),
+            requisitionIndex,
             replicationFactor,
             erasureCodecId,
             movable,
@@ -1289,8 +1288,12 @@ public:
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
         for (auto storedReplica : chunk->StoredReplicas()) {
+            if (!storedReplica.IsChunkLocation()) {
+                // TODO(cherepashka): handle this when offshore media will be supported.
+                continue;
+            }
             // TODO(aleksandra-zh): skip Sequoia replicas here.
-            auto* location = storedReplica.GetPtr();
+            auto* location = storedReplica.AsChunkLocation().GetPtr();
             auto replicaIndex = storedReplica.GetReplicaIndex();
             TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
             if (!location->RemoveReplica(replica)) {
@@ -1301,7 +1304,7 @@ public:
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunk->GetId();
                 replica.ReplicaIndex = replicaIndex;
-                replica.NodeId = storedReplica.GetPtr()->GetNode()->GetId();
+                replica.NodeId = location->GetNode()->GetId();
                 replica.LocationIndex = location->GetIndex();
                 sequoiaReplicas.push_back(replica);
             } else {
@@ -1677,11 +1680,15 @@ public:
         const auto& replicas = replicasOrError.Value();
         TNodePtrWithReplicaAndMediumIndexList result;
         for (auto replica : replicas) {
+            if (!replica.IsChunkLocation()) {
+                // TODO(cherepashka): handle this when offshore media will be supported.
+                continue;
+            }
             if (replicaIndex != GenericChunkReplicaIndex && replica.GetReplicaIndex() != replicaIndex) {
                 continue;
             }
 
-            auto* chunkLocation = replica.GetPtr();
+            auto* chunkLocation = replica.AsChunkLocation().GetPtr();
             result.emplace_back(chunkLocation->GetNode(), replica.GetReplicaIndex(), chunkLocation->GetEffectiveMediumIndex());
         }
 
@@ -3234,13 +3241,16 @@ private:
         TChunkLocation* locationWithMaxId = nullptr;
 
         for (auto replica : chunk->StoredReplicas()) {
-            auto* medium = FindMediumByIndex(replica.GetPtr()->GetEffectiveMediumIndex());
+            if (!replica.IsChunkLocation()) {
+                continue;
+            }
+            auto* medium = FindMediumByIndex(replica.GetEffectiveMediumIndex());
             if (!medium) {
                 continue;
             }
 
             // We do not care about approvedness.
-            auto location = replica.GetPtr();
+            auto location = replica.AsChunkLocation().GetPtr();
             if (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()) {
                 locationWithMaxId = location;
             }
@@ -4643,7 +4653,19 @@ private:
         auto* medium = GetMediumByNameOrThrow(mediumName);
         int mediumIndex = medium->GetIndex();
 
-        auto replicationFactor = isErasure ? 1 : subrequest->replication_factor();
+        // NB(achulkov2): It makes no sense to place erasure chunks on offshore media, since offshore media ensure durability on their own.
+        // NB: Instead, we could allow utilizing optimizations of underlying storage systems, e.g. the same erasure coding.
+        THROW_ERROR_EXCEPTION_IF(medium->IsOffshore() && isErasure, "Erasure chunks cannot be placed on offshore media");
+        // NB: Not supported for now, but theoretically possible, if the underlying storage supports appending to files.
+        THROW_ERROR_EXCEPTION_IF(medium->IsOffshore() && isJournal, "Journal chunks cannot be placed on offshore media");
+
+        auto replicationFactor = subrequest->replication_factor();
+        if (isErasure) {
+            replicationFactor = 1;
+        }
+        if (medium->IsOffshore()) {
+            replicationFactor = 1;
+        }
         ValidateReplicationFactor(replicationFactor);
 
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
@@ -5058,7 +5080,10 @@ private:
                 YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 for (auto replica : chunk->StoredReplicas()) {
-                    auto* location = replica.GetPtr();
+                    if (!replica.IsChunkLocation()) {
+                        continue;
+                    }
+                    auto* location = replica.AsChunkLocation().GetPtr();
                     auto* scratchData = location->GetLoadScratchData();
                     scratchData->Replicas[scratchData->CurrentReplicaIndex++] = TChunkPtrWithReplicaInfo(
                         chunk,

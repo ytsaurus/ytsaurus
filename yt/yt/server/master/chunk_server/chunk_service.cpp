@@ -570,7 +570,7 @@ private:
 
                 if (subrequest.is_nbd_chunk()) {
                     TDummyNbdChunk dummyNbdChunk;
-                    TChunkLocationPtrWithReplicaInfoList dummyReplicas;
+                    TStoredReplicaList dummyReplicas;
 
                     targets = chunkManager->AllocateWriteTargets(
                         medium->AsDomestic(),

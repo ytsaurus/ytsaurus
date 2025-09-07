@@ -12,7 +12,7 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TRange<TChunkLocationPtrWithReplicaInfo> TChunk::StoredReplicas() const
+inline TRange<TStoredReplica> TChunk::StoredReplicas() const
 {
     const auto& data = ReplicasData();
     return data.GetStoredReplicas();

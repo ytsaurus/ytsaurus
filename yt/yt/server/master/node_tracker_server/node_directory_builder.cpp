@@ -51,6 +51,25 @@ void TNodeDirectoryBuilder::Add(TRange<TChunkLocationPtrWithReplicaInfo> locatio
     }
 }
 
+void TNodeDirectoryBuilder::Add(NChunkServer::TStoredReplica replica)
+{
+    if (replica.IsChunkLocation()) {
+        Add(replica.AsChunkLocation());
+    } else if (ListedNodeIds_.insert(OffshoreNodeId).second) {
+        // TODO(cherepashka): fill out proto when offshore media will be supported.
+        auto* item = ProtoDirectory_->add_items();
+        item->set_node_id(ToProto(OffshoreNodeId));
+        item->clear_node_descriptor();
+    }
+}
+
+void TNodeDirectoryBuilder::Add(TRange<NChunkServer::TStoredReplica> replicaList)
+{
+    for (auto replica : replicaList) {
+        Add(replica);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerServer

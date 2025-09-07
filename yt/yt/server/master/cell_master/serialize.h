@@ -159,6 +159,7 @@ DEFINE_ENUM(EMasterReign,
     ((ObjectAccessControlInSequoia)                                 (3111))  // danilalexeev
     ((InplaceReshard)                                               (3112))  // atalmenev
     ((FixRestartedNodesProcessing)                                  (3113))  // grphil
+    ((RefactoringAroundChunkStoredReplicas)                         (3114))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
