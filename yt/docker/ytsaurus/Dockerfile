@@ -73,11 +73,6 @@ mkdir -p /etc/apt/keyrings
 curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" |
   tee /etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc
 
-cat <<EOF >/etc/apt/sources.list.d/deadsnakes-ubuntu-ppa-focal.list
-deb [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu focal main
-# deb-src [signed-by=/etc/apt/keyrings/deadsnakes-ubuntu-ppa.asc] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu focal main
-EOF
-
 apt-get update -q --error-on=any
 
 packages=(
