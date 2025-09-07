@@ -730,7 +730,10 @@ void TNode::Load(NCellMaster::TLoadContext& context)
             // for endorsement to prevent endorsing the same chunk twice.
             TChunkLocation* locationWithMaxId = nullptr;
             for (auto replica : chunk->StoredReplicas()) {
-                auto* location = replica.GetPtr();
+                if (!replica.IsChunkLocation()) {
+                    continue;
+                }
+                auto* location = replica.AsChunkLocation().GetPtr();
                 if (location->GetNode() == this &&
                     (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()))
                 {
