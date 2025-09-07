@@ -437,7 +437,7 @@ TNode* TChunkPlacement::FindPreferredNode(
 std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     TDomesticMedium* medium,
     TChunk* chunk,
-    const TChunkLocationPtrWithReplicaInfoList& replicas,
+    const TStoredReplicaList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -532,16 +532,21 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 
     auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
         for (auto replica : replicas) {
-            if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
+            if (!replica.IsChunkLocation()) {
+                continue;
+            }
+            if (replica.GetEffectiveMediumIndex() != mediumIndex) {
                 continue;
             }
 
+            auto locationReplica = replica.AsChunkLocation();
+
             if (replicaIndex == NChunkClient::GenericChunkReplicaIndex) {
-                if (replica.GetPtr()->GetNode() == node) {
+                if (locationReplica.GetPtr()->GetNode() == node) {
                     return true;
                 }
             } else if (replica.GetReplicaIndex() == replicaIndex) {
-                return replica.GetPtr()->GetNode() == node;
+                return locationReplica.GetPtr()->GetNode() == node;
             }
         }
 
