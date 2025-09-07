@@ -203,6 +203,182 @@ TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
     , ErroneousConsumers(profiler.Gauge("/erroneous_consumers"))
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueAgent::TControllerInfoProducer final
+{
+public:
+    TControllerInfoProducer(const TQueueAgent* queueAgent)
+        : QueueAgent_(queueAgent)
+        , ControlInvoker_(queueAgent->ControlInvoker_)
+    { }
+
+    void Produce(IYsonConsumer* consumer)
+    {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+
+        TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>> controllerPasses;
+        THashMap<std::string, TEnumIndexedArray<EObjectKind, int>> clusterToErrorCounts;
+
+        {
+            auto guard = ReaderGuard(QueueAgent_->ObjectLock_);
+            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+                auto& partialControllerPasses = controllerPasses[objectKind];
+                for (const auto& [path, object] : QueueAgent_->Objects_[objectKind]) {
+                    auto snapshot = DynamicPointerCast<TObjectSnapshotBase>(object.Controller->GetLatestSnapshot());
+                    if (!snapshot->Error.IsOK()) {
+                        ++clusterToErrorCounts[path.Cluster][objectKind];
+                        continue;
+                    }
+                    partialControllerPasses.push_back(TControllerPassInfo{
+                        .PassInstant = snapshot->PassInstant,
+                        .Leading = object.Controller->IsLeading(),
+                        .Path = path,
+                    });
+                    YT_VERIFY(partialControllerPasses.back().Path.GetCluster().has_value());
+                }
+            }
+        }
+
+        TEnumIndexedArray<EObjectKind, int> errorCounts;
+        for (const auto& [_, partialErrorCounts] : clusterToErrorCounts) {
+            for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+                errorCounts[objectKind] += partialErrorCounts[objectKind];
+            }
+        }
+
+        THashMap<std::string, TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>>> clusterToControllerPasses;
+
+        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            for (const auto& controllerPass : controllerPasses[objectKind]) {
+                clusterToControllerPasses[*controllerPass.Path.GetCluster()][objectKind].push_back(controllerPass);
+            }
+        }
+
+        THashSet<std::string> controllerClusters;
+        for (const auto& [cluster, _] : clusterToControllerPasses) {
+            controllerClusters.insert(cluster);
+        }
+        for (const auto& [cluster, _] : clusterToErrorCounts) {
+            controllerClusters.insert(cluster);
+        }
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Do([&, this] (auto fluent) {
+                    ProduceFromPasses(fluent, controllerPasses, errorCounts);
+                })
+                .Item("per_cluster")
+                .BeginMap()
+                    .DoFor(controllerClusters, [&, this] (auto fluent, const auto& cluster) {
+                        fluent
+                            .Item(cluster)
+                            .BeginMap()
+                                .Do([&, this] (auto fluent) {
+                                    ProduceFromPasses(fluent, clusterToControllerPasses[cluster], clusterToErrorCounts[cluster]);
+                                })
+                            .EndMap();
+                    })
+                .EndMap()
+            .EndMap();
+    }
+
+private:
+    struct TControllerPassInfo
+    {
+        TInstant PassInstant;
+        bool Leading;
+        NYPath::TRichYPath Path;
+    };
+
+    const TQueueAgent* QueueAgent_;
+    const IInvokerPtr ControlInvoker_;
+
+    void ProduceFromPasses(
+        TFluentMap fluent,
+        TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>> controllerPasses,
+        TEnumIndexedArray<EObjectKind, int> errorCounts)
+    {
+        static constexpr auto getPassInstant = [] (const auto& passInfo) {
+            return passInfo.PassInstant;
+        };
+
+        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            SortBy(controllerPasses[objectKind], getPassInstant);
+        }
+
+        // NB(apachee): Filter out passes with leading = true and return them, while
+        // leaving out passes with leading = false. Implemented using 2 pointers.
+        auto filterLeading = [] (std::vector<TControllerPassInfo>& passes) {
+            std::vector<TControllerPassInfo> leadingPasses;
+
+            auto firstLeadingIt = std::stable_partition(passes.begin(), passes.end(), [] (const auto& pass) {
+                return !pass.Leading;
+            });
+
+            std::vector<TControllerPassInfo> leading(std::make_move_iterator(firstLeadingIt), std::make_move_iterator(passes.end()));
+
+            passes.erase(firstLeadingIt, passes.end());
+
+            return leading;
+        };
+
+        // NB(apachee): Since relative order does not change, all of the following vectors are already sorted.
+
+        TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>> leadingControllerPasses;
+        TEnumIndexedArray<EObjectKind, std::vector<TControllerPassInfo>> followingControllerPasses;
+
+        auto config = QueueAgent_->DynamicConfig_;
+
+        auto trimByDisplayLimit = [&] (auto& vec) {
+            if (ssize(vec) > config->InactiveObjectDisplayLimit) {
+                vec.resize(config->InactiveObjectDisplayLimit);
+            }
+        };
+
+        for (const auto& objectKind : TEnumTraits<EObjectKind>::GetDomainValues()) {
+            leadingControllerPasses[objectKind] = filterLeading(controllerPasses[objectKind]);
+            followingControllerPasses[objectKind] = std::move(controllerPasses[objectKind]);
+
+            trimByDisplayLimit(leadingControllerPasses[objectKind]);
+            trimByDisplayLimit(followingControllerPasses[objectKind]);
+        }
+
+        static constexpr auto serializePassesVector = [] (TFluentAny fluent, const std::vector<TControllerPassInfo>& passes) {
+            fluent
+                .BeginList()
+                .DoFor(passes, [] (TFluentList fluent, const TControllerPassInfo& pass) {
+                    fluent
+                        .Item()
+                        .BeginMap()
+                            .Item("path").Value(pass.Path)
+                            .Item("pass_instant").Value(pass.PassInstant)
+                        .EndMap();
+                })
+                .EndList();
+        };
+
+        fluent
+            .Item("inactive_objects")
+            .BeginMap()
+                .DoFor(TEnumTraits<EObjectKind>::GetDomainValues(), [&] (TFluentMap fluent, const auto& objectKind) {
+                    fluent
+                        .Item(Format("leading_%v", EnumValueToPluralForm(objectKind, /*lowercase*/ true))).Do(std::bind(serializePassesVector, std::placeholders::_1, leadingControllerPasses[objectKind]))
+                        .Item(Format("following_%v", EnumValueToPluralForm(objectKind, /*lowercase*/ true))).Do(std::bind(serializePassesVector, std::placeholders::_1, followingControllerPasses[objectKind]));
+                })
+            .EndMap()
+            .Item("erroneous_objects")
+            .BeginMap()
+                .DoFor(TEnumTraits<EObjectKind>::GetDomainValues(), [&] (TFluentMap fluent, const auto& objectKind) {
+                    fluent
+                        .Item(Format("%lv_count", objectKind)).Value(errorCounts[objectKind]);
+                })
+            .EndMap();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
     NApi::NNative::IConnectionPtr nativeConnection,
@@ -284,127 +460,10 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
 
 INodePtr TQueueAgent::GetControllerInfoNode() const
 {
-    struct TControllerPassInfo {
-        TInstant PassInstant;
-        bool Leading;
-        TRichYPath Path;
-    };
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
-    return CreateVirtualNode(IYPathService::FromProducer(BIND([this, this_ = MakeWeak(this)] (IYsonConsumer* consumer) {
-        auto lockedThis = this_.Lock();
-        if (!lockedThis) {
-            BuildYsonFluently(consumer).Entity();
-            return;
-        }
-
-        auto config = DynamicConfig_;
-
-        std::vector<TControllerPassInfo> queueControllerPasses;
-        std::vector<TControllerPassInfo> consumerControllerPasses;
-
-        int queueControllerWithErrorCount = 0;
-        int consumerControllerWithErrorCount = 0;
-
-        {
-            auto guard = ReaderGuard(ObjectLock_);
-            for (const auto& [path, object] : Objects_[EObjectKind::Queue]) {
-                auto snapshot = DynamicPointerCast<TQueueSnapshot>(object.Controller->GetLatestSnapshot());
-                if (!snapshot->Error.IsOK()) {
-                    ++queueControllerWithErrorCount;
-                    continue;
-                }
-                queueControllerPasses.push_back(TControllerPassInfo{
-                    .PassInstant = snapshot->PassInstant,
-                    .Leading = object.Controller->IsLeading(),
-                    .Path = path,
-                });
-            }
-            for (const auto& [path, object] : Objects_[EObjectKind::Consumer]) {
-                auto snapshot = DynamicPointerCast<TConsumerSnapshot>(object.Controller->GetLatestSnapshot());
-                if (!snapshot->Error.IsOK()) {
-                    ++consumerControllerWithErrorCount;
-                    continue;
-                }
-                consumerControllerPasses.push_back(TControllerPassInfo{
-                    .PassInstant = snapshot->PassInstant,
-                    .Leading = object.Controller->IsLeading(),
-                    .Path = path,
-                });
-            }
-        }
-
-        auto getPassInstant = [] (const auto& passInfo) {
-            return passInfo.PassInstant;
-        };
-
-        SortBy(queueControllerPasses, getPassInstant);
-        SortBy(consumerControllerPasses, getPassInstant);
-
-        // NB(apachee): Filter out passes with leading = true and return them, while
-        // leaving out passes with leading = false. Implemented using 2 pointers.
-        auto filterLeading = [] (std::vector<TControllerPassInfo>& passes) {
-            std::vector<TControllerPassInfo> leadingPasses;
-
-            auto firstLeadingIt = std::stable_partition(passes.begin(), passes.end(), [] (const auto& pass) {
-                return !pass.Leading;
-            });
-
-            std::vector<TControllerPassInfo> leading(std::make_move_iterator(firstLeadingIt), std::make_move_iterator(passes.end()));
-
-            passes.erase(firstLeadingIt, passes.end());
-
-            return leading;
-        };
-
-        // NB(apachee): Since relative order does not change, all of the following vectors are already sorted.
-
-        auto leadingQueuePasses = filterLeading(queueControllerPasses);
-        auto leadingConsumerPasses = filterLeading(consumerControllerPasses);
-
-        auto followingQueuePasses = std::move(queueControllerPasses);
-        auto followingConsumerPasses = std::move(consumerControllerPasses);
-
-        auto trimByDisplayLimit = [&] (auto& vec) {
-            if (ssize(vec) > config->InactiveObjectDisplayLimit) {
-                vec.resize(config->InactiveObjectDisplayLimit);
-            }
-        };
-
-        trimByDisplayLimit(leadingQueuePasses);
-        trimByDisplayLimit(leadingConsumerPasses);
-        trimByDisplayLimit(followingQueuePasses);
-        trimByDisplayLimit(followingConsumerPasses);
-
-        auto serializePassesVector = [] (TFluentAny fluent, const std::vector<TControllerPassInfo>& passes) {
-            fluent
-                .BeginList()
-                .DoFor(passes, [] (TFluentList fluent, const TControllerPassInfo& pass) {
-                    fluent
-                        .Item()
-                        .BeginMap()
-                            .Item("path").Value(pass.Path)
-                            .Item("pass_instant").Value(pass.PassInstant)
-                        .EndMap();
-                })
-                .EndList();
-        };
-
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("inactive_objects")
-                .BeginMap()
-                    .Item("leading_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingQueuePasses))
-                    .Item("leading_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingConsumerPasses))
-                    .Item("following_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, followingQueuePasses))
-                    .Item("following_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, followingConsumerPasses))
-                .EndMap()
-                .Item("erroneous_objects")
-                .BeginMap()
-                    .Item("queue_count").Value(queueControllerWithErrorCount)
-                    .Item("consumer_count").Value(consumerControllerWithErrorCount)
-                .EndMap()
-            .EndMap();
-    })));
+    auto controllerInfoProducer = New<TControllerInfoProducer>(this);
+    return CreateVirtualNode(IYPathService::FromProducer(BIND_NO_PROPAGATE(&TControllerInfoProducer::Produce, std::move(controllerInfoProducer))));
 }
 
 void TQueueAgent::OnDynamicConfigChanged(

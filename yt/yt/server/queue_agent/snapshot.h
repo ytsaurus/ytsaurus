@@ -9,18 +9,29 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TObjectSnapshotBase
+    : public TRefCounted
+{
+    TError Error;
+    // True if object is banned, and signifies that object controller should skip all leading logic.
+    bool Banned;
+    // Present if Banned is true, and equal to the first pass instant when the object became banned.
+    std::optional<TInstant> BannedSince;
+
+    i64 PassIndex = 0;
+    TInstant PassInstant;
+};
+
+DEFINE_REFCOUNTED_TYPE(TObjectSnapshotBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Snapshot of a queue.
 struct TQueueSnapshot
-    : public TRefCounted
+    : public TObjectSnapshotBase
 {
     NQueueClient::TQueueTableRow Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
-
-    TError Error;
-    // True if queue is banned, and signifies that queue controller should skip all leading logic.
-    bool Banned;
-    // Present if Banned is true, and equal to the first pass instant when the queue became banned.
-    std::optional<TInstant> BannedSince;
 
     EQueueFamily Family;
     int PartitionCount = 0;
@@ -30,9 +41,6 @@ struct TQueueSnapshot
 
     bool HasTimestampColumn = false;
     bool HasCumulativeDataWeightColumn = false;
-
-    i64 PassIndex = 0;
-    TInstant PassInstant;
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
@@ -76,20 +84,11 @@ DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot)
 
 //! Snapshot of a consumer.
 struct TConsumerSnapshot
-    : public TRefCounted
+    : public TObjectSnapshotBase
 {
     // This field is always set.
     NQueueClient::TConsumerTableRow Row;
     std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
-
-    TError Error;
-    // True if consumer is banned, and signifies that consumer controller should skip all leading logic.
-    bool Banned;
-    // Present if Banned is true, and equal to the first pass instant when the consumer became banned.
-    std::optional<TInstant> BannedSince;
-
-    i64 PassIndex = 0;
-    TInstant PassInstant;
 
     std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
     THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
