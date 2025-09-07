@@ -438,7 +438,7 @@ TNode* TChunkPlacement::FindPreferredNode(
 std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     TDomesticMedium* medium,
     TChunk* chunk,
-    const TChunkLocationPtrWithReplicaInfoList& replicas,
+    const TStoredReplicaList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -533,16 +533,21 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 
     auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
         for (auto replica : replicas) {
-            if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
+            if (!replica.IsChunkLocation()) {
+                continue;
+            }
+            if (replica.GetEffectiveMediumIndex() != mediumIndex) {
                 continue;
             }
 
+            auto locationReplica = replica.AsChunkLocation();
+
             if (replicaIndex == NChunkClient::GenericChunkReplicaIndex) {
-                if (replica.GetPtr()->GetNode() == node) {
+                if (locationReplica.GetPtr()->GetNode() == node) {
                     return true;
                 }
             } else if (replica.GetReplicaIndex() == replicaIndex) {
-                return replica.GetPtr()->GetNode() == node;
+                return locationReplica.GetPtr()->GetNode() == node;
             }
         }
 
@@ -615,7 +620,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 
 TChunkLocation* TChunkPlacement::GetRemovalTarget(
     TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
-    const TChunkLocationPtrWithReplicaInfoList& replicas)
+    const TStoredReplicaList& replicas)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
@@ -627,11 +632,22 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
     TCompactFlatMap<const TDataCenter*, i8, 4> perDataCenterCounters;
 
     for (auto replica : replicas) {
-        if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
+        if (!replica.IsChunkLocation()) {
+            YT_LOG_ALERT(
+                "Non-chunk location stored replica was found during processing removal targets for chunk, ignored "
+                "(ChunkId:%v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+                chunk->GetId(),
+                replica.GetEffectiveMediumIndex(),
+                replica.GetReplicaIndex());
+            continue;
+        }
+        if (replica.GetEffectiveMediumIndex() != mediumIndex) {
             continue;
         }
 
-        if (const auto* rack = replica.GetPtr()->GetNode()->GetRack()) {
+        auto* location = replica.AsChunkLocation().GetPtr();
+
+        if (const auto* rack = location->GetNode()->GetRack()) {
             ++perRackCounters[rack->GetIndex()];
             if (auto dataCenter = rack->GetDataCenter()) {
                 ++perDataCenterCounters[dataCenter];
@@ -681,11 +697,15 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
     };
 
     for (auto replica : replicas) {
+        if (!replica.IsChunkLocation()) {
+            // NB: Alerted above.
+            continue;
+        }
         if (chunk->IsJournal() && replica.GetReplicaState() != EChunkReplicaState::Sealed) {
             continue;
         }
 
-        if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
+        if (replica.GetEffectiveMediumIndex() != mediumIndex) {
             continue;
         }
 
@@ -693,7 +713,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
             continue;
         }
 
-        auto* location = replica.GetPtr();
+        auto* location = replica.AsChunkLocation().GetPtr();
         auto node = location->GetNode();
         if (!IsValidRemovalTarget(node)) {
             continue;

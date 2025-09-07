@@ -280,11 +280,41 @@ bool TChunk::HasParents() const
 }
 
 void TChunk::AddReplica(
-    TChunkLocationPtrWithReplicaInfo replica,
-    const TDomesticMedium* medium,
+    TStoredReplica replica,
+    const TMedium* medium,
     bool approved)
 {
     auto* data = MutableReplicasData();
+
+    if (medium->IsOffshore()) {
+        if (!replica.IsMedium()) {
+            YT_LOG_ALERT(
+                "Attempted to add offshore medium to chunk location replica, ignored"
+                "(ChunkId: %v, MediumIndex: %v)",
+                GetId(),
+                medium->GetIndex());
+            return;
+        }
+        if (replica.GetEffectiveMediumIndex() != medium->GetIndex()) {
+            YT_LOG_ALERT(
+                "Offshore replica medium index differs from medium index, ignored"
+                "(ChunkId: %v, OffshoreReplicaMediumIndex: %v, MediumIndex: %v)",
+                GetId(),
+                replica.GetEffectiveMediumIndex(),
+                medium->GetIndex());
+            return;
+        }
+        // TODO(cherepashka): allow once offshore media is implemented.
+        YT_LOG_ALERT(
+            "Attempted to add offshore medium stored replica for chunk, ignored "
+            "(ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v)",
+            GetId(),
+            replica.GetReplicaIndex(),
+            replica.GetEffectiveMediumIndex());
+        return;
+    }
+
+    auto* domesticMedium = medium->AsDomestic();
     if (IsJournal()) {
         for (auto& existingReplica : data->MutableStoredReplicas()) {
             if (existingReplica.ToGenericState() == replica.ToGenericState()) {
@@ -299,9 +329,9 @@ void TChunk::AddReplica(
     }
 
     data->AddStoredReplica(replica);
-    if (!medium->GetTransient()) {
+    if (!domesticMedium->GetTransient()) {
         auto lastSeenReplicas = data->MutableLastSeenReplicas();
-        auto nodeId = replica.GetPtr()->GetNode()->GetId();
+        auto nodeId = replica.GetNodeId();
         if (IsErasure()) {
             lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
         } else {
@@ -332,7 +362,10 @@ void TChunk::RemoveReplica(
     auto storedReplicas = data->GetStoredReplicas();
     for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
         auto existingReplica = storedReplicas[replicaIndex];
-        if (existingReplica.GetPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
+        if (!existingReplica.IsChunkLocation()) {
+            continue;
+        }
+        if (existingReplica.AsChunkLocation().GetPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
             data->RemoveStoredReplica(replicaIndex);
             return;
         }
@@ -340,8 +373,16 @@ void TChunk::RemoveReplica(
     YT_ABORT();
 }
 
-void TChunk::ApproveReplica(TChunkLocationPtrWithReplicaInfo replica)
+void TChunk::ApproveReplica(TStoredReplica replica)
 {
+    if (replica.IsMedium()) {
+        YT_LOG_ALERT(
+            "Attempted to approve offshore medium replica, ignored (ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+            replica.GetEffectiveMediumIndex(),
+            replica.GetReplicaIndex());
+        return;
+    }
+
     auto* data = MutableReplicasData();
     ++data->ApprovedReplicaCount;
 
@@ -826,19 +867,19 @@ TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TRepl
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
+TRange<TStoredReplica> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
 {
     return TRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
+TMutableRange<TStoredReplica> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
 {
     return TMutableRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica)
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TStoredReplica replica)
 {
     StoredReplicas.push_back(replica);
 }
