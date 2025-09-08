@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/try-to-fix-local
 
 jobs:
   check:
