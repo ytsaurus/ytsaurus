@@ -8,6 +8,35 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.26.0**" %}
+
+**Release date:** 2025-08-20
+
+
+#### Features
+* Introduced a new Timbertruck component to delivery logs to cypress by @ilyaibraev in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/509
+* Added cypress proxies by @koloshmet in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/519
+
+#### Minor
+* Pass metadata env vars into server pod containers by @Gufran in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/520
+* Include default environment in CRI sidecar by @Gufran in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/522
+* Add CRI service metrics by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/523
+* fix ENV name typo by @kruftik in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/528
+* Upgrade to golang 1.23.12 by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/529
+* Update cluster_v1_local.yaml by @ogorbacheva in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/463
+* Allow native transport TLS without mTLS by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/537
+
+
+#### New Contributors
+* @Gufran made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/520
+* @koloshmet made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/519
+* @ogorbacheva made their first contribution in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/463
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.25.0...release/0.26.0
+
+{% endcut %}
+
+
 {% cut "**0.25.0**" %}
 
 **Release date:** 2025-07-23
