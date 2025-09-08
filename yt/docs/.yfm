@@ -51,7 +51,7 @@ vcs:
 search:
   provider: algolia
   appId: WW7EWG7Y6T
-  indexName: test_ytsaurus-docs
+  indexName: ytsaurus-docs
   index: true
   searchApiKey: f039bc42de5c29003db67eb703353c1d
   indexSettings:

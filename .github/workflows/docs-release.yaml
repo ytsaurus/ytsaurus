@@ -16,7 +16,7 @@ jobs:
       src-root: "./yt/docs"
       build-root: "./_docs-build"
       lint-root: "./_docs-lint"
-      index-name: "ytsaurus-doc"
+      index-name: "ytsaurus-docs"
       revision: "${{ github.sha }}"
       cli-version: "latest"
       ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
