@@ -667,7 +667,7 @@ class YTInstance(object):
                 self.create_admin_user()
 
             if not self.yt_config.defer_secondary_cell_start:
-                self.start_secondary_master_cells(sync=False, set_config=not self._load_existing_environment)
+                self.start_secondary_master_cells(sync=False)
                 self.synchronize()
 
             client = self._create_cluster_client()
@@ -1523,11 +1523,11 @@ class YTInstance(object):
         self.start_master_cell(sync=sync, set_config=set_config)
 
         if start_secondary_master_cells:
-            self.start_secondary_master_cells(sync=sync, set_config=set_config)
+            self.start_secondary_master_cells(sync=sync)
 
-    def start_secondary_master_cells(self, sync=True, set_config=True):
+    def start_secondary_master_cells(self, sync=True):
         for i in xrange(self.yt_config.secondary_cell_count):
-            self.start_master_cell(i + 1, sync=sync, set_config=set_config)
+            self.start_master_cell(i + 1, sync=sync, set_config=False)
 
     def _prepare_clocks(self, clock_configs):
         for clock_index in xrange(self.yt_config.clock_count):
