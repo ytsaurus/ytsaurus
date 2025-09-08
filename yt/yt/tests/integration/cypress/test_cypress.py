@@ -2833,7 +2833,6 @@ class TestCypress(YTEnvSetup):
     @authors("cherepashka")
     @pytest.mark.parametrize("make_link", [False, True])
     def test_prerequisite_revisions_restriction(self, make_link):
-        set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", True)
         create("map_node", "//home/test_node", recursive=True, force=True)
         revision_node_id = None
         if make_link:
@@ -2910,8 +2909,6 @@ class TestCypress(YTEnvSetup):
                             "revision": revision,
                         }
                     ])
-
-        set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", False)
 
     @authors("cherepashka")
     def test_prerequisite_revision_validation_on_removal(self):
