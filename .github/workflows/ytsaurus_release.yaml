@@ -38,9 +38,34 @@ jobs:
           ttl: PT24H
           runner-home-dir: /actions-runner
 
+  tag:
+    name: Parse tag
+    needs:
+      - start-vm
+    outputs:
+      test-image-tag: stable-${{ steps.tag.outputs.TEST_IMAGE_TAG }}
+      prod-image-tag: stable-${{ steps.tag.outputs.PROD_IMAGE_TAG }}
+      release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          tmp=${GITHUB_REF#refs/*/}; if [[ "${tmp%%/*}" == "docker-test" ]]
+          then
+              echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+          elif [[ "${tmp%%/*}" == "docker" ]]
+          then
+              echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
+          fi
+          echo "PROD_IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})" >> $GITHUB_OUTPUT
+          echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
+
   checkout:
     name: Checkout
-    needs: start-vm
+    needs:
+      - start-vm
+      - tag
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout
@@ -53,6 +78,8 @@ jobs:
     needs:
       - start-vm
       - checkout
+      - tag
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
@@ -64,40 +91,39 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  tag:
-    name: Parse tag
-    needs:
-      - start-vm
-      - build
-    outputs:
-      image-tag: stable-${{ steps.tag.outputs.IMAGE_TAG }}
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Parse tag
-        id: tag
-        run: |
-          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})" >> $GITHUB_OUTPUT
-
   release:
     name: Release
     needs:
       - start-vm
-      - tag
+      - build
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-ytsaurus: true
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
+      image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.test-image-tag }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
+
+  push-test-to-prod:
+    name: Release
+    if: ${{ needs.tag.outputs.release-type == 'prod' }}
+    needs:
+      - start-vm
+      - tag
+    run: |
+      docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }}
+      docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
+      docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }} 
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
       - release
+      - push-test-to-prod
     runs-on: trampoline
     if: ${{ always() }}
     steps:
