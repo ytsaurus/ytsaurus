@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "odin.fullname" . }}-web
+  labels:
+    {{- include "odin.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.webservice.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "odin.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: webservice
+  template:
+    metadata:
+      labels:
+        {{- include "odin.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: webservice
+      {{- with .Values.webservice.podAnnotations }}
+      annotations:
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default (include "odin.fullname" .) .Values.odin.serviceAccount.name }}
+      containers:
+        - name: odin-webservice
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: {{ toJson .Values.webservice.command }}
+          args: {{ toJson .Values.webservice.args }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.webservice.service.port }}
+          {{- if .Values.webservice.env }}
+          env:
+            {{- toYaml .Values.webservice.env | nindent 12 }}
+          {{- end }}
+          envFrom:
+            {{- range .Values.secretRefs }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+            {{- if .Values.webservice.envFrom }}
+            {{- toYaml .Values.webservice.envFrom | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.config.mountPath }}/odin_webservice_config.json
+              subPath: odin_webservice_config.json
+            {{- if .Values.webservice.extraVolumeMounts }}
+            {{- toYaml .Values.webservice.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+          {{- with .Values.webservice.resources }}
+          resources:
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "odin.fullname" . }}-config
+        {{- if .Values.webservice.extraVolumes }}
+        {{- toYaml .Values.webservice.extraVolumes | nindent 8 }}
+        {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.webservice.nodeSelector | nindent 8 }}
+      {{- with .Values.webservice.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webservice.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

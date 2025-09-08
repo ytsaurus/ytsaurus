@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "odin.fullname" . }}
+  labels:
+    {{- include "odin.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.odin.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "odin.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: odin
+  template:
+    metadata:
+      labels:
+        {{- include "odin.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: odin
+
+      {{- with .Values.odin.podAnnotations }}
+      annotations:
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ default (include "odin.fullname" .) .Values.odin.serviceAccount.name }}
+      containers:
+        - name: odin
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: {{ toJson .Values.odin.command }}
+          args: {{ toJson .Values.odin.args }}
+          {{- if .Values.odin.env }}
+          env:
+            {{- toYaml .Values.odin.env | nindent 12 }}
+          {{- end }}
+          envFrom:
+            {{- range .Values.secretRefs }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+            {{- if .Values.odin.envFrom }}
+            {{- toYaml .Values.odin.envFrom | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ .Values.config.mountPath }}/odin_config.json
+              subPath: odin_config.json
+            - name: config
+              mountPath: /opt/odin/checks/config.json
+              subPath: checks_config.json
+            {{- if .Values.odin.extraVolumeMounts }}
+            {{- toYaml .Values.odin.extraVolumeMounts | nindent 12 }}
+            {{- end }}
+          {{- with .Values.odin.resources }}
+          resources:
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "odin.fullname" . }}-config
+        {{- if .Values.odin.extraVolumes }}
+        {{- toYaml .Values.odin.extraVolumes | nindent 8 }}
+        {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.odin.nodeSelector | nindent 8 }}
+      {{- with .Values.odin.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.odin.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

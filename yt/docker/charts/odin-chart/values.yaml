@@ -1,0 +1,109 @@
+image:
+  repository: ghcr.io/ytsaurus/odin
+  tag: "0.0.1"
+  pullPolicy: IfNotPresent
+
+secretRefs:
+  - odin-secrets
+
+config:
+  mountPath: /opt/odin
+
+  odin:
+    db:
+      proxy: "ytsaurus.http.proxy.tech"
+      tokenEnvVariable: "YT_TOKEN"
+    clusters:
+      - proxy: "ytsaurus.http.proxy.tech"
+        cluster: "minisaurus"
+        tokenEnvVariable: "YT_TOKEN"
+    logging:
+      port: 10236
+      filename: "/dev/stderr"
+
+  webservice:
+    host: "::"
+    port: 9002
+    threadCount: 4
+    debug: 0
+    logging:
+      filename: "/dev/stderr"
+
+  checks:
+    - name: "sort_result"
+      displayName: "Sort Result"
+      config: 
+        alerts:
+          long: 
+            partially_available_strategy: "skip"
+            period: 15
+            threshold: 8
+          simple:
+            partially_available_strategy: "skip"
+            period: 5
+            threshold: 3
+            time_period_overrides:
+              - end_time: "10:00:00"
+                period: 6
+                start_time: "00:00:00"
+                threshold: 1
+        check_timeout: 120
+        options:
+          soft_sort_timeout: 70
+          temp_tables_path: "//sys/admin/odin/sort_result"
+
+    - name: "map_result"
+      displayName: "Map Result"
+      config:
+        alerts:
+          long: 
+            partially_available_strategy: "skip"
+            period: 15
+            threshold: 8
+          simple:
+            partially_available_strategy: "skip"
+            period: 5
+            threshold: 3
+            time_period_overrides:
+              - end_time: "10:00:00"
+                period: 6
+                start_time: "00:00:00"
+                threshold: 1
+        check_timeout: 180
+        options:
+          soft_map_timeout: 105
+          temp_tables_path: "//sys/admin/odin/map_result"
+
+odin:
+  replicaCount: 1
+  command: ["yt_odin"]
+  args: ["--config", "/opt/odin/odin_config.json"]
+  env: [] 
+  envFrom: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraVolumeMounts: []
+  extraVolumes: []
+  serviceAccount:
+    create: true
+    name: ""
+
+webservice:
+  replicaCount: 1
+  command: ["yt_odin_webservice"]
+  args: ["--config", "/opt/odin/odin_webservice_config.json"]
+  env: []
+  envFrom: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  extraVolumeMounts: []
+  extraVolumes: []
+  service:
+    type: ClusterIP
+    port: 9002
