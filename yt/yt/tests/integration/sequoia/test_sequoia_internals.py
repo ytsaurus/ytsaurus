@@ -1,4 +1,5 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (
+    YTEnvSetup, with_additional_threads)
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
@@ -554,10 +555,12 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("danilalexeev")
     @flaky(max_runs=3)
+    @with_additional_threads
     def test_request_throttling(self):
-        create_user("u")
+        username = "JohnathanPicklehands"
+        create_user(username)
         create("table", "//tmp/t")
-        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"10": 100})
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
 
         set("//sys/cypress_proxies/@config", {
             "object_service": {
@@ -577,25 +580,32 @@ class TestSequoiaInternals(YTEnvSetup):
         def measure_read_time():
             start_time = datetime.now()
             for _ in range(NUM_REQUESTS):
-                read_table("//tmp/t", authenticated_user="u")
+                get("//tmp/t/@id", authenticated_user=username)
             return (datetime.now() - start_time).total_seconds()
 
         # register user at both proxies
-        assert measure_read_time() < 2
+        measure_read_time()
+        sleep(1)
 
-        # TODO(danilalexeev or aleksandra-zh): Change to 1 once fractional limits are fixed.
-        set("//sys/users/u/@request_limits/read_request_rate/default", self.NUM_CYPRESS_PROXIES)
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 1)
         sleep(1)
 
         cypress_proxy_address = ls("//sys/cypress_proxies")[0]
         profiler = profiler_factory().at_cypress_proxy(cypress_proxy_address)
-        value_counter = profiler.counter("cypress_proxy/distributed_throttler/usage", tags={"throttler_id": "u_read_weight_throttler"})
+        value_counter = profiler.counter("cypress_proxy/distributed_throttler/usage",
+                                         tags={"throttler_id": f"{username}_read_weight_throttler"})
 
-        assert measure_read_time() * self.NUM_CYPRESS_PROXIES > NUM_REQUESTS * 0.8
+        def wait_for_counter_to_change():
+            wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
 
-        wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
+        checker = self.spawn_additional_thread(name="wait for profiling counter to change",
+                                               target=wait_for_counter_to_change)
 
-        set("//sys/users/u/@request_limits/read_request_rate/default", 100)
+        assert measure_read_time() > NUM_REQUESTS * 0.8
+
+        checker.join()
+
+        set(f"//sys/users/{username}/@request_limits/read_request_rate/default", 100)
         sleep(1)
 
         assert measure_read_time() < 2

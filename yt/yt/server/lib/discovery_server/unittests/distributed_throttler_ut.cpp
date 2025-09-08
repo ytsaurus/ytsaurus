@@ -3,6 +3,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/rpc/service_detail.h>
+
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 #include <yt/yt/ytlib/distributed_throttler/config.h>
@@ -23,7 +25,6 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <thread>
 #include <vector>
 
 namespace NYT::NDistributedThrottler {
@@ -35,6 +36,16 @@ using namespace NDiscoveryClient;
 using namespace NDiscoveryServer;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Test");
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueToThrottler
+{
+    TActionQueuePtr ActionQueue;
+    IReconfigurableThroughputThrottlerPtr Throttler;
+};
 
 class TDistributedThrottlerTest
     : public ::testing::Test
@@ -58,6 +69,96 @@ public:
             DiscoveryServers_.push_back(CreateDiscoveryServer(serverConfig, i));
             DiscoveryServers_.back()->Initialize();
         }
+    }
+
+    std::vector<TQueueToThrottler> PrepareThrottlers(
+        int throttlerCount,
+        TThroughputThrottlerConfigPtr leaderThrottlerConfig,
+        TDistributedThrottlerConfigPtr config)
+    {
+        YT_LOG_DEBUG("Started setting throttlers up");
+
+        const auto& channelFactory = GetChannelFactory();
+        auto rpcServer = CreateLocalServer();
+        auto address = "ThrottlerService";
+        channelFactory->Add(address, CreateLocalChannel(rpcServer));
+
+        auto connectionConfig = CreateConnectionConfig();
+        auto connection = New<TMockDistributedThrottlerConnection>(connectionConfig);
+
+        std::vector<TQueueToThrottler> result;
+        for (int i = 0; i < throttlerCount; ++i) {
+            auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
+
+            auto factory = CreateDistributedThrottlerFactory(
+                config,
+                channelFactory,
+                connection,
+                memberActionQueue->GetInvoker(),
+                "/group",
+                "throttler" + ToString(i),
+                rpcServer,
+                address,
+                Logger(),
+                /*authenticator*/ nullptr);
+            DistributedThrottlerFactoriesHolder_.push_back(factory);
+
+            auto throttler = factory->GetOrCreateThrottler(
+                "throttlerId",
+                i == 0 ? leaderThrottlerConfig : InfiniteRequestThrottlerConfig);
+
+            result.push_back({
+                .ActionQueue = memberActionQueue,
+                .Throttler = throttler});
+        }
+
+        auto discoveryClient = CreateDiscoveryClient(
+            connectionConfig,
+            config->DiscoveryClient,
+            channelFactory);
+
+        while (true) {
+            auto rspOrError = WaitFor(discoveryClient->GetGroupMeta("/group"));
+            if (!rspOrError.IsOK()) {
+                continue;
+            }
+            auto count = rspOrError.Value().MemberCount;
+            if (count >= throttlerCount - 1) {
+                break;
+            }
+            Sleep(TDuration::Seconds(1));
+        }
+
+        Sleep(TDuration::Seconds(1));
+
+        YT_LOG_DEBUG("Waiting for leader to update limits");
+
+        // Wait for leader to update limits.
+        while (true) {
+            bool stop = true;
+
+            // Starting from 1 to skip leader.
+            for (auto i = 1; i < throttlerCount; ++i) {
+                // Forcing limits recalculation.
+                result[i].Throttler->TryAcquire(1);
+
+                if (!result[i].Throttler->GetLimit()) {
+                    stop = false;
+                    break;
+                }
+            }
+            if (stop) {
+                break;
+            }
+            Sleep(TDuration::Seconds(1));
+        }
+
+        // Just to make sure all throttlers are alive.
+        Sleep(TDuration::Seconds(3));
+
+        YT_LOG_DEBUG("Throttlers are ready");
+
+        return result;
     }
 
     void TearDown() override
@@ -96,6 +197,8 @@ private:
     std::vector<IDiscoveryServerPtr> DiscoveryServers_;
     std::vector<IServerPtr> RpcServers_;
 
+    std::vector<IDistributedThrottlerFactoryPtr> DistributedThrottlerFactoriesHolder_;
+
     std::vector<TActionQueuePtr> ActionQueues_;
     TStaticChannelFactoryPtr ChannelFactory_;
 
@@ -122,96 +225,27 @@ private:
 
 TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 {
-    int throttlersCount = 4;
-    auto leaderThrottlerConfig = TThroughputThrottlerConfig::Create(100);
-    auto throttlerConfig = TThroughputThrottlerConfig::Create(1);
+    int throttlerCount = 4;
     auto config = GenerateThrottlerConfig();
     config->Mode = EDistributedThrottlerMode::Uniform;
 
-    const auto& channelFactory = GetChannelFactory();
-    auto rpcServer = CreateLocalServer();
-    auto address = "ThrottlerService";
-    channelFactory->Add(address, CreateLocalChannel(rpcServer));
-
-    auto connectionConfig = CreateConnectionConfig();
-    auto connection = New<TMockDistributedThrottlerConnection>(connectionConfig);
-
-    std::vector<TActionQueuePtr> actionQueues;
-
-    std::vector<IDistributedThrottlerFactoryPtr> factories;
-    std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
-
-    for (int i = 0; i < 4; ++i) {
-        auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
-        actionQueues.push_back(memberActionQueue);
-
-        auto factory = CreateDistributedThrottlerFactory(
-            config,
-            channelFactory,
-            connection,
-            memberActionQueue->GetInvoker(),
-            "/group",
-            "throttler" + ToString(i),
-            rpcServer,
-            address,
-            DiscoveryServerLogger(),
-            /*authenticator*/ nullptr);
-        factories.push_back(factory);
-
-        throttlers.push_back(factory->GetOrCreateThrottler(
-            "throttlerId",
-            i == 0 ? leaderThrottlerConfig : throttlerConfig));
-    }
-
-    auto discoveryClient = CreateDiscoveryClient(
-        connectionConfig,
-        config->DiscoveryClient,
-        channelFactory);
-
-    while (true) {
-        auto rspOrError = WaitFor(discoveryClient->GetGroupMeta("/group"));
-        if (!rspOrError.IsOK()) {
-            continue;
-        }
-        auto count = rspOrError.Value().MemberCount;
-        if (count >= throttlersCount - 1) {
-            break;
-        }
-        Sleep(TDuration::Seconds(1));
-    }
-
-    Sleep(TDuration::Seconds(1));
-
-    // Wait for leader to update limits.
-    while (true) {
-        bool stop = true;
-        for (const auto& throttler : throttlers) {
-            if (throttler->TryAcquireAvailable(10) < 2) {
-                stop = false;
-                break;
-            }
-        }
-        if (stop) {
-            break;
-        }
-        Sleep(TDuration::Seconds(1));
-    }
-
-    // Just to make sure all throttlers are alive.
-    Sleep(TDuration::Seconds(3));
+    auto queueToThrottler = PrepareThrottlers(
+        throttlerCount,
+        TThroughputThrottlerConfig::Create(100),
+        config);
 
     NProfiling::TWallTimer timer;
     std::vector<TFuture<void>> futures;
-    for (int i = 0; i < throttlersCount; ++i) {
+    for (int i = 0; i < throttlerCount; ++i) {
         futures.push_back(BIND([=] {
             for (int j = 0; j < 5; ++j) {
                 // To make sure that usage rate is synchronized.
-                WaitFor(throttlers[i]->Throttle(1)).ThrowOnError();
+                WaitFor(queueToThrottler[i].Throttler->Throttle(1)).ThrowOnError();
                 Sleep(TDuration::MilliSeconds(60));
-                WaitFor(throttlers[i]->Throttle(30)).ThrowOnError();
+                WaitFor(queueToThrottler[i].Throttler->Throttle(30)).ThrowOnError();
             }
         })
-        .AsyncVia(actionQueues[i]->GetInvoker())
+        .AsyncVia(queueToThrottler[i].ActionQueue->GetInvoker())
         .Run());
     }
     WaitFor(AllSet(futures)).ThrowOnError();
@@ -223,94 +257,24 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 
 TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 {
-    int throttlersCount = 4;
-    auto leaderThrottlerConfig = TThroughputThrottlerConfig::Create(100);
-    auto throttlerConfig = TThroughputThrottlerConfig::Create(1);
+    int throttlerCount = 4;
     auto config = GenerateThrottlerConfig();
     config->Mode = EDistributedThrottlerMode::Adaptive;
 
-    const auto& channelFactory = GetChannelFactory();
-    auto rpcServer = CreateLocalServer();
-    auto address = "ThrottlerService";
-    channelFactory->Add(address, CreateLocalChannel(rpcServer));
-
-    auto connectionConfig = CreateConnectionConfig();
-    auto connection = New<TMockDistributedThrottlerConnection>(connectionConfig);
-
-    std::vector<TActionQueuePtr> actionQueues;
-
-    std::vector<IDistributedThrottlerFactoryPtr> factories;
-    std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
-
-    for (int i = 0; i < throttlersCount; ++i) {
-        auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
-        actionQueues.push_back(memberActionQueue);
-
-        auto factory = CreateDistributedThrottlerFactory(
-            config,
-            channelFactory,
-            connection,
-            memberActionQueue->GetInvoker(),
-            "/group",
-            "throttler" + ToString(i),
-            rpcServer,
-            address,
-            DiscoveryServerLogger(),
-            /*authenticator*/ nullptr);
-        factories.push_back(factory);
-
-        throttlers.push_back(factory->GetOrCreateThrottler(
-            "throttlerId",
-            i == 0 ? leaderThrottlerConfig : throttlerConfig));
-    }
-
-    auto discoveryClient = CreateDiscoveryClient(
-        connectionConfig,
-        config->DiscoveryClient,
-        channelFactory);
-
-    while (true) {
-        auto rspOrError = WaitFor(discoveryClient->GetGroupMeta("/group"));
-        if (!rspOrError.IsOK()) {
-            continue;
-        }
-        auto count = rspOrError.Value().MemberCount;
-        if (count >= throttlersCount - 1) {
-            break;
-        }
-        Sleep(TDuration::Seconds(1));
-    }
-
-    Sleep(TDuration::Seconds(1));
-
-    // Wait for leader to update limits.
-    while (true) {
-        bool stop = true;
-        for (const auto& throttler : throttlers) {
-            if (throttler->TryAcquireAvailable(10) < 2) {
-                stop = false;
-                break;
-            }
-        }
-        if (stop) {
-            break;
-        }
-        Sleep(TDuration::Seconds(1));
-    }
-
-    // Just to make sure all throttlers are alive.
-    Sleep(TDuration::Seconds(3));
+    auto queueToThrottler = PrepareThrottlers(
+        throttlerCount,
+        TThroughputThrottlerConfig::Create(100),
+        config);
 
     NProfiling::TWallTimer timer;
-
     std::vector<TFuture<void>> futures;
-    for (int i = 0; i < throttlersCount; ++i) {
+    for (int i = 0; i < throttlerCount; ++i) {
         futures.push_back(BIND([=] {
             for (int j = 0; j < 10; ++j) {
-                WaitFor(throttlers[i]->Throttle(30)).ThrowOnError();
+                WaitFor(queueToThrottler[i].Throttler->Throttle(30)).ThrowOnError();
             }
         })
-        .AsyncVia(actionQueues[i]->GetInvoker())
+        .AsyncVia(queueToThrottler[i].ActionQueue->GetInvoker())
         .Run());
     }
     WaitFor(AllSet(futures)).ThrowOnError();
@@ -318,6 +282,37 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     auto duration = timer.GetElapsedTime().MilliSeconds();
     EXPECT_GE(duration, 8000u);
     EXPECT_LE(duration, 15000u);
+}
+
+TEST_F(TDistributedThrottlerTest, TestAdaptiveFractionalLimits)
+{
+    int throttlerCount = 4;
+    auto config = GenerateThrottlerConfig();
+    config->Mode = EDistributedThrottlerMode::Adaptive;
+    config->ExtraLimitRatio = 0.;
+
+    auto queueToThrottler = PrepareThrottlers(
+        throttlerCount,
+        TThroughputThrottlerConfig::Create(1),
+        config);
+
+    NProfiling::TWallTimer timer;
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < throttlerCount; ++i) {
+        futures.push_back(BIND([=] {
+            for (int j = 0; j < 10; ++j) {
+                WaitFor(queueToThrottler[i].Throttler->Throttle(1)).ThrowOnError();
+            }
+        })
+        .AsyncVia(queueToThrottler[i].ActionQueue->GetInvoker())
+        .Run());
+    }
+    WaitFor(AllSet(futures)).ThrowOnError();
+
+    // Expected to be around 36-39 seconds.
+    auto duration = timer.GetElapsedTime().MilliSeconds();
+    EXPECT_GE(duration, 34000u);
+    EXPECT_LE(duration, 41000u);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
