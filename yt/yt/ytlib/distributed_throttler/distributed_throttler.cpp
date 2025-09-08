@@ -956,7 +956,7 @@ private:
             auto defaultLimit = FloatingPointInverseLowerBound(0, totalLimit, [&] (double value) {
                 double total = 0;
                 for (const auto& [memberId, localUsage] : memberToLocalUsage) {
-                    total += Min(value, localUsage.Rate);
+                    total += std::min(value, localUsage.Rate);
                 }
                 return total <= totalLimit;
             });
@@ -964,7 +964,7 @@ private:
             double newTotalLimit = 0;
             THashMap<TMemberId, double> memberIdToWeight;
             for (const auto& [memberId, localUsage] : memberToLocalUsage) {
-                newTotalLimit += Min(localUsage.Rate, defaultLimit);
+                newTotalLimit += std::min(localUsage.Rate, defaultLimit);
             }
 
             auto freeLimit = config->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - newTotalLimit);
@@ -979,7 +979,7 @@ private:
 
             for (const auto& [memberId, localUsage] : memberToLocalUsage) {
                 auto memberFreeLimit = freeLimit / memberToLocalUsage.size();
-                auto memberNewLimit = Min(localUsage.Rate, defaultLimit) + memberFreeLimit;
+                auto memberNewLimit = std::min(localUsage.Rate, defaultLimit) + memberFreeLimit;
 
                 YT_LOG_TRACE(
                     "Updating throttler limit (ThrottlerId: %v, MemberId: %v, UsageRate: %v, OldLimit: %v, NewLimit: %v)",
