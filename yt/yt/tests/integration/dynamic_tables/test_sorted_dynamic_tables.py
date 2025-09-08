@@ -341,10 +341,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("lock_type", ["exclusive", "shared_write", "shared_strong"])
     def test_tablet_locks_persist_in_snapshots(self, lock_type):
-        if self.DRIVER_BACKEND == "rpc" and lock_type == "exclusive":
-            # TODO(ponasenko-rs): Remove after YT-20282.
-            pytest.skip("Rpc proxy client drops exclusive locks without data")
-
         sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
 
