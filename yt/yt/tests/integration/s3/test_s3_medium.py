@@ -102,7 +102,7 @@ class TestS3Medium(YTEnvSetup):
     @classmethod
     def get_buckets(cls):
         return {medium["bucket"] for medium in cls.S3_MEDIA}
-    
+
     @classmethod
     def get_s3_medium_name(cls, index=0):
         return cls.S3_MEDIA[index]["name"]
@@ -129,7 +129,7 @@ class TestS3Medium(YTEnvSetup):
     def teardown_s3_client(cls):
         if cls.S3_CLIENT is not None:
             cls.S3_CLIENT.close()
-    
+
     @classmethod
     def create_bucket(cls, bucket):
         assert cls.S3_CLIENT is not None
@@ -139,7 +139,7 @@ class TestS3Medium(YTEnvSetup):
         except ClientError as e:
             if e.response['Error']['Code'] != 'BucketAlreadyOwnedByYou':
                 raise
-    
+
     @classmethod
     def clear_bucket(cls, bucket):
         assert cls.S3_CLIENT is not None
@@ -197,7 +197,7 @@ class TestS3Medium(YTEnvSetup):
         chunk_ids = get(f"{table_name}/@chunk_ids")
         for chunk_id in chunk_ids:
             cls.assert_chunk_exists_in_s3(chunk_id, s3_medium_index, negate)
-   
+
     @classmethod
     def setup_class(cls):
         super(TestS3Medium, cls).setup_class()
@@ -215,7 +215,7 @@ class TestS3Medium(YTEnvSetup):
             name = cls.get_s3_medium_name(i)
             create_s3_medium(name, cls.get_s3_medium_config(i))
             set_account_disk_space_limit("tmp", disk_space_limit, name)
-    
+
     @classmethod
     def teardown_class(cls):
         super(TestS3Medium, cls).teardown_class()
@@ -313,7 +313,7 @@ class TestS3Medium(YTEnvSetup):
     def test_map_reduce_operation(self):
         # TODO(achulkov2): Implement this.
         pass
-    
+
     @authors("achulkov2")
     def test_reduce_operation(self):
         # TODO(achulkov2): Implement this.
@@ -681,7 +681,7 @@ class TestS3Medium(YTEnvSetup):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         for i in range(chunk_count):
             write_table("<append=%true>//tmp/t", {"a": "b"})
-        
+
         actual_chunk_count = get("//tmp/t/@chunk_count")
         assert actual_chunk_count == chunk_count
 
