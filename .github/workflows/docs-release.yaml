@@ -5,22 +5,111 @@ on:
   push:
     branches:
       - main
+      - ogorbacheva-test-algola
     paths: 'yt/docs/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions: write-all
+    env:
+      src-root: "./yt/docs"
+      build-root: "./_docs-build"
+      lint-root: "./_docs-lint"
+      index-name: "ytsaurus-doc"
+      revision: "${{ github.sha }}"
+      cli-version: "latest"
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
+      ALGOLIA_APP_ID: WW7EWG7Y6T
+      ALGOLIA_INDEX_NAME: ytsaurus-docs
+      ALGOLIA_SEARCH_API_KEY: f039bc42de5c29003db67eb703353c1d
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build
-        uses: diplodoc-platform/docs-build-action@v3
+
+      - uses: actions/setup-node@v4
         with:
-          revision: "${{ github.sha }}"
-          src-root: "./yt/docs"
-      - name: Check cli version
-        run: npm view @diplodoc/cli version
+          node-version: 22
+
+      - run: |
+          npm install -g @diplodoc/cli
+          npm install -g @diplodoc/algolia-extension
+        shell: bash
+
+      - name: Build doc md2html
+        id: build-md2html
+        run: |
+          set +e
+          set -o pipefail
+
+          yfm --index -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" 2>&1 | tee './build-html.log'
+
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build md2md
+        id: build-md2md
+        run: |
+          set +e
+          set -o pipefail
+
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log'
+
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Save inputs
+        run: |
+          mkdir -p ./inputs
+          echo ${{ env.revision }} > ./inputs/revision
+          echo ${{ github.event.number }} > ./inputs/pr-number
+        shell: bash
+
+      - name: Upload inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: inputs
+          path: inputs/
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-md
+          include-hidden-files: true
+          path: ${{ env.build-root }}
+          retention-days: 1
+
+      - name: Upload build html doc
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-html
+          path: ${{ env.lint-root }}
+          retention-days: 1
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-html
+          path: ./build-html.log
+          retention-days: 1
+
+      - name: Checking local index
+        run: |
+          ls ${{ env.lint-root }}/
+
+      - name: Exit
+        run: |
+          exitcode=${{ steps.build-md2html.outputs.exitcode }}
+
+          if [ "$exitcode" -eq 0 ]; then
+              echo "Build exited successfully."
+          else
+            echo "Build exited with an error. Exit code: $exitcode"
+            exit $exitcode
+          fi
+        shell: bash
 
   upload:
     needs: build
@@ -37,7 +126,8 @@ jobs:
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-          src-root: "./yt/docs"
+          src-root: ${{ env.src-root }}
+
   release:
     needs: upload
     runs-on: ubuntu-latest
@@ -49,5 +139,5 @@ jobs:
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-          src-root: "./yt/docs"
+          src-root: ${{ env.src-root }}
           server: "https://viewer.ydocs.io"
