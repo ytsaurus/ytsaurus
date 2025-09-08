@@ -13,16 +13,13 @@ const TError& TBaseBlockDevice::GetError() const
     return Error_;
 }
 
-//! Set an error (error.IsOK() == false) for device.
+//! Set an error for device.
 void TBaseBlockDevice::SetError(TError error)
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    // Do not allow ok.
+    YT_VERIFY(!error.IsOK());
 
-    if (error.IsOK()) {
-        THROW_ERROR_EXCEPTION("Unexpected error")
-            << TErrorAttribute("error", error)
-            << TErrorAttribute("debug_info", DebugString());
-    }
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TGuard(Lock_);
     Error_ = std::move(error);
