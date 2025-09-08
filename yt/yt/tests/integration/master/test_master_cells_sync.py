@@ -42,7 +42,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     def _check_true_for_secondary(self, check):
         if self.delayed_secondary_cells_start:
-            self.Env.start_secondary_master_cells(set_config=False)
+            self.Env.start_secondary_master_cells()
         try:
 
             def _check():
