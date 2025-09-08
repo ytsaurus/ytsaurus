@@ -28,7 +28,9 @@ THeapSizeLimitConfigPtr THeapSizeLimitConfig::ApplyDynamic(const TDynamicHeapSiz
 void THeapSizeLimitConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("container_memory_ratio", &TThis::ContainerMemoryRatio)
-        .Optional();
+        .Optional()
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
     registrar.Parameter("container_memory_margin", &TThis::ContainerMemoryMargin)
         .Optional();
     registrar.Parameter("hard", &TThis::Hard)
@@ -54,7 +56,9 @@ void THeapSizeLimitConfig::Register(TRegistrar registrar)
 void TDynamicHeapSizeLimitConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("container_memory_ratio", &TThis::ContainerMemoryRatio)
-        .Default();
+        .Default()
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
     registrar.Parameter("container_memory_margin", &TThis::ContainerMemoryMargin)
         .Default();
     registrar.Parameter("hard", &TThis::Hard)
