@@ -69,7 +69,7 @@ message TTimeStatistics
     optional int64 waiting_for_resources_duration = 6;
     optional int64 prepare_duration = 1;
     optional int64 exec_duration = 2;
-    optional int64 artifacts_download_duration = 3;
+    optional int64 artifacts_caching_duration = 3;
     optional int64 prepare_root_fs_duration = 4;
     optional int64 gpu_check_duration = 5;
     optional int64 prepare_gpu_check_fs_duration = 7;

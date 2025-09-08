@@ -33,7 +33,7 @@ struct TTimeStatistics
 {
     std::optional<TDuration> WaitingForResourcesDuration;
     std::optional<TDuration> PrepareDuration;
-    std::optional<TDuration> ArtifactsDownloadDuration;
+    std::optional<TDuration> ArtifactsCachingDuration;
     std::optional<TDuration> PrepareRootFSDuration;
     std::optional<TDuration> ExecDuration;
     std::optional<TDuration> PrepareGpuCheckFSDuration;

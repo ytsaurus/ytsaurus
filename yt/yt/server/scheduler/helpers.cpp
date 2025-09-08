@@ -204,6 +204,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"time/prepare_root_fs", "Root Porto volume preparation duration", "ms"},
         {"time/gpu_check", "GPU liveness check duration", "ms"},
         {"time/exec", "Time from the start to the end of job_proxy process", "ms"},
+        {"time/artifacts_caching", "Job's artifact files downloading to the chunk cache duration", "ms"},
 
         {"data/input/chunk_count", "Data slices read by job", "pieces"},
         {"data/input/row_count", "Number of rows read by job", "pieces"},
