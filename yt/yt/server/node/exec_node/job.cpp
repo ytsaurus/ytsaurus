@@ -1818,11 +1818,24 @@ void TJob::DoInterrupt(
 
         ReportJobInterruptionInfo(now, timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
-        auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
-            << TErrorAttribute("interruption_reason", InterruptionReason_)
-            << ex;
+        YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduler (Tmeout: %v)", timeout);
 
-        Abort(std::move(error));
+        TDelayedExecutor::Submit(
+            BIND([this, weakThis = MakeWeak(this), ex]() {
+                auto strongThis = weakThis.Lock();
+                if (!strongThis) {
+                    return;
+                }
+
+                if (JobPhase_ == NControllerAgent::EJobPhase::Running) {
+                    auto error = TError(NExecNode::EErrorCode::InterruptionFailed, "Error interrupting job on job proxy")
+                        << TErrorAttribute("interruption_reason", InterruptionReason_)
+                        << ex;
+                    Abort(std::move(error));
+                }
+            })
+                .Via(Invoker_),
+            CommonConfig_->JobFinishTimeoutAfterInterruptionCallFailed);
     }
 }
 

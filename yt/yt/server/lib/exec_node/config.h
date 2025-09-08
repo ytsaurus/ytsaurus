@@ -546,6 +546,8 @@ struct TJobCommonConfig
 
     TDuration JobCleanupTimeout;
 
+    TDuration JobFinishTimeoutAfterInterruptionCallFailed;
+
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 
     static void Register(TRegistrar registrar);

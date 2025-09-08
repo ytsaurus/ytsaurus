@@ -651,6 +651,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
+
+    registrar.Parameter("job_finish_timeout_after_interruption_call_failed", &TThis::JobFinishTimeoutAfterInterruptionCallFailed)
+        .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

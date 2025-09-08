@@ -865,13 +865,8 @@ class TestSchedulerVanillaInterrupts(YTEnvSetup):
         jobs = list(op.get_running_jobs())
         assert len(jobs) == 1
         job_id = jobs[0]
-        try:
-            interrupt_job(job_id, interrupt_timeout=600000)
-        except YtError as e:
-            # Sometimes job proxy may finish before it manages to send Interrupt reply.
-            # This is not an error.
-            socket_was_closed_error_code = 100
-            assert e.contains_code(socket_was_closed_error_code)
+
+        interrupt_job(job_id, interrupt_timeout=600000)
         return job_id
 
     @authors("ignat")
@@ -1798,13 +1793,7 @@ class TestGangOperations(YTEnvSetup):
 
         print_debug(f"First job ids are {first_job_ids}, interrupting job {job_id_to_interrupt}")
 
-        try:
-            interrupt_job(job_id_to_interrupt)
-        except YtError as e:
-            # Sometimes job proxy may finish before it manages to send Interrupt reply.
-            # This is not an error.
-            socket_was_closed_error_code = 100
-            assert e.contains_code(socket_was_closed_error_code)
+        interrupt_job(job_id_to_interrupt)
 
         wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
 
@@ -2453,13 +2442,7 @@ class TestGangOperations(YTEnvSetup):
         assert len(jobs_with_no_ranks) == 1
 
         print_debug(f"Interrupting job {jobs_with_no_ranks[0]}")
-        try:
-            interrupt_job(jobs_with_no_ranks[0])
-        except YtError as e:
-            # Sometimes job proxy may finish before it manages to send Interrupt reply.
-            # This is not an error.
-            socket_was_closed_error_code = 100
-            assert e.contains_code(socket_was_closed_error_code)
+        interrupt_job(jobs_with_no_ranks[0])
 
         wait(lambda: completed_job_profiler.get_job_count_delta() == 1)
 
