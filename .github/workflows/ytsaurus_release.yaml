@@ -113,6 +113,7 @@ jobs:
     needs:
       - start-vm
       - tag
+    runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       name: Docker Pull And Push
       run: |
