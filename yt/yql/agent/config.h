@@ -180,6 +180,8 @@ struct TYqlAgentConfig
     int YqlThreadCount;
     std::optional<std::string> MaxSupportedYqlVersion;
 
+    std::vector<std::string> InsecureSecretPathSubjects;
+
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 
     static void Register(TRegistrar registrar);
