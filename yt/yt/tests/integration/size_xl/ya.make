@@ -23,7 +23,7 @@ IF (SANITIZER_TYPE)
 ELSE()
     REQUIREMENTS(
         cpu:38
-        ram:24
+        ram:30
         ram_disk:15
     )
 ENDIF()
