@@ -41,6 +41,7 @@ TQueryResult ToQueryResult(const TYqlResponse& yqlResponse)
     SetQueryResultField(result.Statistics, yqlResponse, &TYqlResponse::has_statistics, &TYqlResponse::statistics);
     SetQueryResultField(result.YsonError, yqlResponse, &TYqlResponse::has_error, &TYqlResponse::error);
     SetQueryResultField(result.TaskInfo, yqlResponse, &TYqlResponse::has_task_info, &TYqlResponse::task_info);
+    SetQueryResultField(result.Ast, yqlResponse, &TYqlResponse::has_ast, &TYqlResponse::ast);
 
     return result;
 }
@@ -226,6 +227,9 @@ void TYqlExecutorProcess::Start() {
 ////////////////////////////////////////////////////////////////////////////////
 
 void TYqlExecutorProcess::Stop() {
+    if (ActiveQueryId_) {
+        Abort(*ActiveQueryId_);
+    }
     YqlPluginProcess_->Kill(SIGKILL);
 }
 

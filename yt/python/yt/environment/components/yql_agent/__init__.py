@@ -20,7 +20,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         super(YqlAgent, self).__init__()
         self.client = None
         self.artifacts_path = None
-        self.process_plugin_config = None
+        self.subprocesses_count = None
+        self.env = None
 
     def prepare(self, env, config):
         logger.info("Preparing yql agent")
@@ -30,6 +31,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         self.libraries = config.get("libraries", {})
         self.config = config
+        self.env = env
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
@@ -39,14 +41,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             raise YtError("Artifacts path is not specified in yql agent config")
 
         if "subprocesses_count" in config and config["subprocesses_count"] != 0:
-            logging_config = {}
-            _init_logging(os.path.join(env.path, 'yql_agent', 'plugin_slots'), 'yql-plugin', logging_config, env.yt_config)
-            self.process_plugin_config = {
-                "enabled": True,
-                "slot_count": config["subprocesses_count"],
-                "log_manager_template": logging_config,
-                "slots_root_path": os.path.join(env.path, 'yql_agent', 'plugin_slots')
-            }
+            self.subprocesses_count = config["subprocesses_count"]
 
         self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
 
@@ -115,7 +110,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
     def _get_artifact_path(self, subpath=""):
         return os.path.join(self.artifacts_path, subpath)
 
-    def get_default_config(self):
+    def get_default_config(self, instance_index: int):
         self.token_path = os.path.join(self.env.configs_path, "yql_agent_token")
 
         mr_job_bin, mr_job_udfs_dir, yql_plugin_shared_library = None, None, None
@@ -127,6 +122,26 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             mr_job_bin = self.config["mr_job_bin"]
             mr_job_udfs_dir = self.config["mr_job_udfs_dir"]
             yql_plugin_shared_library = self.config["yql_plugin_shared_library"]
+
+        process_plugin_config = None
+        if self.subprocesses_count:
+            logging_config = {}
+            yql_agent_plugin_slots_path = os.path.join(self.env.path, 'yql_agent', str(instance_index), 'plugin_slots')
+            _init_logging(
+                yql_agent_plugin_slots_path,
+                'yql-plugin',
+                logging_config,
+                self.env.yt_config,
+                enable_log_compression=False,
+                log_errors_to_stderr=True
+            )
+
+            process_plugin_config = {
+                "enabled": True,
+                "slot_count": self.subprocesses_count,
+                "log_manager_template": logging_config,
+                "slots_root_path": yql_agent_plugin_slots_path
+            }
 
         config = {
             "user": self.USER_NAME,
@@ -159,8 +174,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self.max_supported_yql_version:
             config["yql_agent"]["max_supported_yql_version"] = self.max_supported_yql_version
 
-        if self.process_plugin_config:
-            config["yql_agent"]["process_plugin_config"] = self.process_plugin_config
+        if process_plugin_config:
+            config["yql_agent"]["process_plugin_config"] = process_plugin_config
 
         return config
 

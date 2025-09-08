@@ -14,6 +14,9 @@ void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion);
 
     registrar.Parameter("singletons_config", &TThis::SingletonsConfig);
+
+    registrar.Parameter("dynamic_gateways_config", &TThis::DynamicGatewaysConfig)
+        .Default();
 }
 
 } // namespace NProcess

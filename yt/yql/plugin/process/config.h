@@ -22,6 +22,8 @@ struct TProcessYqlPluginInternalConfig
     TString MaxSupportedYqlVersion;
     TSingletonsConfigPtr SingletonsConfig;
 
+    std::optional<NYson::TYsonString> DynamicGatewaysConfig;
+
     REGISTER_YSON_STRUCT(TProcessYqlPluginInternalConfig);
 
     static void Register(TRegistrar registrar);

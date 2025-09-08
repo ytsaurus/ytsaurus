@@ -622,7 +622,7 @@ def _yt_query_tracker(test_env):
     cell_id = yt.create("tablet_cell")
     wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
     query_tracker = QueryTracker()
-    config = query_tracker.get_default_config()
+    config = query_tracker.get_default_config(0)
     config["count"] = 1
     # Simon says "Prepare!", Simon says "Init!", Simon says "Run! Wait!"...
     query_tracker.prepare(env, config)

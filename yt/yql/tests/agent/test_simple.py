@@ -650,7 +650,7 @@ class TestExecutionModesYql(TestQueriesYqlSimpleBase):
             self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": 42})
 
 
-class TestYqlPlugin(TestQueriesYqlSimpleBase):
+class TestYqlPlugin(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
@@ -1668,3 +1668,17 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTracke
 class TestDeclareRpcProxy(TestDeclare):
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True
+
+
+@authors("staketd")
+class TestYqlAgentWithProcesses(TestYqlAgent):
+    YQL_SUBPROCESSES_COUNT = 8
+
+
+@authors("staketd")
+class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
+    YQL_SUBPROCESSES_COUNT = 8
+
+@authors("staketd")
+class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
+    YQL_SUBPROCESSES_COUNT = 8

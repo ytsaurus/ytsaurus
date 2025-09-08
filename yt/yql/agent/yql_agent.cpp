@@ -287,7 +287,8 @@ public:
             Config_,
             singletonsConfigString,
             NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            MaxSupportedYqlVersion_);
+            MaxSupportedYqlVersion_,
+            Config_->EnableDQ);
 
         // NB: under debug build this method does not fit in regular fiber stack
         // due to python udf loading
