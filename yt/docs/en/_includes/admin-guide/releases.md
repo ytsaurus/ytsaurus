@@ -317,6 +317,15 @@ Publishes as docker images.
 
 **All releases:**
 
+{% cut "**2.7.3**" %}
+
+Maintenance release with minor enhancements
+
+- Refactor shuffle data writing and reading
+- Metrics improvements
+
+{% endcut %}
+
 {% cut "**2.7.2**" %}
 
 Maintenance release with minor enhancements
