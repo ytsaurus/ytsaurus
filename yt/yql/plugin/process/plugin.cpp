@@ -129,10 +129,14 @@ public:
             };
         }
 
-        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcessOrError.Value())
+        auto pluginProcess = pluginProcessOrError.Value();
+
+        YT_LOG_INFO("Starting query in subprocess (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
+
+        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
             .Via(Invoker_));
 
-        return pluginProcessOrError.Value()->Run(
+        auto result = pluginProcess->Run(
             queryId,
             user,
             credentials,
@@ -140,6 +144,9 @@ public:
             settings,
             files,
             executeMode);
+
+        YT_LOG_INFO("Query finished (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex());
+        return result;
     }
 
     TQueryResult GetProgress(TQueryId queryId) override
@@ -170,19 +177,20 @@ public:
 
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
     {
-        YT_LOG_INFO("Updating dynamic config");
         auto guard = NThreading::WriterGuard(ProcessesLock_);
-        UpdateConfigTemplateOnConfigChanged(config);
+        YT_LOG_INFO("Updating dynamic config");
+
+        CurrentDynamicGatewaysConfig_ = config.GatewaysConfig;
         ++DynamicConfigVersion_;
 
         if (DqControllerYqlPlugin_) {
             DqControllerYqlPlugin_->OnDynamicConfigChanged(config);
         }
 
-        while (StandbyProcessesQueue_.Empty()) {
+        while (!StandbyProcessesQueue_.Empty()) {
             auto process = *StandbyProcessesQueue_.Pop();
+            YT_LOG_DEBUG("Stopping process for dynamic config update (SlotIndex: %v)", process->SlotIndex());
             process->Stop();
-            CleanupAfterQueryFinish(process->ActiveQueryId());
         }
 
         YT_LOG_INFO("Dynamic config updated");
@@ -204,7 +212,9 @@ private:
 
     TYqlPluginConfigPtr Config_;
     TProcessYqlPluginInternalConfigPtr ConfigTemplate_;
+
     int DynamicConfigVersion_;
+    std::optional<TYsonString> CurrentDynamicGatewaysConfig_;
 
     TActionQueuePtr Queue_;
     IInvokerPtr Invoker_;
@@ -283,7 +293,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         int slotIndex = process->SlotIndex();
-        YT_LOG_INFO("Starting plugin in process (SlotIndex: %v)", slotIndex);
+        YT_LOG_DEBUG("Starting plugin in process (SlotIndex: %v)", slotIndex);
 
         bool success = process->WaitReady();
 
@@ -316,11 +326,11 @@ private:
             }).Via(Invoker_));
 
         YT_LOG_INFO("Successfully started plugin in subprocess (SlotIndex: %v)", slotIndex);
-  }
+    }
 
     void OnQueryFinish(TQueryId queryId, TYqlExecutorProcessPtr process)
     {
-        YT_LOG_DEBUG("Query finished, clearing slot and restarting process (QueryId: %v, SlotIndex: %v)", queryId, process->SlotIndex());
+        YT_LOG_DEBUG("Query finished, cleaning up and restarting process (QueryId: %v, SlotIndex: %v)", queryId, process->SlotIndex());
         CleanupAfterQueryFinish(queryId);
         process->Stop();
     }
@@ -372,7 +382,7 @@ private:
     TYqlExecutorProcessPtr StartProcess(int slotIndex)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-        YT_LOG_INFO("Starting plugin process (SlotIndex: %v)", slotIndex);
+        YT_LOG_DEBUG("Starting plugin process (SlotIndex: %v)", slotIndex);
         auto guard = NThreading::ReaderGuard(ProcessesLock_);
         TString workingDirectory = GetSlotPath(slotIndex);
         NFS::MakeDirRecursive(workingDirectory, MODE0711);
@@ -441,6 +451,8 @@ private:
 
         config->SetSingletonConfig(config->SingletonsConfig->GetSingletonConfig<NLogging::TLogManagerConfig>());
 
+        config->DynamicGatewaysConfig = CurrentDynamicGatewaysConfig_;
+
         return config;
     }
 
@@ -458,16 +470,6 @@ private:
         }
 
         YT_LOG_DEBUG("Yql plugin config successfully written (SlotIndex: %v, ConfigPath: %v)", config->SlotIndex, configPath);
-    }
-
-    void UpdateConfigTemplateOnConfigChanged(const TYqlPluginDynamicConfig& config)
-    {
-        NYson::TProtobufWriterOptions protobufWriterOptions;
-        protobufWriterOptions.ConvertSnakeToCamelCase = true;
-
-        ConfigTemplate_->PluginConfig->GatewayConfig = PatchNode(
-            ConfigTemplate_->PluginConfig->GatewayConfig,
-            ConvertTo<INodePtr>(config.GatewaysConfig));
     }
 
     static TProcessYqlPluginInternalConfigPtr BuildPluginConfigTemplate(

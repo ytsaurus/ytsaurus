@@ -66,7 +66,7 @@ def yql_agent(request):
 
     modify_yql_agent_config = getattr(cls, "modify_yql_agent_config", None)
     max_yql_version = getattr(cls, "MAX_YQL_VERSION", None)
-    subprocesses_count = getattr(cls, "YQL_SUBPROCESSES_COUNT", 0)
+    subprocesses_count = getattr(cls, "YQL_SUBPROCESSES_COUNT", None)
 
     with YqlAgent(cls.Env, count, libraries, modify_yql_agent_config, max_yql_version, subprocesses_count) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)

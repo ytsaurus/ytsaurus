@@ -192,3 +192,11 @@ select a from primary.`//tmp/t` where $f(unwrap(a));
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 1}, {"a": 2}])
+
+
+class TestUdfsWithDynamicConfigWithProcesses(TestUdfsWithDynamicConfig):
+    YQL_SUBPROCESSES_COUNT = 8
+
+
+class TestUdfsWithProcesses(TestUdfs):
+    YQL_SUBPROCESSES_COUNT = 8

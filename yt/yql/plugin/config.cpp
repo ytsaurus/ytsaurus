@@ -77,6 +77,8 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"_EnableYtPartitioning", "true"},
     {"HybridDqExecution", "true"},
     {"DQRPCReaderInflight", "1"},
+    {"UseNativeYtTypes", "true"},
+    {"UseNativeDynamicTableRead", "true"},
 });
 
 constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({

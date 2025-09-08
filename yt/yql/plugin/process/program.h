@@ -77,6 +77,12 @@ protected:
         auto yqlPlugin = CreateBridgeYqlPlugin(std::move(options));
         yqlPlugin->Start();
 
+        if (config->DynamicGatewaysConfig) {
+            yqlPlugin->OnDynamicConfigChanged(TYqlPluginDynamicConfig{
+                .GatewaysConfig = *config->DynamicGatewaysConfig
+            });
+        }
+
         auto yqlPluginService = CreateYqlPluginService(controlInvoker_, std::move(yqlPlugin));
         auto rpcServer = NRpc::NBus::CreateBusServer(NBus::CreateBusServer(config->BusServer));
 

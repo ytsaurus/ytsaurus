@@ -161,6 +161,7 @@ private:
         SetYqlResponseFieldIfValuePresent(yqlResponse, queryResult.TaskInfo, &TYqlResponse::mutable_task_info);
         SetYqlResponseFieldIfValuePresent(yqlResponse, queryResult.YsonError, &TYqlResponse::mutable_error);
         SetYqlResponseFieldIfValuePresent(yqlResponse, queryResult.YsonResult, &TYqlResponse::mutable_result);
+        SetYqlResponseFieldIfValuePresent(yqlResponse, queryResult.Ast, &TYqlResponse::mutable_ast);
 
         return yqlResponse;
     }
