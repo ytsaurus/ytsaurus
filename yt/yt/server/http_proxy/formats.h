@@ -6,9 +6,17 @@
 
 #include <yt/yt/server/lib/misc/public.h>
 
+#include <yt/yt/core/http/public.h>
+
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EFormatTarget,
+    ((Input)  (0))
+    ((Output) (1))
+    ((Error)  (2))
+);
 
 NFormats::TFormat InferFormat(
     const NServer::TFormatManager& formatManager,
@@ -17,7 +25,7 @@ NFormats::TFormat InferFormat(
     const std::optional<std::string>& ytHeader,
     const std::string& mimeHeaderName,
     const std::string* mimeHeader,
-    bool isOutput,
+    EFormatTarget target,
     NFormats::EDataType dataType);
 
 NFormats::TFormat InferHeaderFormat(
@@ -33,6 +41,17 @@ NYTree::INodePtr ConvertBytesToNode(
 std::optional<TString> GetBestAcceptedType(
     NFormats::EDataType outputType,
     const TString& clientAcceptHeader);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillFormattedYTErrorHeaders(
+    const NHttp::IResponseWriterPtr& rsp,
+    const TError& error,
+    const NFormats::TFormat& format);
+void FillFormattedYTErrorTrailers(
+    const NHttp::IResponseWriterPtr& rsp,
+    const TError& error,
+    const NFormats::TFormat& format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,12 +7,17 @@
 
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/core/http/helpers.h>
+#include <yt/yt/core/http/http.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHttpProxy {
 
 using namespace NFormats;
+using namespace NHttp;
+using namespace NHttp::NHeaders;
 using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
@@ -86,10 +91,10 @@ TFormat InferFormat(
     const std::optional<std::string>& ytHeader,
     const std::string& mimeHeaderName,
     const std::string* mimeHeader,
-    bool isOutput,
+    EFormatTarget target,
     EDataType dataType)
 {
-    if (isOutput && (
+    if (target == EFormatTarget::Output && (
         dataType == EDataType::Null ||
         dataType == EDataType::Binary))
     {
@@ -117,8 +122,7 @@ TFormat InferFormat(
         }
     }
     formatNode = GetDefaultFormatNodeForDataType(dataType);
-    auto direction = isOutput ? "output" : "input";
-    return formatManager.ConvertToFormat(formatNode, Format("%v format inferred from data type %Qlv", direction, dataType));
+    return formatManager.ConvertToFormat(formatNode, Format("%lv format inferred from data type %Qlv", target, dataType));
 }
 
 TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string* ytHeader)
@@ -249,6 +253,46 @@ std::optional<TString> GetBestAcceptedType(
     }
 
     return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillFormattedYTError(
+    const THeadersPtr& headers,
+    const TError& error,
+    const TFormat& format)
+{
+    TString errorString;
+    TStringOutput errorStringOutput(errorString);
+
+    auto consumer = CreateConsumerForFormat(
+        format,
+        EDataType::Structured,
+        &errorStringOutput);
+
+    Serialize(error, consumer.get());
+    consumer->Flush();
+
+    headers->Add(XYTErrorHeaderName, errorString);
+    headers->Add(XYTErrorContentTypeHeaderName, FormatToMime(format));
+}
+
+void FillFormattedYTErrorHeaders(
+    const IResponseWriterPtr& rsp,
+    const TError& error,
+    const TFormat& format)
+{
+    FillFormattedYTError(rsp->GetHeaders(), error, format);
+    FillYTErrorResponseHeaders(rsp, error);
+}
+
+void FillFormattedYTErrorTrailers(
+    const IResponseWriterPtr& rsp,
+    const TError& error,
+    const TFormat& format)
+{
+    FillFormattedYTError(rsp->GetTrailers(), error, format);
+    FillYTErrorResponseTrailers(rsp, error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
