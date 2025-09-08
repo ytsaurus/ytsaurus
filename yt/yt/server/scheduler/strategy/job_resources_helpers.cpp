@@ -72,7 +72,7 @@ void ProfileResourceVolume(
 
 void ProfileResourcesConfig(
     NProfiling::ISensorWriter* writer,
-    const TJobResourcesConfigPtr& resourcesConfig,
+    const NVectorHdrf::TJobResourcesConfig* resourcesConfig,
     const TString& prefix)
 {
     if (!resourcesConfig) {
@@ -80,7 +80,7 @@ void ProfileResourcesConfig(
     }
 
     resourcesConfig->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
-        if (auto value = resourcesConfig.Get()->*resourceDataMember) {
+        if (auto value = resourcesConfig->*resourceDataMember) {
             writer->AddGauge(prefix + "/" + FormatEnum(resourceType), static_cast<double>(*value));
         }
     });

@@ -867,6 +867,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         strong_guarantee_resources_cpu_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/cpu")
         strong_guarantee_resources_memory_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/user_memory")
         strong_guarantee_resources_user_slots_sensor = profiler.gauge(metric_prefix + "strong_guarantee_resources/user_slots")
+        specified_strong_guarantee_resources_cpu_sensor = profiler.gauge(metric_prefix + "specified_strong_guarantee_resources/cpu")
+        specified_strong_guarantee_resources_memory_sensor = profiler.gauge(metric_prefix + "specified_strong_guarantee_resources/user_memory")
         effective_strong_guarantee_resources_cpu_sensor = profiler.gauge(metric_prefix + "effective_strong_guarantee_resources/cpu")
         effective_strong_guarantee_resources_user_slots_sensor = profiler.gauge(metric_prefix + "effective_strong_guarantee_resources/user_slots")
 
@@ -890,6 +892,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: strong_guarantee_resources_cpu_sensor.get() == 1.0)
         wait(lambda: strong_guarantee_resources_memory_sensor.get() == 0)
         wait(lambda: strong_guarantee_resources_user_slots_sensor.get() == 0)
+        wait(lambda: specified_strong_guarantee_resources_cpu_sensor.get() == 1.0)
+        wait(lambda: specified_strong_guarantee_resources_memory_sensor.get() is None)
         wait(lambda: effective_strong_guarantee_resources_cpu_sensor.get() == 1.0)
         wait(lambda: effective_strong_guarantee_resources_user_slots_sensor.get() == 1)
         op.complete()
