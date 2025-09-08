@@ -44,7 +44,7 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("reset_hunk_storage_in_table_destroy", &TThis::ResetHunkStorageInTableDestroy)
         .Default(true);
     registrar.Parameter("prohibit_prerequisite_revisions_differ_from_execution_paths", &TThis::ProhibitPrerequisiteRevisionsDifferFromExecutionPaths)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("fix_resolve_prerequisite_path_to_local_object_for_symlinks", &TThis::FixResolvePrerequisitePathToLocalObjectForSymlinks)
         .Default(false)
         .DontSerializeDefault();
