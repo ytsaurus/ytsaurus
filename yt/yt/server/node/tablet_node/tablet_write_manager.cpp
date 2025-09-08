@@ -770,7 +770,11 @@ public:
                 auto transactionState = transaction->GetPersistentState();
                 writeState->SomeRowsCommitted = transactionState == ETransactionState::Committed || transactionState == ETransactionState::Serialized;
             }
+        }
 
+        // NB: Serialization should start only after all transactions are prepared as each prepare action could change per-row barrier.
+        for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
             if (writeState->SomeRowsCommitted && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 transaction->IncrementPartsLeftToPerRowSerialize();
 
@@ -782,6 +786,16 @@ public:
 
                 // NB: Otherwise this transaction should be committed and removed TransactionIdToPersistentWriteState_ before saving to snapshot.
                 YT_VERIFY(transaction->GetPartsLeftToPerRowSerialize() != 0);
+
+                // COMPAT(ponasenko-rs): Remove after PersistPerRowSerializingTabletIds.
+                if (!transaction->PerRowSerializingTabletIds().contains(Tablet_->GetId())) {
+                    Y_UNUSED(ETabletReign::PersistPerRowSerializingTabletIds);
+
+                    YT_LOG_ALERT("Per-row serializing transaction is not found in PerRowSerializingTabletIds (TransactionId: %v, TabletId: %v)",
+                        transaction->GetId(),
+                        Tablet_->GetId());
+                    transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                }
             }
         }
 
