@@ -25,6 +25,9 @@ struct TScrapedChunkInfo
     EChunkAvailability Availability;
 };
 
+void FormatValue(TStringBuilderBase* builder, const TScrapedChunkInfo& info, TStringBuf spec);
+std::ostream& operator<<(std::ostream& out, const TScrapedChunkInfo& info);
+
 static constexpr TChunkScraperAvailabilityPolicy MetadataAvailablePolicy = TMetadataAvailablePolicy{};
 
 //! A chunk scraper for unavailable chunks.
@@ -67,7 +70,12 @@ public:
     //! Stops periodic polling.
     void Stop();
 
+    //! Adds `chunk` into scraper's queue.
     void Add(TChunkId chunk);
+
+    //! Equivalent to `Add` with subsequent `OnChunkBecameUnavailable`.
+    void AddUnavailable(TChunkId chunk);
+
     void Remove(TChunkId chunk);
     void OnChunkBecameUnavailable(TChunkId chunk);
 
@@ -82,9 +90,11 @@ private:
     const TChunkScraperAvailabilityPolicy AvailabilityPolicy_;
     const NLogging::TLogger Logger;
 
-    struct TScraperTaskWrapper;
-    THashMap<NObjectClient::TCellTag, TScraperTaskWrapper> ScraperTasks_;
+    class TScraperTask;
+    THashMap<NObjectClient::TCellTag, TIntrusivePtr<TScraperTask>> ScraperTasks_;
     bool IsStarted_ = false;
+
+    TScraperTask& GetTaskForChunk(TChunkId chunkId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkScraper)
