@@ -217,11 +217,11 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
         if (resolvedPrerequisiteRevision) {
             if (resolvedPrerequisiteRevision->UnresolvedSuffix.empty() || resolvedPrerequisiteRevision->UnresolvedSuffix == AmpersandYPath) {
                 resolvedPrerequisiteRevisions.push_back(
-                TResolvedPrerequisiteRevision{
-                    .NodeId = resolvedPrerequisiteRevision->Id,
-                    .Revision = revision.Revision,
-                    .NodePath = revision.Path,
-                });
+                    TResolvedPrerequisiteRevision{
+                        .NodeId = resolvedPrerequisiteRevision->Id,
+                        .Revision = revision.Revision,
+                        .NodePath = revision.Path,
+                    });
                 continue;
             }
         }
