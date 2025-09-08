@@ -533,7 +533,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
-            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
+            [[yson.YsonUint64(30), 3, yson.YsonUint64(4)], [yson.YsonUint64(20), 1, yson.YsonUint64(2)]]
         ])}], aggregate=True)
 
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]

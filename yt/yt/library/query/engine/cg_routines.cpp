@@ -3143,7 +3143,7 @@ struct TChunkReplica
 
 using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
 
-TChunkReplicaList UniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
+TChunkReplicaList SortUniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
 {
     TChunkReplicaList result;
     result.insert(result.end(), first.begin(), first.end());
@@ -3288,7 +3288,8 @@ void StoredReplicaSetMerge(
     TChunkReplicaList replicasToRemove2;
     ParseReplicasDelta(state2, &replicasToAdd2, &replicasToRemove2);
 
-    auto replicasToAdd = FilterReplicas(UniteReplicas(replicasToAdd1, replicasToAdd2), replicasToRemove2);
+    std::ranges::sort(replicasToRemove2);
+    auto replicasToAdd = FilterReplicas(SortUniteReplicas(replicasToAdd1, replicasToAdd2), replicasToRemove2);
 
     auto bufferSize = EstimateReplicasYsonLength(replicasToAdd);
     char* outputBuffer = AllocateBytes(context, bufferSize);
