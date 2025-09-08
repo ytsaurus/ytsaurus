@@ -12,7 +12,7 @@ import org.testcontainers.utility.MountableFile;
 public class YTsaurusContainer {
     public static synchronized GenericContainer<?> startContainer(Config config) {
         FixedHostPortGenericContainer<?> localYTsaurus =
-                new FixedHostPortGenericContainer<>("ghcr.io/ytsaurus/local:dev")
+                new FixedHostPortGenericContainer<>("ghcr.io/ytsaurus/local@sha256:c4f456cadcc684f8c244b57a9458a60a394c3b72d590ffa6a637012d78a2d923")
                         .withFixedExposedPort(config.httpPort, 80) // http
                         .withNetwork(Network.newNetwork());
 
