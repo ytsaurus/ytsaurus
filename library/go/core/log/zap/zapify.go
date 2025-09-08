@@ -87,6 +87,8 @@ func zapifyField(field log.Field) zap.Field {
 		return zap.Skip()
 	case log.FieldTypeContext:
 		return Context(field.Interface().(context.Context))
+	case log.FieldTypeRawContext:
+		return RawContext(field.Interface().(context.Context))
 	case log.FieldTypeLazyCall:
 		return LazyCall(field.Key(), field.Interface())
 	default:
