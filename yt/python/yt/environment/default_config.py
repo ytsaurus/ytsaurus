@@ -111,6 +111,7 @@ def get_dynamic_master_config():
 
         "object_manager": {
             "gc_sweep_period": 10,
+            "fix_resolve_prerequisite_path_to_local_object_for_symlinks": True,
         },
 
         "object_service": {

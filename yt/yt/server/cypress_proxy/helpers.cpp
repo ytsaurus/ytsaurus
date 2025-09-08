@@ -226,6 +226,14 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
             }
         }
 
+        if (pathIsAdditional) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                "Request involves Sequoia path %v and Cypress additional path %v",
+                originalTargetPath,
+                revision.Path);
+        }
+
         return TError(
             NObjectClient::EErrorCode::PrerequisiteCheckFailed,
             "Prerequisite check failed: failed to resolve path %v",

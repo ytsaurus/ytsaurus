@@ -385,9 +385,16 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(requestHeader, GetId(), additionalObjectIds, prerequisitesExt);
+        objectManager->ValidatePrerequisites(
+            requestHeader,
+            context->GetService(),
+            context->GetMethod(),
+            GetId(),
+            additionalObjectIds,
+            prerequisitesExt);
     }
 
+    auto transactionIdForPrerequisiteResolve = GetTransactionId(context);
     const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
     for (const auto& prerequisite : prerequisitesExt.revisions()) {
         const auto& prerequisitePath = prerequisite.path();
@@ -396,7 +403,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             context->GetService(),
             context->GetMethod(),
             prerequisitePath,
-            GetTransactionId(context));
+            transactionIdForPrerequisiteResolve);
         auto result = resolver.Resolve();
         if (std::holds_alternative<TPathResolver::TRemoteObjectRedirectPayload>(result.Payload)) {
             THROW_ERROR_EXCEPTION(
