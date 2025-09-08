@@ -33,7 +33,7 @@ func RunContainer(ctx context.Context, opts ...testcontainers.ContainerCustomize
 	cluster := guid.New().String()
 
 	req := testcontainers.ContainerRequest{
-		Image: "ghcr.io/ytsaurus/local@sha256:c4f456cadcc684f8c244b57a9458a60a394c3b72d590ffa6a637012d78a2d923",
+		Image: "ghcr.io/ytsaurus/local:dev-test",
 		Cmd: []string{
 			"--fqdn", "localhost",
 			"--proxy-config", fmt.Sprintf("{address_resolver={enable_ipv4=%%true;enable_ipv6=%%false;};coordinator={public_fqdn=\"localhost:%d\"}}", httpProxyPort),
