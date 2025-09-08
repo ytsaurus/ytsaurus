@@ -46,6 +46,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, SerializationStatus_);
     Save(context, PersistentAffectedTabletIds_);
     Save(context, CoarseSerializingTabletIds_);
+    Save(context, PerRowSerializingTabletIds_);
     Save(context, PersistentPrepareSignature_);
     Save(context, PersistentGeneration_);
     Save(context, CommitSignature_);
@@ -88,6 +89,12 @@ void TTransaction::Load(TLoadContext& context)
 
     Load(context, PersistentAffectedTabletIds_);
     Load(context, CoarseSerializingTabletIds_);
+
+    if (context.GetVersion() >= ETabletReign::PersistPerRowSerializingTabletIds) {
+        // For transaction created before PersistPerRowSerializingTabletIds
+        // PerRowSerializingTabletIds_ will be reconstructed in TTabletWriteManager::OnAfterSnapshotLoaded.
+        Load(context, PerRowSerializingTabletIds_);
+    }
 
     Load(context, PersistentPrepareSignature_);
     TransientPrepareSignature_ = PersistentPrepareSignature_;
