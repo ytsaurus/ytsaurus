@@ -113,8 +113,7 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
         auto& group = groupIt->second;
         if (joblet->CookieGroupInfo.OutputIndex != 0) {
             group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
-        }
-        if (joblet->JobId == group.MainJobId) {
+        } else {
             CookieToGroup_.erase(groupIt);
             return true;
         }
