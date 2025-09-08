@@ -8,7 +8,20 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.7.3**" %}
+
+**Release date:** 2025-09-08
+
+Maintenance release with minor enhancements
+
+- Refactor shuffle data writing and reading
+- Metrics improvements
+
+{% endcut %}
+
 {% cut "**2.7.2**" %}
+
+**Release date:** 2025-09-01
 
 Maintenance release with minor enhancements
 
