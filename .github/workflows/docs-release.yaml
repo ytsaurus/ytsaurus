@@ -122,7 +122,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           project-link: ${{ vars.DIPLODOC_PROJECT_LINK }}
           storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
-          storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
+          storage-region: "us-east-1" #${{ vars.DIPLODOC_STORAGE_REGION }}
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
