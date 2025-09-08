@@ -1418,6 +1418,21 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
+                mapper_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                reducer_command='cat',
+                reduce_combiner_command='cat',
+                sort_by=[{"name": "key", "sort_order": "ascending"}],
+                spec={
+                    "mapper": {"cpu_limit": 1, "cookie_group_size": 2},
+                    "reducer": {"cookie_group_size": 2},
+                    "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
+                    "force_reduce_combiners": True,
+                },
+            )
+        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
                 reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],

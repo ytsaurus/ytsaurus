@@ -2343,6 +2343,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
+        TStringBuf distributedTaskName;
         TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
@@ -2358,6 +2359,9 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
+            if (taskSpec->CookieGroupSize > 1) {
+                distributedTaskName = taskName;
+            }
             if (taskSpec->GangOptions) {
                 taskWithGangOptionsName = taskName;
             }
@@ -2372,6 +2376,11 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
         }
 
+        if (taskWithGangOptionsName && distributedTaskName) {
+            THROW_ERROR_EXCEPTION(
+                "Operation with a non-singular \"cookie_group_size\" can not have tasks with configured \"gang_options\"")
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
+        }
         if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
                 "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_options\"")

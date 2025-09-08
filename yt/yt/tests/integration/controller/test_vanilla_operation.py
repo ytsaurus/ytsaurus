@@ -1983,6 +1983,23 @@ class TestGangOperations(YTEnvSetup):
 
         assert restarted_job_profiler.get_job_count_delta() == 0
 
+    @authors("faucct")
+    def test_gang_operation_with_cookie_group_size(self):
+        with pytest.raises(YtError, match='Operation with a non-singular "cookie_group_size" can not have tasks with configured "gang_options"'):
+            vanilla(
+                track=False,
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": ";",
+                            "gang_options": {},
+                            "cookie_group_size": 2,
+                        },
+                    },
+                },
+            )
+
     @authors("pogorelov")
     def test_gang_operation_with_fail_on_job_restart(self):
         with pytest.raises(YtError):

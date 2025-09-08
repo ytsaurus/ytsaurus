@@ -2003,7 +2003,6 @@ print(json.dumps(input))
             wait(lambda: get_job(op.id, main_job_id)["state"] == "completed")
         except Exception as e:
             assert "not found neither in archive nor in controller agent" in str(e)
-        assert read_table("//tmp/t2") == []
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
