@@ -279,12 +279,15 @@ public:
         auto it = Barriers_.find(lastStronglyOrderedTransactionSequenceNumber);
         if (it != Barriers_.end()) {
             YT_LOG_DEBUG("Barrier already exists (NextStronglyOrderedTransactionSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-            return it->second.ToFuture().ToUncancelable();
+            return it->second.Promise.ToFuture().ToUncancelable();
         }
 
         YT_LOG_DEBUG("Creating barrier (NextStronglyOrderedTxSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-        it = EmplaceOrCrash(Barriers_, lastStronglyOrderedTransactionSequenceNumber, NewPromise<void>());
-        return it->second.ToFuture().ToUncancelable();
+        it = EmplaceOrCrash(
+            Barriers_,
+            lastStronglyOrderedTransactionSequenceNumber,
+            TPromiseWithCreationTime(NewPromise<void>(), GetInstant()));
+        return it->second.Promise.ToFuture().ToUncancelable();
     }
 
     // COMPAT(aleksandra-zh): remove that after Sequencer is more stable.
@@ -303,6 +306,12 @@ public:
 
         buffer->AddGauge("/transaction_supervisor/ready_to_commit_strongly_ordered_transaction_count", ReadyToCommitTransactions_.size());
         buffer->AddGauge("/transaction_supervisor/external_ready_to_commit_strongly_ordered_transaction_count", ExternalReadyToCommitTransactions_.size());
+
+        auto barrierWaitTime = TDuration::Zero();
+        if (!Barriers_.empty()) {
+            barrierWaitTime = GetInstant() - Barriers_.begin()->second.CreationTime;
+        }
+        buffer->AddGauge("/transaction_supervisor/barrier_wait_time", barrierWaitTime.MillisecondsFloat());
     }
 
 private:
@@ -350,7 +359,14 @@ private:
     THashMap<TTransactionId, i64> ExternalReadyToCommitTransactionToCommitTimestamp_;
     std::map<TTimestamp, TTransactionInfo> ExternalReadyToCommitTransactions_;
 
-    std::map<i64, TPromise<void>> Barriers_;
+    template <class T>
+    struct TPromiseWithCreationTime
+    {
+        TPromise<T> Promise;
+        TInstant CreationTime;
+    };
+
+    std::map<i64, TPromiseWithCreationTime<void>> Barriers_;
 
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
@@ -2749,7 +2765,7 @@ private:
             YT_LOG_DEBUG("Advancing barrier (BarrierSequenceNumber: %v, MinUncommittedTransaction: %v)",
                 barrierSequenceNumber,
                 minUncommittedTransaction);
-            readyPromises.push_back(std::move(it->second));
+            readyPromises.push_back(std::move(it->second.Promise));
             Barriers_.erase(it);
         }
 
@@ -2772,8 +2788,8 @@ private:
 
         {
             auto guard = Guard(SequencerLock_);
-            for (auto& [_, promise] : Barriers_) {
-                readyPromises.push_back(std::move(promise));
+            for (auto& [_, promiseWithCreationtime] : Barriers_) {
+                readyPromises.push_back(std::move(promiseWithCreationtime.Promise));
             }
             Barriers_.clear();
         }

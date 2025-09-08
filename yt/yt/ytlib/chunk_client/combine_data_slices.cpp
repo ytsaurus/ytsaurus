@@ -84,8 +84,8 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
     YT_VERIFY(!paths || paths->size() == slicesByTable.size());
 
     for (const auto& [tableIndex, dataSource] : Enumerate(dataSourceDirectory->DataSources())) {
-        bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable;
-        bool sorted = dataSource.Schema()->IsSorted();
+        bool versioned = dataSource->GetType() == EDataSourceType::VersionedTable;
+        bool sorted = dataSource->Schema()->IsSorted();
         auto& tableSlices = slicesByTable[tableIndex];
         std::sort(
             tableSlices.begin(),
@@ -102,7 +102,7 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
             });
 
         std::vector<TReadRange> ranges;
-        auto keyLength = dataSource.Schema()->ToComparator().GetLength();
+        auto keyLength = dataSource->Schema()->ToComparator().GetLength();
 
         int firstSlice = 0;
         while (firstSlice < std::ssize(tableSlices)) {
@@ -126,16 +126,16 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         if (paths) {
             resultPaths.emplace_back((*paths)[tableIndex]);
         } else {
-            YT_VERIFY(dataSource.GetPath());
-            resultPaths.emplace_back(*dataSource.GetPath());
+            YT_VERIFY(dataSource->GetPath());
+            resultPaths.emplace_back(*dataSource->GetPath());
         }
         auto& path = resultPaths.back();
         path.SetRanges(ranges);
-        if (dataSource.GetForeign()) {
+        if (dataSource->GetForeign()) {
             path.SetForeign(true);
         }
-        if (dataSource.Columns()) {
-            path.SetColumns(*dataSource.Columns());
+        if (dataSource->Columns()) {
+            path.SetColumns(*dataSource->Columns());
         }
     }
 

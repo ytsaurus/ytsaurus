@@ -36,9 +36,11 @@
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
-#include <yt/yt/library/profiling/solomon/public.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/containers/public.h>
 
@@ -49,8 +51,6 @@
 #include <yt/yt/library/fusion/public.h>
 
 #include <yt/yt/library/disk_manager/public.h>
-
-#include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -121,8 +121,6 @@ struct IBootstrapBase
     virtual std::string GetLocalHostName() const = 0;
     virtual TMasterEpoch GetMasterEpoch() const = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
     DECLARE_INTERFACE_SIGNAL(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
     DECLARE_INTERFACE_SIGNAL(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
 
@@ -244,8 +242,6 @@ class TBootstrapBase
     : public virtual IBootstrapBase
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
-    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
     DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), SecondaryMasterCellListChanged);
     DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);

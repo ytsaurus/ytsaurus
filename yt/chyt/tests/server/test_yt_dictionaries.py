@@ -147,8 +147,8 @@ class TestYtDictionaries(ClickHouseTestBase):
         patch = {
             # Disable background update.
             "yt": {
-                "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),
-                "permission_cache": get_async_expiring_cache_config(2000, 2000, None),
+                "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None, None),
+                "permission_cache": get_async_expiring_cache_config(2000, 2000, None, None),
             },
             "clickhouse": {
                 "dictionaries": [

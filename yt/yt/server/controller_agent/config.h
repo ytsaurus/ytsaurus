@@ -521,8 +521,9 @@ struct TSortOperationOptionsBase
     : public TOperationOptions
 {
     int MaxPartitionJobCount;
+    // Maximum total partition count.
     int MaxPartitionCount;
-    int MaxNewPartitionCount;
+    // Maximum partition count that single partition job can handle.
     int MaxPartitionFactor;
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
@@ -532,7 +533,6 @@ struct TSortOperationOptionsBase
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
-    double CriticalNewPartitionDifferenceRatio;
 
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 

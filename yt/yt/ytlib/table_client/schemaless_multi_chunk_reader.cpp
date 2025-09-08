@@ -168,20 +168,21 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
         auto& rlsCheckerFactory = rlsCheckerFactories[dataSliceDescriptor.GetDataSourceIndex()];
-        if (!rlsCheckerFactory && dataSource.GetRlsReadSpec()) {
-            if (dataSource.GetRlsReadSpec()->IsTrivialDeny()) {
+        if (!rlsCheckerFactory && dataSource->GetRlsReadSpec()) {
+            if (dataSource->GetRlsReadSpec()->IsTrivialDeny()) {
                 // Short-circuit to not reading any remote data at all.
                 continue;
             }
             rlsCheckerFactory = CreateRlsCheckerFactory(
-                dataSource.Schema(),
-                *dataSource.GetRlsReadSpec());
+                dataSource->Schema(),
+                *dataSource->GetRlsReadSpec());
         }
-        auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource.GetClusterName());
-        auto perClusterChunkReadOptions = chunkReaderHost->AdjustClientChunkReadOptions(dataSource.GetClusterName(), chunkReadOptions);
+        auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource->GetClusterName());
+        auto perClusterChunkReadOptions = chunkReaderHost->AdjustClientChunkReadOptions(dataSource->GetClusterName(), chunkReadOptions);
+
         auto performanceCounters = New<TTabletPerformanceCounters>();
 
-        auto& chunkFragmentReader = chunkFragmentReaders[dataSource.GetClusterName()];
+        auto& chunkFragmentReader = chunkFragmentReaders[dataSource->GetClusterName()];
         if (!chunkFragmentReader) {
             chunkFragmentReader = CreateChunkFragmentReader(
                 config,
@@ -204,12 +205,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 std::move(chunkReader),
                 chunkFragmentReader,
                 std::move(dictionaryCompressionFactory),
-                dataSource.Schema(),
+                dataSource->Schema(),
                 perClusterChunkReadOptions,
                 performanceCounters);
         };
 
-        switch (dataSource.GetType()) {
+        switch (dataSource->GetType()) {
             case EDataSourceType::UnversionedTable: {
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
@@ -236,7 +237,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;
 
-                        auto sortColumns = dataSource.Schema() ? dataSource.Schema()->GetSortColumns() : TSortColumns{};
+                        auto sortColumns = dataSource->Schema() ? dataSource->Schema()->GetSortColumns() : TSortColumns{};
 
                         int keyColumnCount = sortColumns.size();
                         if (chunkSpec.has_lower_limit()) {
@@ -262,8 +263,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         auto chunkState = New<TChunkState>(TChunkState{
                             .BlockCache = perClusterChunkReaderHost->BlockCache,
                             .ChunkSpec = chunkSpec,
-                            .VirtualValueDirectory = dataSource.GetVirtualValueDirectory(),
-                            .TableSchema = dataSource.Schema(),
+                            .VirtualValueDirectory = dataSource->GetVirtualValueDirectory(),
+                            .TableSchema = dataSource->Schema(),
                             .DataSource = dataSource,
                             .RlsChecker = rlsCheckerFactory
                                 ? rlsCheckerFactory->CreateCheckerForChunk(chunkMeta->ChunkNameTable())
@@ -287,8 +288,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 nameTable,
                                 perClusterChunkReadOptions,
                                 sortColumns,
-                                dataSource.OmittedInaccessibleColumns(),
-                                columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
+                                dataSource->OmittedInaccessibleColumns(),
+                                columnFilter.IsUniversal() ? CreateColumnFilter(dataSource->Columns(), nameTable) : columnFilter,
                                 readRange,
                                 partitionTag,
                                 chunkReaderMemoryManagerHolder
@@ -308,8 +309,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 nameTable,
                                 perClusterChunkReadOptions,
                                 sortColumns,
-                                dataSource.OmittedInaccessibleColumns(),
-                                columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
+                                dataSource->OmittedInaccessibleColumns(),
+                                columnFilter.IsUniversal() ? CreateColumnFilter(dataSource->Columns(), nameTable) : columnFilter,
                                 hintKeyPrefixes->HintPrefixes,
                                 partitionTag,
                                 chunkReaderMemoryManagerHolder
@@ -327,7 +328,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         columnsToRead->emplace_back(nameTable->GetName(columnIndex));
                     }
                 } else {
-                    columnsToRead = dataSource.Columns();
+                    columnsToRead = dataSource->Columns();
                 }
 
                 auto createReader = BIND([=] {
@@ -335,7 +336,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     if (TypeFromId(chunkId) == EObjectType::OrderedDynamicTabletStore) {
                         return MakeFuture<IReaderBasePtr>(wrapReader(CreateRetryingRemoteOrderedDynamicStoreReader(
                             chunkSpec,
-                            dataSource.Schema(),
+                            dataSource->Schema(),
                             config->DynamicStoreReader,
                             options,
                             nameTable,
@@ -374,7 +375,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSliceDescriptor,
                         nameTable,
                         perClusterChunkReadOptions,
-                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter));
+                        columnFilter.IsUniversal() ? CreateColumnFilter(dataSource->Columns(), nameTable) : columnFilter));
                 });
 
                 auto canCreateReader = BIND([=] {
@@ -1132,11 +1133,11 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
     const auto& chunkSpecs = dataSliceDescriptor.ChunkSpecs;
 
-    auto tableSchema = dataSource.Schema();
+    auto tableSchema = dataSource->Schema();
     YT_VERIFY(tableSchema);
-    auto timestamp = dataSource.GetTimestamp();
-    auto retentionTimestamp = dataSource.GetRetentionTimestamp();
-    const auto& renameDescriptors = dataSource.ColumnRenameDescriptors();
+    auto timestamp = dataSource->GetTimestamp();
+    auto retentionTimestamp = dataSource->GetRetentionTimestamp();
+    const auto& renameDescriptors = dataSource->ColumnRenameDescriptors();
 
     // NB: We use `columnFilter` for reading data from stores, so [$timestamp:v] columns should be dropped,
     // and `timestampOnlyColumns` should be added to this filter.
@@ -1197,7 +1198,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         versionedReadSchema,
         timestampedColumnFilter,
         nameTable,
-        {dataSource.OmittedInaccessibleColumns().begin(), dataSource.OmittedInaccessibleColumns().end()});
+        {dataSource->OmittedInaccessibleColumns().begin(), dataSource->OmittedInaccessibleColumns().end()});
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
@@ -1491,7 +1492,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             const auto& dataSliceDescriptor = dataSliceDescriptors.front();
 
             auto adjustedColumnFilter = columnFilter.IsUniversal()
-                ? CreateColumnFilter(dataSource.Columns(), nameTable)
+                ? CreateColumnFilter(dataSource->Columns(), nameTable)
                 : columnFilter;
 
             auto reader = CreateSchemalessMergingMultiChunkReader(
@@ -1523,7 +1524,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 std::move(reader),
                 std::move(chunkFragmentReader),
                 std::move(dictionaryCompressionFactory),
-                dataSource.Schema(),
+                dataSource->Schema(),
                 chunkReadOptions,
                 New<TTabletPerformanceCounters>());
         }

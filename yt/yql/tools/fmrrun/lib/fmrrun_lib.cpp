@@ -14,8 +14,15 @@ TFmrRunTool::TFmrRunTool()
     GetRunOptions().SetSupportedGateways({TString{YtProviderName}, TString{NFmr::FastMapReduceGatewayName}});
     GetRunOptions().AddOptExtension([this](NLastGetopt::TOpts& opts) {
         opts.AddLongOption( "table-data-service-discovery-file-path", "Table data service discovery file path")
-            .Required()
+            .Optional()
             .StoreResult(&TableDataServiceDiscoveryFilePath_);
+        opts.AddLongOption("fmr-coordinator-server-url", "Fast map reduce coordinator server url")
+            .Optional()
+            .StoreResult(&FmrCoordinatorServerUrl_);
+        opts.AddLongOption("disable-local-fmr-worker", "Disable local fast map reduce worker")
+            .Optional()
+            .NoArgument()
+            .SetFlag(&DisableLocalFmrWorker_);
     });
 }
 
@@ -31,6 +38,8 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
     fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
+    fmrServices->CoordinatorServerUrl = FmrCoordinatorServerUrl_;
+    fmrServices->DisableLocalFmrWorker = DisableLocalFmrWorker_;
     auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(fileGateway, fmrServices);
     FmrWorker_ = std::move(worker);
     return fmrGateway;

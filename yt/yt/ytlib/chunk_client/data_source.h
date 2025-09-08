@@ -30,7 +30,7 @@ DEFINE_ENUM(EDataSourceType,
     ((VersionedTable)       (2))
 );
 
-class TDataSource
+class TDataSource final
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
@@ -65,7 +65,9 @@ public:
         const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors);
 };
 
-TDataSource MakeVersionedDataSource(
+DEFINE_REFCOUNTED_TYPE(TDataSource)
+
+TDataSourcePtr MakeVersionedDataSource(
     const std::optional<NYPath::TYPath>& path,
     NTableClient::TTableSchemaPtr schema,
     const std::optional<std::vector<std::string>>& columns,
@@ -74,24 +76,24 @@ TDataSource MakeVersionedDataSource(
     NTransactionClient::TTimestamp retentionTimestamp = NTransactionClient::NullTimestamp,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
-TDataSource MakeUnversionedDataSource(
+TDataSourcePtr MakeUnversionedDataSource(
     const std::optional<NYPath::TYPath>& path,
     NTableClient::TTableSchemaPtr schema,
     const std::optional<std::vector<std::string>>& columns,
     const std::vector<std::string>& omittedInaccessibleColumns,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
-TDataSource MakeFileDataSource(const std::optional<NYPath::TYPath>& path);
+TDataSourcePtr MakeFileDataSource(const std::optional<NYPath::TYPath>& path);
 
 void FromProto(
-    TDataSource* dataSource,
+    TDataSourcePtr* dataSource,
     const NProto::TDataSource& protoDataSource,
     const NTableClient::TSchemaDictionary* schemaDictionary = nullptr,
     const NTableClient::TColumnFilterDictionary* columnFilterDictionary = nullptr);
 
 void ToProto(
     NProto::TDataSource* protoDataSource,
-    const TDataSource& dataSource,
+    const TDataSourcePtr& dataSource,
     NTableClient::TSchemaDictionary* schemaDictionary = nullptr,
     NTableClient::TColumnFilterDictionary* columnFilterDictionary = nullptr);
 
@@ -101,7 +103,7 @@ class TDataSourceDirectory
     : public TRefCounted
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TDataSource>, DataSources);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TDataSourcePtr>, DataSources);
 
     //! Get common data source type or throw if types are mixed.
     EDataSourceType GetCommonTypeOrThrow() const;

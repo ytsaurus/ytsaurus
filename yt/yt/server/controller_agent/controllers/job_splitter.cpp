@@ -52,7 +52,7 @@ public:
 
         auto minJobExecTime = std::max(
             Config_->MinJobTime,
-            job.GetPrepareWithoutDownloadDuration() * Config_->ExecToPrepareTimeRatio);
+            job.GetPrepareWithoutCachingDuration() * Config_->ExecToPrepareTimeRatio);
 
         auto isLongAmongRunning = JobTimeTracker_.IsLongJob(jobId);
         auto isResidual = IsResidual();
@@ -111,12 +111,12 @@ public:
         if (job.GetNextLoggingTime() < now) {
             job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
             YT_LOG_DEBUG(
-                "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutDownloadDuration: %v, "
+                "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutCachingDuration: %v, "
                 "ExecDuration: %v, RemainingDuration: %v, TotalDataWeight: %v, RowCount: %v, IsLongAmongRunning: %v, "
                 "IsResidual: %v, IsInterruptible: %v, IsSplittable: %v, SplitDeadline: %v, SuccessJobPrepareDurationSum: %v, SuccessJobCount: %v)",
                 jobId,
                 job.GetPrepareDuration(),
-                job.GetPrepareWithoutDownloadDuration(),
+                job.GetPrepareWithoutCachingDuration(),
                 job.GetExecDuration(),
                 job.GetRemainingDuration(),
                 job.GetTotalDataWeight(),
@@ -184,8 +184,9 @@ public:
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
         }
-        double prepareDuration = summary.TimeStatistics.PrepareDuration.value_or(TDuration()).SecondsFloat() -
-            summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration()).SecondsFloat();
+        double prepareDuration =
+            summary.TimeStatistics.PrepareDuration.value_or(TDuration()).SecondsFloat() -
+            summary.TimeStatistics.ArtifactsCachingDuration.value_or(TDuration()).SecondsFloat();
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
 
         auto getMedianCompletionDuration = [&] {
@@ -362,9 +363,9 @@ private:
         void Update(TJobTimeTracker* jobTimeTracker, const TJobSummary& summary)
         {
             PrepareDuration_ = summary.TimeStatistics.PrepareDuration.value_or(TDuration());
-            auto downloadDuration = summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration());
-            PrepareWithoutDownloadDuration_ = PrepareDuration_ >= downloadDuration
-                ? PrepareDuration_ - downloadDuration
+            auto cachingDuration = summary.TimeStatistics.ArtifactsCachingDuration.value_or(TDuration());
+            PrepareWithoutCachingDuration_ = PrepareDuration_ >= cachingDuration
+                ? PrepareDuration_ - cachingDuration
                 : TDuration();
             if (!summary.TimeStatistics.ExecDuration) {
                 return;
@@ -418,7 +419,7 @@ private:
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalRowCount, 1);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalDataWeight, 1);
-        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareWithoutDownloadDuration);
+        DEFINE_BYVAL_RO_PROPERTY(TDuration, PrepareWithoutCachingDuration);
         DEFINE_BYVAL_RO_PROPERTY(TDuration, ExecDuration);
         DEFINE_BYVAL_RO_PROPERTY(TDuration, RemainingDuration);
         DEFINE_BYVAL_RO_PROPERTY(bool, IsInterruptible);
@@ -515,7 +516,7 @@ void TJobSplitter::TRunningJob::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Owner_);
     PHOENIX_REGISTER_FIELD(2, TotalRowCount_);
     PHOENIX_REGISTER_FIELD(3, TotalDataWeight_);
-    PHOENIX_REGISTER_FIELD(4, PrepareWithoutDownloadDuration_);
+    PHOENIX_REGISTER_FIELD(4, PrepareWithoutCachingDuration_);
     PHOENIX_REGISTER_FIELD(5, ExecDuration_);
     PHOENIX_REGISTER_FIELD(6, RemainingDuration_);
     PHOENIX_REGISTER_FIELD(7, CompletionTime_);

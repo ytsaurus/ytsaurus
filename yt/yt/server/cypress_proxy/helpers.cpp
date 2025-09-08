@@ -177,6 +177,19 @@ TError CheckPrerequisitesAfterRequestInvocation(
     return TError();
 }
 
+static bool PathsEqualIgnoringTrailingAmpersands(const NYPath::TYPath& firstPath, const NYPath::TYPath& secondPath)
+{
+    auto maybeCropPath = [] (std::string_view path) {
+        // It is considered that path is a valid YPath.
+        if (path.ends_with("&")) {
+            return path.substr(0, std::ssize(path) - 1);
+        }
+        return path;
+    };
+
+    return maybeCropPath(firstPath) == maybeCropPath(secondPath);
+}
+
 TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevisions(
     const NRpc::NProto::TRequestHeader& header,
     const TSequoiaSessionPtr& session,
@@ -192,7 +205,7 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
     resolvedPrerequisiteRevisions.reserve(prerequisiteRevisions.size());
     for (const auto& revision : prerequisiteRevisions) {
         // Prerequisite revision paths are prohibited to differ from target and additional paths.
-        auto pathIsAdditional = revision.Path != originalTargetPath;
+        auto pathIsAdditional = !PathsEqualIgnoringTrailingAmpersands(revision.Path, originalTargetPath);
         auto prerequisiteRevisionResolveResult = ResolvePath(
             session,
             revision.Path,
@@ -211,6 +224,14 @@ TErrorOr<std::vector<TResolvedPrerequisiteRevision>> ResolvePrerequisiteRevision
                 });
                 continue;
             }
+        }
+
+        if (pathIsAdditional) {
+            THROW_ERROR_EXCEPTION(
+                NObjectClient::EErrorCode::CrossCellAdditionalPath,
+                "Request involves Sequoia path %v and Cypress additional path %v",
+                originalTargetPath,
+                revision.Path);
         }
 
         return TError(
@@ -240,7 +261,9 @@ TError CheckPrerequisiteRevisionsPaths(
         originalSourcePath = ValidateAndMakeYPath(TRawYPath(ypathExt.additional_paths(0)));
     }
     for (const auto& revision : prerequisiteRevisions) {
-        if (revision.Path == originalTargetPath || (originalSourcePath && revision.Path == *originalSourcePath)) {
+        if (PathsEqualIgnoringTrailingAmpersands(revision.Path, originalTargetPath)
+            || (originalSourcePath && PathsEqualIgnoringTrailingAmpersands(revision.Path, *originalSourcePath)))
+        {
             continue;
         }
 

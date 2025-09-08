@@ -46,7 +46,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
     int partitionTag,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     TChunkReaderMemoryManagerHolderPtr memoryManagerHolder)
     : TChunkReaderBase(
         std::move(config),
@@ -209,7 +209,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
-        switch (dataSource.GetType()) {
+        switch (dataSource->GetType()) {
             case EDataSourceType::UnversionedTable: {
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 

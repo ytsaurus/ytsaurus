@@ -47,6 +47,8 @@ const (
 	FieldTypeByteString
 	// FieldTypeContext wraps context for lazy context fields evaluation if possible
 	FieldTypeContext
+	// FieldTypeRawContext is for raw context that is not serialized, used by logger plugins
+	FieldTypeRawContext
 	// FieldTypeLazyCall wraps function to lazy evaluate it after log level confirm
 	FieldTypeLazyCall
 	// FieldTypeStringer is for fmt.Stringer
@@ -167,6 +169,8 @@ func (f Field) Any() interface{} {
 	case FieldTypeByteString:
 		return f.Interface()
 	case FieldTypeContext:
+		return f.Interface()
+	case FieldTypeRawContext:
 		return f.Interface()
 	case FieldTypeLazyCall:
 		return f.Interface()
@@ -400,6 +404,12 @@ func ByteString(key string, value []byte) Field {
 // Context constructs field for lazy context fields evaluation if possible
 func Context(ctx context.Context) Field {
 	return Field{ftype: FieldTypeContext, iface: ctx}
+}
+
+// RawContext constructs field of raw context type that is not serialized.
+// This field is intended for use by logger plugins that need access to the raw Context object.
+func RawContext(ctx context.Context) Field {
+	return Field{ftype: FieldTypeRawContext, iface: ctx}
 }
 
 // LazyEvaluator represents types that can be evaluate in a lazy manner

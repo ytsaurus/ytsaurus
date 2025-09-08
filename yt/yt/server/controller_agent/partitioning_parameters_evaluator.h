@@ -12,8 +12,7 @@ struct IPartitioningParametersEvaluator
     virtual i64 SuggestSampleCount() const = 0;
 
     virtual int SuggestPartitionCount(
-        std::optional<i64> fetchedSamplesCount = std::nullopt,
-        bool forceLegacy = false) const = 0;
+        std::optional<i64> fetchedSamplesCount = std::nullopt) const = 0;
 
     virtual int SuggestMaxPartitionFactor(int finalPartitionCount) const = 0;
 };

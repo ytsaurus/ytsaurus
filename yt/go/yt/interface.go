@@ -559,6 +559,10 @@ type TableClient interface {
 		options *WriteTableOptions,
 	) (w TableWriter, err error)
 
+	// ReadTable opens a low-level table reader.
+	//
+	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
 	// http:verb:"read_table"
 	// http:params:"path"
 	ReadTable(
@@ -1348,6 +1352,8 @@ type TabletClient interface {
 	//
 	// Use strconv.Quote or %q format to escape string literals inside query.
 	//
+	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
 	// http:verb:"select_rows"
 	// http:params:"query"
 	SelectRows(
@@ -1364,6 +1370,8 @@ type TabletClient interface {
 	//
 	// When KeepMissingRows option is set, returns exactly len(keys) number of rows. If key is missing
 	// from the table, corresponding row will be nil.
+	//
+	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
 	//
 	// http:verb:"lookup_rows"
 	// http:params:"path"
@@ -1382,6 +1390,8 @@ type TabletClient interface {
 	//
 	// Returns a slice of TableReaders, one for each subrequest in the same order.
 	// Each TableReader contains the lookup results for the corresponding table.
+	//
+	// Context cancellation before TableReader.Close() may interrupt streaming for all returned readers.
 	MultiLookupRows(
 		ctx context.Context,
 		subrequests []MultiLookupSubrequest,
@@ -1724,6 +1734,10 @@ type QueryTrackerClient interface {
 		options *GetQueryResultOptions,
 	) (result *QueryResult, err error)
 
+	// ReadQueryResult reads query result.
+	//
+	// Context cancellation before TableReader.Close() may interrupt streaming and the reader returns an error.
+	//
 	// http:verb:"read_query_result"
 	// http:params:"query_id","result_index"
 	ReadQueryResult(

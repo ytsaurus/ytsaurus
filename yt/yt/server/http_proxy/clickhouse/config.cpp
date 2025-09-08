@@ -53,12 +53,14 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
 
     registrar.Preprocessor([] (TThis* config) {
         config->OperationCache->RefreshTime = TDuration::Minutes(1);
+        config->OperationCache->ExpirationPeriod = TDuration::Minutes(1);
         config->OperationCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
         config->OperationCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
 
         config->PermissionCache->RefreshUser = ClickHouseUserName;
         config->PermissionCache->AlwaysUseRefreshUser = false;
         config->PermissionCache->RefreshTime = TDuration::Minutes(1);
+        config->PermissionCache->ExpirationPeriod = TDuration::Minutes(1);
         config->PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(2);
         config->PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
     });

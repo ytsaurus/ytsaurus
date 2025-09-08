@@ -43,6 +43,8 @@ def check_operation_tasks(op, expected):
 
 def simple_sort_1_phase(in_, out, sort_by, spec=None):
     spec = spec or {}
+    spec["partition_count"] = 1
+
     op = sort(in_=in_, out=out, sort_by=sort_by, spec=spec)
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {"simple_sort"}
@@ -53,6 +55,7 @@ def simple_sort_1_phase(in_, out, sort_by, spec=None):
 def simple_sort_2_phase(in_, out, sort_by, spec=None):
     spec = spec or {}
     spec["data_weight_per_sort_job"] = 1
+    spec["partition_count"] = 1
 
     op = sort(in_=in_, out=out, sort_by=sort_by, spec=spec)
     op.track()
@@ -475,7 +478,10 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by="key",
-            spec={"use_new_partitions_heuristic": True})
+            # COMPAT(apollo1321)
+            spec={} if self.Env.get_component_version("ytserver-controller-agent").abi >= (25, 3)
+                else {"use_new_partitions_heuristic": True},
+        )
 
         assert read_table("<columns=[key]>//tmp/t_out") == data
         assert check_operation_tasks(op, {"partition(0)", "final_sort"})
@@ -909,8 +915,8 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
             sort_by="key",
             spec={
                 "data_weight_per_sort_job": get("//tmp/t_in/@data_weight") * 2,
-                "use_new_partitions_heuristic": True,
-            },
+            } | {} if self.Env.get_component_version("ytserver-controller-agent").abi >= (25, 3)  # COMPAT(apollo1321)
+            else {"use_new_partitions_heuristic": True},
         )
         op.track()
         assert op.get_job_count("completed", from_orchid=False) >= 2

@@ -63,6 +63,8 @@ public:
         EObjectKind objectKind) const override;
 
 private:
+    class TControllerInfoProducer;
+
     const TQueueAgentConfigPtr Config_;
     TQueueAgentDynamicConfigPtr DynamicConfig_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;

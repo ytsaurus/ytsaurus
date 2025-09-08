@@ -8,22 +8,23 @@ def get_scheduling_options(user_slots):
 
 
 # TODO(max42): rework this.
-def get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time):
+def get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period):
     return {
         "expire_after_access_time": expire_after_access_time,
         "expire_after_successful_update_time": expire_after_successful_update_time,
         "refresh_time": refresh_time,
+        "expiration_period": expiration_period,
     }
 
 
-def get_object_attribute_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time):
+def get_object_attribute_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period):
     return {
         "yt": {
             "table_attribute_cache": get_async_expiring_cache_config(
-                expire_after_access_time, expire_after_successful_update_time, refresh_time
+                expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period
             ),
             "permission_cache": get_async_expiring_cache_config(
-                expire_after_access_time, expire_after_successful_update_time, refresh_time
+                expire_after_access_time, expire_after_successful_update_time, refresh_time, expiration_period
             ),
         },
     }

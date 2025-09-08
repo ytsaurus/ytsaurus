@@ -31,7 +31,7 @@ void ProfileResourceVolume(
 
 void ProfileResourcesConfig(
     NProfiling::ISensorWriter* writer,
-    const TJobResourcesConfigPtr& resourcesConfig,
+    const NVectorHdrf::TJobResourcesConfig* resourcesConfig,
     const TString& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,8 @@ protected:
     virtual NYql::IOptimizerFactory::TPtr CreateCboFactory() override;
 protected:
     TString TableDataServiceDiscoveryFilePath_;
+    TString FmrCoordinatorServerUrl_;
+    bool DisableLocalFmrWorker_ = false;
 
 private:
     NFmr::IFmrWorker::TPtr FmrWorker_;

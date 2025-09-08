@@ -89,7 +89,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    void OnMasterConnected();
+    void OnStartHeartbeats();
     void OnMasterDisconnected();
 
     TError SendHeartbeat();

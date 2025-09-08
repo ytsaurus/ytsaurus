@@ -108,6 +108,7 @@ DEFINE_ENUM(EQueueFamily,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TObjectSnapshotBase)
 DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot)
 using TQueueSnapshotConstPtr = TIntrusivePtr<const TQueueSnapshot>;
 DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot)

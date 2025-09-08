@@ -114,7 +114,9 @@ void TSessionManager::Initialize()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    Bootstrap_->SubscribeMasterDisconnected(
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+
+    clusterNodeMasterConnector->SubscribeMasterDisconnected(
         BIND_NO_PROPAGATE(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
 
     Bootstrap_->GetChunkStore()->SubscribeChunkRemovalScheduled(

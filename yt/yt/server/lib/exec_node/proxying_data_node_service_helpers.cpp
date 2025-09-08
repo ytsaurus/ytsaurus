@@ -66,7 +66,7 @@ void AppendProxiableChunkSpecs(
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
 
         bool isLocalCluster = maybeDataSourceDirectory
-            ? IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex].GetClusterName())
+            ? IsLocal(maybeDataSourceDirectory->DataSources()[tableIndex]->GetClusterName())
             : true;
 
         if (!schema->HasHunkColumns() &&

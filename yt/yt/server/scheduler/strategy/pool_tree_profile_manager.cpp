@@ -273,7 +273,7 @@ void TPoolTreeProfileManager::ProfileElement(
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
     ProfileResources(writer, element->GetResourceDemand(), "/resource_demand");
     ProfileResources(writer, element->GetTotalResourceLimits() * element->LimitedDemandShare(), "/limited_resource_demand");
-    ProfileResourcesConfig(writer, element->GetSpecifiedResourceLimitsConfig(), "/specified_resource_limits");
+    ProfileResourcesConfig(writer, element->GetSpecifiedResourceLimitsConfig().Get(), "/specified_resource_limits");
 
     for (const auto& [schedulingStage, scheduledResourcesMap] : ScheduledResourcesByStageMap_) {
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
@@ -461,7 +461,10 @@ void TPoolTreeProfileManager::ProfilePool(
     buffer.AddGauge("/schedulable_pool_count", element->SchedulablePoolCount());
     buffer.AddGauge("/schedulable_operation_count", element->SchedulableOperationCount());
 
+    // TODO(eshcherbin): Deprecate?
     ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
+
+    ProfileResourcesConfig(&buffer, element->GetStrongGuaranteeResourcesConfig(), "/specified_strong_guarantee_resources");
     ProfileResources(&buffer, element->GetTotalResourceLimits() * attributes.StrongGuaranteeShare, "/effective_strong_guarantee_resources");
     ProfileResources(&buffer, attributes.InferredStrongGuaranteeResources, "/inferred_strong_guarantee_resources");
 

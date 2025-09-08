@@ -1623,11 +1623,13 @@ public:
         return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction(), pathRootType);
     }
 
-    TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction) override
+    TCypressNode* ResolvePathToTrunkNode(const TYPath& path, const std::string& service, const std::string& method, TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->ResolvePathToLocalObject(
             path,
+            service,
+            method,
             transaction,
             IObjectManager::TResolvePathOptions{});
         return CastObjectToCypressNodeOrThrow(object, path);
@@ -1643,17 +1645,19 @@ public:
         return object->As<TCypressNode>();
     }
 
-    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction) override
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, const std::string& service, const std::string& method, TTransaction* transaction) override
     {
-        auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
+        auto* trunkNode = ResolvePathToTrunkNode(path, service, method, transaction);
         return GetNodeProxy(trunkNode, transaction);
     }
 
-    ICypressNodeProxyPtr TryResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction) override
+    ICypressNodeProxyPtr TryResolvePathToNodeProxy(const TYPath& path, const std::string& service, const std::string& method, TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->ResolvePathToObject(
             path,
+            service,
+            method,
             transaction,
             IObjectManager::TResolvePathOptions{});
         return object
@@ -2977,7 +2981,7 @@ private:
         const auto& config = GetDynamicConfig();
         if (config->AlertOnListNodeLoad) {
             for (auto [nodeId, node] : NodeMap_) {
-                YT_LOG_ALERT_IF(
+                YT_LOG_FATAL_IF(
                     node->GetType() == EObjectType::ListNode,
                     "A list node encountered during snapshot load; list nodes are deprecated "
                     "and the ability to load them will be removed completely in the next major version. "
@@ -2992,6 +2996,8 @@ private:
             for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
                 auto cellMapNodeProxy = ResolvePathToNodeProxy(
                     NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
+                    /*service*/ "",
+                    /*method*/ "",
                     /*transaction*/ nullptr);
                 if (cellMapNodeProxy->GetType() != ENodeType::Map) {
                     return;

@@ -896,7 +896,7 @@ TYsonString TClient::DoGetJobInputPaths(
     auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
     for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (!dataSource.GetPath()) {
+        if (!dataSource->GetPath()) {
             THROW_ERROR_EXCEPTION("Cannot build job input paths; job has intermediate input")
                 << TErrorAttribute("job_id", jobId);
         }

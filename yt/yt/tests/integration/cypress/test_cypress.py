@@ -2775,7 +2775,6 @@ class TestCypress(YTEnvSetup):
                     prerequisite_revisions=[
                         {
                             "path": prerequitise_path,
-                            "transaction_id": "0-0-0-0",
                             "revision": revision,
                         }
                     ],
@@ -2787,7 +2786,6 @@ class TestCypress(YTEnvSetup):
                 prerequisite_revisions=[
                     {
                         "path": "//home/revision_node",
-                        "transaction_id": "0-0-0-0",
                         "revision": revision,
                     }
                 ],
@@ -2802,28 +2800,70 @@ class TestCypress(YTEnvSetup):
             prerequisite_revisions = [
                 {
                     "path": path,
-                    "transaction_id": "0-0-0-0",
                     "revision": revision,
                 },
             ]
             # Shouldn't throw.
             get(path, prerequisite_revisions=prerequisite_revisions)
 
-        # There is bug in resolve on masters of prerequisite path now. Cross-cell copy-move with prerequisite revision is prohibited.
-        if make_link and get("//home/@native_cell_tag") == get("//tmp/@native_cell_tag") and not self.ENABLE_TMP_ROOTSTOCK:
-            with raises_yt_error("Requests with prerequisite paths different from target paths are prohibited in Cypress"):
+        if not self.USE_SEQUOIA and get("//home/revision_node/@native_cell_tag") == get("//tmp/@native_cell_tag"):
+            copy(
+                "//home/revision_node",
+                "//tmp/revision_node",
+                prerequisite_revisions=[
+                    {
+                        "path": "//home/revision_node",
+                        "revision": revision,
+                    }
+                ])
+        else:
+            with raises_yt_error("Cross-cell \"copy\"/\"move\" command does not support prerequisite revisions"):
                 copy(
                     "//home/revision_node",
                     "//tmp/revision_node",
                     prerequisite_revisions=[
                         {
                             "path": "//home/revision_node",
-                            "transaction_id": "0-0-0-0",
                             "revision": revision,
                         }
                     ])
 
         set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", False)
+
+    @authors("cherepashka")
+    def test_prerequisite_revision_validation_on_removal(self):
+        create("table", "//tmp/t")
+        target_revision = get("//tmp/t/@revision")
+
+        with raises_yt_error(f"revision mismatch: expected {target_revision + 1:x}, found {target_revision:x}"):
+            remove("//tmp/t", prerequisite_revisions=[{"path": "//tmp/t&", "revision": target_revision + 1}])
+
+        remove("//tmp/t", prerequisite_revisions=[{"path": "//tmp/t&", "revision": target_revision}])
+
+    @authors("kvk1920", "cherepashka")
+    def test_prerequisite_revision_validation_on_link_removal(self):
+        create("string_node", "//tmp/s")
+        target_revision = get("//tmp/s/@revision")
+
+        link("//tmp/s", "//tmp/l")
+        link_revision = get("//tmp/l&/@revision")
+
+        with raises_yt_error(f"revision mismatch: expected {target_revision:x}, found {link_revision:x}"):
+            remove("//tmp/l", prerequisite_revisions=[{"path": "//tmp/l", "revision": target_revision}])
+
+        remove("//tmp/l", prerequisite_revisions=[{"path": "//tmp/l", "revision": link_revision}])
+
+        link("//tmp/s", "//tmp/l")
+        link_revision = get("//tmp/l&/@revision")
+        remove("//tmp/l&", prerequisite_revisions=[{"path": "//tmp/l&", "revision": link_revision}])
+
+        link("//tmp/s", "//tmp/l")
+        link_revision = get("//tmp/l&/@revision")
+        remove("//tmp/l&", prerequisite_revisions=[{"path": "//tmp/l", "revision": link_revision}])
+
+        link("//tmp/s", "//tmp/l")
+        link_revision = get("//tmp/l&/@revision")
+        remove("//tmp/l", prerequisite_revisions=[{"path": "//tmp/l&", "revision": link_revision}])
 
     @authors("babenko")
     # COMPAT(babenko): YT-11903

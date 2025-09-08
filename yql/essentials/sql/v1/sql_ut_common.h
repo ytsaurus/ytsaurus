@@ -3375,41 +3375,49 @@ Y_UNIT_TEST_SUITE(SqlParsingOnly) {
     }
 
     Y_UNIT_TEST(CreateTableAddIndexVector) {
-        const auto result = SqlToYql(R"(USE plato;
+        const auto result = SqlToYql(R"sql(USE plato;
             CREATE TABLE table (
                 pk INT32 NOT NULL,
                 col String,
                 INDEX idx GLOBAL USING vector_kmeans_tree
                     ON (col) COVER (col)
-                    WITH (distance=cosine, vector_type=float, vector_dimension=1024,),
+                    WITH (distance=cosine, vector_type=float, vector_dimension=1024, levels=3, clusters=10),
                 PRIMARY KEY (pk))
-                )");
+                )sql");
         UNIT_ASSERT_C(result.IsOk(), result.Issues.ToString());
     }
 
     Y_UNIT_TEST(AlterTableAddIndexVector) {
-        const auto result = SqlToYql(R"(USE plato;
+        const auto result = SqlToYql(R"sql(USE plato;
             ALTER TABLE table ADD INDEX idx
                 GLOBAL USING vector_kmeans_tree
                 ON (col) COVER (col)
-                WITH (distance=cosine, vector_type="float", vector_dimension=1024)
-                )");
+                WITH (distance=cosine, vector_type="float", vector_dimension=1024, levels=3, clusters=10)
+                )sql");
         UNIT_ASSERT_C(result.IsOk(), result.Issues.ToString());
+    }
+
+    Y_UNIT_TEST(AlterTableAddIndexVectorIsNotCorrect) {
+        ExpectFailWithError(R"sql(USE plato;
+            ALTER TABLE table ADD INDEX idx
+                GLOBAL USING vector_kmeans_tree
+                ON (col) COVER (col)
+                WITH (distance=cosine, vector_type="float", vector_dimension=asdf, levels=3, clusters=10)
+                )sql",
+            "<main>:5:78: Error: Invalid vector_dimension: asdf\n");
+
+        ExpectFailWithError(R"sql(USE plato;
+            ALTER TABLE table ADD INDEX idx
+                GLOBAL USING vector_kmeans_tree
+                ON (col) COVER (col)
+                WITH (distance=42, vector_type="float", vector_dimension=1024, levels=3, clusters=10)
+                )sql",
+            "<main>:5:32: Error: Invalid distance: 42\n");
     }
 
     Y_UNIT_TEST(AlterTableAddIndexUnknownSubtype) {
         ExpectFailWithError("USE plato; ALTER TABLE table ADD INDEX idx GLOBAL USING unknown ON (col)",
             "<main>:1:57: Error: UNKNOWN index subtype is not supported\n");
-    }
-
-    Y_UNIT_TEST(AlterTableAddIndexMissedParameter) {
-        ExpectFailWithError(R"(USE plato;
-            ALTER TABLE table ADD INDEX idx
-                GLOBAL USING vector_kmeans_tree
-                ON (col)
-                WITH (distance=cosine, vector_type=float)
-                )",
-            "<main>:5:52: Error: vector_dimension should be set\n");
     }
 
     Y_UNIT_TEST(AlterTableAlterIndexSetPartitioningIsCorrect) {
@@ -9508,7 +9516,27 @@ Y_UNIT_TEST_SUITE(Aggregation) {
 
         UNIT_ASSERT_VALUES_EQUAL(1, count["percentile_traits_factory"]);
     }
+}
 
+Y_UNIT_TEST_SUITE(AggregationPhases) {
+    Y_UNIT_TEST(TwoArg) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            SELECT AvgIf(a, a % 2 == 0) FROM (SELECT 1 AS k, 2 AS a) GROUP BY k;
+            SELECT AvgIf(a, a % 2 == 0) FROM (SELECT 1 AS k, 2 AS a) GROUP BY k WITH Combine;
+            SELECT AvgIf(a, a % 2 == 0) FROM (SELECT 1 AS k, 2 AS a) GROUP BY k WITH Finalize;
+        )sql");
+
+        UNIT_ASSERT_C(res.IsOk(), res.Issues.ToString());
+    }
+
+    Y_UNIT_TEST(SingleArg) {
+        NYql::TAstParseResult res = SqlToYql(R"sql(
+            SELECT AvgIf(a) FROM (SELECT 1 AS k, 2 AS a) GROUP BY k WITH CombineState;
+            SELECT AvgIf(a) FROM (SELECT 1 AS k, 2 AS a) GROUP BY k WITH MergeState;
+        )sql");
+
+        UNIT_ASSERT_C(res.IsOk(), res.Issues.ToString());
+    }
 }
 
 Y_UNIT_TEST_SUITE(Watermarks) {

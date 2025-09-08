@@ -407,8 +407,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
     GuardedAction(
         "DoStart",
         [&] {
-            auto now = TInstant::Now();
-            PreparationStartTime_ = now;
+            NodeDirectoryPreparationStartTime_ = TInstant::Now();
 
             if (!resolvedNodeAddresses.IsOK() || (CommonConfig_->Testing && CommonConfig_->Testing->FailAddressResolve)) {
                 THROW_ERROR TError("Failed to resolve node addresses")
@@ -507,7 +506,7 @@ void TJob::Start() noexcept
 
     YT_VERIFY(!std::exchange(Started_, true));
 
-    ResourcesAcquiredTime_ = TInstant::Now();
+    PreparationStartTime_ = TInstant::Now();
 
     YT_LOG_INFO("Starting job");
 
@@ -640,7 +639,7 @@ void TJob::PrepareArtifact(
             auto baggage = traceContext->UnpackOrCreateBaggage();
             const char* jobIOKind = artifact.BypassArtifactCache ? "artifact_bypass_cache" : "artifact_copy";
             AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, jobIOKind);
-            AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(artifact.Key.data_source()));
+            AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSourcePtr>(artifact.Key.data_source()));
             traceContext->PackBaggage(std::move(baggage));
 
             if (artifact.BypassArtifactCache) {
@@ -722,6 +721,8 @@ void TJob::OnArtifactsPrepared()
 
             ValidateJobPhase(EJobPhase::PreparingArtifacts);
             SetJobPhase(EJobPhase::PreparingJob);
+
+            ExecStartTime_ = TInstant::Now();
         });
 }
 
@@ -784,6 +785,7 @@ void TJob::Terminate(EJobState finalState, TError error)
 
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
+        case EJobPhase::CachingArtifacts:
         case EJobPhase::PreparingRootVolume:
         case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
@@ -1163,9 +1165,9 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
     }
 
     return {
-        .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), ResourcesAcquiredTime_),
+        .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), PreparationStartTime_),
         .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
-        .ArtifactsDownloadDuration = getDuration(PreparationStartTime_, CopyFinishTime_),
+        .ArtifactsCachingDuration = getDuration(NodeDirectoryPreparationStartTime_, ArtifactsDownloadedTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
         .ExecDuration = getDuration(ExecStartTime_, FinishTime_),
         .PrepareGpuCheckFSDuration = getDuration(PrepareGpuCheckVolumeStartTime_, PrepareGpuCheckVolumeFinishTime_),
@@ -2285,6 +2287,7 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             }
 
             SetJobPhase(EJobPhase::DownloadingArtifacts);
+            SetJobPhase(EJobPhase::CachingArtifacts);
 
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(
@@ -2334,7 +2337,7 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
     GuardedAction(
         "OnArtifactsDownloaded",
         [&] {
-            ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+            ValidateJobPhase(EJobPhase::CachingArtifacts);
             THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
 
             YT_LOG_INFO("Artifacts downloaded");
@@ -2344,7 +2347,7 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
                 Artifacts_[index].Chunk = chunks[index];
             }
 
-            CopyFinishTime_ = TInstant::Now();
+            ArtifactsDownloadedTime_ = TInstant::Now();
             RunWithWorkspaceBuilder();
         });
 }
@@ -2506,8 +2509,6 @@ void TJob::RunJobProxy()
     {
         YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);
     }
-
-    ExecStartTime_ = TInstant::Now();
 
     SetJobPhase(EJobPhase::SpawningJobProxy);
     InitializeJobProbe();

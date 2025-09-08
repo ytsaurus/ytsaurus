@@ -14,6 +14,7 @@
 
 add_subdirectory(library)
 add_subdirectory(test_base)
+add_subdirectory(test_chunk_scraper)
 add_subdirectory(test_cypress_election)
 add_subdirectory(test_data_node_rpc)
 add_subdirectory(test_distributed_chunk_sessions)

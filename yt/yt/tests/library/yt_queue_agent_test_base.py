@@ -742,6 +742,7 @@ class TestQueueAgentBase(YTEnvSetup):
                     "expire_after_failed_update_time": 0,
                     "expire_after_access_time": 0,
                     "refresh_time": 0,
+                    "expiration_period": 0,
                 },
                 "transaction_manager": {
                     "retry_attempts": 1,
@@ -822,6 +823,8 @@ class TestQueueAgentBase(YTEnvSetup):
         assert queue_table_schema is None and consumer_table_schema is None, \
             "Current implementation of init_queue_agent_state does not support custom schemas"
         sync_create_cells(1)
+        for remote_cluster_index in range(self.NUM_REMOTE_CLUSTERS):
+            sync_create_cells(1, driver=get_driver(cluster=f"remote_{remote_cluster_index}"))
         self.client = self.Env.create_native_client()
         init_queue_agent_state.create_tables_latest_version(
             self.client,
@@ -841,7 +844,7 @@ class TestQueueAgentBase(YTEnvSetup):
 
     @staticmethod
     def _create_queue(path, partition_count=1, enable_timestamp_column=True,
-                      enable_cumulative_data_weight_column=True, mount=True, max_inline_hunk_size=None, **kwargs):
+                      enable_cumulative_data_weight_column=True, mount=True, max_inline_hunk_size=None, driver=None, **kwargs):
         schema = [{"name": "data", "type": "string"}]
         if max_inline_hunk_size is not None:
             schema[0]["max_inline_hunk_size"] = max_inline_hunk_size
@@ -854,11 +857,11 @@ class TestQueueAgentBase(YTEnvSetup):
             "schema": schema,
         }
         attributes.update(kwargs)
-        queue_id = create("table", path, attributes=attributes)
+        queue_id = create("table", path, driver=driver, attributes=attributes)
         if partition_count != 1:
-            sync_reshard_table(path, partition_count)
+            sync_reshard_table(path, partition_count, driver=driver)
         if mount:
-            sync_mount_table(path)
+            sync_mount_table(path, driver=driver)
 
         return schema, queue_id
 

@@ -5702,6 +5702,10 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClus
 class TestControllerInfo(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_TEST_PARTITIONS = 2
+
     CONTROLLER_DELAY_SECONDS = 15
     OLD_PASSES_DISPLAY_LIMIT = 4
 
@@ -5713,6 +5717,10 @@ class TestControllerInfo(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
+            "clusters": [
+                "primary",
+                "remote_0",
+            ],
         },
         "queue_agent": {
             "controller": {
@@ -5751,24 +5759,25 @@ class TestControllerInfo(TestQueueAgentBase):
 
         return result
 
-    def _create_queue_and_get_orchid(self, path):
-        self._create_queue(path)
+    def _create_queue_and_get_orchid(self, cluster, path):
+        self._create_queue(path, driver=get_driver(cluster=cluster))
 
         orchid = QueueAgentOrchid()
-        return orchid.get_queue_orchid(f"primary:{path}")
+        return orchid.get_queue_orchid(f"{cluster}:{path}")
 
-    def _create_consumer_and_get_orchid(self, path):
-        self._create_consumer(path)
+    def _create_consumer_and_get_orchid(self, cluster, path):
+        self._create_consumer(path, driver=get_driver(cluster=cluster))
 
         orchid = QueueAgentOrchid()
-        return orchid.get_consumer_orchid(f"primary:{path}")
+        return orchid.get_consumer_orchid(f"{cluster}:{path}")
 
     @authors("apachee")
     @pytest.mark.parametrize("object_name,create_object_and_get_orchid", [
         ("queue", _create_queue_and_get_orchid),
         ("consumer", _create_consumer_and_get_orchid),
     ])
-    def test_basic(self, create_object_and_get_orchid, object_name):
+    @pytest.mark.parametrize("cluster", ["primary", "remote_0"])
+    def test_basic(self, create_object_and_get_orchid, object_name, cluster):
         orchid = QueueAgentOrchid()
 
         time_tolerance_seconds = 1
@@ -5779,19 +5788,24 @@ class TestControllerInfo(TestQueueAgentBase):
 
         for i in range(object_count):
             path = f"//tmp/{object_name}_{i}"
-            object_orchids.append(create_object_and_get_orchid(self, path))
+            object_orchids.append(create_object_and_get_orchid(self, cluster, path))
 
         self._wait_for_component_passes()
         self.wait_fresh_pass(object_orchids)
 
         controller_info = orchid.get_controller_info()
 
-        assert controller_info["erroneous_objects"] == {
+        def check_controller_info(f):
+            assert f(controller_info)
+            assert f(controller_info["per_cluster"][cluster])
+
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
-        }
+        })
 
         inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+        assert inactive_objects == self._parse_inactive_objects(controller_info["per_cluster"][cluster]["inactive_objects"])
 
         fields = {
             "leading_queues",
@@ -5805,7 +5819,7 @@ class TestControllerInfo(TestQueueAgentBase):
         zero_fields = fields - {key_field}
 
         for field in zero_fields:
-            assert len(inactive_objects[field]) == 0
+            assert len(inactive_objects[field]) == 0, f"Invalid non-zero value for inactive_objects[{field}]"
 
         inactive_objects_leading = inactive_objects[key_field]
         assert len(inactive_objects_leading) == self.OLD_PASSES_DISPLAY_LIMIT
@@ -5824,15 +5838,16 @@ class TestControllerInfo(TestQueueAgentBase):
 
         controller_info = orchid.get_controller_info()
 
-        assert controller_info["erroneous_objects"] == {
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
-        }
+        })
 
         inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+        assert inactive_objects == self._parse_inactive_objects(controller_info["per_cluster"][cluster]["inactive_objects"])
 
         for field in zero_fields:
-            assert len(inactive_objects[field]) == 0
+            assert len(inactive_objects[field]) == 0, f"Invalid non-zero value for inactive_objects[{field}]"
 
         inactive_objects_leading = inactive_objects[key_field]
         assert len(inactive_objects_leading) == self.OLD_PASSES_DISPLAY_LIMIT
@@ -5855,16 +5870,17 @@ class TestControllerInfo(TestQueueAgentBase):
         ("consumer", _create_consumer_and_get_orchid),
     ])
     @pytest.mark.timeout(120)
-    def test_bad_object(self, create_object_and_get_orchid, object_name):
+    @pytest.mark.parametrize("cluster", ["primary", "remote_0"])
+    def test_bad_object(self, create_object_and_get_orchid, object_name, cluster):
         orchid = QueueAgentOrchid()
 
         time_tolerance_seconds = 1
 
         key_field = f"leading_{object_name}s"
 
-        good_object_orchid = create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
+        good_object_orchid = create_object_and_get_orchid(self, cluster, f"//tmp/{object_name}_good")
         bad_object_path = f"//tmp/{object_name}_bad"
-        bad_object_orchid = create_object_and_get_orchid(self, bad_object_path)
+        bad_object_orchid = create_object_and_get_orchid(self, cluster, bad_object_path)
 
         self._wait_for_component_passes()
         self._wait_for_object_passes()
@@ -5873,6 +5889,7 @@ class TestControllerInfo(TestQueueAgentBase):
             controller_info = orchid.get_controller_info()
 
             inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+            assert inactive_objects == self._parse_inactive_objects(controller_info["per_cluster"][cluster]["inactive_objects"])
             inactive_objects_leading = inactive_objects[key_field]
 
             return [i[1] for i in inactive_objects_leading]
@@ -5880,7 +5897,7 @@ class TestControllerInfo(TestQueueAgentBase):
         self._apply_dynamic_config_patch({
             "queue_agent": {
                 "controller": {
-                    "delayed_objects": [yt.yson.loads(f"<cluster=primary>\"{bad_object_path}\"".encode())],
+                    "delayed_objects": [yt.yson.loads(f"<cluster={cluster}>\"{bad_object_path}\"".encode())],
                 },
             },
         })
@@ -5911,55 +5928,61 @@ class TestControllerInfo(TestQueueAgentBase):
         assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
 
     @authors("apachee")
-    def test_erroneous_object_count(self):
+    @pytest.mark.parametrize("cluster", ["primary", "remote_0"])
+    def test_erroneous_object_count(self, cluster):
         orchid = QueueAgentOrchid()
 
-        self._create_queue("//tmp/q")
-        self._create_consumer("//tmp/c")
+        self._create_queue("//tmp/q", driver=get_driver(cluster=cluster))
+        self._create_consumer("//tmp/c", driver=get_driver(cluster=cluster))
 
         self._wait_for_component_passes()
         time.sleep(1)
 
-        assert orchid.get_controller_info()["erroneous_objects"] == {
+        def check_controller_info(f):
+            controller_info = orchid.get_controller_info()
+            assert f(controller_info)
+            assert f(controller_info["per_cluster"][cluster])
+
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
-        }
+        })
 
-        set("//tmp/q/@queue_agent_banned", "whatever")
+        set("//tmp/q/@queue_agent_banned", "whatever", driver=get_driver(cluster=cluster))
         self._wait_for_component_passes()
         time.sleep(1)
 
-        assert orchid.get_controller_info()["erroneous_objects"] == {
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 1,
             "consumer_count": 0,
-        }
+        })
 
-        set("//tmp/c/@queue_agent_banned", "whatever")
+        set("//tmp/c/@queue_agent_banned", "whatever", driver=get_driver(cluster=cluster))
         self._wait_for_component_passes()
         time.sleep(1)
 
-        assert orchid.get_controller_info()["erroneous_objects"] == {
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 1,
             "consumer_count": 1,
-        }
+        })
 
-        remove("//tmp/q/@queue_agent_banned")
+        remove("//tmp/q/@queue_agent_banned", driver=get_driver(cluster=cluster))
         self._wait_for_component_passes()
         time.sleep(1)
 
-        assert orchid.get_controller_info()["erroneous_objects"] == {
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 1,
-        }
+        })
 
-        remove("//tmp/c/@queue_agent_banned")
+        remove("//tmp/c/@queue_agent_banned", driver=get_driver(cluster=cluster))
         self._wait_for_component_passes()
         time.sleep(1)
 
-        assert orchid.get_controller_info()["erroneous_objects"] == {
+        check_controller_info(lambda c: c["erroneous_objects"] == {
             "queue_count": 0,
             "consumer_count": 0,
-        }
+        })
 
 
 @pytest.mark.enabled_multidaemon

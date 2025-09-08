@@ -6,6 +6,13 @@
 
 from .common.sensors import SchedulerOperations
 
+try:
+    from .constants import (
+        JOB_STATISTICS_DOCUMENTATION_URL,
+    )
+except ImportError:
+    JOB_STATISTICS_DOCUMENTATION_URL = ""
+
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import Sensor, MultiSensor, Text, Title
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
@@ -14,144 +21,161 @@ from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardP
 ##################################################################
 
 def _build_resource_usage(d):
-    def resource_sensors(resource):
+    def build_resource_sensor(resource):
         return MultiSensor(
             SchedulerOperations(f"yt.scheduler.operations_by_slot.resource_usage.{resource}")
-                .legend_format("usage"),
+                .legend_format("Usage"),
             SchedulerOperations(f"yt.scheduler.operations_by_slot.resource_demand.{resource}")
-                .legend_format("demand"),
+                .legend_format("Demand"),
+            SchedulerOperations(f"yt.scheduler.operations_by_slot.specified_resource_limits.{resource}")
+                .legend_format("Configured limit"),
             # Disabled because of trembling, see details in YT-19499.
             # SchedulerOperations(f"yt.scheduler.operations_by_slot.accumulated_resource_usage.{resource}.rate")
-            #     .legend_format("cumulative_usage"),
+            #     .legend_format("Cumulative Usage"),
         )
 
-    d.add(Rowset().row(height=2).cell("", Title("Usage and demand", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("Resources", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .nan_as_zero()
         .row()
             .stack(False)
             .min(0)
-            .cell("CPU: usage, demand", resource_sensors("cpu"), yaxis_label="CPU, cores", display_legend=True)
-            .cell("RAM: usage, demand", resource_sensors("user_memory"), yaxis_label="Memory, bytes", display_legend=True)
-            .cell("GPU: usage, demand", resource_sensors("gpu"), yaxis_label="GPU, units", display_legend=True)
+            .cell("CPU", build_resource_sensor("cpu"), yaxis_label="Cores", display_legend=True)
+            .cell("Memory", build_resource_sensor("user_memory").unit("UNIT_BYTES_SI"), yaxis_label="Bytes", display_legend=True)
+            .cell("GPU", build_resource_sensor("gpu"), yaxis_label="GPUs", display_legend=True)
     )
+
+    DESCRIPTION = """
+**Demand**: amount of resources needed to run all waiting and running jobs of the operation.<EOLN>
+**Usage**: model resource consumption of the operation from scheduler's point of view. Represents the number of resources that are reserved for the operation. Actual resource consumption may differ.<EOLN>
+**Configured Limit**: maximum amount of resources given to the operation that is specified in its specification and can be changed by updating runtime parameters.
+"""
+    d.add(Rowset().row(height=4).cell("", Text(DESCRIPTION)))
 
 
 def _build_cluster_share(d):
-    d.add(Rowset().row(height=2).cell("", Title("Cluster share", size="TITLE_SIZE_L")))
+    d.add(Rowset().row(height=2).cell("", Title("Detailed Resource Distribution", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .nan_as_zero()
         .row()
             .stack(False)
             .min(0)
             .cell(
-                "Resource shares: usage, demand, fair share",
+                "Dominant Shares",
                 MultiSensor(
                     SchedulerOperations("yt.scheduler.operations_by_slot.dominant_usage_share")
-                        .legend_format("dominant usage share"),
+                        .legend_format("Usage"),
                     SchedulerOperations("yt.scheduler.operations_by_slot.dominant_demand_share")
-                        .legend_format("dominant demand share"),
+                        .legend_format("Demand"),
                     SchedulerOperations("yt.scheduler.operations_by_slot.dominant_fair_share.total")
-                        .legend_format("dominant fair share"),
+                        .legend_format("Fair share"),
                 ),
+                yaxis_label="Cluster share",
                 display_legend=True,
             )
             .cell(
-                "Fair share: CPU, RAM, GPU components",
+                "Fair Share per Resource",
                 MultiSensor(
                     SchedulerOperations("yt.scheduler.operations_by_slot.fair_share.total.cpu")
                         .legend_format("CPU"),
                     SchedulerOperations("yt.scheduler.operations_by_slot.fair_share.total.memory")
-                        .legend_format("memory"),
+                        .legend_format("Memory"),
                     SchedulerOperations("yt.scheduler.operations_by_slot.fair_share.total.gpu")
                         .legend_format("GPU"),
                 ),
+                yaxis_label="Cluster share",
                 display_legend=True,
             )
             .cell(
-                "Dominant fair share: strong, integral, weight proportional",
+                "Dominant Fair Share per Type",
                 MultiSensor(
                     SchedulerOperations("yt.scheduler.operations_by_slot.dominant_fair_share.strong_guarantee")
-                        .legend_format("strong guarantee"),
+                        .legend_format("Strong guarantee"),
                     SchedulerOperations("yt.scheduler.operations_by_slot.dominant_fair_share.integral_guarantee")
-                        .legend_format("integral guarantee"),
+                        .legend_format("Integral guarantee"),
                     SchedulerOperations("yt.scheduler.operations_by_slot.dominant_fair_share.weight_proportional")
-                        .legend_format("weight proportional"),
+                        .legend_format("Weight proportional"),
                 ).stack(True),
+                yaxis_label="Cluster share",
                 display_legend=True,
             )
         )
 
     DESCRIPTION = """
-**Usage**, **Demand**, **Fair share**: share of the cluster that is used, demanded or should be given to the operation. For example, 1.0 or 100% corresponds to the total amount of resources in the cluster.<EOLN>
-**CPU. RAM, GPU fair share components**  help to determine operation's dominant resource.
-
-In addition, fair share can be split into three parts: strong guarantee, integral guarantee and free resources, which are distributed between pools in proportion to their weights.
+**Usage**, **Demand**, **Fair share**: share of the cluster that is used, demanded or should be given to the pool. For example, 1.0 or 100% corresponds to the total amount of resources in the cluster.<EOLN>
+**Fair Share** can be split into three parts: strong guarantee, integral guarantee and free resources, which are distributed between pools in proportion to their weights.<EOLN>
 """
+    d.add(Rowset().row(height=3).cell("", Text(DESCRIPTION)))
 
-    d.add(Rowset().row(height=5).cell("", Text(DESCRIPTION)))
 
-
-def _build_job_metrics(d):
+def _build_job_metrics(d, os_documentation):
     d.add(Rowset().row(height=2).cell("", Title("Job metrics", size="TITLE_SIZE_L")))
     d.add(Rowset()
         .nan_as_zero()
         .row()
             .stack(False)
             .min(0)
-            .cell("Job metrics: local disk IO",
+            .cell("Local Disk IO",
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.user_job_io_total.rate")
-                    .legend_format("user job io rate"),
+                    .legend_format("User job IO rate")
+                    .unit("UNIT_IO_OPERATIONS_PER_SECOND"),
+                yaxis_label="IO operations/sec",
             )
-            .cell("Job metrics: CPU usage", MultiSensor(
+            .cell("CPU", MultiSensor(
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.user_job_cpu_system.rate")
-                    .legend_format("user job system cpu rate"),
+                    .legend_format("User job system cpu"),
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.user_job_cpu_user.rate")
-                    .legend_format("user job user cpu rate"),
+                    .legend_format("User job user cpu"),
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.job_proxy_cpu_system.rate")
-                    .legend_format("job proxy system cpu rate"),
+                    .legend_format("Job proxy system cpu"),
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.job_proxy_cpu_user.rate")
-                    .legend_format("job proxy user cpu rate"),
+                    .legend_format("Job proxy user cpu"),
             )
-                .stack(True))
-            .cell("Job metrics: RAM usage", MultiSensor(
+                .stack(True),
+                yaxis_label="Cores")
+            .cell("Memory", MultiSensor(
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.user_job_memory_mb.rate")
-                    .legend_format("user job memory"),
+                    .legend_format("User job memory"),
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.job_proxy_memory_mb.rate")
-                    .legend_format("job proxy memory"),
+                    .legend_format("Job proxy memory"),
             )
+                .unit("UNIT_MEGABYTES")
                 .stack(True))
             # TODO(eshcherbin): Add expressions and divide first two sensors by 1000.
-            .cell("Job metrics: GPU usage", MultiSensor(
+            .cell("GPU", MultiSensor(
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.gpu_load.rate")
                     .query_transformation("{query} / 1000.0")
-                    .legend_format("gpu load rate"),
+                    .legend_format("Load"),
                 SchedulerOperations("yt.scheduler.operations_by_slot.metrics.gpu_utilization_gpu.rate")
                     .query_transformation("{query} / 1000.0")
-                    .legend_format("gpu utilization rate"),
+                    .legend_format("Utilization"),
                 SchedulerOperations("yt.scheduler.operations_by_slot.resource_usage.gpu")
-                    .legend_format("operations_by_slot gpu usage"),
-            ))
+                    .legend_format("Usage"),
+            ),
+                yaxis_label="Sum of device fractions")
     )
 
     DESCRIPTION = """
-**Local disk I/O**: total amount of input/output operations per second (IOPS).<EOLN>
-**CPU usage**: total detailed CPU usage statistics.<EOLN>
-**RAM usage**: total detailed RAM usage of user job and job proxy.<EOLN>
-**GPU usage**: total detailed GPU utilization statistics.
+**Local Disk IO**: total amount of I/O operations per second (IOPS) of all user jobs in the operation.<EOLN>
+**CPU**: total detailed CPU usage statistics of all user jobs and their job proxies in the operation.<EOLN>
+**Memory**: total detailed RAM usage of user job and job proxy.<EOLN>
+**GPU**: total detailed GPU utilization statistics of all user jobs in the operation.
 
-Consult [documentation](https://ytsaurus.tech/docs/en/user-guide/problems/jobstatistics) for more information on the corresponding job statistics.
-"""
+Consult [documentation]({}) for more information on the corresponding job statistics.
+""".format(
+        "https://ytsaurus.tech/docs/en/user-guide/problems/jobstatistics"
+        if os_documentation
+        else JOB_STATISTICS_DOCUMENTATION_URL)
 
-    d.add(Rowset().row(height=4).cell("", Text(DESCRIPTION.strip())))
+    d.add(Rowset().row(height=5).cell("", Text(DESCRIPTION.strip())))
 
 
-def build_scheduler_operation(has_porto=True):
+def build_scheduler_operation(has_porto=True, os_documentation=False):
     d = Dashboard()
     _build_resource_usage(d)
     _build_cluster_share(d)
     if has_porto:
-        _build_job_metrics(d)
+        _build_job_metrics(d, os_documentation)
 
     d.value("tree", TemplateTag("tree"))
     d.value("pool", TemplateTag("pool"))

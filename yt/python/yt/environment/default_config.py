@@ -111,6 +111,7 @@ def get_dynamic_master_config():
 
         "object_manager": {
             "gc_sweep_period": 10,
+            "fix_resolve_prerequisite_path_to_local_object_for_symlinks": True,
         },
 
         "object_service": {
@@ -551,6 +552,7 @@ def get_node_config():
                     "expire_after_successful_update_time": 0,
                     "expire_after_failed_update_time": 0,
                     "refresh_time": 0,
+                    "expiration_period": 0,
                 },
             },
             "hive_manager": {
@@ -814,6 +816,7 @@ def get_driver_config():
         "force_tracing": True,
         "proxy_discovery_cache": {
             "refresh_time": 1000,
+            "expiration_period": 1000,
             "expire_after_successful_update_time": 1000,
             "expire_after_failed_update_time": 1000,
         },

@@ -663,6 +663,7 @@ class YTEnvSetup(object):
                 delta_global_cluster_connection_config["table_mount_cache"] = {
                     "expire_after_successful_update_time": 60000,
                     "refresh_time": 60000,
+                    "expiration_period": 60000,
                     "expire_after_failed_update_time": 1000,
                     "expire_after_access_time": 300000,
                 }
@@ -1141,6 +1142,7 @@ class YTEnvSetup(object):
             config["%true"]["tablet_node"]["security_manager"]["resource_limits_cache"] = {
                 "expire_after_successful_update_time": 45000,
                 "refresh_time": 45000,
+                "expiration_period": 45000,
                 "expire_after_failed_update_time": 1000,
                 "expire_after_access_time": 120000,
             }
@@ -1452,6 +1454,7 @@ class YTEnvSetup(object):
                         "resource_limits_cache": {
                             "expire_after_successful_update_time": 120000,
                             "refresh_time": 120000,
+                            "expiration_period": 120000,
                             "expire_after_failed_update_time": 2000,
                             "expire_after_access_time": 180000,
                         },

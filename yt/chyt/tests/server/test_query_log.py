@@ -221,3 +221,14 @@ class TestQueryLog(ClickHouseTestBase):
 
             for row in rows:
                 assert yson.dumps(row["chyt_query_statistics"]) != b'#'
+
+    @authors("denmogielevec")
+    def test_output_tables(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        with Clique(1, export_query_log=True) as clique:
+            result = clique.make_query("INSERT INTO `//tmp/t` (a) VALUES (42)", full_response=True)
+            query_id = result.headers["X-ClickHouse-Query-Id"]
+            rows = clique.wait_and_get_query_log_rows(query_id, include_secondary_queries=False)
+            for row in rows:
+                assert row["chyt_query_runtime_variables"]["output_table"] == 'YT.`//tmp/t`'

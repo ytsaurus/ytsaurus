@@ -83,7 +83,9 @@ class TMasterConnector
 public:
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
 
-    DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
+    DEFINE_SIGNAL_OVERRIDE(void(), MasterConnected);
+
+    DEFINE_SIGNAL_OVERRIDE(void(), StartHeartbeats);
 
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
 
@@ -524,8 +526,18 @@ private:
             GetNodeId(),
             GetMasterCellTags());
 
-        StartNodeHeartbeats();
-        MasterConnected_.Fire(GetNodeId());
+        MasterConnected_.Fire();
+
+        // Heartbeat report could end up with context switch, which will interrupt node's state initialization after successful registration.
+        // Protect from this behavior and start reporting heartbeats only after the registration pipeline is over,
+        // because for now logic receiving new master cell configuration rely on interrupt-free node state initialization after registration.
+        try {
+            StartHeartbeats_.Fire();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error starting heartbeats");
+            ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
+            return;
+        }
     }
 
     void InitMedia()

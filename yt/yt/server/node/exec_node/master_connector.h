@@ -19,8 +19,6 @@ struct IMasterConnector
     : public virtual TRefCounted
 {
     DECLARE_INTERFACE_SIGNAL(void(bool), JobsDisabledByMasterUpdated);
-    DECLARE_INTERFACE_SIGNAL(void(), MasterConnected);
-    DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
 
     //! Initialize master connector.
     virtual void Initialize() = 0;
