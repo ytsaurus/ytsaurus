@@ -159,7 +159,7 @@ public:
 
         auto commitTimestamp = transaction->GetCommitTimestamp();
         auto transactionId = transaction->GetId();
-        YT_LOG_DEBUG("Transaction prs serialized (TransactionId: %v, CommitTimestamp: %v)",
+        YT_LOG_DEBUG("Transaction per-row serialized (TransactionId: %v, CommitTimestamp: %v)",
             transaction->GetId(),
             commitTimestamp);
 
@@ -1355,7 +1355,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 auto transactionId = transaction->GetId();
-                YT_LOG_DEBUG("Transaction serialized (TransactionId: %v, CommitTimestamp: %v)",
+                YT_LOG_DEBUG("Transaction coarsly serialized (TransactionId: %v, CommitTimestamp: %v)",
                     transaction->GetId(),
                     commitTimestamp);
 

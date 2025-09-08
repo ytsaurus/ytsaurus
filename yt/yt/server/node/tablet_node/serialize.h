@@ -52,6 +52,7 @@ DEFINE_ENUM(ETabletReign,
     // 25.3 starts here.
     ((Start_25_3)                                  (101300)) // community bot
     ((UnforwardedTransactionActions)               (101301)) // ifsmirnov
+    ((PersistPerRowSerializingTabletIds)           (101302)) // ponasenko-rs
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
