@@ -73,6 +73,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropRedundantFieldsInSortedChunkPool)  (301901))
     ((DropDuplicateOutputNodeDirectory)      (301902))
     ((PersistentCompletedRankCount)          (301903))
+    ((JobEnvironmentPreparationStatistics)   (301904))
     // 25.4 starts here
     ((BumpTo_25_4)                           (302000))
 );
