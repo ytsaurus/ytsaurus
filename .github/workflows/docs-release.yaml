@@ -19,6 +19,9 @@ jobs:
         with:
           revision: "${{ github.sha }}"
           src-root: "./yt/docs"
+      - name: Check cli version
+        run: npm view @diplodoc/cli version
+
   upload:
     needs: build
     runs-on: ubuntu-latest
