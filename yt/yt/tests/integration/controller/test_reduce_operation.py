@@ -947,10 +947,14 @@ echo {v = 2} >&7
         op = reduce(
             in_="//tmp/in",
             out="//tmp/out",
-            command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; echo primary>&2; else echo secondary>&2; fi',
+            command=with_breakpoint('if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then BREAKPOINT; cat; echo primary>&2; else echo secondary>&2; fi'),
             reduce_by=["key"],
             spec={"reducer": {"cookie_group_size": 2}, "job_count": 1},
+            track=False,
         )
+        wait_breakpoint(job_count=1)
+        release_breakpoint()
+        op.track()
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 2

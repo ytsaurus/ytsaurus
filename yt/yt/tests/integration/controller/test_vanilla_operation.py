@@ -514,7 +514,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                             "job_count": 1,
                             "output_table_paths": ["//tmp/t"],
                             "format": "yson",
-                            "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then echo '{a=1}'; else echo "{foo=bar}"; fi""",
+                            "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi""",
                             "cookie_group_size": 2,
                         },
                     }

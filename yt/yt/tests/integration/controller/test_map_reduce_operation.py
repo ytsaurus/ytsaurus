@@ -444,7 +444,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out=["//tmp/t_out"],
                 sort_by="line",
-                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 spec={"reducer": {"format": "dsv", "cookie_group_size": 2}, "ordered": ordered},
             )
         map_reduce(
@@ -1418,7 +1418,7 @@ print("x={0}\ty={1}".format(x, y))
             map_reduce(
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
-                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
@@ -1433,7 +1433,7 @@ print("x={0}\ty={1}".format(x, y))
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
-                reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
                     "mapper": {"cpu_limit": 1, "cookie_group_size": 2},
