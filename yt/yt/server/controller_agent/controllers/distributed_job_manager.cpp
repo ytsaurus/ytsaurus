@@ -160,6 +160,7 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
         for (auto& secondary : group.Secondaries) {
             if (secondary.JobId) {
                 Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, EAbortReason::CookieGroupDisbanded);
+                secondary.ProgressCounterGuard.OnAborted(EAbortReason::CookieGroupDisbanded);
             } else {
                 secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
             }

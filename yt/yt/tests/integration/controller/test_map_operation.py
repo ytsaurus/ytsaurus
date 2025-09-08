@@ -1933,7 +1933,7 @@ print(json.dumps(input))
         )
         abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
         wait_breakpoint(job_count=2)[0]
-        assert op.get_job_count("aborted") == 1
+        assert op.get_job_count("aborted") == 2
         assert read_table("//tmp/t2") == []
         release_breakpoint()
         op.track()
