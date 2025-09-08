@@ -113,10 +113,12 @@ jobs:
     needs:
       - start-vm
       - tag
-    run: |
-      docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }}
-      docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
-      docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }} 
+    steps:
+      name: Docker Pull And Push
+      run: |
+        docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }}
+        docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
+        docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }} 
 
   stop-vm:
     name: Stop VM
