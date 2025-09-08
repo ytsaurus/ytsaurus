@@ -1650,7 +1650,7 @@ private:
     {
         auto executorConfig = New<TUserJobExecutorConfig>();
 
-        if (UserJobSpec_.append_debug_options()) {
+        if (UserJobSpec_.enable_debug_command_line_arguments()) {
             executorConfig->Command = Format(
                 "%v --job-id %v --operation-id %v",
                 UserJobSpec_.shell_command(),
