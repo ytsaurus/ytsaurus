@@ -1578,12 +1578,7 @@ void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
             YT_ASSERT(lockType != ELockType::Exclusive);
         }
 
-        // COMPAT(ponasenko-rs)
-        if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            reign >= ETabletReign::PerRowSequencerFixes)
-        {
-            RecalculatePrepareTimestamp(lock);
-        }
+        RecalculatePrepareTimestamp(lock);
     }
 
     // Correct for exclusive.

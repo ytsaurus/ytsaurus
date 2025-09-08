@@ -20,14 +20,15 @@ Optional named:
 3. **RootAttributes** (`String`): Semicolon-separated string listing the desired meta attributes (for example, `"schema;row_count"`). `""` by default.
 4. **PreHandler**: Lambda function called for the list of descendants of the current directory after the List operation (before resolving the links). Accepts a list of nodes, the current state, and the current traversal depth, returning the next state.
 
-   Signature: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)`
+   Signature: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)```
+   
    TypeOf(InitialState) is the returned type of InitialState.
 
    Default implementation: `($nodes, $state, $level) -> ($state)`
 
 5. **ResolveHandler**: Lambda function called after `PreHandler`. Accepts a list of descendant links of the current directory, the current state, a list of requested attributes for the ancestor directory, and the current traversal depth. Returns `Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>`, a tuple with a list of links to traverse with the requested meta attributes, along with the next state. If a link is broken, WalkFolders ignores it: you don't need to check for this in the handler
 
-   Signature: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>`
+   Signature: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>```
 
    Default implementation:
 
@@ -41,7 +42,7 @@ Optional named:
 
 6. **DiveHandler**: Lambda function called after `ResolveHandler`. Accepts a list of descendant directories of the current directory, the current state, a list of requested attributes for the ancestor directory, and the current traversal depth. Returns `Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>`, a tuple with a list of directories to traverse with the requested meta attributes after processing the current directory, along with the next state. The returned paths are queued for traversal.
 
-   Signature: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>`
+   Signature: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>```
 
    Default implementation:
 
@@ -55,7 +56,7 @@ Optional named:
 
 7. **PostHandler**: Lambda function called after `DiveHandler`. Accepts a list of descendants of the current directory after resolving the links, the current state, and the current traversal depth.
 
-   Signature: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)`
+   Signature: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)```
 
    Default implementation: `($nodes, $state, $level) -> ($state)`
 

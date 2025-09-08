@@ -28,9 +28,6 @@ public interface ReducerWithKey<TInput, TOutput, TKey> extends Reducer<TInput, T
         ReducerWithKeyIterator<TInput, TKey> it = new ReducerWithKeyIterator<>(this::key, entries);
         TKey key = it.nextKey();
         while (key != null) {
-            if (context != null) {
-                context.setReturnPrevIndexes(true);
-            }
             reduce(key, it, yield, statistics, context);
             it.forEachRemaining(tmp -> {
             });

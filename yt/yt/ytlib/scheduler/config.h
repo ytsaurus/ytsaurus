@@ -1501,7 +1501,7 @@ struct TUserJobSpec
 
     bool RedirectStdoutToStderr;
 
-    bool AppendDebugOptions;
+    bool EnableDebugCommandLineArguments;
 
     bool EnableRpcProxyInJobProxy;
     bool EnableShuffleServiceInJobProxy;

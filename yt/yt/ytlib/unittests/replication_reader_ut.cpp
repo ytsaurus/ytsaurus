@@ -105,6 +105,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TProbeStatistics
+{
+    int DiskQueueSize = 0;
+    int NetQueueSize = 0;
+};
+
+struct TTestCase
+{
+    int BatchCount = 1;
+    int NodeCount = 3;
+    int BlockCount = 10;
+    int RequestInBatch = 10;
+    int BlockInRequest = 2;
+    bool Sequentially = true;
+    bool EnableChunkProber = false;
+    bool PartiallyThrottling = false;
+    bool PartiallyBanns = false;
+    std::optional<i64> BlockSetSubrequestThreshold;
+    std::vector<std::pair<int, TDuration>> PartialPeerProbingTimeouts;
+    bool MarkSomeNodesSuspicious = false;
+    std::optional<std::vector<TProbeStatistics>> ProbeResults;
+    std::optional<THashSet<int>> SelectedPeers;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTestDataNodeService
     : public NRpc::TServiceBase
 {
@@ -161,11 +187,18 @@ public:
         bool hasCompleteChunk = ChunkBlocks_.contains(chunkId);
         response->set_has_complete_chunk(hasCompleteChunk);
 
+        if (ProbeStatistics_) {
+            response->set_disk_queue_size(ProbeStatistics_->DiskQueueSize);
+            response->set_net_queue_size(ProbeStatistics_->NetQueueSize);
+        }
+
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
+        SetCalled();
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         response->set_has_complete_chunk(ChunkBlocks_.contains(chunkId));
 
@@ -184,6 +217,8 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
+        SetCalled();
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         response->set_has_complete_chunk(ChunkBlocks_.contains(chunkId));
 
@@ -211,6 +246,8 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
+        SetCalled();
+
         if (ReplyWithThrottle(context, response)) {
             return;
         }
@@ -265,6 +302,21 @@ public:
         ChunkMetas_.emplace(chunkId, std::move(chunkMeta));
     }
 
+    void SetProbeStatistics(TProbeStatistics probeStatistics)
+    {
+        ProbeStatistics_ = std::move(probeStatistics);
+    }
+
+    void SetCalled()
+    {
+        PeerCalled_ = true;
+    }
+
+    bool IsCalled()
+    {
+        return PeerCalled_;
+    }
+
 private:
     THashMap<TChunkId, THashMap<int, TSharedRef>> ChunkBlocks_;
     THashMap<TChunkId, NProto::TChunkMeta> ChunkMetas_;
@@ -273,6 +325,9 @@ private:
     std::atomic<bool> EnablePartialThrottling_ = false;
     std::atomic<bool> HasFatalError_ = false;
     std::atomic<bool> PostponeProbingReply_ = false;
+    std::optional<TProbeStatistics> ProbeStatistics_;
+    bool PeerCalled_ = false;
+
     TRandomGenerator Generator_{42};
 
     std::vector<TBlock> GetBlocksByIndexes(
@@ -378,24 +433,6 @@ TChunkReaderHostPtr GetChunkReaderHost(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestCase
-{
-    int BatchCount = 1;
-    int NodeCount = 3;
-    int BlockCount = 10;
-    int RequestInBatch = 10;
-    int BlockInRequest = 2;
-    bool Sequentially = true;
-    bool EnableChunkProber = false;
-    bool PartiallyThrottling = false;
-    bool PartiallyBanns = false;
-    std::optional<i64> BlockSetSubrequestThreshold;
-    std::vector<std::pair<int, TDuration>> PartialPeerProbingTimeouts;
-    bool MarkSomeNodesSuspicious = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
 class TReplicationReaderTest
@@ -412,12 +449,19 @@ TEST_P(TReplicationReaderTest, ReadTest)
     auto batchCount = testCase.BatchCount;
     auto requestInBatch = testCase.RequestInBatch;
     auto sequentially = testCase.Sequentially;
+    auto probeResults = testCase.ProbeResults;
+    auto selectedPeers = testCase.SelectedPeers;
+
+    if (probeResults || selectedPeers) {
+        EXPECT_TRUE(probeResults && selectedPeers && testCase.EnableChunkProber && std::ssize(*probeResults) == nodeCount);
+    }
 
     auto pool = NConcurrency::CreateThreadPool(16, "Worker");
     auto invoker = pool->GetInvoker();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto memoryTracker = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
 
+    std::vector<TIntrusivePtr<TTestDataNodeService>> services;
     THashMap<std::string, IServicePtr> addressToService;
 
     auto chunkId = NObjectClient::MakeRandomId(NObjectClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
@@ -435,7 +479,8 @@ TEST_P(TReplicationReaderTest, ReadTest)
             NNodeTrackerClient::TNodeId(index),
             NNodeTrackerClient::TNodeDescriptor(address));
 
-        auto service = New<TTestDataNodeService>(invoker);
+        services.push_back(New<TTestDataNodeService>(invoker));
+        auto service = services.back();
         addressToService[address] = service;
         service->SetChunkBlocks(chunkId, blocks);
         service->SetPartiallyThrottle(testCase.PartiallyThrottling);
@@ -447,6 +492,10 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
         if (!testCase.PartialPeerProbingTimeouts.empty() && index == 0) {
             service->SetPostponeProbingReply(true);
+        }
+
+        if (probeResults) {
+            service->SetProbeStatistics((*probeResults)[index]);
         }
 
         replicas.emplace_back(NNodeTrackerClient::TNodeId(index), index);
@@ -555,6 +604,12 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
+    }
+
+    if (selectedPeers) {
+        for (int index = 0; index < std::ssize(services); ++index) {
+            EXPECT_EQ(selectedPeers->contains(index), services[index]->IsCalled());
+        }
     }
 
     auto statistics = readBlockOptions.ClientOptions.ChunkReaderStatistics;
@@ -938,7 +993,53 @@ INSTANTIATE_TEST_SUITE_P(
                 std::make_pair(2, TDuration::Seconds(1)),
             },
             .MarkSomeNodesSuspicious = true,
-        }));
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+            .ProbeResults = {{
+                TProbeStatistics{
+                    .DiskQueueSize = 1,
+                },
+                TProbeStatistics{
+                    .DiskQueueSize = 10,
+                },
+                TProbeStatistics{
+                    .DiskQueueSize = 100,
+                }
+            }},
+            .SelectedPeers = {{0}}
+        },
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+            .ProbeResults = {{
+                TProbeStatistics{
+                    .DiskQueueSize = 10,
+                    .NetQueueSize = 1000
+                },
+                TProbeStatistics{
+                    .DiskQueueSize = 100,
+                    .NetQueueSize = 100
+                },
+                TProbeStatistics{
+                    .DiskQueueSize = 1000,
+                    .NetQueueSize = 1000
+                }
+            }},
+            .SelectedPeers = {{1}}
+        }
+    ));
 
 ////////////////////////////////////////////////////////////////////////////////
 

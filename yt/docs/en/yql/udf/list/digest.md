@@ -84,7 +84,7 @@ Hashes the source message (`string`) using a 128-bit key. The key is represented
 SELECT Digest::SipHash(0,0,"Who set this ancient quarrel new abroach?"); -- 14605466535756698285
 ```
 
-* `Digest::HighwayHash(key0:Uint64,key1:Uint64,key2:Uint64,key3:Uint64,string:String{Flags:AutoMap}) -> Uint64`
+* ```Digest::HighwayHash(key0:Uint64,key1:Uint64,key2:Uint64,key3:Uint64,string:String{Flags:AutoMap}) -> Uint64```
 
 Hashes the source message (`string`) using a 256-bit key.
 
