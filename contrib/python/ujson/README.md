@@ -9,7 +9,7 @@
 [![Code style: Black](https://img.shields.io/badge/code%20style-Black-000000.svg)](https://github.com/psf/black)
 
 UltraJSON is an ultra fast JSON encoder and decoder written in pure C with bindings for
-Python 3.8+.
+Python 3.9+.
 
 Install with pip:
 
@@ -86,7 +86,7 @@ Controls whether indentation ("pretty output") is enabled. Default is `0` (disab
 '{"foo":"bar"}'
 >>> print(ujson.dumps({"foo": "bar"}, indent=4))
 {
-    "foo":"bar"
+    "foo": "bar"
 }
 ```
 
