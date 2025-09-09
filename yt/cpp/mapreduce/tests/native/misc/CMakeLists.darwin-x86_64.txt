@@ -52,7 +52,7 @@ target_link_options(yt-cpp-mapreduce-tests-native-misc PRIVATE
 
 target_sources(yt-cpp-mapreduce-tests-native-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/alter_table.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/append_debug_options_spec_flag.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/enable_debug_command_line_arguments_spec_flag.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/batch_request.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/canonize_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/custom_client_config.cpp

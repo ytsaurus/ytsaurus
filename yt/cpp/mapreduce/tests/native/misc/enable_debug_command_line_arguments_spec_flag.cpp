@@ -28,10 +28,10 @@ public:
 };
 REGISTER_MAPPER(TEmptyMapper);
 
-TEST(AppendDebugOptionsSpecFlag, NotICommandJob)
+TEST(EnableDebugCommandLineArgumentsSpecFlag, NotICommandJob)
 {
     auto config = MakeIntrusive<TConfig>();
-    config->AppendDebugOptions = true;
+    config->EnableDebugCommandLineArguments = true;
     TTestFixture fixture(TCreateClientOptions()
         .Config(config));
 
@@ -49,13 +49,13 @@ TEST(AppendDebugOptionsSpecFlag, NotICommandJob)
             .AddOutput<TNode>(outputTable),
         new TEmptyMapper);
 
-    EXPECT_TRUE(operation->GetAttributes().FullSpec->AsMap()["mapper"].AsMap()["append_debug_options"].AsBool());
+    EXPECT_TRUE(operation->GetAttributes().FullSpec->AsMap()["mapper"].AsMap()["enable_debug_command_line_arguments"].AsBool());
 }
 
-TEST(AppendDebugOptionsSpecFlag, ICommandJob)
+TEST(EnableDebugCommandLineArgumentsSpecFlag, ICommandJob)
 {
     auto config = MakeIntrusive<TConfig>();
-    config->AppendDebugOptions = true;
+    config->EnableDebugCommandLineArguments = true;
     TTestFixture fixture(TCreateClientOptions()
         .Config(config));
 
@@ -74,5 +74,5 @@ TEST(AppendDebugOptionsSpecFlag, ICommandJob)
             .Format(TFormat::Json()),
         new TCommandRawJob("cat"));
 
-    EXPECT_FALSE(operation->GetAttributes().FullSpec->AsMap()["mapper"].AsMap()["append_debug_options"].AsBool());
+    EXPECT_FALSE(operation->GetAttributes().FullSpec->AsMap()["mapper"].AsMap()["enable_debug_command_line_arguments"].AsBool());
 }
