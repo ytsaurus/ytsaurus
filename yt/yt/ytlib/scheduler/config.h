@@ -1186,6 +1186,11 @@ struct TOperationSpecBase
     //! failing the operation.
     bool OmitInaccessibleColumns;
 
+    //! If true, allows readers to omit rows that are inaccessible due to RL ACL.
+    //! Otherwise, fails the operation in case RL ACL is not empty on one of
+    //! the tables for the authenticated user.
+    bool OmitInaccessibleRows;
+
     //! These tags are propagated to all operation outputs (unless overridden).
     std::vector<NSecurityClient::TSecurityTag> AdditionalSecurityTags;
 
