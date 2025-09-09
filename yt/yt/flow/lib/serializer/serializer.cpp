@@ -23,9 +23,9 @@ namespace NYT::NFlow::NYsonSerializer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT::NTableClient;
-using namespace NYT::NYson;
-using namespace NYT::NYTree;
+using namespace NTableClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +38,7 @@ class TFieldSerializer final
     , public TYsonWriter
 {
 public:
-     TFieldSerializer()
+    TFieldSerializer()
         : TYsonWriter(static_cast<TStringStream*>(this))
     { }
 
@@ -215,6 +215,7 @@ public:
     }
 
     using TYsonConsumerBase::OnRaw;
+
     void OnRaw(TStringBuf yson, EYsonType type) override
     {
         if (StructLevel()) {
@@ -297,7 +298,7 @@ INodePtr ConvertUnversionedValueToNode(const TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchemaPtr GetYsonTableSchema(const TYsonStructPtr& ysonStruct)
+TTableSchemaPtr GetYsonSchema(const TYsonStructPtr& ysonStruct)
 {
     std::vector<TColumnSchema> columns;
 
@@ -311,7 +312,7 @@ TTableSchemaPtr GetYsonTableSchema(const TYsonStructPtr& ysonStruct)
         auto [type, required] = CastToV1Type(logicalType);
         columns.push_back(TColumnSchema(key, type).SetRequired(required));
     }
-    std::sort(columns.begin(), columns.end(), [](const auto& l, const auto& r) {
+    std::sort(columns.begin(), columns.end(), [] (const auto& l, const auto& r) {
         return l.Name() < r.Name();
     });
     return New<TTableSchema>(std::move(columns));

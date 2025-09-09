@@ -4,7 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     serializer_ut.cpp
-
+    state_ut.cpp
     proto/test.proto
 )
 

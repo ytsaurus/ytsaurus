@@ -12,19 +12,30 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(flow-lib-serializer)
+add_library(flow-lib-delta_codecs)
 
 
-target_link_libraries(flow-lib-serializer PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  cpp-yt-yson
-  yt-yt-client
-  flow-lib-delta_codecs
+target_compile_options(flow-lib-delta_codecs PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
 )
 
-target_sources(flow-lib-serializer PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/serializer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/state.cpp
+target_link_libraries(flow-lib-delta_codecs PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  contrib-libs-xdelta3
+  cpp-yt-memory
+  cpp-yt-misc
+  cpp-yt-error
+)
+
+target_sources(flow-lib-delta_codecs PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/delta_codecs/codec.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/delta_codecs/none.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/delta_codecs/state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/delta_codecs/xdelta.cpp
 )
 

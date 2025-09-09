@@ -12,9 +12,9 @@ namespace NYT::NFlow::NYsonSerializer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NTableClient::TTableSchemaPtr GetYsonTableSchema()
+NTableClient::TTableSchemaPtr GetYsonSchema()
 {
-    return GetYsonTableSchema(New<T>());
+    return GetYsonSchema(New<T>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +26,7 @@ TIntrusivePtr<T> Deserialize(const NTableClient::TUnversionedRow& row, const NTa
     Deserialize(result, row, schema);
     return result;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NYsonSerializer

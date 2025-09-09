@@ -15,3 +15,4 @@
 add_subdirectory(client)
 add_subdirectory(native_client)
 add_subdirectory(serializer)
+add_subdirectory(delta_codecs)
