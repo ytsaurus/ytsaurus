@@ -17,6 +17,9 @@ jobs:
       lint-root: "./_docs-lint"
       index-name: "ytsaurus-docs"
       revision: "${{ github.sha }}"
+      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
+      ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+      ALGOLIA_SEARCH_API_KEY: ${{ secrets.ALGOLIA_SEARCH_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
