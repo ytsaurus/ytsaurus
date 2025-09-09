@@ -46,6 +46,8 @@ public:
     NTransactionClient::TTransactionId WriteTransactionId;
     std::optional<NYPath::TYPath> CreatedTablePath;
 
+    NYTree::IMapNodePtr RuntimeVariables;
+
     // These values should always be initialized explicitly.
     // Set default values for easier debugging if we forget to initialize them.
     int QueryDepth = -42;

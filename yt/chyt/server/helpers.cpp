@@ -3,6 +3,7 @@
 #include "conversion.h"
 #include "config.h"
 #include "table.h"
+#include "storage_distributor.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -533,6 +534,18 @@ String BuildStorageName(const std::vector<TTablePtr>& tables)
     for (const auto& table : tables) {
         delimitedBuilder->AppendString(table->Path.GetPath());
     }
+    return builder.Flush();
+}
+
+String BuildDistributionLogString(const std::vector<IStorageDistributorPtr>& distributors)
+{
+    TStringBuilder builder;
+    builder.AppendChar('[');
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder, "];[");
+    for (const auto& distributor : distributors) {
+        delimitedBuilder->AppendString(distributor->GetStorageName());
+    }
+    builder.AppendChar(']');
     return builder.Flush();
 }
 

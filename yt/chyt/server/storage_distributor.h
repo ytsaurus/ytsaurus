@@ -20,7 +20,8 @@ namespace NYT::NClickHouseServer {
 // We expose small part of storage functionality using this interface.
 struct IStorageDistributor
 {
-public:
+    virtual std::string GetStorageName() const = 0;
+
     virtual std::vector<TTablePtr> GetTables() const = 0;
 
     virtual NTableClient::TTableSchemaPtr GetSchema() const = 0;

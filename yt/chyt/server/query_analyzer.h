@@ -5,6 +5,8 @@
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/key_bound.h>
 
+#include <yt/yt/core/ytree/helpers.h>
+
 #include <Storages/MergeTree/KeyCondition.h>
 
 namespace NYT::NClickHouseServer {
@@ -30,8 +32,8 @@ struct TQueryAnalysisResult
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
-    bool JoinedByKeyColumns;
     bool EnableMinMaxOptimization = false;
+    NYTree::IAttributeDictionaryPtr AnalysisVariables = NYTree::CreateEphemeralAttributes();
 };
 
 struct TSecondaryQuery
@@ -127,7 +129,6 @@ private:
     NLogging::TLogger Logger;
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;
-    int YtTableCount_ = 0;
     int SecondaryQueryOperandCount_ = 0;
     std::vector<IStorageDistributorPtr> Storages_;
     //! If the query contains any kind of join.
@@ -169,8 +170,6 @@ private:
     void OptimizeQueryProcessingStage();
 
     void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
-
-    IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
