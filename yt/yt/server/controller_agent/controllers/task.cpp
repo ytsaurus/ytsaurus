@@ -958,7 +958,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), CompressedDataSize: %v, RowCount: %v, PartitionTag: %v, Restarted: %v, "
         "EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, "
-        "CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v)",
+        "CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CookieGroupIndex: %v)",
         joblet->JobId,
         joblet->JobType,
         GetDefaultAddress(context.GetNodeDescriptor().Addresses),
@@ -981,7 +981,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->JobSpeculationTimeout,
         media,
         lostIntermediateChunkIsKnown ? lostIntermediateChunk->second : NullChunkId,
-        joblet->JobInterruptible);
+        joblet->JobInterruptible,
+        joblet->CookieGroupInfo.OutputIndex
+    );
 
     SetStreamDescriptors(joblet);
 

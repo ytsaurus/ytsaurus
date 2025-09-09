@@ -69,6 +69,7 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
         return;
     }
     if (joblet->CookieGroupInfo.OutputIndex == 0) {
+        YT_LOG_DEBUG("Distributed cookie started (Cookie: %v)", joblet->OutputCookie);
         auto it = TryEmplaceOrCrash(CookieToGroup_, joblet->OutputCookie);
         auto& group = it->second;
         for (int i = 1; i < GetCookieGroupSize(); i++) {
@@ -115,6 +116,7 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
             group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
         } else {
             CookieToGroup_.erase(groupIt);
+            YT_LOG_DEBUG("Distributed cookie completed (Cookie: %v)", joblet->OutputCookie);
             return true;
         }
     }
@@ -169,6 +171,7 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
         CookieToGroup_.erase(groupIt);
+        YT_LOG_DEBUG("Distributed cookie unsuccessful (Cookie: %v)", joblet->OutputCookie);
         return true;
     }
     return false;
