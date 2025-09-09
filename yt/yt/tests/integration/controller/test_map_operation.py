@@ -1992,17 +1992,17 @@ print(json.dumps(input))
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint(
-                """BREAKPOINT; if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif [ "$YT_JOB_INDEX" < 2 ]; then exit 1; fi"""
+                """BREAKPOINT; if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
             ),
             spec={"mapper": {"cookie_group_size": 2}, "max_failed_job_count": 2},
             track=False,
         )
-        main_job_id = get_job(op.id, wait_breakpoint()[0], attributes=["main_job_id"])["main_job_id"]
-        release_breakpoint(job_id=main_job_id)
-        try:
-            wait(lambda: get_job(op.id, main_job_id)["state"] == "completed")
-        except Exception as e:
-            assert "not found neither in archive nor in controller agent" in str(e)
+        first_incarnation = wait_breakpoint(job_count=2)
+        main_job_id = get_job(op.id, first_incarnation[0], attributes=["main_job_id"])["main_job_id"]
+        secondary_job_id, = {*first_incarnation} - {main_job_id}
+        release_breakpoint(job_id=secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
+        wait_breakpoint(job_count=2)
         release_breakpoint()
         op.track()
         assert read_table("//tmp/t2") == [{"a": "b"}]
