@@ -3286,6 +3286,30 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         actual = select_rows("k1, k2, v1, v2, nk1, nk2, nv1, nv2 from [//tmp/t]")
         assert sorted_dicts(actual) == sorted_dicts(expected)
 
+    @authors("osidorkin")
+    def test_async_select_from_unmounted_replicated_table(self):
+        path = "//tmp/t"
+        replica_path = "//tmp/r"
+
+        schema = [
+            {"name": "key", "type": "int32", "sort_order": "ascending"},
+            {"name": "value", "type": "int32"},
+        ]
+
+        self._create_cells()
+        self._create_replicated_table(path, schema)
+        replica_id = create_table_replica(
+            path, self.REPLICA_CLUSTER_NAME, replica_path, attributes={"mode": "async"})
+        self._create_replica_table(replica_path, replica_id, schema=schema)
+        sync_enable_table_replica(replica_id)
+
+        data = [{"key": 0, "value": 0}]
+        insert_rows(path, data, require_sync_replica=False)
+        wait(lambda: select_rows(f"* from [{replica_path}]", driver=self.replica_driver))
+
+        sync_unmount_table(path)
+        assert select_rows(f"* from [{path}] with hint \"{{require_sync_replica=%false}}\"") == data
+
 
 ##################################################################
 

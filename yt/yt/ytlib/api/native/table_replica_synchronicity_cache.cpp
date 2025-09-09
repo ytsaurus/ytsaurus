@@ -24,17 +24,25 @@ using namespace NQueryClient;
 
 void FormatValue(TStringBuilderBase* builder, const TReplicaSynchronicity& replica, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{ReplicaId: %v, ReplicaPath: %v, Cluster: %v, MinReplicationTimestamp: %v, IsInSync: %v}",
+    builder->AppendFormat(
+        "{ReplicaId: %v, ReplicaPath: %v, Cluster: %v, MinReplicationTimestamp: %v, IsInSync: %v, IsDummy: %v}",
         replica.ReplicaInfo->ReplicaId,
         replica.ReplicaInfo->ReplicaPath,
         replica.ReplicaInfo->ClusterName,
         replica.MinReplicationTimestamp,
-        replica.IsInSync);
+        replica.IsInSync,
+        replica.IsDummy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TReplicaSynchronicityList> FetchChaosTableReplicaSynchronicities(
+struct TReplicaSynchronicitiesFetchResult
+{
+    TReplicaSynchronicityList ReplicaSynchronicities;
+    bool IsDummy = false;
+};
+
+TFuture<TReplicaSynchronicitiesFetchResult> FetchChaosTableReplicaSynchronicities(
     const IConnectionPtr& connection,
     const NTabletClient::TTableMountInfoPtr& tableMountInfo)
 {
@@ -47,7 +55,9 @@ TFuture<TReplicaSynchronicityList> FetchChaosTableReplicaSynchronicities(
         ] (TReplicationCardPtr&& replicationCard) {
             bannedReplicaTracker->SyncReplicas(replicationCard);
 
-            auto replicas = TReplicaSynchronicityList();
+            auto result = TReplicaSynchronicitiesFetchResult();
+            result.IsDummy = false;
+            auto& replicas = result.ReplicaSynchronicities;
 
             for (const auto& [replicaId, replica] : replicationCard->Replicas) {
                 if (tableMountInfo->IsSorted() && replica.ContentType != ETableReplicaContentType::Data) {
@@ -72,14 +82,103 @@ TFuture<TReplicaSynchronicityList> FetchChaosTableReplicaSynchronicities(
                 });
             }
 
-            return replicas;
+            return result;
         }));
 }
 
-TFuture<TReplicaSynchronicityList> FetchReplicatedTableReplicaSynchronicities(
+TReplicaSynchronicitiesFetchResult BuildDummyTableReplicaSynchronicities(const TTableMountInfoPtr& tableMountInfo)
+{
+    auto result = TReplicaSynchronicitiesFetchResult();
+    result.IsDummy = true;
+    auto& replicaSynchronicities = result.ReplicaSynchronicities;
+
+    replicaSynchronicities.reserve(tableMountInfo->Replicas.size());
+    for (const auto& replicaInfo : tableMountInfo->Replicas) {
+        replicaSynchronicities.push_back(TReplicaSynchronicity{
+            .ReplicaInfo = replicaInfo,
+            .MinReplicationTimestamp = MinTimestamp,
+            .IsInSync = false,
+            .IsDummy = true,
+        });
+    }
+
+    return result;
+}
+
+TReplicaSynchronicitiesFetchResult BuildTabletReplicaSynchronicities(
+    const TTableMountInfoPtr& tableMountInfo,
+    bool allowDummy,
+    const std::vector<TErrorOr<TQueryServiceProxy::TRspGetTabletInfoPtr>>& responses)
+{
+    THashMap<TTableReplicaId, int> replicaIdToSyncTabletCount;
+    THashMap<TTableReplicaId, TTimestamp> replicationTimestamps;
+
+    bool hasFails = false;
+    for (const auto& responseOrError : responses) {
+        if (!responseOrError.IsOK()) {
+            if (allowDummy) {
+                hasFails = true;
+                continue;
+            } else {
+                responseOrError.ThrowOnError();
+            }
+        }
+
+        for (const auto& protoTabletInfo : responseOrError.Value()->tablets()) {
+            for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
+                    ++replicaIdToSyncTabletCount[replicaId];
+                }
+
+                auto timestamp = protoReplicaInfo.last_replication_timestamp();
+                auto [it, inserted] = replicationTimestamps.insert({replicaId, timestamp});
+                if (!inserted) {
+                    it->second = std::min(timestamp, it->second);
+                }
+            }
+        }
+    }
+
+    auto result = TReplicaSynchronicitiesFetchResult();
+    result.IsDummy = hasFails;
+    auto& replicaSynchronicities = result.ReplicaSynchronicities;
+
+    replicaSynchronicities.reserve(tableMountInfo->Replicas.size());
+    for (const auto& replicaInfo : tableMountInfo->Replicas) {
+        if (auto timestampIt = replicationTimestamps.find(replicaInfo->ReplicaId);
+            timestampIt != replicationTimestamps.end())
+        {
+            auto it = replicaIdToSyncTabletCount.find(replicaInfo->ReplicaId);
+            auto isInSync = (it == replicaIdToSyncTabletCount.end())
+                ? false
+                : (it->second == std::ssize(tableMountInfo->Tablets));
+
+            replicaSynchronicities.push_back(TReplicaSynchronicity{
+                .ReplicaInfo = replicaInfo,
+                .MinReplicationTimestamp = timestampIt->second,
+                .IsInSync = isInSync,
+                .IsDummy = hasFails,
+            });
+        } else {
+            // All cells failed.
+            replicaSynchronicities.push_back(TReplicaSynchronicity{
+                .ReplicaInfo = replicaInfo,
+                .MinReplicationTimestamp = MinTimestamp,
+                .IsInSync = false,
+                .IsDummy = true,
+            });
+        }
+    }
+
+    return result;
+}
+
+TFuture<TReplicaSynchronicitiesFetchResult> FetchReplicatedTableReplicaSynchronicities(
     const IConnectionPtr& connection,
     const TTableMountInfoPtr& tableMountInfo,
-    const TTabletReadOptions& options)
+    const TTabletReadOptions& options,
+    bool allowDummy)
 {
     const auto& Logger = connection->GetLogger();
 
@@ -100,95 +199,84 @@ TFuture<TReplicaSynchronicityList> FetchReplicatedTableReplicaSynchronicities(
         tableMountInfo->Path,
         cellIdToTabletIds.size());
 
-    const auto& channelFactory = connection->GetChannelFactory();
-    auto cellDescriptorsByPeer = GroupCellDescriptorsByPeer(connection, cellIds);
+    try {
+        auto cellDescriptorsByPeer = GroupCellDescriptorsByPeer(connection, cellIds);
 
-    std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
-    futures.reserve(cellDescriptorsByPeer.size());
+        std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
+        futures.reserve(cellDescriptorsByPeer.size());
 
-    for (const auto& cellDescriptors : cellDescriptorsByPeer) {
-        auto channel = CreateTabletReadChannel(
-            channelFactory,
-            *cellDescriptors[0],
-            options,
-            connection->GetNetworks());
+        const auto& channelFactory = connection->GetChannelFactory();
+        for (const auto& cellDescriptors : cellDescriptorsByPeer) {
+            auto channel = CreateTabletReadChannel(
+                channelFactory,
+                *cellDescriptors[0],
+                options,
+                connection->GetNetworks());
 
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(options.Timeout.value_or(connection->GetConfig()->DefaultGetInSyncReplicasTimeout));
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(options.Timeout.value_or(connection->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
-        auto req = proxy.GetTabletInfo();
-        req->SetResponseHeavy(true);
-        for (const auto& cellDescriptor : cellDescriptors) {
-            auto cellId = cellDescriptor->CellId;
-            const auto& tabletIds = cellIdToTabletIds[cellId];
-            for (auto tabletId : tabletIds) {
-                ToProto(req->add_tablet_ids(), tabletId);
-                ToProto(req->add_cell_ids(), cellId);
+            auto req = proxy.GetTabletInfo();
+            req->SetResponseHeavy(true);
+            for (const auto& cellDescriptor : cellDescriptors) {
+                auto cellId = cellDescriptor->CellId;
+                const auto& tabletIds = cellIdToTabletIds[cellId];
+                for (auto tabletId : tabletIds) {
+                    ToProto(req->add_tablet_ids(), tabletId);
+                    ToProto(req->add_cell_ids(), cellId);
+                }
             }
+
+            if (req->tablet_ids_size() == 0) {
+                continue;
+            }
+
+            futures.push_back(req->Invoke());
         }
 
-        if (req->tablet_ids_size() == 0) {
-            continue;
+        return AllSet(std::move(futures))
+            .Apply(BIND(&BuildTabletReplicaSynchronicities, tableMountInfo, allowDummy));
+    } catch (const TErrorException& ex) {
+        auto filter = [] (TErrorCode code) {
+            return code == NTabletClient::EErrorCode::CellHasNoAssignedPeers ||
+                code == NHiveClient::EErrorCode::UnknownCell ||
+                code == NNodeTrackerClient::EErrorCode::NoSuchNetwork;
+        };
+
+        if (!allowDummy || !ex.Error().FindMatching(filter)) {
+            throw;
         }
 
-        futures.push_back(req->Invoke());
+        YT_LOG_DEBUG(ex, "Failed looking for in-sync replicas, building dummy response");
+        return MakeFuture(BuildDummyTableReplicaSynchronicities(tableMountInfo));
     }
-
-    return AllSucceeded(std::move(futures))
-        .ApplyUnique(BIND([tableMountInfo] (std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>&& responses) {
-            THashMap<TTableReplicaId, int> replicaIdToSyncTabletCount;
-            THashMap<TTableReplicaId, TTimestamp> replicationTimestamps;
-
-            for (const auto& response : responses) {
-                for (const auto& protoTabletInfo : response->tablets()) {
-                    for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
-                        auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
-                        if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
-                            ++replicaIdToSyncTabletCount[replicaId];
-                        }
-
-                        auto timestamp = protoReplicaInfo.last_replication_timestamp();
-                        auto [it, inserted] = replicationTimestamps.insert({replicaId, timestamp});
-                        if (!inserted) {
-                            it->second = std::min(timestamp, it->second);
-                        }
-                    }
-                }
-            }
-
-            auto replicaSynchronicities = TReplicaSynchronicityList();
-            replicaSynchronicities.reserve(tableMountInfo->Replicas.size());
-            for (const auto& replicaInfo : tableMountInfo->Replicas) {
-                if (auto timestampIt = replicationTimestamps.find(replicaInfo->ReplicaId);
-                    timestampIt != replicationTimestamps.end())
-                {
-                    auto it = replicaIdToSyncTabletCount.find(replicaInfo->ReplicaId);
-                    auto isInSync = (it == replicaIdToSyncTabletCount.end())
-                        ? false
-                        : (it->second == std::ssize(tableMountInfo->Tablets));
-
-                    replicaSynchronicities.push_back(TReplicaSynchronicity{
-                        .ReplicaInfo = replicaInfo,
-                        .MinReplicationTimestamp = timestampIt->second,
-                        .IsInSync = isInSync,
-                    });
-                }
-            }
-
-            return replicaSynchronicities;
-        }));
 }
 
-TFuture<TReplicaSynchronicityList> FetchReplicaSynchronicities(
+TFuture<TReplicaSynchronicitiesFetchResult> DoFetchReplicaSynchronicities(
     const IConnectionPtr& connection,
     const TTableMountInfoPtr& tableMountInfo,
-    const TTabletReadOptions& options)
+    const TTabletReadOptions& options,
+    bool allowDummy)
 {
     if (tableMountInfo->ReplicationCardId) {
         return FetchChaosTableReplicaSynchronicities(connection, tableMountInfo);
     } else {
-        return FetchReplicatedTableReplicaSynchronicities(connection, tableMountInfo, options);
+        return FetchReplicatedTableReplicaSynchronicities(connection, tableMountInfo, options, allowDummy);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TReplicaSynchronicityList> FetchReplicaSynchronicities(
+    const IConnectionPtr& connection,
+    const TTableMountInfoPtr& tableMountInfo,
+    const TTabletReadOptions& options,
+    bool allowDummy)
+{
+    return DoFetchReplicaSynchronicities(connection, tableMountInfo, options, allowDummy)
+        .ApplyUnique(BIND([] (TReplicaSynchronicitiesFetchResult&& result) {
+            return result.ReplicaSynchronicities;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +291,8 @@ public:
         const IConnectionPtr& connection,
         const NTabletClient::TTableMountInfoPtr& table,
         TInstant deadline,
-        const TTabletReadOptions& options) override
+        const TTabletReadOptions& options,
+        bool allowDummy) override
     {
         auto guard = ReaderGuard(Lock_);
         if (auto it = TableToReplicaSynchronicities_.find(table->Path);
@@ -211,7 +300,7 @@ public:
         {
             return MakeFuture(it->second.ReplicaSynchronicities);
         } else {
-            return FetchReplicaSynchronicities(connection, table, options)
+            return DoFetchReplicaSynchronicities(connection, table, options, allowDummy)
                 .Apply(BIND(&TTableReplicaSynchronicityCache::OnReplicaSynchronicitiesFetched, MakeStrong(this), table->Path));
         }
     }
@@ -222,16 +311,18 @@ private:
 
     TReplicaSynchronicityList OnReplicaSynchronicitiesFetched(
         NYPath::TYPath path,
-        TReplicaSynchronicityList replicas)
+        TReplicaSynchronicitiesFetchResult replicasSynchronicitiesResult)
     {
-        auto guard = WriterGuard(Lock_);
+        if (!replicasSynchronicitiesResult.IsDummy) {
+            auto guard = WriterGuard(Lock_);
 
-        TableToReplicaSynchronicities_[path] = {
-            TInstant::Now(),
-            replicas,
-        };
+            TableToReplicaSynchronicities_[path] = {
+                TInstant::Now(),
+                replicasSynchronicitiesResult.ReplicaSynchronicities,
+            };
+        }
 
-        return replicas;
+        return replicasSynchronicitiesResult.ReplicaSynchronicities;
     }
 };
 
