@@ -34,13 +34,19 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 
+////////////////////////////////////////////////////////////////////////////////
+
 using NYqlClient::NProto::TYqlQueryFile_EContentType;
 using NYqlClient::NProto::TYqlResponse;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = ProcessYqlPluginLogger;
 constexpr int MODE0711 = S_IRWXU | S_IXGRP | S_IXOTH;
@@ -504,6 +510,8 @@ private:
         DqControllerYqlPlugin_ = CreateBridgeYqlPlugin(std::move(options));
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TString TProcessYqlPlugin::SocketName = "yql-plugin.sock";
 

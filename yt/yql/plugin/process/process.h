@@ -11,6 +11,8 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlExecutorProcess
     : public TRefCounted
     , public IYqlPlugin
@@ -90,5 +92,7 @@ private:
 
 DECLARE_REFCOUNTED_CLASS(TYqlExecutorProcess)
 DEFINE_REFCOUNTED_TYPE(TYqlExecutorProcess)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // NYT::NYqlPlugin::NProcess

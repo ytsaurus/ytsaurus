@@ -42,6 +42,7 @@ using namespace NYson;
 using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
+using namespace NYqlPlugin::NProcess;
 
 constinit const auto Logger = YqlAgentLogger;
 
@@ -299,13 +300,13 @@ public:
                 NYqlPlugin::TYqlPluginOptions options
             ) {
                 YqlPlugin_ = Config_->ProcessPluginConfig->Enabled
-                    ? NYqlPlugin::NProcess::CreateProcessYqlPlugin(
+                    ? CreateProcessYqlPlugin(
                         Config_,
                         singletonsConfigDefaultLogging,
                         bootstrap->GetClusterConnectionConfig(),
                         TString(maxVersionStringBuf),
                         YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
-                    : NYqlPlugin::CreateBridgeYqlPlugin(std::move(options));
+                    : CreateBridgeYqlPlugin(std::move(options));
             }),
             EExecutionStackKind::Large);
 

@@ -2,12 +2,14 @@
 
 #include <util/generic/string.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+namespace NYT::NYqlPlugin::NProcess {
+
+////////////////////////////////////////////////////////////////////////////////
 
 const TString YqlAgentProgramName = "ytserver-yql-agent";
 const TString YqlPluginSubcommandName = "yql-plugin";
 const TString YqlPluginConfigFilename = "config.yson";
 
-} // namespace NProcess
-} // namespace NYT::NYqlPlugin
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYqlPlugin::NProcess

@@ -4,12 +4,10 @@
 
 #include <yt/yql/plugin/plugin.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+namespace NYT::NYqlPlugin::NProcess {
 
 NRpc::IServicePtr CreateYqlPluginService(
     IInvokerPtr controlInvoker,
     std::unique_ptr<IYqlPlugin> yqlPlugin);
 
-} // namespace NProcess
-} // namespace NYT::NYqlPlugin
+} // namespace NYT::NYqlPlugin::NProcess
