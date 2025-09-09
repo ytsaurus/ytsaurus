@@ -3264,7 +3264,7 @@ private:
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
 
-        if (request->added_chunks().size() > 0) {
+        if (!request->caused_by_node_disposal()) {
             node->ValidateRegistered();
         }
 
