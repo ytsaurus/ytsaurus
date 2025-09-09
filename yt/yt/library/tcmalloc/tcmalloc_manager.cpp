@@ -410,11 +410,16 @@ private:
         TAllocatorMemoryLimit proposed;
         proposed.Hard = heapSizeConfig->Hard;
 
-        if (heapSizeConfig->ContainerMemoryMargin) {
-            proposed.Limit = totalMemory - *heapSizeConfig->ContainerMemoryMargin;
-        } else {
-            proposed.Limit = *heapSizeConfig->ContainerMemoryRatio * totalMemory;
-        }
+        i64 marginLimit = heapSizeConfig->ContainerMemoryMargin
+            ? totalMemory - *heapSizeConfig->ContainerMemoryMargin
+            : 0L;
+
+        i64 ratioLimit = heapSizeConfig->ContainerMemoryRatio
+            ? *heapSizeConfig->ContainerMemoryRatio * totalMemory
+            : 0L;
+
+        // It is guaranteed that the maximum is non-negative.
+        proposed.Limit = std::max(marginLimit, ratioLimit);
 
         return proposed;
     }
