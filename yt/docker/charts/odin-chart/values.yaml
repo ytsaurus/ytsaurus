@@ -13,6 +13,8 @@ config:
     db:
       proxy: "ytsaurus.http.proxy.tech"
       tokenEnvVariable: "YT_TOKEN"
+      table: "//sys/odin/checks"
+      tabletCellBundle: "default"
     clusters:
       - proxy: "ytsaurus.http.proxy.tech"
         cluster: "minisaurus"
@@ -20,7 +22,7 @@ config:
     logging:
       port: 10236
       filename: "/dev/stderr"
-      run_server: false
+      runServer: false
 
   webservice:
     host: "::"
@@ -246,6 +248,13 @@ odin:
   serviceAccount:
     create: true
     name: ""
+  initJob:
+    backoffLimit: 2
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
 
 webservice:
   replicaCount: 1

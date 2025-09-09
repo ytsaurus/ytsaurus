@@ -18,7 +18,7 @@ data:
             "options": {
               "cluster": "{{ $c.cluster }}",
               "proxy": "{{ $.Values.config.odin.db.proxy }}",
-              "table": "//sys/odin/checks",
+              "table": "{{ $.Values.config.odin.db.table }}",
               "token_env_variable": "{{ $.Values.config.odin.db.tokenEnvVariable }}"
             }
           },
@@ -33,7 +33,7 @@ data:
         "level": "DEBUG",
         "port": {{ .Values.config.odin.logging.port }},
         "filename": "{{ .Values.config.odin.logging.filename }}",
-        "run_server": {{ .Values.config.odin.logging.run_server }}
+        "runServer": {{ .Values.config.odin.logging.runServer }}
       },
       "service_config": {
         "path": "//sys/odin",
