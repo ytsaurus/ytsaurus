@@ -1703,17 +1703,19 @@ private:
                 auto netQueueSize = firstNetQueueSize + secondNetQueueSize;
                 auto diskQueueSize = firstDiskQueueSize + secondDiskQueueSize;
 
+                auto maxQueueSize = std::max(netQueueSize, diskQueueSize);
+
                 double firstHit = 0;
                 double secondHit = 0;
 
                 if (netQueueSize) {
-                    firstHit += (netQueueSizeFactor * firstNetQueueSize) / netQueueSize;
-                    secondHit += (netQueueSizeFactor * secondNetQueueSize) / netQueueSize;
+                    firstHit += (netQueueSizeFactor * firstNetQueueSize) / maxQueueSize;
+                    secondHit += (netQueueSizeFactor * secondNetQueueSize) / maxQueueSize;
                 }
 
                 if (diskQueueSize) {
-                    firstHit += (diskQueueSizeFactor * firstDiskQueueSize) / diskQueueSize;
-                    secondHit += (diskQueueSizeFactor * secondDiskQueueSize) / diskQueueSize;
+                    firstHit += (diskQueueSizeFactor * firstDiskQueueSize) / maxQueueSize;
+                    secondHit += (diskQueueSizeFactor * secondDiskQueueSize) / maxQueueSize;
                 }
 
                 auto firstCachedBlockCount = firstProbeResult.CachedBlockCount;
