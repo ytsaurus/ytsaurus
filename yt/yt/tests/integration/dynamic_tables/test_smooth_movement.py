@@ -369,6 +369,56 @@ class TestSmoothMovement(DynamicTablesBase):
         wait(lambda: self._check_action(action_id))
 
     @authors("ifsmirnov")
+    def test_row_cache_rotation_at_target_servant(self):
+        sync_create_cells(2)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "lookup_cache_rows_ratio": 1.0,
+                "enable_lookup_cache_by_default": True,
+                "max_dynamic_store_row_count": 1,
+                "enable_compaction_and_partitioning": False,
+            })
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        sync_mount_table("//tmp/t")
+
+        self._update_testing_config({
+            "delay_after_stage_at_target": {
+                "target_activated": 5000,
+            }
+        })
+
+        _next_key = 0
+
+        def _insert():
+            nonlocal _next_key
+
+            while True:
+                try:
+                    insert_rows("//tmp/t", [{"key": _next_key, "value": str(_next_key)}])
+                    break
+                except YtError:
+                    time.sleep(0.1)
+
+            _next_key += 1
+
+        for i in range(5):
+            _insert()
+
+        action_id = self._move_tablet(tablet_id)
+
+        for i in range(10):
+            _insert()
+
+        wait(lambda: get("//tmp/t/@chunk_count") > 10)
+
+        wait(lambda: self._check_action(action_id))
+
+        assert_items_equal(
+            [{"key": i, "value": str(i)} for i in range(_next_key)],
+            select_rows("* from [//tmp/t]"))
+
+    @authors("ifsmirnov")
     def test_wait_preload(self):
         cell_ids = sync_create_cells(2)
 
