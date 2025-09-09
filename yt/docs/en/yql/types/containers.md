@@ -3,8 +3,6 @@
 YQL supports container types to define complex data structures organized in various ways.
 Values of container types can be passed to YQL queries as input parameters or returned from YQL queries as columns of the set of results.
 
-<!-- Container types cannot be used as data types for table columns. -->
-
 | Type | Declaration,<br/>example | Description |
 | ------------ | ---------------- | ------------- |
 | List | `List<Type>`,<br/>`List<Int32>` | A variable-length sequence consisting of same-type elements. |

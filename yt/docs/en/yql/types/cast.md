@@ -1,4 +1,4 @@
-# Rules for type casting using the operator [CAST](../syntax/expressions.md#cast)
+# Rules for type casting using the operator [CAST](../syntax/expressions.md#cast).
 
 ## Rules for casting primitive data types
 
@@ -9,11 +9,11 @@
   * The timezone, when casting from timezone types to date/time types without a timezone.
 
 * If, in a certain combination of the source and target type, casting can't be performed for all possible values of the source type, then, if the casting fails, `CAST` returns `NULL`. In such cases, one `Optional` level is added to the return value type, unless already present. For example, the constructs: `CAST("3.14" AS Float?)` and `CAST("3.14" AS Float)` are fully equivalent and return `Float?`.
-* If casting is possible for all values of the source type, then adding '?' works the same way as `Just` on top: `CAST(3.14 AS Utf8?)` is same as `Just(CAST(3.14 AS Utf8))`.
+* If casting is possible for all values of the source type, then adding '?' works like `Just` above: `CAST(3.14 AS Utf8?)` is the same as `Just(CAST(3.14 AS Utf8))`.
 
-All combinations of primitive data types for which `CAST` can be used are described [here](primitive.md).
+All primitive type combinations for which `CAST` is possible are described [here](primitive.md).
 
-## Casting rules for containers
+## Rules for casting containers
 
 ### Rules for Optional
 
@@ -23,9 +23,9 @@ All combinations of primitive data types for which `CAST` can be used are descri
 
 ```yql
 SELECT
-    CAST(1 AS Int32?),                  -- is equivalent to Just(1)
+    CAST(1 AS Int32?),                  -- same as Just(1)
     CAST(Just(2/1) AS Float??),         -- [2]
-    CAST(Just(3/0) AS Float??) IS NULL; -- false: the result is Just(NULL)
+    CAST(Just(3/0) AS Float??) IS NULL; -- false: the result of Just(NULL)
 ```
 
 ### Rules for List/Dict
@@ -54,12 +54,12 @@ SELECT
 SELECT
     CAST((-1, 0, 1) AS Tuple<Uint16?, Uint16?, Utf8>), -- (null, 0, "1")
     CAST((-2, 0) AS Tuple<Uint16, Utf8>),              -- null
-    CAST((3, 4) AS Tuple<Uint16, String>),             -- (3, "4"): the type is Tuple<Uint16, String>?
+    CAST((3, 4) AS Tuple<Uint16, String>),             -- (3, "4") type Tuple<Uint16, String>?
     CAST(("4",) AS Tuple<Uint16, String?>),            -- (4, null)
-    CAST((5, 6, null) AS Tuple<Uint8?>);               -- (5,): the items were removed.
+    CAST((5, 6, null) AS Tuple<Uint8?>);               -- (5,)  elements are removed.
 
-SELECT -- One field was removed and one field was added: ("three":null, "two": "42")
-    CAST(<|one:"8912", two:42|> AS Struct<two:Utf8, three:Date?>);
+SELECT -- One field is removed and one is added: ("three":null, "two": "42")
+    CAST(<|one:"8912", two:42|> AS Struct<two:Utf8, three:Date?>).
 ```
 
 ### Rules for Variant
@@ -71,4 +71,3 @@ SELECT -- One field was removed and one field was added: ("three":null, "two": "
 ### Nested containers
 
 * All of the above rules are applied recursively for nested containers.
-
