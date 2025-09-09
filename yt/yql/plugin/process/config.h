@@ -11,8 +11,6 @@
 
 namespace NYT::NYqlPlugin::NProcess {
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TProcessYqlPluginInternalConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig

@@ -24,8 +24,9 @@
 
 #include <util/system/thread.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+namespace NYT::NYqlPlugin::NProcess {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TYqlPluginProgram
     : public virtual TProgram
@@ -95,5 +96,6 @@ protected:
     }
 };
 
-} // namespace NProcess
-} // namespace NYT::NYqlPlugin
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NYqlPlugin::NProcess

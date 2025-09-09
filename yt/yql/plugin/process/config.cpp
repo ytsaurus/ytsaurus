@@ -2,8 +2,7 @@
 
 #include <yt/yql/plugin/config.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+namespace NYT::NYqlPlugin::NProcess {
 
 void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
 {
@@ -19,5 +18,4 @@ void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
         .Default();
 }
 
-} // namespace NProcess
-} // namespace NYT::NYqlPlugin
+} // namespace NYT::NYqlPlugin::NProcess

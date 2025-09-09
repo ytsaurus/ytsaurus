@@ -3,8 +3,7 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
 
-namespace NYT::NYqlPlugin {
-namespace NProcess {
+namespace NYT::NYqlPlugin::NProcess {
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, YqlPluginServiceLogger, "YqlPluginService");
 
@@ -185,5 +184,4 @@ NRpc::IServicePtr CreateYqlPluginService(
     return New<TYqlPluginService>(std::move(controlInvoker), std::move(yqlAgent));
 }
 
-} // namespace NProcess
-} // namespace NYT::NYqlPlugin
+} // namespace NYT::NYqlPlugin::NProcess
