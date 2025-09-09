@@ -188,6 +188,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/random_access_gzip.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/logging/zstd_compression.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/arithmetic_formula.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backtrace.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/backoff_strategy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/bitmap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/bit_packed_unsigned_vector.cpp
