@@ -32,8 +32,8 @@ data:
       "logging": {
         "level": "DEBUG",
         "port": {{ .Values.config.odin.logging.port }},
-        "filename": "{{ .Values.config.odin.logging.filename }}"
-        "run_server": "{{ .Values.config.odin.logging.run_server }}"
+        "filename": "{{ .Values.config.odin.logging.filename }}",
+        "run_server": {{ .Values.config.odin.logging.run_server }}
       },
       "service_config": {
         "path": "//sys/odin",
