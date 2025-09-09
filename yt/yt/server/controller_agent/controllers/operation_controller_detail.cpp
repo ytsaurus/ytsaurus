@@ -141,8 +141,8 @@
 #include <yt/yt/core/concurrency/fair_share_invoker_pool.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/yt/core/misc/backtrace.h>
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
@@ -2158,12 +2158,8 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
     // Snapshot loading must be synchronous.
     TOneShotContextSwitchGuard oneShotContextSwitchGuard(
         BIND([this, this_ = MakeStrong(this)] {
-            TStringBuilder stackTrace;
-            DumpStackTrace([&stackTrace] (TStringBuf str) {
-                stackTrace.AppendString(str);
-            });
             YT_LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
-                stackTrace.Flush());
+                DumpBacktrace());
         }));
 
     TChunkedInputStream input(snapshot.Blocks);

@@ -10,7 +10,6 @@
 #include <yt/yt/library/ytprof/profile.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/crash_handler.h>
 
 #include <library/cpp/yt/memory/leaky_singleton.h>
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -265,7 +264,7 @@ concept CSupportsLimitHandler = requires (TMallocExtension extension)
 template <typename TMallocExtension, typename THandler>
 void SetSoftMemoryLimitHandler(THandler)
 {
-    WriteToStderr("TCMalloc does not support memory limit handler\n");
+    Cerr << "TCMalloc does not support memory limit handler" << Endl;
 }
 
 template <CSupportsLimitHandler TMallocExtension, typename THandler>
