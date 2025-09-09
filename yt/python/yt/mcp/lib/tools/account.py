@@ -49,7 +49,7 @@ class AccountProperty(YTToolBase):
     def get_tool_description(self):
         return (
             self.ToolName(
-                name="get_account_poperty",
+                name="get_account_property",
                 description="""
 Get some account properties.
 """,
