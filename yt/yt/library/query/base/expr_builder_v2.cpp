@@ -940,7 +940,7 @@ TConstExpressionPtr TExprBuilderV2::OnTransformOp(
     // TODO(lukyan): On error find first occurence of value with no coercion.
     auto resultType = TypingCtx_.GetWireType(UnifyTypes("transform", &TypingCtx_, resultTypes));
 
-    if (defaultTypedExpr) {
+    if (defaultTypedExpr && TypingCtx_.GetTypeId(resultType) != TypingCtx_.GetTypeId(defaultTypedExpr->GetWireType())) {
         defaultTypedExpr = CreateCoercion(resultType, defaultTypedExpr);
     }
 

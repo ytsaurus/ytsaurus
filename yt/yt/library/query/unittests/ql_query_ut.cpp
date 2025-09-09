@@ -1931,14 +1931,18 @@ TEST_F(TQueryEvaluateTest, SimpleTransformWithDefault)
             "x=16",
         }, resultSplit)));
 
+    resultSplit = MakeSplit({
+        {"x", EValueType::String}
+    });
+
     Evaluate(
-        "transform((a, b), ((4.0, 'p'), (-10, 's')), (13, 17), #) as x FROM [//t]",
+        "transform((a, b), ((4.0, 'p'), (-10, 's')), (\"13\", \"17\"), b) as x FROM [//t]",
         split,
         source,
         ResultMatcher(YsonToRows({
-            "x=13",
-            "",
-            "x=17",
+            "x=\"13\"",
+            "x=q",
+            "x=\"17\"",
             "",
         }, resultSplit)));
 }
