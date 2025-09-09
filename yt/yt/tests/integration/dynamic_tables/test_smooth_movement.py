@@ -453,6 +453,33 @@ class TestSmoothMovement(DynamicTablesBase):
 
         wait(lambda: self._check_action(action_id))
 
+    @authors("ifsmirnov")
+    def test_transaction_serialized_in_other_tablet(self):
+        cell_ids = sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        self._create_ordered_table("//tmp/q", commit_ordering="strong")
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        sync_mount_table("//tmp/q", cell_id=cell_ids[0])
+
+        self._update_testing_config({
+            "delay_after_stage_at_target": {
+                "target_activated": 5000,
+            }
+        })
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        action_id = self._move_tablet(tablet_id)
+        wait(lambda: self._get_movement_stage_from_node(tablet_id) == "target_activated")
+
+        # Transaction is serialized by //tmp/q but not by //tmp/t. Serialization
+        # should not be forwarded.
+        tx_id = start_transaction(type="tablet")
+        insert_rows("//tmp/t", [{"key": 1}], transaction_id=tx_id)
+        insert_rows("//tmp/q", [{"key": 1}], transaction_id=tx_id)
+        commit_transaction(tx_id)
+
+        wait(lambda: self._check_action(action_id))
+
 ##################################################################
 
 

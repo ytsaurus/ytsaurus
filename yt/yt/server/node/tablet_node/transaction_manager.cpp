@@ -1504,10 +1504,22 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
 
+        auto* transaction = FindTransaction(transactionId, externalizationToken);
+
+        // Transaction may require serialization for other tablets at the source
+        // cell. In this case its serialization is forwarded nevertheless but
+        // the externalized transaction no longer exists after it was committed.
+        if (!transaction) {
+            YT_LOG_DEBUG("Attempted to serialize nonexistent externalized "
+                "transaction, ignored (TransactionId: %v)",
+                FormatTransactionId(transactionId, externalizationToken));
+            return;
+        }
+
         YT_LOG_DEBUG("Serializing externalized transaction (TransactionId: %v)",
             FormatTransactionId(transactionId, externalizationToken));
 
-        auto* transaction = GetPersistentTransaction(transactionId, externalizationToken);
+        YT_VERIFY(!transaction->GetTransient());
 
         // NB: We do not want to interact with barrier timestamp because externalized
         // transactions are serialized with respect to the barrier of the
