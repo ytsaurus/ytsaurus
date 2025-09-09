@@ -144,10 +144,12 @@ def main(args):
     logger_configurator = LoggerConfigurator(config["logging"])
     for logger_id in ("Yt", "Odin", "Odin tasks"):
         logger_configurator.configure(logging.getLogger(logger_id))
-    logging_process = BoundProcess(target=run_logging_server, args=(config["logging"]["port"],),
-                                   name="LogMain")
-    logging_process.daemon = True
-    logging_process.start()
+
+    if config["logging"].get("run_server", True):
+        logging_process = BoundProcess(target=run_logging_server, args=(config["logging"]["port"],),
+                                       name="LogMain")
+        logging_process.daemon = True
+        logging_process.start()
 
     logger.LOGGER.handlers = [logging.handlers.SocketHandler('localhost', config["logging"]["port"])]
 

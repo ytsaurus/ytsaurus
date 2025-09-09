@@ -20,6 +20,7 @@ config:
     logging:
       port: 10236
       filename: "/dev/stderr"
+      run_server: false
 
   webservice:
     host: "::"
