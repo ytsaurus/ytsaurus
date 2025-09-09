@@ -1847,7 +1847,6 @@ NYson::TYsonString TClient::DoExplainQuery(
         /*placeholderValues*/ {},
         options.SyntaxVersion);
 
-    // TODO(sabdenovch): support subqueries in explain-query.
     auto cache = CreateStickyCache(Connection_->GetTableMountCache());
 
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);

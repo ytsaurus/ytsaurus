@@ -258,3 +258,23 @@ class TestExplainQuery(YTEnvSetup):
 
         grouped_ranges = response["query"]["grouped_ranges"]
         assert len(grouped_ranges) == 1
+
+    @authors("sabdenovch")
+    def test_explain_subquery(self):
+        sync_create_cells(1)
+        self._create_test_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        response = explain_query("""
+            moxie, a from (
+                select b, max(c) as moxie
+                from [//tmp/t]
+                where a = 1
+                group by b)
+            join [//tmp/t] using b
+        """)
+
+        response["query"]["subquery"]["constraints"] != "Constraints: <universe>"
+
+        assert "bottom_query" in response["query"]["subquery"]
+        assert "front_query" in response["query"]["subquery"]
