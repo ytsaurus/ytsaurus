@@ -14,6 +14,9 @@ public final class YsonTags {
     public static final byte BEGIN_ATTRIBUTES = '<';
     public static final byte END_ATTRIBUTES = '>';
 
+    public static final byte NEW_LINE = '\n';
+    public static final byte SPACE = ' ';
+
     public static final byte BINARY_END = 0;
     public static final byte BINARY_STRING = 1;
     public static final byte BINARY_INT = 2;

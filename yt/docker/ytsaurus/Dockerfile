@@ -188,6 +188,10 @@ RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
 RUN rm -rf /tmp/ytsaurus_python
 
+# python3-cryptography breaks ytsaurus-client in the image: https://github.com/pyca/cryptography/issues/9060#issuecomment-1983130684.
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get remove -y \
+  python3-cryptography
+
 ##########################################################################################
 
 FROM base-ytsaurus-python-packages AS base-server
@@ -307,10 +311,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libpython3.9 \
   libpython3.10 \
   libpython3.11
-
-# python3-cryptography breaks ytsaurus-client in the image: https://github.com/pyca/cryptography/issues/9060#issuecomment-1983130684.
-RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get remove -y \
-  python3-cryptography
 
 ##########################################################################################
 

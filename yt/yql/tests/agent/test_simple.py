@@ -5,7 +5,7 @@ from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_u
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
-                         get_operation, issue_token)
+                         get_operation, issue_token, create_group)
 
 from yt_helpers import profiler_factory
 
@@ -1008,7 +1008,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlSimpleBase):
         assert_items_equal(q.read_result(0)[:1], expected)
 
 
-class TestQueriesYqlAuth(TestQueriesYqlSimpleBase):
+class TestQueriesYqlAuthBase(TestQueriesYqlSimpleBase):
     DELTA_HTTP_PROXY_CONFIG = {
         "auth" : {"enable_authentication": True}
     }
@@ -1027,6 +1027,8 @@ class TestQueriesYqlAuth(TestQueriesYqlSimpleBase):
         })
         write_table("//tmp/t", [{"a": 42}])
 
+
+class TestQueriesYqlAuth(TestQueriesYqlAuthBase):
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_yql_agent_impersonation_deny(self, query_tracker, yql_agent):
@@ -1038,6 +1040,8 @@ class TestQueriesYqlAuth(TestQueriesYqlSimpleBase):
     def test_yql_agent_impersonation_allow(self, query_tracker, yql_agent):
         self._test_simple_query("select a + 1 as b from primary.`//tmp/t`;", [{"b": 43}], authenticated_user="allowed_user")
 
+
+class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
     @authors("ngc224")
     @pytest.mark.timeout(180)
     def test_pragma_auth(self, query_tracker, yql_agent):
@@ -1061,6 +1065,69 @@ class TestQueriesYqlAuth(TestQueriesYqlSimpleBase):
 
         with raises_yt_error('Access denied for user "denied_user"'):
             run_query("denied_user")
+
+
+class TestQueriesYqlWithSecretProtection(TestQueriesYqlAuthBase):
+    INSECURE_GROUPS = ["everyone", "large_group"]
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        create_group("large_group")
+        create_group("small_group")
+
+    @classmethod
+    def modify_yql_agent_config(cls, config):
+        config['yql_agent']['insecure_secret_path_subjects'] = cls.INSECURE_GROUPS
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_secret_protection(self, query_tracker, yql_agent):
+        def run_query(username, vault, subjects):
+            token, token_hash = issue_token(username)
+
+            vault_path = f"//tmp/{vault}"
+
+            create(
+                "map_node", vault_path,
+                attributes={
+                    "acl": [
+                        {
+                            "action": "allow",
+                            "subjects": subjects,
+                            "permissions": ["read"],
+                        },
+                        {
+                            "action": "allow",
+                            "subjects": self.INSECURE_GROUPS,
+                            "permissions": ["mount"],
+                        },
+                    ],
+                    "inherit_acl": False,
+                }
+            )
+
+            vault_token_path = f"{vault_path}/{username}_token"
+            create(
+                "document", vault_token_path,
+                attributes={"value": token},
+            )
+
+            self._test_simple_query(
+                "pragma yt.auth = 'custom_secret'; select a + 1 as b from primary.`//tmp/t`;",
+                [{"b": 43}],
+                secrets=[{"id": "custom_secret", "category": "yt", "ypath": vault_token_path}],
+            )
+
+        run_query("allowed_user", "secure_vault_allowed", ["allowed_user", "small_group"])
+
+        with raises_yt_error("Found insecure subjects for provided secret"):
+            run_query("allowed_user", "insecure_vault_allowed", ["everyone"])
+
+        with raises_yt_error('Access denied for user "denied_user"'):
+            run_query("denied_user", "secure_vault_denied", ["denied_user"])
+
+        with raises_yt_error("Found insecure subjects for provided secret"):
+            run_query("denied_user", "insecure_vault_denied", ["denied_user", "large_group"])
 
 
 class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlSimpleBase):

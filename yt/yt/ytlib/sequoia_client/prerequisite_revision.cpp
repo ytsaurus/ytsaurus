@@ -17,7 +17,7 @@ using NYT::FromProto;
 
 void FormatValue(TStringBuilderBase* builder, const TPrerequisiteRevision& prerequisiteRevision, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Path=%v; Revision=%v}",
+    builder->AppendFormat("{Path: %v; Revision: %v}",
         prerequisiteRevision.Path,
         prerequisiteRevision.Revision);
 }
@@ -32,7 +32,7 @@ void FromProto(TPrerequisiteRevision* revision, const NObjectClient::NProto::TPr
 
 void FormatValue(TStringBuilderBase* builder, const TResolvedPrerequisiteRevision& prerequisiteRevision, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{NodeId=%v; NodePath=%v; Revision=%v}",
+    builder->AppendFormat("{NodeId: %v; NodePath: %v; Revision: %v}",
         prerequisiteRevision.NodeId,
         prerequisiteRevision.NodePath,
         prerequisiteRevision.Revision);

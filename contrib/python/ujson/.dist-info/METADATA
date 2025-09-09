@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: ujson
-Version: 5.10.0
+Version: 5.11.0
 Summary: Ultra fast JSON encoder and decoder for Python
 Home-page: https://github.com/ultrajson/ultrajson
 Download-URL: https://github.com/ultrajson/ultrajson
@@ -9,19 +9,21 @@ Project-URL: Source, https://github.com/ultrajson/ultrajson
 Platform: any
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: BSD License
 Classifier: Programming Language :: C
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
-Requires-Python: >=3.8
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Typing :: Typed
+Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE.txt
+Dynamic: download-url
+Dynamic: license-file
 
 # UltraJSON
 
@@ -34,7 +36,7 @@ License-File: LICENSE.txt
 [![Code style: Black](https://img.shields.io/badge/code%20style-Black-000000.svg)](https://github.com/psf/black)
 
 UltraJSON is an ultra fast JSON encoder and decoder written in pure C with bindings for
-Python 3.8+.
+Python 3.9+.
 
 Install with pip:
 
@@ -111,7 +113,7 @@ Controls whether indentation ("pretty output") is enabled. Default is `0` (disab
 '{"foo":"bar"}'
 >>> print(ujson.dumps({"foo": "bar"}, indent=4))
 {
-    "foo":"bar"
+    "foo": "bar"
 }
 ```
 

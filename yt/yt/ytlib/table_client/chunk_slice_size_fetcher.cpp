@@ -87,7 +87,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
             ToProto(weightedChunkRequest->mutable_upper_limit(), *chunk->UpperLimit());
         }
 
-        if (const auto *columnStableNames = FindColumnStableNames(index)) {
+        if (const auto* columnStableNames = FindColumnStableNames(index)) {
             for (const auto& columnName : *columnStableNames) {
                 auto columnId = nameTable->GetIdOrRegisterName(columnName.Underlying());
                 weightedChunkRequest->mutable_column_filter()->add_indexes(columnId);

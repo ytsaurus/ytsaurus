@@ -4,7 +4,7 @@ PY3_LIBRARY()
 
 PROVIDES(ujson)
 
-VERSION(5.10.0)
+VERSION(5.11.0)
 
 LICENSE(BSD-3-Clause)
 
@@ -14,8 +14,8 @@ PEERDIR(
 
 ADDINCL(
     contrib/libs/double-conversion/double-conversion
-    contrib/python/ujson/lib
-    contrib/python/ujson/python
+    contrib/python/ujson/ujson/lib
+    contrib/python/ujson/ujson/python
 )
 
 NO_COMPILER_WARNINGS()
@@ -25,12 +25,12 @@ NO_LINT()
 NO_UTIL()
 
 SRCS(
-    lib/dconv_wrapper.cc
-    lib/ultrajsondec.c
-    lib/ultrajsonenc.c
-    python/JSONtoObj.c
-    python/objToJSON.c
-    python/ujson.c
+    ujson/lib/dconv_wrapper.cc
+    ujson/lib/ultrajsondec.c
+    ujson/lib/ultrajsonenc.c
+    ujson/python/JSONtoObj.c
+    ujson/python/objToJSON.c
+    ujson/python/ujson.c
 )
 
 PY_REGISTER(
@@ -39,7 +39,7 @@ PY_REGISTER(
 
 PY_SRCS(
     TOP_LEVEL
-    ujson.pyi
+    ujson-stubs/__init__.pyi
 )
 
 RESOURCE_FILES(

@@ -418,6 +418,8 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default(256);
     registrar.Parameter("max_supported_yql_version", &TThis::MaxSupportedYqlVersion)
         .Default();
+    registrar.Parameter("insecure_secret_path_subjects", &TThis::InsecureSecretPathSubjects)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

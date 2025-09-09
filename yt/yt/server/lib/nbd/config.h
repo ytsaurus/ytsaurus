@@ -21,7 +21,6 @@ DEFINE_ENUM_UNKNOWN_VALUE(EFilesystemType, Unknown);
 struct TChunkBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 Size;
     int MediumIndex;
     EFilesystemType FsType;

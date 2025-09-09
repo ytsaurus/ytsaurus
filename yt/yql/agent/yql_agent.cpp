@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
@@ -25,6 +26,9 @@
 #include <yt/yt/core/net/config.h>
 
 #include <yt/yql/plugin/bridge/plugin.h>
+
+#include <util/generic/hash_set.h>
+#include <util/string/builder.h>
 
 namespace NYT::NYqlAgent {
 
@@ -503,7 +507,26 @@ private:
                     queryClients[cluster] = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
                 }
 
-                dst["content"] = ConvertTo<TString>(WaitFor(queryClients[cluster]->GetNode(ypath.GetPath())).ValueOrThrow());
+                auto& queryClient = queryClients[cluster];
+                if (!Config_->InsecureSecretPathSubjects.empty()) {
+                    auto allowedReadSubjects = FetchAllowedReadSubjects(queryClient, ypath.GetPath());
+                    std::vector<std::string> insecureSubjects;
+
+                    for (const auto& subject : Config_->InsecureSecretPathSubjects) {
+                        if (allowedReadSubjects.contains(subject)) {
+                            insecureSubjects.push_back(subject);
+                        }
+                    }
+
+                    if (!insecureSubjects.empty()) {
+                        THROW_ERROR_EXCEPTION("Found insecure subjects for provided secret")
+                            << TErrorAttribute("secret_id", src.id())
+                            << TErrorAttribute("secret_path", src.ypath())
+                            << TErrorAttribute("insecure_subjects", insecureSubjects);
+                    }
+                }
+
+                dst["content"] = ConvertTo<TString>(WaitFor(queryClient->GetNode(ypath.GetPath())).ValueOrThrow());
                 if (src.has_category()) {
                     dst["category"] = src.category();
                 }
@@ -602,7 +625,30 @@ private:
         }
         // TODO(max42): original YSON tends to unnecessary pretty.
         *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
-    };
+    }
+
+    THashSet<std::string> FetchAllowedReadSubjects(
+        NApi::NNative::IClientPtr client, const TString& path)
+    {
+        auto aclAttributePath = ::TStringBuilder() << path << "/@effective_acl";
+
+        auto acl = ConvertTo<std::vector<NSecurityClient::TSerializableAccessControlEntry>>(
+            WaitFor(client->GetNode(aclAttributePath)).ValueOrThrow());
+
+        THashSet<std::string> allowedReadSubjects;
+
+        for (const auto& ace : acl) {
+            if (ace.Action == NSecurityClient::ESecurityAction::Allow
+                && Any(ace.Permissions & NYTree::EPermission::Read)
+            ) {
+                for (auto& subject : ace.Subjects) {
+                    allowedReadSubjects.insert(std::move(subject));
+                }
+            }
+        }
+
+        return allowedReadSubjects;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

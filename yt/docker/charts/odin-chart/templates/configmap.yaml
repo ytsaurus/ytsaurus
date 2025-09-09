@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "odin.fullname" . }}-config
+data:
+  odin_config.json: |
+    {
+      "checks": {
+        "check_log_messages_max_size": 16384,
+        "check_timeout": 65,
+        "path": "checks"
+      },
+      "clusters": {
+        {{- range $i, $c := .Values.config.odin.clusters }}
+        {{- if $i}},{{ end }}
+        "{{ $c.cluster }}": {
+          "db_config": {
+            "options": {
+              "cluster": "{{ $c.cluster }}",
+              "proxy": "{{ $.Values.config.odin.db.proxy }}",
+              "table": "//sys/odin/checks",
+              "token_env_variable": "{{ $.Values.config.odin.db.tokenEnvVariable }}"
+            }
+          },
+          "yt_config": {
+            "proxy": "{{ $c.proxy }}",
+            "token_env_variable": "{{ $c.tokenEnvVariable }}"
+          }
+        }
+        {{- end }}
+      },
+      "logging": {
+        "level": "DEBUG",
+        "port": {{ .Values.config.odin.logging.port }},
+        "filename": "{{ .Values.config.odin.logging.filename }}"
+      },
+      "service_config": {
+        "path": "//sys/odin",
+        "shard_count": 1,
+        "timeout": 1,
+        "pids_file": "odin.pids",
+        "proxy": "{{ .Values.config.odin.db.proxy}}",
+        "token_env_variable": "{{ .Values.config.odin.db.tokenEnvVariable }}"
+      },
+      "template": {
+        "db_config": {
+            "options": {
+                "cluster": "0",
+                "config": {
+                    "dynamic_table_retries": {
+                        "backoff": {
+                            "exponential_policy": {
+                                "base": 2,
+                                "decay_factor_bound": 0.3,
+                                "max_timeout": 40000,
+                                "start_timeout": 10000
+                            },
+                            "policy": "exponential"
+                        },
+                        "count": 3,
+                        "total_timeout": 80000
+                    },
+                    "proxy": {
+                        "heavy_request_timeout": 5000,
+                        "request_timeout": 5000,
+                        "retries": {
+                            "backoff": {
+                                "exponential_policy": {
+                                    "base": 2,
+                                    "decay_factor_bound": 0.3,
+                                    "max_timeout": 40000,
+                                    "start_timeout": 10000
+                                },
+                                "policy": "exponential"
+                            },
+                            "count": 3,
+                            "total_timeout": 80000
+                        }
+                    }
+                },
+                "table": "//sys/odin/checks",
+                "proxy": "{{ .Values.config.odin.db.proxy }}",
+                "token_env_variable": "{{ .Values.config.odin.db.tokenEnvVariable }}"
+            },
+            "type": "yt"
+        },
+        "log_server_config": {
+            "socket_path_pattern": "./yt_odin.{cluster_name}.sock",
+            "storage_writer": {
+                "max_write_batch_size": 256
+            }
+        },
+        "yt_config": {
+            "heavy_request_retry_timeout": 15000,
+            "request_retry_count": 3,
+            "request_retry_timeout": 10000,
+            "request_timeout": 30000
+        }
+      }
+    }
+  odin_webservice_config.json: |
+    {
+      "clusters": {
+        {{- range $i, $c := .Values.config.odin.clusters }}
+        {{- if $i}},{{ end }}
+        "{{ $c.cluster }}": {
+          "db_config": {
+            "options": {
+              "cluster": "{{ $c.cluster }}"
+            }
+          }
+        }
+        {{- end }}
+      },
+      "db_config": {
+        "options": {
+          "table": "//sys/odin/checks",
+          "proxy": "{{ .Values.config.odin.db.proxy }}",
+          "token_env_variable": "{{ .Values.config.odin.db.tokenEnvVariable }}"
+        },
+        "type": "yt"
+      },
+      "debug": {{ .Values.config.webservice.debug }},
+      "host": "{{ .Values.config.webservice.host }}",
+      "logging": {
+        "filename": "{{ .Values.config.webservice.logging.filename }}"
+      },
+      "port": {{ .Values.config.webservice.port }},
+      "services": [
+        {{- range $i, $c := .Values.config.checks }}
+        {{- if $i}},{{ end }}
+        {
+          "display_name": "{{ $c.displayName }}",
+          "name": "{{ $c.name }}"
+        }
+        {{- end }}
+      ],
+      "thread_count": {{ .Values.config.webservice.threadCount }}
+    }
+
+  checks_config.json: |
+    {
+      "checks": {
+        {{- range $i, $c := .Values.config.checks }}
+        {{- if $i}},{{ end }}
+        "{{ $c.name }}": {{ toJson $c.config }}
+        {{- end }}
+      },
+      "cluster_overrides": {}
+    }

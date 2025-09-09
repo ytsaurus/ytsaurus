@@ -1,0 +1,13 @@
+apiVersion: v2
+name: odin-chart
+description: Helm chart to run YTsaurus Odin
+version: 0.0.1
+type: application
+keywords:
+- ytsaurus
+- odin
+- monitoring
+home: https://ytsaurus.tech/
+sources:
+- https://github.com/ytsaurus/ytsaurus
+

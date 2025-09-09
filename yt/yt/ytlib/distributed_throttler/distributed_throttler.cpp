@@ -1281,7 +1281,7 @@ public:
             GroupId_,
             RealmId_))
         , Profiler_(std::move(profiler))
-        , Config_(std::move(config))
+        , Config_(config)
         , DistributedThrottlerService_(New<TDistributedThrottlerService>(
             std::move(rpcServer),
             std::move(invoker),
@@ -1292,7 +1292,7 @@ public:
             Throttlers_,
             Logger,
             std::move(authenticator)))
-        , MemberPriority_(std::move(memberPriority))
+        , MemberPriority_(memberPriority)
     {
         YT_LOG_INFO("Starting distributed throttler factory");
 
@@ -1303,12 +1303,11 @@ public:
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
 
-        auto conf = Config_.Acquire();
-
         if (MemberPriority_) {
             MemberClient_->SetPriority(MemberPriority_.value());
         } else {
-            switch (conf->MemberPriorityGenerator) {
+            // Generate and set member priority.
+            switch (config->MemberPriorityGenerator) {
                 case EDistributedThrottlerMemberPriorityGenerator::StartTime:
                     MemberClient_->SetPriority(TInstant::Now().Seconds());
                     break;
@@ -1316,8 +1315,8 @@ public:
                     MemberClient_->SetPriority(RandomNumber<ui64>());
                     break;
                 default:
-                    THROW_ERROR_EXCEPTION("Unsupported member priority generator: %Qlv",
-                        conf->MemberPriorityGenerator);
+                    THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
+                        config->MemberPriorityGenerator);
                     break;
             }
         }
