@@ -348,7 +348,7 @@ message TUserJobSpec
 
     map<string, TSidecarJobSpec> sidecars = 84;
 
-    optional bool append_debug_options = 85 [default = false];
+    optional bool enable_debug_command_line_arguments = 85 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

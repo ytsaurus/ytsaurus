@@ -1332,7 +1332,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("redirect_stdout_to_stderr", &TThis::RedirectStdoutToStderr)
         .Default(false);
 
-    registrar.Parameter("append_debug_options", &TThis::AppendDebugOptions)
+    registrar.Parameter("enable_debug_command_line_arguments", &TThis::EnableDebugCommandLineArguments)
         .Default(false);
 
     registrar.Parameter("profilers", &TThis::Profilers)
