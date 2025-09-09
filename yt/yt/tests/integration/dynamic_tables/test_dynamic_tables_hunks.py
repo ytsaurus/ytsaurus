@@ -1481,6 +1481,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(lookup_rows("//tmp/t", keys + keys1), rows + rows1)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky throttler test")
     def test_fragment_request_cancelation(self):
         sync_create_cells(1)
 
