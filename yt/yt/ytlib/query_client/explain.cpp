@@ -158,7 +158,7 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnord
     fluent
         .Item("where_expression").Value(InferName(predicate, true))
         .Item("joins").BeginList()
-            .DoFor(groupedJoins, [&] (auto fluent, TRange<TConstJoinClausePtr> joinGroup) {
+            .DoFor(groupedJoins, [] (auto fluent, TRange<TConstJoinClausePtr> joinGroup) {
                 fluent.Item().BeginList().
                     DoFor(joinGroup, [&] (auto fluent, const TConstJoinClausePtr& joinClause) {
                         fluent.Item()
@@ -187,6 +187,46 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnord
     GetFrontQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
 }
 
+void BuildQueryDescriptor(
+    TFluentMap fluent,
+    const NApi::NNative::IConnectionPtr& connection,
+    const TPlanFragmentPtr& fragment,
+    const NApi::TExplainQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
+    bool allowUnorderedGroupByWithLimit,
+    bool subquery = false)
+{
+    const auto& query = fragment->Query;
+
+    fluent
+        .Item(subquery ? "subquery" : "query").DoMap([&] (auto fluent) {
+            GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
+            if (fragment->SubqueryFragment) {
+                BuildQueryDescriptor(
+                    fluent,
+                    connection,
+                    fragment->SubqueryFragment,
+                    options,
+                    memoryChunkProvider,
+                    allowUnorderedGroupByWithLimit,
+                    /*subquery*/ true);
+            } else {
+                GetReadRangesInfo(fluent, connection, query, fragment->DataSource, options, memoryChunkProvider);
+
+                auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(query);
+                fluent
+                    .Item("bottom_query")
+                    .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
+                        GetQueryInfo(fluent, bottomQuery, allowUnorderedGroupByWithLimit);
+                    });
+                fluent.Item("front_query")
+                    .DoMap([&, frontQuery = frontQuery] (auto fluent) {
+                        GetFrontQueryInfo(fluent, frontQuery, allowUnorderedGroupByWithLimit);
+                    });
+            }
+        });
+}
+
 NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
     const TPlanFragmentPtr& fragment,
@@ -195,30 +235,19 @@ NYson::TYsonString BuildExplainQueryYson(
     const IMemoryChunkProviderPtr& memoryChunkProvider,
     bool allowUnorderedGroupByWithLimit)
 {
-    const auto& query = fragment->Query;
-    const TDataSource& dataSource = fragment->DataSource;
-
     return BuildYsonStringFluently()
-        .BeginMap()
-        .Item("udf_registry_path").Value(udfRegistryPath)
-        .Item("query")
         .DoMap([&] (auto fluent) {
-            GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
-            GetReadRangesInfo(fluent, connection, query, dataSource, options, memoryChunkProvider);
-        })
-        .Do([&] (TFluentMap fluent) {
-            auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(query);
             fluent
-                .Item("bottom_query")
-                .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
-                    GetQueryInfo(fluent, bottomQuery, allowUnorderedGroupByWithLimit);
-                });
-            fluent.Item("front_query")
-                .DoMap([&, frontQuery = frontQuery] (auto fluent) {
-                    GetFrontQueryInfo(fluent, frontQuery, allowUnorderedGroupByWithLimit);
-                });
-        })
-        .EndMap();
+                .Item("udf_registry_path").Value(udfRegistryPath);
+
+            BuildQueryDescriptor(
+                fluent,
+                connection,
+                fragment,
+                options,
+                memoryChunkProvider,
+                allowUnorderedGroupByWithLimit);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
