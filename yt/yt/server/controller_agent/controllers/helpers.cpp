@@ -104,6 +104,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
         dataSource->SetAccount(inputTable->Account);
         dataSource->SetForeign(inputTable->IsForeign());
         dataSource->SetClusterName(inputTable->ClusterName);
+        dataSource->SetRlsReadSpec(inputTable->RlsReadSpec);
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
 

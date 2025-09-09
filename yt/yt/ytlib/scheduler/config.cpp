@@ -919,6 +919,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("omit_inaccessible_columns", &TThis::OmitInaccessibleColumns)
         .Default(false);
 
+    registrar.Parameter("omit_inaccessible_rows", &TThis::OmitInaccessibleRows)
+        .Default(false);
+
     registrar.Parameter("additional_security_tags", &TThis::AdditionalSecurityTags)
         .Default();
 

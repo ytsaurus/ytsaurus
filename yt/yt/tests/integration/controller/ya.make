@@ -21,6 +21,7 @@ TEST_SRCS(
     test_reduce_operation.py
     test_remote_copy_operation.py
     test_remote_operation.py
+    test_rls.py
     test_shuffle_service.py
     test_sort_operation.py
     test_user_job_spec.py

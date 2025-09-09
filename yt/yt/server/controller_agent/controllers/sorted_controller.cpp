@@ -824,7 +824,8 @@ public:
     bool IsRowCountPreserved() const override
     {
         return !Spec_->Sampling->SamplingRate &&
-            !Spec_->JobIO->TableReader->SamplingRate;
+            !Spec_->JobIO->TableReader->SamplingRate &&
+            !InputManager_->HasRlAcl();
     }
 
     TUserJobSpecPtr GetUserJobSpec() const override
