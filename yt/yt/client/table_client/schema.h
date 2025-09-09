@@ -270,6 +270,10 @@ public:
     const TColumnSchema& GetColumnOrThrow(TStringBuf name) const;
     std::vector<TString> GetColumnNames() const;
 
+    //! TODO(achulkov2): This method is used in a likely dead code path, will probably just have to be removed.
+    //! Thus, not bothering with a comment.
+    std::vector<TString> GetColumnNames(const std::optional<TNameMapping>& nameMapping) const;
+
     TTableSchemaPtr Filter(
         const TColumnFilter& columnFilter,
         bool discardSortOrder = false) const;

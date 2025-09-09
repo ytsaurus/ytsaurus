@@ -211,6 +211,7 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* job
                 newChunkSpec.mutable_chunk_id()->CopyFrom(proxiedChunkSpec.chunk_id());
                 newChunkSpec.set_erasure_codec(proxiedChunkSpec.erasure_codec());
                 newChunkSpec.mutable_replicas()->CopyFrom(proxiedChunkSpec.replicas());
+                newChunkSpec.mutable_replica_specs()->CopyFrom(proxiedChunkSpec.replica_specs());
                 chunkIdToOriginalSpec.emplace(proxiedChunkId, New<TRefCountedChunkSpec>(chunkSpec));
 
                 YT_LOG_DEBUG(
@@ -258,6 +259,7 @@ void PatchInterruptDescriptor(
 
                     chunkSpec.mutable_chunk_id()->CopyFrom(originalSpec->chunk_id());
                     chunkSpec.set_erasure_codec(originalSpec->erasure_codec());
+                    chunkSpec.mutable_replica_specs()->CopyFrom(originalSpec->replica_specs());
                     chunkSpec.mutable_replicas()->CopyFrom(originalSpec->replicas());
                 }
             }

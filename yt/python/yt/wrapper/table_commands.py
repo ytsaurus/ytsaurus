@@ -1040,6 +1040,25 @@ def is_sorted(table, client=None):
             client=client)
 
 
+def attach_table(
+    destination_table,  # type: str | TablePath
+    source_uris,  # type: list[str]
+    client=None,  # type: YtClient | None
+):
+    """Attaches external sources, e.g. S3 URLs, to table.
+
+    :param destination_table: output table. Specify `TablePath` attributes for append mode or something like `<append=%true>//path/to/table`.
+        If the table does not exist, it will be created.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param source_uris: URIs, e.g. s3://bucket/key.
+    """
+
+    params = {"path": TablePath(destination_table, client=client)}
+    set_param(params, "source_uris", source_uris)
+
+    return make_request("attach_table", params, client=client)
+
+
 def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replica_id=None,
                 replication_progress=None, client=None):
     """Performs schema and other table meta information modifications.

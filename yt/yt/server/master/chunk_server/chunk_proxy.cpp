@@ -349,22 +349,21 @@ private:
         TChunkId chunkId,
         TMediumPtrWithReplicaInfoList offshoreReplicas)
     {
-        SortBy(offshoreReplicas, [] (TMediumPtrWithReplicaInfo replica) {
-            return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetIndex());
+        SortBy(offshoreReplicas, [] (const auto& offshoreReplica) {
+            return std::tuple(offshoreReplica.GetReplicaIndex(), offshoreReplica.GetEffectiveMediumIndex());
         });
 
         BuildYsonFluently(consumer)
-            .DoListFor(offshoreReplicas, [&] (TFluentList fluent, TMediumPtrWithReplicaInfo replica) {
-                const auto* medium = replica.GetPtr();
+            .DoListFor(offshoreReplicas, [&] (TFluentList fluent, TOffshoreReplica offshoreReplica) {
                 SerializeReplica(
                     fluent,
                     chunkManager,
                     chunkId,
                     /*node*/ nullptr,
                     /*location*/ nullptr,
-                    replica.GetReplicaIndex(),
-                    replica.GetReplicaState(),
-                    medium->GetIndex());
+                    offshoreReplica.GetReplicaIndex(),
+                    offshoreReplica.GetReplicaState(),
+                    offshoreReplica.GetEffectiveMediumIndex());
             });
     }
 
@@ -1322,8 +1321,10 @@ private:
         auto* chunkSpec = response->add_chunks();
         ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
         ToProto(chunkSpec->mutable_replicas(), replicas);
+        ToProto(chunkSpec->mutable_replica_specs(), replicas);
         for (const auto& offshoreReplica : offshoreReplicas) {
             chunkSpec->add_replicas(ToProto<ui64>(offshoreReplica));
+            ToProto(chunkSpec->add_replica_specs(), offshoreReplica);
         }
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));

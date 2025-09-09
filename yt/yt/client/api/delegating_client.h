@@ -87,6 +87,12 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+    DELEGATE_METHOD(TFuture<void>, AttachTable, (
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const TAttachTableOptions& options),
+        (path, std::move(sourceUris), options))
+
     // Queues
     DELEGATE_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueue, (
         const NYPath::TRichYPath& queuePath,

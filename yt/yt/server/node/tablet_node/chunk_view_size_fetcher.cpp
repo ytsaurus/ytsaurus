@@ -234,6 +234,7 @@ private:
         NChunkClient::NProto::TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), store->GetChunkId());
         ToProto(chunkSpec.mutable_replicas(), replicas.Replicas);
+        ToProto(chunkSpec.mutable_replica_specs(), replicas.Replicas);
         ToProto(chunkSpec.mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas.Replicas));
         *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
 

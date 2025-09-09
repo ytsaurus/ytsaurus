@@ -706,6 +706,18 @@ TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
         PatchTransactionId(options));
 }
 
+TFuture<void> TTransaction::AttachTable(
+    const TRichYPath& path,
+    std::vector<std::string> sourceUris,
+    const NApi::TAttachTableOptions& options)
+{
+    ValidateActive();
+    return Client_->AttachTable(
+        path,
+        std::move(sourceUris),
+        PatchTransactionId(options));
+}
+
 TFuture<NYson::TYsonString> TTransaction::GetNode(
     const TYPath& path,
     const TGetNodeOptions& options)

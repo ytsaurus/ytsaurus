@@ -12,6 +12,7 @@
 #include "versioned_chunk_reader.h"
 #include "cached_versioned_chunk_meta.h"
 
+#include <yt/yt/client/chunk_client/helpers.h>
 #include <yt/yt/ytlib/table_chunk_format/public.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
@@ -256,6 +257,7 @@ public:
         int rowIndexId,
         TReaderVirtualValues virtualValues,
         const TClientChunkReadOptions& chunkReadOptions,
+        const TKeyWideningOptions& keyWideningOptions,
         std::optional<i64> virtualRowIndex = {})
         : ChunkSpec_(chunkSpec)
         , Config_(std::move(config))
@@ -263,6 +265,7 @@ public:
         , DataSliceDescriptor_(chunkSpec, virtualRowIndex)
         , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
         , RowIndexId_(rowIndexId)
+        , KeyWideningOptions_(keyWideningOptions)
         , Sampler_(CreateSampler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
         , VirtualValues_(virtualValues)
         , Logger(TableClientLogger().WithTag("ChunkReaderId: %v, ChunkId: %v",
@@ -309,6 +312,7 @@ protected:
     // For filtered out columns maps id to -1.
     const std::vector<int> ChunkToReaderIdMapping_;
     const int RowIndexId_ = -1;
+    const TKeyWideningOptions KeyWideningOptions_;
 
     TMemoryUsageTrackerGuard MemoryGuard_;
 
@@ -453,6 +457,7 @@ public:
         int rowIndexId,
         const TReaderVirtualValues& virtualValues,
         const TClientChunkReadOptions& chunkReadOptions,
+        const TKeyWideningOptions& keyWideningOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
         std::optional<int> partitionTag,
@@ -473,6 +478,7 @@ public:
             rowIndexId,
             virtualValues,
             chunkReadOptions,
+            keyWideningOptions,
             virtualRowIndex)
         , ChunkMeta_(chunkMeta)
         , BlockLastKeys_(ChunkMeta_->BlockLastKeys())
@@ -504,7 +510,7 @@ protected:
 
     int CurrentBlockIndex_ = 0;
 
-    std::unique_ptr<THorizontalBlockReader> BlockReader_;
+    std::unique_ptr<IHorizontalBlockReader> BlockReader_;
 
     std::vector<int> BlockIndexes_;
 
@@ -519,6 +525,8 @@ protected:
     }
 
     TFuture<void> InitBlockFetcher();
+    //! Initializes appropriate block reader for the current block.
+    void InitBlockReader();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -545,6 +553,45 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
     }
 
     return DoOpen(std::move(blocks), ChunkMeta_->Misc());
+}
+
+void THorizontalSchemalessChunkReaderBase::InitBlockReader()
+{
+    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+
+    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+
+    if (ChunkMeta_->GetChunkFormat() == EChunkFormat::TableUnversionedSchemalessHorizontal) {
+        YT_LOG_DEBUG("Initializing regular horizontal block reader (BlockIndex: %v, ChunkFormat: %lv)", blockIndex, ChunkMeta_->GetChunkFormat());
+        BlockReader_.reset(new THorizontalBlockReader(
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            blockMeta,
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+            ChunkMeta_->HunkChunkRefs(),
+            ChunkMeta_->HunkChunkMetas(),
+            ChunkToReaderIdMapping_,
+            SortOrders_,
+            CommonKeyPrefix_,
+            KeyWideningOptions_,
+            GetRootSystemColumnCount()));
+    } else {
+        YT_LOG_DEBUG("Initializing arrow horizontal block reader (BlockIndex: %v, ChunkFormat: %lv)", blockIndex, ChunkMeta_->GetChunkFormat());
+        BlockReader_.reset(new TArrowHorizontalBlockReader(
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            blockMeta,
+            ChunkMeta_,
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+            ChunkMeta_->HunkChunkRefs(),
+            ChunkMeta_->HunkChunkMetas(),
+            ChunkToReaderIdMapping_,
+            SortOrders_,
+            CommonKeyPrefix_,
+            KeyWideningOptions_,
+            GetRootSystemColumnCount()));
+    }
 }
 
 TDataStatistics THorizontalSchemalessChunkReaderBase::GetDataStatistics() const
@@ -589,6 +636,7 @@ public:
             rowIndexId,
             virtualValues,
             chunkReadOptions,
+            keyWideningOptions,
             sortOrders,
             commonKeyPrefix,
             partitionTag,
@@ -596,7 +644,6 @@ public:
             virtualRowIndex)
         , ReadRange_(readRange)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
-        , KeyWideningOptions_(keyWideningOptions)
     {
         YT_LOG_DEBUG("Reading range of a chunk (Range: %v)", ReadRange_);
 
@@ -662,7 +709,6 @@ private:
     TReadRange ReadRange_;
 
     const int InterruptDescriptorKeyLength_;
-    const TKeyWideningOptions KeyWideningOptions_;
 
     void InitFirstBlock() override;
     void InitNextBlock() override;
@@ -688,19 +734,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
-    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetRootSystemColumnCount()));
+    InitBlockReader();
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
@@ -850,7 +884,6 @@ protected:
     TRange<TLegacyKey> LowerBoundCmpRange_;
     TRange<TLegacyKey> UpperBoundCmpRange_;
 
-    TKeyWideningOptions KeyWideningOptions_;
     bool HasMoreBlocks_ = true;
 
     TReadLimit ChunkSpecLowerLimit_, ChunkSpecUpperLimit_;
@@ -948,12 +981,12 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
         rowIndexId,
         virtualValues,
         chunkReadOptions,
+        keyWideningOptions,
         sortOrders,
         commonKeyPrefix,
         partitionTag,
         memoryManagerHolder)
     , Keys_(keyPrefixes)
-    , KeyWideningOptions_(keyWideningOptions)
     , ChunkState_(chunkState)
 {
     const auto& misc = ChunkMeta_->Misc();
@@ -1102,21 +1135,7 @@ void THorizontalSchemalessLookupChunkReaderBase::ComputeBlockIndexes(TRange<TLeg
 
 void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
 {
-    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
-
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetRootSystemColumnCount()));
+    InitBlockReader();
 }
 
 void THorizontalSchemalessLookupChunkReaderBase::InitNextBlock()
@@ -1555,6 +1574,7 @@ public:
             rowIndexId,
             virtualValues,
             chunkReadOptions,
+            keyWideningOptions,
             virtualRowIndex)
         , TColumnarUnversionedRangeChunkReader<TColumnarRangeChunkReaderBase>(
             chunkMeta,
@@ -2128,7 +2148,8 @@ public:
             chunkToReaderIdMapping,
             rowIndexId,
             virtualValues,
-            chunkReadOptions)
+            chunkReadOptions,
+            keyWideningOptions)
         , TColumnarUnversionedRangeChunkReader<TColumnarLookupChunkReaderBase>(
             chunkMeta,
             chunkState->DataSource,
@@ -2336,6 +2357,19 @@ struct TReaderParams
             chunkMeta->ChunkSchema()->GetSortColumns(
                 chunkState->TableSchema->GetNameMapping()));
 
+        // TODO(achulkov2): This branch of code was added during my first attempt to make sorted external tables work.
+        // The idea was to consider all columns from chunk schema sorted and thus just take the correct prefix from the
+        // provided sort order. That was before I realized that we will have to persist the sorted-ness of a chunk anyway
+        // because there is some metadata we cannot just obtain from parquet meta. Thus, if we attach sorted data, we can
+        // mark columns in chunk schema with the appropriate sort order and reuse the existing logic.
+        // Moreover, we don't even have the ability to create chunks with a schema different from the current table schema.
+        // All in all, the code below will probably need to be removed.
+
+        // if (GetReplicasByType(GetReplicasFromChunkSpec(chunkState->ChunkSpec)).DomesticReplicas.empty()) {
+        //     chunkSortColumnNames = chunkMeta->ChunkSchema()->GetColumnNames(
+        //         chunkState->TableSchema->GetNameMapping());
+        // }
+
         CommonKeyPrefix = GetCommonKeyPrefix(
             chunkSortColumnNames,
             sortColumnNames);
@@ -2391,6 +2425,9 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     auto sortOrders = GetSortOrders(sortColumns);
 
     switch (chunkMeta->GetChunkFormat()) {
+        case EChunkFormat::TableUnversionedArrowParquet:
+        case EChunkFormat::TableUnversionedArrowJsonLines:
+        case EChunkFormat::TableUnversionedArrowCsv:
         case EChunkFormat::TableUnversionedSchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
                 chunkState,

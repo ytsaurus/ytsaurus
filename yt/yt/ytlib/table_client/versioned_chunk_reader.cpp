@@ -261,7 +261,7 @@ public:
 
         while (rows.size() < rows.capacity()) {
             if (CheckKeyLimit_ &&
-                CompareKeys(BlockReader_->GetKey(), GetCurrentRangeUpperKey(), KeyComparer_) >= 0)
+                CompareKeys(BlockReader_->GetLegacyKey(), GetCurrentRangeUpperKey(), KeyComparer_) >= 0)
             {
                 falsePositiveRangeCount += static_cast<i64>(IsLastRangeEmpty_);
                 IsLastRangeEmpty_ = true;
@@ -279,7 +279,7 @@ public:
                 }
             }
 
-            auto row = BlockReader_->GetRow(&MemoryPool_);
+            auto row = BlockReader_->GetMutableVersionedRow(&MemoryPool_);
             if (row) {
                 YT_ASSERT(
                     rows.empty() ||
@@ -533,8 +533,8 @@ public:
                 break;
             }
 
-            if (key == BlockReader_->GetKey()) {
-                auto row = BlockReader_->GetRow(&MemoryPool_);
+            if (key == BlockReader_->GetLegacyKey()) {
+                auto row = BlockReader_->GetMutableVersionedRow(&MemoryPool_);
                 if (hasHunkColumns) {
                     GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
                 }
@@ -542,11 +542,11 @@ public:
                 ++KeyIndex_;
                 ++rowCount;
                 dataWeight += GetDataWeight(rows.back());
-            } else if (BlockReader_->GetKey() > key) {
+            } else if (BlockReader_->GetLegacyKey() > key) {
                 auto nextKeyIt = std::lower_bound(
                     Keys_.begin() + KeyIndex_,
                     Keys_.end(),
-                    BlockReader_->GetKey());
+                    BlockReader_->GetLegacyKey());
 
                 size_t skippedKeys = std::distance(Keys_.begin() + KeyIndex_, nextKeyIt);
                 skippedKeys = std::min(skippedKeys, rows.capacity() - rows.size());

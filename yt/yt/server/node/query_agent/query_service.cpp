@@ -1055,6 +1055,7 @@ private:
         auto localNodeId = Bootstrap_->GetNodeId();
         auto replicas = chunk->GetReplicas(localNodeId);
         ToProto(chunkSpec->mutable_replicas(), replicas);
+        ToProto(chunkSpec->mutable_replica_specs(), replicas);
         ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());

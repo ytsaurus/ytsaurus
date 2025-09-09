@@ -319,6 +319,34 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAttachTableCommand::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("source_uris", &TThis::SourceUris)
+        .Default();
+}
+
+void TAttachTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
+{
+    auto transaction = AttachTransaction(context, false);
+
+    // XXX(babenko): temporary workaround; this is how it actually works but not how it is intended to be.
+    Options.PingAncestors = true;
+
+    PutMethodInfoInTraceContext("attach_table");
+
+    WaitFor(context->GetClient()->AttachTable(Path, SourceUris, Options))
+        .ThrowOnError();
+}
+
+void TAttachTableCommand::DoExecute(ICommandContextPtr context)
+{
+    DoExecuteImpl(context);
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGetTableColumnarStatisticsCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("paths", &TThis::Paths);

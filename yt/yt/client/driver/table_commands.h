@@ -98,6 +98,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAttachTableCommand
+    : public TTypedCommand<NApi::TAttachTableOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TAttachTableCommand);
+
+    static void Register(TRegistrar registrar);
+
+protected:
+    void DoExecuteImpl(const ICommandContextPtr& context);
+
+private:
+    NYPath::TRichYPath Path;
+    std::vector<std::string> SourceUris;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetTableColumnarStatisticsCommand
     : public TTypedCommand<NApi::TGetColumnarStatisticsOptions>
 {

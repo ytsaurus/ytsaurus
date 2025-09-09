@@ -217,7 +217,21 @@ using TChunkLocationPtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex
 using TChunkLocationPtrWithReplicaAndMediumIndexList = TCompactVector<TChunkLocationPtrWithReplicaAndMediumIndex, TypicalReplicaCount>;
 
 using TMediumPtrWithReplicaInfo = TPtrWithReplicaInfo<TMedium>;
-using TMediumPtrWithReplicaInfoList = TCompactVector<TMediumPtrWithReplicaInfo, 1>;
+
+struct TOffshoreReplica {
+    TMediumPtrWithReplicaInfo Replica;
+    std::string SourceUri;
+
+    TMedium* GetMedium() const;
+    int GetEffectiveMediumIndex() const;
+    int GetReplicaIndex() const;
+    EChunkReplicaState GetReplicaState() const;
+
+    void Load(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+};
+
+using TMediumPtrWithReplicaInfoList = TCompactVector<TOffshoreReplica, 1>;
 
 using TChunkPtrWithReplicaInfo = TPtrWithReplicaInfo<TChunk>;
 using TChunkPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunk>;
@@ -246,11 +260,13 @@ void ToProto(ui64* protoValue, TNodePtrWithReplicaAndMediumIndex value);
 // COMPAT(babenko)
 //! Serializes node id, replica index; omits medium index.
 void ToProto(ui32* protoValue, TNodePtrWithReplicaAndMediumIndex value);
+void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TNodePtrWithReplicaAndMediumIndex value);
 //! Serializes node id, replica index.
 void ToProto(ui32* protoValue, TNodePtrWithReplicaIndex value);
 //! Serializes node id, replica index, medium index.
 void ToProto(ui64* protoValue, TChunkLocationPtrWithReplicaIndex value);
 void ToProto(ui64* protoValue, TChunkLocationPtrWithReplicaInfo value);
+void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TChunkLocationPtrWithReplicaInfo value);
 //! Serializes node id, replica index.
 void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaIndex value);
 void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaInfo value);
@@ -261,6 +277,12 @@ void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, T
 
 //! Serializes node id = OffshoreNodeId sentinel, replica index, medium index.
 void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value);
+
+void ToProto(ui64* protoValue, TOffshoreReplica value);
+
+void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TOffshoreReplica value);
+
+void FormatValue(TStringBuilderBase* builder, TOffshoreReplica value, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

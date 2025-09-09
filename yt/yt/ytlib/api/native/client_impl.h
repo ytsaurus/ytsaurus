@@ -452,6 +452,11 @@ public: \
     TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
+    IMPLEMENT_METHOD(void, AttachTable, (
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const NApi::TAttachTableOptions& options),
+        (path, std::move(sourceUris), options))
 
     TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,

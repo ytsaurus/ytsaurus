@@ -599,6 +599,12 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, AttachTable, (
+        const TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const TAttachTableOptions& options),
+        (path, std::move(sourceUris), options))
+
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionPtr>, StartDistributedWriteSession, (
         const NYPath::TRichYPath& path,
         const TDistributedWriteSessionStartOptions& options),

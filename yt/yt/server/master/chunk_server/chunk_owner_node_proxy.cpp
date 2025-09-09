@@ -167,9 +167,10 @@ void PopulateChunkSpecWithReplicas(
 
     ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
-
-    for (const auto& replica : offshoreReplicas) {
-        chunkSpec->add_replicas(ToProto<ui64>(replica));
+    ToProto(chunkSpec->mutable_replica_specs(), replicas);
+    for (const auto& offshoreReplica : offshoreReplicas) {
+        chunkSpec->add_replicas(ToProto<ui64>(offshoreReplica));
+        ToProto(chunkSpec->add_replica_specs(), offshoreReplica);
     }
 }
 
@@ -1077,9 +1078,8 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                         accountReplica(location->GetEffectiveMediumIndex());
                     }
 
-                    for (auto replica : offshoreReplicas) {
-                        auto* medium = replica.GetPtr();
-                        accountReplica(medium->GetIndex());
+                    for (const auto& replica : offshoreReplicas) {
+                        accountReplica(replica.GetEffectiveMediumIndex());
                     }
 
                     YT_VERIFY(chosenMediumIndex != -1);

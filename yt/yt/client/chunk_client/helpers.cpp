@@ -37,7 +37,11 @@ NObjectClient::TObjectId GetTabletIdFromChunkSpec(const NProto::TChunkSpec& chun
 
 TChunkReplicaWithMediumList GetReplicasFromChunkSpec(const NProto::TChunkSpec& chunkSpec)
 {
-    if (chunkSpec.replicas_size() == 0) {
+    if (chunkSpec.replica_specs_size() != 0) {
+        return FromProto<TChunkReplicaWithMediumList>(chunkSpec.replica_specs());
+    } else if (chunkSpec.replicas_size() != 0) {
+        return FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
+    } else {
         auto legacyReplicas = FromProto<TChunkReplicaList>(chunkSpec.legacy_replicas());
         TChunkReplicaWithMediumList replicas;
         replicas.reserve(legacyReplicas.size());
@@ -45,8 +49,6 @@ TChunkReplicaWithMediumList GetReplicasFromChunkSpec(const NProto::TChunkSpec& c
             replicas.emplace_back(legacyReplica);
         }
         return replicas;
-    } else {
-        return FromProto<TChunkReplicaWithMediumList>(chunkSpec.replicas());
     }
 }
 

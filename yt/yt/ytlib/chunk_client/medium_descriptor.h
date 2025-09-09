@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
+#include <yt/yt/library/s3/object.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,14 +85,9 @@ public:
     TS3MediumDescriptor() = default;
     TS3MediumDescriptor(TString name, int index, int priority, TGuid id, TS3MediumConfigPtr config);
 
-    struct TS3ObjectPlacement
-    {
-        TString Bucket;
-        TString Key;
-    };
+    NS3::TObjectDescriptor GetChunkPlacement(TChunkId chunkId, const std::string& sourceUri) const;
 
-    TS3ObjectPlacement GetChunkPlacement(TChunkId chunkId) const;
-    TS3ObjectPlacement GetChunkMetaPlacement(TChunkId chunkId) const;
+    NS3::TObjectDescriptor GetChunkMetaPlacement(TChunkId chunkId, const std::string& sourceUri) const;
 
 private:
     void FillProto(NProto::TMediumDirectory::TMediumDescriptor* protoItem) const override;

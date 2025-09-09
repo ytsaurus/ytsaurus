@@ -165,6 +165,7 @@ public:
             chunkSpec.set_striped_erasure(owner->IsStripedErasure());
             *chunkSpec.mutable_chunk_meta() = owner->GetChunkMeta();
             ToProto(chunkSpec.mutable_replicas(), owner->GetReplicas(InvalidNodeId));
+            ToProto(chunkSpec.mutable_replica_specs(), owner->GetReplicas(InvalidNodeId));
             CachedWeakChunk_.Reset();
             auto nodeStatusDirectory = Bootstrap_
                 ? Bootstrap_->GetHintManager()

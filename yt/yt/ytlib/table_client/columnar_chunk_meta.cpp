@@ -62,6 +62,9 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
     ChunkFeatures_ = FromProto<EChunkFeatures>(chunkMeta.features());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+    if (auto blocksExt = FindProtoExtension<TBlocksExt>(chunkMeta.extensions())) {
+        Blocks_ = New<TRefCountedBlocksExt>(std::move(*blocksExt));
+    }
     DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));
 
     if (auto columnGroupInfos = FindProtoExtension<TColumnGroupInfosExt>(chunkMeta.extensions())) {
@@ -121,6 +124,7 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 
     ColumnarStatisticsExt_ = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions());
     LargeColumnarStatisticsExt_ = FindProtoExtension<TLargeColumnarStatisticsExt>(chunkMeta.extensions());
+    ParquetFormatMetaExt_ = FindProtoExtension<TParquetFormatMetaExt>(chunkMeta.extensions());
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const

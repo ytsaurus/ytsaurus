@@ -787,6 +787,24 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
         })).As<ITableWriterPtr>();
 }
 
+TFuture<void> TClientBase::AttachTable(
+    const TRichYPath& path,
+    std::vector<std::string> sourceUris,
+    const TAttachTableOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+    auto req = proxy.AttachTable();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_path(), path);
+    for (auto& sourceUri : sourceUris) {
+        req->add_source_uris(TString(sourceUri));
+    }
+
+    ToProto(req->mutable_transactional_options(), options);
+    return req->Invoke().AsVoid();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TDistributedWriteSessionPtr> TClientBase::StartDistributedWriteSession(

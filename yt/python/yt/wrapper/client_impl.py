@@ -3024,6 +3024,19 @@ class YtClient(ClientState):
             file_writer=file_writer, is_stream_compressed=is_stream_compressed, force_create=force_create,
             compute_md5=compute_md5, size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor)
 
+    def attach_table(
+            self,
+            destination_table,
+            source_uris,
+    ):
+        """
+        Attaches external sources, e.g. S3 URIs, to table.
+        """
+        return client_api.attach_table(
+            destination_table,
+            client=self,
+            source_uris=source_uris)
+
     def write_table(
             self,
             table, input_stream,

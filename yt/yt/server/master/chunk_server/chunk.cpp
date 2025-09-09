@@ -319,12 +319,13 @@ void TChunk::AddReplica(
 }
 
 void TChunk::AddOffshoreReplica(
-    TMediumPtrWithReplicaInfo replica)
+    TMediumPtrWithReplicaInfo replica,
+    TStringBuf sourceUri)
 {
     YT_VERIFY(replica.GetPtr()->IsOffshore());
 
     auto* data = MutableOffshoreReplicasData();
-    data->StoredReplicas.push_back(replica);
+    data->StoredReplicas.push_back({replica, std::string(sourceUri)});
 }
 
 // void TChunk::ClearOffshoreReplicas()

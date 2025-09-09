@@ -39,8 +39,6 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     , MaxClipTimestamp_(chunkSpec.max_clip_timestamp())
     , StripedErasure_(chunkSpec.striped_erasure())
 {
-    SetReplicaList(GetReplicasFromChunkSpec(chunkSpec));
-
     const auto& chunkMeta = chunkSpec.chunk_meta();
     if (auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkMeta.extensions())) {
         TotalUncompressedDataSize_ = miscExt->uncompressed_data_size();
@@ -81,37 +79,6 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     }
 }
 
-TChunkReplicaWithMediumList TInputChunkBase::GetReplicaList() const
-{
-    TChunkReplicaWithMediumList replicas;
-
-    replicas.reserve(MaxInputChunkReplicaCount);
-    for (auto replica : Replicas_) {
-        if (replica.GetNodeId() != InvalidNodeId) {
-            replicas.push_back(replica);
-        }
-    }
-    return replicas;
-}
-
-void TInputChunkBase::SetReplicaList(const TChunkReplicaWithMediumList& replicas)
-{
-    // TODO(achulkov2): [PDuringReview] Make all of this more efficient.
-    Replicas_.fill(TChunkReplicaWithMedium());
-    for (int index = 0; index < std::ssize(replicas); ++index) {
-        auto replica = replicas[index];
-        if (ErasureCodec_ == NErasure::ECodec::None) {
-            if (index < MaxInputChunkReplicaCount) {
-                Replicas_[index] = replica;
-            }
-        } else {
-            int erasureIndex = replica.GetReplicaIndex();
-            YT_VERIFY(erasureIndex < MaxInputChunkReplicaCount);
-            Replicas_[erasureIndex] = replica;
-        }
-    }
-}
-
 bool TInputChunkBase::IsDynamicStore() const
 {
     return IsSortedDynamicStore() || IsOrderedDynamicStore();
@@ -141,30 +108,60 @@ bool TInputChunkBase::IsHunk() const
 void TInputChunkBase::CheckOffsets()
 {
     static_assert(offsetof(TInputChunkBase, ChunkId_) == 0, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, Replicas_) == 16, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TableIndex_) == 144, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ErasureCodec_) == 148, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 152, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, RangeIndex_) == 160, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ChunkFormat_) == 164, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 168, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TabletIndex_) == 176, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TabletId_) == 184, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, OverrideTimestamp_) == 200, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxClipTimestamp_) == 208, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 216, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 224, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 232, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 240, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 248, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 256, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 260, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 264, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, StripedErasure_) == 272, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 280, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, TableIndex_) == 16, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ErasureCodec_) == 20, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TableRowIndex_) == 24, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, RangeIndex_) == 32, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ChunkFormat_) == 36, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 40, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TabletIndex_) == 48, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TabletId_) == 56, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, OverrideTimestamp_) == 72, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxClipTimestamp_) == 80, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 88, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 96, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 104, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 112, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 120, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 128, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 132, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, StripedErasure_) == 144, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 152, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TChunkReplicaWithMediumList TInputChunk::GetReplicaList() const
+{
+    TChunkReplicaWithMediumList replicas;
+
+    replicas.reserve(MaxInputChunkReplicaCount);
+    for (auto replica : Replicas_) {
+        if (replica.GetNodeId() != InvalidNodeId) {
+            replicas.push_back(replica);
+        }
+    }
+    return replicas;
+}
+
+void TInputChunk::SetReplicaList(const TChunkReplicaWithMediumList& replicas)
+{
+    // TODO(achulkov2): [PDuringReview] Make all of this more efficient.
+    Replicas_.fill(TChunkReplicaWithMedium());
+    for (int index = 0; index < std::ssize(replicas); ++index) {
+        auto replica = replicas[index];
+        if (ErasureCodec_ == NErasure::ECodec::None) {
+            if (index < MaxInputChunkReplicaCount) {
+                Replicas_[index] = replica;
+            }
+        } else {
+            int erasureIndex = replica.GetReplicaIndex();
+            YT_VERIFY(erasureIndex < MaxInputChunkReplicaCount);
+            Replicas_[erasureIndex] = replica;
+        }
+    }
+}
 
 TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int> keyColumnCount)
     : TInputChunkBase(chunkSpec)
@@ -188,6 +185,7 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
             GetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
 {
+    SetReplicaList(GetReplicasFromChunkSpec(chunkSpec));
     if (IsSortedDynamicStore()) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
         BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();
@@ -239,6 +237,9 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_)
         .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
         .template Serializer<TUniquePtrSerializer<>>()();
+    PHOENIX_REGISTER_FIELD(9, Replicas_)
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
+        .template Serializer<TArraySerializer<>>()();
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -367,6 +368,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     auto replicas = inputChunk->GetReplicaList();
     ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
     ToProto(chunkSpec->mutable_replicas(), replicas);
+    ToProto(chunkSpec->mutable_replica_specs(), replicas);
 
     if (inputChunk->TableIndex_ >= 0) {
         chunkSpec->set_table_index(inputChunk->TableIndex_);

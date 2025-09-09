@@ -1002,6 +1002,7 @@ private:
                 remoteReaderOptions,
                 std::move(chunkReaderHost),
                 chunkId,
+                chunkSpec,
                 seedReplicas);
 
             auto fileName = location->GetChunkPath(chunkId);

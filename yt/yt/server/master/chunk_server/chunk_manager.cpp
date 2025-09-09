@@ -879,7 +879,7 @@ public:
                 chunk,
                 replica.GetReplicaIndex(),
                 EChunkReplicaState::Generic);
-            AddOffshoreChunkReplica(medium, std::move(replicaWithState));
+            AddOffshoreChunkReplica(medium, std::move(replicaWithState), replica.GetSourceUri());
         }
     }
 
@@ -5617,12 +5617,13 @@ private:
 
     void AddOffshoreChunkReplica(
         TMedium* medium,
-        TChunkPtrWithReplicaInfo replica)
+        TChunkPtrWithReplicaInfo replica,
+        TStringBuf sourceUri)
     {
         auto* chunk = replica.GetPtr();
         
         TMediumPtrWithReplicaInfo mediumWithReplicaInfo(medium, replica.GetReplicaIndex(), replica.GetReplicaState());
-        chunk->AddOffshoreReplica(mediumWithReplicaInfo);
+        chunk->AddOffshoreReplica(mediumWithReplicaInfo, sourceUri);
 
         ScheduleChunkRefresh(chunk);
         // No seal scheduling necessary, since journal chunks cannot have offshore replicas.

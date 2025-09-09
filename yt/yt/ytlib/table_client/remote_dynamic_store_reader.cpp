@@ -996,9 +996,11 @@ protected:
             YT_LOG_DEBUG("Dynamic store located: got new replicas");
             ChunkSpec_.clear_legacy_replicas();
             ChunkSpec_.clear_replicas();
+            ChunkSpec_.clear_replica_specs();
             for (auto replica : replicas) {
                 ChunkSpec_.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
                 ChunkSpec_.add_replicas(ToProto<ui64>(replica));
+                ToProto(ChunkSpec_.add_replica_specs(), replica);
             }
 
             PatchChunkSpecWithContinuationToken();

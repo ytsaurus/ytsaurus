@@ -14,6 +14,7 @@ namespace NYT::NChunkClient {
 namespace NProto {
 
 class TChunkInfo;
+class TChunkReplicaSpec;
 class TChunkSpec;
 class TChunkMeta;
 class TBlocksExt;
@@ -206,6 +207,11 @@ DEFINE_ENUM(EChunkFormat,
     ((TableVersionedColumnar)               (5))
     ((TableVersionedIndexed)                (8))
     ((TableVersionedSlim)                   (9))
+
+    // External formats for table chunks.
+    ((TableUnversionedArrowParquet)         (10))
+    ((TableUnversionedArrowJsonLines)       (11))
+    ((TableUnversionedArrowCsv)             (12))
 
     // Journal chunks.
     ((JournalDefault)                       (0))

@@ -19,6 +19,8 @@ void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A compact representation of |(nodeId, replicaIndex, mediumIndex)| triplet.
+//! SourceUri is optional and is empty by default. It represents the source
+//! path for externally sourced data.
 class TChunkReplicaWithMedium
 {
 public:
@@ -29,10 +31,18 @@ public:
         int mediumIndex);
     // NB: Will be assigned to generic medium.
     explicit TChunkReplicaWithMedium(TChunkReplica replica);
+    TChunkReplicaWithMedium(
+        NNodeTrackerClient::TNodeId nodeId,
+        int replicaIndex,
+        int mediumIndex,
+        std::string sourceUri);
 
+    ui64 GetValue() const;
     NNodeTrackerClient::TNodeId GetNodeId() const;
     int GetReplicaIndex() const;
     int GetMediumIndex() const;
+
+    TStringBuf GetSourceUri() const;
 
     TChunkReplica ToChunkReplica() const;
     static TChunkReplicaList ToChunkReplicas(const TChunkReplicaWithMediumList& replicasWithMedia);
@@ -45,10 +55,13 @@ private:
      *  29-37: medium index (7 bits)
      */
     ui64 Value_;
+    std::string SourceUri_;
 
     explicit TChunkReplicaWithMedium(ui64 value);
 
+    friend void ToProto(NProto::TChunkReplicaSpec* value, TChunkReplicaWithMedium replica);
     friend void ToProto(ui64* value, TChunkReplicaWithMedium replica);
+    friend void FromProto(TChunkReplicaWithMedium* replica, NProto::TChunkReplicaSpec value);
     friend void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
     friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
     friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);

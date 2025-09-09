@@ -184,6 +184,11 @@ public:
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 
+    TFuture<void> AttachTable(
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const NApi::TAttachTableOptions& options) override;
+
     // Distributed table client
     TFuture<TDistributedWriteSessionPtr> StartDistributedWriteSession(
         const NYPath::TRichYPath& path,

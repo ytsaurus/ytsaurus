@@ -36,10 +36,6 @@ public:
     // TODO(babenko): this could also be a store id.
     DEFINE_BYVAL_RW_PROPERTY(TChunkId, ChunkId);
 
-    // TODO(achulkov2): [PLater] Is this really the most efficient representation? Chunks rarely have 16 replicas.
-    using TInputChunkReplicas = std::array<TChunkReplicaWithMedium, MaxInputChunkReplicaCount>;
-    DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
-
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);
     DEFINE_BYVAL_RO_PROPERTY(NErasure::ECodec, ErasureCodec, NErasure::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
@@ -75,11 +71,6 @@ public:
     TInputChunkBase(TInputChunkBase&& other) = default;
     explicit TInputChunkBase(const NProto::TChunkSpec& chunkSpec);
 
-    // TODO(babenko): this currently always returns GenericMediumIndex.
-    TChunkReplicaWithMediumList GetReplicaList() const;
-    // TODO(babenko): this currently just drops medium indices.
-    void SetReplicaList(const TChunkReplicaWithMediumList& replicas);
-
     bool IsDynamicStore() const;
     bool IsSortedDynamicStore() const;
     bool IsOrderedDynamicStore() const;
@@ -99,6 +90,10 @@ class TInputChunk
     , public TInputChunkBase
 {
 public:
+    // TODO(achulkov2): [PLater] Is this really the most efficient representation? Chunks rarely have 16 replicas.
+    using TInputChunkReplicas = std::array<TChunkReplicaWithMedium, MaxInputChunkReplicaCount>;
+    DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
+
     // Here are read limits. They are not read-only because of chunk pool unittests.
     using TReadLimitHolder = std::unique_ptr<TLegacyReadLimit>;
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, LowerLimit);
@@ -130,6 +125,9 @@ public:
     explicit TInputChunk(
         const NProto::TChunkSpec& chunkSpec,
         std::optional<int> keyColumnCount = std::nullopt);
+
+    TChunkReplicaWithMediumList GetReplicaList() const;
+    void SetReplicaList(const TChunkReplicaWithMediumList& replicas);
 
     size_t SpaceUsed() const;
 

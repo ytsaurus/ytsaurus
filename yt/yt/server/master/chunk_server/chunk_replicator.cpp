@@ -1130,8 +1130,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     }
 
     for (const auto& replica : offshoreReplicas) {
-        auto mediumIndex = replica.GetPtr()->GetIndex();
-        ++replicaCount[mediumIndex];
+        ++replicaCount[replica.GetEffectiveMediumIndex()];
     }
 
     bool precarious = true;
@@ -2662,7 +2661,7 @@ TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(
     }
 
     for (auto replica : offshoreReplicas) {
-        auto mediumIndex = replica.GetPtr()->GetIndex();
+        auto mediumIndex = replica.GetEffectiveMediumIndex();
         if (!result.Contains(mediumIndex)) {
             result.Set(mediumIndex, TReplicationPolicy(), /*eraseEmpty*/ false);
         }

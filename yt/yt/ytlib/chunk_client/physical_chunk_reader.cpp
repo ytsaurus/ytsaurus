@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_descriptor.h>
 
@@ -21,6 +22,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
+    const NProto::TChunkSpec& chunkSpec,
     TChunkReplicaWithMediumList seedReplicas)
 {
     auto replicasByType = GetReplicasByType(seedReplicas);
@@ -36,10 +38,15 @@ IChunkReaderPtr CreatePhysicalChunkReader(
 
         auto mediumDirectory = chunkReaderHost->Client->GetNativeConnection()->GetMediumDirectory();
 
-        auto mediumDescriptor = mediumDirectory->GetByIndexOrThrow(replicasByType.OffshoreReplicas[0].GetMediumIndex());
+        auto offshoreReplica = replicasByType.OffshoreReplicas[0];
+        auto mediumDescriptor = mediumDirectory->GetByIndexOrThrow(offshoreReplica.GetMediumIndex());
 
         if (const auto s3MediumDescriptor = mediumDescriptor->As<TS3MediumDescriptor>()) {
-            return CreateS3Reader(s3MediumDescriptor, config, chunkId);
+            return CreateS3Reader(
+                s3MediumDescriptor, config, chunkId,
+                NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format()),
+                std::string(offshoreReplica.GetSourceUri())
+            );
         }
 
         THROW_ERROR_EXCEPTION("The medium %Qv is not supported for reading data", mediumDescriptor->GetName())

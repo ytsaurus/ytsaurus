@@ -549,6 +549,7 @@ private:
         for (auto replica : replicas) {
             chunkSpec.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
         }
+        ToProto(chunkSpec.mutable_replica_specs(), replicas);
         ToProto(chunkSpec.mutable_replicas(), replicas);
         chunkSpec.set_table_index(0);
 

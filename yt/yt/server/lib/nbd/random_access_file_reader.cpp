@@ -329,6 +329,7 @@ private:
                 New<TRemoteReaderOptions>(),
                 ChunkReaderHost_,
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
+                chunkSpec,
                 /*seedReplicas*/ {});
 
             chunk.Reader = CreatePhysicalChunkReaderThrottlingAdapter(

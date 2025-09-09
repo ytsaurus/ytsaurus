@@ -29,6 +29,7 @@ PHOENIX_DEFINE_TYPE(TChunkReplica);
 void TChunkReplicaWithMedium::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, Value_)();
+    PHOENIX_REGISTER_FIELD(2, SourceUri_)();
 }
 
 PHOENIX_DEFINE_TYPE(TChunkReplicaWithMedium);
@@ -79,6 +80,7 @@ void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation 
 
     value->set_replica(replica.Value_);
     ToProto(value->mutable_location_uuid(), replica.ChunkLocationUuid_);
+    ToProto(value->mutable_replica_spec(), replica);
 }
 
 void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value)
@@ -87,6 +89,7 @@ void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaI
 
     replica->Value_ = value.replica();
     replica->ChunkLocationUuid_ = FromProto<TGuid>(value.location_uuid());
+    replica->SourceUri_ = value.replica_spec().source_uri();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

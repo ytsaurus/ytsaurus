@@ -77,6 +77,11 @@ void ToProto(ui32* protoValue, TNodePtrWithReplicaAndMediumIndex value)
     NChunkClient::ToProto(protoValue, replica);
 }
 
+void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TNodePtrWithReplicaAndMediumIndex value)
+{
+    protoValue->set_value(ToProto<ui64>(value));
+}
+
 void ToProto(ui32* protoValue, TNodePtrWithReplicaIndex value)
 {
     TChunkReplica replica(value.GetPtr()->GetId(), value.GetReplicaIndex());
@@ -90,6 +95,11 @@ void ToProto(ui64* protoValue, TChunkLocationPtrWithReplicaIndex value)
         value.GetReplicaIndex(),
         value.GetPtr()->GetEffectiveMediumIndex());
     ToProto(protoValue, replica);
+}
+
+void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TChunkLocationPtrWithReplicaInfo value)
+{
+    protoValue->set_value(ToProto<ui64>(value));
 }
 
 void ToProto(ui64* protoValue, TChunkLocationPtrWithReplicaInfo value)
@@ -138,6 +148,63 @@ void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value)
         value.GetReplicaIndex(),
         value.GetPtr()->GetIndex());
     NChunkClient::ToProto(protoValue, replica);
+}
+
+void ToProto(ui64* protoValue, TOffshoreReplica value)
+{
+    ToProto(protoValue, value.Replica);
+}
+
+void ToProto(NChunkClient::NProto::TChunkReplicaSpec* protoValue, TOffshoreReplica value)
+{
+    protoValue->set_value(ToProto<ui64>(value.Replica));
+    protoValue->set_source_uri(TString(value.SourceUri));
+}
+
+void FormatValue(TStringBuilderBase* builder, TOffshoreReplica value, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", value.Replica);
+    if (!value.SourceUri.empty()) {
+        builder->AppendFormat("@%v", value.SourceUri);
+    }
+}
+
+TMedium* TOffshoreReplica::GetMedium() const
+{
+    return Replica.GetPtr();
+}
+
+int TOffshoreReplica::GetEffectiveMediumIndex() const
+{
+    return Replica.GetPtr()->GetIndex();
+}
+
+int TOffshoreReplica::GetReplicaIndex() const
+{
+    return Replica.GetReplicaIndex();
+}
+
+EChunkReplicaState TOffshoreReplica::GetReplicaState() const
+{
+    return Replica.GetReplicaState();
+}
+
+void TOffshoreReplica::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, Replica);
+    if (context.GetTractoVersion() >= ETractoMasterReign::ExternalFormatsAndOffshoreReplicaSourceUri) {
+        Load(context, SourceUri);
+    }
+}
+
+void TOffshoreReplica::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, Replica);
+    Save(context, SourceUri);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -84,12 +84,12 @@ TSlimVersionedBlockReader::TSlimVersionedBlockReader(
     }
 }
 
-TLegacyKey TSlimVersionedBlockReader::GetKey() const
+TLegacyKey TSlimVersionedBlockReader::GetLegacyKey() const
 {
     return Key_;
 }
 
-TMutableVersionedRow TSlimVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TSlimVersionedBlockReader::GetMutableVersionedRow(TChunkedMemoryPool* memoryPool)
 {
     YT_VERIFY(Valid_);
     return ProduceAllVersions_
@@ -271,7 +271,7 @@ bool TSlimVersionedBlockReader::SkipToKey(TLegacyKey key)
         return CompareKeys(pivot, key, KeyComparer_) >= 0;
     };
 
-    if (inBound(GetKey())) {
+    if (inBound(GetLegacyKey())) {
         // We are already further than pivot key.
         return true;
     }
@@ -282,7 +282,7 @@ bool TSlimVersionedBlockReader::SkipToKey(TLegacyKey key)
         [&] (int rowIndex) {
             // TODO(akozhikhov): Optimize?
             YT_VERIFY(JumpToRowIndex(rowIndex));
-            return !inBound(GetKey());
+            return !inBound(GetLegacyKey());
         });
 
     return JumpToRowIndex(rowIndex);

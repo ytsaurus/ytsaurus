@@ -48,6 +48,11 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+struct TAttachTableOptions
+    : public TTransactionalOptions
+    , public TTimeoutOptions
+{ };
+
 struct TTabletRangeOptions
 {
     std::optional<int> FirstTabletIndex;
@@ -349,6 +354,11 @@ struct ITableClientBase
     virtual TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = {}) = 0;
+
+    virtual TFuture<void> AttachTable(
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> sourceUris,
+        const TAttachTableOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

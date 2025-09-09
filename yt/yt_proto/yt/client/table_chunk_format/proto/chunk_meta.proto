@@ -358,4 +358,14 @@ message TCompressionDictionaryExt
     repeated TColumnInfo column_infos = 1;
 }
 
+message TParquetFormatMetaExt
+{
+    optional bytes footer = 1;
+    optional int64 file_size = 2;
+}
+
+message TJsonFormatMetaExt
+{
+}
+
 ////////////////////////////////////////////////////////////////////////////////

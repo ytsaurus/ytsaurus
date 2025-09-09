@@ -128,6 +128,7 @@ SRCS(
     chunk_client/chunk_meta_cache.cpp
     GLOBAL chunk_client/chunk_meta_extensions.cpp
     chunk_client/chunk_meta_fetcher.cpp
+    chunk_client/chunk_meta_generator.cpp
     chunk_client/chunk_reader_host.cpp
     chunk_client/chunk_reader_memory_manager.cpp
     chunk_client/chunk_reader_statistics.cpp
@@ -416,6 +417,7 @@ SRCS(
     table_chunk_format/timestamp_reader.cpp
     table_chunk_format/timestamp_writer.cpp
 
+    table_client/attach_table.cpp
     table_client/blob_table_writer.cpp
     table_client/cache_based_versioned_chunk_reader.cpp
     table_client/cached_versioned_chunk_meta.cpp
@@ -462,6 +464,7 @@ SRCS(
     table_client/schemaless_chunk_reader.cpp
     table_client/schemaless_chunk_writer.cpp
     table_client/schemaless_multi_chunk_reader.cpp
+    table_client/schemaless_table_uploader.cpp
     table_client/skynet_column_evaluator.cpp
     table_client/slice_boundary_key.cpp
     table_client/sorted_merging_reader.cpp
@@ -735,6 +738,7 @@ PEERDIR(
     yt/yt/library/web_assembly/api
     yt/yt/library/program
     yt/yt/library/s3
+    yt/yt/library/arrow_parquet_adapter
     yt/yt/library/vector_hdrf
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client

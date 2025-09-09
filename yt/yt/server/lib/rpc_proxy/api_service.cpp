@@ -788,6 +788,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteTable)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachTable));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PartitionTables));
 
@@ -5884,6 +5885,35 @@ private:
             request,
             std::move(tableWriter),
             [] {});
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AttachTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("attach_table");
+
+        auto path = FromProto<TRichYPath>(request->path());
+        auto sourceUris = FromProto<std::vector<std::string>>(request->source_uris());
+
+        NApi::TAttachTableOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        context->SetRequestInfo(
+            "Path: %v, SourceUris: %v",
+            path,
+            sourceUris);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->AttachTable(path, sourceUris, options);
+            }
+        );
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)

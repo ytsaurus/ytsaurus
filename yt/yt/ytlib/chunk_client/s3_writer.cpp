@@ -15,6 +15,8 @@
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/config.h>
 
+#include <yt/yt/library/s3/object.h>
+
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <library/cpp/digest/md5/md5.h>
@@ -37,11 +39,11 @@ class TS3UploadSessionBase
 public:
     TS3UploadSessionBase(
         NS3::IClientPtr client,
-        TS3MediumDescriptor::TS3ObjectPlacement objectPlacement,
+        NS3::TObjectDescriptor object,
         const NLogging::TLogger& logger)
         : Client_(std::move(client))
-        , ObjectPlacement_(std::move(objectPlacement))
-        , Logger(logger.WithTag("Bucket: %v, Key: %v", ObjectPlacement_.Bucket, ObjectPlacement_.Key))
+        , Object_(std::move(object))
+        , Logger(logger.WithTag("Bucket: %v, Key: %v", Object_.Bucket(), Object_.Key()))
     {
         // Only errors are expected to be set to this future, it should never complete successfully.
         GetStateFuture()
@@ -89,8 +91,8 @@ public:
 
         // This method is idempotent and does not throw if the object does not exist.
         return Client_->DeleteObjects(NS3::TDeleteObjectsRequest{
-            .Bucket = ObjectPlacement_.Bucket,
-            .Objects = {ObjectPlacement_.Key},
+            .Bucket = Object_.Bucket(),
+            .Objects = {Object_.Key()},
         })
             .AsVoid();
     }
@@ -118,7 +120,7 @@ public:
 
 protected:
     const NS3::IClientPtr Client_;
-    const TS3MediumDescriptor::TS3ObjectPlacement ObjectPlacement_;
+    const NS3::TObjectDescriptor Object_;
     const NLogging::TLogger Logger;
 
 private:
@@ -154,13 +156,13 @@ public:
 
     TS3MultiPartUploadSession(
         NS3::IClientPtr client,
-        TS3MediumDescriptor::TS3ObjectPlacement objectPlacement,
+        NS3::TObjectDescriptor object,
         TOptions options,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
         : TS3UploadSessionBase(
             std::move(client),
-            std::move(objectPlacement),
+            std::move(object),
             std::move(logger))
         , Options_(options)
         , Invoker_(std::move(invoker))
@@ -326,8 +328,8 @@ private:
 
         // TODO(achulkov2): [PLater] Cancel this future if the session is aborted.
         auto multiPartUploadOrError = WaitFor(Client_->CreateMultipartUpload(NS3::TCreateMultipartUploadRequest{
-            .Bucket = ObjectPlacement_.Bucket,
-            .Key = ObjectPlacement_.Key,
+            .Bucket = Object_.Bucket(),
+            .Key = Object_.Key(),
         }));
 
         if (!multiPartUploadOrError.IsOK()) {
@@ -345,8 +347,8 @@ private:
             // At this point, someone may have called cancel already, but it is best to
             // set the upload id and state anyway, so that the session can be properly aborted.
 
-            YT_VERIFY(multiPartUpload.Bucket == ObjectPlacement_.Bucket);
-            YT_VERIFY(multiPartUpload.Key == ObjectPlacement_.Key);
+            YT_VERIFY(multiPartUpload.Bucket == Object_.Bucket());
+            YT_VERIFY(multiPartUpload.Key == Object_.Key());
             UploadId_ = multiPartUpload.UploadId;
 
             State_ = ES3UploadSessionState::Started;
@@ -401,8 +403,8 @@ private:
             md5);
 
         auto uploadFuture = Client_->UploadPart(NS3::TUploadPartRequest{
-            .Bucket = ObjectPlacement_.Bucket,
-            .Key = ObjectPlacement_.Key,
+            .Bucket = Object_.Bucket(),
+            .Key = Object_.Key(),
             .UploadId = UploadId_,
             .PartIndex = partIndex,
             .Data = std::move(data),
@@ -517,8 +519,8 @@ private:
 
         // TODO(achulkov2): [PLater] Cancel this future if the session is aborted.
         auto multiPartUploadOrError = WaitFor(Client_->CompleteMultipartUpload(NS3::TCompleteMultipartUploadRequest{
-            .Bucket = ObjectPlacement_.Bucket,
-            .Key = ObjectPlacement_.Key,
+            .Bucket = Object_.Bucket(),
+            .Key = Object_.Key(),
             .UploadId = UploadId_,
             .Parts = std::move(uploadedParts),
         }));
@@ -558,8 +560,8 @@ private:
 
         YT_LOG_DEBUG("Aborting multi-part upload to S3 (UploadId: %v)", UploadId_);
         WaitFor(Client_->AbortMultipartUpload(NS3::TAbortMultipartUploadRequest{
-            .Bucket = ObjectPlacement_.Bucket,
-            .Key = ObjectPlacement_.Key,
+            .Bucket = Object_.Bucket(),
+            .Key = Object_.Key(),
             .UploadId = UploadId_,
         }))
             .ValueOrThrow();
@@ -578,12 +580,12 @@ class TS3SimpleUploadSession
 public:
     TS3SimpleUploadSession(
         NS3::IClientPtr client,
-        TS3MediumDescriptor::TS3ObjectPlacement objectPlacement,
+        NS3::TObjectDescriptor object,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
         : TS3UploadSessionBase(
             std::move(client),
-            std::move(objectPlacement),
+            std::move(object),
             std::move(logger))
         , Invoker_(std::move(invoker))
     {
@@ -619,8 +621,8 @@ private:
         }
 
         auto putObjectResponse = WaitFor(Client_->PutObject(NS3::TPutObjectRequest{
-            .Bucket = ObjectPlacement_.Bucket,
-            .Key = ObjectPlacement_.Key,
+            .Bucket = Object_.Bucket(),
+            .Key = Object_.Key(),
             .Data = std::move(data),
         }));
 
@@ -654,7 +656,7 @@ public:
         , SessionId_(sessionId)
         , BlockCache_(std::move(blockCache))
         , ChunkLayoutFacade_(New<TChunkLayoutFacade>(SessionId_.ChunkId))
-        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(SessionId_.ChunkId))
+        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(SessionId_.ChunkId, /*sourceUri*/ {}))
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
@@ -667,7 +669,7 @@ public:
             Logger))
         , ChunkMetaUploadSession_(New<TS3SimpleUploadSession>(
             Client_,
-            MediumDescriptor_->GetChunkMetaPlacement(SessionId_.ChunkId),
+            MediumDescriptor_->GetChunkMetaPlacement(SessionId_.ChunkId, {}),
             TDispatcher::Get()->GetWriterInvoker(),
             Logger))
     { }
@@ -799,7 +801,7 @@ private:
     const TSessionId SessionId_;
     const IBlockCachePtr BlockCache_;
     const TChunkLayoutFacadePtr ChunkLayoutFacade_;
-    const TS3MediumDescriptor::TS3ObjectPlacement ChunkPlacement_;
+    const NS3::TObjectDescriptor ChunkPlacement_;
 
     const NLogging::TLogger Logger;
 

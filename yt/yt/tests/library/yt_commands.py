@@ -833,6 +833,12 @@ def write_table(path, value=None, is_raw=False, **kwargs):
     return execute_command("write_table", kwargs, input_stream=input_stream)
 
 
+def attach_table(destination_table, **kwargs):
+    attributes = {}
+    kwargs["path"] = yson.to_yson_type(destination_table, attributes=attributes)
+    return execute_command("attach_table", kwargs)
+
+
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path
 

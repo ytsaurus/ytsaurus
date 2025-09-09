@@ -2739,6 +2739,21 @@ message TRspWriteTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqAttachTable
+{
+    required bytes path = 1; // RichYPath
+
+    repeated string source_uris = 2;
+
+    optional TTransactionalOptions transactional_options = 100;
+}
+
+message TRspAttachTable
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetJobInput
 {
     required NYT.NProto.TGuid job_id = 1;

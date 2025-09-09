@@ -2,14 +2,21 @@
 
 #include "chunk_reader.h"
 #include "chunk_layout_facade.h"
+#include "chunk_meta_generator.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <yt/yt/client/table_client/name_table.h>
 
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NThreading;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -20,17 +27,22 @@ public:
     TS3Reader(
         TS3MediumDescriptorPtr mediumDescriptor,
         TS3ReaderConfigPtr config,
-        TChunkId chunkId)
+        TChunkId chunkId,
+        EChunkFormat chunkFormat,
+        std::string sourceUri)
         : MediumDescriptor_(std::move(mediumDescriptor))
         , Client_(MediumDescriptor_->GetClient())
         , Config_(std::move(config))
         , ChunkId_(std::move(chunkId))
-        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_))
-        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_))
-        // TODO(achulkov2): [PDuringReview] Format S3 paths in such a way that they can be passed to S3 clients (e.g. with bucket).
-        , ChunkLayoutReader_(New<TChunkLayoutReader>(ChunkId_, ChunkPlacement_.Key, ChunkMetaPlacement_.Key, TChunkLayoutReader::TOptions()))
-    {
-    }
+        , ChunkFormat_(chunkFormat)
+        , SourceUri_(std::move(sourceUri))
+        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_, SourceUri_))
+        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_, SourceUri_))
+        , ChunkLayoutReader_(New<TChunkLayoutReader>(ChunkId_, ToString(ChunkPlacement_), ToString(ChunkMetaPlacement_), TChunkLayoutReader::TOptions{
+            // TODO(achulkov2): Drop this for offshore chunks with stored generated meta.
+            .ValidateBlockChecksums = SourceUri_.empty(),
+        }))
+    { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TReadBlocksOptions& options,
@@ -80,8 +92,10 @@ private:
     const NS3::IClientPtr Client_;
     const TS3ReaderConfigPtr Config_;
     const TChunkId ChunkId_;
-    const TS3MediumDescriptor::TS3ObjectPlacement ChunkPlacement_;
-    const TS3MediumDescriptor::TS3ObjectPlacement ChunkMetaPlacement_;
+    const EChunkFormat ChunkFormat_;
+    const std::string SourceUri_;
+    const NS3::TObjectDescriptor ChunkPlacement_;
+    const NS3::TObjectDescriptor ChunkMetaPlacement_;
     const TChunkLayoutReaderPtr ChunkLayoutReader_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, MetaLock_);
@@ -132,8 +146,8 @@ private:
         YT_VERIFY(readRequest.Size >= 1);
 
         NS3::TGetObjectRequest request;
-        request.Bucket = ChunkPlacement_.Bucket;
-        request.Key = ChunkPlacement_.Key;
+        request.Bucket = ChunkPlacement_.Bucket();
+        request.Key = ChunkPlacement_.Key();
         request.Range = Format("bytes=%v-%v", readRequest.Offset, readRequest.Offset + readRequest.Size - 1);
 
         return Client_->GetObject(request)
@@ -142,6 +156,48 @@ private:
                 return ChunkLayoutReader_->DeserializeBlocks(response.Data, blockRange, blocksExt);
             })
             .AsyncVia(GetSessionInvoker(options)));
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> GenerateMetaFromChunkFile(EChunkFormat format)
+    {
+        // TODO(achulkov2): Path to read chunk file from needs to end up here.
+        auto chunkFile = std::make_shared<TS3ArrowRandomAccessFile>(ChunkPlacement_.Bucket(), ChunkPlacement_.Key(), Client_);
+        auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(format, std::move(chunkFile));
+        chunkMetaGenerator->Generate();
+        return MakeFuture(chunkMetaGenerator->GetChunkMeta());
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> FetchMetaFromMetaFile()
+    {
+        NS3::TGetObjectRequest request;
+        request.Bucket = ChunkMetaPlacement_.Bucket();
+        request.Key = ChunkMetaPlacement_.Key();
+
+        return Client_->GetObject(request)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
+                auto metaWithChunkId = ChunkLayoutReader_->DeserializeMeta(response.Data);
+                return metaWithChunkId.ChunkMeta;
+            }));
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> FetchOrGenerateMeta()
+    {
+        // TODO(achulkov2): This logic will change and improve as we start storing generated metas for offshore chunks.
+        return SourceUri_.empty()
+            ? FetchMetaFromMetaFile()
+            : GenerateMetaFromChunkFile(ChunkFormat_);
+    }
+
+    TRefCountedChunkMetaPtr CacheChunkMeta(const TRefCountedChunkMetaPtr& chunkMeta)
+    {
+        auto guard = WriterGuard(MetaLock_);
+
+        if (!ChunkMeta_) {
+            ChunkMeta_ = chunkMeta;
+            BlocksExt_ = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
+        }
+
+        return ChunkMeta_;
     }
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(IInvokerPtr invoker = nullptr)
@@ -154,24 +210,10 @@ private:
             }
         }
 
-        auto metaPlacement = MediumDescriptor_->GetChunkMetaPlacement(ChunkId_);
-
-        NS3::TGetObjectRequest request;
-        request.Bucket = metaPlacement.Bucket;
-        request.Key = metaPlacement.Key;
-        return Client_->GetObject(request)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
-                auto metaWithChunkId = ChunkLayoutReader_->DeserializeMeta(response.Data);
-
-                auto guard = WriterGuard(MetaLock_);
-
-                if (!ChunkMeta_) {
-                    ChunkMeta_ = metaWithChunkId.ChunkMeta;
-                    BlocksExt_ = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
-                }
-
-                return ChunkMeta_;
-            }).AsyncVia(invoker ? invoker : GetCurrentInvoker()));
+        return FetchOrGenerateMeta()
+            .Apply(
+                BIND(&TS3Reader::CacheChunkMeta, MakeStrong(this))
+                .AsyncVia(invoker ? invoker : GetCurrentInvoker()));
     }
 
 
@@ -191,7 +233,9 @@ private:
 IChunkReaderPtr CreateS3Reader(
     TS3MediumDescriptorPtr mediumDescriptor,
     TS3ReaderConfigPtr config,
-    TChunkId chunkId)
+    TChunkId chunkId,
+    EChunkFormat chunkFormat,
+    std::string sourceUri)
 {
     YT_VERIFY(IsRegularChunkId(chunkId));
 
@@ -203,7 +247,9 @@ IChunkReaderPtr CreateS3Reader(
     return New<TS3Reader>(
         std::move(mediumDescriptor),
         std::move(config),
-        std::move(chunkId));
+        std::move(chunkId),
+        chunkFormat,
+        std::move(sourceUri));
 }
 
 ////////////////////////////////////////////////////////////////////////////
