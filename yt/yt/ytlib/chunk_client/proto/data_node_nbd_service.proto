@@ -6,9 +6,9 @@ import "yt/ytlib/chunk_client/proto/session_id.proto";
 
 message TReqOpenSession
 {
-    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
-    optional int64 size = 2;
-    optional int32 fs_type = 3; // EFilesystemType
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required int64 size = 2;
+    required int32 fs_type = 3; // EFilesystemType
 }
 
 message TRspOpenSession
@@ -19,7 +19,7 @@ message TRspOpenSession
 
 message TReqCloseSession
 {
-    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
 }
 
 message TRspCloseSession
@@ -30,9 +30,9 @@ message TRspCloseSession
 
 message TReqRead
 {
-    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
-    optional int64 offset = 2;
-    optional int64 length = 3;
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required int64 offset = 2;
+    required int64 length = 3;
     optional uint64 cookie = 4;
 }
 
@@ -47,8 +47,8 @@ message TRspRead
 
 message TReqWrite
 {
-    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
-    optional int64 offset = 2;
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required int64 offset = 2;
     optional uint64 cookie = 3;
 
     // Might be empty, or contain NullChecksum.
@@ -66,7 +66,7 @@ message TRspWrite
 
 message TReqKeepSessionAlive
 {
-    optional NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    required NYT.NChunkClient.NProto.TSessionId session_id = 1;
 }
 
 message TRspKeepSessionAlive
