@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - ogorbacheva-test-algola
     paths: 'yt/docs/**'
 
 jobs:
@@ -20,8 +19,8 @@ jobs:
       revision: "${{ github.sha }}"
       cli-version: "latest"
       ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
-      ALGOLIA_APP_ID: WW7EWG7Y6T
-      ALGOLIA_SEARCH_API_KEY: f039bc42de5c29003db67eb703353c1d
+      ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
+      ALGOLIA_SEARCH_API_KEY: ${{ secrets.ALGOLIA_SEARCH_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
