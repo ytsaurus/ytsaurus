@@ -276,8 +276,6 @@ void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
-    registrar.Parameter("cell_manager", &TThis::CellManager)
-        .DefaultNew();
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
     registrar.Parameter("enable_timestamp_manager", &TThis::EnableTimestampManager)

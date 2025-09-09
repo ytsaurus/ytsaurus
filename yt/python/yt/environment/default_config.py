@@ -180,7 +180,6 @@ def get_dynamic_master_config():
             "forbid_arbitrary_data_versions_in_retention_config": True,
 
             "cell_hydra_persistence_synchronizer": {
-                "migrate_to_virtual_cell_maps": True,
                 "synchronization_period": 100,
             },
 
