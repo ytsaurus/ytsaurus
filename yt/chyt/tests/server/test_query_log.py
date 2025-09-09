@@ -232,3 +232,25 @@ class TestQueryLog(ClickHouseTestBase):
             rows = clique.wait_and_get_query_log_rows(query_id, include_secondary_queries=False)
             for row in rows:
                 assert row["chyt_query_runtime_variables"]["output_table"] == 'YT.`//tmp/t`'
+
+    @authors("buyval01")
+    def test_secondary_query_runtime_variables(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        with Clique(1, export_query_log=True) as clique:
+            result = clique.make_query('select * from "//tmp/t"', full_response=True)
+            assert result.json()["data"] == [{"a": 1}]
+
+            query_id = result.headers["X-ClickHouse-Query-Id"]
+
+            log_rows = clique.wait_and_get_query_log_rows(query_id)
+            secondary_rows = [row for row in log_rows if row['is_initial_query'] == 0]
+            assert len(secondary_rows) == 1
+
+            expected_values = {
+                'distribution_operands': '[//tmp/t]',
+                'query_processing_stage': 'Complete',
+            }
+            for key, value in expected_values.items():
+                assert key in secondary_rows[0]['chyt_query_runtime_variables']
+                assert secondary_rows[0]['chyt_query_runtime_variables'][key] == value

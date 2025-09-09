@@ -196,6 +196,7 @@ DB::Pipe CreateRemoteSource(
     queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
     queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
+    queryHeader->RuntimeVariables = queryContext->ForkRuntimeVarialbes();
 
     auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
 

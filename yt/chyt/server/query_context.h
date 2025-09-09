@@ -169,6 +169,8 @@ public:
     void MergeStatistics(const TStatistics& statistics);
     template <class T>
     void SetRuntimeVariable(const TString& key, const T& value);
+    void MergeRuntimeVariables(const NYTree::IAttributeDictionaryPtr& variables);
+    NYTree::IMapNodePtr ForkRuntimeVarialbes() const;
     void AddSecondaryQueryId(TQueryId id, DB::UInt64 totalRows = 0, DB::UInt64 totalBytes = 0);
     std::vector<TQueryId> GetAdditionalQueryIds();
 

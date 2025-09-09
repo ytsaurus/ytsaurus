@@ -172,6 +172,10 @@ TQueryContext::TQueryContext(
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
+        if (secondaryQueryHeader->RuntimeVariables) {
+            RuntimeVariables_->MergeFrom(secondaryQueryHeader->RuntimeVariables);
+        }
+
         QueryDepth = secondaryQueryHeader->QueryDepth;
 
         Logger.AddTag("InitialQueryId: %v", InitialQueryId);
@@ -664,6 +668,17 @@ void TQueryContext::MergeStatistics(const TStatistics& statistics)
 {
     auto guard = Guard(QueryLogLock_);
     Statistics_.Merge(statistics);
+}
+
+void TQueryContext::MergeRuntimeVariables(const NYTree::IAttributeDictionaryPtr& variables)
+{
+    YT_VERIFY(variables);
+    RuntimeVariables_->MergeFrom(*variables);
+}
+
+NYTree::IMapNodePtr TQueryContext::ForkRuntimeVarialbes() const
+{
+    return RuntimeVariables_->ToMap();
 }
 
 void TQueryContext::AddSecondaryQueryId(TQueryId id, DB::UInt64 totalRows, DB::UInt64 totalBytes)

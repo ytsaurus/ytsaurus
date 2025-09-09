@@ -110,6 +110,8 @@ void HandleBreakpoint(
 
 String BuildStorageName(const std::vector<TTablePtr>& tables);
 
+String BuildDistributionLogString(const std::vector<IStorageDistributorPtr>& distributors);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NHydra::TRevision GetRefreshRevision(const NApi::NNative::IClientPtr& client, const NYPath::TYPath& path);
