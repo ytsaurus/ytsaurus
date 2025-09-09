@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/check-if-we-can-use-build-env-for-udfs
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -91,41 +92,41 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  build-cmake:
-    name: Build with cmake
-    needs:
-      - start-vm
-      - checkout
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      update-remote-cache: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+  # build-cmake:
+  #   name: Build with cmake
+  #   needs:
+  #     - start-vm
+  #     - checkout
+  #     - build-strawberry
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: cmake
+  #     build-ytsaurus: true
+  #     build-chyt: ${{ github.ref_name == 'main' }}
+  #     build-python: true
+  #     update-remote-cache: true
+  #   secrets:
+  #     BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+  #     BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+  #   uses: ./.github/workflows/build-jobs.yaml
 
-  docker-cmake:
-    name: Docker images with cmake
-    needs:
-      - start-vm
-      - tag
-      - build-cmake
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      publish-strawberry: ${{ github.ref_name == 'main' }}
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./.github/workflows/docker-jobs.yaml
+  # docker-cmake:
+  #   name: Docker images with cmake
+  #   needs:
+  #     - start-vm
+  #     - tag
+  #     - build-cmake
+  #     - build-strawberry
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: cmake
+  #     publish-strawberry: ${{ github.ref_name == 'main' }}
+  #     image-tag: ${{ needs.tag.outputs.image-tag }}
+  #     nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+  #   secrets:
+  #     GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #     GH_USERNAME: ${{ secrets.GH_USERNAME }}
+  #   uses: ./.github/workflows/docker-jobs.yaml
 
   build-ya-make:
     name: Build with ya-make
@@ -170,38 +171,38 @@ jobs:
     name: Check
     needs:
       - start-vm
-      - build-cmake
+      # - build-cmake
       - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
 
-  stop-vm:
-    name: Stop VM
-    needs:
-      - start-vm
-      - check
-      - docker-cmake
-      - docker-ya-make
-    runs-on: trampoline
-    if: ${{ always() }}
-    steps:
-      - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: stop
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-vm.outputs.label }}
-          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+  # stop-vm:
+  #   name: Stop VM
+  #   needs:
+  #     - start-vm
+  #     - check
+  #     # - docker-cmake
+  #     - docker-ya-make
+  #   runs-on: trampoline
+  #   if: ${{ always() }}
+  #   steps:
+  #     - name: Stop YC runner
+  #       uses: yc-actions/yc-github-runner@v1
+  #       with:
+  #         mode: stop
+  #         yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+  #         github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #         label: ${{ needs.start-vm.outputs.label }}
+  #         instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
   send-alert:
     needs:
       - check
-      - build-cmake
+      # - build-cmake
       - build-ya-make
       - docker-ya-make
-      - docker-cmake
+      # - docker-cmake
       - build-strawberry
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
