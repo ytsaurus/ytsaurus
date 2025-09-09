@@ -217,16 +217,16 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
         TFetchShuffleChunksOptions{})
         .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (std::vector<TChunkSpec>&& chunkSpecs) mutable {
             auto dataSourceDirectory = New<TDataSourceDirectory>();
-            dataSourceDirectory->DataSources().emplace_back(TDataSource(
+            dataSourceDirectory->DataSources().emplace_back(New<TDataSource>(
                 EDataSourceType::UnversionedTable,
                 /*path*/ "",
                 New<TTableSchema>(),
                 /*virtualKeyPrefixLength*/ 0,
                 /*columns*/ std::nullopt,
-                /*omittedInaccessibleColumns*/ {},
+                /*omittedInaccessibleColumns*/ std::vector<std::string>{},
                 /*timestamp*/ NullTimestamp,
                 /*retentionTimestamp*/ NullTimestamp,
-                /*columnRenameDescriptors*/ {}));
+                /*columnRenameDescriptors*/ TColumnRenameDescriptors{}));
 
             std::vector<TDataSliceDescriptor> dataSlices;
             dataSlices.reserve(chunkSpecs.size());

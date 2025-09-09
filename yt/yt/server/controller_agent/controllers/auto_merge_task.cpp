@@ -508,14 +508,14 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         auto dataSourceDirectory = New<TDataSourceDirectory>();
         // NB: Chunks read by auto-merge jobs have table index set to output table index,
         // so we need to specify several unused data sources before actual one.
-        dataSourceDirectory->DataSources().resize(tableIndex);
+        dataSourceDirectory->DataSources().resize(tableIndex, New<TDataSource>());
         auto& dataSource = dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
             GetIntermediatePath(tableIndex),
             outputTable->TableUploadOptions.TableSchema.Get(),
             /*columns*/ std::nullopt,
             /*omittedInaccessibleColumns*/ {},
             /*columnRenameDescriptors*/ {}));
-        dataSource.SetAccount(
+        dataSource->SetAccount(
             TaskHost_->GetSpec()->AutoMerge->UseIntermediateDataAccount
                 ? std::make_optional(TaskHost_->GetSpec()->IntermediateDataAccount)
                 : outputTable->Account);

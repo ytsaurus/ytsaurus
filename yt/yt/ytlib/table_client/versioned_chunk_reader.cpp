@@ -115,7 +115,7 @@ public:
     TSimpleVersionedChunkReaderBase(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        const std::optional<NChunkClient::TDataSource>& dataSource,
+        const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -151,7 +151,7 @@ protected:
 TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     TChunkReaderConfigPtr config,
     TCachedVersionedChunkMetaPtr chunkMeta,
-    const std::optional<NChunkClient::TDataSource>& dataSource,
+    const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
@@ -190,7 +190,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         int keyColumnCount,
-        const std::optional<NChunkClient::TDataSource>& dataSource,
+        const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -453,7 +453,7 @@ public:
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
         int keyColumnCount,
-        const std::optional<NChunkClient::TDataSource>& dataSource,
+        const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
@@ -662,7 +662,7 @@ public:
     TColumnarVersionedChunkReaderBase(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        const std::optional<NChunkClient::TDataSource>& dataSource,
+        const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
         IChunkReaderPtr underlyingReader,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
@@ -1083,7 +1083,7 @@ public:
     TColumnarVersionedRangeChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        const std::optional<NChunkClient::TDataSource>& dataSource,
+        const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
         IChunkReaderPtr underlyingReader,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
@@ -1432,7 +1432,7 @@ public:
     TColumnarVersionedLookupChunkReader(
         TChunkReaderConfigPtr config,
         TCachedVersionedChunkMetaPtr chunkMeta,
-        const std::optional<NChunkClient::TDataSource>& dataSource,
+        const std::optional<NChunkClient::TDataSourcePtr>& dataSource,
         IChunkReaderPtr underlyingReader,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,

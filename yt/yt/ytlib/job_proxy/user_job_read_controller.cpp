@@ -360,7 +360,7 @@ private:
         if (JobSpecHelper_->GetDataSourceDirectory()) {
             columns.reserve(JobSpecHelper_->GetDataSourceDirectory()->DataSources().size());
             for (const auto& dataSource : JobSpecHelper_->GetDataSourceDirectory()->DataSources()) {
-                columns.push_back(dataSource.Columns());
+                columns.push_back(dataSource->Columns());
             }
         }
 

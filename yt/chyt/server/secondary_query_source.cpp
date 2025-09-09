@@ -138,7 +138,7 @@ private:
             // For SchemalessMergingMultiChunkReader all data source's chunk specs
             // should be stored in single descriptor.
             const auto& dataSource = DataSourceDirectory_->DataSources()[descriptor.GetDataSourceIndex()];
-            if (dataSource.GetType() == EDataSourceType::VersionedTable) {
+            if (dataSource->GetType() == EDataSourceType::VersionedTable) {
                 if (allDataSourceDescriptors.empty()) {
                     allDataSourceDescriptors.emplace_back(std::move(descriptor));
                 } else {

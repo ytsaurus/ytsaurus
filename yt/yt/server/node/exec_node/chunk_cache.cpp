@@ -393,7 +393,7 @@ public:
         TTraceContextGuard guard(traceContext);
         auto baggage = traceContext->UnpackOrCreateBaggage();
         AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, "artifact_download");
-        AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(key.data_source()));
+        AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
         traceContext->PackBaggage(std::move(baggage));
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
@@ -1029,7 +1029,7 @@ private:
             auto traceContext = CreateTraceContextFromCurrent("ChunkReader");
             TTraceContextGuard guard(traceContext);
 
-            PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
+            PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
             auto chunkReaderHost = New<TChunkReaderHost>(
                 Bootstrap_->GetClient(),
@@ -1234,7 +1234,7 @@ private:
             std::move(chunkReaderHost),
             chunkReadOptions,
             chunkSpecs,
-            FromProto<NChunkClient::TDataSource>(key.data_source()));
+            FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
         return [reader = std::move(reader), key, throttler] (IOutputStream* output) {
             TBlock block;
@@ -1336,18 +1336,18 @@ private:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
-        NChunkClient::TDataSource dataSource;
+        NChunkClient::TDataSourcePtr dataSource;
         FromProto(&dataSource, key.data_source());
 
-        if (dataSource.Schema() && !dataSource.Schema()->HasRenamedColumns()) {
-            dataSource.Schema() = SetStableNames(
-                dataSource.Schema(),
-                dataSource.ColumnRenameDescriptors());
+        if (dataSource->Schema() && !dataSource->Schema()->HasRenamedColumns()) {
+            dataSource->Schema() = SetStableNames(
+                dataSource->Schema(),
+                dataSource->ColumnRenameDescriptors());
         }
 
         dataSourceDirectory->DataSources().push_back(dataSource);
 
-        switch (dataSource.GetType()) {
+        switch (dataSource->GetType()) {
             case EDataSourceType::UnversionedTable:
                 for (const auto& chunkSpec : key.chunk_specs()) {
                     dataSliceDescriptors.push_back(TDataSliceDescriptor(chunkSpec));
@@ -1385,8 +1385,8 @@ private:
             /*columnFilter*/ {},
             /*partitionTag*/ std::nullopt);
 
-        auto schema = dataSource.Schema();
-        auto columns = dataSource.Columns();
+        auto schema = dataSource->Schema();
+        auto columns = dataSource->Columns();
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
         return [
@@ -1470,7 +1470,7 @@ private:
         auto traceContext = CreateTraceContextFromCurrent("ChunkCache");
         TTraceContextGuard guard(traceContext);
 
-        PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
+        PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
         producer(&checkedOutput);
 

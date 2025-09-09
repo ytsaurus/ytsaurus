@@ -818,16 +818,16 @@ TExtraChunkTags MakeExtraChunkTags(const NChunkClient::NProto::TMiscExt& miscExt
     };
 }
 
-void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSource& dataSource)
+void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSourcePtr& dataSource)
 {
-    if (dataSource.GetPath()) {
-        AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSource.GetPath());
+    if (dataSource->GetPath()) {
+        AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSource->GetPath());
     }
-    if (dataSource.GetObjectId()) {
-        AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(dataSource.GetObjectId()));
+    if (dataSource->GetObjectId()) {
+        AddTagToBaggage(baggage, ERawIOTag::ObjectId, ToString(dataSource->GetObjectId()));
     }
-    if (dataSource.GetAccount()) {
-        AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSource.GetAccount());
+    if (dataSource->GetAccount()) {
+        AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSource->GetAccount());
     }
 }
 
@@ -854,7 +854,7 @@ void AddExtraChunkTags(const NYTree::IAttributeDictionaryPtr& baggage, const TEx
     }
 }
 
-void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource)
+void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSourcePtr& dataSource)
 {
     auto baggage = context->UnpackOrCreateBaggage();
     AddTagsFromDataSource(baggage, dataSource);
@@ -870,7 +870,7 @@ void PackBaggageFromExtraChunkTags(const NTracing::TTraceContextPtr& context, co
 
 void PackBaggageForChunkReader(
     const NTracing::TTraceContextPtr& context,
-    const NChunkClient::TDataSource& dataSource,
+    const NChunkClient::TDataSourcePtr& dataSource,
     const TExtraChunkTags& extraTags)
 {
     auto baggage = context->UnpackOrCreateBaggage();
@@ -1162,7 +1162,7 @@ std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
         }
 
         for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-            schemas.emplace_back(dataSource.Schema() ? dataSource.Schema() : New<TTableSchema>());
+            schemas.emplace_back(dataSource->Schema() ? dataSource->Schema() : New<TTableSchema>());
         }
     }
 

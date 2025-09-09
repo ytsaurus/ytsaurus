@@ -415,7 +415,7 @@ public:
         IEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataSource> dataSources,
+        std::vector<NQueryClient::TDataSource> dataSources,
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
@@ -516,7 +516,7 @@ private:
     const TConstQueryPtr Query_;
 
     const TConstExternalCGInfoPtr ExternalCGInfo_;
-    const std::vector<TDataSource> DataSources_;
+    const std::vector<NQueryClient::TDataSource> DataSources_;
     const IUnversionedRowsetWriterPtr Writer_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const TRowBufferPtr RowBuffer_;
@@ -536,7 +536,7 @@ private:
     TClientChunkReadOptions ChunkReadOptions_;
 
     using TGetSubreader = std::function<ISchemafulUnversionedReaderPtr(int subqueryIndex)>;
-    using TGetPrefetchJoinSubDataSource = std::function<std::optional<TDataSource>(int subqueryIndex, size_t keyPrefix)>;
+    using TGetPrefetchJoinSubDataSource = std::function<std::optional<NQueryClient::TDataSource>(int subqueryIndex, size_t keyPrefix)>;
 
     TQueryStatistics DoCoordinateAndExecute()
     {
@@ -578,7 +578,7 @@ private:
             =,
             this,
             this_ = MakeStrong(this)
-        ] (int subqueryIndex, int joinIndex) -> std::optional<TDataSource> {
+        ] (int subqueryIndex, int joinIndex) -> std::optional<NQueryClient::TDataSource> {
             const auto& joinClause = *Query_->JoinClauses[joinIndex];
             if (!ShouldPrefetchJoinSource(
                 Query_,
@@ -709,7 +709,7 @@ private:
             });
     }
 
-    TDataSource GetPrefixReadItems(TRange<TTabletReadItems> dataSplits, size_t keyPrefix)
+    NQueryClient::TDataSource GetPrefixReadItems(TRange<TTabletReadItems> dataSplits, size_t keyPrefix)
     {
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
         std::vector<TRowRange> prefixRanges;
@@ -808,7 +808,7 @@ private:
             }
         }
 
-        TDataSource dataSource;
+        NQueryClient::TDataSource dataSource;
 
         if (isRanges) {
             prefixRanges.erase(
@@ -861,7 +861,7 @@ private:
     }
 
     TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesOld(
-        std::vector<TDataSource> dataSourcesByTablet)
+        std::vector<NQueryClient::TDataSource> dataSourcesByTablet)
     {
         std::vector<TTabletReadItems> splits;
 
@@ -987,11 +987,11 @@ private:
         return MakeSharedRange(std::move(groupedDataSplits), RowBuffer_);
     }
 
-    std::vector<TDataSource> GetClassifiedDataSources()
+    std::vector<NQueryClient::TDataSource> GetClassifiedDataSources()
     {
         YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
-        std::vector<TDataSource> classifiedDataSources;
+        std::vector<NQueryClient::TDataSource> classifiedDataSources;
 
         auto keySize = Query_->Schema.Original->GetKeyColumnCount();
 
@@ -1030,7 +1030,7 @@ private:
             auto pushRanges = [&] {
                 if (!rowRanges.empty()) {
                     rangeCount += rowRanges.size();
-                    classifiedDataSources.push_back(TDataSource{
+                    classifiedDataSources.push_back(NQueryClient::TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
                         .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), RowBuffer_),
@@ -1041,7 +1041,7 @@ private:
             auto pushKeys = [&] {
                 if (!keys.empty()) {
                     keyCount += keys.size();
-                    classifiedDataSources.push_back(TDataSource{
+                    classifiedDataSources.push_back(NQueryClient::TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
                         .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
@@ -1093,7 +1093,7 @@ private:
     }
 
     TSharedRange<std::vector<TTabletReadItems>> CoordinateDataSourcesNew(
-        std::vector<TDataSource> dataSourcesByTablet)
+        std::vector<NQueryClient::TDataSource> dataSourcesByTablet)
     {
         struct TSampleRange
         {
@@ -1632,7 +1632,7 @@ private:
         }
     }
 
-    static size_t GetMinKeyWidth(TRange<TDataSource> dataSources)
+    static size_t GetMinKeyWidth(TRange<NQueryClient::TDataSource> dataSources)
     {
         size_t minKeyWidth = std::numeric_limits<size_t>::max();
         for (const auto& split : dataSources) {
@@ -1663,7 +1663,7 @@ TQueryStatistics ExecuteSubquery(
     IEvaluatorPtr evaluator,
     TConstQueryPtr query,
     TConstExternalCGInfoPtr externalCGInfo,
-    std::vector<TDataSource> dataSources,
+    std::vector<NQueryClient::TDataSource> dataSources,
     IUnversionedRowsetWriterPtr writer,
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,

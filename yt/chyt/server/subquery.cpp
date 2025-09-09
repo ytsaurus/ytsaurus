@@ -445,8 +445,8 @@ private:
             auto operandIndex = InputTables_[tableIndex]->OperandIndex;
 
             if (!VirtualColumnNames_.empty()) {
-                YT_VERIFY(!dataSourceDirectory->DataSources()[tableIndex].GetVirtualValueDirectory());
-                dataSourceDirectory->DataSources()[tableIndex].SetVirtualValueDirectory(
+                YT_VERIFY(!dataSourceDirectory->DataSources()[tableIndex]->GetVirtualValueDirectory());
+                dataSourceDirectory->DataSources()[tableIndex]->SetVirtualValueDirectory(
                     CreateVirtualValueDirectory(tableIndex, operandTableIndexes[operandIndex]));
             }
 
@@ -471,7 +471,7 @@ private:
             auto& descriptor = inputStreams.emplace_back(
                 /*isTeleportable*/ false,
                 /*isPrimary*/ true,
-                /*isVersioned*/ dataSource.GetType() == EDataSourceType::VersionedTable);
+                /*isVersioned*/ dataSource->GetType() == EDataSourceType::VersionedTable);
             descriptor.SetTableIndex(tableIndex);
         }
         InputStreamDirectory_ = TInputStreamDirectory(std::move(inputStreams));
@@ -1074,7 +1074,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
             for (const auto& dataSlice : chunkStripe->DataSlices) {
                 YT_VERIFY(!dataSlice->IsLegacy);
                 if (dataSlice->ReadRangeIndex) {
-                    auto comparator = queryInput.DataSourceDirectory->DataSources()[dataSlice->GetTableIndex()].GetComparator();
+                    auto comparator = queryInput.DataSourceDirectory->DataSources()[dataSlice->GetTableIndex()]->GetComparator();
                     inputReadRangeRegistry.ApplyReadRange(dataSlice, comparator);
                 }
 
