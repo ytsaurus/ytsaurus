@@ -7,28 +7,60 @@ import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
+
+import javax.annotation.Nullable;
 
 /**
  * Writer that generates text yson.
- *
+ * <p>
  * All underlying writer exceptions are transformed to UncheckedIOException.
  */
 public class YsonTextWriter implements ClosableYsonConsumer {
     private static final int BUFFER_SIZE = 256;
+    private static final int DEFAULT_INDENT = 4;
+
     private final Writer writer;
+    private final char[] buffer = new char[BUFFER_SIZE];
+    private final boolean pretty;
+    private final int indent;
     private boolean firstItem = false;
     private int depth = 0;
-    private final char[] buffer = new char[BUFFER_SIZE];
+
+    /**
+     * Construct YsonTextWriter with the underlying {@link StringBuilder} with other options set to default.
+     */
     public YsonTextWriter(StringBuilder builder) {
-        this(new StringBuilderWriterAdapter(builder));
+        this(builder().setStringBuilder(builder));
     }
 
+    /**
+     * Construct YsonTextWriter with the underlying {@link Writer} with other options set to default.
+     */
     public YsonTextWriter(Writer writer) {
-        this.writer = writer;
+        this(builder().setWriter(writer));
     }
 
+    /**
+     * Construct YsonTextWriter with the underlying {@link OutputStream} with other options set to default.
+     */
     public YsonTextWriter(OutputStream output) {
-        this(new OutputStreamWriter(output));
+        this(builder().setOutputStream(output));
+    }
+
+    YsonTextWriter(Builder builder) {
+        this.writer = Objects.requireNonNull(builder.writer);
+        this.pretty = builder.pretty;
+        this.indent = builder.indent;
+    }
+
+    /**
+     * Create a new Builder.
+     *
+     * @return Builder.
+     */
+    public static Builder builder() {
+        return new Builder();
     }
 
     /**
@@ -46,6 +78,9 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     private void endNode() {
         if (depth > 0) {
             write(YsonTags.ITEM_SEPARATOR);
+            if (pretty) {
+                write(YsonTags.NEW_LINE);
+            }
         }
     }
 
@@ -114,6 +149,12 @@ public class YsonTextWriter implements ClosableYsonConsumer {
 
     @Override
     public void onListItem() {
+        if (pretty) {
+            if (firstItem && depth > 0) {
+                write(YsonTags.NEW_LINE);
+            }
+            writeIndent();
+        }
         firstItem = false;
     }
 
@@ -127,6 +168,9 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     @Override
     public void onEndList() {
         --depth;
+        if (pretty && !firstItem) {
+            writeIndent();
+        }
         firstItem = false;
         write(YsonTags.END_LIST);
         endNode();
@@ -142,8 +186,14 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     @Override
     public void onEndAttributes() {
         --depth;
+        if (pretty && !firstItem) {
+            writeIndent();
+        }
         firstItem = false;
         write(YsonTags.END_ATTRIBUTES);
+        if (pretty) {
+            write(YsonTags.SPACE);
+        }
     }
 
     @Override
@@ -156,6 +206,9 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     @Override
     public void onEndMap() {
         --depth;
+        if (pretty && !firstItem) {
+            writeIndent();
+        }
         firstItem = false;
         write(YsonTags.END_MAP);
         endNode();
@@ -163,9 +216,21 @@ public class YsonTextWriter implements ClosableYsonConsumer {
 
     @Override
     public void onKeyedItem(byte[] key, int offset, int length) {
+        if (pretty) {
+            if (firstItem && depth > 0) {
+                write(YsonTags.NEW_LINE);
+            }
+            writeIndent();
+        }
         firstItem = false;
         writeStringScalar(key, offset, length);
+        if (pretty) {
+            write(YsonTags.SPACE);
+        }
         write(YsonTags.KEY_VALUE_SEPARATOR);
+        if (pretty) {
+            write(YsonTags.SPACE);
+        }
     }
 
     private void appendQuotedByte(byte b) {
@@ -214,6 +279,12 @@ public class YsonTextWriter implements ClosableYsonConsumer {
         }
     }
 
+    void writeIndent() {
+        for (int i = 0; i < indent * depth; ++i) {
+            write(YsonTags.SPACE);
+        }
+    }
+
     static class StringBuilderWriterAdapter extends Writer {
         private final StringBuilder builder;
 
@@ -256,6 +327,84 @@ public class YsonTextWriter implements ClosableYsonConsumer {
         public void close() {
         }
     }
+
+    /**
+     * Builder class for {@link YsonTextWriter}.
+     */
+    public static class Builder {
+        private boolean pretty = false;
+        private int indent = DEFAULT_INDENT;
+        @Nullable
+        private Writer writer;
+
+        Builder() {
+        }
+
+        /**
+         * Sets the underlying {@link Writer} to which YSON text will be written.
+         * @param writer Writer.
+         * @return Builder.
+         */
+        public Builder setWriter(Writer writer) {
+            this.writer = writer;
+            return this;
+        }
+
+        /**
+         * Sets the underlying {@link StringBuilder} to which YSON text will be written.
+         * @param builder StringBuilder.
+         * @return Builder.
+         */
+        public Builder setStringBuilder(StringBuilder builder) {
+            this.writer = new StringBuilderWriterAdapter(builder);
+            return this;
+        }
+
+        /**
+         * Sets the underlying {@link OutputStream} to which YSON text will be written.
+         * @param out OutputStream.
+         * @return Builder.
+         */
+        public Builder setOutputStream(OutputStream out) {
+            this.writer = new OutputStreamWriter(out);
+            return this;
+        }
+
+        /**
+         * Enables pretty printing with indentation and line breaks.
+         * @return Builder.
+         */
+        public Builder setPrettyPrinting() {
+            this.pretty = true;
+            return this;
+        }
+
+        /**
+         * Sets the number of spaces per indentation level.
+         * Used when setPrettyPrinting enabled.
+         * Default value is 4.
+         *
+         * @param indent number of spaces.
+         * @return Builder.
+         * @throws IllegalArgumentException if indent is negative.
+         */
+        public Builder setIndent(int indent) {
+            if (indent < 0) {
+                throw new IllegalArgumentException("Indent must be non-negative int");
+            }
+            this.indent = indent;
+            return this;
+        }
+
+        /**
+         * Constructs a new {@link YsonTextWriter} with the specified writer and formatting options.
+         * @return a new {@link YsonTextWriter} instance.
+         */
+        public YsonTextWriter build() {
+            return new YsonTextWriter(this);
+        }
+    }
+
 }
 
 class YsonTextUtils {
