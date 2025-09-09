@@ -820,28 +820,15 @@ private:
                 transactionId,
                 EObjectType::TabletCellBundleMap);
 
-            // COMPAT(danilalexeev)
-            if (Config_->CellManager->CreateVirtualCellMapsByDefault) {
-                ScheduleCreateNode(
-                    "//sys/chaos_cells",
-                    transactionId,
-                    EObjectType::VirtualChaosCellMap);
+            ScheduleCreateNode(
+                "//sys/chaos_cells",
+                transactionId,
+                EObjectType::VirtualChaosCellMap);
 
-                ScheduleCreateNode(
-                    "//sys/tablet_cells",
-                    transactionId,
-                    EObjectType::VirtualTabletCellMap);
-            } else {
-                ScheduleCreateNode(
-                    "//sys/chaos_cells",
-                    transactionId,
-                    EObjectType::ChaosCellMap);
-
-                ScheduleCreateNode(
-                    "//sys/tablet_cells",
-                    transactionId,
-                    EObjectType::TabletCellMap);
-            }
+            ScheduleCreateNode(
+                "//sys/tablet_cells",
+                transactionId,
+                EObjectType::VirtualTabletCellMap);
 
             ScheduleCreateNode(
                 NCellarAgent::CellsHydraPersistenceCypressPrefix,
