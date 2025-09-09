@@ -303,6 +303,106 @@ The complexity is constant.
 `greatest(a1, a2, ...) :: A* -> A`
 Returns the argument with the greatest value.
 
+#### Mathematical functions (available starting with version 25.2)
+`abs(x) :: (int64 | uint64 | double) -> (int64 | uint64 | double)`
+Returns the absolute value of a number `x`. The returned value type matches the argument type.
+
+`acos(x) :: double -> double`
+Returns the arccosine of a number `x` (the argument must be in radians). 
+
+`asin(x) :: double -> double`
+Returns the arcsine of a number `x` (the argument must be in radians).
+
+`ceil(x) :: double -> int64`
+Rounds a number `x` up to the nearest integer.
+
+`cbrt(x) :: double -> double`
+Calculates the cube root of a number `x`.
+
+`cos(x) :: double -> double`
+Calculates the cosine of a number `x` (the argument must be in radians).
+
+`cot(x) :: double -> double`
+Calculates the cotangent of a number `x` (the argument must be in radians).
+
+`degrees(x) :: double -> double`
+Converts an angle `x` from radians to degrees.
+
+`even(x) :: double -> int64`
+Rounds a number `x` to the nearest even number.
+
+`exp(x) :: double -> double`
+Calculates the exponential of a number `x` (e<sup>x</sup>).
+
+`floor(x) :: double -> int64`
+Rounds a number `x` down to the nearest integer.
+
+`gamma(x) :: double -> double`
+Calculates the gamma function for a number `x`.
+
+`is_inf(x) :: double -> boolean`
+Checks whether a number `x` is infinite (`+∞` or `-∞`).
+
+`lgamma(x) :: double -> double`
+Calculates the logarithm of the gamma function for `x`.
+
+`ln(x) :: double -> double`
+Calculates the natural logarithm (to the base of the mathematical constant e) of a number `x`.
+
+`log(x) :: double -> double`
+Calculates the base-10 logarithm of a number `x`.
+
+`log10(x) :: double -> double`
+Calculates the base-10 logarithm of a number `x`.
+
+`log2(x) :: double -> double`
+Calculates the binary logarithm (to the base 2) of a number `x`.
+
+`radians(x) :: double -> double`
+Converts an angle `x` from degrees to radians.
+
+`sign(x) :: double -> int64`
+Determines the sign of a number `x`. Returns 1 if `x > 0`, returns -1 if `x < 0`, and otherwise returns 0.
+
+`signbit(x) :: double -> boolean`
+Determines whether the signbit of a number `x` is set.
+
+`sin(x) :: double -> double`
+Calculates the sine of a number `x` (the argument must be in radians).
+
+`sqrt(x) :: double -> double`
+Calculates the square root of a number `x`.
+
+`tan(x) :: double -> double`
+Calculates the tangent of a number `x` (the argument must be in radians).
+
+`trunc(x) :: double -> int64`
+Drops the fractional part of a number `x` and returns its integer part.
+
+`bit_count(x) :: uint64 -> int64`
+Returns the number of bits set to one in a number `x`.
+
+`atan2(y, x) :: double -> double -> double`
+Calculates the angle (in radians) between the positive X-axis direction and a point represented by the coordinates (`x`, `y`).
+
+`factorial(x) :: uint64 -> uint64`
+Calculates the factorial of a number `x`.
+
+`gcd(a, b) :: uint64 -> uint64 -> uint64`
+Calculates the greatest common divisor (GCD) of numbers `a` and `b`.
+
+`lcm(a, b) :: uint64 -> uint64 -> uint64`
+Calculates the least common multiple (LCM) of numbers `a` and `b`.
+
+`pow(x, y) :: double -> double -> double`
+Calculates the value of `x` raised to the power of `y`.
+
+`round(x) :: double -> int64`
+Rounds a number `x` to the nearest integer.
+
+`xor(a, b) :: uint64 -> uint64 -> uint64`
+Performs bitwise exclusion on numbers `a` and `b` using the bitwise exclusive OR (XOR) operator.
+
 #### Working with strings
 `length(s) :: string -> int64`
 Returns the `s` string length in bytes.
