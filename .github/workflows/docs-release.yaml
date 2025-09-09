@@ -42,7 +42,7 @@ jobs:
           set +e
           set -o pipefail
 
-          yfm --index -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} 2>&1 | tee './build-html.log'
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} 2>&1 | tee './build-html.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
         shell: bash
