@@ -40,6 +40,6 @@ jobs:
 
       - name: Build And Push Docker Image
         run: |
-          docker build -t ghcr.io/ytsaurus/odin:${{ steps.tag.outputs.RELEASE_VERSION }} --target odin -f ./yt/docker/ytsaurus/Dockerfile .
+          docker build -t ghcr.io/ytsaurus/odin:${{ steps.tag.outputs.RELEASE_VERSION }} --target odin -f ./yt/docker/ytsaurus/Dockerfile --build-arg ODIN_RUNTIME_ROOT=/opt/odin .
           docker push ghcr.io/ytsaurus/odin:${{ steps.tag.outputs.RELEASE_VERSION }}
 
