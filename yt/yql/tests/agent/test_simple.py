@@ -988,7 +988,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlSimpleBase):
         assert "full_result" not in result
 
     @authors("a-romanov")
-    @pytest.mark.timeout(600)
+    @pytest.mark.timeout(180)
     def test_big_result_with_empty_string_in_yson(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "value", "type": "string"}]
