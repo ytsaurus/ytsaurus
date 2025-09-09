@@ -2019,6 +2019,13 @@ private:
         return ECommitState::Start;
     }
 
+    // Possible persistent states:
+    // Active -- ok
+    // PersistentCommitPrepared (Prepare on supervisor) -- throw (probably should just do nothing?)
+    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- throw (probably should just do nothing?)
+    // Committed -- throw (probably should just do nothing?)
+    // Aborted -- throw (probably should just do nothing?)
+
     // None -> Prepared
     void HydraParticipantPrepareTransaction(NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction* request)
     {
@@ -2037,6 +2044,7 @@ private:
                 .PrepareTimestamp = prepareTimestamp,
                 .PrepareTimestampClusterTag = prepareTimestampClusterTag,
             };
+            // PrepareTransactionCommit validates that transaction is Active and throws if it is not.
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
                 options);
@@ -2050,8 +2058,10 @@ private:
 
         if (stronglyOrdered) {
             auto transactionState = GetParticipantStronglyOrderedTransactionState(transactionId);
+            // Should never happen, as transaction manager both validates transaction is Active
+            // and changes state to PersistentCommitPrepared.
             if (transactionState != ECommitState::Start) {
-                YT_LOG_DEBUG("Strongly ordered transaction at participant is already past prepare (TransactionId: %v, State: %v)",
+                YT_LOG_ALERT("Strongly ordered transaction at participant is already past prepare (TransactionId: %v, State: %v)",
                     transactionId,
                     transactionState);
             } else {
@@ -2071,6 +2081,12 @@ private:
             NRpc::GetCurrentAuthenticationIdentity());
     }
 
+    // Active -- throw (wait for prepare)
+    // PersistentCommitPrepared (Prepare on supervisor) -- ok
+    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- do nothing
+    // Committed -- do nothing
+    // Aborted -- do nothing
+
     // Prepared -> ReadyToCommit
     void HydraParticipantMakeTransactionReadyToCommit(NTransactionSupervisor::NProto::TReqParticipantMakeTransactionReadyToCommit* request)
     {
@@ -2081,9 +2097,18 @@ private:
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
+        auto state = TransactionManager_->GetTransactionStateOrThrow(transactionId);
+        if (state == ETransactionState::Committed || state == ETransactionState::Aborted) {
+            YT_LOG_DEBUG("Strongly ordered transaction at participant was already %v (TransactionId: %v)",
+                state == ETransactionState::Committed ? "committed" : "aborted",
+                transactionId);
+            return;
+        }
+
         auto guard = Guard(SequencerLock_);
 
         auto transactionState = GetParticipantStronglyOrderedTransactionState(transactionId);
+        // If transaction is deleted from all maps because it was already committed or aborted, code above should help.
         if (transactionState == ECommitState::Start) {
             THROW_ERROR_EXCEPTION("Transaction %v should be prepared before becoming ready to commit",
                 transactionId);
@@ -2115,6 +2140,12 @@ private:
         FlushStronglyOrderedCommits();
     }
 
+    // Active -- throw (should wait for prepare)
+    // PersistentCommitPrepared (Prepare on supervisor) -- ok
+    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- ok, but different
+    // Committed -- do nothing
+    // Aborted -- throw (probably should just do nothing?)
+
     // Prepared -> Committed or ReadyToCommit -> Committed
     void HydraParticipantCommitTransaction(NTransactionSupervisor::NProto::TReqParticipantCommitTransaction* request)
     {
@@ -2129,7 +2160,17 @@ private:
         if (stronglyOrdered) {
             auto state = TransactionManager_->GetTransactionStateOrThrow(transactionId);
             if (state == ETransactionState::Committed) {
+                YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
+                    transactionId);
                 return;
+            }
+
+            // Not sure if it is possible.
+            if (state == ETransactionState::Aborted) {
+                YT_LOG_ALERT("Trying to commit an aborted strongly ordered transaction (TransactionId: %v)",
+                    transactionId);
+                THROW_ERROR_EXCEPTION("Transaction %v is aborted",
+                    transactionId);
             }
 
             auto guard = Guard(SequencerLock_);
@@ -2221,7 +2262,13 @@ private:
             NRpc::GetCurrentAuthenticationIdentity());
     }
 
-    // Prepared -> Aborted or ReadyToCommit -> Aborted
+    // Active -- ok (was do nothing before, but we should still do transactionManager->Abort())
+    // PersistentCommitPrepared (Prepare on supervisor) -- ok
+    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- ok
+    // Committed -- throw (probably should just do nothing?)
+    // Aborted -- do nothing
+
+    // Start -> Aborted or Prepared -> Aborted or ReadyToCommit -> Aborted
     void HydraParticipantAbortTransaction(NTransactionSupervisor::NProto::TReqParticipantAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -2233,44 +2280,57 @@ private:
         if (stronglyOrdered) {
             auto state = TransactionManager_->GetTransactionStateOrThrow(transactionId);
             if (state == ETransactionState::Aborted) {
+                YT_LOG_DEBUG("Transaction was already aborted (TransactionId: %v)",
+                    transactionId);
                 return;
+            }
+
+            // Pretty sure it is not possible.
+            if (state == ETransactionState::Committed) {
+                YT_LOG_ALERT("Trying to abort a committed strongly ordered transaction (TransactionId: %v)",
+                    transactionId);
+                THROW_ERROR_EXCEPTION("Transaction %v is committed",
+                    transactionId);
             }
 
             auto guard = Guard(SequencerLock_);
 
             auto transactionState = GetParticipantStronglyOrderedTransactionState(transactionId);
-            if (transactionState != ECommitState::Prepare && transactionState != ECommitState::ReadyToCommit) {
-                YT_LOG_DEBUG("Strongly ordered transaction at participant is neither prepared nor ready to commit (TransactionId: %v, State: %v)",
-                    transactionId,
-                    transactionState);
-                return;
-            }
-
-            YT_LOG_DEBUG("Aborting strongly ordered transaction at participant (TransactionId: %v)",
-                transactionId);
-            EraseOrCrash(StronglyOrderedTransactionToState_, transactionId);
-
-            if (transactionState == ECommitState::Prepare) {
-                auto it = GetIteratorOrCrash(ParticipantStronglyOrderedTransactionsToPrepareTimestamp_, transactionId);
-                UnregisterStronglyOrderedTransaction(it->second);
-                ParticipantStronglyOrderedTransactionsToPrepareTimestamp_.erase(it);
+            if (transactionState == ECommitState::Start) {
+                // We should not do anything about strongly ordered maps, but should still call abort.
             } else {
-                YT_VERIFY(transactionState == ECommitState::ReadyToCommit);
+                if (transactionState != ECommitState::Prepare && transactionState != ECommitState::ReadyToCommit) {
+                    THROW_ERROR_EXCEPTION("Strongly ordered transaction %v at participant is in %v state",
+                        transactionId,
+                        transactionState);
+                    return;
+                }
 
-                auto externalReadyToCommitIt = GetIteratorOrCrash(ExternalReadyToCommitTransactionToCommitTimestamp_, transactionId);
-                auto commitTimestamp = externalReadyToCommitIt->second;
-                auto readyToCommitIt = GetIteratorOrCrash(ExternalReadyToCommitTransactions_, commitTimestamp);
-                const auto& transactionInfo = readyToCommitIt->second;
-                YT_VERIFY(transactionInfo.TransactionId == transactionId);
+                YT_LOG_DEBUG("Aborting strongly ordered transaction at participant (TransactionId: %v)",
+                    transactionId);
+                EraseOrCrash(StronglyOrderedTransactionToState_, transactionId);
 
-                ExternalReadyToCommitTransactionToCommitTimestamp_.erase(externalReadyToCommitIt);
-                ExternalReadyToCommitTransactions_.erase(readyToCommitIt);
+                if (transactionState == ECommitState::Prepare) {
+                    auto it = GetIteratorOrCrash(ParticipantStronglyOrderedTransactionsToPrepareTimestamp_, transactionId);
+                    UnregisterStronglyOrderedTransaction(it->second);
+                    ParticipantStronglyOrderedTransactionsToPrepareTimestamp_.erase(it);
+                } else {
+                    YT_VERIFY(transactionState == ECommitState::ReadyToCommit);
+
+                    auto externalReadyToCommitIt = GetIteratorOrCrash(ExternalReadyToCommitTransactionToCommitTimestamp_, transactionId);
+                    auto commitTimestamp = externalReadyToCommitIt->second;
+                    auto readyToCommitIt = GetIteratorOrCrash(ExternalReadyToCommitTransactions_, commitTimestamp);
+                    const auto& transactionInfo = readyToCommitIt->second;
+                    YT_VERIFY(transactionInfo.TransactionId == transactionId);
+
+                    ExternalReadyToCommitTransactionToCommitTimestamp_.erase(externalReadyToCommitIt);
+                    ExternalReadyToCommitTransactions_.erase(readyToCommitIt);
+                }
+
+                RemoveUncommittedTransactionsSequenceNumber(transactionId);
             }
-
-            RemoveUncommittedTransactionsSequenceNumber(transactionId);
         }
 
-        // Do this anyway just in case.
         try {
             // Any exception thrown here is caught below.
             TTransactionAbortOptions options{
@@ -2278,7 +2338,11 @@ private:
             };
             TransactionManager_->AbortTransaction(transactionId, options);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Participant failure (TransactionId: %v, State: %v, %v)",
+            YT_LOG_EVENT(
+                Logger(),
+                stronglyOrdered ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Debug,
+                ex,
+                "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 ECommitState::Abort,
                 NRpc::GetCurrentAuthenticationIdentity());
