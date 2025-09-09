@@ -18,6 +18,7 @@ add_executable(value_dictionary_compression)
 target_link_libraries(value_dictionary_compression PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   server-lib-io
   yt-yt-ytlib

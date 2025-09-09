@@ -21,6 +21,7 @@ target_link_libraries(04_par_do_multiple_outputs PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-roren-interface
   cpp-roren-yt
 )

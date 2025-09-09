@@ -25,6 +25,7 @@ target_link_libraries(protoc PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   contrib-libs-protoc
 )
 

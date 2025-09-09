@@ -26,6 +26,7 @@ target_compile_options(read_arrow PRIVATE
 target_link_libraries(read_arrow PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-client
   yt-library-program

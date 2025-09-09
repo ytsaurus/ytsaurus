@@ -21,6 +21,7 @@ target_link_libraries(05_co_group_by_key PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-roren-interface
   cpp-roren-yt
 )

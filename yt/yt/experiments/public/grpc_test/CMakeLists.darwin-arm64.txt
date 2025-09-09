@@ -32,6 +32,7 @@ add_executable(grpc_test)
 target_link_libraries(grpc_test PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   core-rpc-grpc
   library-cpp-getopt

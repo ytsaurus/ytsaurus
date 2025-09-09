@@ -29,6 +29,7 @@ target_link_libraries(proxy-example PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-profiling-solomon
 )
 

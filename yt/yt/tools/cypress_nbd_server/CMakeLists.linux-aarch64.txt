@@ -21,6 +21,7 @@ target_link_libraries(cypress_nbd_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-getopt
   yt-yt-client
   yt-yt-core

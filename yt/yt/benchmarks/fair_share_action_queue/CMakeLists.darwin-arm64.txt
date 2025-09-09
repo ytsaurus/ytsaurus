@@ -26,6 +26,7 @@ target_compile_options(fair_share_action_queue PRIVATE
 target_link_libraries(fair_share_action_queue PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   library-cpp-getopt
   yt-library-signals

@@ -18,6 +18,7 @@ add_executable(03_combine_by_key)
 target_link_libraries(03_combine_by_key PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-roren-interface
   cpp-roren-yt
 )

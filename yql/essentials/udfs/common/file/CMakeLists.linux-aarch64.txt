@@ -28,6 +28,7 @@ target_link_libraries(file_udf PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   yql-essentials-core
@@ -70,6 +71,7 @@ target_link_libraries(file_udf.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   yql-essentials-core

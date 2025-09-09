@@ -29,6 +29,7 @@ target_link_libraries(parse-rpc-header PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-getopt-small
   cpp-yt-memory
   cpp-yt-string

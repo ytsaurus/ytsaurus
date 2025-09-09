@@ -26,6 +26,7 @@ target_compile_options(yt-yt-client-cache-unittests PRIVATE
 target_link_libraries(yt-yt-client-cache-unittests PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   cpp-testing-common

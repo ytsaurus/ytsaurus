@@ -21,6 +21,7 @@ target_link_libraries(print_column_statistics PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   server-lib-io
   yt-yt-ytlib

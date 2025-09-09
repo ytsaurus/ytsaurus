@@ -32,6 +32,7 @@ target_include_directories(unittester-web-assembly PRIVATE
 target_link_libraries(unittester-web-assembly PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-build

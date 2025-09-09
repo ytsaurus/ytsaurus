@@ -35,6 +35,7 @@ target_link_libraries(hydra_stress PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   yt-yt-client
   yt-yt-ytlib

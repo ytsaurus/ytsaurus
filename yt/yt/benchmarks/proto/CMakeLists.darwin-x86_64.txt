@@ -32,6 +32,7 @@ add_executable(proto)
 target_link_libraries(proto PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   contrib-libs-protobuf
 )

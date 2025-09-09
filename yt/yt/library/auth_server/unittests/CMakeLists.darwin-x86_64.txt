@@ -18,6 +18,7 @@ add_executable(unittester-library-auth_server)
 target_link_libraries(unittester-library-auth_server PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main

@@ -32,6 +32,7 @@ add_executable(01_02_par_do_simple_proto)
 target_link_libraries(01_02_par_do_simple_proto PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-roren-interface
   cpp-roren-yt
   contrib-libs-protobuf

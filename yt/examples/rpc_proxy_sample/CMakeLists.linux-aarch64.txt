@@ -21,6 +21,7 @@ target_link_libraries(rpc_proxy_example PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   yt-yt-client
   yt-library-program

@@ -26,6 +26,7 @@ target_compile_options(poison PRIVATE
 target_link_libraries(poison PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-yt-memory
 )
 

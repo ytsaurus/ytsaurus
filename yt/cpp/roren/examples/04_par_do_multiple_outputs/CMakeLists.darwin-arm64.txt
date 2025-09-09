@@ -18,6 +18,7 @@ add_executable(04_par_do_multiple_outputs)
 target_link_libraries(04_par_do_multiple_outputs PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-roren-interface
   cpp-roren-yt
 )

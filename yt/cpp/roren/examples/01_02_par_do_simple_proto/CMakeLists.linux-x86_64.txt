@@ -35,6 +35,7 @@ target_link_libraries(01_02_par_do_simple_proto PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-roren-interface
   cpp-roren-yt

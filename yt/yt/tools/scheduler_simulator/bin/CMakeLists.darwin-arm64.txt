@@ -22,6 +22,7 @@ target_include_directories(scheduler_simulator PRIVATE
 target_link_libraries(scheduler_simulator PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-tools-scheduler_simulator
   cpp-yt-phdr_cache
   library-cpp-getopt

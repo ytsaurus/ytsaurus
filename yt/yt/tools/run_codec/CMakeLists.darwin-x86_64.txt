@@ -18,6 +18,7 @@ add_executable(run_codec)
 target_link_libraries(run_codec PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
 )

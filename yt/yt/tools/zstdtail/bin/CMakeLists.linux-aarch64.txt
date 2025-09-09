@@ -29,6 +29,7 @@ target_link_libraries(zstdtail PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   yt-library-program
   tools-zstdtail-lib

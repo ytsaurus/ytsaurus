@@ -25,6 +25,7 @@ target_compile_options(yson2_udf PRIVATE
 target_link_libraries(yson2_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   cpp-containers-stack_vector
@@ -66,6 +67,7 @@ target_compile_options(yson2_udf.global PRIVATE
 target_link_libraries(yson2_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   cpp-containers-stack_vector

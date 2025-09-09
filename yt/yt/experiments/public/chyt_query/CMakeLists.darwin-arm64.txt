@@ -18,6 +18,7 @@ add_executable(chyt_query)
 target_link_libraries(chyt_query PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-chyt-client
   yt-yt-ytlib
   cpp-getopt-small

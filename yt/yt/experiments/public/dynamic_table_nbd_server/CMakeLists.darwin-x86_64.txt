@@ -18,6 +18,7 @@ add_executable(dynamic_table_nbd_server)
 target_link_libraries(dynamic_table_nbd_server PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-client
   yt-yt-core

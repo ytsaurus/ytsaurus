@@ -58,6 +58,7 @@ target_link_libraries(clickhouse_client_udf PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   contrib-libs-cctz
@@ -502,6 +503,7 @@ target_link_libraries(clickhouse_client_udf.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   contrib-libs-cctz

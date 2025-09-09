@@ -18,6 +18,7 @@ add_executable(footprint)
 target_link_libraries(footprint PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-ytlib
 )
 

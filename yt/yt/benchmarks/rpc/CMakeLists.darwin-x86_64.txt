@@ -32,6 +32,7 @@ add_executable(rpc_benchmark)
 target_link_libraries(rpc_benchmark PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
   cpp-yt-phdr_cache

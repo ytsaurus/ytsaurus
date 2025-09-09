@@ -29,6 +29,7 @@ target_link_libraries(profile_memory PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-mapreduce-interface
   cpp-mapreduce-client

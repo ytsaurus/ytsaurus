@@ -18,6 +18,7 @@ add_executable(print_column_statistics)
 target_link_libraries(print_column_statistics PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   server-lib-io
   yt-yt-ytlib
   cpp-yt-phdr_cache

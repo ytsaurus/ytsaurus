@@ -25,6 +25,7 @@ target_link_libraries(cpp_styleguide PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   contrib-libs-protoc
 )

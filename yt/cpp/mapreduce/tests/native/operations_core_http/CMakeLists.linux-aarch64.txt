@@ -29,6 +29,7 @@ target_link_libraries(cpp-mapreduce-tests-native-operations_core_http PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-mapreduce-client
   cpp-mapreduce-common
   cpp-mapreduce-interface

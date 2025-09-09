@@ -29,6 +29,7 @@ target_link_libraries(profiling-example PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   contrib-libs-tcmalloc
   library-cpp-cpuid_check
   library-profiling-solomon

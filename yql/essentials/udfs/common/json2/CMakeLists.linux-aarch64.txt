@@ -28,6 +28,7 @@ target_link_libraries(json2_udf PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   essentials-core-sql_types
@@ -73,6 +74,7 @@ target_link_libraries(json2_udf.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   essentials-core-sql_types

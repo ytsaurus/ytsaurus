@@ -25,6 +25,7 @@ add_executable(library-cpp-type_info-ut)
 target_link_libraries(library-cpp-type_info-ut PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-testing-unittest_main
   library-cpp-type_info

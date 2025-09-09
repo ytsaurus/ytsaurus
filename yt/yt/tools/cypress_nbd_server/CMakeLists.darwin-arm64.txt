@@ -18,6 +18,7 @@ add_executable(cypress_nbd_server)
 target_link_libraries(cypress_nbd_server PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-getopt
   yt-yt-client
   yt-yt-core

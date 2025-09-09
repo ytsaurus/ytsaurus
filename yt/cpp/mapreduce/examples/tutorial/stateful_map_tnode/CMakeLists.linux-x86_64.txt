@@ -29,6 +29,7 @@ target_link_libraries(stateful_map_tnode PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-mapreduce-client
   cpp-string_utils-levenshtein_diff

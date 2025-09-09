@@ -26,6 +26,7 @@ target_compile_options(unittester-ytlib-table-client PRIVATE
 target_link_libraries(unittester-ytlib-table-client PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   library-query-engine

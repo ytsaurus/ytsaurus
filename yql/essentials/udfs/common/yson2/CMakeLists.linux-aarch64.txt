@@ -28,6 +28,7 @@ target_link_libraries(yson2_udf PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   cpp-containers-stack_vector
@@ -72,6 +73,7 @@ target_link_libraries(yson2_udf.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   cpp-containers-stack_vector

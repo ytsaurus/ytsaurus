@@ -50,6 +50,7 @@ target_link_libraries(unittester-formats PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-build

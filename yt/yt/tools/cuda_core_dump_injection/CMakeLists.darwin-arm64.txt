@@ -18,6 +18,7 @@ add_shared_library(cuda_core_dump_injection)
 target_link_libraries(cuda_core_dump_injection PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
 )
 
 target_link_options(cuda_core_dump_injection PRIVATE

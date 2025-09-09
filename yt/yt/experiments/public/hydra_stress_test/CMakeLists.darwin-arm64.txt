@@ -32,6 +32,7 @@ add_executable(hydra_stress)
 target_link_libraries(hydra_stress PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   yt-yt-client
   yt-yt-ytlib

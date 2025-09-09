@@ -18,6 +18,7 @@ add_executable(collect_chunk_statistics)
 target_link_libraries(collect_chunk_statistics PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt_proto-yt-client
   yt-yt-core

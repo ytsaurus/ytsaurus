@@ -18,6 +18,7 @@ add_executable(arithmetic_expression)
 target_link_libraries(arithmetic_expression PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
 )

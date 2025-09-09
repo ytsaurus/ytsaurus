@@ -21,6 +21,7 @@ target_link_libraries(benchmark_exception PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
   cpp-yt-phdr_cache

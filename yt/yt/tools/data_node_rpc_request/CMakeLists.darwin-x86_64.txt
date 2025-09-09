@@ -26,6 +26,7 @@ target_compile_options(data_node_rpc_request PRIVATE
 target_link_libraries(data_node_rpc_request PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
   yt-yt-client

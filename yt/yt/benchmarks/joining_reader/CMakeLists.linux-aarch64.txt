@@ -29,6 +29,7 @@ target_link_libraries(joining_reader PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gbenchmark
   yt-yt-ytlib
   yt-yt-client
