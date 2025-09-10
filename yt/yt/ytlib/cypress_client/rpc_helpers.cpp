@@ -10,6 +10,7 @@ namespace NYT::NCypressClient {
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NCypressClient::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +100,18 @@ bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header
     return header.HasExtension(TSequoiaExt::allow_resolve_from_sequoia_object)
         ? header.GetExtension(TSequoiaExt::allow_resolve_from_sequoia_object)
         : false;
+}
+
+void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const TString& effectiveAcl)
+{
+    header->SetExtension(TSequoiaExt::target_node_effective_acl, effectiveAcl);
+}
+
+std::optional<TYsonString> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TSequoiaExt::target_node_effective_acl)
+        ? std::make_optional<TYsonString>(header.GetExtension(TSequoiaExt::target_node_effective_acl))
+        : std::nullopt;
 }
 
 void SetResolveDepth(NRpc::NProto::TRequestHeader* header, int value)

@@ -142,8 +142,7 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
             }
         }
 
-        auto checkResponse = securityManager->CheckPermission(
-            Object_,
+        auto checkResponse = DoCheckPermission(
             user,
             EPermission::Read,
             checkOptions);
@@ -2176,7 +2175,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     if (table->IsNative()) {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidateAdHocPermission(EPermission::Write);
 
         if (table->GetSchema()->AsCompactTableSchema()->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
