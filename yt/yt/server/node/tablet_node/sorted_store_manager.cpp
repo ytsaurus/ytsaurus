@@ -687,11 +687,15 @@ void TSortedStoreManager::PopulateReplicateTabletContentRequest(
             store->AsSorted()->GetPartition()->GetId());
     };
 
-    for (auto it : GetSortedIterators(Tablet_->GetEden()->Stores())) {
+    auto comparator = [] (const auto& lhs, const auto& rhs) {
+        return lhs->GetId() < rhs->GetId();
+    };
+
+    for (auto it : GetSortedIterators(Tablet_->GetEden()->Stores(), comparator)) {
         onStore(*it);
     }
     for (const auto& partition : Tablet_->PartitionList()) {
-        for (auto it : GetSortedIterators(partition->Stores())) {
+        for (auto it : GetSortedIterators(partition->Stores(), comparator)) {
             onStore(*it);
         }
     }
