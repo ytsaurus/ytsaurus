@@ -85,6 +85,11 @@ public:
         return HugePageManager_;
     }
 
+    THashSet<NObjectClient::TCellTag> GetMasterCellTags() const override
+    {
+        return {};
+    }
+
 private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs, New<TNodeMemoryTrackerConfig>());
     const TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_ = nullptr;
