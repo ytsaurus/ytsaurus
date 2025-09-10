@@ -221,8 +221,24 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
     auto tableReaderConfig = options.Config ? options.Config : New<TTableReaderConfig>();
     TClientChunkReadOptions chunkReadOptions;
 
+    bool isParallel = false;
+    if (cookieProto.has_partition_mode()) {
+        auto partitionMode = CheckedEnumCast<ETablePartitionMode>(cookieProto.partition_mode());
+        switch (partitionMode) {
+            case NTableClient::ETablePartitionMode::Sorted:
+                THROW_ERROR_EXCEPTION("%Qlv partition mode is not supported by read_table_partition",
+                    partitionMode);
+            case NTableClient::ETablePartitionMode::Ordered:
+                isParallel = false;
+                break;
+            case NTableClient::ETablePartitionMode::Unordered:
+                isParallel = true;
+                break;
+        }
+    }
+
     auto result = CreateMapJobReader(
-        /*isParallel*/ true,
+        isParallel,
         dataSliceDescriptors,
         dataSourceDirectory,
         tableReaderOptions,

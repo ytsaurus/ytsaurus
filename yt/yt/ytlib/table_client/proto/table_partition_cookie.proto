@@ -11,6 +11,7 @@ message TTablePartitionCookie
     optional NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
     repeated NControllerAgent.NProto.TTableInputSpec table_input_specs = 2;
     optional string user = 3;
+    optional int32 partition_mode = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
