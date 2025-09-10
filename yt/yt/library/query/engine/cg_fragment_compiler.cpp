@@ -3582,11 +3582,6 @@ TGroupOpSlots MakeCodegenGroupOp(
     size_t deltaSlot = (*slotCount)++;
     size_t totalsSlot = (*slotCount)++;
 
-    size_t compatIntermediateSlot = (*slotCount)++;
-    size_t compatAggregatedSlot = (*slotCount)++;
-    size_t compatDeltaSlot = (*slotCount)++;
-    size_t compatTotalsSlot = (*slotCount)++;
-
     i64 groupKeySize = std::ssize(keyTypes);
     i64 groupStateSize = std::ssize(stateTypes);
     i64 groupKeyWithStateSize = groupKeySize + groupStateSize;
@@ -3831,18 +3826,10 @@ TGroupOpSlots MakeCodegenGroupOp(
         auto consumeDelta = MakeConsumer(builder, "ConsumeGroupedDeltaRows", deltaSlot);
         auto consumeTotals = TLlvmClosure();
 
-        auto compatConsumeIntermediate = MakeConsumer(builder, "CompatConsumeGroupedIntermediateRows", compatIntermediateSlot);
-        auto compatConsumeAggregated = TLlvmClosure();
-        auto compatConsumeDelta = MakeConsumer(builder, "CompatConsumeGroupedDeltaRows", compatDeltaSlot);
-        auto compatConsumeTotals = TLlvmClosure();
-
         if (isMerge) {
             // Totals and final streams do not appear in inputs of NodeTread and Non-Coordinated queries.
             consumeAggregated = MakeConsumer(builder, "ConsumeGroupedAggregatedRows", aggregatedSlot);
             consumeTotals = MakeConsumer(builder, "ConsumeGroupedTotalsRows", totalsSlot);
-
-            compatConsumeAggregated = MakeConsumer(builder, "CompatConsumeGroupedAggregatedRows", compatAggregatedSlot);
-            compatConsumeTotals = MakeConsumer(builder, "CompatConsumeGroupedTotalsRows", compatTotalsSlot);
         }
 
         Value* orderOpComparer = nullptr;
@@ -3891,22 +3878,10 @@ TGroupOpSlots MakeCodegenGroupOp(
 
                 isMerge ? consumeTotals.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
                 isMerge ? consumeTotals.Function : ConstantInt::getNullValue(builder->getPtrTy()),
-
-                compatConsumeIntermediate.ClosurePtr,
-                compatConsumeIntermediate.Function,
-
-                isMerge ? compatConsumeAggregated.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
-                isMerge ? compatConsumeAggregated.Function : ConstantInt::getNullValue(builder->getPtrTy()),
-
-                compatConsumeDelta.ClosurePtr,
-                compatConsumeDelta.Function,
-
-                isMerge ? compatConsumeTotals.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
-                isMerge ? compatConsumeTotals.Function : ConstantInt::getNullValue(builder->getPtrTy()),
             });
     };
 
-    return {intermediateSlot, aggregatedSlot, deltaSlot, totalsSlot, compatIntermediateSlot, compatAggregatedSlot, compatDeltaSlot, compatTotalsSlot};
+    return {intermediateSlot, aggregatedSlot, deltaSlot, totalsSlot};
 }
 
 size_t MakeCodegenGroupTotalsOp(
