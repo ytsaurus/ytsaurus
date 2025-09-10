@@ -182,6 +182,7 @@ DEFINE_ENUM(EMasterReign,
     ((LocalUserRequestThrottlers)                                   (3027))  // faucct
     ((FixResolvePrerequisitePathToLocalObjectForSymlinks)           (3028))  // cherepashka
     ((SequencerStateFix)                                            (3029))  // aleksandra-zh
+    ((DropLegacyCellMap)                                            (3030))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
