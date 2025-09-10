@@ -85,7 +85,7 @@ struct ITabletWriteManager
         TOpaqueWriteLogIndex writeLogIndex,
         bool onAfterSnapshotLoaded) = 0;
 
-    virtual void OnTransactionTransientReset(TTransaction* transaction) = 0;
+    virtual void OnTransactionTransientReset(TTransaction* transaction, TTimestamp transientPrepareTimestamp) = 0;
 
     virtual void OnTransientGenerationPromoted(TTransaction* transaction) = 0;
     virtual void OnPersistentGenerationPromoted(TTransaction* transaction) = 0;

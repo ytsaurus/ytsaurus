@@ -107,6 +107,7 @@ public:
         TLockMask lockMask,
         bool skipSharedWriteLocks);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
+    void UnprepareRow(TTransaction* transaction, TSortedDynamicRow row, TTimestamp transientPrepareTimestamp);
     void CommitAndWriteRowPartsWithNoNeedForSerialization(
         TTransaction* transaction,
         TSortedDynamicRow dynamicRow,

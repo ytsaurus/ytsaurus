@@ -478,7 +478,7 @@ public:
         }
     }
 
-    void OnTransactionTransientReset(TTransaction* transaction) override
+    void OnTransactionTransientReset(TTransaction* transaction, TTimestamp transientPrepareTimestamp) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -494,6 +494,10 @@ public:
             }
 
             return;
+        }
+
+        if (transientPrepareTimestamp != NullTimestamp && FindTransactionTransientWriteState(transaction->GetId())) {
+            UnprepareLockedRows(transaction, transientPrepareTimestamp);
         }
 
         // TODO: Some keys may be both prelocked and referenced in write log
@@ -1336,6 +1340,44 @@ private:
         YT_LOG_DEBUG_IF(
             std::ssize(prelockedRows) > 0,
             "Prelocked rows prepared (TransactionId: %v, PrelockedRowCount: %v)",
+            transactionId,
+            prelockedRows.size());
+    }
+
+    void UnprepareLockedRows(TTransaction* transaction, TTimestamp transientPrepareTimestamp)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = transaction->GetId();
+
+        auto unprepareRow = [&] (const TSortedDynamicRowRef& rowRef) {
+            // NB: Don't call ValidateAndDiscardRowRef as UnprepareLockedRows do not clear lockedRows and prelockedRows.
+            // Row refs will be discarded later in commit or abort.
+            if (rowRef.Store->GetStoreState() != EStoreState::Orphaned) {
+                rowRef.StoreManager->UnprepareRow(transaction, rowRef, transientPrepareTimestamp);
+            }
+        };
+
+        auto transientWriteState = GetOrCrash(TransactionIdToTransientWriteState_, transactionId);
+        const auto& lockedRows = transientWriteState->LockedRows;
+        for (const auto& lockedRow : lockedRows) {
+            unprepareRow(lockedRow);
+        }
+
+        YT_LOG_DEBUG_IF(
+            std::ssize(lockedRows) > 0,
+            "Locked rows unprepared (TransactionId: %v, LockedRowCount: %v)",
+            transaction->GetId(),
+            lockedRows.size());
+
+        auto& prelockedRows = transientWriteState->PrelockedRows;
+        for (const auto& prelockedRow : TRingQueueIterableWrapper(prelockedRows)) {
+            unprepareRow(prelockedRow);
+        }
+
+        YT_LOG_DEBUG_IF(
+            std::ssize(prelockedRows) > 0,
+            "Prelocked rows unprepared (TransactionId: %v, PrelockedRowCount: %v)",
             transactionId,
             prelockedRows.size());
     }
