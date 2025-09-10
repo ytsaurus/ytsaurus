@@ -157,7 +157,7 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 	for _, task := range activeTasks {
 		_, err := os.Stat(task.StagedPath)
 		if err != nil {
-			tt.logger.Error("unavailable file for active task, task is completed with error", "error", err, "stagedpath", task.StagedPath)
+			tt.logger.Warn("Unavailable file for active task, task is completed with error", "error", err, "stagedpath", task.StagedPath)
 			err = tt.datastore.CompleteTask(task.StagedPath, time.Now(), fmt.Errorf("file unavailable: %w", err))
 			if err != nil {
 				panic(fmt.Sprintf("unexpected error CompleteTask(%v): %v", task.StagedPath, err))
@@ -633,7 +633,7 @@ func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
 	for {
 		err := c.datastore.UpdateEndPosition(c.path, pos)
 		if err != nil {
-			c.logger.Error("Failed to notify progress, will retry", "error", err)
+			c.logger.Warn("Failed to notify progress, will retry", "error", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
