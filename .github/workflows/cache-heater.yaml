@@ -69,6 +69,10 @@ jobs:
     steps:
       - name: Build and heat cache
         run: |
+          set -ex
+
+          cd ytsaurus
+
           BUILD_FLAGS="--test-prepare --bazel-remote-store --bazel-remote-put"
           BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
           BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}"
@@ -114,17 +118,17 @@ jobs:
               yt/yt/tests/integration/size_s
               yt/yt/tests/integration/size_xl
           )
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} ${TARGETS[*]}
+          ./ya make ${BUILD_FLAGS} ${TARGETS[*]}
 
           declare -a FOLDERS_WITH_UNITTESTS=()
           for folder in yt yql; do
-              for makefile in $(find ../ytsaurus/ytsaurus/$folder -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+              for makefile in $(find ./$folder -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
               folder=$(dirname ${makefile})
               folder=${folder#../ytsaurus/ytsaurus/}
               FOLDERS_WITH_UNITTESTS+=("${folder}")
               done
           done
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
+          ./ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
 
   stop-vm:
     name: Stop VM
