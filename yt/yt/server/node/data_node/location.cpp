@@ -1794,6 +1794,8 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
     NFS::CleanTempFiles(GetPath());
     ForceHashDirectories(GetPath());
 
+    auto masterCellTags = ChunkStoreHost_->GetMasterCellTags();
+
     THashSet<TChunkId> chunkIds;
     {
         // Enumerate files under the location's directory.
@@ -1811,7 +1813,14 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
                 continue;
             }
 
-            chunkIds.insert(chunkId);
+            auto chunkMasterCellTag = CellTagFromId(chunkId);
+            if (masterCellTags.contains(chunkMasterCellTag)) {
+                chunkIds.insert(chunkId);
+            } else {
+                YT_LOG_ALERT("Chunk from unknown master was scanned (ChunkId: %v, MasterCellTag: %v)",
+                    chunkId,
+                    chunkMasterCellTag);
+            }
         }
     }
 

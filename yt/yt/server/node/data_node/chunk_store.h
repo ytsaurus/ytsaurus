@@ -41,6 +41,7 @@ struct IChunkStoreHost
     virtual void RemoveChunkFromCache(TChunkId chunkId) = 0;
     virtual const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() = 0;
     virtual const NIO::IHugePageManagerPtr& GetHugePageManager() = 0;
+    virtual THashSet<NObjectClient::TCellTag> GetMasterCellTags() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)

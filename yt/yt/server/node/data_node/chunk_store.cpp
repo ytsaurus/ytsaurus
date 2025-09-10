@@ -5,13 +5,13 @@
 #include "blob_chunk.h"
 #include "config.h"
 #include "journal_chunk.h"
-#include "journal_manager.h"
 #include "location.h"
 #include "session.h"
 #include "session_manager.h"
 #include "master_connector.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -112,6 +112,11 @@ public:
     const NIO::IHugePageManagerPtr& GetHugePageManager() override
     {
         return Bootstrap_->GetHugePageManager();
+    }
+
+    THashSet<NObjectClient::TCellTag> GetMasterCellTags() const override
+    {
+        return Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector()->GetMasterCellTags();
     }
 
 private:
