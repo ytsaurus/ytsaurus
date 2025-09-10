@@ -108,7 +108,6 @@ jobs:
         uses: diplodoc-platform/docs-upload-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          project-link: https://ytsaurus-testing.viewer.ydocs.io
           storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
           storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
@@ -127,6 +126,7 @@ jobs:
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
           server: "https://viewer.ydocs.io"
+          project-link: https://ytsaurus-testing.viewer.ydocs.io
 
  # release:
  #   needs: release-to-testing
