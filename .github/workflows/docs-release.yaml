@@ -34,11 +34,12 @@ jobs:
         env:
           index-name: "ytsaurus-docs"
           api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
+          app-id: ${{ secrets.ALGOLIA_APP_ID }}
         run: |
           set +e
           set -o pipefail
 
-          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ env.api-key }} 2>&1 | tee './build-html.log'
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ env.api-key }} --app-id ${{ env.app-id }}  2>&1 | tee './build-html.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
         shell: bash
