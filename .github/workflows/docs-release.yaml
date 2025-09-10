@@ -7,19 +7,19 @@ on:
       - main
     paths: 'yt/docs/**'
 
+env:
+  src-root: "./yt/docs"
+  build-root: "./_docs-build"
+  lint-root: "./_docs-lint"
+  revision: "${{ github.sha }}"
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions: write-all
     env:
-      src-root: "./yt/docs"
-      build-root: "./_docs-build"
-      lint-root: "./_docs-lint"
       index-name: "ytsaurus-docs"
-      revision: "${{ github.sha }}"
-      ALGOLIA_API_KEY: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
-      ALGOLIA_APP_ID: ${{ secrets.ALGOLIA_APP_ID }}
-      ALGOLIA_SEARCH_API_KEY: ${{ secrets.ALGOLIA_SEARCH_API_KEY }}
+      api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
           set +e
           set -o pipefail
 
-          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} 2>&1 | tee './build-html.log'
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ env.api-key }} 2>&1 | tee './build-html.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
         shell: bash
@@ -92,10 +92,6 @@ jobs:
           path: ./build-html.log
           retention-days: 1
 
-      - name: Checking local index
-        run: |
-          ls ${{ env.lint-root }}/
-
       - name: Exit
         run: |
           exitcode=${{ steps.build-md2html.outputs.exitcode }}
@@ -123,7 +119,7 @@ jobs:
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-          src-root: ${{ env.src-root }}
+
   release:
     needs: upload
     runs-on: ubuntu-latest
@@ -131,9 +127,8 @@ jobs:
       - name: Release
         uses: diplodoc-platform/docs-release-action@v2
         with:
-          revision: "${{ github.sha }}"
+          revision: ${{ env.revision }}
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-          src-root: ${{ env.src-root }}
           server: "https://viewer.ydocs.io"
