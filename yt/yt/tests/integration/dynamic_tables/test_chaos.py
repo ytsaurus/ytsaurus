@@ -4655,7 +4655,10 @@ class TestChaos(ChaosTestBase):
 
     @authors("osidorkin")
     def test_crt_tablets_count(self):
+        cluster_names = self.get_cluster_names()
+        peer_cluster_names = cluster_names
         cell_id = self._sync_create_chaos_bundle_and_cell()
+        cell_id1 = self._sync_create_chaos_cell(peer_cluster_names=peer_cluster_names)
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
 
         queue_schema = self._get_schemas_by_name(["ordered_simple"])[0]
@@ -4696,6 +4699,34 @@ class TestChaos(ChaosTestBase):
         assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
 
         assert not get("//tmp/crt/@sorted")
+
+        migrate_replication_cards(cell_id, [card_id], destination_cell_id=cell_id1)
+
+        def _migrated(migrated_card_path, origin, driver=None):
+            def _checkable():
+                try:
+                    return get("{0}/state".format(migrated_card_path), driver=driver) == "migrated"
+                except YtError as err:
+                    if not origin and err.contains_text("Node has no child with key \"{0}\"".format(card_id)):
+                        return True
+                    raise err
+
+            return _checkable
+
+        migration_path = "{0}/chaos_manager/replication_cards/{1}".format(
+            self._get_chaos_cell_orchid_path(cell_id), card_id
+        )
+        wait(_migrated(migration_path, origin=True))
+
+        migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(
+            self._get_chaos_cell_orchid_path(cell_id1), card_id
+        )
+        wait(lambda: exists(migrated_card_path))
+
+        self._sync_replication_era(card_id, replicas)
+
+        assert get("//tmp/crt/@tablet_count") == 5
+        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
 
     @authors("osidorkin")
     def test_crt_tablets_info(self):
