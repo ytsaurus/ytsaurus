@@ -122,7 +122,7 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         std::pair{EJobMetricName::ExecTime, &TTimeStatistics::ExecDuration},
         std::pair{EJobMetricName::PrepareTime, &TTimeStatistics::PrepareDuration},
         std::pair{EJobMetricName::PrepareRootFSTime, &TTimeStatistics::PrepareRootFSDuration},
-        std::pair{EJobMetricName::ArtifactsDownloadTime, &TTimeStatistics::ArtifactsDownloadDuration},
+        std::pair{EJobMetricName::ArtifactsCachingTime, &TTimeStatistics::ArtifactsCachingDuration},
     };
 
     for (const auto& [metric, field] : BuiltinControllerTimeMetricMapping) {

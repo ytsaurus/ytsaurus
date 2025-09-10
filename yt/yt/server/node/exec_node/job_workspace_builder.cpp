@@ -302,7 +302,7 @@ private:
 
         YT_LOG_DEBUG("Root volume preparation is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         if (!Context_.RootVolumeLayerArtifactKeys.empty()) {
@@ -428,7 +428,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         const auto& slot = Context_.Slot;
@@ -745,7 +745,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
         const auto& dockerImage = Context_.DockerImage;

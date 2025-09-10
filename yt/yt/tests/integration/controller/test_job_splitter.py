@@ -376,7 +376,7 @@ done
                 "force_transform": True,
                 "mode": mode,
                 "job_io": {
-                    "testing_options": {"pipe_delay": 500},
+                    "testing_options": {"pipe_delay": 2000},
                     "buffer_row_count": 1,
                 },
                 "use_new_sorted_pool": use_new_sorted_pool,

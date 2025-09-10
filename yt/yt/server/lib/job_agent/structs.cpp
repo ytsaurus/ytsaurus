@@ -25,8 +25,10 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
     if (PrepareDuration) {
         statistics->AddSample("/time/prepare"_SP, PrepareDuration->MilliSeconds());
     }
-    if (ArtifactsDownloadDuration) {
-        statistics->AddSample("/time/artifacts_download"_SP, ArtifactsDownloadDuration->MilliSeconds());
+    if (ArtifactsCachingDuration) {
+        statistics->AddSample("/time/artifacts_caching"_SP, ArtifactsCachingDuration->MilliSeconds());
+        // COMPAT(krasovav): Remove this statistic after it's no longer used
+        statistics->AddSample("/time/artifacts_download"_SP, ArtifactsCachingDuration->MilliSeconds());
     }
     if (PrepareRootFSDuration) {
         statistics->AddSample("/time/prepare_root_fs"_SP, PrepareRootFSDuration->MilliSeconds());
@@ -44,7 +46,7 @@ bool TTimeStatistics::IsEmpty() const
     return
         !WaitingForResourcesDuration &&
         !PrepareDuration &&
-        !ArtifactsDownloadDuration &&
+        !ArtifactsCachingDuration &&
         !PrepareRootFSDuration &&
         !PrepareGpuCheckFSDuration &&
         !GpuCheckDuration;
@@ -54,7 +56,7 @@ bool TTimeStatistics::IsEmpty() const
 void TTimeStatistics::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, PrepareDuration);
-    PHOENIX_REGISTER_FIELD(2, ArtifactsDownloadDuration);
+    PHOENIX_REGISTER_FIELD(2, ArtifactsCachingDuration);
     PHOENIX_REGISTER_FIELD(3, PrepareRootFSDuration);
     PHOENIX_REGISTER_FIELD(4, ExecDuration);
     PHOENIX_REGISTER_FIELD(7, PrepareGpuCheckFSDuration,
@@ -75,8 +77,8 @@ void ToProto(
     if (timeStatistics.PrepareDuration) {
         timeStatisticsProto->set_prepare_duration(ToProto(*timeStatistics.PrepareDuration));
     }
-    if (timeStatistics.ArtifactsDownloadDuration) {
-        timeStatisticsProto->set_artifacts_download_duration(ToProto(*timeStatistics.ArtifactsDownloadDuration));
+    if (timeStatistics.ArtifactsCachingDuration) {
+        timeStatisticsProto->set_artifacts_caching_duration(ToProto(*timeStatistics.ArtifactsCachingDuration));
     }
     if (timeStatistics.PrepareRootFSDuration) {
         timeStatisticsProto->set_prepare_root_fs_duration(ToProto(*timeStatistics.PrepareRootFSDuration));
@@ -102,8 +104,8 @@ void FromProto(
     if (timeStatisticsProto.has_prepare_duration()) {
         timeStatistics->PrepareDuration = FromProto<TDuration>(timeStatisticsProto.prepare_duration());
     }
-    if (timeStatisticsProto.has_artifacts_download_duration()) {
-        timeStatistics->ArtifactsDownloadDuration = FromProto<TDuration>(timeStatisticsProto.artifacts_download_duration());
+    if (timeStatisticsProto.has_artifacts_caching_duration()) {
+        timeStatistics->ArtifactsCachingDuration = FromProto<TDuration>(timeStatisticsProto.artifacts_caching_duration());
     }
     if (timeStatisticsProto.has_prepare_root_fs_duration()) {
         timeStatistics->PrepareRootFSDuration = FromProto<TDuration>(timeStatisticsProto.prepare_root_fs_duration());
@@ -129,8 +131,10 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
             .DoIf(static_cast<bool>(timeStatistics.PrepareDuration), [&] (auto fluent) {
                 fluent.Item("prepare").Value(*timeStatistics.PrepareDuration);
             })
-            .DoIf(static_cast<bool>(timeStatistics.ArtifactsDownloadDuration), [&] (auto fluent) {
-                fluent.Item("artifacts_download").Value(*timeStatistics.ArtifactsDownloadDuration);
+            .DoIf(static_cast<bool>(timeStatistics.ArtifactsCachingDuration), [&] (auto fluent) {
+                fluent.Item("artifacts_caching").Value(*timeStatistics.ArtifactsCachingDuration);
+                // COMPAT(krasovav): Remove this field after it's no longer used
+                fluent.Item("artifacts_download").Value(*timeStatistics.ArtifactsCachingDuration);
             })
             .DoIf(static_cast<bool>(timeStatistics.PrepareRootFSDuration), [&] (auto fluent) {
                 fluent.Item("prepare_root_fs").Value(*timeStatistics.PrepareRootFSDuration);

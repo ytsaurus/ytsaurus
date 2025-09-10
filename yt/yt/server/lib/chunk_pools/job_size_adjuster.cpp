@@ -29,7 +29,8 @@ public:
             YT_VERIFY(summary.TotalInputDataStatistics);
             UpdateStatistics(
                 summary.TotalInputDataStatistics->data_weight(),
-                summary.TimeStatistics.PrepareDuration.value_or(TDuration()) - summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration()),
+                summary.TimeStatistics.PrepareDuration.value_or(TDuration()) -
+                    summary.TimeStatistics.ArtifactsCachingDuration.value_or(TDuration()),
                 summary.TimeStatistics.ExecDuration.value_or(TDuration()));
         }
     }
