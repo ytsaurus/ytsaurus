@@ -99,7 +99,7 @@ jobs:
           fi
         shell: bash
 
-  upload:
+  upload-to-testing:
     needs: build
     runs-on: ubuntu-latest
     permissions: write-all
@@ -108,18 +108,19 @@ jobs:
         uses: diplodoc-platform/docs-upload-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          project-link: ${{ vars.DIPLODOC_PROJECT_LINK }}
+          project-link: https://ytsaurus-testing.viewer.ydocs.io
           storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
           storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+          stage: "testing"
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
 
-  release:
-    needs: upload
+  release-to-testing:
+    needs: upload-to-testing
     runs-on: ubuntu-latest
     steps:
-      - name: Release
+      - name: Release to testing
         uses: diplodoc-platform/docs-release-action@v2
         with:
           revision: "${{ github.sha }}"
@@ -127,3 +128,16 @@ jobs:
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
           server: "https://viewer.ydocs.io"
+
+ # release:
+ #   needs: release-to-testing
+ #   runs-on: ubuntu-latest
+ #   steps:
+ #     - name: Release
+ #       uses: diplodoc-platform/docs-release-action@v2
+ #       with:
+ #         revision: "${{ github.sha }}"
+ ##         storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+  ##        storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
+  #        storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
+   #       server: "https://viewer.ydocs.io"
