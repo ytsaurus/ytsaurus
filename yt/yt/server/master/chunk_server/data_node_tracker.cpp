@@ -423,14 +423,24 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto locationUuid : chunkLocationUuids) {
-            if (auto* existingLocation = FindChunkLocationByUuid(locationUuid); IsObjectAlive(existingLocation)) {
-                objectManager->ValidateObjectLifeStage(existingLocation);
-                if (auto existingNode = existingLocation->GetNode(); IsObjectAlive(existingNode)) {
-                    if (existingNode->GetDefaultAddress() != address) {
-                        THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is another cluster node %Qv with the same location uuid %v",
-                            address,
-                            existingNode->GetDefaultAddress(),
-                            locationUuid);
+            if (auto* existingLocation = FindChunkLocationByUuid(locationUuid)) {
+                if (!IsObjectAlive(existingLocation)) {
+                    // I am not sure ressurecting location here is a safe option as locations are
+                    // created on primary master and replicated to secondary, so we'll have to ensure
+                    // this location is created on secondary during resurrection and I'd rather wait
+                    // for it to die.
+                    THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is a zombie location %v, please wait for it to die",
+                        address,
+                        locationUuid);
+                } else {
+                    objectManager->ValidateObjectLifeStage(existingLocation);
+                    if (auto existingNode = existingLocation->GetNode(); IsObjectAlive(existingNode)) {
+                        if (existingNode->GetDefaultAddress() != address) {
+                            THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is another cluster node %Qv with the same location uuid %v",
+                                address,
+                                existingNode->GetDefaultAddress(),
+                                locationUuid);
+                        }
                     }
                 }
             }
@@ -560,7 +570,12 @@ public:
 
     TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) const override
     {
-        return GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
+        auto* location = GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
+        if (!IsObjectAlive(location)) {
+            YT_LOG_ALERT("Zombie location is found using GetChunkLocationByUuid (LocationUuid: %v)",
+                locationUuid);
+        }
+        return location;
     }
 
     TChunkLocation* FindChunkLocationByIndex(TChunkLocationIndex locationIndex) const override
@@ -625,18 +640,12 @@ public:
         return location;
     }
 
-    void DestroyChunkLocation(TChunkLocation* location) override
+    void RemoveLocationFromNode(TChunkLocation* location)
     {
         auto node = location->GetNode();
-
-        YT_LOG_DEBUG("Chunk location destroyed (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
-            location->GetId(),
-            location->GetUuid(),
-            node ? node->GetDefaultAddress() : "<null>");
-
         if (node) {
             if (node->GetAggregatedState() != ENodeState::Offline) {
-                YT_LOG_ALERT("Destroying chunk location of a non-offline node (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
+                YT_LOG_ALERT("Removing chunk location of a non-offline node (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
                     location->GetId(),
                     location->GetUuid(),
                     node->GetDefaultAddress());
@@ -644,8 +653,38 @@ public:
             std::erase(node->ChunkLocations(), location);
             location->SetNode(nullptr);
         }
+    }
 
-        UnregisterChunkLocationUuid(location->GetUuid());
+    void ZombifyChunkLocation(TChunkLocation* location) override
+    {
+        auto node = location->GetNode();
+        RemoveLocationFromNode(location);
+
+        YT_LOG_DEBUG("Chunk location zombified (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
+            location->GetId(),
+            location->GetUuid(),
+            node ? node->GetDefaultAddress() : "<null>");
+    }
+
+    void DestroyChunkLocation(TChunkLocation* location) override
+    {
+        auto node = location->GetNode();
+        if (node) {
+            YT_LOG_ALERT("Zombie location is bound to node (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
+            location->GetId(),
+            location->GetUuid(),
+            node->GetDefaultAddress());
+
+            RemoveLocationFromNode(location);
+        }
+
+        YT_LOG_DEBUG("Chunk location destroyed (LocationId: %v, LocationUuid: %v)",
+            location->GetId(),
+            location->GetUuid());
+
+
+        // COMPAT(aleksandra-zh): change to UnregisterChunkLocationUuid.
+        MaybeUnregisterChunkLocationUuid(location->GetUuid());
     }
 
     const TChunkLocationUuidMap& ChunkLocationUuidMap() const override
@@ -713,6 +752,28 @@ private:
         EraseOrCrash(ChunkLocationUuidToLocation_, uuid);
         auto& shard = GetChunkLocationShard(uuid);
         EraseOrCrash(shard, uuid);
+    }
+
+    // COMPAT(aleksandra-zh).
+    void MaybeUnregisterChunkLocationUuid(TChunkLocationUuid uuid)
+    {
+        // For locations zombified before the update, but destroyed after.
+        auto uuidToLocationIt = ChunkLocationUuidToLocation_.find(uuid);
+        if (uuidToLocationIt == ChunkLocationUuidToLocation_.end()) {
+            YT_LOG_ALERT("Zombie location is not present in ChunkLocationUuidToLocation_ (LocationUuid: %v)",
+                uuid);
+        } else {
+            ChunkLocationUuidToLocation_.erase(uuidToLocationIt);
+        }
+
+        auto& shard = GetChunkLocationShard(uuid);
+        auto shardIt = shard.find(uuid);
+        if (shardIt == shard.end()) {
+            YT_LOG_ALERT("Zombie location is not present in shard (LocationUuid: %v)",
+                uuid);
+        } else {
+            shard.erase(shardIt);
+        }
     }
 
     std::vector<TError> GetAlerts() const
