@@ -171,21 +171,21 @@ TEST_F(TJobSizeTrackerTest, AccountingByTwoEqualComponents)
     // This behavior may prevent creation of very small jobs.
 
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateDataWeightVector(100, 100),
+        /*limitVector*/ CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100),
         TJobSizeTrackerOptions(),
         Logger);
 
     // Job 1: Two equal slices.
 
     {
-        auto resources = CreateDataWeightVector(50, 50);
+        auto resources = CreateDataWeightVector(/*DW*/ 50, /*PDW*/ 50);
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
         ASSERT_FALSE(tracker->CheckOverflow().has_value());
     }
 
     {
-        auto resources = CreateDataWeightVector(50, 50);
+        auto resources = CreateDataWeightVector(/*DW*/ 50, /*PDW*/ 50);
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
         ASSERT_FALSE(tracker->CheckOverflow().has_value());
@@ -194,7 +194,7 @@ TEST_F(TJobSizeTrackerTest, AccountingByTwoEqualComponents)
     // Job 2: Small slice triggers new job.
 
     {
-        auto resources = CreateDataWeightVector(20, 20);
+        auto resources = CreateDataWeightVector(/*DW*/ 20, /*PDW*/ 20);
 
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
@@ -206,7 +206,7 @@ TEST_F(TJobSizeTrackerTest, AccountingByTwoEqualComponents)
     // Job 3: Large slice switches dominant resource.
 
     {
-        auto resources = CreateDataWeightVector(150, 150);
+        auto resources = CreateDataWeightVector(/*DW*/ 150, /*PDW*/ 150);
 
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
@@ -218,7 +218,7 @@ TEST_F(TJobSizeTrackerTest, AccountingByTwoEqualComponents)
     // Job 4: Tiny slice still triggers overflow.
 
     {
-        auto resources = CreateDataWeightVector(1, 1);
+        auto resources = CreateDataWeightVector(/*DW*/ 1, /*PDW*/ 1);
 
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
@@ -230,7 +230,7 @@ TEST_F(TJobSizeTrackerTest, AccountingByTwoEqualComponents)
     // Job 5: Another large slice.
 
     {
-        auto resources = CreateDataWeightVector(500, 500);
+        auto resources = CreateDataWeightVector(/*DW*/ 500, /*PDW*/ 500);
 
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
@@ -267,17 +267,17 @@ TEST_F(TJobSizeTrackerTest, MultipleResourceCompetition)
     // +---+---+---+---------------+---------------+---------------+-----------------+----------------+---------------+
 
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateVector(10, 100, 50),
+        /*limitVector*/ CreateVector(/*DSC*/ 10, /*DW*/ 100, /*PDW*/ 50),
         TJobSizeTrackerOptions(),
         Logger);
 
     // Job 1: Balanced usage within limits.
     {
-        auto resources = CreateVector(5, 30, 20);
+        auto resources = CreateVector(/*DSC*/ 5, /*DW*/ 30, /*PDW*/ 20);
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
 
-        resources = CreateVector(4, 30, 25);
+        resources = CreateVector(/*DSC*/ 4, /*DW*/ 30, /*PDW*/ 25);
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
         ASSERT_FALSE(tracker->CheckOverflow().has_value());
@@ -285,7 +285,7 @@ TEST_F(TJobSizeTrackerTest, MultipleResourceCompetition)
 
     // Job 2: DataWeight causes cumulative overflow (stays dominant).
     {
-        auto resources = CreateVector(3, 140, 5);
+        auto resources = CreateVector(/*DSC*/ 3, /*DW*/ 140, /*PDW*/ 5);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
 
@@ -298,7 +298,7 @@ TEST_F(TJobSizeTrackerTest, MultipleResourceCompetition)
 
     // Job 3: CompressedDataSize overflow switches dominant resource.
     {
-        auto resources = CreateVector(3, 20, 80);
+        auto resources = CreateVector(/*DSC*/ 3, /*DW*/ 20, /*PDW*/ 80);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
 
@@ -310,7 +310,7 @@ TEST_F(TJobSizeTrackerTest, MultipleResourceCompetition)
 
     // Job 4: DataSliceCount would reach hysteresis limit.
     {
-        auto resources = CreateVector(13, 0, 0);
+        auto resources = CreateVector(/*DSC*/ 13, /*DW*/ 0, /*PDW*/ 0);
         auto token = tracker->CheckOverflow(resources);
         // Should overflow because DSC would reach the hysteresis limit (13 + 3 = 16)
         ASSERT_TRUE(token);
@@ -327,16 +327,16 @@ TEST_F(TJobSizeTrackerTest, SuggestRowSplitFractionEdgeCases)
 {
     // Test SuggestRowSplitFraction with various edge cases
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateDataWeightVector(100, 100),
+        /*limitVector*/ CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100),
         TJobSizeTrackerOptions(),
         Logger);
 
     // Fill up to near limit
-    tracker->AccountSlice(CreateDataWeightVector(90, 90));
+    tracker->AccountSlice(CreateDataWeightVector(/*DW*/ 90, /*PDW*/ 90));
 
     // Test 1: Resource that would overflow both limits.
     {
-        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(100, 100));
+        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100));
         // Limited by cumulative gap: (100-90)/100 = 0.1
         // NOT by hysteresis limit because cumulative limit is stricter.
         ASSERT_NEAR(fraction, 0.1, 0.01);
@@ -344,14 +344,14 @@ TEST_F(TJobSizeTrackerTest, SuggestRowSplitFractionEdgeCases)
 
     // Test 2: One resource would overflow.
     {
-        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(20, 100));
+        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(/*DW*/ 20, /*PDW*/ 100));
         // Limited by PDW: (100-90)/100 = 0.1
         ASSERT_NEAR(fraction, 0.1, 0.01);
     }
 
     // Test 3: Zero vector.
     {
-        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(0, 0));
+        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(/*DW*/ 0, /*PDW*/ 0));
         // Division by zero should be handled.
         ASSERT_EQ(fraction, 1.0);
     }
@@ -359,22 +359,22 @@ TEST_F(TJobSizeTrackerTest, SuggestRowSplitFractionEdgeCases)
     // Test 4: After flush, hysteresis limit becomes relevant.
     {
         // Need to trigger overflow first by adding something
-        auto token = tracker->CheckOverflow(CreateDataWeightVector(20, 20));
+        auto token = tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 20, /*PDW*/ 20));
         ASSERT_TRUE(token);
         tracker->Flush(token);
 
         // Now cumulative limit is 200 for both.
         // Local usage is 0, cumulative usage is 90.
-        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(105, 105));
+        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(/*DW*/ 105, /*PDW*/ 105));
         // Limited by cumulative gap: (200-90)/105 ~ 1.04, but should be capped at 1.0.
         ASSERT_EQ(fraction, 1.0);
     }
 
     // Test 5: Fill local partially after flush.
     {
-        tracker->AccountSlice(CreateDataWeightVector(50, 50));
+        tracker->AccountSlice(CreateDataWeightVector(/*DW*/ 50, /*PDW*/ 50));
 
-        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(200, 200));
+        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(/*DW*/ 200, /*PDW*/ 200));
         // Local gap: (150-50)/200 = 0.5
         // Cumulative gap: (200-140)/200 = 0.3
         // Combined uses minimum: 0.3
@@ -383,9 +383,9 @@ TEST_F(TJobSizeTrackerTest, SuggestRowSplitFractionEdgeCases)
 
     // Test 6: Negative gap (overflow already happened).
     {
-        tracker->AccountSlice(CreateDataWeightVector(200, 200));
+        tracker->AccountSlice(CreateDataWeightVector(/*DW*/ 200, /*PDW*/ 200));
 
-        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(100, 100));
+        double fraction = tracker->SuggestRowSplitFraction(CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100));
         // Both local and cumulative are exceeded, should return 0.
         ASSERT_EQ(fraction, 0.0);
     }
@@ -419,13 +419,13 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_2_0)
     options.GeometricResources = {EResourceKind::DataWeight, EResourceKind::PrimaryDataWeight};
 
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateDataWeightVector(100, 100),
+        /*limitVector*/ CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100),
         options,
         Logger);
 
     // Job 1: Try to add slice that triggers overflow.
     {
-        auto resources = CreateDataWeightVector(120, 120);
+        auto resources = CreateDataWeightVector(/*DW*/ 120, /*PDW*/ 120);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         // Slice not added since it would overflow.
@@ -435,12 +435,12 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_2_0)
 
     // Job 2: Add data within new limits.
     {
-        auto resources = CreateDataWeightVector(150, 150);
+        auto resources = CreateDataWeightVector(/*DW*/ 150, /*PDW*/ 150);
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
 
         // Try to add more, triggers overflow.
-        resources = CreateDataWeightVector(250, 250);
+        resources = CreateDataWeightVector(/*DW*/ 250, /*PDW*/ 250);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
@@ -449,12 +449,12 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_2_0)
 
     // Job 3: Add data within new limits.
     {
-        auto resources = CreateDataWeightVector(350, 350);
+        auto resources = CreateDataWeightVector(/*DW*/ 350, /*PDW*/ 350);
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
 
         // Try to add more, triggers overflow
-        resources = CreateDataWeightVector(500, 500);
+        resources = CreateDataWeightVector(/*DW*/ 500, /*PDW*/ 500);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
@@ -463,7 +463,7 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_2_0)
 
     // Job 4: Verify no further progression
     {
-        auto resources = CreateDataWeightVector(500, 500);
+        auto resources = CreateDataWeightVector(/*DW*/ 500, /*PDW*/ 500);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);  // Should still overflow at 400 limit.
     }
@@ -493,13 +493,13 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionWithOffset)
     options.GeometricResources = {EResourceKind::DataWeight, EResourceKind::PrimaryDataWeight};
 
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateDataWeightVector(100, 100),
+        /*limitVector*/ CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100),
         options,
         Logger);
 
     // Job 1: First flush - no progression (offset: 1/2).
     {
-        auto resources = CreateDataWeightVector(120, 120);
+        auto resources = CreateDataWeightVector(/*DW*/ 120, /*PDW*/ 120);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
@@ -508,7 +508,7 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionWithOffset)
 
     // Job 2: Second flush - no progression (offset: 2/2).
     {
-        auto resources = CreateDataWeightVector(250, 250);
+        auto resources = CreateDataWeightVector(/*DW*/ 250, /*PDW*/ 250);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
@@ -517,7 +517,7 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionWithOffset)
 
     // Job 3: Third flush - progression starts.
     {
-        auto resources = CreateDataWeightVector(250, 250);
+        auto resources = CreateDataWeightVector(/*DW*/ 250, /*PDW*/ 250);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
@@ -526,12 +526,12 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionWithOffset)
 
     // Verify progression happened.
     {
-        auto resources = CreateDataWeightVector(190, 190);
+        auto resources = CreateDataWeightVector(/*DW*/ 190, /*PDW*/ 190);
         ASSERT_FALSE(tracker->CheckOverflow(resources));  // Fits in new limit.
         tracker->AccountSlice(resources);
 
         // Verify exact limit.
-        resources = CreateDataWeightVector(100, 100);
+        resources = CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);  // 190 + 100 > 200 cumulative limit.
     }
@@ -559,13 +559,13 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionOnlyForGeometricResources)
     // Note: DataSliceCount is NOT in GeometricResources.
 
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateVector(10, 100, 100),
+        /*limitVector*/ CreateVector(/*DSC*/ 10, /*DW*/ 100, /*PDW*/ 100),
         options,
         Logger);
 
     // Job 1: Trigger overflow on DataWeight.
     {
-        auto resources = CreateVector(5, 120, 0);
+        auto resources = CreateVector(/*DSC*/ 5, /*DW*/ 120, /*PDW*/ 0);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
@@ -575,20 +575,20 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionOnlyForGeometricResources)
     // Job 2: Verify DataSliceCount limit unchanged.
     {
         // Try to exceed hysteresis limit (15).
-        auto resources = CreateVector(16, 0, 0);
+        auto resources = CreateVector(/*DSC*/ 16, /*DW*/ 0, /*PDW*/ 0);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);  // Should overflow - DSC hysteresis limit is 15.
     }
 
     // Job 3: Verify DataWeight limit was doubled.
     {
-        auto resources = CreateVector(0, 180, 0);
+        auto resources = CreateVector(/*DSC*/ 0, /*DW*/ 180, /*PDW*/ 0);
         ASSERT_FALSE(tracker->CheckOverflow(resources));  // Fits in doubled limit.
     }
 
     // Job 4: Verify CompressedDataSize limit was also doubled.
     {
-        auto resources = CreateVector(0, 0, 180);
+        auto resources = CreateVector(/*DSC*/ 0, /*DW*/ 0, /*PDW*/ 180);
         ASSERT_FALSE(tracker->CheckOverflow(resources));  // Fits in doubled limit.
     }
 }
@@ -620,38 +620,38 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_0_5)
     options.GeometricResources = {EResourceKind::DataWeight, EResourceKind::PrimaryDataWeight};
 
     auto tracker = CreateJobSizeTracker(
-        /*limitVector*/ CreateDataWeightVector(100, 100),
+        /*limitVector*/ CreateDataWeightVector(/*DW*/ 100, /*PDW*/ 100),
         options,
         Logger);
 
-    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(0, 101)));
-    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(101, 0)));
+    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 0, /*PDW*/ 101)));
+    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 101, /*PDW*/ 0)));
 
     {
-        auto resources = CreateDataWeightVector(101, 101);
+        auto resources = CreateDataWeightVector(/*DW*/ 101, /*PDW*/ 101);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
     }
 
-    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(0, 76)));
-    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(0, 75)));
+    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 0, /*PDW*/ 76)));
+    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 0, /*PDW*/ 75)));
 
-    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(151, 0)));
-    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(150, 0)));
+    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 151, /*PDW*/ 0)));
+    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 150, /*PDW*/ 0)));
 
     {
-        auto resources = CreateDataWeightVector(151, 0);
+        auto resources = CreateDataWeightVector(/*DW*/ 151, /*PDW*/ 0);
         auto token = tracker->CheckOverflow(resources);
         ASSERT_TRUE(token);
         tracker->Flush(token);
     }
 
-    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(0, 76)));
-    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(0, 75)));
+    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 0, /*PDW*/ 76)));
+    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 0, /*PDW*/ 75)));
 
-    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(201, 0)));
-    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(200, 0)));
+    ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 201, /*PDW*/ 0)));
+    ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 200, /*PDW*/ 0)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
