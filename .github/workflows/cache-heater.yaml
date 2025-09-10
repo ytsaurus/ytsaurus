@@ -3,7 +3,7 @@ name: Cache heater
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0,2,4,6,8,10,12,14,16,18,20,22 * * *'
+    - cron: '0 */2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}
@@ -54,23 +54,77 @@ jobs:
           path: ytsaurus
 
   build:
-    name: Build
-    needs:
+    name: Build and heat cache
+    needs: 
       - start-vm
       - checkout
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: ya-make
-      build-python: true
-      skip-python-packages: true
-      build-ytsaurus: true
-      build-query-tracker: true
-      build-yql-python-udfs: false
-      update-remote-cache: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 480
+    strategy:
+      matrix:
+        build_flags:
+          - ""
+          - "--build=release"
+          - "--build=profile"
+    steps:
+      - name: Build and heat cache
+        run: |
+          BUILD_FLAGS="--test-prepare --bazel-remote-store --bazel-remote-put"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}"
+          BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
+          BUILD_FLAGS="${BUILD_FLAGS} ${{ matrix.build_flags }}"
+
+          declare -a TARGETS=(
+              yql/essentials/udfs/common/compress_base
+              yql/essentials/udfs/common/datetime2
+              yql/essentials/udfs/common/digest
+              yql/essentials/udfs/common/file
+              yql/essentials/udfs/common/histogram
+              yql/essentials/udfs/common/hyperloglog
+              yql/essentials/udfs/common/hyperscan
+              yql/essentials/udfs/common/ip_base
+              yql/essentials/udfs/common/json
+              yql/essentials/udfs/common/json2
+              yql/essentials/udfs/common/math
+              yql/essentials/udfs/common/pire
+              yql/essentials/udfs/common/protobuf
+              yql/essentials/udfs/common/re2
+              yql/essentials/udfs/common/set
+              yql/essentials/udfs/common/stat
+              yql/essentials/udfs/common/streaming
+              yql/essentials/udfs/common/string
+              yql/essentials/udfs/common/top
+              yql/essentials/udfs/common/topfreq
+              yql/essentials/udfs/common/unicode_base
+              yql/essentials/udfs/common/url_base
+              yql/essentials/udfs/common/vector
+              yql/essentials/udfs/common/yson2
+              yt/chyt/server/bin
+              yt/chyt/trampoline
+              yt/python/yt/environment/bin/init_operations_archive
+              yt/python/yt/environment/bin/init_query_tracker_state
+              yt/python/yt/environment/bin/init_queue_agent_state
+              yt/yt/python/driver/native_shared
+              yt/yt/python/driver/rpc_shared
+              yt/yt/python/yson_shared
+              yt/yt/server/all
+              yt/yt/tests/integration/size_l
+              yt/yt/tests/integration/size_m
+              yt/yt/tests/integration/size_s
+              yt/yt/tests/integration/size_xl
+          )
+          ../ytsaurus/ya make ${BUILD_FLAGS} ${TARGETS[*]}
+
+          declare -a FOLDERS_WITH_UNITTESTS=()
+          for folder in yt yql; do
+              for makefile in $(find ../ytsaurus/$folder -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+              folder=$(dirname ${makefile})
+              folder=${folder#../ytsaurus/}
+              FOLDERS_WITH_UNITTESTS+=("${folder}")
+              done
+          done
+          ../ytsaurus/ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
 
   stop-vm:
     name: Stop VM
