@@ -114,17 +114,17 @@ jobs:
               yt/yt/tests/integration/size_s
               yt/yt/tests/integration/size_xl
           )
-          ../ytsaurus/ya make ${BUILD_FLAGS} ${TARGETS[*]}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} ${TARGETS[*]}
 
           declare -a FOLDERS_WITH_UNITTESTS=()
           for folder in yt yql; do
-              for makefile in $(find ../ytsaurus/$folder -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+              for makefile in $(find ../ytsaurus/ytsaurus/$folder -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
               folder=$(dirname ${makefile})
-              folder=${folder#../ytsaurus/}
+              folder=${folder#../ytsaurus/ytsaurus/}
               FOLDERS_WITH_UNITTESTS+=("${folder}")
               done
           done
-          ../ytsaurus/ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} ${FOLDERS_WITH_UNITTESTS[@]}
 
   stop-vm:
     name: Stop VM
@@ -143,19 +143,19 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: ubuntu-latest
-    if: ${{ failure() && github.repository == 'ytsaurus/ytsaurus' }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Cache heater failed
+  # send-notifications:
+  #   name: Send notifications
+  #   needs:
+  #     - stop-vm
+  #   runs-on: ubuntu-latest
+  #   if: ${{ failure() && github.repository == 'ytsaurus/ytsaurus' }}
+  #   steps:
+  #     - name: Send telegram message
+  #       uses: appleboy/telegram-action@master
+  #       with:
+  #         to: ${{ secrets.TELEGRAM_CHAT_ID }}
+  #         token: ${{ secrets.TELEGRAM_TOKEN }}
+  #         disable_web_page_preview: true
+  #         format: markdown
+  #         message: |
+  #           Cache heater failed
