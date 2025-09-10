@@ -89,6 +89,10 @@ RUN python3.11 -m venv /root/venv_for_github_actions && \
         ytsaurus-client \
         ytsaurus-yson
 
+RUN add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y python3.8-dev python3.9-dev python3.10-dev python3.12-dev
+
 RUN wget "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip" && \
     unzip "protoc-${PROTOC_VERSION}-linux-x86_64.zip" -d /usr/local && \
     rm "protoc-${PROTOC_VERSION}-linux-x86_64.zip"
