@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "odin.fullname" . }}-init
+  labels:
+    {{- include "odin.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded,before-hook-creation
+    "helm.sh/hook-weight": "-10"
+spec:
+  backoffLimit: {{ .Values.odin.initJob.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "odin.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ default (include "odin.fullname" .) .Values.odin.serviceAccount.name }}
+      restartPolicy: Never
+      {{- with .Values.odin.initJob.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.odin.initJob.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.odin.initJob.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: odin-init
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["yt_odin_init_db_cluster"]
+          args:
+            - "--table={{ .Values.config.odin.db.table }}"
+            - "--proxy={{ .Values.config.odin.db.proxy }}"
+            - "--token=$({{ .Values.config.odin.db.tokenEnvVariable }})"
+            {{- if .Values.config.odin.db.tabletCellBundle }}
+            - "--tablet-cell-bundle={{ .Values.config.odin.db.tabletCellBundle }}"
+            {{- end }}
+            {{- if .Values.config.odin.db.primaryMedium }}
+            - "--primary-medium={{ .Values.config.odin.db.primaryMedium }}"
+            {{- end }}
+
+          envFrom:
+            {{- range .Values.secretRefs }}
+            - secretRef:
+                name: {{ . }}
+            {{- end }}
+            {{- if .Values.odin.envFrom }}
+            {{- toYaml .Values.odin.envFrom | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.odin.initJob.resources | nindent 12 }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+

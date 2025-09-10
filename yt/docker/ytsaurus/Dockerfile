@@ -423,7 +423,7 @@ COPY --link ./ ${SOURCE_ROOT}/
 
 WORKDIR ${ODIN_ROOT}
 
-RUN pip install virtualenv \
+RUN pip install virtualenv --break-system-packages \
     && virtualenv ${ODIN_VIRTUAL_ENV}
 
 RUN . ${ODIN_VIRTUAL_ENV}/bin/activate \
