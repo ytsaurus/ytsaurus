@@ -7,17 +7,17 @@ on:
       - main
     paths: 'yt/docs/**'
 
-env:
-  src-root: "./yt/docs"
-  build-root: "./_docs-build"
-  lint-root: "./_docs-lint"
-  revision: "${{ github.sha }}"
+
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions: write-all
     env:
+      src-root: "./yt/docs"
+      build-root: "./_docs-build"
+      lint-root: "./_docs-lint"
+      revision: "${{ github.sha }}"
       index-name: "ytsaurus-docs"
       api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
     steps:
