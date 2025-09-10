@@ -1014,48 +1014,45 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
 
     auto& orderExpressionList = ast.OrderExpressions;
     auto& projections = ast.SelectExprs;
-    i64 projectionCount = 0;
+    int projectionCount = projections ? std::ssize(*projections) : 0;
 
-    if (projections) {
-        projectionCount = std::ssize(*projections);
-    }
+    auto isIndexReference = [&] (NAst::TExpressionPtr expr) {
+        auto integerValue = TryGetIntegerValue(expr);
+
+        if (integerValue.has_value() && *integerValue != 0) {
+            if (*integerValue < 0 || *integerValue > projectionCount) {
+                THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
+                    << TErrorAttribute("index", *integerValue);
+            }
+
+            return true;
+        }
+
+        return false;
+    };
 
     if (ast.GroupExprs) {
         for (auto* expr : ast.GroupExprs.value()) {
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value() && *integerValue != 0) {
-                hasIndexReference = true;
-
-                if (*integerValue < 0 || *integerValue > projectionCount) {
-                    THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
-                    << TErrorAttribute("index", *integerValue);
-                }
-            }
+            hasIndexReference = isIndexReference(expr);
         }
     }
+
+    THROW_ERROR_EXCEPTION_IF(hasIndexReference && !projections.has_value(),
+        "Projections are not specified, "
+        "but projection indices are used in GROUP BY key");
 
     for (auto& orderExpr : orderExpressionList) {
         for (auto* expr : orderExpr.Expressions) {
-            auto integerValue = TryGetIntegerValue(expr);
-
-            if (integerValue.has_value() && *integerValue != 0) {
-                hasIndexReference = true;
-
-                if (*integerValue < 0 || *integerValue > projectionCount) {
-                    THROW_ERROR_EXCEPTION("Reference expression index is out of bounds")
-                    << TErrorAttribute("index", *integerValue);
-                }
-            }
+            hasIndexReference = isIndexReference(expr);
         }
     }
 
+    THROW_ERROR_EXCEPTION_IF(hasIndexReference && !projections.has_value(),
+        "Projections are not specified, "
+        "but projection indices are used in ORDER BY key");
+
     if (!hasIndexReference) {
         return;
-    }
-
-    if (!projections) {
-        THROW_ERROR_EXCEPTION("Projections are not specified, but projection indices are used in GROUP BY key or ORDER BY key");
     }
 
     auto indexToAlias = THashMap<i64, std::string>();
@@ -1063,19 +1060,23 @@ void RewriteIntegerIndicesToReferencesInGroupByAndOrderByIfNeeded(
     for (i64 projectionIndex = 0; projectionIndex < std::ssize(*projections); ++projectionIndex) {
         auto& expr = (*projections)[projectionIndex];
         auto aliasExpressionAst = expr->As<NAst::TAliasExpression>();
+
+        // NB: Here the SQL standard uses one-based indexing.
+        i64 adjustedProjectionIndex = projectionIndex + 1;
+
         if (aliasExpressionAst) {
-            indexToAlias[projectionIndex + 1] = aliasExpressionAst->Name; // NB: Here the SQL standard uses one-based indexing.
+            indexToAlias[adjustedProjectionIndex] = aliasExpressionAst->Name;
             continue;
         }
 
         auto referenceExpressionAst = expr->As<NAst::TReferenceExpression>();
         if (referenceExpressionAst) {
-            indexToAlias[projectionIndex + 1] = referenceExpressionAst->Reference.ColumnName; // NB: Here the SQL standard uses one-based indexing.
+            indexToAlias[adjustedProjectionIndex] = referenceExpressionAst->Reference.ColumnName;
             continue;
         }
 
         auto newAlias = MakeColumnNameByIndex(projectionIndex + 1);
-        indexToAlias[projectionIndex + 1] = newAlias;  // NB: Here the SQL standard uses one-based indexing.
+        indexToAlias[adjustedProjectionIndex] = newAlias;
         aliasMap[newAlias] = expr;
 
         auto* newExpr = head.New<NAst::TAliasExpression>(expr->SourceLocation, expr, newAlias);
@@ -1327,7 +1328,7 @@ TPlanFragmentPtr PreparePlanFragment(
         std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
         parsedSource->AstHead,
         /*builderVersion*/ 1,
-        memoryTracker,
+        std::move(memoryTracker),
         syntaxVersion);
 }
 
