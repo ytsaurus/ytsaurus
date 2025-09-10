@@ -384,6 +384,9 @@ public:
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             transactions.push_back(transaction);
         }
+        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+            transactions.push_back(transaction);
+        }
         return transactions;
     }
 
