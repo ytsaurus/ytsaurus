@@ -70,6 +70,13 @@ bool TInputTable::SupportsTeleportation() const
         return false;
     }
 
+    // NB(coteeq): Teleportation may be possible if controller
+    // can ensure RL ACE's expression is always true in a given chunk.
+    // But now controller does not know.
+    if (RlsReadSpec) {
+        return false;
+    }
+
     if (Schema->HasHunkColumns()) {
         return false;
     }
@@ -181,6 +188,9 @@ void TOutputTable::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(16, OutputHunkChunks,
         .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
     PHOENIX_REGISTER_FIELD(17, TableIndex);
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_FIELD(18, RlAcl,
+        .SinceVersion(ESnapshotVersion::RlsInOperations));
 }
 
 TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)

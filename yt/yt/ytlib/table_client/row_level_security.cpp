@@ -287,18 +287,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRlAcl(
-    const TTableSchemaPtr& readerSchema,
+std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRlAclAndTableSchema(
+    const TTableSchemaPtr& tableSchema,
     const std::optional<std::vector<TRowLevelAccessControlEntry>>& rlAcl,
     const TLogger& logger)
 {
     if (!rlAcl) {
         return std::nullopt;
     }
-    auto expression = ValidateAndBuildExpression(readerSchema, *rlAcl, logger);
+    auto expression = ValidateAndBuildExpression(tableSchema, *rlAcl, logger);
     YT_VERIFY(!expression || !expression->empty());
 
     TRlsReadSpec rlsReadSpec;
+    rlsReadSpec.TableSchema_ = tableSchema;
     if (expression) {
         rlsReadSpec.ExpressionOrTrivialDeny_ = *expression;
     } else {
@@ -319,6 +320,11 @@ const std::string& TRlsReadSpec::GetExpression() const
     return std::get<std::string>(ExpressionOrTrivialDeny_);
 }
 
+const TTableSchemaPtr& TRlsReadSpec::GetTableSchema() const
+{
+    return TableSchema_;
+}
+
 void ToProto(
     NProto::TRlsReadSpec* protoRlsReadSpec,
     const TRlsReadSpec& rlsReadSpec)
@@ -331,6 +337,10 @@ void ToProto(
         [&] (const TRlsReadSpec::TTrivialDeny& /*trivialDeny*/) {
             protoRlsReadSpec->mutable_trivial_deny();
         });
+
+    if (rlsReadSpec.TableSchema_) {
+        ToProto(protoRlsReadSpec->mutable_table_schema(), *rlsReadSpec.TableSchema_);
+    }
 }
 
 void FromProto(
@@ -347,16 +357,20 @@ void FromProto(
         default:
             YT_ABORT();
     }
-}
 
+    if (protoRlsReadSpec.has_table_schema()) {
+        rlsReadSpec->TableSchema_ = NYT::FromProto<TTableSchemaPtr>(protoRlsReadSpec.table_schema());
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
-    const TTableSchemaPtr& schema,
     const TRlsReadSpec& rlsReadSpec)
 {
     YT_VERIFY(!rlsReadSpec.IsTrivialDeny());
+    const auto& schema = rlsReadSpec.GetTableSchema();
+    YT_VERIFY(schema);
 
     THashSet<std::string> references;
     auto preparedExpression = PrepareExpression(

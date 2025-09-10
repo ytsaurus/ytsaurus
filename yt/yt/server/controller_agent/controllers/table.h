@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/cypress_client/public.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/row_level_security.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
 
@@ -74,6 +75,8 @@ struct TInputTable
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
 
     NScheduler::TClusterName ClusterName;
+
+    std::optional<NTableClient::TRlsReadSpec> RlsReadSpec;
 
     //! Set to true when schema of the table is compatible with the output
     //! teleport table and when no special options set that disallow chunk

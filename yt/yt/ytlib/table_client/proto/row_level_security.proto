@@ -1,5 +1,7 @@
 package NYT.NTableClient.NProto;
 
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TRlsReadSpec
@@ -10,6 +12,8 @@ message TRlsReadSpec
         string expression = 1;
         TTrivialDeny trivial_deny = 2;
     }
+
+    optional TTableSchemaExt table_schema = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

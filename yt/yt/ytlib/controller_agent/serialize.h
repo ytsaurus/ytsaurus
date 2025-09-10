@@ -74,6 +74,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropDuplicateOutputNodeDirectory)      (301902))
     ((PersistentCompletedRankCount)          (301903))
     ((JobEnvironmentPreparationStatistics)   (301904))
+    ((RlsInOperations)                       (301905))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

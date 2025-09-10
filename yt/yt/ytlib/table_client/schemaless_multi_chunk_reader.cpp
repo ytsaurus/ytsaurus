@@ -174,7 +174,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 continue;
             }
             rlsCheckerFactory = CreateRlsCheckerFactory(
-                dataSource->Schema(),
                 *dataSource->GetRlsReadSpec());
         }
         auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource->GetClusterName());
