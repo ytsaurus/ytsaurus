@@ -18,7 +18,7 @@ data:
             "options": {
               "cluster": "{{ $c.cluster }}",
               "proxy": "{{ $.Values.config.odin.db.proxy }}",
-              "table": "//sys/odin/checks",
+              "table": "{{ $.Values.config.odin.db.table }}",
               "token_env_variable": "{{ $.Values.config.odin.db.tokenEnvVariable }}"
             }
           },
@@ -32,7 +32,7 @@ data:
       "logging": {
         "level": "DEBUG",
         "port": {{ .Values.config.odin.logging.port }},
-        "filename": "{{ .Values.config.odin.logging.filename }}"
+        "filename": "{{ .Values.config.odin.logging.filename }}",
       },
       "service_config": {
         "path": "//sys/odin",
@@ -127,12 +127,16 @@ data:
       },
       "port": {{ .Values.config.webservice.port }},
       "services": [
-        {{- range $i, $c := .Values.config.checks }}
-        {{- if $i}},{{ end }}
-        {
-          "display_name": "{{ $c.displayName }}",
-          "name": "{{ $c.name }}"
-        }
+        {{- $first := true }}
+        {{- range .Values.config.checks }}
+          {{- if .enable }}
+            {{- if not $first}},{{ end }}
+            {
+              "display_name": "{{ .displayName }}",
+              "name": "{{ .name }}"
+            }
+            {{- $first = false }}
+          {{- end }}
         {{- end }}
       ],
       "thread_count": {{ .Values.config.webservice.threadCount }}
@@ -141,9 +145,13 @@ data:
   checks_config.json: |
     {
       "checks": {
-        {{- range $i, $c := .Values.config.checks }}
-        {{- if $i}},{{ end }}
-        "{{ $c.name }}": {{ toJson $c.config }}
+        {{- $first := true }}
+        {{- range .Values.config.checks }}
+          {{- if .enable }}
+            {{- if not $first}},{{ end }}
+            "{{ .name }}": {{ toJson .config }}
+            {{- $first = false }}
+          {{- end }}
         {{- end }}
       },
       "cluster_overrides": {}

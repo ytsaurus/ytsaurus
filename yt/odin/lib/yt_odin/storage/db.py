@@ -130,6 +130,6 @@ def init_yt_table(table, client, bundle, primary_medium):
         {"name": "messages", "type": "string"}
     ]
 
-    client.create("table", table, recursive=True,
+    client.create("table", table, recursive=True, ignore_existing=True,
                   attributes={"dynamic": True, "schema": schema, "tablet_cell_bundle": bundle, "primary_medium": primary_medium})
     client.mount_table(table, sync=True)
