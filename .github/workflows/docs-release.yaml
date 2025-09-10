@@ -127,6 +127,7 @@ jobs:
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
           server: "https://viewer.ydocs.io"
           project-link: https://ytsaurus-testing.viewer.ydocs.io
+          src-root: "./yt/docs"
 
  # release:
  #   needs: release-to-testing
