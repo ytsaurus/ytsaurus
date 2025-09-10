@@ -1819,11 +1819,12 @@ private:
         mailbox->SetPostInProgress(false);
 
         if (rspOrError.GetCode() == NHiveClient::EErrorCode::MailboxNotCreatedYet) {
-            YT_VERIFY(mailbox->IsCell());
-            YT_LOG_DEBUG(rspOrError, "Mailbox is not created yet; will retry (SrcCellId: %v, DstCellId: %v)",
-                SelfCellId_,
-                cellMailbox->GetCellId());
-            SchedulePostOutcomingMessages(cellMailbox);
+            if (mailbox->IsCell()) {
+                YT_LOG_DEBUG(rspOrError, "Mailbox is not created yet; will retry (SrcCellId: %v, DstCellId: %v)",
+                    SelfCellId_,
+                    cellMailbox->GetCellId());
+                SchedulePostOutcomingMessages(cellMailbox);
+            }
             return;
         }
 
