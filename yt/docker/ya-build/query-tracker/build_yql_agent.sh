@@ -104,14 +104,9 @@ if [ "$build_python_udfs" == "yes" ]; then
     --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
-    mirror.gcr.io/ubuntu:focal \
+    ghcr.io/ytsaurus/build-env:latest \
     /bin/bash -c \
-    "apt update && \
-     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install -y software-properties-common build-essential && \
-     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC add-apt-repository -y ppa:deadsnakes/ppa && \
-     apt update && \
-     DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt install -y python3.8-dev python3.9-dev python3.10-dev python3.11-dev python3.12-dev && \
-     /ytsaurus/yt/docker/ya-build/query-tracker/build_system_python_udfs.sh"
+    "/ytsaurus/yt/docker/ya-build/query-tracker/build_system_python_udfs.sh"
 fi
 
 # Change ownership of files to the current user. Useful if building locally.
