@@ -656,6 +656,30 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         with raises_yt_error("Partition must be read by the same user who created it"):
             read_table_partition(partitions[0]["cookie"], authenticated_user="user2")
 
+    @authors("ermolovd")
+    def test_partition_tables_respects_partition_mode(self):
+        table = "//tmp/table"
+
+        create("table", table, attributes={
+            "replication_factor": 1,
+        })
+
+        count = 100
+
+        for i in range(count):
+            write_table(f"<append=%true>{table}", [{"key": i}])
+
+        data_weight = 8 * count // 10
+        partition_list = partition_tables([table], partition_mode="ordered", data_weight_per_partition=data_weight, enable_cookies=True)
+
+        all_rows = []
+        for partition in partition_list:
+            rows = list(read_table_partition(partition["cookie"]))
+            assert rows == sorted(rows, key=lambda x: x["key"])
+            all_rows += rows
+
+        assert sorted(all_rows, key=lambda x: x["key"]) == [{"key": i} for i in range(count)]
+
     @authors("apollo1321")
     def test_ordered_single_table(self):
         table = "//tmp/sorted-static"
