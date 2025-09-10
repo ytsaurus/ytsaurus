@@ -113,9 +113,6 @@ using NYT::ToProto;
 static const i64 MaxRowsPerRead = 8 * 1024;
 static const i64 MaxRowsPerWrite = 8 * 1024;
 
-static const std::string CompactionPoolName = "$StoreCompact";
-static const std::string PartitionPoolName = "$StorePartition";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -1138,8 +1135,9 @@ private:
     const TCompactionOrchidPtr PartitioningOrchid_;
     const IYPathServicePtr OrchidService_;
 
-    std::atomic<bool> UseQueryPool_ = false;
-
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNamesLock_);
+    std::string CompactionFairSharePool_;
+    std::string PartitioningFairSharePool_;
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -1166,7 +1164,11 @@ private:
         PartitioningOrchid_->Reconfigure(config->Orchid);
         CompactionOrchid_->Reconfigure(config->Orchid);
 
-        UseQueryPool_.store(config->UseQueryPool);
+        {
+            auto guard = WriterGuard(PoolNamesLock_);
+            CompactionFairSharePool_ = config->CompactionFairSharePool;
+            PartitioningFairSharePool_ = config->PartitioningFairSharePool;
+        }
 
         IgnoreFutureEffect_.store(config->IgnoreFutureEffect);
         ScheduleNewTasksAfterTaskCompletion_.store(config->ScheduleNewTasksAfterTaskCompletion);
@@ -2280,13 +2282,20 @@ private:
 
     IInvokerPtr GetInvoker(TReadSessionId readSessionId, bool partition) const
     {
-        if (UseQueryPool_.load()) {
+        auto guard = ReaderGuard(PoolNamesLock_);
+
+        if (partition && !PartitioningFairSharePool_.empty()) {
             return Bootstrap_->GetQueryPoolInvoker(
-                partition ? PartitionPoolName : CompactionPoolName,
+                PartitioningFairSharePool_,
                 ToString(readSessionId));
-        } else {
-            return ThreadPool_->GetInvoker();
         }
+        if (!partition && !CompactionFairSharePool_.empty()) {
+            return Bootstrap_->GetQueryPoolInvoker(
+                CompactionFairSharePool_,
+                ToString(readSessionId));
+        }
+
+        return ThreadPool_->GetInvoker();
     }
 
     static int GetOverlappingStoreLimit(const TTableMountConfigPtr& config)

@@ -260,7 +260,8 @@ struct TStoreCompactorDynamicConfig
 
     TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
-    bool UseQueryPool;
+    std::string CompactionFairSharePool;
+    std::string PartitioningFairSharePool;
 
     bool IgnoreFutureEffect;
     bool ScheduleNewTasksAfterTaskCompletion;
