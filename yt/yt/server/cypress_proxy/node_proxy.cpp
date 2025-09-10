@@ -365,6 +365,25 @@ protected:
         }
     }
 
+    TSerializableAccessControlList GetThisEffectiveAcl()
+    {
+        // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
+        if (IsSnapshot() && std::ssize(ResolveResult_.NodeAncestry) == 1) {
+            return {
+                .Entries = {
+                    TSerializableAccessControlEntry(
+                        ESecurityAction::Allow,
+                        /*subjects*/ {EveryoneGroupName},
+                        EPermission::Read)
+                }
+            };
+        }
+
+        return ComputeEffectiveAclForNode(
+            SequoiaSession_,
+            ResolveResult_.NodeAncestry);
+    }
+
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
         return TObjectServiceProxy::FromDirectMasterChannel(
@@ -433,9 +452,15 @@ protected:
         return SequoiaSession_->RemoveRootstock(rootstockId);
     }
 
-    void AbortSequoiaSessionForLaterForwardingToMaster()
+    void AbortSequoiaSessionForLaterForwardingToMaster(
+        std::optional<TSerializableAccessControlList> forwardEffectiveAcl = {})
     {
-        InvokeResult_ = EInvokeResult::ForwardToMaster;
+        TForwardToMasterPayload payload;
+        if (forwardEffectiveAcl.has_value()) {
+            payload.EffectiveAcl = ConvertToYsonString(*forwardEffectiveAcl);
+        }
+
+        InvokeResult_ = std::move(payload);
         SequoiaSession_->Abort();
     }
 
@@ -662,6 +687,7 @@ protected:
             TYPathBuf("/@" + path),
             TYsonString(request->value()),
             force,
+            ConvertToYsonString(GetThisEffectiveAcl()),
             AccessTrackingOptions_);
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
@@ -680,7 +706,11 @@ protected:
             force);
 
         // Permission validation is handled by master.
-        SequoiaSession_->RemoveNodeAttribute(Id_, TYPathBuf("/@" + path), force);
+        SequoiaSession_->RemoveNodeAttribute(
+            Id_,
+            TYPathBuf("/@" + path),
+            force,
+            ConvertToYsonString(GetThisEffectiveAcl()));
 
         FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
     }
@@ -700,7 +730,7 @@ protected:
 
         ValidatePermissionForThis(EPermission::Read);
 
-        AbortSequoiaSessionForLaterForwardingToMaster();
+        AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
     }
 };
 
@@ -729,6 +759,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
         targetPath,
         subrequests,
         force,
+        ConvertToYsonString(GetThisEffectiveAcl()),
         AccessTrackingOptions_);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
@@ -748,11 +779,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
         ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
     }
 
-    if (permission) {
-        ValidatePermissionForThis(*permission);
-    }
-
-    AbortSequoiaSessionForLaterForwardingToMaster();
+    // Permission validation is handled by master.
+    AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
@@ -772,10 +800,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CheckPermission)
         vital,
         ignoreSafeMode);
 
-    // TODO(babenko): implement
-
-    response->set_action(ToProto(NSecurityClient::ESecurityAction::Allow));
-    context->Reply();
+    AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Fetch)
@@ -1077,6 +1102,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
 
+    // TODO(danilalexeev): YT-24780. Support permission validation on copy with columnar ACLs.
     ValidateCopyFromSourcePermissions(
         resolvedSource->NodeAncestry,
         nodesToCopy,
@@ -1159,7 +1185,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Alter)
         YT_OPTIONAL_FROM_PROTO(*request, schema_id, TObjectId));
 
     // Permission validation is handled by master.
-    AbortSequoiaSessionForLaterForwardingToMaster();
+    AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
@@ -1485,7 +1511,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CalculateInheritedAttributes)
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
 {
     if (!request->sequoia_destination()) {
-        InvokeResult_ = EInvokeResult::ForwardToMaster;
+        InvokeResult_ = TForwardToMasterPayload{};
         return;
     }
 
@@ -1586,6 +1612,12 @@ private:
             Path_,
             GetRequestTargetYPath(context->RequestHeader()),
             MakeVersionedNodeId(Id_));
+        // See #TNodeProxy::ExistsSelf.
+        if (context->GetMethod() != "Exists" ||
+            !GetRequestTargetYPath(context->GetRequestHeader()).empty())
+        {
+            ValidatePermissionForThis(EPermission::Read);
+        }
         AbortSequoiaSessionForLaterForwardingToMaster();
         return true;
     }
@@ -1741,7 +1773,10 @@ private:
         void CreateNonCompositeNodeAndPopItsKey(EObjectType type, const T& value)
         {
             auto nodeId = CreateNode(type);
-            Session_->SetNode(nodeId, NYson::ConvertToYsonString(value), AccessTrackingOptions_);
+            Session_->SetNode(
+                nodeId,
+                NYson::ConvertToYsonString(value),
+                AccessTrackingOptions_);
 
             CurrentPath_.RemoveLastSegment();
         }
@@ -1804,6 +1839,7 @@ private:
                 TYPathBuf("/@"),
                 subrequests,
                 /*force*/ false,
+                /*effectiveAcl*/ std::nullopt,
                 AccessTrackingOptions_);
         }
 
@@ -2070,7 +2106,6 @@ private:
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
     {
-        // TODO(danilalexeev): Implement method _SetChild_ and bring out the common code with Create.
         auto recursive = request->recursive();
 
         context->SetRequestInfo("Recursive: %v, Force: %v",

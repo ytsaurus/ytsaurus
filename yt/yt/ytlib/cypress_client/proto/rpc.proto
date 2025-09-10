@@ -32,6 +32,7 @@ message TSequoiaExt
     extend NRpc.NProto.TRequestHeader
     {
         optional bool allow_resolve_from_sequoia_object = 118;
+        optional bytes target_node_effective_acl = 123;
     }
 }
 

@@ -66,6 +66,8 @@ public:
     void Unlock() final;
 
 protected:
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
+
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
@@ -110,6 +112,8 @@ protected:
 
     bool AccessTrackingSuppressed_ = false;
     bool ExpirationTimeoutRenewalSuppressed_ = false;
+
+    std::optional<NYson::TYsonString> SequoiaNodeEffectiveAcl_;
 
     struct TLockResult
     {
@@ -207,9 +211,23 @@ protected:
     void SetReachableSubtreeNodes(TCypressNode* node);
     void SetUnreachableSubtreeNodes(TCypressNode* node);
 
-    // TSupportsPermissions members
+    // Performs permission checking with optional effective ACL override support.
+    NSecurityServer::TPermissionCheckResponse DoCheckPermission(
+        NSecurityServer::TUser* user,
+        NSecurityServer::EPermission permission,
+        NSecurityServer::TPermissionCheckOptions options = {});
+
+    // TSupportsPermissions methods.
+    // Handles structural tree modification permissions. For Sequoia nodes, this is a no-op
+    // since they lack tree context.
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
+        NYTree::EPermission permission,
+        const std::string& user = {}) override;
+
+    // Validates permissions for attribute modifications and other non-structural changes
+    // that do not affect tree topology.
+    void ValidateAdHocPermission(
         NYTree::EPermission permission,
         const std::string& user = {}) override;
 

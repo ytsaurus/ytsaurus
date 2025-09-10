@@ -201,9 +201,8 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
 void TObjectProxyBase::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
-    const auto& securityManager = Bootstrap_->GetSecurityManager();
     if (context->Permission) {
-        securityManager->ValidatePermission(Object_, *context->Permission);
+        ValidateAdHocPermission(*context->Permission);
     }
 
     context->Revision = Object_->GetRevision();
@@ -1029,6 +1028,12 @@ void TObjectProxyBase::ValidateModifiedPermission(TAcdOverride acdOverride)
     if (!forbidUnforcedIrreversibleAclChanges) {
         return;
     }
+
+    // TODO(danilalexeev): YT-24575. Implement for Sequoia nodes.
+    if (Object_->IsSequoia()) {
+        return;
+    }
+
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto result = securityManager->CheckPermission(
         Object_,
