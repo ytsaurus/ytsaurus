@@ -37,6 +37,10 @@ IF (SANITIZER_TYPE)
     DEPENDS(
         contrib/libs/llvm18/tools/llvm-symbolizer
     )
+
+    REQUIREMENTS(
+        ram:60
+    )
 ENDIF()
 
 FORK_SUBTESTS()
