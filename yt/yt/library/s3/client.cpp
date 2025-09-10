@@ -1,5 +1,6 @@
 #include "client.h"
 
+#include <yt/yt/core/crypto/config.h>
 #include <yt/yt/core/crypto/crypto.h>
 
 #include <yt/yt/core/net/address.h>
@@ -15,6 +16,7 @@
 namespace NYT::NS3 {
 
 using namespace NConcurrency;
+using namespace NCrypto;
 using namespace NNet;
 
 using TPocoXmlDocumentPtr = Poco::XML::AutoPtr<Poco::XML::Document>;
@@ -378,10 +380,12 @@ public:
     TClient(
         TS3ClientConfigPtr config,
         ICredentialsProviderPtr credentialProvider,
+        TSslContextConfigPtr sslContextConfig,
         IPollerPtr poller,
         IInvokerPtr executionInvoker)
         : Config_(std::move(config))
         , CredentialProvider_(std::move(credentialProvider))
+        , SslContextConfig_(std::move(sslContextConfig))
         , Poller_(std::move(poller))
         , ExecutionInvoker_(std::move(executionInvoker))
     { }
@@ -413,7 +417,7 @@ public:
             Client_ = CreateHttpClient(
                 Config_,
                 s3Address,
-                useTls,
+                SslContextConfig_,
                 Poller_,
                 ExecutionInvoker_);
             return Client_->Start();
@@ -502,6 +506,7 @@ private:
     TS3ClientConfigPtr Config_;
     ICredentialsProviderPtr CredentialProvider_;
     TNetworkAddress S3Address_;
+    TSslContextConfigPtr SslContextConfig_;
 
     IPollerPtr Poller_;
     IInvokerPtr ExecutionInvoker_;
@@ -516,12 +521,14 @@ private:
 IClientPtr CreateClient(
     TS3ClientConfigPtr config,
     ICredentialsProviderPtr credentialProvider,
+    TSslContextConfigPtr sslContextConfig,
     IPollerPtr poller,
     IInvokerPtr executionInvoker)
 {
     return New<TClient>(
         std::move(config),
         std::move(credentialProvider),
+        std::move(sslContextConfig),
         std::move(poller),
         std::move(executionInvoker));
 }

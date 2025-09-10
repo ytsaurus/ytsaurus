@@ -152,6 +152,7 @@ NS3::IClientPtr CreateS3Client(
     auto client = NS3::CreateClient(
         std::move(clientConfig),
         std::move(credentialProvider),
+        /*sslContextConfig*/ nullptr,
         poller,
         poller->GetInvoker());
 

@@ -836,6 +836,7 @@ private:
         auto client = NS3::CreateClient(
             std::move(clientConfig),
             NS3::CreateStaticCredentialProvider("key", "secret"),
+            /*sslContextConfig*/ nullptr,
             poller,
             poller->GetInvoker());
 

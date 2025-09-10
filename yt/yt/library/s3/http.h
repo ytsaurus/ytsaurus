@@ -3,6 +3,8 @@
 #include "credential_provider.h"
 #include "public.h"
 
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/http/http.h>
 
 namespace NYT::NS3 {
@@ -70,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(IHttpClient)
 IHttpClientPtr CreateHttpClient(
     NHttp::TClientConfigPtr config,
     NNet::TNetworkAddress address,
-    bool useTls,
+    const NCrypto::TSslContextConfigPtr& sslContextConfig,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr invoker);
 
