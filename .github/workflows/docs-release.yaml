@@ -36,9 +36,6 @@ jobs:
           api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
           app-id: ${{ secrets.ALGOLIA_APP_ID }}
         run: |
-          set +e
-          set -o pipefail
-
           yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ env.api-key }} --app-id ${{ env.app-id }}  2>&1 | tee './build-html.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
@@ -48,9 +45,6 @@ jobs:
       - name: Build md2md
         id: build-md2md
         run: |
-          set +e
-          set -o pipefail
-
           yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
