@@ -7,8 +7,6 @@ on:
       - main
     paths: 'yt/docs/**'
 
-
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,8 +16,6 @@ jobs:
       build-root: "./_docs-build"
       lint-root: "./_docs-lint"
       revision: "${{ github.sha }}"
-      index-name: "ytsaurus-docs"
-      api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +31,9 @@ jobs:
 
       - name: Build doc md2html
         id: build-md2html
+        env:
+          index-name: "ytsaurus-docs"
+          api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
         run: |
           set +e
           set -o pipefail
@@ -43,6 +42,7 @@ jobs:
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
         shell: bash
+
 
       - name: Build md2md
         id: build-md2md
@@ -127,7 +127,7 @@ jobs:
       - name: Release
         uses: diplodoc-platform/docs-release-action@v2
         with:
-          revision: ${{ env.revision }}
+          revision: "${{ github.sha }}"
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
