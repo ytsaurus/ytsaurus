@@ -2037,15 +2037,10 @@ void TQueryProfiler::Profile(
             havingExprFragments.DumpArgs(std::vector<size_t>{havingPredicateId});
         }
 
-        size_t newIntermediateSlot = fragmentSlots.Intermediate;
-        size_t newAggregatedSlot = fragmentSlots.Aggregated;
-        size_t newDeltaSlot = fragmentSlots.Delta;
-        size_t newTotalsSlot = fragmentSlots.Totals;
-
-        intermediateSlot = fragmentSlots.CompatIntermediate;
-        aggregatedSlot = fragmentSlots.CompatAggregated;
-        size_t deltaSlot = fragmentSlots.CompatDelta;
-        totalsSlot = fragmentSlots.CompatTotals;
+        intermediateSlot = fragmentSlots.Intermediate;
+        aggregatedSlot = fragmentSlots.Aggregated;
+        size_t deltaSlot = fragmentSlots.Delta;
+        totalsSlot = fragmentSlots.Totals;
 
         auto manager = TGroupByStreamManager(
             finalMode,
@@ -2063,128 +2058,7 @@ void TQueryProfiler::Profile(
             combineGroupOpWithOrderOp != nullptr,
             AllowUnorderedGroupByWithLimit_);
 
-        manager.Process(&newIntermediateSlot, &newAggregatedSlot, &newDeltaSlot, &newTotalsSlot);
-
-        // COMPAT(dtorilov): Remove after 24.1 is everywhere.
-        // COMPAT begin {
-
-        // COMPAT(lukyan)
-        if (finalMode || query->UseDisjointGroupBy) {
-            // Boundary segments are also final
-            deltaSlot = MakeCodegenMergeOp(
-                codegenSource,
-                slotCount,
-                intermediateSlot,
-                deltaSlot);
-
-            intermediateSlot = dummySlot;
-        } else if (mergeMode) {
-            // TODO(dtorilov): This relates to Node query level; consider removing this merge operation.
-            intermediateSlot = MakeCodegenMergeOp(
-                codegenSource,
-                slotCount,
-                intermediateSlot,
-                deltaSlot);
-
-            deltaSlot = dummySlot;
-        }
-
-        size_t keySize = groupClause->GroupItems.size();
-
-        if (!mergeMode || finalMode) {
-            if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
-                Fold(EFoldingObjectType::HavingOp);
-
-                auto types = std::vector<EValueType>();
-                for (auto& it : groupClause->GroupItems) {
-                    types.push_back(it.Expression->GetWireType());
-                }
-
-                // Finalizes row to evaluate predicate and filters source values.
-                deltaSlot = MakeCodegenFilterFinalizedOp(
-                    codegenSource,
-                    slotCount,
-                    deltaSlot,
-                    havingFragmentsInfos,
-                    havingPredicateId,
-                    types,
-                    codegenAggregates,
-                    stateTypes);
-            }
-
-            if (groupClause->TotalsMode != ETotalsMode::None) {
-                size_t totalsSlotNew;
-                std::tie(totalsSlotNew, deltaSlot) = MakeCodegenDuplicateOp(
-                    codegenSource,
-                    slotCount,
-                    deltaSlot);
-
-                if (mergeMode) {
-                    totalsSlot = MakeCodegenMergeOp(
-                        codegenSource,
-                        slotCount,
-                        totalsSlot,
-                        totalsSlotNew);
-                } else {
-                    totalsSlot = totalsSlotNew;
-                }
-            }
-
-            deltaSlot = MakeCodegenFinalizeOp(
-                codegenSource,
-                slotCount,
-                deltaSlot,
-                keySize,
-                codegenAggregates,
-                stateTypes);
-
-            if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
-                Fold(EFoldingObjectType::HavingOp);
-                deltaSlot = MakeCodegenFilterOp(
-                    codegenSource,
-                    slotCount,
-                    deltaSlot,
-                    havingFragmentsInfos,
-                    havingPredicateId);
-            }
-
-            if (mergeMode) {
-                aggregatedSlot = MakeCodegenMergeOp(
-                    codegenSource,
-                    slotCount,
-                    deltaSlot,
-                    aggregatedSlot);
-            } else {
-                aggregatedSlot = deltaSlot;
-            }
-        }
-
-        if (groupClause->TotalsMode != ETotalsMode::None) {
-            totalsSlot = MakeCodegenGroupTotalsOp(
-                codegenSource,
-                slotCount,
-                totalsSlot,
-                codegenAggregates,
-                keyTypes,
-                stateTypes);
-
-            if (finalMode) {
-                totalsSlot = MakeCodegenFinalizeOp(
-                    codegenSource,
-                    slotCount,
-                    totalsSlot,
-                    keySize,
-                    codegenAggregates,
-                    stateTypes);
-            }
-        }
-
-        intermediateSlot = MakeCodegenMergeOp(codegenSource, slotCount, newIntermediateSlot, intermediateSlot);
-        aggregatedSlot = MakeCodegenMergeOp(codegenSource, slotCount, newAggregatedSlot, aggregatedSlot);
-        deltaSlot = MakeCodegenMergeOp(codegenSource, slotCount, newDeltaSlot, deltaSlot);
-        totalsSlot = MakeCodegenMergeOp(codegenSource, slotCount, newTotalsSlot, totalsSlot);
-
-        // COMPAT end }
+        manager.Process(&intermediateSlot, &aggregatedSlot, &deltaSlot, &totalsSlot);
 
         MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
         if (havingFragmentsInfos) {
