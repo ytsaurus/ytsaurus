@@ -15,6 +15,7 @@ struct IDataNodeTrackerInternal
     virtual TChunkLocation* CreateChunkLocation(
         TChunkLocationUuid locationUuid,
         NObjectClient::TObjectId hintId) = 0;
+    virtual void ZombifyChunkLocation(TChunkLocation* location) = 0;
     virtual void DestroyChunkLocation(TChunkLocation* location) = 0;
 };
 
