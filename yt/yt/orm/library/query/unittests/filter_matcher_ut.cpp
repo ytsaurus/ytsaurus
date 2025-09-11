@@ -20,13 +20,14 @@ namespace {
 using namespace NYT;
 using namespace NYT::NYTree;
 using namespace NYT::NConcurrency;
+using namespace NYT::NQueryClient;
 using NYT::NYson::TYsonStringBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TFilterMatcherTest, OneEmptyAttributePath)
 {
-    auto matcher = CreateFilterMatcher("[/some/attribute/abc] = 456");
+    auto matcher = CreateFilterMatcher(ParseSource("[/some/attribute/abc] = 456", EParseMode::Expression));
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{some={attribute={abc=\"xyz\"}}}")).ValueOrThrow(), TErrorException);
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{some={attribute={abc=123}}}")).ValueOrThrow());
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{some={attribute={abc=456}}}")).ValueOrThrow());
@@ -36,39 +37,39 @@ TEST(TFilterMatcherTest, OneEmptyAttributePath)
 
 TEST(TFilterMatcherTest, InvalidAttributePath)
 {
-    EXPECT_THROW(CreateFilterMatcher("%true", {"/labels/"}), TErrorException);
-    EXPECT_THROW(CreateFilterMatcher("%true", {"//"}), TErrorException);
-    EXPECT_THROW(CreateFilterMatcher("%true", {"a"}), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher(ParseSource("%true", EParseMode::Expression), {"/labels/"}), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher(ParseSource("%true", EParseMode::Expression), {"//"}), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher(ParseSource("%true", EParseMode::Expression), {"a"}), TErrorException);
 
-    auto matcher = CreateFilterMatcher("%true", {"/labels"});
-    matcher = CreateFilterMatcher("%true", {"/labels/key1"});
+    auto matcher = CreateFilterMatcher(ParseSource("%true", EParseMode::Expression), {"/labels"});
+    matcher = CreateFilterMatcher(ParseSource("%true", EParseMode::Expression), {"/labels/key1"});
     Y_UNUSED(matcher);
 }
 
 TEST(TFilterMatcherTest, InvalidQuery)
 {
-    EXPECT_THROW(CreateFilterMatcher("a/b"), TErrorException);
-    EXPECT_THROW(CreateFilterMatcher("[/a] = AND"), TErrorException);
-    EXPECT_THROW(CreateFilterMatcher("[/a] = 123 AND"), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher(ParseSource("a/b", EParseMode::Expression)), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher(ParseSource("[/a] = AND", EParseMode::Expression)), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher(ParseSource("[/a] = 123 AND", EParseMode::Expression)), TErrorException);
 }
 
 TEST(TFilterMatcherTest, BrokenAttributes)
 {
-    auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/b] = 1", EParseMode::Expression), {"/labels"});
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{;")).ValueOrThrow(), TErrorException);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
 TEST(TFilterMatcherTest, IncompatiblyTypes)
 {
-    auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/b] = 1", EParseMode::Expression), {"/labels"});
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{b=\"abca\"}")).ValueOrThrow(), TErrorException);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
 TEST(TFilterMatcherTest, SuccessfulMatch)
 {
-    auto matcher = CreateFilterMatcher("[/labels/b/c] = 1", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/b/c] = 1", EParseMode::Expression), {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b={c=1}}")).ValueOrThrow());
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{}")).ValueOrThrow());
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{b={}}")).ValueOrThrow());
@@ -78,7 +79,7 @@ TEST(TFilterMatcherTest, SuccessfulMatch)
 
 TEST(TFilterMatcherTest, SeveralAttributes)
 {
-    auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = 1", {"/labels", "/meta"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/meta/id] = 15 AND [/labels/a] = 1", EParseMode::Expression), {"/labels", "/meta"});
 
     EXPECT_TRUE(matcher->Match({TYsonStringBuf("{a=1}"), TYsonStringBuf("{id=15}")}).ValueOrThrow());
     EXPECT_FALSE(matcher->Match({TYsonStringBuf("{}"), TYsonStringBuf("{id=15}")}).ValueOrThrow());
@@ -90,7 +91,7 @@ TEST(TFilterMatcherTest, SeveralAttributes)
 
 TEST(TFilterMatcherTest, BinaryYson)
 {
-    auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/b] = 1", EParseMode::Expression), {"/labels"});
     EXPECT_TRUE(matcher->Match(BuildYsonStringFluently(NYson::EYsonFormat::Binary)
         .BeginMap()
             .Item("b")
@@ -105,7 +106,7 @@ TEST(TFilterMatcherTest, BinaryYson)
 
 TEST(TFilterMatcherTest, ScalarAttributes)
 {
-    auto matcher = CreateFilterMatcher("[/labels/a] = 1 and [/meta/id] > \"a\" and [/meta/creation_time] > 10", {"/meta/id", "/meta/creation_time", "/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/a] = 1 and [/meta/id] > \"a\" and [/meta/creation_time] > 10", EParseMode::Expression), {"/meta/id", "/meta/creation_time", "/labels"});
     EXPECT_TRUE(matcher->Match({
         BuildYsonStringFluently().Value("aba"),
         BuildYsonStringFluently().Value(15),
@@ -143,7 +144,7 @@ TEST(TConstantFilterMatcherTest, Simple)
 
 TEST(TFilterMatcherTest, ExtraNumberOfAttributes)
 {
-    auto matcher = CreateFilterMatcher("[/meta/pod_set_id] = \"123\"", {"/meta/id", "/meta/pod_set_id", "/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/meta/pod_set_id] = \"123\"", EParseMode::Expression), {"/meta/id", "/meta/pod_set_id", "/labels"});
     EXPECT_TRUE(matcher->Match({
         BuildYsonStringFluently().Value("aba"),
         BuildYsonStringFluently().Value("123"),
@@ -155,19 +156,19 @@ TEST(TFilterMatcherTest, ExtraNumberOfAttributes)
 
 TEST(TFilterMatcherTest, HashInFilter)
 {
-    auto matcher = CreateFilterMatcher("[/labels/a] != #", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/a] != #", EParseMode::Expression), {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{a=\"aba\"}")).ValueOrThrow());
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 
-    auto matcherHash = CreateFilterMatcher("[/labels/a] = #", {"/labels"});
+    auto matcherHash = CreateFilterMatcher(ParseSource("[/labels/a] = #", EParseMode::Expression), {"/labels"});
     EXPECT_FALSE(matcherHash->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
     EXPECT_FALSE(matcherHash->Match(TYsonStringBuf("{a=\"aba\"}")).ValueOrThrow());
     EXPECT_TRUE(matcherHash->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
     EXPECT_TRUE(matcherHash->Match(TYsonStringBuf("#")).ValueOrThrow());
     EXPECT_TRUE(matcherHash->Match(BuildYsonStringFluently().Entity()).ValueOrThrow());
 
-    auto matcherLabelHash = CreateFilterMatcher("[/labels/a] = #", {"/labels/a"});
+    auto matcherLabelHash = CreateFilterMatcher(ParseSource("[/labels/a] = #", EParseMode::Expression), {"/labels/a"});
     EXPECT_FALSE(matcherLabelHash->Match(TYsonStringBuf("1")).ValueOrThrow());
     EXPECT_FALSE(matcherLabelHash->Match(TYsonStringBuf("\"aba\"")).ValueOrThrow());
 
@@ -175,10 +176,10 @@ TEST(TFilterMatcherTest, HashInFilter)
     EXPECT_TRUE(matcherLabelHash->Match(TYsonStringBuf("#")).ValueOrThrow());
 
     EXPECT_THROW_WITH_SUBSTRING(
-        CreateFilterMatcher("[/labels/a] IN (#)", {"/labels"}),
+        CreateFilterMatcher(ParseSource("[/labels/a] IN (#)", EParseMode::Expression), {"/labels"}),
         "Cannot use expression of type");
 
-    auto matcherSpecHash = CreateFilterMatcher("[/spec/records] = #", {"/spec"});
+    auto matcherSpecHash = CreateFilterMatcher(ParseSource("[/spec/records] = #", EParseMode::Expression), {"/spec"});
     EXPECT_TRUE(matcherSpecHash->Match(TYsonStringBuf("{}")).ValueOrThrow());
     EXPECT_FALSE(matcherSpecHash->Match(
         BuildYsonStringFluently().BeginMap().
@@ -192,7 +193,7 @@ TEST(TFilterMatcherTest, HashInFilter)
             .EndList()
         .EndMap()).ValueOrThrow());
 
-    auto matcherSpecRecordsHash = CreateFilterMatcher("[/spec/records] = #", {"/spec/records"});
+    auto matcherSpecRecordsHash = CreateFilterMatcher(ParseSource("[/spec/records] = #", EParseMode::Expression), {"/spec/records"});
     EXPECT_TRUE(matcherSpecRecordsHash->Match(TYsonStringBuf("#")).ValueOrThrow());
     EXPECT_FALSE(matcherSpecRecordsHash->Match(
         BuildYsonStringFluently().BeginList()
@@ -209,17 +210,17 @@ TEST(TFilterMatcherTest, HashInFilter)
 
 TEST(TFilterMatcherTest, FilterWithIn)
 {
-    auto matcher = CreateFilterMatcher("try_get_int64([/meta/id], \"\") IN (1, 2)", {"/meta/id"});
+    auto matcher = CreateFilterMatcher(ParseSource("try_get_int64([/meta/id], \"\") IN (1, 2)", EParseMode::Expression), {"/meta/id"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("1")).ValueOrThrow());
 
-    auto matcherSameTypes = CreateFilterMatcher("try_get_int64([/labels/a], \"\") IN (1, 2)", {"/labels"});
+    auto matcherSameTypes = CreateFilterMatcher(ParseSource("try_get_int64([/labels/a], \"\") IN (1, 2)", EParseMode::Expression), {"/labels"});
     EXPECT_TRUE(matcherSameTypes->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
     EXPECT_FALSE(matcherSameTypes->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
 TEST(TFilterMatcherTest, ExceptionSafety)
 {
-    auto matcher = CreateFilterMatcher("[/labels/deploy_engine] = 'YP_LITE'", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/deploy_engine] = 'YP_LITE'", EParseMode::Expression), {"/labels"});
     EXPECT_FALSE(matcher->Match(TYsonStringBuf("{deploy_engine=\"QYP\"}")).ValueOrThrow());
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{deploy_engine=\"YP_LITE\"}")).ValueOrThrow());
     EXPECT_THROW(matcher->Match(TYsonStringBuf("{deploy.engine='QYP'}")).ValueOrThrow(), ::NYT::TErrorException);
@@ -229,7 +230,7 @@ TEST(TFilterMatcherTest, ExceptionSafety)
 
 TEST(TFilterMatcherTest, ThreadSafety)
 {
-    auto matcher = CreateFilterMatcher("[/labels/deploy_engine] = 'YP_LITE'", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("[/labels/deploy_engine] = 'YP_LITE'", EParseMode::Expression), {"/labels"});
     const size_t iterationCount = 10'000;
     const size_t threadCount = 10;
 
@@ -260,7 +261,7 @@ TEST(TFilterMatcherTest, ThreadSafety)
 
 TEST(TFilterMatcherTest, FarmHash)
 {
-    auto matcher = CreateFilterMatcher("farm_hash(string([/labels/zone])) % 1 = 0", {"/labels"});
+    auto matcher = CreateFilterMatcher(ParseSource("farm_hash(string([/labels/zone])) % 1 = 0", EParseMode::Expression), {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{zone=\"some_zone\"}")).ValueOrThrow());
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{not_zone_label=1}")).ValueOrThrow());
 }
@@ -268,9 +269,10 @@ TEST(TFilterMatcherTest, FarmHash)
 TEST(TFilterMatcherTest, TypedAttributePaths)
 {
     auto matcher = CreateFilterMatcher(
-        "([/labels/shard_id] = \"53\" AND NOT [/meta/id] IN (\"pod_1\", "
-        "\"pod_2\", \"pod_3\", \"pod_4\", \"pod_5\", \"pod_6\")) AND "
-        "[/meta/pod_set_id] = \"my_pod_set\"",
+        ParseSource("([/labels/shard_id] = \"53\" AND NOT [/meta/id] IN (\"pod_1\", "
+                    "\"pod_2\", \"pod_3\", \"pod_4\", \"pod_5\", \"pod_6\")) AND "
+                    "[/meta/pod_set_id] = \"my_pod_set\"",
+                    EParseMode::Expression),
         /*typedAttributePaths*/ {
             TTypedAttributePath{
                 .Path = "/meta/pod_set_id",
@@ -312,15 +314,15 @@ TEST(TFilterMatcherTest, TypedAttributePaths)
 TEST(TFilterMatcherTest, FullAttributePaths)
 {
     {
-        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"", {"/meta/id", "/labels/a"});
+        auto matcher = CreateFilterMatcher(ParseSource("[/meta/id] = 15 AND [/labels/a] = \"1\"", EParseMode::Expression), {"/meta/id", "/labels/a"});
         EXPECT_TRUE(matcher->Match({TYsonStringBuf("15"), TYsonStringBuf("\"1\"")}).ValueOrThrow());
     }
     {
-        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"");
+        auto matcher = CreateFilterMatcher(ParseSource("[/meta/id] = 15 AND [/labels/a] = \"1\"", EParseMode::Expression));
         EXPECT_TRUE(matcher->Match(TYsonStringBuf("{meta={id=15}; labels={a=\"1\"}}")).ValueOrThrow());
     }
     {
-        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"");
+        auto matcher = CreateFilterMatcher(ParseSource("[/meta/id] = 15 AND [/labels/a] = \"1\"", EParseMode::Expression));
         EXPECT_TRUE(matcher->Match(
             BuildYsonStringFluently()
                 .BeginMap()
@@ -341,11 +343,11 @@ TEST(TFilterMatcherTest, FullAttributePaths)
 TEST(TFilterMatcherTest, Regex)
 {
     {
-        auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aaa')", {"/labels"});
+        auto matcher = CreateFilterMatcher(ParseSource("regex_full_match('aaa', 'aaa')", EParseMode::Expression), {"/labels"});
         EXPECT_TRUE(matcher->Match(TYsonStringBuf("{foo=bar}")).ValueOrThrow());
     }
     {
-        auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aab')", {"/labels"});
+        auto matcher = CreateFilterMatcher(ParseSource("regex_full_match('aaa', 'aab')", EParseMode::Expression), {"/labels"});
         EXPECT_FALSE(matcher->Match(TYsonStringBuf("{foo=bar}")).ValueOrThrow());
     }
 }
