@@ -14,20 +14,41 @@ namespace google::protobuf {
 class Message;
 }
 
-//  Forward declaration like <yt/yt/client/table_client/public.h>. Required for RorenEncode/RorenDecode(TUnversionedRow)
+// Forward declaration like <yt/yt/client/table_client/public.h>. Required for RorenEncode/RorenDecode(TUnversionedRow)
 namespace NYT {
-    template <class T>
-    class TSharedRange;
 
-    namespace NTableClient {
-        class TUnversionedRow;
-    }  // namespace NYT::NTableClient
+////////////////////////////////////////////////////////////////////////////////
 
-    class TNode;
+template <class T>
+class TSharedRange;
 
-    template <typename T, typename Tag>
-    class TStrongTypedef;
-}  // namespace NYT
+namespace NTableClient {
+    class TUnversionedRow;
+} // namespace NYT::NTableClient
+
+class TNode;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T, typename Tag>
+class TStrongTypedef;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMessage;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NFlow
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
 
 namespace NRoren {
 
@@ -370,6 +391,17 @@ public:
     { }
 
     void Decode(IInputStream*, std::monostate&)
+    { }
+};
+
+template <>
+class TCoder<NYT::NFlow::TMessage>
+{
+public:
+    void Encode(IOutputStream*, const NYT::NFlow::TMessage&)
+    { }
+
+    void Decode(IInputStream*, NYT::NFlow::TMessage&)
     { }
 };
 
