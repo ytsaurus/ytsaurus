@@ -508,7 +508,7 @@ TChunkScraper::TChunkScraper(
     , Logger(std::move(logger))
 {
     YT_LOG_INFO(
-        "MaxChunksPerRequest: %v, AvailabilityPolicy: %v, IsUnavailableFirstQueue: %v",
+        "Chunk scraper initialized (MaxChunksPerRequest: %v, AvailabilityPolicy: %v, IsUnavailableFirstQueue: %v)",
         Config_->MaxChunksPerRequest,
         AvailabilityPolicy_,
         Config_->PrioritizeUnavailableChunks);
