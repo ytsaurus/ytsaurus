@@ -15,7 +15,7 @@ Monitoring services are created by the {{product-name}} operator automatically. 
 
 The monitoring of technical systems can be roughly classified into two general approaches: let's call them qualitative monitoring and quantitative monitoring.
 
-### Qualitative monitoring
+### Qualitative monitoring { #odin }
 
 Qualitative monitoring verifies whether a system can perform its basic functions. This is done by running test tasks, or checks. These checks return a qualitative description of the system state:
 
