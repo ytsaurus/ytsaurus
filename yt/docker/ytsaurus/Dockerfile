@@ -118,7 +118,7 @@ nvidia_packages=(
   libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
 )
 
-RUN if [ "$INSTALL_NVIDIA_PACKAGES" = "true" ]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+if [[ "$INSTALL_NVIDIA_PACKAGES" = "true" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
   | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
   && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
   | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
