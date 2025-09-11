@@ -100,7 +100,8 @@ void GetReadRangesInfo(
             connection->GetNetworks(),
             tableInfo,
             inferredDataSource,
-            rowBuffer);
+            rowBuffer,
+            options.ReadFrom);
 
         THashMap<std::string, std::vector<TDataSource>> groupsByAddress;
         for (const auto& split : allSplits) {

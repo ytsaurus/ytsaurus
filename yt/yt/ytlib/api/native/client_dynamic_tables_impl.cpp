@@ -1650,6 +1650,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.MaxJoinBatchSize = options.MaxJoinBatchSize.value_or(DefaultMaxJoinBatchSize);
     queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries;
     queryOptions.StatisticsAggregation = options.StatisticsAggregation.value_or(EStatisticsAggregation::None);
+    queryOptions.ReadFrom = options.ReadFrom;
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
         "Expected \"rowset_processing_batch_size\" > 0, found %v",

@@ -12,6 +12,8 @@ using namespace NTableClient;
 using NYT::ToProto;
 using NYT::FromProto;
 
+using namespace NHydra;
+
 using NCodegen::EExecutionBackend;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -351,6 +353,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_max_join_batch_size(original.MaxJoinBatchSize);
     serialized->set_use_order_by_in_join_subqueries(original.UseOrderByInJoinSubqueries);
     serialized->set_statistics_aggregation(ToProto(original.StatisticsAggregation));
+    serialized->set_read_from(ToProto(original.ReadFrom));
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -425,6 +428,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_statistics_aggregation()) {
         original->StatisticsAggregation = FromProto<EStatisticsAggregation>(serialized.statistics_aggregation());
+    }
+    if (serialized.has_read_from()) {
+        original->ReadFrom = FromProto<EPeerKind>(serialized.read_from());
     }
 }
 
