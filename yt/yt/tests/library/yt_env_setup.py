@@ -324,7 +324,6 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
     ENABLE_STATIC_DROP_COLUMN = True
     ENABLE_DYNAMIC_DROP_COLUMN = True
-    ENABLE_ALLOW_SECONDARY_INDICES = True
     ENABLE_TLS = False
 
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
@@ -2094,7 +2093,6 @@ class YTEnvSetup(object):
         config["enable_dynamic_table_column_renaming"] = cls.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
         config["enable_static_table_drop_column"] = cls.ENABLE_STATIC_DROP_COLUMN
         config["enable_dynamic_table_drop_column"] = cls.ENABLE_DYNAMIC_DROP_COLUMN
-        config["allow_everyone_create_secondary_indices"] = cls.ENABLE_ALLOW_SECONDARY_INDICES
 
         # COMPAT(kvk1920)
         if cls.Env.get_component_version("ytserver-master").abi < (24, 2):

@@ -63,8 +63,6 @@ public:
         TObjectId hintId,
         IAttributeDictionary* attributes) override
     {
-        ValidateUserAllowedToCreateSecondaryIndex();
-
         auto kind = attributes->GetAndRemove<ESecondaryIndexKind>(
             EInternedAttributeKey::Kind.Unintern(),
             ESecondaryIndexKind::FullSync);
@@ -88,26 +86,6 @@ public:
             std::move(predicate),
             std::move(unfoldedColumn),
             std::move(evaluatedColumns));
-    }
-
-    void ValidateUserAllowedToCreateSecondaryIndex()
-    {
-        if (IsHiveMutation()) {
-            return;
-        }
-
-        if (Bootstrap_->GetDynamicConfig()->AllowEveryoneCreateSecondaryIndices) {
-            return;
-        }
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        const auto* user = securityManager->GetAuthenticatedUser();
-
-        THROW_ERROR_EXCEPTION_UNLESS(user->GetAllowCreateSecondaryIndices(),
-            "Could not verify permission to create %Qlv for user %Qv. "
-            "Refer to \"Secondary indices\" article in documentation",
-            EObjectType::SecondaryIndex,
-            user->GetName());
     }
 
 private:

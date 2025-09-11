@@ -396,7 +396,6 @@ struct TDynamicClusterConfig
     bool EnableDynamicTableColumnRenaming;
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
-    bool AllowEveryoneCreateSecondaryIndices;
     bool EnableSecondaryIndexCopy;
     bool AllowAlterKeyColumnToAny;
 
