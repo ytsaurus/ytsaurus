@@ -17,6 +17,8 @@ ARG ODIN_RUNTIME_ROOT="/var/odin"
 ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
 ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 
+ARG NVIDIA_CONTAINER_TOOLKIT_VERSION="1.17.8-1"
+
 # Flow control args.
 # copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
@@ -107,6 +109,21 @@ packages=(
 )
 
 apt-get install -y "${packages[@]}"
+
+nvidia_packages=(
+  nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+)
+
+RUN if [[ -z "$NVIDIA_CONTAINER_TOOLKIT_VERSION" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list \
+  && apt update \
+  && apt install -y "${nvidia_packages[@]}"; fi
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -276,6 +293,9 @@ COPY ./credits/*.CREDITS /usr/bin/
 COPY ./init_queue_agent_state /usr/bin/init_queue_agent_state
 COPY ./init-operations-archive /usr/bin/init_operations_archive
 RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
+
+COPY ./gpuagent_runner.sh /usr/bin/gpuagent_runner.sh
+RUN echo "23105" > /etc/gpuagent_port.txt
 
 FROM scratch AS ytsaurus
 COPY --from=ytsaurus-bloated / /
