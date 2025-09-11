@@ -111,11 +111,13 @@ packages=(
 
 apt-get install -y "${packages[@]}"
 
+nvidia_container_toolkit_version = ${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+
 nvidia_packages=(
-  nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
-  nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
-  libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
-  libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  nvidia-container-toolkit=${nvidia_container_toolkit_version}
+  nvidia-container-toolkit-base=${nvidia_container_toolkit_version}
+  libnvidia-container-tools=${nvidia_container_toolkit_version}
+  libnvidia-container1=${nvidia_container_toolkit_version}
 )
 
 RUN if [[ "$INSTALL_NVIDIA_PACKAGES" = "true" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
