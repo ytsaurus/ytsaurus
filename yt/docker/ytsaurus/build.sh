@@ -10,6 +10,7 @@ output_path="."
 image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
+install_nvidia_packages="false"
 
 print_usage() {
     cat << EOF
@@ -22,6 +23,7 @@ Usage: $script_name [-h|--help]
                     [--image-tag some-tag (default: $image_tag)]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
+                    [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
 EOF
     exit 1
 }
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
         apt_mirror="$2"
         shift 2
         ;;
+        --install-nvidia-packages)
+        install_nvidia_packages="$2"
+        shift 2
+        ;;
         -h|--help)
         print_usage
         shift
@@ -84,12 +90,14 @@ if [[ "${component}" == "ytsaurus" ]]; then
 
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
     gpuagent="${ytsaurus_source_path}/yt/yt/gpuagent/gpuagent"
+    gpuagent_runner="${ytsaurus_source_path}/yt/docker/ytsaurus/gpuagent_runner.sh"
     init_queue_agent_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_queue_agent_state/init_queue_agent_state"
     init_operations_archive="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_operations_archive/init-operations-archive"
     credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
 
     cp ${ytserver_all} ${output_path}
     cp ${gpuagent} ${output_path}
+    cp ${gpuagent_runner} ${output_path}
     cp ${init_queue_agent_state} ${output_path}
     cp ${init_operations_archive} ${output_path}
 
@@ -192,4 +200,4 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
