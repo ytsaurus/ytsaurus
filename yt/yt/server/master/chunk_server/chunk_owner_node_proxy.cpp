@@ -1130,7 +1130,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 THROW_ERROR_EXCEPTION("Journal compression codec cannot be set");
             }
 
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateAdHocPermission(EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
             auto codec = ConvertTo<NCompression::ECodec>(value);
@@ -1151,7 +1151,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 THROW_ERROR_EXCEPTION("Journal erasure codec cannot be changed after creation");
             }
 
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateAdHocPermission(EPermission::Write);
             ValidateErasureCodec(value, config->ForbiddenErasureCodecs);
 
             const auto& uninternedKey = key.Unintern();
@@ -1167,7 +1167,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 THROW_ERROR_EXCEPTION("Striped erasure cannot be enabled for journals");
             }
 
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateAdHocPermission(EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
             auto enableStripedErasure = ConvertTo<bool>(value);
@@ -1223,9 +1223,9 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
         case EInternedAttributeKey::ChunkMergerMode: {
             if (config->ChunkMerger->AllowSettingChunkMergerMode) {
-                ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+                ValidateAdHocPermission(EPermission::Write);
             } else {
-                ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+                ValidateAdHocPermission(EPermission::Administer);
             }
 
             const auto& uninternedKey = key.Unintern();
@@ -1241,7 +1241,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::EnableSkynetSharing: {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateAdHocPermission(EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
             auto enable = ConvertTo<bool>(value);

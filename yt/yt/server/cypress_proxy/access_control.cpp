@@ -432,4 +432,32 @@ void ValidatePermissionForSubtree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSerializableAccessControlList ComputeEffectiveAclForNode(
+    const TSequoiaSessionPtr& sequoiaSession,
+    TNodeAncestry nodeAncestry)
+{
+    auto ancestryAcds = sequoiaSession
+        ->GetAcdFetcher()
+        ->Fetch({nodeAncestry});
+
+    TSerializableAccessControlList result;
+    int depth = 0;
+    for (const auto* acd : ancestryAcds | std::views::reverse) {
+        for (const auto& ace : acd->Acl.Entries) {
+            if (auto inheritedMode = GetInheritedInheritanceMode(ace.InheritanceMode, depth)) {
+                auto adjustedAce = ace;
+                adjustedAce.InheritanceMode = *inheritedMode;
+                result.Entries.push_back(std::move(adjustedAce));
+            }
+        }
+        if (!acd->Inherit) {
+            break;
+        }
+        ++depth;
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

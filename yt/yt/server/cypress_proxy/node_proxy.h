@@ -13,7 +13,7 @@ namespace NYT::NCypressProxy {
 struct INodeProxy
     : public TRefCounted
 {
-    virtual EInvokeResult Invoke(const ISequoiaServiceContextPtr& context) = 0;
+    virtual TInvokeResult Invoke(const ISequoiaServiceContextPtr& context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeProxy)

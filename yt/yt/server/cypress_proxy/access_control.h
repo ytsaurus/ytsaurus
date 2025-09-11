@@ -44,4 +44,10 @@ void ValidatePermissionForSubtree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NSecurityClient::TSerializableAccessControlList ComputeEffectiveAclForNode(
+    const TSequoiaSessionPtr& sequoiaSession,
+    TNodeAncestry nodeAncestry);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

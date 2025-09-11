@@ -196,7 +196,7 @@ public:
         , AuthenticationIdentity_(std::move(authenticationIdentity))
     { }
 
-    EInvokeResult TryInvoke(
+    TInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& session,
         const TResolveResult& resolveResult,
@@ -207,13 +207,13 @@ public:
         INodeProxyPtr proxy;
         if (const auto* cypressResolveResult = std::get_if<TCypressResolveResult>(&resolveResult)) {
             if (context->GetRequestHeader().method() != "Create") {
-                return EInvokeResult::ForwardToMaster;
+                return TForwardToMasterPayload{};
             }
 
             auto reqCreate = TryParseReqCreate(context);
             if (!reqCreate) {
                 // Error during parsing.
-                return EInvokeResult::Executed;
+                return TRequestExecutedPayload{};
             }
 
             switch (reqCreate->Type) {
@@ -232,7 +232,7 @@ public:
                     } catch (const std::exception& ex) {
                         // TODO(danilalexeev): Implement the top-level #GuardedTryInvoke.
                         context->Reply(ex);
-                        return EInvokeResult::Executed;
+                        return TRequestExecutedPayload{};
                     }
                     break;
 
@@ -251,15 +251,15 @@ public:
                             targetPath,
                             resolveResult);
                         // Link should be created in master.
-                        return EInvokeResult::ForwardToMaster;
+                        return TForwardToMasterPayload{};
                     } catch (const std::exception& ex) {
                         context->Reply(ex);
-                        return EInvokeResult::Executed;
+                        return TRequestExecutedPayload{};
                     }
                     break;
 
                 default:
-                    return EInvokeResult::ForwardToMaster;
+                    return TForwardToMasterPayload{};
             }
         } else if (std::holds_alternative<TMasterResolveResult>(resolveResult)) {
             proxy = CreateMasterProxy(Bootstrap_, session, AuthenticationIdentity_);

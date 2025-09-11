@@ -58,7 +58,7 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(MaterializeCopyPrerequisites);
         DISPATCH_YPATH_SERVICE_METHOD(MaterializeNode);
 
-        InvokeResult_ = EInvokeResult::ForwardToMaster;
+        InvokeResult_ = TForwardToMasterPayload{};
         // Note that DoInvoke of the base class is not called here!
         // This is done to avoid throwing an extra error during Invoke().
         return true;
@@ -74,7 +74,7 @@ protected:
 DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeCopyPrerequisites)
 {
     if (!request->sequoia_destination()) {
-        InvokeResult_ = EInvokeResult::ForwardToMaster;
+        InvokeResult_ = TForwardToMasterPayload{};
         return;
     }
 
@@ -195,7 +195,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeCopyPrerequisites)
 DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeNode)
 {
     if (!request->sequoia_destination()) {
-        InvokeResult_ = EInvokeResult::ForwardToMaster;
+        InvokeResult_ = TForwardToMasterPayload{};
         return;
     }
 

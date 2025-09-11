@@ -2283,28 +2283,6 @@ public:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        // TODO(shakurov): remove this once ACLs are implemented in Sequoia.
-        if (IsSequoiaId(GetObjectId(object))) {
-            checker.ProcessAce(
-                TAccessControlEntry(
-                    ESecurityAction::Allow,
-                    GetEveryoneGroup(),
-                    EPermissionSet(
-                        EPermission::Read |
-                        EPermission::FullRead |
-                        EPermission::Write |
-                        EPermission::Use |
-                        EPermission::Administer |
-                        EPermission::Create |
-                        EPermission::Remove |
-                        EPermission::Mount |
-                        EPermission::Manage |
-                        EPermission::ModifyChildren)),
-                owner,
-                currentObject,
-                currentDepth);
-        }
-
         // XXX(shakurov): YT-3005, YT-10896: remove this workaround.
         if (aceIter.GetStopCause() == EAceIteratorStopCause::NoParent &&
             IsVersionedType(currentObject->GetType()) &&

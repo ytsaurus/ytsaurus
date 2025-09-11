@@ -77,10 +77,13 @@ DEFINE_ENUM(EUserWorkloadType,
     (Write)
 );
 
-DEFINE_ENUM(EInvokeResult,
-    (Executed)
-    (ForwardToMaster)
-);
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRequestExecutedPayload;
+
+struct TForwardToMasterPayload;
+
+using TInvokeResult = std::variant<TRequestExecutedPayload, TForwardToMasterPayload>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
