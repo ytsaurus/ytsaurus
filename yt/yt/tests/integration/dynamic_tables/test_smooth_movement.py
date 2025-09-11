@@ -28,8 +28,49 @@ class TestSmoothMovement(DynamicTablesBase):
         "tablet_node": {
             "tablet_manager": {
                 "sleep_before_post_to_master": 500,
-            }
-        }
+            },
+        },
+        "rpc_server": {
+            "services": {
+                "TabletService": {
+                    "methods": {
+                        "Write": {
+                            "testing": {
+                                "random_delay": 100,
+                            },
+                        },
+                        "RegisterTransactionActions": {
+                            "testing": {
+                                "random_delay": 100,
+                            },
+                        },
+                    },
+                },
+                "TransactionSupervisorService": {
+                    "methods": {
+                        "CommitTransaction": {
+                            "testing": {
+                                "random_delay": 50,
+                            },
+                        },
+                    },
+                },
+                "TransactionParticipantService": {
+                    "methods": {
+                        "CommitTransaction": {
+                            "testing": {
+                                "random_delay": 50,
+                            },
+                        },
+                        "PrepareTransaction": {
+                            "testing": {
+                                "random_delay": 50,
+                            },
+                        },
+                    },
+                },
+            },
+        },
     }
 
     def _move_tablet(self, tablet_id, cell_id=None):
