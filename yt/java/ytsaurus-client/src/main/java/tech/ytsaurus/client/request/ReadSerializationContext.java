@@ -17,7 +17,7 @@ public class ReadSerializationContext<T> extends SerializationContext<T> {
         this(TableAttachmentReader.wireProtocol(deserializer));
     }
 
-    private ReadSerializationContext(ERowsetFormat rowsetFormat, TableAttachmentReader<T> attachmentReader) {
+    ReadSerializationContext(ERowsetFormat rowsetFormat, TableAttachmentReader<T> attachmentReader) {
         this.rowsetFormat = rowsetFormat;
         this.attachmentReader = attachmentReader;
     }
