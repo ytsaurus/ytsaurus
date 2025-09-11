@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "bootstrap.h"
 
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -23,7 +24,7 @@ struct IYqlAgent
 
     virtual void Stop() = 0;
 
-    virtual NYTree::IMapNodePtr GetOrchidNode() const = 0;
+    virtual NYTree::IYPathServicePtr CreateOrchidService() const = 0;
 
     virtual void OnDynamicConfigChanged(
         const TYqlAgentDynamicConfigPtr& oldConfig,
@@ -46,6 +47,7 @@ DEFINE_REFCOUNTED_TYPE(IYqlAgent)
 ////////////////////////////////////////////////////////////////////////////////
 
 IYqlAgentPtr CreateYqlAgent(
+    TBootstrap* bootstrap,
     TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
     TYqlAgentDynamicConfigPtr dynamicConfig,

@@ -1,6 +1,9 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yql/plugin/bridge/interface.h>
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 #include <library/cpp/logger/log.h>
 
@@ -16,8 +19,6 @@ namespace NYT::NYqlPlugin {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TQueryId = TGuid;
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct TYqlPluginOptions
 {
@@ -38,6 +39,8 @@ struct TYqlPluginOptions
     std::optional<TString> YqlPluginSharedLibrary;
 
     std::string MaxYqlLangVersion;
+
+    bool StartDqManager;
 };
 
 struct TYqlPluginDynamicConfig
@@ -91,9 +94,10 @@ struct IYqlPlugin
     virtual void Start() = 0;
 
     virtual TClustersResult GetUsedClusters(
+        TQueryId queryId,
         TString queryText,
         NYson::TYsonString settings,
-        std::vector<TQueryFile> files) noexcept = 0;
+        std::vector<TQueryFile> files) = 0;
 
     virtual TQueryResult Run(
         TQueryId queryId,
@@ -102,16 +106,27 @@ struct IYqlPlugin
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
-        int executeMode) noexcept = 0;
+        int executeMode) = 0;
 
-    virtual TQueryResult GetProgress(TQueryId queryId) noexcept = 0;
+    virtual TQueryResult GetProgress(TQueryId queryId) = 0;
 
-    virtual TAbortResult Abort(TQueryId queryId) noexcept = 0;
+    virtual TAbortResult Abort(TQueryId queryId) = 0;
 
-    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept = 0;
+    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) = 0;
+
+    virtual NYTree::IMapNodePtr GetOrchidNode() const;
 
     virtual ~IYqlPlugin() = default;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYqlPluginOptions ConvertToOptions(
+    TYqlPluginConfigPtr config,
+    NYson::TYsonString singletonsConfigString,
+    THolder<TLogBackend> logBackend,
+    std::string maxSupportedYqlVersion,
+    bool startDqManager = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
