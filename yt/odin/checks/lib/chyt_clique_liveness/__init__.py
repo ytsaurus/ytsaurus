@@ -147,7 +147,7 @@ def create_test_table(yt_client, path, data, logger, **kwargs):
     primary_medium = kwargs.get("primary_medium", None)
     if primary_medium is not None:
         table_attributes["primary_medium"] = primary_medium
-    
+
     table_path = yt_client.create_temp_table(path=path, attributes=table_attributes)
     logger.info("Created table: %s", table_path)
 
@@ -197,7 +197,7 @@ def run_check_impl(yt_client, logger, options, states, clique_alias):
     primary_medium = options.get("primary_medium", None)
     upload_replication_factor = options.get("upload_replication_factor", 3)
     min_upload_replication_factor = options.get("min_upload_replication_factor", 2)
-    
+
     if not yt_client.exists("//sys/clickhouse"):
         logger.error("Clickhouse not installed on this cluster")
         return states.UNAVAILABLE_STATE
@@ -208,7 +208,10 @@ def run_check_impl(yt_client, logger, options, states, clique_alias):
         return states.UNAVAILABLE_STATE
 
     check_result = states.UNAVAILABLE_STATE
-    table_path = create_test_table(yt_client, temp_path, test_data, logger, primary_medium=primary_medium, upload_replication_factor=upload_replication_factor, min_upload_replication_factor=min_upload_replication_factor)
+    table_path = create_test_table(yt_client, temp_path, test_data, logger, 
+                                   primary_medium=primary_medium, 
+                                   upload_replication_factor=upload_replication_factor, 
+                                   min_upload_replication_factor=min_upload_replication_factor)
     try:
         start_time = int(time.time())
         if not perform_test_query(get_proxy_address_url(client=yt_client), clique_alias, token,
