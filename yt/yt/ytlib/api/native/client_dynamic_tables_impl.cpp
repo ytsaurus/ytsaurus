@@ -1649,7 +1649,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.WriteRowsetSize = options.WriteRowsetSize.value_or(DefaultWriteRowsetSize);
     queryOptions.MaxJoinBatchSize = options.MaxJoinBatchSize.value_or(DefaultMaxJoinBatchSize);
     queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries;
-    queryOptions.StatisticsAggregation = options.StatisticsAggregation;
+    queryOptions.StatisticsAggregation = options.StatisticsAggregation.value_or(EStatisticsAggregation::None);
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
         "Expected \"rowset_processing_batch_size\" > 0, found %v",
