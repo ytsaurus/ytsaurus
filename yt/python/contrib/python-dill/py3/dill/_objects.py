@@ -2,7 +2,7 @@
 #
 # Author: Mike McKerns (mmckerns @caltech and @uqfoundation)
 # Copyright (c) 2008-2016 California Institute of Technology.
-# Copyright (c) 2016-2022 The Uncertainty Quantification Foundation.
+# Copyright (c) 2016-2025 The Uncertainty Quantification Foundation.
 # License: 3-clause BSD.  The full license text is available at:
 #  - https://github.com/uqfoundation/dill/blob/master/LICENSE
 """
@@ -16,7 +16,7 @@ __all__ = ['registered','failures','succeeds']
 import warnings; warnings.filterwarnings("ignore", category=DeprecationWarning)
 import sys
 import queue as Queue
-import dbm as anydbm
+#import dbm as anydbm #XXX: delete foo
 from io import BytesIO as StringIO
 import re
 import array
@@ -39,7 +39,6 @@ import zlib
 import gzip
 import zipfile
 import tarfile
-import xdrlib
 import csv
 import hashlib
 import hmac
@@ -72,6 +71,8 @@ try:
 except ImportError: # MacPorts
     HAS_CTYPES = False
     IS_PYPY = False
+
+IS_PYODIDE = sys.platform == 'emscripten'
 
 # helper objects
 class _class:
@@ -110,7 +111,10 @@ if HAS_CTYPES:
         pass
     _Struct._fields_ = [("_field", ctypes.c_int),("next", ctypes.POINTER(_Struct))]
 _filedescrip, _tempfile = tempfile.mkstemp('r') # deleted in cleanup
-_tmpf = tempfile.TemporaryFile('w')
+if sys.hexversion < 0x30d00a1:
+    _tmpf = tempfile.TemporaryFile('w') # emits OSError 9 in python 3.13
+else:
+    _tmpf = tempfile.NamedTemporaryFile('w').file # for > python 3.9
 
 # objects used by dill for type declaration
 registered = d = {}
@@ -160,7 +164,6 @@ a['DateTimeType'] = datetime.datetime.today()
 a['CalendarType'] = calendar.Calendar()
 # numeric and mathematical types (CH 9)
 a['DecimalType'] = decimal.Decimal(1)
-a['CountType'] = itertools.count(0)
 # data compression and archiving (CH 12)
 a['TarInfoType'] = tarfile.TarInfo()
 # generic operating system services (CH 15)
@@ -248,13 +251,15 @@ a['NotImplementedType'] = NotImplemented
 a['SliceType'] = slice(1)
 a['UnboundMethodType'] = _class._method #XXX: works when not imported!
 d['TextWrapperType'] = open(os.devnull, 'r') # same as mode='w','w+','r+'
-d['BufferedRandomType'] = open(os.devnull, 'r+b') # same as mode='w+b'
+if not IS_PYODIDE:
+    d['BufferedRandomType'] = open(os.devnull, 'r+b') # same as mode='w+b'
 d['BufferedReaderType'] = open(os.devnull, 'rb') # (default: buffering=-1)
 d['BufferedWriterType'] = open(os.devnull, 'wb')
 try: # oddities: deprecated
     from _pyio import open as _open
     d['PyTextWrapperType'] = _open(os.devnull, 'r', buffering=-1)
-    d['PyBufferedRandomType'] = _open(os.devnull, 'r+b', buffering=-1)
+    if not IS_PYODIDE:
+        d['PyBufferedRandomType'] = _open(os.devnull, 'r+b', buffering=-1)
     d['PyBufferedReaderType'] = _open(os.devnull, 'rb', buffering=-1)
     d['PyBufferedWriterType'] = _open(os.devnull, 'wb', buffering=-1)
 except ImportError:
@@ -292,7 +297,6 @@ a['QueueType'] = Queue.Queue()
 # numeric and mathematical types (CH 9)
 d['PartialType'] = functools.partial(int,base=2)
 a['IzipType'] = zip('0','1')
-a['ChainType'] = itertools.chain('0','1')
 d['ItemGetterType'] = operator.itemgetter(0)
 d['AttrGetterType'] = operator.attrgetter('__repr__')
 # file and directory access (CH 10)
@@ -313,7 +317,9 @@ if HAS_ALL:
 a['TarFileType'] = tarfile.open(fileobj=_fileW,mode='w')
 # file formats (CH 13)
 x['DialectType'] = csv.get_dialect('excel')
-a['PackerType'] = xdrlib.Packer()
+if sys.hexversion < 0x30d00a1:
+    import xdrlib
+    a['PackerType'] = xdrlib.Packer()
 # optional operating system services (CH 16)
 a['LockType'] = threading.Lock()
 a['RLockType'] = threading.RLock()
@@ -341,8 +347,6 @@ try: # numpy #FIXME: slow... 0.05 to 0.1 sec to import numpy
     a['NumpyInt32Type'] = _numpy_int32
 except (AttributeError, ImportError):
     pass
-# numeric and mathematical types (CH 9)
-a['ProductType'] = itertools.product('0','1')
 # generic operating system services (CH 15)
 a['FileHandlerType'] = logging.FileHandler(os.devnull)
 a['RotatingFileHandlerType'] = logging.handlers.RotatingFileHandler(os.devnull)
@@ -395,18 +399,16 @@ try:
 except ImportError:
     pass
 
-if sys.hexversion >= 0x30a00a0:
+if sys.hexversion >= 0x30a00a0 and not IS_PYPY:
     x['LineIteratorType'] = compile('3', '', 'eval').co_lines()
 
-if sys.hexversion >= 0x30b00b0:
+if sys.hexversion >= 0x30b00b0 and not IS_PYPY:
     from types import GenericAlias
     d["GenericAliasIteratorType"] = iter(GenericAlias(list, (int,)))
     x['PositionsIteratorType'] = compile('3', '', 'eval').co_positions()
 
 # data types (CH 8)
 a['PrettyPrinterType'] = pprint.PrettyPrinter()
-# numeric and mathematical types (CH 9)
-a['CycleType'] = itertools.cycle('0')
 # file and directory access (CH 10)
 a['TemporaryFileType'] = _tmpf
 # data compression and archiving (CH 12)
@@ -414,10 +416,16 @@ x['GzipFileType'] = gzip.GzipFile(fileobj=_fileW)
 # generic operating system services (CH 15)
 a['StreamHandlerType'] = logging.StreamHandler()
 # numeric and mathematical types (CH 9)
-a['PermutationsType'] = itertools.permutations('0')
-a['CombinationsType'] = itertools.combinations('0',1)
-a['RepeatType'] = itertools.repeat(0)
-a['CompressType'] = itertools.compress('0',[1])
+z = a if sys.hexversion < 0x30e00a1 else x
+z['CountType'] = itertools.count(0) #FIXME: __reduce__ removed in 3.14.0a1
+z['ChainType'] = itertools.chain('0','1')
+z['ProductType'] = itertools.product('0','1')
+z['CycleType'] = itertools.cycle('0')
+z['PermutationsType'] = itertools.permutations('0')
+z['CombinationsType'] = itertools.combinations('0',1)
+z['RepeatType'] = itertools.repeat(0)
+z['CompressType'] = itertools.compress('0',[1])
+del z
 #XXX: ...and etc
 
 # -- dill fails on all below here -------------------------------------------
@@ -484,7 +492,8 @@ if HAS_CTYPES:
     z = a if IS_PYPY else x
     z['FieldType'] = _field = _Struct._field
     z['CFUNCTYPEType'] = _cfunc = ctypes.CFUNCTYPE(ctypes.c_char)
-    x['CFunctionType'] = _cfunc(str)
+    if sys.hexversion < 0x30c00b3:
+        x['CFunctionType'] = _cfunc(str)
     del z
 # numeric and mathematical types (CH 9)
 a['MethodCallerType'] = operator.methodcaller('mro') # 2.6

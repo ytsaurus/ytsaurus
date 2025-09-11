@@ -2,7 +2,7 @@
 #
 # Author: Mike McKerns (mmckerns @caltech and @uqfoundation)
 # Copyright (c) 2008-2016 California Institute of Technology.
-# Copyright (c) 2016-2022 The Uncertainty Quantification Foundation.
+# Copyright (c) 2016-2025 The Uncertainty Quantification Foundation.
 # License: 3-clause BSD.  The full license text is available at:
 #  - https://github.com/uqfoundation/dill/blob/master/LICENSE
 """
@@ -145,12 +145,15 @@ def nestedglobals(func, recurse=True):
     CAN_NULL = sys.hexversion >= 0x30b00a7 # NULL may be prepended >= 3.11a7
     names = set()
     with capture('stdout') as out:
-        dis.dis(func) #XXX: dis.dis(None) disassembles last traceback
+        try:
+            dis.dis(func) #XXX: dis.dis(None) disassembles last traceback
+        except IndexError:
+            pass #FIXME: HACK for IS_PYPY (3.11)
     for line in out.getvalue().splitlines():
         if '_GLOBAL' in line:
             name = line.split('(')[-1].split(')')[0]
             if CAN_NULL:
-                names.add(name.replace('NULL + ', ''))
+                names.add(name.replace('NULL + ', '').replace(' + NULL', ''))
             else:
                 names.add(name)
     for co in getattr(func, 'co_consts', tuple()):

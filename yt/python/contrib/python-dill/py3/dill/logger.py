@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # Author: Leonardo Gama (@leogama)
-# Copyright (c) 2022 The Uncertainty Quantification Foundation.
+# Copyright (c) 2022-2025 The Uncertainty Quantification Foundation.
 # License: 3-clause BSD.  The full license text is available at:
 #  - https://github.com/uqfoundation/dill/blob/master/LICENSE
 """
@@ -200,8 +200,8 @@ class TraceFormatter(logging.Formatter):
             if not self.is_utf8:
                 prefix = prefix.translate(ASCII_MAP) + "-"
             fields['prefix'] = prefix + " "
-        if hasattr(record, 'size'):
-            # Show object size in human-redable form.
+        if hasattr(record, 'size') and record.size is not None and record.size >= 1:
+            # Show object size in human-readable form.
             power = int(math.log(record.size, 2)) // 10
             size = record.size >> power*10
             fields['suffix'] = " [%d %sB]" % (size, "KMGTP"[power] + "i" if power else "")
@@ -253,7 +253,7 @@ def trace(arg: Union[bool, TextIO, str, os.PathLike] = None, *, mode: str = 'a')
         arg: a boolean value, or an optional file-like or path-like object for the context manager
         mode: mode string for ``open()`` if a file name is passed as the first argument
     """
-    if not isinstance(arg, bool):
+    if repr(arg) not in ('False', 'True'):
         return TraceManager(file=arg, mode=mode)
     logger.setLevel(logging.INFO if arg else logging.WARNING)
 
