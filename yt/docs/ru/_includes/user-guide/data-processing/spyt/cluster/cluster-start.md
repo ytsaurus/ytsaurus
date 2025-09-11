@@ -71,6 +71,7 @@ $ spark-launch-yt
 | `--tcp-proxy-range-start` | нет | 30000 | Начало диапазона портов, используемых для TCP proxy | 1.72.0 |
 | `--tcp-proxy-range-size` | нет | 100 | Размер диапазона портов для TCP proxy | 1.72.0 |
 | `--enable-rpc-job-proxy`, `--disable-rpc-job-proxy` | нет | `--enable-rpc-job-proxy` | Использовать rpc прокси, встроенный в job прокси. При отключении этой опции будет использована общая rpc прокси, что может привести к деградации производительности кластера | 1.77.0 |
+| `--enable-ytsaurus-shuffle`, `--disable-ytsaurus-shuffle` | нет | `--disable-ytsaurus-shuffle` | Использовать [{{product-name}} Shuffle сервис](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
 | `--rpc-job-proxy-thread-pool-size` | нет | 4 | Размер пула потоков для rpc job proxy | 1.77.0 |
 | `--group-id` | нет | - | Идентификатор discovery группы. Используется при запуске кластера с использованием нескольких операций | - |
 | `--enable-squashfs`, `--disable-squashfs` | нет | `--disable-squashfs` | Использовать предварительно подготовленные слои Squash FS в {{product-name}} джобах | 2.6.0 |

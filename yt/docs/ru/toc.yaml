@@ -317,6 +317,8 @@ items:
               href: user-guide/data-processing/spyt/structured-streaming.md
             - name: Spark SQL
               href: user-guide/data-processing/spyt/spark-sql.md
+            - name: Использование {{product-name}} Shuffle сервиса
+              href: user-guide/data-processing/spyt/shuffle.md
             - name: API
               items:
                 - name: SPYT в Python
