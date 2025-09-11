@@ -53,6 +53,7 @@
 namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
+using namespace NHydra;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
@@ -120,7 +121,8 @@ std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     const TTableMountInfoPtr& tableInfo,
     const TDataSource& dataSource,
-    TRowBufferPtr rowBuffer)
+    TRowBufferPtr rowBuffer,
+    EPeerKind readFrom)
 {
     auto ranges = dataSource.Ranges;
     auto keys = dataSource.Keys;
@@ -137,8 +139,7 @@ std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
             descriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
         }
 
-        // TODO(babenko): pass proper read options
-        const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(*descriptor);
+        const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(*descriptor, readFrom);
         return peerDescriptor.GetAddressOrThrow(networks);
     };
 
@@ -497,7 +498,8 @@ private:
             Connection_->GetNetworks(),
             tableInfo,
             inferredDataSource,
-            rowBuffer);
+            rowBuffer,
+            options.ReadFrom);
 
         for (const auto& dataSource : allSplits) {
             VerifyIdsInRanges(dataSource.first.Ranges);
