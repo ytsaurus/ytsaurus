@@ -30,7 +30,8 @@ std::vector<std::pair<TDataSource, std::string>> CoordinateDataSources(
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const TDataSource& dataSource,
-    TRowBufferPtr rowBuffer);
+    TRowBufferPtr rowBuffer,
+    NHydra::EPeerKind readFrom);
 
 IExecutorPtr CreateQueryExecutor(
     IMemoryChunkProviderPtr memoryChunkProvider,
