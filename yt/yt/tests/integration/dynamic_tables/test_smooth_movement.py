@@ -8,7 +8,7 @@ from yt_commands import (
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
-    get_singular_chunk_id, print_debug
+    get_singular_chunk_id
 )
 
 from yt.common import YtError
@@ -507,16 +507,6 @@ class TestSmoothMovement(DynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 1}], transaction_id=tx_id)
             insert_rows("//tmp/q", [{"key": 1}], transaction_id=tx_id)
             commit_transaction(tx_id)
-
-    @authors("ifsmirnov")
-    def test_config_forwarding(self):
-        self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t", mount_config={"min_data_ttl": 1})
-
-        h = SmoothMovementHelper("//tmp/t")
-        with h.forwarding_context():
-            print_debug(h.get_source_stage())
-            print_debug(h.get_target_stage())
 
 ##################################################################
 
