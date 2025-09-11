@@ -228,8 +228,10 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("orchid", &TThis::Orchid)
         .DefaultNew();
 
-    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
-        .Default(false);
+    registrar.Parameter("compaction_query_pool", &TThis::CompactionFairSharePool)
+        .Optional();
+    registrar.Parameter("partitioning_query_pool", &TThis::PartitioningFairSharePool)
+        .Optional();
 
     registrar.Parameter("ignore_future_effect", &TThis::IgnoreFutureEffect)
         .Default(false);
