@@ -17,9 +17,6 @@ ARG ODIN_RUNTIME_ROOT="/var/odin"
 ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
 ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 
-ARG NVIDIA_CONTAINER_TOOLKIT_VERSION="1.17.8-1"
-ARG INSTALL_NVIDIA_PACKAGES
-
 # Flow control args.
 # copy-ytsaurus-python-binaries or build-ytsaurus-python-binaries
 ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
@@ -56,6 +53,9 @@ RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
 ##########################################################################################
 
 FROM ubuntu-base AS base
+
+ARG NVIDIA_CONTAINER_TOOLKIT_VERSION="1.17.8-1"
+ARG INSTALL_NVIDIA_PACKAGES
 
 USER root
 
@@ -111,13 +111,11 @@ packages=(
 
 apt-get install -y "${packages[@]}"
 
-nvidia_container_toolkit_version = ${NVIDIA_CONTAINER_TOOLKIT_VERSION}
-
 nvidia_packages=(
-  nvidia-container-toolkit=${nvidia_container_toolkit_version}
-  nvidia-container-toolkit-base=${nvidia_container_toolkit_version}
-  libnvidia-container-tools=${nvidia_container_toolkit_version}
-  libnvidia-container1=${nvidia_container_toolkit_version}
+  nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
 )
 
 RUN if [[ "$INSTALL_NVIDIA_PACKAGES" = "true" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \

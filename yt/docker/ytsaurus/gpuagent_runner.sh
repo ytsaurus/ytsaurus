@@ -9,7 +9,7 @@ start_gpuagent() {
     fi
     while true; do
         echo "Launching gpuagent..."
-        gpuagent --tcp $(cat /etc/gpuagent_port.txt) || true
+        gpuagent --tcp 23105 || true
         sleep 5
     done
 }
