@@ -28,7 +28,6 @@
     XX(AllowAggressivePreemption, allow_aggressive_preemption) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
-    XX(AllowCreateSecondaryIndices, allow_create_secondary_indices) \
     XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(AllowNormalPreemption, allow_normal_preemption) \
     XX(AllowRegularAllocationsOnSsdNodes, allow_regular_allocations_on_ssd_nodes) \
