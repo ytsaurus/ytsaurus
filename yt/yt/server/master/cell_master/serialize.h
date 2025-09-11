@@ -185,6 +185,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropLegacyCellMap)                                            (3030))  // danilalexeev
     ((FixZombieLocations)                                           (3031))  // aleksandra-zh
     ((AdHocPermissionValidation)                                    (3032))  // danilalexeev
+    ((DropSecondaryIndexCreationPermissionFlags)                    (3033))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

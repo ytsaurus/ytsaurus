@@ -116,9 +116,6 @@ private:
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllowCreateSecondaryIndices)
-            .SetWritable(true)
-            .SetReplicated(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -267,11 +264,6 @@ private:
             case EInternedAttributeKey::PendingRemoval:
                 BuildYsonFluently(consumer)
                     .Value(user->GetPendingRemoval());
-                return true;
-
-            case EInternedAttributeKey::AllowCreateSecondaryIndices:
-                BuildYsonFluently(consumer)
-                    .Value(user->GetAllowCreateSecondaryIndices());
                 return true;
 
             default:
@@ -437,10 +429,6 @@ private:
                 user->SetPendingRemoval(pendingRemoval);
                 return true;
             }
-
-            case EInternedAttributeKey::AllowCreateSecondaryIndices:
-                user->SetAllowCreateSecondaryIndices(ConvertTo<bool>(value));
-                return true;
 
             default:
                 break;

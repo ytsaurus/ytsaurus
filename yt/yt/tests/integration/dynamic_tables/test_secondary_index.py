@@ -4,7 +4,7 @@ from yt.common import wait
 
 from yt_commands import (
     create, create_secondary_index, create_table_replica, create_table_collocation, create_user,
-    authors, set, get, exists, remove, copy, get_driver, alter_table,
+    authors, make_ace, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, explain_query, insert_rows, delete_rows,
     commit_transaction, start_transaction,
@@ -328,14 +328,17 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_forbid_create_secondary_index(self):
-        set("//sys/@config/allow_everyone_create_secondary_indices", False)
         create_user("index_user")
-        with raises_yt_error("Could not verify permission"):
-            self._create_basic_tables()
-        with raises_yt_error("Could not verify permission"):
-            create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync", authenticated_user="index_user")
-        set("//sys/users/index_user/@allow_create_secondary_indices", True)
-        create_secondary_index("//tmp/table", "//tmp/index_table", "full_sync", authenticated_user="index_user")
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/secondary", INDEX_ON_VALUE_SCHEMA)
+        if self.NUM_REMOTE_CLUSTERS:
+            create_table_collocation(table_paths=["//tmp/table", "//tmp/secondary"])
+        with raises_yt_error("Access denied"):
+            create_secondary_index("//tmp/table", "//tmp/secondary", "full_sync", authenticated_user="index_user")
+        set("//sys/schemas/secondary_index/@acl", [make_ace("allow", "index_user", ["create", "remove", "read"])])
+        id = create_secondary_index("//tmp/table", "//tmp/secondary", "full_sync", authenticated_user="index_user")
+        get(f"#{id}/@", authenticated_user="index_user")
+        remove(f"#{id}", authenticated_user="index_user")
 
     @authors("sabdenovch")
     def test_ouroboros(self):
