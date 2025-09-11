@@ -8,6 +8,13 @@ from yt_commands import (
     remove
 )
 
+# Used by SmoothMovementHelper by name lookup.
+from yt_commands import ( # noqa
+    remount_table, create
+)
+
+import yt_smooth_movement_helper_base
+
 from yt.common import YtError
 
 import yt.yson as yson
@@ -390,3 +397,25 @@ class DynamicTablesBase(YTEnvSetup):
         wait(lambda: _do_init())
 
         return sensors[0]
+
+
+##################################################################
+
+
+class IntegrationTestCommandProvider(yt_smooth_movement_helper_base.CommandProvider):
+    _command_mapping = {
+        "list": "ls",
+        "wait": "wait",
+        "print_debug": "print_debug",
+    }
+
+    @classmethod
+    def _make_command(cls, command_name):
+        return lambda self, *args, **kwargs: globals()[command_name](*args, **kwargs)
+
+
+class SmoothMovementHelper(
+    yt_smooth_movement_helper_base.SmoothMovementHelperBase,
+    IntegrationTestCommandProvider
+):
+    pass
