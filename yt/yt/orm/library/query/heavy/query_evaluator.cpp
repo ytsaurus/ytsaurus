@@ -20,20 +20,9 @@ TQueryEvaluationContext::~TQueryEvaluationContext()
 // TODO(dtorilov): Consider enabling WebAssembly for ORM.
 
 std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
-    const NAst::TExpressionPtr& astExpression,
+    const TParsedSource& parsedSource,
     const TTableSchemaPtr& schema)
 {
-    auto expressionSource = FormatExpression(*astExpression);
-
-    auto astHead = NAst::TAstHead{
-        .Ast = std::move(astExpression),
-        .AliasMap = {},
-    };
-
-    TParsedSource parsedSource(
-        std::move(expressionSource),
-        std::move(astHead));
-
     auto context = std::make_unique<TQueryEvaluationContext>();
 
     context->Expression = PrepareExpression(

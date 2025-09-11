@@ -1202,7 +1202,9 @@ void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& f
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (formula) {
-        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(*formula, {"/stat"});
+        auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(
+            NQueryClient::ParseSource(*formula, NQueryClient::EParseMode::Expression),
+            {"/stat"});
         EvaluateIOWeight(evaluator).ThrowOnError();
 
         IOWeightEvaluator_ = std::move(evaluator);

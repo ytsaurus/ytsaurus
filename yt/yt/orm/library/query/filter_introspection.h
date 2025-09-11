@@ -96,6 +96,10 @@ void ExtractFilterAttributeReferences(
     TStringBuf filterQuery,
     std::function<void(NYPath::TYPathBuf)> inserter);
 
+void ExtractFilterAttributeReferences(
+    NQueryClient::NAst::TExpressionPtr filterExpression,
+    std::function<void(NYPath::TYPathBuf)> inserter);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Check whether #exprList is a reference to the attribute specified in #attributePath.

@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/library/query/base/query_preparer.h>
+
 namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,12 +40,12 @@ DEFINE_REFCOUNTED_TYPE(IFilterMatcher)
 
 //! Thread-safe; exception-safe.
 IFilterMatcherPtr CreateFilterMatcher(
-    TStringBuf filterQuery,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<TTypedAttributePath> typedAttributePaths);
 
 //! Shortcut for paths of type Any.
 IFilterMatcherPtr CreateFilterMatcher(
-    TStringBuf filterQuery,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<NYPath::TYPath> attributePaths = {""});
 
 ////////////////////////////////////////////////////////////////////////////////
