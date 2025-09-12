@@ -382,8 +382,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(65'536);
 
     registrar.Parameter("upload_transaction_timeout", &TThis::UploadTransactionTimeout)
-        .Default(TDuration::Seconds(15));
-    // NB: its default value is |UploadTransactionTimeout| / 2. See postprocessor.
+        .Default(TDuration::Seconds(60));
+    // NB: its default value is |UploadTransactionTimeout| / 4.
+    // So we have full 3 attempts to ping transaction.
+    // See postprocessor.
     registrar.Parameter("upload_transaction_ping_period", &TThis::UploadTransactionPingPeriod)
         .Optional();
     registrar.Parameter("hive_sync_rpc_timeout", &TThis::HiveSyncRpcTimeout)
@@ -516,7 +518,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
-            config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 2;
+            config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 4;
         }
     });
 }
