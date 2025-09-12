@@ -308,6 +308,7 @@ message TQueryOptions
     optional int64 max_join_batch_size = 25;
     optional bool use_order_by_in_join_subqueries = 26; // COMPAT(sabdenovch)
     optional int32 statistics_aggregation = 27; // EStatisticsAggregation
+    optional int32 read_from = 28; // NHydra::EPeerKind
 }
 
 message TFeatureFlags

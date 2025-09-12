@@ -338,7 +338,6 @@ void TUser::Save(TSaveContext& context) const
     Save(context, Tags_);
     Save(context, LastSeenTime_);
     Save(context, PendingRemoval_);
-    Save(context, AllowCreateSecondaryIndices_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 }
@@ -356,7 +355,9 @@ void TUser::Load(TLoadContext& context)
     Load(context, Tags_);
     Load(context, LastSeenTime_);
     Load(context, PendingRemoval_);
-    Load(context, AllowCreateSecondaryIndices_);
+    if (context.GetVersion() < NCellMaster::EMasterReign::DropSecondaryIndexCreationPermissionFlags) {
+        Load<bool>(context);
+    }
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
@@ -537,4 +538,3 @@ void TUser::UpdatePasswordRevision()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

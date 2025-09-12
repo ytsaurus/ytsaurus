@@ -746,6 +746,12 @@ private:
         innerRequest->set_value(request->value());
         innerRequest->set_force(force);
         SetAccessTrackingOptions(innerRequest, accessTrackingOptions);
+        if (request->has_effective_acl()) {
+            YT_LOG_ALERT_IF(path.empty(),
+                "Effective ACL was provided with empty relative path (NodeId: %v)",
+                nodeId);
+            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
+        }
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -802,6 +808,9 @@ private:
         *innerRequest->mutable_subrequests() = request->subrequests();
         innerRequest->set_force(force);
         SetAccessTrackingOptions(innerRequest, accessTrackingOptions);
+        if (request->has_effective_acl()) {
+            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
+        }
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -866,6 +875,10 @@ private:
 
         auto innerRequest = TCypressYPathProxy::Remove(path);
         innerRequest->set_force(force);
+        // COPMAT(danilalexeev): Remove if.
+        if (request->has_effective_acl()) {
+            SetSequoiaNodeEffectiveAcl(&innerRequest->Header(), request->effective_acl());
+        }
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),

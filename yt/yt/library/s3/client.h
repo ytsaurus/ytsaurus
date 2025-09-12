@@ -351,6 +351,7 @@ DEFINE_REFCOUNTED_TYPE(IClient)
 IClientPtr CreateClient(
     TS3ClientConfigPtr config,
     ICredentialsProviderPtr credentialProvider,
+    NCrypto::TSslContextConfigPtr sslContextConfig,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr executionInvoker);
 

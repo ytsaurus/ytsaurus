@@ -1780,15 +1780,7 @@ void GroupOpHelper(
     void** consumeDeltaClosure,
     TRowsConsumer consumeDeltaFunction,
     void** consumeTotalsClosure,
-    TRowsConsumer consumeTotalsFunction,
-    void** compatConsumeIntermediateClosure,
-    TRowsConsumer compatConsumeIntermediateFunction,
-    void** compatConsumeAggregatedClosure,
-    TRowsConsumer compatConsumeAggregatedFunction,
-    void** compatConsumeDeltaClosure,
-    TRowsConsumer compatConsumeDeltaFunction,
-    void** compatConsumeTotalsClosure,
-    TRowsConsumer compatConsumeTotalsFunction)
+    TRowsConsumer consumeTotalsFunction)
 {
     auto collectRows = PrepareFunction(collectRowsFunction);
     auto prefixEqComparer = PrepareFunction(prefixEqComparerFunction);
@@ -1801,19 +1793,6 @@ void GroupOpHelper(
     auto consumeAggregated = PrepareFunction(consumeAggregatedFunction);
     auto consumeDelta = PrepareFunction(consumeDeltaFunction);
     auto consumeTotals = PrepareFunction(consumeTotalsFunction);
-
-    auto compatConsumeIntermediate = PrepareFunction(compatConsumeIntermediateFunction);
-    auto compatConsumeAggregated = PrepareFunction(compatConsumeAggregatedFunction);
-    auto compatConsumeDelta = PrepareFunction(compatConsumeDeltaFunction);
-    auto compatConsumeTotals = PrepareFunction(compatConsumeTotalsFunction);
-
-    auto responseFeatureFlags = SaveAndRestoreCurrentCompartment([&] {
-        return WaitForFast(context->ResponseFeatureFlags)
-            .ValueOrThrow();
-    });
-
-    bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
-        (!responseFeatureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
 
     auto closure = TGroupByClosure(
         context->MemoryChunkProvider,
@@ -1828,14 +1807,14 @@ void GroupOpHelper(
         orderOpComparer,
         shouldCheckForNullGroupKey,
         allAggregatesAreFirst,
-        groupByInCompatMode ? compatConsumeIntermediateClosure : consumeIntermediateClosure,
-        groupByInCompatMode ? compatConsumeIntermediate : consumeIntermediate,
-        groupByInCompatMode ? compatConsumeAggregatedClosure : consumeAggregatedClosure,
-        groupByInCompatMode ? compatConsumeAggregated : consumeAggregated,
-        groupByInCompatMode ? compatConsumeDeltaClosure : consumeDeltaClosure,
-        groupByInCompatMode ? compatConsumeDelta : consumeDelta,
-        groupByInCompatMode ? compatConsumeTotalsClosure : consumeTotalsClosure,
-        groupByInCompatMode ? compatConsumeTotals : consumeTotals);
+        consumeIntermediateClosure,
+        consumeIntermediate,
+        consumeAggregatedClosure,
+        consumeAggregated,
+        consumeDeltaClosure,
+        consumeDelta,
+        consumeTotalsClosure,
+        consumeTotals);
 
     auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing group helper (ProcessedRows: %v)", closure.GetProcessedRowCount());

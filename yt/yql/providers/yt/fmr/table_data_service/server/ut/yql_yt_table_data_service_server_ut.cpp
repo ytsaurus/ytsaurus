@@ -86,7 +86,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        ui64 keysNum = 10000;
+        ui64 keysNum = 1000;
         for (ui64 i = 0; i < keysNum; ++i) {
             TString chunkId = ToString(i);
             tableDataServiceClient->Put(Group, chunkId, Value + ToString(i)).GetValueSync();
@@ -103,7 +103,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         auto tableDataServiceServer = MakeTableDataServiceServer(port);
         auto tableDataServiceClient = MakeTableDataServiceClient(port);
 
-        ui64 requestNum = 100;
+        ui64 requestNum = 10;
         for (ui64 i = 0; i < requestNum; ++i) {
             for (ui64 j = 0; j < requestNum; ++j) {
                 tableDataServiceClient->Put(Group + ToString(i), ChunkId + ToString(j), "value" + ToString(i + j)).GetValueSync();

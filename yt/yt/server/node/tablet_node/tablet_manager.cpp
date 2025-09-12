@@ -1588,6 +1588,8 @@ private:
                 StartChaosReplicaEpoch(tablet, replicationCardId);
             }
         }
+
+        Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
     }
 
     void HydraRemountTablet(TReqRemountTablet* request)

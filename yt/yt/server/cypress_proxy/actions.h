@@ -33,6 +33,7 @@ void SetNode(
     NYPath::TYPathBuf path,
     const NYson::TYsonString& value,
     bool force,
+    std::optional<NYson::TYsonString> effectiveAcl,
     const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
@@ -41,6 +42,7 @@ void MultisetNodeAttributes(
     NYPath::TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
+    std::optional<NYson::TYsonString> effectiveAcl,
     const NApi::TSuppressableAccessTrackingOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
@@ -86,6 +88,7 @@ void RemoveNodeAttribute(
     NCypressClient::TVersionedNodeId nodeId,
     NYPath::TYPathBuf path,
     bool force,
+    NYson::TYsonString effectiveAcl,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Changes visible to user should be applied at coordinator with late prepare mode.

@@ -49,8 +49,7 @@ TExpressionPtr TQueryRewriter::OnFunction(TFunctionExpressionPtr functionExpr)
     if (auto* newExpr = FunctionRewriter_(functionExpr)) {
         return newExpr;
     }
-    functionExpr->Arguments = std::move(Visit(functionExpr->Arguments));
-    return functionExpr;
+    return TRewriter::OnFunction(functionExpr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

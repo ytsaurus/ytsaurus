@@ -134,7 +134,7 @@ def has_failed_jobs(alias, client, interval, logger):
     return True
 
 
-def create_test_table(yt_client, path, data, logger):
+def create_test_table(yt_client, path, data, logger, **kwargs):
     if not yt_client.exists(path):
         yt_client.mkdir(path, recursive=True)
         logger.info("Created %s", path)
@@ -142,13 +142,19 @@ def create_test_table(yt_client, path, data, logger):
     schema = [
         {"name": "x", "type": "int64"}
     ]
-    table_path = yt_client.create_temp_table(path=path, attributes={"schema": schema, 'optimize_for': 'scan'})
+
+    table_attributes = {"schema": schema, 'optimize_for': 'scan'}
+    primary_medium = kwargs.get("primary_medium", None)
+    if primary_medium is not None:
+        table_attributes["primary_medium"] = primary_medium
+
+    table_path = yt_client.create_temp_table(path=path, attributes=table_attributes)
     logger.info("Created table: %s", table_path)
 
     table_writer = {
         "enable_early_finish": True,
-        "upload_replication_factor": 3,
-        "min_upload_replication_factor": 2,
+        "upload_replication_factor": kwargs.get("upload_replication_factor", 3),
+        "min_upload_replication_factor": kwargs.get("min_upload_replication_factor", 2),
     }
 
     yt_client.write_table(table_path, data, table_writer=table_writer)
@@ -188,6 +194,9 @@ def run_check_impl(yt_client, logger, options, states, clique_alias):
     temp_path = options.get("temp_tables_path", TEMP_PATH.format(clique_alias.replace('*', '')))
     test_data = options.get("test_data", TEST_DATA)
     failed_jobs_check_minutes = options.get("failed_jobs_check_minutes", FAILED_JOBS_CHECK_MINUTES)
+    primary_medium = options.get("primary_medium", None)
+    upload_replication_factor = options.get("upload_replication_factor", 3)
+    min_upload_replication_factor = options.get("min_upload_replication_factor", 2)
 
     if not yt_client.exists("//sys/clickhouse"):
         logger.error("Clickhouse not installed on this cluster")
@@ -199,7 +208,10 @@ def run_check_impl(yt_client, logger, options, states, clique_alias):
         return states.UNAVAILABLE_STATE
 
     check_result = states.UNAVAILABLE_STATE
-    table_path = create_test_table(yt_client, temp_path, test_data, logger)
+    table_path = create_test_table(yt_client, temp_path, test_data, logger,
+                                   primary_medium=primary_medium,
+                                   upload_replication_factor=upload_replication_factor,
+                                   min_upload_replication_factor=min_upload_replication_factor)
     try:
         start_time = int(time.time())
         if not perform_test_query(get_proxy_address_url(client=yt_client), clique_alias, token,

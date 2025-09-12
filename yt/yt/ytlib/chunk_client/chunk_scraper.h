@@ -30,6 +30,8 @@ std::ostream& operator<<(std::ostream& out, const TScrapedChunkInfo& info);
 
 static constexpr TChunkScraperAvailabilityPolicy MetadataAvailablePolicy = TMetadataAvailablePolicy{};
 
+void FormatValue(TStringBuilderBase* builder, TChunkScraperAvailabilityPolicy policy, TStringBuf spec);
+
 //! A chunk scraper for unavailable chunks.
 /*
  * Thread affinity: explained below.

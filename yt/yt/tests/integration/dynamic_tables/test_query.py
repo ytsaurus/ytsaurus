@@ -13,6 +13,8 @@ from yt_commands import (
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt_type_helpers import (
     decimal_type,
     make_column,
@@ -170,6 +172,7 @@ class TestQuery(DynamicTablesBase):
             select_rows("* from [//tmp/t]", allow_full_scan=False)
 
     @authors("lukyan")
+    @not_implemented_in_sequoia
     def test_execution_pool(self):
         create_user("u")
         sync_create_cells(1)

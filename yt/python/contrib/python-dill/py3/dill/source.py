@@ -2,7 +2,7 @@
 #
 # Author: Mike McKerns (mmckerns @caltech and @uqfoundation)
 # Copyright (c) 2008-2016 California Institute of Technology.
-# Copyright (c) 2016-2022 The Uncertainty Quantification Foundation.
+# Copyright (c) 2016-2025 The Uncertainty Quantification Foundation.
 # License: 3-clause BSD.  The full license text is available at:
 #  - https://github.com/uqfoundation/dill/blob/master/LICENSE
 #
@@ -150,7 +150,7 @@ def findsource(object):
         if err:
             raise IOError(err)
         lbuf = readline.get_current_history_length()
-        lines = [readline.get_history_item(i)+'\n' for i in range(1,lbuf)]
+        lines = [readline.get_history_item(i)+'\n' for i in range(1,lbuf+1)]
     else:
         try: # special handling for class instances
             if not isclass(object) and isclass(type(object)): # __class__
@@ -481,7 +481,8 @@ def _isstring(object): #XXX: isstringlike better?
 def indent(code, spaces=4):
     '''indent a block of code with whitespace (default is 4 spaces)'''
     indent = indentsize(code)
-    if type(spaces) is int: spaces = ' '*spaces
+    from numbers import Integral
+    if isinstance(spaces, Integral): spaces = ' '*spaces
     # if '\t' is provided, will indent with a tab
     nspaces = indentsize(spaces)
     # blank lines (etc) need to be ignored
@@ -529,7 +530,7 @@ def outdent(code, spaces=None, all=True):
     return '\n'.join(_outdent(code.split('\n'), spaces=spaces, all=all))
 
 
-#XXX: not sure what the point of _wrap is...
+# _wrap provides an wrapper to correctly exec and load into locals
 __globals__ = globals()
 __locals__ = locals()
 def _wrap(f):
@@ -601,10 +602,13 @@ def dumpsource(object, alias='', new=False, enclose=True):
 
 def getname(obj, force=False, fqn=False): #XXX: throw(?) to raise error on fail?
     """get the name of the object. for lambdas, get the name of the pointer """
-    if fqn: return '.'.join(_namespace(obj))
+    if fqn: return '.'.join(_namespace(obj)) #NOTE: returns 'type'
     module = getmodule(obj)
     if not module: # things like "None" and "1"
-        if not force: return None
+        if not force: return None #NOTE: returns 'instance' NOT 'type' #FIXME?
+        # handle some special cases
+        if hasattr(obj, 'dtype') and not obj.shape:
+            return getname(obj.__class__) + "(" + repr(obj.tolist()) + ")" 
         return repr(obj)
     try:
         #XXX: 'wrong' for decorators and curried functions ?
@@ -666,7 +670,7 @@ def _namespace(obj):
     return qual
 
 
-#NOTE: 05/25/14 broke backward compatability: added 'alias' as 3rd argument
+#NOTE: 05/25/14 broke backward compatibility: added 'alias' as 3rd argument
 def _getimport(head, tail, alias='', verify=True, builtin=False):
     """helper to build a likely import string from head and tail of namespace.
     ('head','tail') are used in the following context: "from head import tail"
@@ -714,7 +718,7 @@ def _getimport(head, tail, alias='', verify=True, builtin=False):
 
 
 #XXX: rename builtin to force? vice versa? verify to force? (as in getsource)
-#NOTE: 05/25/14 broke backward compatability: added 'alias' as 2nd argument
+#NOTE: 05/25/14 broke backward compatibility: added 'alias' as 2nd argument
 def getimport(obj, alias='', verify=True, builtin=False, enclosing=False):
     """get the likely import string for the given object
 
@@ -739,6 +743,8 @@ def getimport(obj, alias='', verify=True, builtin=False, enclosing=False):
     except Exception: # it's probably something 'importable'
         if head in ['builtins','__builtin__']:
             name = repr(obj) #XXX: catch [1,2], (1,2), set([1,2])... others?
+        elif _isinstance(obj):
+            name = getname(obj, force=True).split('(')[0]
         else:
             name = repr(obj).split('(')[0]
    #if not repr(obj).startswith('<'): name = repr(obj).split('(')[0]
@@ -1001,7 +1007,7 @@ def importable(obj, alias='', source=None, builtin=True):
     return
 
 
-# backward compatability
+# backward compatibility
 def getimportable(obj, alias='', byname=True, explicit=False):
     return importable(obj,alias,source=(not byname),builtin=explicit)
    #return outdent(_importable(obj,alias,source=(not byname),builtin=explicit))

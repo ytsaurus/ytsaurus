@@ -1141,8 +1141,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys, read_from="follower") == rows
 
-    @authors("babenko")
-    def test_rff_lookup(self):
+    @authors("babenko", "sabdenovch")
+    @pytest.mark.parametrize("method", ["select", "lookup"])
+    def test_rff_lookup(self, method):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_simple_table("//tmp/t", optimize_for="scan", tablet_cell_bundle="b")
@@ -1152,7 +1153,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
 
-        wait(lambda: lookup_rows("//tmp/t", keys, read_from="follower", timestamp=AsyncLastCommittedTimestamp) == rows)
+        kwargs = {"read_from": "follower", "timestamp": AsyncLastCommittedTimestamp}
+        if method == "select":
+            wait(lambda: select_rows("* from [//tmp/t] where key = 1", **kwargs) == rows)
+        else:
+            wait(lambda: lookup_rows("//tmp/t", keys, **kwargs) == rows)
+
+        assert get("//tmp/t/@tablets/0/performance_counters/dynamic_row_read_count") == 0
 
     @authors("babenko")
     def test_lookup_with_backup(self):

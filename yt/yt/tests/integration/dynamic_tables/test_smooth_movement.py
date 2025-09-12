@@ -1,4 +1,4 @@
-from yt_dynamic_tables_base import DynamicTablesBase
+from yt_dynamic_tables_base import DynamicTablesBase, SmoothMovementHelper
 
 from yt.environment.helpers import assert_items_equal, are_items_equal
 
@@ -8,7 +8,7 @@ from yt_commands import (
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
-    get_singular_chunk_id,
+    get_singular_chunk_id
 )
 
 from yt.common import YtError
@@ -28,8 +28,49 @@ class TestSmoothMovement(DynamicTablesBase):
         "tablet_node": {
             "tablet_manager": {
                 "sleep_before_post_to_master": 500,
-            }
-        }
+            },
+        },
+        "rpc_server": {
+            "services": {
+                "TabletService": {
+                    "methods": {
+                        "Write": {
+                            "testing": {
+                                "random_delay": 100,
+                            },
+                        },
+                        "RegisterTransactionActions": {
+                            "testing": {
+                                "random_delay": 100,
+                            },
+                        },
+                    },
+                },
+                "TransactionSupervisorService": {
+                    "methods": {
+                        "CommitTransaction": {
+                            "testing": {
+                                "random_delay": 50,
+                            },
+                        },
+                    },
+                },
+                "TransactionParticipantService": {
+                    "methods": {
+                        "CommitTransaction": {
+                            "testing": {
+                                "random_delay": 50,
+                            },
+                        },
+                        "PrepareTransaction": {
+                            "testing": {
+                                "random_delay": 50,
+                            },
+                        },
+                    },
+                },
+            },
+        },
     }
 
     def _move_tablet(self, tablet_id, cell_id=None):
@@ -379,14 +420,7 @@ class TestSmoothMovement(DynamicTablesBase):
                 "max_dynamic_store_row_count": 1,
                 "enable_compaction_and_partitioning": False,
             })
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         sync_mount_table("//tmp/t")
-
-        self._update_testing_config({
-            "delay_after_stage_at_target": {
-                "target_activated": 5000,
-            }
-        })
 
         _next_key = 0
 
@@ -405,14 +439,10 @@ class TestSmoothMovement(DynamicTablesBase):
         for i in range(5):
             _insert()
 
-        action_id = self._move_tablet(tablet_id)
-
-        for i in range(10):
-            _insert()
-
-        wait(lambda: get("//tmp/t/@chunk_count") > 10)
-
-        wait(lambda: self._check_action(action_id))
+        with SmoothMovementHelper("//tmp/t").forwarding_context():
+            for i in range(10):
+                _insert()
+            wait(lambda: get("//tmp/t/@chunk_count") > 10)
 
         assert_items_equal(
             [{"key": i, "value": str(i)} for i in range(_next_key)],
@@ -511,24 +541,13 @@ class TestSmoothMovement(DynamicTablesBase):
         sync_mount_table("//tmp/t", cell_id=cell_ids[0])
         sync_mount_table("//tmp/q", cell_id=cell_ids[0])
 
-        self._update_testing_config({
-            "delay_after_stage_at_target": {
-                "target_activated": 5000,
-            }
-        })
-
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        action_id = self._move_tablet(tablet_id)
-        wait(lambda: self._get_movement_stage_from_node(tablet_id) == "target_activated")
-
-        # Transaction is serialized by //tmp/q but not by //tmp/t. Serialization
-        # should not be forwarded.
-        tx_id = start_transaction(type="tablet")
-        insert_rows("//tmp/t", [{"key": 1}], transaction_id=tx_id)
-        insert_rows("//tmp/q", [{"key": 1}], transaction_id=tx_id)
-        commit_transaction(tx_id)
-
-        wait(lambda: self._check_action(action_id))
+        with SmoothMovementHelper("//tmp/t").forwarding_context():
+            # Transaction is serialized by //tmp/q but not by //tmp/t. Serialization
+            # should be ignored by target servant of //tmp/t.
+            tx_id = start_transaction(type="tablet")
+            insert_rows("//tmp/t", [{"key": 1}], transaction_id=tx_id)
+            insert_rows("//tmp/q", [{"key": 1}], transaction_id=tx_id)
+            commit_transaction(tx_id)
 
 ##################################################################
 

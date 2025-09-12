@@ -840,12 +840,16 @@ private:
 
     void RewriteRequestForForwardingToMaster(
         TSubrequest* subrequest,
-        const TResolveResult& resolveResult)
+        const TResolveResult& resolveResult,
+        const TForwardToMasterPayload& payload)
     {
         YT_ASSERT(subrequest->RequestHeader.has_value());
 
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
+        if (payload.EffectiveAcl.has_value()) {
+            SetSequoiaNodeEffectiveAcl(&header, payload.EffectiveAcl->ToString());
+        }
 
         auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".
@@ -938,8 +942,8 @@ private:
 
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_, AuthenticationIdentity_)
             ->TryInvoke(context, session, resolveResult, resolvedPrerequisiteRevisions);
-        switch (invokeResult) {
-            case EInvokeResult::Executed: {
+        return Visit(invokeResult,
+            [&] (TRequestExecutedPayload) -> std::optional<TSharedRefArray> {
                 auto error = CheckPrerequisitesAfterRequestInvocation(
                     header,
                     session,
@@ -951,13 +955,12 @@ private:
                     return CreateErrorResponseMessage(error);
                 }
                 return context->GetResponseMessage();
-            }
-
-            case EInvokeResult::ForwardToMaster:
-                RewriteRequestForForwardingToMaster(subrequest, resolveResult);
+            },
+            [&] (const TForwardToMasterPayload& payload) -> std::optional<TSharedRefArray> {
+                RewriteRequestForForwardingToMaster(subrequest, resolveResult, payload);
                 subrequest->Target = ERequestTarget::Master;
                 return std::nullopt;
-        }
+            });
     }
 
     void InvokeSequoiaRequests()

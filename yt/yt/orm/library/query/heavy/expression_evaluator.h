@@ -7,6 +7,7 @@
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 
 namespace NYT::NOrm::NQuery {
 
@@ -35,12 +36,12 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
     std::vector<NQueryClient::TColumnSchema> columns);
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TStringBuf query,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<TTypedAttributePath> typedAttributePaths);
 
 //! Shortcut for paths of type Any.
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TStringBuf query,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<NYPath::TYPath> attributePaths = {""});
 
 ////////////////////////////////////////////////////////////////////////////////

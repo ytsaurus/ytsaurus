@@ -532,6 +532,11 @@ void ExtractFilterAttributeReferences(TStringBuf filterQuery, std::function<void
     TQueryVisitorForAttributeReferences(std::move(inserter)).Run(queryExpression);
 }
 
+void ExtractFilterAttributeReferences(TExpressionPtr filterExpression, std::function<void(TYPathBuf)> inserter)
+{
+    TQueryVisitorForAttributeReferences(std::move(inserter)).Run(filterExpression);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsAttributeReference(const TExpressionList& exprList, TYPathBuf attributePath) noexcept

@@ -128,6 +128,9 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("opaque_settings_in_orchid", &TThis::OpaqueSettingsInOrchid)
         .Default(true);
+
+    registrar.Parameter("pause_at_smooth_movement_stage", &TThis::PauseAtSmoothMovementStage)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

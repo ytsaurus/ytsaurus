@@ -63,6 +63,22 @@
 | `spark.ytsaurus.client.rpc.timeout` | - | Таймаут, используемый в rpc клиенте для старта {{product-name}} операций | 2.6.0 |
 | `spark.ytsaurus.rpc.job.proxy.enabled` | true | Флаг использования rpc прокси, встроенной в job прокси | 2.6.0 |
 | `spark.ytsaurus.java.home` | `/opt/jdk[11,17]` | Путь к домашней директории JDK, используемой в контейнерах кластера. Зависит от используемой JDK на клиентской стороне. Допустимы JDK11 и JDK17. | 2.6.0 |
+| `spark.ytsaurus.shuffle.enabled` | false | Использовать [{{product-name}} Shuffle сервис](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
+
+
+## Опции для конфигурации {{product-name}} Shuffle сервиса { #shuffle }
+
+| **Параметр** | **Значение по умолчанию** | **Описание** | **С какой версии** |
+| ------------ | ------------------------- | ------------ | ------------------ |
+| `spark.ytsaurus.shuffle.transaction.timeout` | 5m | Таймаут транзакции, под которой записываются shuffle чанки. При штатной работе транзакция периодически пингуется драйвером, таймаут задаёт время между последним пингом и откатом транзакции с удалением чанков | 2.7.0 |
+| `spark.ytsaurus.shuffle.account` | intermediate | [Аккаунт](../../../../../user-guide/storage/accounts.md), используемый для записи shuffle чанков | 2.7.0 |
+| `spark.ytsaurus.shuffle.medium` | - | [Медиум](../../../../../user-guide/storage/media.md), используемый для записи shuffle чанков. По умолчанию равен установленному в системе | 2.7.0 |
+| `spark.ytsaurus.shuffle.replication.factor` | - | Коэффициент репликации shuffle чанков. По умолчанию равен установленному в системе | 2.7.0 |
+| `spark.ytsaurus.shuffle.partition.column` | partition | Название колонки в чанке, используемой для хранения номера целевой партиции | 2.7.0 |
+| `spark.ytsaurus.shuffle.write.row.size` | 8m | Максимальный размер одной строки в чанке c shuffle данными. Данное значение не связано с размером непосредственно строк shuffle данных, это значение служит для разделения сериализованных shuffle данных по строкам чанка. Уменьшение этого значения приводит к большему количеству строк в чанке, при увеличении можно превысить максимально допустимый размер строки чанка | 2.7.0 |
+| `spark.ytsaurus.shuffle.write.buffer.size` | 10 | Размер буфера записи (в количестве строк) shuffle данных в  {{product-name}}. Этот параметр необходимо выставлять вместе с `spark.ytsaurus.shuffle.write.row.size` для избежания переполнения оперативной памяти | 2.7.0 |
+| `spark.ytsaurus.shuffle.write.config` | - | Дополнительные параметры записи shuffle данных в {{product-name}} в [YSON](../../../../../user-guide/storage/yson.md) формате. Соответствует конфигурации [TableWriter](../../../../../user-guide/storage/io-configuration.md#table_writer) | 2.7.0 |
+| `spark.ytsaurus.shuffle.read.config` | - | Дополнительные параметры чтения shuffle данных в {{product-name}} в [YSON](../../../../../user-guide/storage/yson.md) формате. Соответствует конфигурации [TableReader](../../../../../user-guide/storage/io-configuration.md#table_reader) | 2.7.0 |
 
 
 ## Опции для запуска задач во внутреннем кластере { #spark-submit-yt-conf }

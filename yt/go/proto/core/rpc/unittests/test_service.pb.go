@@ -1300,6 +1300,82 @@ func (*TRspFlakyCall) Descriptor() ([]byte, []int) {
 	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{29}
 }
 
+type TReqDelayedCall struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TReqDelayedCall) Reset() {
+	*x = TReqDelayedCall{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[30]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqDelayedCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqDelayedCall) ProtoMessage() {}
+
+func (x *TReqDelayedCall) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[30]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqDelayedCall.ProtoReflect.Descriptor instead.
+func (*TReqDelayedCall) Descriptor() ([]byte, []int) {
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{30}
+}
+
+type TRspDelayedCall struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TRspDelayedCall) Reset() {
+	*x = TRspDelayedCall{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[31]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspDelayedCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspDelayedCall) ProtoMessage() {}
+
+func (x *TRspDelayedCall) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[31]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspDelayedCall.ProtoReflect.Descriptor instead.
+func (*TRspDelayedCall) Descriptor() ([]byte, []int) {
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{31}
+}
+
 type TReqRequireCoolFeature struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1309,7 +1385,7 @@ type TReqRequireCoolFeature struct {
 func (x *TReqRequireCoolFeature) Reset() {
 	*x = TReqRequireCoolFeature{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[30]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1322,7 +1398,7 @@ func (x *TReqRequireCoolFeature) String() string {
 func (*TReqRequireCoolFeature) ProtoMessage() {}
 
 func (x *TReqRequireCoolFeature) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[30]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1335,7 +1411,7 @@ func (x *TReqRequireCoolFeature) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqRequireCoolFeature.ProtoReflect.Descriptor instead.
 func (*TReqRequireCoolFeature) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{30}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{32}
 }
 
 type TRspRequireCoolFeature struct {
@@ -1347,7 +1423,7 @@ type TRspRequireCoolFeature struct {
 func (x *TRspRequireCoolFeature) Reset() {
 	*x = TRspRequireCoolFeature{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[31]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1360,7 +1436,7 @@ func (x *TRspRequireCoolFeature) String() string {
 func (*TRspRequireCoolFeature) ProtoMessage() {}
 
 func (x *TRspRequireCoolFeature) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[31]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1373,7 +1449,7 @@ func (x *TRspRequireCoolFeature) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspRequireCoolFeature.ProtoReflect.Descriptor instead.
 func (*TRspRequireCoolFeature) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{31}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{33}
 }
 
 type TReqStreamingEcho struct {
@@ -1392,7 +1468,7 @@ const (
 func (x *TReqStreamingEcho) Reset() {
 	*x = TReqStreamingEcho{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[32]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[34]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1405,7 +1481,7 @@ func (x *TReqStreamingEcho) String() string {
 func (*TReqStreamingEcho) ProtoMessage() {}
 
 func (x *TReqStreamingEcho) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[32]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[34]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1418,7 +1494,7 @@ func (x *TReqStreamingEcho) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStreamingEcho.ProtoReflect.Descriptor instead.
 func (*TReqStreamingEcho) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{32}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *TReqStreamingEcho) GetDelayed() bool {
@@ -1439,7 +1515,7 @@ type TRspStreamingEcho struct {
 func (x *TRspStreamingEcho) Reset() {
 	*x = TRspStreamingEcho{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[33]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1452,7 +1528,7 @@ func (x *TRspStreamingEcho) String() string {
 func (*TRspStreamingEcho) ProtoMessage() {}
 
 func (x *TRspStreamingEcho) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[33]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1465,7 +1541,7 @@ func (x *TRspStreamingEcho) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspStreamingEcho.ProtoReflect.Descriptor instead.
 func (*TRspStreamingEcho) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{33}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TRspStreamingEcho) GetTotalSize() int64 {
@@ -1484,7 +1560,7 @@ type TReqServerStreamsAborted struct {
 func (x *TReqServerStreamsAborted) Reset() {
 	*x = TReqServerStreamsAborted{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[34]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[36]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1497,7 +1573,7 @@ func (x *TReqServerStreamsAborted) String() string {
 func (*TReqServerStreamsAborted) ProtoMessage() {}
 
 func (x *TReqServerStreamsAborted) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[34]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[36]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1510,7 +1586,7 @@ func (x *TReqServerStreamsAborted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqServerStreamsAborted.ProtoReflect.Descriptor instead.
 func (*TReqServerStreamsAborted) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{34}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{36}
 }
 
 type TRspServerStreamsAborted struct {
@@ -1522,7 +1598,7 @@ type TRspServerStreamsAborted struct {
 func (x *TRspServerStreamsAborted) Reset() {
 	*x = TRspServerStreamsAborted{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[35]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[37]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1535,7 +1611,7 @@ func (x *TRspServerStreamsAborted) String() string {
 func (*TRspServerStreamsAborted) ProtoMessage() {}
 
 func (x *TRspServerStreamsAborted) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[35]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[37]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1548,7 +1624,7 @@ func (x *TRspServerStreamsAborted) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspServerStreamsAborted.ProtoReflect.Descriptor instead.
 func (*TRspServerStreamsAborted) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{35}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{37}
 }
 
 type TReqServerNotReading struct {
@@ -1562,7 +1638,7 @@ type TReqServerNotReading struct {
 func (x *TReqServerNotReading) Reset() {
 	*x = TReqServerNotReading{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[36]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[38]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1575,7 +1651,7 @@ func (x *TReqServerNotReading) String() string {
 func (*TReqServerNotReading) ProtoMessage() {}
 
 func (x *TReqServerNotReading) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[36]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[38]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1588,7 +1664,7 @@ func (x *TReqServerNotReading) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqServerNotReading.ProtoReflect.Descriptor instead.
 func (*TReqServerNotReading) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{36}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *TReqServerNotReading) GetSleep() bool {
@@ -1607,7 +1683,7 @@ type TRspServerNotReading struct {
 func (x *TRspServerNotReading) Reset() {
 	*x = TRspServerNotReading{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[37]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[39]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1620,7 +1696,7 @@ func (x *TRspServerNotReading) String() string {
 func (*TRspServerNotReading) ProtoMessage() {}
 
 func (x *TRspServerNotReading) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[37]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[39]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1633,7 +1709,7 @@ func (x *TRspServerNotReading) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspServerNotReading.ProtoReflect.Descriptor instead.
 func (*TRspServerNotReading) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{37}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{39}
 }
 
 type TReqServerNotWriting struct {
@@ -1647,7 +1723,7 @@ type TReqServerNotWriting struct {
 func (x *TReqServerNotWriting) Reset() {
 	*x = TReqServerNotWriting{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[38]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[40]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1660,7 +1736,7 @@ func (x *TReqServerNotWriting) String() string {
 func (*TReqServerNotWriting) ProtoMessage() {}
 
 func (x *TReqServerNotWriting) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[38]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[40]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1673,7 +1749,7 @@ func (x *TReqServerNotWriting) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqServerNotWriting.ProtoReflect.Descriptor instead.
 func (*TReqServerNotWriting) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{38}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *TReqServerNotWriting) GetSleep() bool {
@@ -1692,7 +1768,7 @@ type TRspServerNotWriting struct {
 func (x *TRspServerNotWriting) Reset() {
 	*x = TRspServerNotWriting{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[39]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[41]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1705,7 +1781,7 @@ func (x *TRspServerNotWriting) String() string {
 func (*TRspServerNotWriting) ProtoMessage() {}
 
 func (x *TRspServerNotWriting) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[39]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[41]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1718,7 +1794,7 @@ func (x *TRspServerNotWriting) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspServerNotWriting.ProtoReflect.Descriptor instead.
 func (*TRspServerNotWriting) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{39}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{41}
 }
 
 type TReqGetTraceBaggage struct {
@@ -1730,7 +1806,7 @@ type TReqGetTraceBaggage struct {
 func (x *TReqGetTraceBaggage) Reset() {
 	*x = TReqGetTraceBaggage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[40]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[42]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1743,7 +1819,7 @@ func (x *TReqGetTraceBaggage) String() string {
 func (*TReqGetTraceBaggage) ProtoMessage() {}
 
 func (x *TReqGetTraceBaggage) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[40]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[42]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1756,7 +1832,7 @@ func (x *TReqGetTraceBaggage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetTraceBaggage.ProtoReflect.Descriptor instead.
 func (*TReqGetTraceBaggage) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{40}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{42}
 }
 
 type TRspGetTraceBaggage struct {
@@ -1770,7 +1846,7 @@ type TRspGetTraceBaggage struct {
 func (x *TRspGetTraceBaggage) Reset() {
 	*x = TRspGetTraceBaggage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[41]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[43]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1783,7 +1859,7 @@ func (x *TRspGetTraceBaggage) String() string {
 func (*TRspGetTraceBaggage) ProtoMessage() {}
 
 func (x *TRspGetTraceBaggage) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[41]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[43]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1796,7 +1872,7 @@ func (x *TRspGetTraceBaggage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetTraceBaggage.ProtoReflect.Descriptor instead.
 func (*TRspGetTraceBaggage) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{41}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *TRspGetTraceBaggage) GetBaggage() string {
@@ -1815,7 +1891,7 @@ type TReqCustomMetadata struct {
 func (x *TReqCustomMetadata) Reset() {
 	*x = TReqCustomMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[42]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[44]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1828,7 +1904,7 @@ func (x *TReqCustomMetadata) String() string {
 func (*TReqCustomMetadata) ProtoMessage() {}
 
 func (x *TReqCustomMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[42]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[44]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1841,7 +1917,7 @@ func (x *TReqCustomMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqCustomMetadata.ProtoReflect.Descriptor instead.
 func (*TReqCustomMetadata) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{42}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{44}
 }
 
 type TRspCustomMetadata struct {
@@ -1855,7 +1931,7 @@ type TRspCustomMetadata struct {
 func (x *TRspCustomMetadata) Reset() {
 	*x = TRspCustomMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[43]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[45]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1868,7 +1944,7 @@ func (x *TRspCustomMetadata) String() string {
 func (*TRspCustomMetadata) ProtoMessage() {}
 
 func (x *TRspCustomMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[43]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[45]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1881,7 +1957,7 @@ func (x *TRspCustomMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspCustomMetadata.ProtoReflect.Descriptor instead.
 func (*TRspCustomMetadata) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{43}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *TRspCustomMetadata) GetParsedCustomMetadata() map[string][]byte {
@@ -1902,7 +1978,7 @@ type TReqGetChannelFailureError struct {
 func (x *TReqGetChannelFailureError) Reset() {
 	*x = TReqGetChannelFailureError{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[44]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[46]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1915,7 +1991,7 @@ func (x *TReqGetChannelFailureError) String() string {
 func (*TReqGetChannelFailureError) ProtoMessage() {}
 
 func (x *TReqGetChannelFailureError) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[44]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[46]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1928,7 +2004,7 @@ func (x *TReqGetChannelFailureError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetChannelFailureError.ProtoReflect.Descriptor instead.
 func (*TReqGetChannelFailureError) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{44}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *TReqGetChannelFailureError) GetRedirectionAddress() string {
@@ -1947,7 +2023,7 @@ type TRspGetChannelFailureError struct {
 func (x *TRspGetChannelFailureError) Reset() {
 	*x = TRspGetChannelFailureError{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[45]
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[47]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1960,7 +2036,7 @@ func (x *TRspGetChannelFailureError) String() string {
 func (*TRspGetChannelFailureError) ProtoMessage() {}
 
 func (x *TRspGetChannelFailureError) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[45]
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[47]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1973,7 +2049,7 @@ func (x *TRspGetChannelFailureError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetChannelFailureError.ProtoReflect.Descriptor instead.
 func (*TRspGetChannelFailureError) Descriptor() ([]byte, []int) {
-	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{45}
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{47}
 }
 
 var File_yt_yt_core_rpc_unittests_lib_test_service_proto protoreflect.FileDescriptor
@@ -2053,58 +2129,60 @@ var file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDesc = []byte{
 	0x0d, 0x0a, 0x0b, 0x54, 0x52, 0x73, 0x70, 0x4e, 0x6f, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x0f,
 	0x0a, 0x0d, 0x54, 0x52, 0x65, 0x71, 0x46, 0x6c, 0x61, 0x6b, 0x79, 0x43, 0x61, 0x6c, 0x6c, 0x22,
 	0x0f, 0x0a, 0x0d, 0x54, 0x52, 0x73, 0x70, 0x46, 0x6c, 0x61, 0x6b, 0x79, 0x43, 0x61, 0x6c, 0x6c,
-	0x22, 0x18, 0x0a, 0x16, 0x54, 0x52, 0x65, 0x71, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x43,
-	0x6f, 0x6f, 0x6c, 0x46, 0x65, 0x61, 0x74, 0x75, 0x72, 0x65, 0x22, 0x18, 0x0a, 0x16, 0x54, 0x52,
-	0x73, 0x70, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x43, 0x6f, 0x6f, 0x6c, 0x46, 0x65, 0x61,
-	0x74, 0x75, 0x72, 0x65, 0x22, 0x34, 0x0a, 0x11, 0x54, 0x52, 0x65, 0x71, 0x53, 0x74, 0x72, 0x65,
-	0x61, 0x6d, 0x69, 0x6e, 0x67, 0x45, 0x63, 0x68, 0x6f, 0x12, 0x1f, 0x0a, 0x07, 0x64, 0x65, 0x6c,
-	0x61, 0x79, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x3a, 0x05, 0x66, 0x61, 0x6c, 0x73,
-	0x65, 0x52, 0x07, 0x64, 0x65, 0x6c, 0x61, 0x79, 0x65, 0x64, 0x22, 0x32, 0x0a, 0x11, 0x54, 0x52,
-	0x73, 0x70, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x69, 0x6e, 0x67, 0x45, 0x63, 0x68, 0x6f, 0x12,
-	0x1d, 0x0a, 0x0a, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x5f, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x01, 0x20,
-	0x02, 0x28, 0x03, 0x52, 0x09, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x22, 0x1a,
-	0x0a, 0x18, 0x54, 0x52, 0x65, 0x71, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x74, 0x72, 0x65,
-	0x61, 0x6d, 0x73, 0x41, 0x62, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x22, 0x1a, 0x0a, 0x18, 0x54, 0x52,
-	0x73, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x73, 0x41,
-	0x62, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x22, 0x2c, 0x0a, 0x14, 0x54, 0x52, 0x65, 0x71, 0x53, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x4e, 0x6f, 0x74, 0x52, 0x65, 0x61, 0x64, 0x69, 0x6e, 0x67, 0x12, 0x14,
-	0x0a, 0x05, 0x73, 0x6c, 0x65, 0x65, 0x70, 0x18, 0x01, 0x20, 0x02, 0x28, 0x08, 0x52, 0x05, 0x73,
-	0x6c, 0x65, 0x65, 0x70, 0x22, 0x16, 0x0a, 0x14, 0x54, 0x52, 0x73, 0x70, 0x53, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x4e, 0x6f, 0x74, 0x52, 0x65, 0x61, 0x64, 0x69, 0x6e, 0x67, 0x22, 0x2c, 0x0a, 0x14,
-	0x54, 0x52, 0x65, 0x71, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x6f, 0x74, 0x57, 0x72, 0x69,
-	0x74, 0x69, 0x6e, 0x67, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x6c, 0x65, 0x65, 0x70, 0x18, 0x01, 0x20,
+	0x22, 0x11, 0x0a, 0x0f, 0x54, 0x52, 0x65, 0x71, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x65, 0x64, 0x43,
+	0x61, 0x6c, 0x6c, 0x22, 0x11, 0x0a, 0x0f, 0x54, 0x52, 0x73, 0x70, 0x44, 0x65, 0x6c, 0x61, 0x79,
+	0x65, 0x64, 0x43, 0x61, 0x6c, 0x6c, 0x22, 0x18, 0x0a, 0x16, 0x54, 0x52, 0x65, 0x71, 0x52, 0x65,
+	0x71, 0x75, 0x69, 0x72, 0x65, 0x43, 0x6f, 0x6f, 0x6c, 0x46, 0x65, 0x61, 0x74, 0x75, 0x72, 0x65,
+	0x22, 0x18, 0x0a, 0x16, 0x54, 0x52, 0x73, 0x70, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x43,
+	0x6f, 0x6f, 0x6c, 0x46, 0x65, 0x61, 0x74, 0x75, 0x72, 0x65, 0x22, 0x34, 0x0a, 0x11, 0x54, 0x52,
+	0x65, 0x71, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x69, 0x6e, 0x67, 0x45, 0x63, 0x68, 0x6f, 0x12,
+	0x1f, 0x0a, 0x07, 0x64, 0x65, 0x6c, 0x61, 0x79, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08,
+	0x3a, 0x05, 0x66, 0x61, 0x6c, 0x73, 0x65, 0x52, 0x07, 0x64, 0x65, 0x6c, 0x61, 0x79, 0x65, 0x64,
+	0x22, 0x32, 0x0a, 0x11, 0x54, 0x52, 0x73, 0x70, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x69, 0x6e,
+	0x67, 0x45, 0x63, 0x68, 0x6f, 0x12, 0x1d, 0x0a, 0x0a, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x5f, 0x73,
+	0x69, 0x7a, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x03, 0x52, 0x09, 0x74, 0x6f, 0x74, 0x61, 0x6c,
+	0x53, 0x69, 0x7a, 0x65, 0x22, 0x1a, 0x0a, 0x18, 0x54, 0x52, 0x65, 0x71, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x73, 0x41, 0x62, 0x6f, 0x72, 0x74, 0x65, 0x64,
+	0x22, 0x1a, 0x0a, 0x18, 0x54, 0x52, 0x73, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x74,
+	0x72, 0x65, 0x61, 0x6d, 0x73, 0x41, 0x62, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x22, 0x2c, 0x0a, 0x14,
+	0x54, 0x52, 0x65, 0x71, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x6f, 0x74, 0x52, 0x65, 0x61,
+	0x64, 0x69, 0x6e, 0x67, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x6c, 0x65, 0x65, 0x70, 0x18, 0x01, 0x20,
 	0x02, 0x28, 0x08, 0x52, 0x05, 0x73, 0x6c, 0x65, 0x65, 0x70, 0x22, 0x16, 0x0a, 0x14, 0x54, 0x52,
-	0x73, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x6f, 0x74, 0x57, 0x72, 0x69, 0x74, 0x69,
-	0x6e, 0x67, 0x22, 0x15, 0x0a, 0x13, 0x54, 0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x54, 0x72, 0x61,
-	0x63, 0x65, 0x42, 0x61, 0x67, 0x67, 0x61, 0x67, 0x65, 0x22, 0x2f, 0x0a, 0x13, 0x54, 0x52, 0x73,
-	0x70, 0x47, 0x65, 0x74, 0x54, 0x72, 0x61, 0x63, 0x65, 0x42, 0x61, 0x67, 0x67, 0x61, 0x67, 0x65,
-	0x12, 0x18, 0x0a, 0x07, 0x62, 0x61, 0x67, 0x67, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x02, 0x28,
-	0x09, 0x52, 0x07, 0x62, 0x61, 0x67, 0x67, 0x61, 0x67, 0x65, 0x22, 0x14, 0x0a, 0x12, 0x54, 0x52,
-	0x65, 0x71, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61,
-	0x22, 0xcb, 0x01, 0x0a, 0x12, 0x54, 0x52, 0x73, 0x70, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d,
-	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x6c, 0x0a, 0x16, 0x70, 0x61, 0x72, 0x73, 0x65,
-	0x64, 0x5f, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x5f, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74,
-	0x61, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x36, 0x2e, 0x4e, 0x54, 0x65, 0x73, 0x74, 0x52,
-	0x70, 0x63, 0x2e, 0x54, 0x52, 0x73, 0x70, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74,
-	0x61, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x50, 0x61, 0x72, 0x73, 0x65, 0x64, 0x43, 0x75, 0x73, 0x74,
-	0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52,
-	0x14, 0x70, 0x61, 0x72, 0x73, 0x65, 0x64, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74,
-	0x61, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x47, 0x0a, 0x19, 0x50, 0x61, 0x72, 0x73, 0x65, 0x64, 0x43,
-	0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x45, 0x6e, 0x74,
-	0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x4d,
-	0x0a, 0x1a, 0x54, 0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
-	0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x2f, 0x0a, 0x13,
-	0x72, 0x65, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x61, 0x64, 0x64, 0x72,
-	0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x12, 0x72, 0x65, 0x64, 0x69, 0x72,
-	0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x41, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x22, 0x1c, 0x0a,
-	0x1a, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x46,
-	0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x42, 0x3d, 0x5a, 0x3b, 0x61,
-	0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f,
-	0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65,
-	0x2f, 0x72, 0x70, 0x63, 0x2f, 0x75, 0x6e, 0x69, 0x74, 0x74, 0x65, 0x73, 0x74, 0x73, 0x3b, 0x74,
-	0x65, 0x73, 0x74, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
+	0x73, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x6f, 0x74, 0x52, 0x65, 0x61, 0x64, 0x69,
+	0x6e, 0x67, 0x22, 0x2c, 0x0a, 0x14, 0x54, 0x52, 0x65, 0x71, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x4e, 0x6f, 0x74, 0x57, 0x72, 0x69, 0x74, 0x69, 0x6e, 0x67, 0x12, 0x14, 0x0a, 0x05, 0x73, 0x6c,
+	0x65, 0x65, 0x70, 0x18, 0x01, 0x20, 0x02, 0x28, 0x08, 0x52, 0x05, 0x73, 0x6c, 0x65, 0x65, 0x70,
+	0x22, 0x16, 0x0a, 0x14, 0x54, 0x52, 0x73, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x6f,
+	0x74, 0x57, 0x72, 0x69, 0x74, 0x69, 0x6e, 0x67, 0x22, 0x15, 0x0a, 0x13, 0x54, 0x52, 0x65, 0x71,
+	0x47, 0x65, 0x74, 0x54, 0x72, 0x61, 0x63, 0x65, 0x42, 0x61, 0x67, 0x67, 0x61, 0x67, 0x65, 0x22,
+	0x2f, 0x0a, 0x13, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x54, 0x72, 0x61, 0x63, 0x65, 0x42,
+	0x61, 0x67, 0x67, 0x61, 0x67, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x62, 0x61, 0x67, 0x67, 0x61, 0x67,
+	0x65, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x07, 0x62, 0x61, 0x67, 0x67, 0x61, 0x67, 0x65,
+	0x22, 0x14, 0x0a, 0x12, 0x54, 0x52, 0x65, 0x71, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65,
+	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x22, 0xcb, 0x01, 0x0a, 0x12, 0x54, 0x52, 0x73, 0x70, 0x43,
+	0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x6c, 0x0a,
+	0x16, 0x70, 0x61, 0x72, 0x73, 0x65, 0x64, 0x5f, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x5f, 0x6d,
+	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x36, 0x2e,
+	0x4e, 0x54, 0x65, 0x73, 0x74, 0x52, 0x70, 0x63, 0x2e, 0x54, 0x52, 0x73, 0x70, 0x43, 0x75, 0x73,
+	0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x50, 0x61, 0x72, 0x73,
+	0x65, 0x64, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61,
+	0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x14, 0x70, 0x61, 0x72, 0x73, 0x65, 0x64, 0x43, 0x75, 0x73,
+	0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x47, 0x0a, 0x19, 0x50,
+	0x61, 0x72, 0x73, 0x65, 0x64, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x4d, 0x65, 0x74, 0x61, 0x64,
+	0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
+	0x3a, 0x02, 0x38, 0x01, 0x22, 0x4d, 0x0a, 0x1a, 0x54, 0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x43,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72,
+	0x6f, 0x72, 0x12, 0x2f, 0x0a, 0x13, 0x72, 0x65, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x5f, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x12, 0x72, 0x65, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x41, 0x64, 0x64, 0x72,
+	0x65, 0x73, 0x73, 0x22, 0x1c, 0x0a, 0x1a, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x43, 0x68,
+	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72, 0x6f,
+	0x72, 0x42, 0x3d, 0x5a, 0x3b, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65,
+	0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x72, 0x70, 0x63, 0x2f, 0x75, 0x6e, 0x69, 0x74, 0x74,
+	0x65, 0x73, 0x74, 0x73, 0x3b, 0x74, 0x65, 0x73, 0x74, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
 }
 
 var (
@@ -2119,7 +2197,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP() []byte {
 	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescData
 }
 
-var file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
+var file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
 var file_yt_yt_core_rpc_unittests_lib_test_service_proto_goTypes = []interface{}{
 	(*TReqSomeCall)(nil),                  // 0: NTestRpc.TReqSomeCall
 	(*TRspSomeCall)(nil),                  // 1: NTestRpc.TRspSomeCall
@@ -2151,28 +2229,30 @@ var file_yt_yt_core_rpc_unittests_lib_test_service_proto_goTypes = []interface{}
 	(*TRspNoReply)(nil),                   // 27: NTestRpc.TRspNoReply
 	(*TReqFlakyCall)(nil),                 // 28: NTestRpc.TReqFlakyCall
 	(*TRspFlakyCall)(nil),                 // 29: NTestRpc.TRspFlakyCall
-	(*TReqRequireCoolFeature)(nil),        // 30: NTestRpc.TReqRequireCoolFeature
-	(*TRspRequireCoolFeature)(nil),        // 31: NTestRpc.TRspRequireCoolFeature
-	(*TReqStreamingEcho)(nil),             // 32: NTestRpc.TReqStreamingEcho
-	(*TRspStreamingEcho)(nil),             // 33: NTestRpc.TRspStreamingEcho
-	(*TReqServerStreamsAborted)(nil),      // 34: NTestRpc.TReqServerStreamsAborted
-	(*TRspServerStreamsAborted)(nil),      // 35: NTestRpc.TRspServerStreamsAborted
-	(*TReqServerNotReading)(nil),          // 36: NTestRpc.TReqServerNotReading
-	(*TRspServerNotReading)(nil),          // 37: NTestRpc.TRspServerNotReading
-	(*TReqServerNotWriting)(nil),          // 38: NTestRpc.TReqServerNotWriting
-	(*TRspServerNotWriting)(nil),          // 39: NTestRpc.TRspServerNotWriting
-	(*TReqGetTraceBaggage)(nil),           // 40: NTestRpc.TReqGetTraceBaggage
-	(*TRspGetTraceBaggage)(nil),           // 41: NTestRpc.TRspGetTraceBaggage
-	(*TReqCustomMetadata)(nil),            // 42: NTestRpc.TReqCustomMetadata
-	(*TRspCustomMetadata)(nil),            // 43: NTestRpc.TRspCustomMetadata
-	(*TReqGetChannelFailureError)(nil),    // 44: NTestRpc.TReqGetChannelFailureError
-	(*TRspGetChannelFailureError)(nil),    // 45: NTestRpc.TRspGetChannelFailureError
-	nil,                                   // 46: NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
-	(*misc.TGuid)(nil),                    // 47: NYT.NProto.TGuid
+	(*TReqDelayedCall)(nil),               // 30: NTestRpc.TReqDelayedCall
+	(*TRspDelayedCall)(nil),               // 31: NTestRpc.TRspDelayedCall
+	(*TReqRequireCoolFeature)(nil),        // 32: NTestRpc.TReqRequireCoolFeature
+	(*TRspRequireCoolFeature)(nil),        // 33: NTestRpc.TRspRequireCoolFeature
+	(*TReqStreamingEcho)(nil),             // 34: NTestRpc.TReqStreamingEcho
+	(*TRspStreamingEcho)(nil),             // 35: NTestRpc.TRspStreamingEcho
+	(*TReqServerStreamsAborted)(nil),      // 36: NTestRpc.TReqServerStreamsAborted
+	(*TRspServerStreamsAborted)(nil),      // 37: NTestRpc.TRspServerStreamsAborted
+	(*TReqServerNotReading)(nil),          // 38: NTestRpc.TReqServerNotReading
+	(*TRspServerNotReading)(nil),          // 39: NTestRpc.TRspServerNotReading
+	(*TReqServerNotWriting)(nil),          // 40: NTestRpc.TReqServerNotWriting
+	(*TRspServerNotWriting)(nil),          // 41: NTestRpc.TRspServerNotWriting
+	(*TReqGetTraceBaggage)(nil),           // 42: NTestRpc.TReqGetTraceBaggage
+	(*TRspGetTraceBaggage)(nil),           // 43: NTestRpc.TRspGetTraceBaggage
+	(*TReqCustomMetadata)(nil),            // 44: NTestRpc.TReqCustomMetadata
+	(*TRspCustomMetadata)(nil),            // 45: NTestRpc.TRspCustomMetadata
+	(*TReqGetChannelFailureError)(nil),    // 46: NTestRpc.TReqGetChannelFailureError
+	(*TRspGetChannelFailureError)(nil),    // 47: NTestRpc.TRspGetChannelFailureError
+	nil,                                   // 48: NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
+	(*misc.TGuid)(nil),                    // 49: NYT.NProto.TGuid
 }
 var file_yt_yt_core_rpc_unittests_lib_test_service_proto_depIdxs = []int32{
-	47, // 0: NTestRpc.TRspPassCall.mutation_id:type_name -> NYT.NProto.TGuid
-	46, // 1: NTestRpc.TRspCustomMetadata.parsed_custom_metadata:type_name -> NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
+	49, // 0: NTestRpc.TRspPassCall.mutation_id:type_name -> NYT.NProto.TGuid
+	48, // 1: NTestRpc.TRspCustomMetadata.parsed_custom_metadata:type_name -> NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
 	2,  // [2:2] is the sub-list for method output_type
 	2,  // [2:2] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
@@ -2547,7 +2627,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqRequireCoolFeature); i {
+			switch v := v.(*TReqDelayedCall); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2559,7 +2639,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspRequireCoolFeature); i {
+			switch v := v.(*TRspDelayedCall); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2571,7 +2651,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStreamingEcho); i {
+			switch v := v.(*TReqRequireCoolFeature); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2583,7 +2663,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspStreamingEcho); i {
+			switch v := v.(*TRspRequireCoolFeature); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2595,7 +2675,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqServerStreamsAborted); i {
+			switch v := v.(*TReqStreamingEcho); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2607,7 +2687,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspServerStreamsAborted); i {
+			switch v := v.(*TRspStreamingEcho); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2619,7 +2699,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqServerNotReading); i {
+			switch v := v.(*TReqServerStreamsAborted); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2631,7 +2711,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspServerNotReading); i {
+			switch v := v.(*TRspServerStreamsAborted); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2643,7 +2723,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqServerNotWriting); i {
+			switch v := v.(*TReqServerNotReading); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2655,7 +2735,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspServerNotWriting); i {
+			switch v := v.(*TRspServerNotReading); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2667,7 +2747,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetTraceBaggage); i {
+			switch v := v.(*TReqServerNotWriting); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2679,7 +2759,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetTraceBaggage); i {
+			switch v := v.(*TRspServerNotWriting); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2691,7 +2771,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqCustomMetadata); i {
+			switch v := v.(*TReqGetTraceBaggage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2703,7 +2783,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[43].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspCustomMetadata); i {
+			switch v := v.(*TRspGetTraceBaggage); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2715,7 +2795,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[44].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetChannelFailureError); i {
+			switch v := v.(*TReqCustomMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2727,6 +2807,30 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			}
 		}
 		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspCustomMetadata); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqGetChannelFailureError); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TRspGetChannelFailureError); i {
 			case 0:
 				return &v.state
@@ -2745,7 +2849,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   47,
+			NumMessages:   49,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

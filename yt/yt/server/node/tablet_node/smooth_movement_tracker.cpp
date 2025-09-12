@@ -6,6 +6,8 @@
 #include "tablet.h"
 #include "transaction_manager.h"
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
@@ -159,11 +161,15 @@ public:
             return;
         }
 
-        std::optional<ESmoothMovementStage> newStage;
+        if (movementData.GetStage() == tablet->GetSettings().MountConfig->Testing.PauseAtSmoothMovementStage) {
+            return;
+        }
 
         if (ApplyTestingDelayBeforeStageChange(tablet)) {
             return;
         }
+
+        std::optional<ESmoothMovementStage> newStage;
 
         if (movementData.GetRole() == ESmoothMovementRole::Source) {
             switch (movementData.GetStage()) {
