@@ -656,9 +656,6 @@ message TReferenceOption
         // must be deleted before the referenced one.
         // PP_MANDATORY = 4;
 
-        // If the reference is set, delete this object with the foreign one.
-        // bool cascading_deletion
-
         // Future non-plans: rely on the null state of a column in the dynamic table (currently we always
         // initialize the columns to the default value); use a separate bool "present" field.
     }
