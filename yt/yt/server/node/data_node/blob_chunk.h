@@ -131,7 +131,7 @@ private:
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
-    int FindLastEntryWithinReadGap(
+    std::pair<int, THashMap<int, TReadBlockSetSession::TBlockEntry>> FindLastEntryWithinReadGap(
         const TReadBlockSetSessionPtr& session,
         int beginEntryIndex);
 
