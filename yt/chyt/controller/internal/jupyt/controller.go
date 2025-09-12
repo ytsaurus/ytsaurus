@@ -65,6 +65,10 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
+func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
+	return nil, nil
+}
+
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {
 	cmd := c.config.CommandOrDefault()
 	jupyterEnv := map[string]string{

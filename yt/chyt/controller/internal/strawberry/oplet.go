@@ -1,6 +1,7 @@
 package strawberry
 
 import (
+	"bytes"
 	"context"
 	"reflect"
 	"time"
@@ -66,6 +67,14 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					DefaultValue: "normal",
 					Choices:      []any{"normal", "graceful"},
 					Description:  "Preemption mode for a corresponding YT operation.",
+				},
+				{
+					Title:        "Restart on controller change",
+					Name:         "restart_on_controller_change",
+					Type:         TypeBool,
+					CurrentValue: speclet.RestartOnControllerChange,
+					DefaultValue: DefaultRestartOnControllerChange,
+					Description:  "If true, automatically restart a corresponding YT operation on every controller change.",
 				},
 				{
 					Title:        "Restart on speclet change",
@@ -516,6 +525,12 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 	if oplet.secretsRevision != oplet.persistentState.YTOpSecretsRevision {
 		return true, "secrets changed"
 	}
+	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() {
+		snapshot, err := oplet.c.GetControllerSnapshot()
+		if err == nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
+			return true, "controller snapshot changed"
+		}
+	}
 	// TODO(dakovalkov): eliminate this.
 	if oplet.pendingRestart {
 		return true, "pendingRestart is set"
@@ -904,8 +919,13 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		defer cancel()
 	}
 
-	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
+	controllerSnapshot, err := oplet.c.GetControllerSnapshot()
+	if err != nil {
+		oplet.setError(err)
+		return err
+	}
 
+	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
 	if err != nil {
 		oplet.setError(err)
 		return err
@@ -1031,6 +1051,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.persistentState.YTOpSpeclet = oplet.specletYson
 	oplet.persistentState.YTOpSpecletRevision = oplet.persistentState.SpecletRevision
+	oplet.persistentState.YTOpControllerSnapshot = controllerSnapshot
 
 	oplet.ytOpStrawberrySpeclet = oplet.strawberrySpeclet
 	oplet.ytOpControllerSpeclet = oplet.controllerSpeclet
