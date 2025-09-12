@@ -1147,7 +1147,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_remove_portal_not_permitted_by_acl(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         create_user("u")
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
@@ -1243,7 +1243,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_inheritable_attributes_synchronization(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
         create("map_node", "//tmp/dir_with_attrs")
         create("portal_entrance", "//tmp/dir_with_attrs/p", attributes={"exit_cell_tag": 11})
@@ -1261,7 +1261,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_smart_pointer_in_inheritable_attributes(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
         create("map_node", "//tmp/d")
         create("portal_entrance", "//tmp/d/p", attributes={"exit_cell_tag": 11})
@@ -1278,7 +1278,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_effective_acl_synchronization(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         create_user("dog")
         create_user("cat")
         create_user("rat")
@@ -1336,7 +1336,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_empty_annotation(self):
-        remove("//sys/@config/cypress_manager/portal_synchronization_period")
+        remove("//sys/@config/cypress_manager/graft_synchronization_period")
         create("portal_entrance", "//tmp/p", attributes={
             "exit_cell_tag": 11,
         })
@@ -1345,12 +1345,12 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_annotation_synchronization(self):
-        remove("//sys/@config/cypress_manager/portal_synchronization_period")
+        remove("//sys/@config/cypress_manager/graft_synchronization_period")
         create("map_node", "//tmp/d", attributes={"annotation": "qwerty"})
         create("portal_entrance", "//tmp/d/p", attributes={"annotation": None, "exit_cell_tag": 11})
         assert "qwerty" == get("//tmp/d/p/@annotation")
         assert "//tmp/d" == get("//tmp/d/p/@annotation_path")
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         remove("//tmp/d/@annotation")
         wait(lambda: yson.YsonEntity() == get("//tmp/d/@annotation"))
         wait(lambda: yson.YsonEntity() == get("//tmp/d/p/@annotation_path"))
@@ -1615,13 +1615,7 @@ class TestCrossCellCopy(YTEnvSetup):
         elif self.COPY_TO_SEQUOIA:
             # Cypress -> Sequoia.
             create("map_node", self.SRC)
-            create(
-                "rootstock",
-                self.DST,
-                # TODO(danilalexeev): YT-24575. Remove once attribute sync is implemented.
-                attributes={
-                    "acl": [make_ace("allow", "users", "administer")],
-                })
+            create("rootstock", self.DST)
         else:
             # Sequoia -> Cypress.
             create("rootstock", self.SRC)
@@ -2013,7 +2007,7 @@ class TestCrossCellCopy(YTEnvSetup):
         if should_preserve:
             # In order to preserve ACL user has to have "administer" permission for the parent node.
             administer_permission = make_ace("allow", user, "administer")
-            set("//sys/@config/cypress_manager/portal_synchronization_period", 100)
+            set("//sys/@config/cypress_manager/graft_synchronization_period", 100)
             set(f"{self.DST}&/@acl", [
                 administer_permission,
             ])
