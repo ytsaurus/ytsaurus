@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/futujaos/gpu-docker-test-25-1
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -107,9 +108,9 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      build-ytsaurus: true
+      build-ytsaurus: false
       build-chyt: ${{ github.ref_name == 'stable/25.1' }}
-      build-python: true
+      build-python: false
       update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
@@ -145,7 +146,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: true
+      build-query-tracker: false
       build-python: true
       update-remote-cache: true
     secrets:
@@ -164,7 +165,7 @@ jobs:
       cpp-build-system: ya-make
       publish-query-tracker: ${{ github.ref_name == 'main' }}
       publish-ytsaurus: true
-      publish-local: true
+      publish-local: false
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
@@ -182,29 +183,32 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
 
-  stop-vm:
-    name: Stop VM
+  # stop-vm:
+  #   name: Stop VM
+  #   needs:
+  #     - start-vm
+  #     - check
+  #     - docker-cmake
+  #     - docker-ya-make
+  #   runs-on: trampoline
+  #   if: ${{ always() }}
+  #   steps:
+  #     - name: Stop YC runner
+  #       uses: yc-actions/yc-github-runner@v1
+  #       with:
+  #         mode: stop
+  #         yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+  #         github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #         label: ${{ needs.start-vm.outputs.label }}
+  #         instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-notifications:
+    name: Send notifications
     needs:
       - start-vm
       - check
       - docker-cmake
       - docker-ya-make
-    runs-on: trampoline
-    if: ${{ always() }}
-    steps:
-      - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: stop
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-vm.outputs.label }}
-          instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
     runs-on: ubuntu-latest
     if: ${{ failure() }}
     steps:
