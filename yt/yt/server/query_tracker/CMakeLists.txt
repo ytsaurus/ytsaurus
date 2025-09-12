@@ -32,6 +32,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
+  cpp-streams-zstd
   library-cpp-getopt
   yt-chyt-client
   yt-library-dynamic_config
@@ -54,6 +55,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
 target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/chyt_engine.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/compression_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/handler_base.cpp

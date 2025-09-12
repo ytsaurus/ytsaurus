@@ -1,6 +1,8 @@
+#include "query_tracker_proxy.h"
+
+#include "compression_helpers.h"
 #include "config.h"
 #include "profiler.h"
-#include "query_tracker_proxy.h"
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -92,7 +94,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.AccessControlObjects = partialRecord.AccessControlObjects.value_or(TYsonString(TString("[]")));
     query.State = partialRecord.State;
     query.ResultCount = partialRecord.ResultCount.value_or(std::nullopt);
-    query.Progress = partialRecord.Progress.value_or(TYsonString());
+    query.Progress = TYsonString(partialRecord.Progress ? Decompress(partialRecord.Progress.value()) : TString("{}"));
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
     query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("[]")));
@@ -645,11 +647,13 @@ using namespace NDetail;
 TQueryTrackerProxy::TQueryTrackerProxy(
     IClientPtr stateClient,
     TYPath stateRoot,
-    TQueryTrackerProxyConfigPtr config
+    TQueryTrackerProxyConfigPtr config,
+    int expectedTablesVersion
 )
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
     , ProxyConfig_(std::move(config))
+    , ExpectedTablesVersion_(expectedTablesVersion)
 {
     EngineInfoProviders_[EQueryEngine::Yql] = CreateYqlEngineInfoProvider(StateClient_, StateRoot_);
 }
@@ -717,7 +721,7 @@ void TQueryTrackerProxy::StartQuery(
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .StartTime = startTime,
                 .State = EQueryState::Draft,
-                .Progress = EmptyMap,
+                .Progress = Compress(EmptyMap.ToString(), MaxDyntableStringSize),
                 .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
                 .Secrets = ConvertToYsonString(options.Secrets),
             };
@@ -801,7 +805,7 @@ void TQueryTrackerProxy::StartQuery(
             .StartTime = TInstant::Now(),
             .State = EQueryState::Pending,
             .Incarnation = -1,
-            .Progress = EmptyMap,
+            .Progress = Compress(EmptyMap.ToString(), MaxDyntableStringSize),
             .Annotations = options.Annotations ? ConvertToYsonString(options.Annotations) : EmptyMap,
             .Secrets = ConvertToYsonString(options.Secrets)
         };
@@ -1560,6 +1564,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         .AccessControlObjects = std::move(accessControlObjects),
         .Clusters = std::move(clusters),
         .EnginesInfo = std::move(enginesInfo),
+        .ExpectedTablesVersion = ExpectedTablesVersion_,
     };
 }
 
@@ -1568,12 +1573,14 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     IClientPtr stateClient,
     TYPath stateRoot,
-    TQueryTrackerProxyConfigPtr config)
+    TQueryTrackerProxyConfigPtr config,
+    int expectedTablesVersion)
 {
     return New<TQueryTrackerProxy>(
         std::move(stateClient),
         std::move(stateRoot),
-        std::move(config));
+        std::move(config),
+        expectedTablesVersion);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

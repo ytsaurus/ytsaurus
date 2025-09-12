@@ -1260,6 +1260,17 @@ class YtClient(ClientState):
             client=self,
             result_index=result_index, stage=stage, format=format)
 
+    def get_query_tracker_info(
+            self,
+            attributes=None, stage=None, format=None):
+        """
+        get query tracker info
+
+        """
+        return client_api.get_query_tracker_info(
+            client=self,
+            attributes=attributes, stage=stage, format=format)
+
     def get_supported_features(
             self,
             format=None):

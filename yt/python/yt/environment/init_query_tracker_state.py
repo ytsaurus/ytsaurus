@@ -14,6 +14,8 @@ SYS_BUNDLE_NAME = "sys"
 DEFAULT_STATE_PATH = "//sys/query_tracker"
 DEFAULT_SHARD_COUNT = 1
 
+MAX_DYNTABLE_STRING_SIZE = 16 * 1024 * 1024
+
 INITIAL_TABLE_INFOS = {
     "active_queries": TableInfo(
         [
@@ -1243,6 +1245,108 @@ TRANSFORMS[16] = [
         table_info=FINISHED_QUERIES_V16,
     ),
 ]
+
+
+FINISHED_QUERIES_V17 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string"),
+        ("query", "string"),
+        ("files", "any"),
+        ("settings", "any"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("start_time", "timestamp"),
+        ("state", "string"),
+        ("progress", "string"),
+        ("error", "any"),
+        ("result_count", "int64"),
+        ("finish_time", "timestamp"),
+        ("annotations", "any"),
+        ("secrets", "any"),
+        ("assigned_tracker", "string"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+ACTIVE_QUERIES_V17 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string", {"lock": "client"}),
+        ("query", "string", {"lock": "client"}),
+        ("files", "any", {"lock": "client"}),
+        ("settings", "any", {"lock": "client"}),
+        ("user", "string", {"lock": "client"}),
+        ("access_control_objects", "any", {"lock": "client"}),
+        ("start_time", "timestamp", {"lock": "client"}),
+        ("execution_start_time", "timestamp", {"lock": "query_tracker"}),
+        ("filter_factors", "string", {"lock": "client"}),
+        ("state", "string", {"lock": "common"}),
+        ("incarnation", "int64", {"lock": "query_tracker"}),
+        ("ping_time", "timestamp", {"lock": "query_tracker"}),
+        ("lease_transaction_id", "string", {"lock": "query_tracker"}),
+        ("assigned_tracker", "string", {"lock": "query_tracker"}),
+        ("progress", "string", {"lock": "query_tracker_progress"}),
+        ("error", "any", {"lock": "query_tracker"}),
+        ("result_count", "int64", {"lock": "query_tracker"}),
+        ("finish_time", "timestamp", {"lock": "common"}),
+        ("abort_request", "any", {"lock": "client"}),
+        ("annotations", "any", {"lock": "client"}),
+        ("secrets", "any", {"lock": "client"}),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+
+try:
+    import zstandard as zstd
+
+    zstd_compressor = zstd.ZstdCompressor(level=9)
+    default_compressed_value = zstd_compressor.compress(yson.dumps(yson.YsonMap(), yson_format="text"))
+
+    def compress_progress_mapper(row):
+        row["progress"] = zstd_compressor.compress(yson.dumps(yson.YsonMap(row["progress"]), yson_format="text"))
+        if len(row["progress"]) > MAX_DYNTABLE_STRING_SIZE:
+            row["progress"] = default_compressed_value
+        yield row
+
+except ImportError:
+    logging.info("Module 'zstandard' is not found. Migration from version 16 to 17 is not possible. An exception will be thrown when attempting to perform such migration.")
+
+    def compress_progress_mapper(row):
+        raise Exception("Module 'zstandard' is not found. Migration from version 16 to 17 is not possible.")
+
+
+TRANSFORMS[17] = [
+    Conversion(
+        "finished_queries",
+        table_info=FINISHED_QUERIES_V17,
+        mapper=compress_progress_mapper,
+        job_count=500,
+    ),
+    Conversion(
+        "active_queries",
+        table_info=ACTIVE_QUERIES_V17,
+        mapper=compress_progress_mapper,
+    ),
+]
+
 
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
