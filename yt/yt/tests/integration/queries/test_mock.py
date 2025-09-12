@@ -348,7 +348,7 @@ class TestQueryTrackerResults(YTEnvSetup):
             "access_control_objects": None,
             "start_time": 0,
             "state": "completed",
-            "progress": None,
+            "progress": "",
             "error": {"attributes": {}, "code": 100, "message": ""},
             "result_count": 1,
             "finish_time": 0,
@@ -381,7 +381,7 @@ class TestQueryTrackerResults(YTEnvSetup):
             "access_control_objects": None,
             "start_time": 0,
             "state": "completed",
-            "progress": None,
+            "progress": "",
             "error": {"attributes": {}, "code": 100, "message": ""},
             "result_count": 1,
             "finish_time": 0,
@@ -418,7 +418,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
             "incarnation": 0,
             "start_time": 0,
             "execution_start_time": 0,
-            "progress": {},
+            "progress": "",
             "annotations": {},
             "state": state,
             "settings": settings,
@@ -733,92 +733,103 @@ class TestAccessControl(YTEnvSetup):
 
     @authors("aleksandr.gaev", "kirsiv40")
     def test_get_query_tracker_info(self, query_tracker):
+        def check_qt_info(expected=None, **kwargs):
+            info = get_query_tracker_info(**kwargs)
+            assert isinstance(info.pop("expected_tables_version"), int)
+            assert info == expected
+
         supported_features = {'access_control': True, 'multiple_aco': True}
-        assert get_query_tracker_info() == \
-            {
+
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': 'primary',
                 'supported_features': supported_features,
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(attributes=[]) == \
-            {
+            })
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["cluster_name"]) == \
-            {
+            },
+            attributes=[])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': 'primary',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["supported_features"]) == \
-            {
+            },
+            attributes=["cluster_name"])
+
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': supported_features,
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["access_control_objects"]) == \
-            {
+            },
+            attributes=["supported_features"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["clusters"]) == \
-            {
+            },
+            attributes=["access_control_objects"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(attributes=["engines_info"]) == \
-            {
+            },
+            attributes=["clusters"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(yql_agent_stage="some-invalid-stage") == \
-            {
+            },
+            attributes=["engines_info"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': 'primary',
                 'supported_features': supported_features,
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(stage='testing') == \
-            {
+            },
+            yql_agent_stage="some-invalid-stage")
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'testing',
                 'cluster_name': 'primary',
                 'supported_features': supported_features,
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
+            },
+            stage='testing')
 
 
 @pytest.mark.enabled_multidaemon

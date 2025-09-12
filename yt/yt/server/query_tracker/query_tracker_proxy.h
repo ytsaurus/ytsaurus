@@ -21,7 +21,8 @@ public:
     TQueryTrackerProxy(
         NApi::IClientPtr stateClient,
         NYPath::TYPath stateRoot,
-        TQueryTrackerProxyConfigPtr config);
+        TQueryTrackerProxyConfigPtr config,
+        int expectedTablesVersion);
 
     void Reconfigure(const TQueryTrackerProxyConfigPtr& config);
 
@@ -70,6 +71,7 @@ private:
     const NYPath::TYPath StateRoot_;
     TQueryTrackerProxyConfigPtr ProxyConfig_;
     std::unordered_map<EQueryEngine, IQueryEngineInfoProviderPtr> EngineInfoProviders_;
+    const int ExpectedTablesVersion_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
@@ -79,7 +81,8 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     NApi::IClientPtr stateClient,
     NYPath::TYPath stateRoot,
-    TQueryTrackerProxyConfigPtr config);
+    TQueryTrackerProxyConfigPtr config,
+    int expectedTablesVersion);
 
 ////////////////////////////////////////////////////////////////////////////////
 

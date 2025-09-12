@@ -348,7 +348,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
     {
         YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 6);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 7);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
@@ -377,6 +377,9 @@ private:
             *rpcResponse->add_clusters() = cluster;
         }
         rpcResponse->set_engines_info(ToProto(result.EnginesInfo.value_or(TYsonString(TString("{}")))));
+        if (result.ExpectedTablesVersion) {
+            rpcResponse->set_expected_tables_version(result.ExpectedTablesVersion.value());
+        }
 
         context->Reply();
     }

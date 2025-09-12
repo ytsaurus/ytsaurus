@@ -9,7 +9,9 @@ from yt.common import YtError
 from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
                          create_tablet_cell_bundle, sync_create_cells)
 
-from yt.yson import YsonEntity
+from yt_queries import get_query, get_query_tracker_info
+
+from yt.yson import YsonEntity, YsonMap
 
 import yt_error_codes
 
@@ -235,3 +237,28 @@ class TestMigration(YTEnvSetup):
         assert len(rows_after_migration) == 1
         assert len(rows_after_migration[0]) == 16
         assert "assigned_tracker" in rows_after_migration[0]
+
+    @authors("kirsiv40")
+    def test_progress_compression_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 16)
+
+        assert get_query_tracker_info(attributes=["cluster_name"])['expected_tables_version'] == 17
+        assert client.get_query_tracker_info(attributes=["cluster_name"]) is not None
+
+        progress_before_migration = YsonMap({"abc": "def", "qwe": 123, "zxc": [1, "abc", 2, ',:="\'\'"', ",:=\"\'''\'\""]})
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "12345678-12345678-12345678-12345678", "progress": progress_before_migration, "user": "some-user"}])
+
+        run_migration(client, 17)
+
+        rows_after_migration = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        raw_progress_after_migration = rows_after_migration[0]["progress"]
+        assert not isinstance(raw_progress_after_migration, dict)
+
+        progress_after_migration = get_query("12345678-12345678-12345678-12345678")["progress"]
+        assert progress_after_migration == progress_before_migration

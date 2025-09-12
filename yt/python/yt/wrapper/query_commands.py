@@ -207,6 +207,18 @@ def list_queries(user=None, engine=None, state=None, filter=None, from_time=None
         format=format,
         client=client)
 
+
+def get_query_tracker_info(attributes=None, stage=None, format=None, client=None):
+    """get query tracker info
+    """
+
+    params = {
+        "stage": get_value(stage, "production"),
+    }
+    set_param(params, "attributes", attributes)
+
+    return make_formatted_request("get_query_tracker_info", params=params, format=format, client=client)
+
 # Helpers
 
 

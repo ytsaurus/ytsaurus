@@ -103,9 +103,9 @@ types:
         lock: query_tracker
 
       - cpp_name: Progress
-        cpp_type: NYson::TYsonString
+        cpp_type: TString
         column_name: progress
-        column_type: Any
+        column_type: String
         lock: query_tracker_progress
 
       - cpp_name: Error
@@ -207,9 +207,9 @@ types:
         column_type: String
 
       - cpp_name: Progress
-        cpp_type: NYson::TYsonString
+        cpp_type: TString
         column_name: progress
-        column_type: Any
+        column_type: String
 
       - cpp_name: Error
         cpp_type: std::optional<TError>
