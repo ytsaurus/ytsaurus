@@ -149,6 +149,8 @@ public:
 
     void CheckInvariants() override;
 
+    int GetRegisteredMethodCount() const;
+
     DECLARE_SIGNAL(IInvoker::TWaitTimeObserver::TSignature, WaitTimeObserved);
 
 protected:
