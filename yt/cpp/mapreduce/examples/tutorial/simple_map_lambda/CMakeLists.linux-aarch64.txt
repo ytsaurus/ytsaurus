@@ -43,6 +43,7 @@ target_link_libraries(simple_map_lambda PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   mapreduce-library-lambda
   cpp-mapreduce-client
   contrib-libs-protobuf

@@ -164,6 +164,8 @@ struct TTestingTableMountConfig
     bool OpaqueStoresInOrchid;
     bool OpaqueSettingsInOrchid;
 
+    std::optional<ESmoothMovementStage> PauseAtSmoothMovementStage;
+
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
     static void Register(TRegistrar registrar);

@@ -29,6 +29,7 @@ target_link_libraries(yt-yt-tools-import_table-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-core-test_framework
   yt-yt-core
   yt-core-http

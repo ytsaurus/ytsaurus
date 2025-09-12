@@ -29,6 +29,7 @@ target_include_directories(digest_udf PRIVATE
 target_link_libraries(digest_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   contrib-libs-farmhash
@@ -80,6 +81,7 @@ target_include_directories(digest_udf.global PRIVATE
 target_link_libraries(digest_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   contrib-libs-farmhash

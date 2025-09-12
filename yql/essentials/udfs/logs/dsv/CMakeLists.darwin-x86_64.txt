@@ -25,6 +25,7 @@ target_compile_options(dsv_udf PRIVATE
 target_link_libraries(dsv_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   cpp-deprecated-split
@@ -64,6 +65,7 @@ target_compile_options(dsv_udf.global PRIVATE
 target_link_libraries(dsv_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   cpp-deprecated-split

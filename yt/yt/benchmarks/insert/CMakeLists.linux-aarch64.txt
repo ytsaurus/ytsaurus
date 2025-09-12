@@ -29,6 +29,7 @@ target_link_libraries(insert PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   cpp-yt-phdr_cache
   yt-yt-client

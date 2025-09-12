@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/library/query/base/ast.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
 
@@ -22,7 +23,7 @@ struct TQueryEvaluationContext
 };
 
 std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
-    const NQueryClient::NAst::TExpressionPtr& astExpression,
+    const NQueryClient::TParsedSource& parsedSource,
     const NQueryClient::TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////

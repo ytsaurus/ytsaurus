@@ -26,6 +26,7 @@ target_compile_options(simple_map_tnode PRIVATE
 target_link_libraries(simple_map_tnode PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-mapreduce-interface
   cpp-mapreduce-client

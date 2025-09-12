@@ -29,6 +29,7 @@ target_link_libraries(formats_test PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-client-driver
 )
 

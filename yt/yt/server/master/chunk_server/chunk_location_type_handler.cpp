@@ -66,9 +66,16 @@ private:
 
     void DoZombifyObject(TChunkLocation* location) noexcept override
     {
-        NodeTrackerInternal_->DestroyChunkLocation(location);
+        NodeTrackerInternal_->ZombifyChunkLocation(location);
 
         TObjectTypeHandlerWithMapBase::DoZombifyObject(location);
+    }
+
+    void DoDestroyObject(TChunkLocation* location) noexcept override
+    {
+        NodeTrackerInternal_->DestroyChunkLocation(location);
+
+        TObjectTypeHandlerWithMapBase::DoDestroyObject(location);
     }
 };
 

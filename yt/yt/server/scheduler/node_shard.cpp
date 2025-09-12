@@ -165,30 +165,31 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::SubmitAllocationsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitAllocationsToStrategyPeriod))
 {
-    SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler()
+    const auto& globalSchedulerProfiler = SchedulerProfiler().WithGlobal();
+    SoftConcurrentHeartbeatLimitReachedCounter_ = globalSchedulerProfiler
         .WithTag("limit_type", "soft")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
-    HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler()
+    HardConcurrentHeartbeatLimitReachedCounter_ = globalSchedulerProfiler
         .WithTag("limit_type", "hard")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
-    ConcurrentHeartbeatComplexityLimitReachedCounter_ = SchedulerProfiler()
+    ConcurrentHeartbeatComplexityLimitReachedCounter_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/concurrent_complexity_limit_reached_count");
-    HeartbeatWithScheduleAllocationsCounter_ = SchedulerProfiler()
+    HeartbeatWithScheduleAllocationsCounter_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/with_schedule_jobs_count");
-    HeartbeatAllocationCount_ = SchedulerProfiler()
+    HeartbeatAllocationCount_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/job_count");
-    HeartbeatCount_ = SchedulerProfiler()
+    HeartbeatCount_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/count");
-    HeartbeatRequestProtoMessageBytes_ = SchedulerProfiler()
+    HeartbeatRequestProtoMessageBytes_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/request/proto_message_bytes");
-    HeartbeatResponseProtoMessageBytes_ = SchedulerProfiler()
+    HeartbeatResponseProtoMessageBytes_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/response/proto_message_bytes");
-    HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler()
+    HeartbeatRegisteredControllerAgentsBytes_ = globalSchedulerProfiler
         .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
 
     for (auto reason : TEnumTraitsImpl<EUnutilizedResourceReason>::GetDomainValues()) {
         UnutilizedResourcesCounterByReason_[reason].Init(
-            SchedulerProfiler()
+            globalSchedulerProfiler
                 .WithPrefix("/unutilized_node_resources")
                 .WithTag("reason", FormatEnum(reason)),
             EMetricType::Counter);

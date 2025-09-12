@@ -117,6 +117,7 @@ using namespace NChunkClient;
 using namespace NCodegen;
 using namespace NCompression;
 using namespace NConcurrency;
+using namespace NHydra;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
@@ -179,7 +180,7 @@ void FromProto(
         const auto& protoItem = proto.revisions(i);
         options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
         auto& item = *options->PrerequisiteRevisions[i];
-        item.Revision = FromProto<NHydra::TRevision>(protoItem.revision());
+        item.Revision = FromProto<TRevision>(protoItem.revision());
         item.Path = protoItem.path();
     }
 }
@@ -250,7 +251,7 @@ void FromProto(
     const NApi::NRpcProxy::NProto::TTabletReadOptions& proto)
 {
     if (proto.has_read_from()) {
-        options->ReadFrom = FromProto<NHydra::EPeerKind>(proto.read_from());
+        options->ReadFrom = FromProto<EPeerKind>(proto.read_from());
     }
     if (proto.has_cached_sync_replicas_timeout()) {
         options->CachedSyncReplicasTimeout = FromProto<TDuration>(proto.cached_sync_replicas_timeout());
@@ -4149,6 +4150,9 @@ private:
             options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
         } else if (config->QueryFeatureToggles->StatisticsAggregation) {
             options.StatisticsAggregation = *config->QueryFeatureToggles->StatisticsAggregation;
+        }
+        if (request->has_read_from()) {
+            options.ReadFrom = CheckedEnumCast<EPeerKind>(request->read_from());
         }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();

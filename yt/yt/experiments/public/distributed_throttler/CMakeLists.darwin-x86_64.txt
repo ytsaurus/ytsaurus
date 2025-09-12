@@ -18,6 +18,7 @@ add_executable(distributed_throttler)
 target_link_libraries(distributed_throttler PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-ytlib
   yt-ytlib-distributed_throttler

@@ -29,6 +29,7 @@ target_link_libraries(pass_table_as_file PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-mapreduce-client
 )
 

@@ -21,6 +21,7 @@ target_link_libraries(chunk_handler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   server-lib-nbd
   yt-library-program

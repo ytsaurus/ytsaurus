@@ -25,6 +25,7 @@ target_compile_options(set_udf PRIVATE
 target_link_libraries(set_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
 )
@@ -63,6 +64,7 @@ target_compile_options(set_udf.global PRIVATE
 target_link_libraries(set_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
 )

@@ -184,6 +184,7 @@ void SetNode(
     TYPathBuf path,
     const TYsonString& value,
     bool force,
+    std::optional<TYsonString> effectiveAcl,
     const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -193,6 +194,9 @@ void SetNode(
     reqSetNode.set_value(ToProto(value));
     reqSetNode.set_force(force);
     ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
+    if (effectiveAcl.has_value()) {
+        reqSetNode.set_effective_acl(effectiveAcl->ToString());
+    }
     ToProto(reqSetNode.mutable_access_tracking_options(), options);
     sequoiaTransaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
@@ -204,6 +208,7 @@ void MultisetNodeAttributes(
     TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
+    std::optional<TYsonString> effectiveAcl,
     const TSuppressableAccessTrackingOptions& options,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -213,6 +218,9 @@ void MultisetNodeAttributes(
     ToProto(reqMultisetAttributes.mutable_subrequests(), subrequests);
     reqMultisetAttributes.set_force(force);
     ToProto(reqMultisetAttributes.mutable_transaction_id(), nodeId.TransactionId);
+    if (effectiveAcl.has_value()) {
+        reqMultisetAttributes.set_effective_acl(effectiveAcl->ToString());
+    }
     ToProto(reqMultisetAttributes.mutable_access_tracking_options(), options);
     sequoiaTransaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
@@ -386,6 +394,7 @@ void RemoveNodeAttribute(
     TVersionedNodeId nodeId,
     TYPathBuf attributePath,
     bool force,
+    TYsonString effectiveAcl,
     const ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqRemoveNodeAttribute reqRemoveNodeAttribute;
@@ -393,6 +402,7 @@ void RemoveNodeAttribute(
     reqRemoveNodeAttribute.set_path(attributePath);
     reqRemoveNodeAttribute.set_force(force);
     ToProto(reqRemoveNodeAttribute.mutable_transaction_id(), nodeId.TransactionId);
+    reqRemoveNodeAttribute.set_effective_acl(effectiveAcl.ToString());
     transaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqRemoveNodeAttribute));

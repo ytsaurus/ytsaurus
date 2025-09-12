@@ -29,6 +29,7 @@ target_link_libraries(table_read_write_tnode PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-mapreduce-client
 )
 

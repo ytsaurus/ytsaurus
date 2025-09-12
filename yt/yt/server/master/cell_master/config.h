@@ -287,8 +287,6 @@ struct TCellMasterBootstrapConfig
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NCellServer::TCellManagerConfigPtr CellManager;
-
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
@@ -400,7 +398,6 @@ struct TDynamicClusterConfig
     bool EnableDynamicTableColumnRenaming;
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
-    bool AllowEveryoneCreateSecondaryIndices;
     bool EnableSecondaryIndexCopy;
     bool AllowAlterKeyColumnToAny;
 

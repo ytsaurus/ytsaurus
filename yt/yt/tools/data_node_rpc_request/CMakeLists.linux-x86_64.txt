@@ -29,6 +29,7 @@ target_link_libraries(data_node_rpc_request PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
   yt-yt-client

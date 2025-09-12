@@ -21,6 +21,7 @@ target_link_libraries(distributed_throttler PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-ytlib
   yt-ytlib-distributed_throttler
   ytserver

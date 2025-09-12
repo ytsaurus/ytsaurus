@@ -21,6 +21,7 @@ target_link_libraries(in_memory_nbd_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   server-lib-nbd
 )
 

@@ -40,6 +40,7 @@ target_compile_options(simple_map_protobuf PRIVATE
 target_link_libraries(simple_map_protobuf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-mapreduce-client
   contrib-libs-protobuf
 )

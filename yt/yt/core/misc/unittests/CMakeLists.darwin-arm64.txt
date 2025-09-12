@@ -40,6 +40,7 @@ target_compile_options(unittester-core-misc PRIVATE
 target_link_libraries(unittester-core-misc PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core

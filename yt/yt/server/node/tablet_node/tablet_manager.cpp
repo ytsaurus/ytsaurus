@@ -1588,6 +1588,8 @@ private:
                 StartChaosReplicaEpoch(tablet, replicationCardId);
             }
         }
+
+        Slot_->GetSmoothMovementTracker()->CheckTablet(tablet);
     }
 
     void HydraRemountTablet(TReqRemountTablet* request)
@@ -2812,7 +2814,11 @@ private:
         }
 
         if (needResetRowCache) {
-            YT_VERIFY(!IsLeader());
+            YT_LOG_ALERT_IF(IsLeader() && tablet->IsActiveServant(),
+                "Store that was not flushed to row cache is detected "
+                "at the leading cell peer, row cache will be reset (%v)",
+                tablet->GetLoggingTag());
+
             tablet->ResetRowCache(Slot_);
         }
 

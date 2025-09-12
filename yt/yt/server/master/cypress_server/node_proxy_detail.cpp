@@ -440,7 +440,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         }
 
         case EInternedAttributeKey::ExpirationTime: {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+            ValidateAdHocPermission(EPermission::Remove);
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -459,7 +459,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
         }
 
         case EInternedAttributeKey::ExpirationTimeout: {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+            ValidateAdHocPermission(EPermission::Remove);
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -479,7 +479,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
         case EInternedAttributeKey::Opaque: {
             ValidateNoTransaction();
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateAdHocPermission(EPermission::Write);
 
             // NB: No locking, intentionally.
             auto* node = GetThisImpl();
@@ -541,7 +541,7 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
 
         case EInternedAttributeKey::Opaque: {
             ValidateNoTransaction();
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            ValidateAdHocPermission(EPermission::Write);
 
             // NB: No locking, intentionally.
             auto* node = GetThisImpl();
@@ -960,6 +960,7 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IYPathServiceContextPt
 {
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
     ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
+    SequoiaNodeEffectiveAcl_ = GetSequoiaNodeEffectiveAcl(context->RequestHeader());
     ValidateMethodWhitelistedForTransaction(context->GetMethod());
 
     TObjectProxyBase::BeforeInvoke(context);
@@ -969,6 +970,7 @@ void TNontemplateCypressNodeProxyBase::AfterInvoke(const IYPathServiceContextPtr
 {
     SetAccessed();
     SetTouched();
+    SequoiaNodeEffectiveAcl_.reset();
     TObjectProxyBase::AfterInvoke(context);
 }
 
@@ -986,6 +988,7 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(const IYPathServiceContextPtr& c
         DISPATCH_YPATH_SERVICE_METHOD(CalculateInheritedAttributes);
         DISPATCH_YPATH_SERVICE_METHOD(AssembleTreeCopy);
         DISPATCH_YPATH_SERVICE_METHOD(Unlock);
+        DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
 
         // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.
         DISPATCH_YPATH_SERVICE_METHOD(BeginCopy);
@@ -1320,12 +1323,48 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNode* tr
     return cypressManager->GetNodeProxy(trunkNode, Transaction_);
 }
 
+TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
+    TUser* user,
+    EPermission permission,
+    TPermissionCheckOptions options)
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    if (Object_->IsSequoia()) {
+        if (!SequoiaNodeEffectiveAcl_.has_value()) {
+            YT_LOG_ALERT(
+                "Missing effective ACL on permission validation for Sequoia node (NodeId: %v)",
+                TrunkNode_->GetId());
+            THROW_ERROR_EXCEPTION(
+                "Permission validation through this API is not supported for Sequoia nodes");
+        }
+
+        auto aclNode = ConvertToNode(*SequoiaNodeEffectiveAcl_);
+        auto effectiveAcl = DeserializeAclOrThrow(aclNode, securityManager);
+        return securityManager->CheckPermission(
+            user,
+            permission,
+            effectiveAcl,
+            std::move(options));
+    } else {
+        return securityManager->CheckPermission(
+            Object_,
+            user,
+            permission,
+            std::move(options));
+    }
+}
+
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission,
     const std::string& /*user*/)
 {
     auto* node = GetThisImpl();
+    if (node->IsSequoia()) {
+        // TODO(danilalexeev): YT-24575. Change to alert + throw.
+        return;
+    }
+
     // NB: Suppress permission checks for nodes upon construction.
     // Cf. YT-1191, YT-4628.
     auto* trunkNode = node->GetTrunkNode();
@@ -1334,6 +1373,39 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
         shard && trunkNode == shard->GetRoot())
     {
         ValidatePermission(node, scope, permission);
+    }
+}
+
+void TNontemplateCypressNodeProxyBase::ValidateAdHocPermission(
+    EPermission permission,
+    const std::string& /*user*/)
+{
+    auto* node = GetThisImpl();
+    if (!node->IsSequoia()) {
+        ValidatePermission(EPermissionCheckScope::This, permission);
+        return;
+    }
+
+    // Detailed permission validation is ignored on Sequoia nodes creation.
+    // Cf. TNontemplateCypressNodeProxyBase::ValidatePermission. See YT-26140.
+    if (!node->ImmutableSequoiaProperties()) {
+        return;
+    }
+
+    // TODO(danilalexeev): YT-24575. Remove this check.
+    if (!SequoiaNodeEffectiveAcl_.has_value()) {
+        return;
+    }
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+    auto checkResponse = DoCheckPermission(user, permission);
+    if (checkResponse.Action == ESecurityAction::Deny) {
+        securityManager->LogAndThrowAuthorizationError(
+            TPermissionCheckTarget{.ObjectId = Object_->GetId()},
+            user,
+            permission,
+            checkResponse);
     }
 }
 
@@ -1531,6 +1603,16 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     bool /*recursive*/)
 {
     YT_ABORT();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CheckPermission)
+{
+    TObjectProxyBase::HandleCheckPermissionRequest(
+        Bootstrap_,
+        context,
+        [&] (TUser* user, EPermission permission, TPermissionCheckOptions options) {
+            return DoCheckPermission(user, permission, std::move(options));
+        });
 }
 
 void TNontemplateCypressNodeProxyBase::Lock(const TLockRequest& request, bool waitable, TLockId lockIdHint)

@@ -19,8 +19,8 @@ class TRlsReadSpec
 public:
     TRlsReadSpec() = default;
 
-    static std::optional<TRlsReadSpec> BuildFromRlAcl(
-        const TTableSchemaPtr& readerSchema,
+    static std::optional<TRlsReadSpec> BuildFromRlAclAndTableSchema(
+        const TTableSchemaPtr& tableSchema,
         const std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>& rlAcl,
         const NLogging::TLogger& logger);
 
@@ -28,6 +28,7 @@ public:
 
     //! Prerequisite: not trivial deny.
     const std::string& GetExpression() const;
+    const TTableSchemaPtr& GetTableSchema() const;
 
     friend void ToProto(
         NProto::TRlsReadSpec* protoRlsReadSpec,
@@ -41,16 +42,9 @@ private:
     struct TTrivialDeny
     { };
 
+    TTableSchemaPtr TableSchema_;
     std::variant<TTrivialDeny, std::string> ExpressionOrTrivialDeny_ = TTrivialDeny{};
 };
-
-void ToProto(
-    NProto::TRlsReadSpec* protoRlsReadSpec,
-    const TRlsReadSpec& rlsReadSpec);
-
-void FromProto(
-    TRlsReadSpec* rlsReadSpec,
-    const NProto::TRlsReadSpec& protoRlsReadSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +69,6 @@ struct IRlsChecker
 DEFINE_REFCOUNTED_TYPE(IRlsChecker)
 
 IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
-    const TTableSchemaPtr& schema,
     const TRlsReadSpec& readSpec);
 
 ////////////////////////////////////////////////////////////////////////////////

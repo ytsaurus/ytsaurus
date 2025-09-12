@@ -54,7 +54,7 @@
 
   Вычисляет расстояние Левенштейна для переданных строк.
 
-* `Unicode::Fold(Utf8{Flags:AutoMap}, [ Language:String?, DoLowerCase:Bool?, DoRenyxa:Bool?, DoSimpleCyr:Bool?, FillOffset:Bool? ]) -> Utf8`
+* ```Unicode::Fold(Utf8{Flags:AutoMap}, [ Language:String?, DoLowerCase:Bool?, DoRenyxa:Bool?, DoSimpleCyr:Bool?, FillOffset:Bool? ]) -> Utf8```
 
   Выполняет [case folding](https://www.w3.org/TR/charmod-norm/#definitionCaseFolding) для переданной строки.
   Параметры:
@@ -110,7 +110,7 @@
 
   Привести регистр строки к ВЕРХНЕМУ, нижнему или Заглавному виду.
 
-* `Unicode::SplitToList( string:Utf8?, separator:Utf8, [ DelimeterString:Bool?,  SkipEmpty:Bool?, Limit:Uint64? ]) -> List<Utf8>`
+* ```Unicode::SplitToList( string:Utf8?, separator:Utf8, [ DelimeterString:Bool?,  SkipEmpty:Bool?, Limit:Uint64? ]) -> List<Utf8>```
 
   Разбиение строки на подстроки по разделителю.
   `string` &mdash; исходная строка;

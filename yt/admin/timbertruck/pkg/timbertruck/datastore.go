@@ -108,18 +108,10 @@ type Datastore struct {
 var ErrNotFound = errors.New("not found")
 
 func NewDatastore(logger *slog.Logger, fileName string) (db *Datastore, err error) {
-	sqlite, err := sql.Open("sqlite3", fileName)
+	dsn := fmt.Sprintf("%s?_busy_timeout=%d&_journal_mode=WAL", fileName, 5000)
+	sqlite, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return
-	}
-
-	// Enable WAL journal mode for better concurrency.
-	if _, err = sqlite.Exec("PRAGMA journal_mode=WAL;"); err != nil {
-		return nil, fmt.Errorf("failed to enable WAL: %w", err)
-	}
-	// Set busy_timeout to help with lock contention.
-	if _, err = sqlite.Exec("PRAGMA busy_timeout = 5000;"); err != nil {
-		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
 	sqlite.SetMaxOpenConns(4)
@@ -576,8 +568,8 @@ func (ds *Datastore) Close() error {
 func (ds *Datastore) withRetry(fn func() error) error {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 50 * time.Millisecond
-	b.MaxInterval = 2 * time.Second
-	b.MaxElapsedTime = time.Minute
+	b.MaxInterval = 5 * time.Second
+	b.MaxElapsedTime = 5 * time.Minute
 
 	return backoff.RetryNotify(func() error {
 		err := fn()

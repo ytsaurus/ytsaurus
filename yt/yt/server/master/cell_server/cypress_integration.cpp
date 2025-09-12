@@ -133,21 +133,6 @@ class TCellNodeProxy
 public:
     using TCypressMapNodeProxy::TCypressMapNodeProxy;
 
-    TResolveResult ResolveSelf(
-        const TYPath& path,
-        const IYPathServiceContextPtr& context) override
-    {
-        const auto& method = context->GetMethod();
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->CellHydraPersistenceSynchronizer;
-        if (!config->MigrateToVirtualCellMaps &&
-            method == "Remove")
-        {
-            return TResolveResultThere{GetTargetProxy(), path};
-        } else {
-            return TCypressMapNodeProxy::ResolveSelf(path, context);
-        }
-    }
-
     IYPathService::TResolveResult ResolveAttributes(
         const TYPath& path,
         const IYPathServiceContextPtr& /*context*/) override

@@ -1,6 +1,8 @@
 #pragma once
 
-#include <yt/yt/client/table_client/unversioned_row.h>
+#include "public.h"
+
+#include <yt/yt/flow/lib/delta_codecs/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -8,10 +10,10 @@ namespace NYT::NFlow::NYsonSerializer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TTableSchemaPtr GetYsonTableSchema(const NYTree::TYsonStructPtr& ysonStruct);
+NTableClient::TTableSchemaPtr GetYsonSchema(const NYTree::TYsonStructPtr& ysonStruct);
 
 template <class T>
-NTableClient::TTableSchemaPtr GetYsonTableSchema();
+NTableClient::TTableSchemaPtr GetYsonSchema();
 
 ////////////////////////////////////////////////////////////////////////////////
 

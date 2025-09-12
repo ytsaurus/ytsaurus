@@ -21,6 +21,7 @@ target_link_libraries(data_node PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   ytserver
   yt-server-node

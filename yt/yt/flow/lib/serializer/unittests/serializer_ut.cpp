@@ -1,3 +1,7 @@
+#include <yt/yt/flow/lib/serializer/serializer.h>
+
+#include <yt/yt/flow/lib/serializer/unittests/proto/test.pb.h>
+
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
@@ -5,10 +9,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/flow/lib/serializer/serializer.h>
-
-#include <yt/yt/flow/lib/serializer/unittests/proto/test.pb.h>
 
 #include <google/protobuf/util/message_differencer.h>
 
@@ -109,7 +109,7 @@ using TTestSchemaYsonStructPtr = TIntrusivePtr<TTestSchemaYsonStruct>;
 TEST(TYsonSerialize, YsonTableSchema)
 {
     auto ysonStruct = New<TTestSchemaYsonStruct>();
-    auto schema = GetYsonTableSchema(ysonStruct);
+    auto schema = GetYsonSchema(ysonStruct);
     auto expectedSchema = New<TTableSchema>(
         std::vector{
             TColumnSchema("bool", ESimpleLogicalValueType::Boolean).SetRequired(true),
@@ -185,7 +185,7 @@ using TTestSerializeYsonPtr = TIntrusivePtr<TTestSerializeYson>;
 
 TEST(TYsonSerialize, YsonSerialize)
 {
-    auto schema = GetYsonTableSchema<TTestSerializeYson>();
+    auto schema = GetYsonSchema<TTestSerializeYson>();
 
     auto ysonStruct = New<TTestSerializeYson>();
     ysonStruct->Uint64 = 123456789u;
@@ -298,7 +298,7 @@ TEST(TYsonSerialize, PartialSerialize)
     EXPECT_NE(otherStruct->Unserialized, ysonStruct->Unserialized);
     EXPECT_EQ(otherStruct->Unserialized, "default_value");
 
-    auto fullSchema = GetYsonTableSchema<TTestPartialSerializeYson>();
+    auto fullSchema = GetYsonSchema<TTestPartialSerializeYson>();
     auto fullRow = Serialize(ysonStruct, fullSchema);
     auto fullOtherStruct = Deserialize<TTestPartialSerializeYson>(fullRow, fullSchema);
     EXPECT_EQ(*fullOtherStruct, *ysonStruct);
@@ -334,7 +334,7 @@ TEST(TYsonSerialize, ProtoSerialize)
     ysonStruct->YsonProto.CopyFrom(proto);
     ysonStruct->StringProto.CopyFrom(proto);
 
-    auto schema = GetYsonTableSchema(ysonStruct);
+    auto schema = GetYsonSchema(ysonStruct);
     auto expectedSchema = New<TTableSchema>(
         std::vector{
             TColumnSchema("string_proto", EValueType::String).SetRequired(true),

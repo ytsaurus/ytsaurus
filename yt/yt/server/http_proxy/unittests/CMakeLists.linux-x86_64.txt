@@ -33,6 +33,7 @@ target_link_libraries(unittester-http-proxy PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main

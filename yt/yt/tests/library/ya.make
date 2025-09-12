@@ -25,26 +25,27 @@ PEERDIR(
 PY_NAMESPACE(.)
 
 PY_SRCS(
-    native_snapshot_exporter.py
+    decimal_helpers.py
     fake_snapshot_exporter.py
-    yt_error_codes.py
+    gdb_helpers.py
+    native_snapshot_exporter.py
+    yt_chaos_test_base.py
     yt_commands.py
+    yt_dynamic_tables_base.py
     yt_env_setup.py
+    yt_error_codes.py
+    yt_fast_intermediate_medium_base.py
     yt_gpu_layers_helpers.py
     yt_helpers.py
-    yt_sequoia_helpers.py
-    yt_type_helpers.py
-    yt_scheduler_helpers.py
-    yt_dynamic_tables_base.py
-    yt_chaos_test_base.py
-    yt_fast_intermediate_medium_base.py
+    yt_master_cell_addition_base.py
+    yt_mock_server.py
+    yt_operations_archive_helpers.py
     yt_queries.py
     yt_queue_agent_test_base.py
-    yt_mock_server.py
-    yt_master_cell_addition_base.py
-    yt_operations_archive_helpers.py
-    gdb_helpers.py
-    decimal_helpers.py
+    yt_scheduler_helpers.py
+    yt_sequoia_helpers.py
+    yt_smooth_movement_helper_base.py
+    yt_type_helpers.py
 )
 
 IF (OPENSOURCE)

@@ -21,6 +21,7 @@ target_link_libraries(chyt_query PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-chyt-client
   yt-yt-ytlib
   cpp-getopt-small

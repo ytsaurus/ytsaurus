@@ -30,6 +30,7 @@ target_link_libraries(url_udf PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-url_base-lib
@@ -72,6 +73,7 @@ target_link_libraries(url_udf.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-url_base-lib

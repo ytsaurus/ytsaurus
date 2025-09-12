@@ -18,6 +18,7 @@ add_executable(yt-yt-library-backtrace_introspector-unittests)
 target_link_libraries(yt-yt-library-backtrace_introspector-unittests PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-library-backtrace_introspector

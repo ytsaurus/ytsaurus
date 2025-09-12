@@ -20,9 +20,11 @@ target_link_libraries(flow-lib-serializer PUBLIC
   yutil
   cpp-yt-yson
   yt-yt-client
+  flow-lib-delta_codecs
 )
 
 target_sources(flow-lib-serializer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/serializer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/serializer/state.cpp
 )
 

@@ -18,6 +18,7 @@ add_executable(01_01_par_do_simple_tnode)
 target_link_libraries(01_01_par_do_simple_tnode PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-roren-interface
   cpp-roren-yt
 )

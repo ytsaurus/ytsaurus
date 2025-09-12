@@ -29,6 +29,7 @@ target_link_libraries(unittester-ytlib-table-chunk-format PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   table_client-unittests-helpers

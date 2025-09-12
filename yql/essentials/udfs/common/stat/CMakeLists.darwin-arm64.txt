@@ -27,6 +27,7 @@ target_compile_options(stat_udf PRIVATE
 target_link_libraries(stat_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-stat-static
@@ -66,6 +67,7 @@ target_compile_options(stat_udf.global PRIVATE
 target_link_libraries(stat_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-stat-static

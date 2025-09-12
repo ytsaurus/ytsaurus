@@ -30,6 +30,7 @@ target_include_directories(offline_read PRIVATE
 target_link_libraries(offline_read PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt-yt-core
   cpp-yt-phdr_cache

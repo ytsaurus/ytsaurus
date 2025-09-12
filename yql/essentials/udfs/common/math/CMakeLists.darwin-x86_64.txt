@@ -28,6 +28,7 @@ target_compile_options(math_udf PRIVATE
 target_link_libraries(math_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-math-lib
@@ -68,6 +69,7 @@ target_compile_options(math_udf.global PRIVATE
 target_link_libraries(math_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-math-lib

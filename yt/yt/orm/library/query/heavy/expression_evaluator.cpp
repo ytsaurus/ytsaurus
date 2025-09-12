@@ -148,7 +148,7 @@ public:
         : ParsedQuery_(std::move(parsedQuery))
         , Columns_(std::move(columns))
         , EvaluationContext_(CreateQueryEvaluationContext(
-            std::get<TExpressionPtr>(ParsedQuery_->AstHead.Ast),
+            *ParsedQuery_,
             CreateTableSchema()))
     { }
 
@@ -320,32 +320,31 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
 }
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TStringBuf query,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     ValidateAttributePaths(typedAttributePaths);
 
     auto columns = CreateColumnsFromPaths(typedAttributePaths);
 
-    auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
     auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
-    auto& objectsHolder = parsedQuery->AstHead;
+    auto& astHead = parsedQuery->AstHead;
 
     auto referenceMapping = [&] (const TReference& reference) {
         if (reference.TableName) {
             THROW_ERROR_EXCEPTION("Table references are not supported");
         }
-        return CreateFakeTableAttributeSelector(TYPath(reference.ColumnName), typedAttributePaths, &objectsHolder);
+        return CreateFakeTableAttributeSelector(TYPath(reference.ColumnName), typedAttributePaths, &astHead);
     };
-    TQueryRewriter rewriter(&objectsHolder, std::move(referenceMapping));
-    objectsHolder.Ast = rewriter.Run(queryExpression);
+    TQueryRewriter rewriter(&astHead, std::move(referenceMapping));
+    astHead.Ast = rewriter.Run(queryExpression);
 
     return New<TExpressionEvaluator>(
         std::move(parsedQuery),
         std::move(columns));
 }
 
-IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(TStringBuf query, std::vector<TYPath> attributePaths)
+IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(std::unique_ptr<NQueryClient::TParsedSource> parsedQuery, std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());
@@ -358,7 +357,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(TStringBuf query, std::vect
     }
 
     return CreateOrmExpressionEvaluator(
-        std::move(query),
+        std::move(parsedQuery),
         std::move(typedAttributePaths));
 }
 

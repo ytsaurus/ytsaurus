@@ -2751,7 +2751,7 @@ private:
     bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
 
     // COMPAT(danilalexeev): YT-21862.
-    bool ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
+    bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2820,8 +2820,8 @@ private:
         } // Else leave both of them false.
 
         // COMPAT(danilalexeev): YT-21862.
-        if (context.GetVersion() < EMasterReign::AutomaticCellMapMigration) {
-            ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = true;
+        if (context.GetVersion() < EMasterReign::DropLegacyCellMap) {
+            DropLegacyCellMapsOnSnapshotLoaded_ = true;
         }
     }
 
@@ -2849,7 +2849,7 @@ private:
 
         NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
-        ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
+        DropLegacyCellMapsOnSnapshotLoaded_ = false;
     }
 
     void SetZeroState() override
@@ -2992,7 +2992,7 @@ private:
         }
 
         // COMPAT(danilalexeev): YT-21862.
-        if (ValidateLegacyCellMapsEmptyOnSnapshotLoaded_) {
+        if (DropLegacyCellMapsOnSnapshotLoaded_) {
             for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
                 auto cellMapNodeProxy = ResolvePathToNodeProxy(
                     NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
@@ -3018,6 +3018,9 @@ private:
                         node->GetId(),
                         GetNodePath(node, /*transaction*/ nullptr));
                 }
+
+                cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
+                // Virtual Cell Map creation is delegated to World Initializer.
             }
         }
     }

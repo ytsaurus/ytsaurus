@@ -93,6 +93,7 @@ message TReqSetNode
     optional string path = 4;
     optional bytes value = 2;
     optional bool force = 5;
+    optional bytes effective_acl = 6;
     optional NYT.NProto.TGuid transaction_id = 3;
     optional TAccessTrackingOptions access_tracking_options = 100;
 }
@@ -105,6 +106,7 @@ message TReqMultisetAttributes
     required string path = 2;
     repeated NYT.NYTree.NProto.TReqMultisetAttributes.TSubrequest subrequests = 3;
     required bool force = 4;
+    optional bytes effective_acl = 6;
     required NYT.NProto.TGuid transaction_id = 5;
     optional TAccessTrackingOptions access_tracking_options = 100;
 }
@@ -116,6 +118,7 @@ message TReqRemoveNodeAttribute
     required NYT.NProto.TGuid node_id = 1;
     required string path = 2;
     required bool force = 3;
+    optional bytes effective_acl = 5;
     optional NYT.NProto.TGuid transaction_id = 4;
 }
 

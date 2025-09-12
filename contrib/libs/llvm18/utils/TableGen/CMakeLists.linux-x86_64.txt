@@ -30,6 +30,7 @@ target_include_directories(llvm-tblgen PRIVATE
 target_link_libraries(llvm-tblgen PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
+  build-cow-on
   contrib-libs-llvm18
   lib-CodeGen-LowLevelType
   llvm18-lib-Demangle

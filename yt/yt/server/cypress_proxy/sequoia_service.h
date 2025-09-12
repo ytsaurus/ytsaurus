@@ -36,7 +36,7 @@ struct ISequoiaService
      *      If the attempt is unsuccessful because both are Cypress paths, then
      *      the request is forwarded to master.
      */
-    virtual EInvokeResult TryInvoke(
+    virtual TInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& sequoiaSession,
         const TResolveResult& resolveResult,

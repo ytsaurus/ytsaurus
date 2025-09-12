@@ -29,6 +29,7 @@ target_link_libraries(multiple_input_reduce_tnode PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-mapreduce-client
 )
 

@@ -29,6 +29,7 @@ target_link_libraries(dump-chunk-meta PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   server-lib-io
   yt-yt-ytlib

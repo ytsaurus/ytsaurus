@@ -21,6 +21,7 @@ target_link_libraries(collect_chunk_statistics PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   yt_proto-yt-client
   yt-yt-core

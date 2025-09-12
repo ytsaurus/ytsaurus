@@ -1926,6 +1926,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
+    @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_success(self, expiration):
         create_user("u")
         create(

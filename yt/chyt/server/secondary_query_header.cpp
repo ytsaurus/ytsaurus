@@ -26,6 +26,8 @@ void TSecondaryQueryHeader::Register(TRegistrar registrar)
     registrar.Parameter("write_transaction_id", &TThis::WriteTransactionId);
     registrar.Parameter("created_table_path", &TThis::CreatedTablePath);
 
+    registrar.Parameter("runtime_variables", &TThis::RuntimeVariables);
+
     registrar.Parameter("query_depth", &TSecondaryQueryHeader::QueryDepth);
 }
 

@@ -210,6 +210,8 @@ struct TQueryOptions
     bool AdaptiveOrderedSchemafulReader = false;
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
+
+    NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
 };
 
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);

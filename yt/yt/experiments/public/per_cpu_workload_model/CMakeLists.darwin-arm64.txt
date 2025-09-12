@@ -26,6 +26,7 @@ target_compile_options(per_cpu_workload_model PRIVATE
 target_link_libraries(per_cpu_workload_model PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-getopt
   yt-yt-core
   server-lib-io

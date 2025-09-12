@@ -18,6 +18,7 @@ add_executable(benchmark_queues)
 target_link_libraries(benchmark_queues PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   yt-yt-client
   yt-library-program

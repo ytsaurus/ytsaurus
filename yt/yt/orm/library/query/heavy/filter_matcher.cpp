@@ -30,10 +30,10 @@ class TFilterMatcher
 {
 public:
     TFilterMatcher(
-        TStringBuf filterQuery,
+        std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
         std::vector<TTypedAttributePath> attributePaths)
         : Evaluator_(CreateOrmExpressionEvaluator(
-            filterQuery,
+            std::move(parsedQuery),
             std::move(attributePaths)))
     { }
 
@@ -99,16 +99,16 @@ private:
 } // namespace
 
 IFilterMatcherPtr CreateFilterMatcher(
-    TStringBuf filterQuery,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     return New<TFilterMatcher>(
-        filterQuery,
+        std::move(parsedQuery),
         std::move(typedAttributePaths));
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    TStringBuf filterQuery,
+    std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
     std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
@@ -121,7 +121,7 @@ IFilterMatcherPtr CreateFilterMatcher(
         });
     }
     return New<TFilterMatcher>(
-        filterQuery,
+        std::move(parsedQuery),
         std::move(typedAttributePaths));
 }
 

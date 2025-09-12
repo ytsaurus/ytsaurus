@@ -175,7 +175,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     }
     if (userObject->RlAcl) {
         dataSource->SetRlsReadSpec(
-            TRlsReadSpec::BuildFromRlAcl(
+            TRlsReadSpec::BuildFromRlAclAndTableSchema(
                 schema,
                 *userObject->RlAcl,
                 Logger));

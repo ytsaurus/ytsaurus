@@ -22,6 +22,7 @@ target_include_directories(library-cpp-type_info-tz-ut PRIVATE
 target_link_libraries(library-cpp-type_info-tz-ut PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   cpp-testing-unittest_main
   cpp-type_info-tz

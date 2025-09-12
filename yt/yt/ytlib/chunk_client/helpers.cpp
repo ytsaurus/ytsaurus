@@ -30,6 +30,9 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+// COMPAT(coteeq)
+#include <yt/yt/ytlib/controller_agent/serialize.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -891,6 +894,9 @@ void TUserObject::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, SecurityTags);
     PHOENIX_REGISTER_FIELD(9, ChunkCount);
     PHOENIX_REGISTER_FIELD(10, Account);
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_FIELD(11, RlAcl,
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RlsInOperations)));
 }
 
 PHOENIX_DEFINE_TYPE(TUserObject);

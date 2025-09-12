@@ -229,6 +229,7 @@ void TMultiTablePartitioner::BuildPartitions()
             const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
             auto cookie = GetTablePartitionCookie(DataSourceDirectory_, slicesByTable);
             cookie.set_user(User_);
+            cookie.set_partition_mode(static_cast<int>(Options_.PartitionMode));
             auto cookieBytes = SerializeProtoToString(cookie);
             Partitions_.Partitions.back().Cookie = TTablePartitionCookiePtr(signatureGenerator->Sign(cookieBytes));
         }

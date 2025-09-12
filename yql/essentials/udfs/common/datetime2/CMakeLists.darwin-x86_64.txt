@@ -25,6 +25,7 @@ target_compile_options(datetime2_udf PRIVATE
 target_link_libraries(datetime2_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   util-draft
@@ -69,6 +70,7 @@ target_compile_options(datetime2_udf.global PRIVATE
 target_link_libraries(datetime2_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   util-draft

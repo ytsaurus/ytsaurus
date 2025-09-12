@@ -26,6 +26,7 @@ target_compile_options(profiling-example PRIVATE
 target_link_libraries(profiling-example PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-profiling-solomon
   library-profiling-tcmalloc
   library-profiling-perf

@@ -25,6 +25,7 @@ target_compile_options(hyperloglog_udf PRIVATE
 target_link_libraries(hyperloglog_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   library-cpp-hyperloglog
@@ -64,6 +65,7 @@ target_compile_options(hyperloglog_udf.global PRIVATE
 target_link_libraries(hyperloglog_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   library-cpp-hyperloglog

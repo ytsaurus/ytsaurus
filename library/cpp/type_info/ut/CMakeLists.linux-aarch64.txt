@@ -28,6 +28,7 @@ target_link_libraries(library-cpp-type_info-ut PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-unittest_main
   library-cpp-type_info
   library-cpp-yson

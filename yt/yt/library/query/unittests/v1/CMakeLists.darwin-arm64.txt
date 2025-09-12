@@ -18,6 +18,7 @@ add_executable(unittester-query-v1)
 target_link_libraries(unittester-query-v1 PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   library-query-unittests

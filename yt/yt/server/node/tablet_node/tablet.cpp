@@ -2730,10 +2730,20 @@ i64 TTablet::Lock(ETabletLockType lockType)
 
 i64 TTablet::Unlock(ETabletLockType lockType)
 {
-    YT_ASSERT(TabletLockCount_[lockType] > 0);
+    YT_LOG_FATAL_IF(TabletLockCount_[lockType] <= 0 || TotalTabletLockCount_ <= 0,
+        "Attempted to unlock tablet with nonpositive lock count "
+        "(%v, LockType: %lv, TotalTabletLockCount: %v, LockCountPerType: %v)",
+        GetLoggingTag(),
+        lockType,
+        TotalTabletLockCount_,
+        MakeFormattableView(
+            TEnumTraits<ETabletLockType>::GetDomainValues(),
+            [&] (auto* builder, auto lockType) {
+                builder->AppendFormat("%lv: %v", lockType, TabletLockCount_[lockType]);
+            }));
+
     --TabletLockCount_[lockType];
 
-    YT_ASSERT(TotalTabletLockCount_ > 0);
     return --TotalTabletLockCount_;
 }
 

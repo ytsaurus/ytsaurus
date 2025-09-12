@@ -156,7 +156,7 @@ public:
             Metric_,
             newMetric);
         Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
-            newMetric,
+            ParseSource(newMetric, EParseMode::Expression),
             ParameterizedBalancingAttributes);
     }
 

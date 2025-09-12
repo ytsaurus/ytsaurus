@@ -29,6 +29,7 @@ target_link_libraries(cuda_core_dump_simulator PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
 )
 

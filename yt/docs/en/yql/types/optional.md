@@ -7,7 +7,7 @@ The following operations are most often performed on optional data types:
 
 * [IS NULL](../syntax/expressions.md#is-null): Matching an empty value
 * [COALESCE](../builtins/basic.md#coalesce): Leave the filled values unchanged and replace `NULL` with the default value that follows
-* [UNWRAP](../builtins/basic.md#optional-ops): Extract the value of the original type from the optional data type, `T?`. is converted to `T`
+* [UNWRAP](../builtins/basic.md#optional-ops): Extract the value of the original type from the optional data type, `T?` is converted to `T`
 * [JUST](../builtins/basic#optional-ops): Add optionality to the current type, `T` is converted to `T?`.
 * [NOTHING](../builtins/basic.md#optional-ops): Create an empty value with the specified type.
 
@@ -40,9 +40,9 @@ SELECT
     False AND NULL,      -- Just(False)
     True AND NULL,       -- NULL   (more precise than Nothing<Bool?> – <unknown value of type Bool>)
     NULL OR NOT NULL,    -- NULL   (all NULLs are "different")
-    1 + NULL,            -- NULL   (Nothing<Int32?>) - the result of adding 1 together with
-                         --         unknown value of type Int)
-    1 == NULL,           -- NULL   (the result of adding 1 together with unknown value of type Int)
+    1 + NULL,            -- NULL   (Nothing<Int32?>) — the result of adding 1 together with
+                         --         an unknown Int value)
+    1 == NULL,           -- NULL   (the result of adding 1 together with an unknown Int value)
     (1, NULL) == (1, 2), -- NULL   (composite elements are compared by component
                          --         through `AND`)
     (2, NULL) == (1, 3), -- Just(False) (expression is equivalent to 2 == 1 AND NULL == 3)

@@ -34,6 +34,7 @@ target_link_libraries(columnar_merge PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   library-query-row_comparer
   yt-yt-core

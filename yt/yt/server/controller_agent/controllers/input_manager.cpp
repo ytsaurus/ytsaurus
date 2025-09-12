@@ -787,6 +787,7 @@ void TInputManager::FetchInputTablesAttributes()
                 Host_->GetInputTablePermission(),
                 TGetUserObjectBasicAttributesOptions{
                     .OmitInaccessibleColumns = Host_->GetSpec()->OmitInaccessibleColumns,
+                    .OmitInaccessibleRows = Host_->GetSpec()->OmitInaccessibleRows,
                     .PopulateSecurityTags = true,
                 });
         });
@@ -903,6 +904,13 @@ void TInputManager::FetchInputTablesAttributes()
             .ThrowOnError();
     }
 
+    for (const auto& [index, table] : SEnumerate(InputTables_)) {
+        table->RlsReadSpec = TRlsReadSpec::BuildFromRlAclAndTableSchema(
+            table->Schema,
+            table->RlAcl,
+            Logger().WithTag("TableIndex: %v", index));
+    }
+
     bool haveTablesWithEnabledDynamicStoreRead = false;
 
     for (const auto& [table, attributes] : tableAttributes) {
@@ -941,6 +949,8 @@ void TInputManager::FetchInputTablesAttributes()
             table->Revision,
             table->ContentRevision);
 
+        // NB(coteeq): This MUST happen after creation of table->RlsReadSpec.
+        // Otherwise we will mess up column names for RLS.
         if (!table->ColumnRenameDescriptors.empty()) {
             if (table->Path.GetTeleport()) {
                 THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
@@ -1057,6 +1067,11 @@ bool TInputManager::CanInterruptJobs() const
     }
 
     return !InputHasOrderedDynamicStores_ && !InputHasStaticTableWithHunks_;
+}
+
+bool TInputManager::HasRlAcl() const
+{
+    return AnyOf(InputTables_, [] (const auto& table) { return table->RlAcl.has_value(); });
 }
 
 const std::vector<TInputTablePtr>& TInputManager::GetInputTables() const

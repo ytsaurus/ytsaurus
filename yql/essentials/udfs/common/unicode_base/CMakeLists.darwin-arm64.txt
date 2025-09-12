@@ -27,6 +27,7 @@ target_compile_options(unicode_udf PRIVATE
 target_link_libraries(unicode_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-unicode_base-lib
@@ -66,6 +67,7 @@ target_compile_options(unicode_udf.global PRIVATE
 target_link_libraries(unicode_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   common-unicode_base-lib

@@ -26,6 +26,7 @@ target_compile_options(proxy-example PRIVATE
 target_link_libraries(proxy-example PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-profiling-solomon
 )
 

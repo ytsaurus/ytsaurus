@@ -15,7 +15,7 @@
 #include <yt/yt/core/concurrency/async_looper.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NChunkClient {
 
@@ -31,7 +31,7 @@ using namespace NRpc;
 
 using NYT::FromProto;
 
-void FormatValue(TStringBuilderBase* builder, const TScrapedChunkInfo& info, TStringBuf  /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TScrapedChunkInfo& info, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "ScrapedChunkInfo(ChunkId: %v, Replicas: %v, Availability: %v)",
@@ -43,6 +43,18 @@ void FormatValue(TStringBuilderBase* builder, const TScrapedChunkInfo& info, TSt
 std::ostream& operator<<(std::ostream& out, const TScrapedChunkInfo& info)
 {
     return out << Format("%v", info);
+}
+
+void FormatValue(TStringBuilderBase* builder, TChunkScraperAvailabilityPolicy policy, TStringBuf /*spec*/)
+{
+    Visit(
+        policy,
+        [&] (EChunkAvailabilityPolicy policy) {
+            builder->AppendFormat("%v", policy);
+        },
+        [&] (TMetadataAvailablePolicy) {
+            builder->AppendString("MetadataAvailable");
+        });
 }
 
 namespace {
@@ -392,12 +404,11 @@ private:
         auto& rsp = rspOrError.Value();
         YT_VERIFY(std::ssize(batch) == rsp->subresponses_size());
 
-        TEnumIndexedArray<EChunkAvailability, int> chunkAvailabilityCounters{};
+        TEnumIndexedArray<EChunkAvailability, int> chunkAvailabilityCounters;
         std::vector<TScrapedChunkInfo> chunkInfos;
         chunkInfos.reserve(batch.size());
-        for (auto [index, chunkId] : SEnumerate(batch)) {
-            const auto& chunkInfo = chunkInfos.emplace_back(
-                MakeScrapedChunkInfo(chunkId, rsp->subresponses(index)));
+        for (auto [chunkId, subresponse] : Zip(batch, rsp->subresponses())) {
+            const auto& chunkInfo = chunkInfos.emplace_back(MakeScrapedChunkInfo(chunkId, subresponse));
             UpdateQueue(chunkInfo);
             ++chunkAvailabilityCounters[chunkInfo.Availability];
         }
@@ -495,7 +506,13 @@ TChunkScraper::TChunkScraper(
     , OnChunkBatchLocated_(std::move(onChunkBatchLocated))
     , AvailabilityPolicy_(availabilityPolicy)
     , Logger(std::move(logger))
-{ }
+{
+    YT_LOG_INFO(
+        "Chunk scraper initialized (MaxChunksPerRequest: %v, AvailabilityPolicy: %v, IsUnavailableFirstQueue: %v)",
+        Config_->MaxChunksPerRequest,
+        AvailabilityPolicy_,
+        Config_->PrioritizeUnavailableChunks);
+}
 
 TChunkScraper::~TChunkScraper()
 {
@@ -505,18 +522,14 @@ TChunkScraper::~TChunkScraper()
 void TChunkScraper::Start()
 {
     if (!std::exchange(IsStarted_, true)) {
-        for (const auto& [_, task] : ScraperTasks_) {
-            task->Start();
-        }
+        std::ranges::for_each(ScraperTasks_ | std::views::values, &TScraperTask::Start);
     }
 }
 
 void TChunkScraper::Stop()
 {
     if (std::exchange(IsStarted_, false)) {
-        for (const auto& [_, task] : ScraperTasks_) {
-            task->Stop();
-        }
+        std::ranges::for_each(ScraperTasks_ | std::views::values, &TScraperTask::Stop);
     }
 }
 
@@ -527,14 +540,12 @@ TChunkScraper::TScraperTask& TChunkScraper::GetTaskForChunk(TChunkId chunkId)
         ScraperTasks_,
         cellTag,
         [&] {
-            auto throttler = ThrottlerManager_->GetThrottler(cellTag);
-            auto masterChannel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag);
             return New<TScraperTask>(
                 Config_,
                 SerializedInvoker_,
                 HeavyInvoker_,
-                std::move(throttler),
-                std::move(masterChannel),
+                ThrottlerManager_->GetThrottler(cellTag),
+                Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, cellTag),
                 NodeDirectory_,
                 cellTag,
                 OnChunkBatchLocated_,
@@ -563,17 +574,14 @@ void TChunkScraper::AddUnavailable(TChunkId chunkId)
 
 void TChunkScraper::Remove(TChunkId chunkId)
 {
-    auto cellTag = CellTagFromId(chunkId);
-
-    if (auto it = ScraperTasks_.find(cellTag); it != ScraperTasks_.end()) {
+    if (auto it = ScraperTasks_.find(CellTagFromId(chunkId)); it != ScraperTasks_.end()) {
         it->second->Remove(chunkId);
     }
 }
 
 void TChunkScraper::OnChunkBecameUnavailable(TChunkId chunkId)
 {
-    auto cellTag = CellTagFromId(chunkId);
-    if (auto it = ScraperTasks_.find(cellTag); it != ScraperTasks_.end()) {
+    if (auto it = ScraperTasks_.find(CellTagFromId(chunkId)); it != ScraperTasks_.end()) {
         it->second->OnChunkBecameUnavailable(chunkId);
     }
 }

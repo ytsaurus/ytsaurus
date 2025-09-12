@@ -20,14 +20,14 @@
 3. **RootAttributes** (`String`) -  строка со списком интересующих мета-атрибутов через точку с запятой (Пример: `"schema;row_count"`). По-умолчанию `""`.
 4. **PreHandler**  - лямбда, которая вызывается для списка потомков текущей директории после операции List (ссылки еще не зарезолвлены). Принимает список нод, текущее состояние, текущую глубину обхода, возвращает следующее состояние.
 
-    Сигнатура: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)`
+    Сигнатура: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)```
     TypeOf(InitialState) - выведенный тип InitialState.
 
     Реализация по-умолчанию: `($nodes, $state, $level) -> ($state)`
 
 5. **ResolveHandler** - лямбда, которая вызывается после `PreHandler`, принимает список ссылок-потомков текущей директории, текущее состояние, список запрошенных атрибутов для директории-предка, текущую глубину обхода. Возвращает `Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>` - тапл из списка ссылок, которые нужно посетить с запрашиваемыми мета-атрибутами и следующее состояние. Если ссылка сломана, WalkFolders ее проигнорирует, проверять на это в хендлере не нужно
 
-    Сигнатура: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>`
+    Сигнатура: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>```
 
     Реализация по умолчанию:
 
@@ -41,7 +41,7 @@
 
 6. **DiveHandler** - лямбда, которая вызывается после `ResolveHandler`, принимает список директорий-потомков текущей директории, текущее состояние, список запрошенных атрибутов для директории-предка, текущую глубину обхода. Возвращает `Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>` - тапл из списка директорий, которые нужно посетить (после обработки текущей директории) с запрашиваемыми мета-атрибутами и следующее состояние. Полученные пути ставятся в очередь на обход.
 
-    Сигнатура: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>`
+    Сигнатура: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), List<String>, Int32) -> Tuple<List<Tuple<String,String>>, TypeOf(InitialState)>```
 
     Реализация по умолчанию:
 
@@ -55,7 +55,7 @@
 
 7. **PostHandler** - лямбда, которая вызывается после `DiveHandler`, принимает список потомков текущей директории после разрешения ссылок, текущее состояние, текущую глубину обхода.
 
-    Сигнатура: `(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)`
+    Сигнатура: ```(List<Struct<'Path':String, 'Type':String, 'Attributes':Yson>>, TypeOf(InitialState), Int32) -> TypeOf(InitialState)```
 
     Реализация по-умолчанию: `($nodes, $state, $level) -> ($state)`
 

@@ -110,7 +110,8 @@ void TExperimentConfig::Register(TRegistrar registrar)
 
         // Check that query is well-formed.
         if (config->Filter) {
-            NOrm::NQuery::CreateFilterMatcher(*config->Filter);
+            NOrm::NQuery::CreateFilterMatcher(
+                NQueryClient::ParseSource(*config->Filter, NQueryClient::EParseMode::Expression));
         }
     });
 }
@@ -196,7 +197,7 @@ void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExper
         preparedExperiment->Config = experimentConfig;
         if (experimentConfig->Filter) {
             preparedExperiment->FilterMatcher = NOrm::NQuery::CreateFilterMatcher(
-                *experimentConfig->Filter);
+                NQueryClient::ParseSource(*experimentConfig->Filter, NQueryClient::EParseMode::Expression));
         }
         EmplaceOrCrash(preparedExperiments->Experiments, name, preparedExperiment);
     }

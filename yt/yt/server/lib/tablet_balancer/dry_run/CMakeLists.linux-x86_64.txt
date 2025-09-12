@@ -31,6 +31,7 @@ target_link_libraries(tablet-balancer-dry-mode PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   library-cpp-cpuid_check
   tablet_balancer-dry_run-lib
   cpp-getopt-small

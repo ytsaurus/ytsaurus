@@ -543,11 +543,9 @@ private:
         SpecTemplate_.QuerySettings->NeedOnlyDistinct = QueryAnalyzer_->NeedOnlyDistinct();
         SpecTemplate_.QuerySettings->EnableMinMaxOptimization = QueryAnalysisResult_->EnableMinMaxOptimization;
 
-        QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
-        QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);
-        if (QueryAnalysisResult_->JoinedByKeyColumns) {
-            QueryContext_->SetRuntimeVariable("joined_by_key_columns", QueryAnalysisResult_->JoinedByKeyColumns);
-        }
+        QueryContext_->MergeRuntimeVariables(QueryAnalysisResult_->AnalysisVariables);
+        QueryContext_->SetRuntimeVariable(
+            "query_processing_stage", DB::QueryProcessingStage::toString(ProcessingStage_));
 
         QueryInput_ = FetchInput(
             StorageContext_,
@@ -1436,6 +1434,11 @@ public:
     }
 
     // IStorageDistributor overrides.
+
+    std::string GetStorageName() const override
+    {
+        return getStorageID().getTableName();
+    }
 
     std::vector<TTablePtr> GetTables() const override
     {

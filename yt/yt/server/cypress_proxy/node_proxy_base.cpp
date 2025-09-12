@@ -12,7 +12,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
+TInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
 {
     TError error;
     try {
@@ -30,11 +30,11 @@ EInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
     AfterInvoke(context);
 
     if (!error.IsOK()) {
-        YT_VERIFY(InvokeResult_ == EInvokeResult::Executed);
+        YT_VERIFY(std::holds_alternative<TRequestExecutedPayload>(InvokeResult_));
         context->Reply(error);
     }
 
-    return InvokeResult_;
+    return std::move(InvokeResult_);
 }
 
 TNodeProxyBase::TNodeProxyBase(

@@ -3054,7 +3054,7 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
         auto locationUuid = removalJob->ChunkLocationUuid();
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
-        if (!location) {
+        if (!IsObjectAlive(location)) {
             YT_LOG_ALERT(
                 "Cannot reschedule chunk removal job; location not found "
                 "(Chunk: %v, LocationUuid: %v)",

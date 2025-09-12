@@ -29,6 +29,7 @@ target_link_libraries(upload_chunk PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-core
   yt-yt-client
   server-lib-io

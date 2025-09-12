@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/yson/public.h>
+
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NCypressClient {
@@ -54,6 +56,12 @@ void SetAllowResolveFromSequoiaObject(NRpc::NProto::TRequestHeader* header, bool
 
 //! Sets allow resolve from Sequoia object flag.
 void SetAllowResolveFromSequoiaObject(const NRpc::IClientRequestPtr& request, bool value);
+
+//! Sets target Sequoia node's effective acl.
+void SetSequoiaNodeEffectiveAcl(NRpc::NProto::TRequestHeader* header, const TString& effectiveAcl);
+
+//! Gets target Sequoia node's effective acl.
+std::optional<NYson::TYsonString> GetSequoiaNodeEffectiveAcl(const NRpc::NProto::TRequestHeader& header);
 
 //! Gets allow resolve from Sequoia object flag.
 bool GetAllowResolveFromSequoiaObject(const NRpc::NProto::TRequestHeader& header);

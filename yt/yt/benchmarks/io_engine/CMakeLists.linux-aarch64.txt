@@ -29,6 +29,7 @@ target_link_libraries(io_engine PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-server-node
   server-lib-io
   cpp-yt-phdr_cache

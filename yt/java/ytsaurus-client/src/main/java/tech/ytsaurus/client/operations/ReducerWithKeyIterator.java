@@ -6,6 +6,15 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
+/**
+ * Iterator that groups consecutive items by key.
+ * Call {@link #nextKey()} to select the next group key; then {@link #hasNext()}, {@link #next()} and
+ * the internal {@code getNext()} advance within the current group while item keys equal the selected
+ * group key. When the underlying key changes, {@link #hasNext()} becomes false until {@link #nextKey()}
+ * is called again.
+ * See also: {@code tech.ytsaurus.client.operations.ReducerWithKey} and
+ * {@code tech.ytsaurus.client.operations.ReduceOperationTest}.
+ */
 public class ReducerWithKeyIterator<TInput, TKey> implements Iterator<TInput> {
 
     private final Function<TInput, TKey> keyF;
@@ -25,6 +34,10 @@ public class ReducerWithKeyIterator<TInput, TKey> implements Iterator<TInput> {
         this.keyF = keyF;
     }
 
+    /**
+     * Selects and returns the next group key or {@code null} if there are no more items.
+     * Subsequent {@link #hasNext()}/{@link #next()} calls will iterate items with this key only.
+     */
     @Nullable
     public TKey nextKey() {
         if (eof) {
@@ -40,6 +53,9 @@ public class ReducerWithKeyIterator<TInput, TKey> implements Iterator<TInput> {
         return groupKey;
     }
 
+    /**
+     * Returns {@code true} while there are items in the current group selected by {@link #nextKey()}.
+     */
     @Override
     public boolean hasNext() {
         if (eof || !Objects.equals(groupKey, currentKey)) {
@@ -51,6 +67,10 @@ public class ReducerWithKeyIterator<TInput, TKey> implements Iterator<TInput> {
         return !eof && Objects.equals(groupKey, currentKey);
     }
 
+    /**
+     * Returns the next item from the current group.
+     * Throws {@link IllegalStateException} if the group is exhausted or {@link #nextKey()} was not called.
+     */
     @Override
     public TInput next() {
         if (!hasNext()) {

@@ -17,7 +17,7 @@ class TNodeProxyBase
     : public INodeProxy
 {
 public:
-    EInvokeResult Invoke(const ISequoiaServiceContextPtr& context) override;
+    TInvokeResult Invoke(const ISequoiaServiceContextPtr& context) override;
 
 protected:
     IBootstrap* const Bootstrap_;
@@ -29,7 +29,7 @@ protected:
     //! Most requests are executed on Cypress proxy, but there is a chance, that
     //! during the execution of a verb, it becomes apparent, that the request
     //! has to be handeled by master. This override exists for such cases.
-    EInvokeResult InvokeResult_ = EInvokeResult::Executed;
+    TInvokeResult InvokeResult_ = TRequestExecutedPayload{};
 
     TNodeProxyBase(
         IBootstrap* bootstrap,

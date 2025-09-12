@@ -26,6 +26,7 @@ target_compile_options(check_schema_compatibility PRIVATE
 target_link_libraries(check_schema_compatibility PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   yt-yt-ytlib
 )
 

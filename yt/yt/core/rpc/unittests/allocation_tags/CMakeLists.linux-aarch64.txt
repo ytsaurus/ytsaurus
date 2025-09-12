@@ -29,6 +29,7 @@ target_link_libraries(core-rpc-allocation-tags PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   contrib-libs-tcmalloc
   cpp-testing-gtest
   cpp-testing-gtest_main

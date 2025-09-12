@@ -30,6 +30,7 @@ target_include_directories(unittester-scheduler-simulator PRIVATE
 target_link_libraries(unittester-scheduler-simulator PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-tools-scheduler_simulator

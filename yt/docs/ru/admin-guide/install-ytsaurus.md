@@ -7,7 +7,7 @@ metadata:
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
-      content: 'https://ytsaurus.tech/docs/en/admin-guide/install-ytsaurus'
+      content: 'https://ytsaurus.tech/docs/ru/admin-guide/install-ytsaurus'
     - property: 'article:tag'
       content: 'k8s'
     - property: 'article:modified_time'

@@ -26,7 +26,9 @@ using NTableClient::EValueType;
 TEST(TExpressionEvaluatorTest, OrmSimple)
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
-    auto evaluator = CreateOrmExpressionEvaluator("double([/meta/x]) + 5 * double([/meta/y])", {"/meta"});
+    auto evaluator = CreateOrmExpressionEvaluator(
+        NQueryClient::ParseSource("double([/meta/x]) + 5 * double([/meta/y])", NQueryClient::EParseMode::Expression),
+        {"/meta"});
     auto value = evaluator->Evaluate(
         BuildYsonStringFluently().BeginMap()
             .Item("x").Value(1.0)
@@ -42,7 +44,7 @@ TEST(TExpressionEvaluatorTest, OrmManyArguments)
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateOrmExpressionEvaluator(
-        "int64([/meta/x]) + int64([/lambda/y/z]) + 16 + int64([/theta])",
+        NQueryClient::ParseSource("int64([/meta/x]) + int64([/lambda/y/z]) + 16 + int64([/theta])", NQueryClient::EParseMode::Expression),
         {"/meta", "/lambda/y", "/theta"});
     auto value = evaluator->Evaluate({
             BuildYsonStringFluently()
@@ -68,7 +70,7 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
     for (auto type : {EValueType::Max, EValueType::Min, EValueType::Null, EValueType::Composite}) {
         EXPECT_THROW_WITH_SUBSTRING(
             CreateOrmExpressionEvaluator(
-                "[/meta/type]",
+                NQueryClient::ParseSource("[/meta/type]", NQueryClient::EParseMode::Expression),
                 /*attributePaths*/ {
                     TTypedAttributePath{
                         .Path = "/meta/type",
@@ -101,7 +103,9 @@ TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
         },
     };
     auto createEvaluator = [&] (const TString& filter) {
-        return CreateOrmExpressionEvaluator(filter, typedAttributePaths);
+        return CreateOrmExpressionEvaluator(
+            NQueryClient::ParseSource(filter, NQueryClient::EParseMode::Expression),
+            typedAttributePaths);
     };
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -160,7 +164,9 @@ TEST(TExpressionEvaluatorTest, OrmManyFunctions)
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto evaluator = CreateOrmExpressionEvaluator(
-        "((((string([/meta/str_id]))||(\";\"))||(numeric_to_string(int64([/meta/i64_id]))))||(\";\"))||(regex_replace_first(\"u\", numeric_to_string(uint64([/meta/ui64_id])), \"\"))",
+        NQueryClient::ParseSource(
+            "((((string([/meta/str_id]))||(\";\"))||(numeric_to_string(int64([/meta/i64_id]))))||(\";\"))||(regex_replace_first(\"u\", numeric_to_string(uint64([/meta/ui64_id])), \"\"))",
+            NQueryClient::EParseMode::Expression),
         {"/meta"});
     auto value = evaluator->Evaluate(
         BuildYsonStringFluently()

@@ -376,6 +376,29 @@ JoinKeyLists ParseJoinKeyColumns(const DB::QueryTreeNodePtr& queryNode, const DB
     return lists;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression)
+{
+    if (!tableExpression) {
+        return nullptr;
+    }
+
+    DB::StoragePtr storage;
+    auto tableExpressionNodeType = tableExpression->getNodeType();
+    if (tableExpressionNodeType == DB::QueryTreeNodeType::TABLE) {
+        storage = tableExpression->as<DB::TableNode&>().getStorage();
+    } else if (tableExpressionNodeType == DB::QueryTreeNodeType::TABLE_FUNCTION) {
+        storage = tableExpression->as<DB::TableFunctionNode&>().getStorage();
+    } else {
+        return nullptr;
+    }
+
+    return std::dynamic_pointer_cast<IStorageDistributor>(storage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCheckInFunctionExistsVisitor
     : public DB::InDepthQueryTreeVisitor<TCheckInFunctionExistsVisitor>
 {
@@ -803,10 +826,10 @@ TQueryAnalyzer::TQueryAnalyzer(
 
 void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 {
-    YT_VERIFY(Join_ && !CrossJoin_ && Storages_.size() == 2);
+    YT_VERIFY(Join_ && !CrossJoin_ && !Storages_.empty());
 
     const auto& leftStorage = Storages_[0];
-    const auto& rightStorage = Storages_[1];
+    const auto& rightStorage = (Storages_.size() > 1 ? Storages_[1] : nullptr);
 
     const auto& leftTableSchema = *leftStorage->GetSchema();
     const auto& rightTableSchema = (rightStorage ? *rightStorage->GetSchema() : TTableSchema());
@@ -1069,39 +1092,37 @@ void TQueryAnalyzer::ParseQuery()
     for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
         const auto& tableExpression = TableExpressions_[tableExpressionIndex];
 
-        auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
+        auto storage = GetStorage(tableExpression);
         if (storage) {
             YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
                 tableExpression->toAST());
-            ++YtTableCount_;
+            Storages_.emplace_back(storage);
         } else {
             YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)",
                 tableExpression->toAST());
         }
     }
 
-    YT_VERIFY(YtTableCount_ > 0);
+    YT_VERIFY(!Storages_.empty());
 
     // In the case of a global join, the second table will materialize on read.
     // Therefore, there is no need to consider it as a table in further analysis.
-    if (YtTableCount_ == 2 && GlobalJoin_) {
-        YtTableCount_ = 1;
-        Storages_.back() = nullptr;
+    if (Storages_.size() == 2 && GlobalJoin_) {
+        Storages_.pop_back();
     }
 
-    if (YtTableCount_ == 2) {
+    if (Storages_.size() == 2) {
         if (!CrossJoin_) {
             YT_LOG_DEBUG("Query is a two-YT-table join");
             TwoYTTableJoin_ = true;
         } else {
             YT_LOG_DEBUG("Query is a two-YT-table cross join; considering this as a single YT table join");
-            YtTableCount_ = 1;
             TwoYTTableJoin_ = false;
             TableExpressions_.pop_back();
             Storages_.pop_back();
         }
     }
-    SecondaryQueryOperandCount_ = YtTableCount_;
+    SecondaryQueryOperandCount_ = Storages_.size();
     TableExpressionDataPtrs_.resize(TableExpressions_.size());
 
     YT_LOG_DEBUG(
@@ -1109,7 +1130,7 @@ void TQueryAnalyzer::ParseQuery()
         "IsJoin: %v, IsGlobalJoin: %v, IsRightOrFullJoin: %v, IsCrossJoin: %v)",
         *QueryInfo_.query,
         TableExpressions_.size(),
-        YtTableCount_,
+        Storages_.size(),
         Join_,
         GlobalJoin_,
         RightOrFullJoin_,
@@ -1262,7 +1283,7 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
         return;
     }
 
-    YT_VERIFY(YtTableCount_ == 1);
+    YT_VERIFY(Storages_.size() == 1);
     const auto& schema = Storages_[0]->GetSchema();
 
     // If the underlying table is not sorted we cannot help in any way.
@@ -1359,9 +1380,6 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
     for (int index = 0; index < SecondaryQueryOperandCount_; ++index) {
         const auto& storage = Storages_[index];
-        if (!storage) {
-            continue;
-        }
         result.Tables.emplace_back(storage->GetTables());
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
@@ -1436,7 +1454,13 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         result.PoolKind = (KeyColumnCount_ > 0 ? EPoolKind::Sorted : EPoolKind::Unordered);
         result.KeyColumnCount = KeyColumnCount_;
     }
-    result.JoinedByKeyColumns = JoinedByKeyColumns_;
+
+    result.AnalysisVariables->Set("pool_kind", result.PoolKind);
+    result.AnalysisVariables->Set("read_in_order_mode", result.ReadInOrderMode);
+    result.AnalysisVariables->Set("distribution_operands", BuildDistributionLogString(Storages_));
+    if (JoinedByKeyColumns_) {
+        result.AnalysisVariables->Set("joined_by_key_columns", JoinedByKeyColumns_);
+    }
 
     result.EnableMinMaxOptimization = EnableMinMaxOptimization_;
 
@@ -1504,25 +1528,6 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
         std::move(queryTreeToDistribute),
         std::move(tableSpecs),
         std::move(boundJoinOptions));
-}
-
-IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::QueryTreeNodePtr& tableExpression) const
-{
-    if (!tableExpression) {
-        return nullptr;
-    }
-
-    DB::StoragePtr storage;
-    auto tableExpressionNodeType = tableExpression->getNodeType();
-    if (tableExpressionNodeType == DB::QueryTreeNodeType::TABLE) {
-        storage = tableExpression->as<DB::TableNode&>().getStorage();
-    } else if (tableExpressionNodeType == DB::QueryTreeNodeType::TABLE_FUNCTION) {
-        storage = tableExpression->as<DB::TableFunctionNode&>().getStorage();
-    } else {
-        return nullptr;
-    }
-
-    return std::dynamic_pointer_cast<IStorageDistributor>(storage);
 }
 
 bool TQueryAnalyzer::HasJoinWithTwoTables() const

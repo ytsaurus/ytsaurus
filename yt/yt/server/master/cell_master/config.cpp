@@ -276,8 +276,6 @@ void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
-    registrar.Parameter("cell_manager", &TThis::CellManager)
-        .DefaultNew();
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
     registrar.Parameter("enable_timestamp_manager", &TThis::EnableTimestampManager)
@@ -398,8 +396,6 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_static_table_drop_column", &TThis::EnableStaticTableDropColumn)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_drop_column", &TThis::EnableDynamicTableDropColumn)
-        .Default(false);
-    registrar.Parameter("allow_everyone_create_secondary_indices", &TThis::AllowEveryoneCreateSecondaryIndices)
         .Default(false);
     registrar.Parameter("enable_secondary_index_copy", &TThis::EnableSecondaryIndexCopy)
         .Default(true);

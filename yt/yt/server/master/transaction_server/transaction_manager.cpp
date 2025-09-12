@@ -1563,9 +1563,7 @@ public:
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto state = transaction->GetState(persistent);
-        if (state != ETransactionState::Active) {
-            return;
-        }
+        YT_VERIFY(state == ETransactionState::Active);
 
         if (transaction->IsNative() &&
             GetDynamicConfig()->Testing->PrerequisiteCheckFailureDuringCommitOfTransactions.contains(transaction->GetId()))

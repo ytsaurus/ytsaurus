@@ -55,6 +55,7 @@ target_include_directories(clickhouse_client_udf PRIVATE
 target_link_libraries(clickhouse_client_udf PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   contrib-libs-cctz
@@ -496,6 +497,7 @@ target_include_directories(clickhouse_client_udf.global PRIVATE
 target_link_libraries(clickhouse_client_udf.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  build-cow-on
   essentials-public-udf
   public-udf-support
   contrib-libs-cctz
