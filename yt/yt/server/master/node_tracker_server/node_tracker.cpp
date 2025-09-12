@@ -1470,7 +1470,7 @@ private:
         SetNodeLocalState(node, FromProto<ENodeState>(request->node_state()));
         if (node->GetLocalState() == ENodeState::Registered) {
             if (isDataNode) {
-                dataNodeTracker->MakeLocationsOnline(node);
+                dataNodeTracker->MakeLocationsRegistered(node);
             }
 
             NodeRegistered_.Fire(node);

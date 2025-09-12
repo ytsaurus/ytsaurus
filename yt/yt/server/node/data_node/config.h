@@ -597,6 +597,8 @@ struct TDataNodeTestingOptions
     // Delay before execution of ProbeBlockSet RPC.
     std::optional<TDuration> DelayBeforeProbeBlockSetExecution;
 
+    bool IgnoreEmptyLocationsInFullHeartbeats;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);

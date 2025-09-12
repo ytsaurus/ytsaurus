@@ -72,7 +72,7 @@ class TestChunkLocations(YTEnvSetup):
         assert len(location_uuids) > 0
 
         for location_uuid in location_uuids:
-            with raises_yt_error("Location is online"):
+            with raises_yt_error("Location is Online"):
                 remove("//sys/chunk_locations/{}".format(location_uuid))
 
     @authors("babenko")
