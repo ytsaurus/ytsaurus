@@ -4,7 +4,7 @@
 #include "schemeshard_path_element.h"
 
 #include <contrib/ydb/core/base/path.h>
-#include <contrib/ydb/core/base/table_vector_index.h>
+#include <contrib/ydb/core/base/table_index.h>
 #include <contrib/ydb/core/mind/hive/hive.h>
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>

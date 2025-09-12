@@ -3,6 +3,7 @@ LIBRARY()
 PEERDIR(
     contrib/ydb/library/actors/core
     contrib/ydb/library/yql/dq/actors/compute
+    contrib/ydb/library/yql/dq/comp_nodes/hash_join_utils
     contrib/ydb/library/yql/dq/runtime
     yql/essentials/minikql/comp_nodes
     yql/essentials/minikql/computation
