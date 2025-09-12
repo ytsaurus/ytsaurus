@@ -191,6 +191,11 @@ void TChunkBase::AcquireUpdateLock()
         Id_);
 }
 
+i64 TChunkBase::GetReadLockCounter() const
+{
+    return ReadLockCounter_.load();
+}
+
 void TChunkBase::ReleaseUpdateLock()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -308,20 +313,6 @@ void TChunkBase::StartReadSession(
 
     session->Options = options;
     session->ChunkReadGuard = TChunkReadGuard::Acquire(this);
-    auto dynamicLongLiveReadSessionThreshold = Context_->DynamicConfigManager->GetConfig()->DataNode->LongLiveReadSessionThreshold;
-    auto longLiveReadSessionThreshold = dynamicLongLiveReadSessionThreshold.value_or(Context_->DataNodeConfig->LongLiveReadSessionThreshold);
-    session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(longLiveReadSessionThreshold)
-        .Apply(BIND([weakSession = MakeWeak(session), chunkId = GetId()] (const TError& error) {
-            if (error.IsOK()) {
-                YT_LOG_ALERT_IF(!weakSession.IsExpired(),
-                    "Long live read session (ChunkId: %v)",
-                    chunkId);
-            } else {
-                YT_LOG_TRACE(error,
-                    "Session completed before timeout (ChunkId: %v)",
-                    chunkId);
-            }
-        }));
 }
 
 void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)
