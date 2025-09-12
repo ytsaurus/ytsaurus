@@ -133,6 +133,7 @@ for line in sys.stdin:
 
 
 class TestPerLocationFullHeartbeats(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False
     NUM_MASTERS = 1
     NUM_NODES = 1
     STORE_LOCATION_COUNT = 10
@@ -180,6 +181,50 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         for i in range(self.STORE_LOCATION_COUNT):
             remove(f"//tmp/t{i}")
 
+    @authors("grphil")
+    def test_empty_locations_are_reported(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "ignore_empty_locations_in_full_heartbeats": True,
+                },
+            }
+        })
+
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "offline")
+            set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "being_disposed")
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 20)
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", False)
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "ignore_empty_locations_in_full_heartbeats": False,
+                },
+            }
+        })
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", True)
+
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
     @authors("danilalexeev")
     def test_interrupt_full_heartbeat_session(self):
         self.create_chunk_on_every_medium()
@@ -191,7 +236,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         update_nodes_dynamic_config({
             "data_node": {
                 "testing_options": {
-                    "full_heartbeat_session_sleep_duration": 1000,
+                    "full_heartbeat_session_sleep_duration": 500,
                 },
             }
         })
@@ -206,6 +251,8 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", False)
 
         wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", True)
 
     @authors("grphil")
     def test_location_indexes_in_heartbeats(self):

@@ -368,7 +368,7 @@ struct IChunkManager
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat* response) = 0;
-    virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) = 0;
+    virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) noexcept = 0;
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
