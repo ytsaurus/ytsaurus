@@ -107,7 +107,7 @@ jobs:
           output_path=../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component query-tracker --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component query-tracker --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --install-nvidia-packages true
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/query-tracker:${{ steps.vars.outputs.IMAGE_TAG }}
