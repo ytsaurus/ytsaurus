@@ -1050,7 +1050,7 @@ public:
         if (QueryState->TxCtx->HasOlapTable && QueryState->TxCtx->HasOltpTable && QueryState->TxCtx->HasTableWrite
                 && !QueryState->TxCtx->EnableHtapTx.value_or(false) && !QueryState->IsSplitted()) {
             ReplyQueryError(Ydb::StatusIds::PRECONDITION_FAILED,
-                            "Write transactions that use both row-based and column-based tables are disabled at current time.");
+                            "Write transactions that use both row-oriented and column-oriented tables are disabled at current time.");
             return false;
         }
         if (QueryState->TxCtx->EffectiveIsolationLevel == NKikimrKqp::ISOLATION_LEVEL_SNAPSHOT_RW
@@ -1845,6 +1845,16 @@ public:
                 stats.MutableExecutions()->MergeFrom(executionStats.GetExecutions());
                 ev->Get()->Record.SetQueryPlan(SerializeAnalyzePlan(stats, QueryState->UserRequestContext->PoolId));
                 stats.SetDurationUs((TInstant::Now() - QueryState->StartTime).MicroSeconds());
+
+                if (QueryState->GetStatsMode() >= Ydb::Table::QueryStatsCollection::STATS_COLLECTION_FULL) {
+                    if (const auto compileResult = QueryState->CompileResult) {
+                        if (const auto preparedQuery = compileResult->PreparedQuery) {
+                            if (const auto& queryAst = preparedQuery->GetPhysicalQuery().GetQueryAst()) {
+                                ev->Get()->Record.SetQueryAst(queryAst);
+                            }
+                        }
+                    }
+                }
             }
 
             LOG_D("Forwarded TEvExecuterProgress to " << QueryState->RequestActorId);

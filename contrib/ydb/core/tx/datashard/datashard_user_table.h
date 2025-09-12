@@ -1,7 +1,7 @@
 #pragma once
 
 #include <contrib/ydb/core/base/storage_pools.h>
-#include <contrib/ydb/core/base/table_vector_index.h>
+#include <contrib/ydb/core/base/table_index.h>
 #include <contrib/ydb/core/scheme/scheme_tabledefs.h>
 #include <contrib/ydb/core/tablet_flat/flat_database.h>
 #include <contrib/ydb/core/tablet_flat/flat_stat_table.h>

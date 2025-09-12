@@ -2,11 +2,11 @@
 
 #include <memory>
 
-#include <contrib/ydb/core/fq/libs/common/compression.h>
 #include <contrib/ydb/core/fq/libs/compute/common/config.h>
 #include <contrib/ydb/core/fq/libs/compute/common/run_actor_params.h>
 #include <contrib/ydb/core/fq/libs/shared_resources/shared_resources.h>
 #include <contrib/ydb/core/fq/libs/ydb/ydb.h>
+#include <contrib/ydb/core/kqp/proxy_service/script_executions_utils/kqp_script_execution_compression.h>
 
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/table/table.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/query/query.h>
@@ -78,7 +78,7 @@ public:
     double CpuUsage = 0.0;
     TPublicStat PublicStat;
 private:
-    const TCompressor Compressor;
+    const NKikimr::NKqp::TCompressor Compressor;
     std::unique_ptr<IPlanStatProcessor> Processor;
     bool ShowQueryTimeline = false;
     ui64 MaxQueryTimelineSize = 0;
