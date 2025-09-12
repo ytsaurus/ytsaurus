@@ -16,5 +16,15 @@
                 },
             ],
         },
+        "build::server_tools": {
+            "targets": [
+                "yt/python/yt/environment/bin/init_operations_archive",
+                "yt/python/yt/environment/bin/init_queue_agent_state",
+            ],
+            "build_type": "release",
+            "target-platforms": [
+                "default-linux-x86_64",
+            ],
+        },
     },
 }
