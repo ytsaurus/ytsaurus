@@ -22,7 +22,9 @@ import yt.yson as yson
 import pytest
 from flaky import flaky
 
+import io
 import time
+import zstandard as zstd
 from collections import defaultdict
 
 ##################################################################
@@ -1465,3 +1467,71 @@ class TestEnableMultipleJobsOption(YTEnvSetup):
 
 
 ##################################################################
+
+@pytest.mark.enabled_multidaemon
+class TestControllerAgentTraceLogging(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("enable_trace_logging", [True, False])
+    def test_trace_logging(self, enable_trace_logging):
+        create("table", "//tmp/in1")
+        write_table(
+            "//tmp/in1",
+            [{"key": 0, "value": 1}],
+            sorted_by="key",
+        )
+
+        op = reduce(
+            in_=["//tmp/in1"],
+            out=["<sorted_by=[key];create=true>//tmp/out"],
+            reduce_by="key",
+            command="cat",
+            spec={
+                "reducer": {"format": "dsv"},
+                "enable_trace_logging": enable_trace_logging,
+            },
+        )
+
+        # Find debug log file.
+        writers = self.Env.configs["controller_agent"][0]["logging"]["writers"]
+        debug_log_file = None
+        for writer_name, writer_config in writers.items():
+            if "debug" in writer_name:
+                debug_log_file = writer_config["file_name"]
+                break
+
+        assert debug_log_file is not None
+
+        # Read and decompress log file.
+        with open(debug_log_file, "rb") as compressed_file:
+            decompressor = zstd.ZstdDecompressor()
+            with decompressor.stream_reader(compressed_file) as binary_reader:
+                logfile = io.TextIOWrapper(binary_reader, encoding="utf-8", errors="ignore")
+
+                operation_trace_count = 0
+                other_trace_count = 0
+                is_debug = False
+
+                for line in logfile:
+                    if "Logging started" in line and "debug" in line:
+                        is_debug = True
+                    if '\tT\t' in line:
+                        if f'OperationId: {op.id}' in line:
+                            operation_trace_count += 1
+                        elif 'OperationId:' not in line:
+                            other_trace_count += 1
+
+        if not is_debug:
+            assert other_trace_count == 0
+        else:
+            # Trace logs are always enabled for debug builds.
+            assert other_trace_count > 0
+
+        # Verify trace logging behavior.
+        if enable_trace_logging or is_debug:
+            assert operation_trace_count > 0
+        else:
+            assert operation_trace_count == 0
