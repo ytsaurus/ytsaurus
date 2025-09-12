@@ -67,6 +67,8 @@ struct ISmoothMovementTracker
 {
     virtual void CheckTablet(TTablet* tablet) = 0;
     virtual void OnGotReplicatedContent(TTablet* tablet) = 0;
+
+    virtual void ValidateAgainstUnimplementedFeatures() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISmoothMovementTracker)
