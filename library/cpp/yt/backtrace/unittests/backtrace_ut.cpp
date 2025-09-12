@@ -4,9 +4,19 @@
 
 #include <library/cpp/yt/memory/safe_memory_reader.h>
 
+#include <library/cpp/yt/backtrace/backtrace.h>
+
+#include <library/cpp/yt/backtrace/cursors/dummy/dummy_cursor.h>
+
 #include <library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.h>
 
 #include <library/cpp/yt/backtrace/cursors/interop/interop.h>
+
+#include <library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.h>
+
+#include <util/generic/buffer.h>
+
+#include <util/generic/size_literals.h>
 
 #include <util/system/compiler.h>
 
@@ -53,6 +63,79 @@ TEST(TFramePointerCursor, FramePointerCursor)
     });
 
     ASSERT_THAT(backtrace, testing::SizeIs(testing::Ge(64u)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFn>
+Y_NO_INLINE void RunInFiber(TFn fn)
+{
+    struct TFiber
+        : public ITrampoLine
+    {
+        TFiber(TFn fn) noexcept
+            : Fn_(fn)
+            , Stack_(4_KB)
+            , Context_({this, TArrayRef(Stack_.Data(), Stack_.Capacity())})
+        { }
+
+        void Run()
+        {
+            CallerContext_.SwitchTo(&Context_);
+        }
+
+        void DoRun() override
+        {
+            (*Fn_)();
+            Context_.SwitchTo(&CallerContext_);
+        }
+
+        TFn Fn_;
+        TBuffer Stack_;
+        TExceptionSafeContext Context_;
+        TExceptionSafeContext CallerContext_;
+    };
+
+    TFiber fiber(fn);
+    fiber.Run();
+}
+
+template <class TCursor>
+class TCursorTest
+    : public ::testing::Test
+{ };
+
+using TCursorTypes = ::testing::Types<
+    TDummyCursor,
+    // FIXME(khlebnikov): It needs faster memory access and context constructor.
+    // TFramePointerCursor,
+    TLibunwindCursor
+>;
+
+TYPED_TEST_SUITE(TCursorTest, TCursorTypes);
+
+TYPED_TEST(TCursorTest, Simple)
+{
+    using TCursor = TypeParam;
+
+    TCursor cursor;
+    std::array<const void*, 16> buffer;
+
+    auto frames = GetBacktrace(&cursor, TMutableRange(buffer), 0);
+    Y_UNUSED(frames);
+}
+
+TYPED_TEST(TCursorTest, InFiber)
+{
+    using TCursor = TypeParam;
+
+    RunInFiber([] {
+        TCursor cursor;
+        std::array<const void*, 16> buffer;
+
+        auto frames = GetBacktrace(&cursor, TMutableRange(buffer), 0);
+        Y_UNUSED(frames);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
