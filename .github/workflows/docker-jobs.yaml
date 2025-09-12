@@ -89,7 +89,7 @@ jobs:
           output_path=../docker-${{ inputs.component}}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --install-nvidia-packages true
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/ytsaurus:${{ steps.vars.outputs.IMAGE_TAG }}
