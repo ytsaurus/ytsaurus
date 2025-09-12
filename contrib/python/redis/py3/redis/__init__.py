@@ -20,6 +20,7 @@ from redis.exceptions import (
     DataError,
     InvalidPipelineStack,
     InvalidResponse,
+    MaxConnectionsError,
     OutOfMemoryError,
     PubSubError,
     ReadOnlyError,
@@ -45,8 +46,7 @@ def int_or_str(value):
         return value
 
 
-# This version is used when building the package for publishing
-__version__ = "6.2.0"
+__version__ = "6.4.0"
 VERSION = tuple(map(int_or_str, __version__.split(".")))
 
 
@@ -66,6 +66,7 @@ __all__ = [
     "default_backoff",
     "InvalidPipelineStack",
     "InvalidResponse",
+    "MaxConnectionsError",
     "OutOfMemoryError",
     "PubSubError",
     "ReadOnlyError",
