@@ -312,6 +312,7 @@ public:
             config->PermissionCache,
             this,
             Profiler_.WithPrefix("/permission_cache"));
+        PermissionCache_->Initialize();
 
         UserAttributeCache_ = New<TUserAttributeCache>(
             config->UserAttributeCache,
