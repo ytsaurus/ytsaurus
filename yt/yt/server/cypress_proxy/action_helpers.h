@@ -58,6 +58,7 @@ NCypressClient::TNodeId CreateIntermediateMapNodes(
     NCypressClient::TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const NApi::TSuppressableAccessTrackingOptions& options,
+    const NYTree::IAttributeDictionary* inheritedAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
@@ -69,8 +70,10 @@ NCypressClient::TNodeId CreateIntermediateMapNodes(
 NCypressClient::TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const NSequoiaClient::TAbsolutePath& sourceRootPath,
+    const TNodeIdToAttributes& sourceInheritableAttributes,
     const NSequoiaClient::TAbsolutePath& destinationRootPath,
     NCypressClient::TNodeId destinationSubtreeParentId,
+    const NYTree::IAttributeDictionary* destinationInheritedAttributes,
     NCypressClient::TTransactionId cypressTransactionId,
     const TCopyOptions& options,
     const THashMap<NCypressClient::TNodeId, NYPath::TYPath>& subtreeLinks,

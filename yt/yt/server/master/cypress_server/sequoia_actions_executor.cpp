@@ -283,6 +283,8 @@ private:
             explicitAttributes = FromProto(request->node_attributes());
         }
 
+        auto inheritedAttributes = FromProto(request->inherited_attributes());
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
@@ -310,7 +312,7 @@ private:
         Y_UNUSED(nodeFactory->CreateNode(
             type,
             nodeId,
-            /*inheritedAttributes*/ nullptr,
+            inheritedAttributes.Get(),
             explicitAttributes.Get()));
         auto* node = cypressManager->GetNode({nodeId, cypressTransactionId});
         // This takes a strong reference for the newly-created node.
@@ -973,9 +975,9 @@ private:
             factoryOptions);
 
         // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
-        auto emptyInheritedAttributes = CreateEphemeralAttributes();
+        auto inheritedAttributes = FromProto(request->inherited_attributes());
         auto* sourceNode = cypressManager->GetVersionedNode(trunkSourceNode, cypressTransaction);
-        auto* destinationNode = nodeFactory->CloneNode(sourceNode, mode, emptyInheritedAttributes.Get(), destinationNodeId);
+        auto* destinationNode = nodeFactory->CloneNode(sourceNode, mode, inheritedAttributes.Get(), destinationNodeId);
         state->DestinationNode.Assign(destinationNode);
 
         PrepareSequoiaNodeCreation(

@@ -132,4 +132,32 @@ std::string BuildMultipleTransactionSelectCondition(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInheritedAttributesCalculator
+{
+public:
+    TInheritedAttributesCalculator() = default;
+
+    // As in "change dir" aka "cd" except that non-composite nodes can be entered, too.
+    // The nodes are supposed to be traversed pre-order, as induced by the result of FetchSubtree.
+    void ChangeNode(NSequoiaClient::TAbsolutePath path, const NYTree::IAttributeDictionary* inheritableAttributes);
+
+    const NYTree::IConstAttributeDictionaryPtr& GetCurrentInheritedAttributes() const;
+    const NYTree::IConstAttributeDictionaryPtr& GetParentInheritedAttributes() const;
+
+private:
+    struct TNodeDescriptor
+    {
+        NSequoiaClient::TAbsolutePath Path;
+        NYTree::IConstAttributeDictionaryPtr InheritedAttributes;
+    };
+
+    std::vector<TNodeDescriptor> Ancestry_;
+};
+
+NYTree::IConstAttributeDictionaryPtr CalculateInheritedAttributes(
+    TNodeAncestry ancestry,
+    const TNodeIdToAttributes& inheritableAttributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

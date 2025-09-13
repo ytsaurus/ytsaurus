@@ -116,6 +116,10 @@ struct TCypressNodeDescriptor
     NSequoiaClient::TAbsolutePath Path;
 };
 
+//! Represents a downward path to this node in a Sequoia tree.
+//! See #TSequoiaResolveResult::NodeAncestry.
+using TNodeAncestry = TRange<TCypressNodeDescriptor>;
+
 struct TCypressChildDescriptor
 {
     NCypressClient::TNodeId ParentId;
@@ -163,6 +167,10 @@ using TGroupDescriptorPtr = TSubjectDescriptorPtr;
 
 struct TUserDescriptor;
 using TUserDescriptorPtr = std::shared_ptr<const TUserDescriptor>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TNodeIdToAttributes = THashMap<NCypressClient::TNodeId, NYTree::IConstAttributeDictionaryPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
