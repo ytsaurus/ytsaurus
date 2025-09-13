@@ -2,11 +2,11 @@
 
 PROGRAM()
 
-VERSION(18.1.8)
-
 LICENSE(Apache-2.0 WITH LLVM-exception)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+VERSION(18.1.8)
 
 PEERDIR(
     contrib/libs/llvm18
@@ -19,7 +19,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/CodeGen
     contrib/libs/llvm18/lib/CodeGen/AsmPrinter
     contrib/libs/llvm18/lib/CodeGen/GlobalISel
-    contrib/libs/llvm18/lib/CodeGen/LowLevelType
     contrib/libs/llvm18/lib/CodeGen/SelectionDAG
     contrib/libs/llvm18/lib/DebugInfo/BTF
     contrib/libs/llvm18/lib/DebugInfo/CodeView
@@ -39,7 +38,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/MC/MCDisassembler
     contrib/libs/llvm18/lib/MC/MCParser
     contrib/libs/llvm18/lib/Object
-    contrib/libs/llvm18/lib/Passes
     contrib/libs/llvm18/lib/ProfileData
     contrib/libs/llvm18/lib/Remarks
     contrib/libs/llvm18/lib/Support
@@ -82,8 +80,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/TextAPI
     contrib/libs/llvm18/lib/Transforms/AggressiveInstCombine
     contrib/libs/llvm18/lib/Transforms/CFGuard
-    contrib/libs/llvm18/lib/Transforms/Coroutines
-    contrib/libs/llvm18/lib/Transforms/HipStdPar
     contrib/libs/llvm18/lib/Transforms/IPO
     contrib/libs/llvm18/lib/Transforms/InstCombine
     contrib/libs/llvm18/lib/Transforms/Instrumentation
@@ -91,8 +87,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/Transforms/Scalar
     contrib/libs/llvm18/lib/Transforms/Utils
     contrib/libs/llvm18/lib/Transforms/Vectorize
-    contrib/libs/llvm18/tools/polly/lib
-    contrib/libs/llvm18/tools/polly/lib/External/isl
 )
 
 ADDINCL(

@@ -2,17 +2,17 @@
 
 LIBRARY()
 
-VERSION(18.1.8)
-
 LICENSE(Apache-2.0 WITH LLVM-exception)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+VERSION(18.1.8)
 
 PEERDIR(
     contrib/libs/llvm18
     contrib/libs/llvm18/include
     contrib/libs/llvm18/lib/BinaryFormat
-    contrib/libs/llvm18/lib/CodeGen/LowLevelType
+    contrib/libs/llvm18/lib/CodeGen
     contrib/libs/llvm18/lib/MC
     contrib/libs/llvm18/lib/MC/MCDisassembler
     contrib/libs/llvm18/lib/Support
