@@ -16,5 +16,24 @@
                 },
             ],
         },
+        "build::gpu_agent": {
+            "targets": [
+                "yt/yt/gpuagent/cmd/agent",
+            ],
+            "build_type": "release",
+            "target-platforms": [
+                "default-linux-x86_64",
+            ],
+        },
+        "build::server_tools": {
+            "targets": [
+                "yt/python/yt/environment/bin/init_operations_archive",
+                "yt/python/yt/environment/bin/init_queue_agent_state",
+            ],
+            "build_type": "release",
+            "target-platforms": [
+                "default-linux-x86_64",
+            ],
+        },
     },
 }
