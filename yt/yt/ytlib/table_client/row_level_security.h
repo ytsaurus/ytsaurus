@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/core/phoenix/context.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/table_client/proto/row_level_security.pb.h>
@@ -40,10 +43,15 @@ public:
 
 private:
     struct TTrivialDeny
-    { };
+    {
+        inline void Persist(const auto& /*context*/)
+        { }
+    };
 
     TTableSchemaPtr TableSchema_;
     std::variant<TTrivialDeny, std::string> ExpressionOrTrivialDeny_ = TTrivialDeny{};
+
+    PHOENIX_DECLARE_TYPE(TRlsReadSpec, 0x01215125);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

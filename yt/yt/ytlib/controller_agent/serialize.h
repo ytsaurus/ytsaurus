@@ -75,6 +75,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistentCompletedRankCount)          (301903))
     ((JobEnvironmentPreparationStatistics)   (301904))
     ((RlsInOperations)                       (301905))
+    ((FixRlsSnapshots)                       (301906))
     // 25.4 starts here
     ((BumpTo_25_4)                           (302000))
 );
