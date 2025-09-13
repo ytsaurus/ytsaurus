@@ -4,6 +4,8 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
+import "yt/server/master/cypress_server/proto/portal_manager.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqCreateScion
@@ -34,6 +36,13 @@ message TReqCreateScion
 message TReqRemoveRootstock
 {
     required NYT.NProto.TGuid rootstock_node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSynchronizeScions
+{
+    repeated TPortalExitInfo scion_infos = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

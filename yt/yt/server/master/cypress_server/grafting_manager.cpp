@@ -75,6 +75,15 @@ public:
             BIND_NO_PROPAGATE(&TGraftingManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateScion, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TGraftingManager::HydraSynchronizeScions, Unretained(this)));
+
+        SynchronizeScionsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::GraftingManager),
+            BIND(&TGraftingManager::OnSynchronizeScions, MakeWeak(this)));
+        SynchronizeScionsExecutor_->Start();
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TGraftingManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Initialize() override
@@ -162,6 +171,15 @@ private:
     TRootstockNodeMap RootstockNodes_;
     TScionNodeMap ScionNodes_;
 
+    NConcurrency::TPeriodicExecutorPtr SynchronizeScionsExecutor_;
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->CypressManager;
+        SynchronizeScionsExecutor_->SetPeriod(config->GraftSynchronizationPeriod);
+    }
+
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
     { }
 
@@ -196,6 +214,156 @@ private:
 
         RootstockNodes_.clear();
         ScionNodes_.clear();
+    }
+
+    void OnSynchronizeScions()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        if (!configManager->GetConfig()->CypressManager->EnableScionSynchronization) {
+            return;
+        }
+
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        THashMap<TCellTag, std::vector<TRootstockNode*>> rootstocksByCellTag;
+
+        for (auto [nodeId, node] : RootstockNodes_) {
+            rootstocksByCellTag[CellTagFromId(node->GetScionId())].push_back(node);
+        }
+
+        for (auto [scionCellTag, rootstocks] : rootstocksByCellTag) {
+            NProto::TReqSynchronizeScions request;
+
+            for (auto* node : rootstocks) {
+                YT_VERIFY(node->IsTrunk());
+                YT_VERIFY(CellTagFromId(node->GetScionId()) == scionCellTag);
+
+                const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+                auto* scionInfo = request.add_scion_infos();
+                ToProto(scionInfo->mutable_node_id(), node->GetScionId());
+
+                // Cf. #TPortalManager::OnSynchronizePortalExits.
+
+                auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->MutableAttributes());
+                ToProto(scionInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
+
+                auto effectiveAcl = securityManager->GetEffectiveAcl(node);
+                auto serializedEffectiveAcl = ConvertToYsonString(effectiveAcl).ToString();
+                scionInfo->set_effective_acl(serializedEffectiveAcl);
+
+                auto acd = securityManager->GetAcd(node);
+                scionInfo->set_direct_acl(ToProto(ConvertToYsonString(acd->Acl())));
+                scionInfo->set_inherit_acl(acd->Inherit());
+                scionInfo->set_owner(ToProto(acd->GetOwner()->GetName()));
+
+                if (auto annotationNode = FindClosestAncestorWithAnnotation(node)) {
+                    scionInfo->mutable_effective_annotation()->set_annotation(*annotationNode->TryGetAnnotation());
+                    scionInfo->mutable_effective_annotation()->set_annotation_path(
+                        cypressManager->GetNodePath(annotationNode, /*transaction*/ nullptr));
+                }
+            }
+
+            // NB: We do not actually need to know if this message was delivered,
+            // so we send this message with reliable = false in order to avoid mutation creating.
+            multicellManager->PostToMaster(request, scionCellTag, /*reliable*/ false);
+        }
+    }
+
+    TSubject* DeserializeOwner(const std::string& ownerName)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* owner = securityManager->FindSubjectByNameOrAlias(ownerName, /*activeLifeStageOnly*/ false);
+        if (!owner) {
+            YT_LOG_ALERT("Serialized subject is missing (SubjectNameOrAlias: %v)",
+                ownerName);
+        }
+
+        return owner;
+    }
+
+    void HydraSynchronizeScions(NProto::TReqSynchronizeScions* request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        int synchronizedScionsCount = 0;
+
+        for (const auto& scionInfo : request->scion_infos()) {
+            auto nodeId = FromProto<TObjectId>(scionInfo.node_id());
+            auto it = ScionNodes_.find(nodeId);
+            if (it == ScionNodes_.end()) {
+                YT_LOG_ERROR("Skipping unknown scion synchronization (NodeId: %v)",
+                    nodeId);
+                continue;
+            }
+
+            auto scionNode = it->second;
+
+            try {
+                auto inheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+                auto attributesDict = FromProto(scionInfo.effective_inheritable_attributes());
+                inheritableAttributes->MergeFrom(*attributesDict);
+
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                auto effectiveAcl = DeserializeAclOrAlert(
+                    ConvertToNode(TYsonString(scionInfo.effective_acl())),
+                    securityManager);
+                auto directAcl = DeserializeAclOrAlert(
+                    ConvertToNode(TYsonString(scionInfo.direct_acl())),
+                    securityManager);
+                auto* owner = DeserializeOwner(scionInfo.owner());
+
+                struct TAnnotationInfo
+                {
+                    std::string Annotation;
+                    TYPath Path;
+                };
+                std::optional<TAnnotationInfo> effectiveAnnotationInfo;
+                if (scionInfo.has_effective_annotation()) {
+                    effectiveAnnotationInfo = {
+                        .Annotation = scionInfo.effective_annotation().annotation(),
+                        .Path = scionInfo.effective_annotation().annotation_path(),
+                    };
+                }
+
+                // NB: Fields of exitNode are updated after protobuf parsing in order to avoid partial updating.
+                scionNode->EffectiveInheritableAttributes().emplace(inheritableAttributes->Attributes().ToPersistent());
+
+                {
+                    auto acd = securityManager->GetAcd(scionNode).AsMutable();
+                    acd->SetEntries(effectiveAcl);
+                    acd->SetInherit(scionInfo.inherit_acl());
+                    acd->SetOwner(owner);
+                }
+                scionNode->DirectAcd().SetEntries(directAcl);
+
+                if (effectiveAnnotationInfo) {
+                    scionNode->SetAnnotation(std::move(effectiveAnnotationInfo->Annotation));
+                    scionNode->EffectiveAnnotationPath() = std::move(effectiveAnnotationInfo->Path);
+                } else {
+                    scionNode->RemoveAnnotation();
+                    scionNode->EffectiveAnnotationPath().reset();
+                }
+
+                ++synchronizedScionsCount;
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Scion synchronization failed (ScionId: %v)",
+                    nodeId);
+                continue;
+            }
+        }
+
+        YT_LOG_DEBUG("Scions were synchronized (SuccessCount: %v, FailureCount: %v)",
+            synchronizedScionsCount,
+            request->scion_infos().size() - synchronizedScionsCount);;
     }
 
     void HydraCreateRootstock(

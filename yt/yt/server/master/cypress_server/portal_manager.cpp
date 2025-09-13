@@ -108,7 +108,7 @@ public:
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& config = configManager->GetConfig()->CypressManager;
-        SynchronizePortalExitsExecutor_->SetPeriod(config->PortalSynchronizationPeriod);
+        SynchronizePortalExitsExecutor_->SetPeriod(config->GraftSynchronizationPeriod);
     }
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig()
@@ -122,12 +122,6 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!IsLeader()) {
-            return;
-        }
-
-        const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& config = configManager->GetConfig()->CypressManager;
-        if (!config->EnablePortalSynchronization) {
             return;
         }
 

@@ -4621,7 +4621,7 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("avmatrosov")
     def test_annotation_portal(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 1000)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 1000)
         set("//portals/@annotation", "test")
 
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
