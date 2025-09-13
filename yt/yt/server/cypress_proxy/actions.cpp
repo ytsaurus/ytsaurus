@@ -232,6 +232,7 @@ void CreateNode(
     TNodeId parentId,
     TAbsolutePathBuf path,
     const IAttributeDictionary* explicitAttributes,
+    const IAttributeDictionary* inheritedAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -261,6 +262,9 @@ void CreateNode(
     ToProto(reqCreateNode.mutable_node_attributes(), *explicitAttributes);
     ToProto(reqCreateNode.mutable_transaction_id(), nodeId.TransactionId);
     ToProto(reqCreateNode.mutable_parent_id(), parentId);
+    if (inheritedAttributes) {
+        ToProto(reqCreateNode.mutable_inherited_attributes(), *inheritedAttributes);
+    }
     sequoiaTransaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
         MakeTransactionActionData(reqCreateNode));
@@ -272,6 +276,7 @@ TNodeId CopyNode(
     TNodeId destinationParentId,
     TTransactionId cypressTransactionId,
     const TCopyOptions& options,
+    const IAttributeDictionary* inheritedAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -303,6 +308,10 @@ TNodeId CopyNode(
     ToProto(reqCloneNode.mutable_options(), options);
     ToProto(reqCloneNode.mutable_dst_parent_id(), destinationParentId);
     ToProto(reqCloneNode.mutable_transaction_id(), cypressTransactionId);
+
+    if (inheritedAttributes) {
+        ToProto(reqCloneNode.mutable_inherited_attributes(), *inheritedAttributes);
+    }
 
     sequoiaTransaction->AddTransactionAction(cellTag, MakeTransactionActionData(reqCloneNode));
 

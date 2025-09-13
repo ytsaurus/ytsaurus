@@ -6,6 +6,7 @@
 #include "bootstrap.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
+#include "master_connector.h"
 #include "user_directory.h"
 
 #include <yt/yt/server/lib/sequoia/cypress_transaction.h>
@@ -13,6 +14,8 @@
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/record_helpers.h>
@@ -746,6 +749,59 @@ const TUserDescriptorPtr& TSequoiaSession::GetCurrentAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
+TNodeIdToAttributes TSequoiaSession::FetchInheritableAttributes(
+    TRange<TCypressNodeDescriptor> nodes,
+    bool duringCopy,
+    const NNative::IClientPtr& client)
+{
+    return FetchInheritableAttributes({nodes}, duringCopy, client);
+}
+
+TNodeIdToAttributes TSequoiaSession::FetchInheritableAttributes(
+    std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
+    bool duringCopy,
+    const NNative::IClientPtr& client)
+{
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
+    auto inheritableAttributeList = duringCopy
+        ? masterConnector->GetSupportedInheritableDuringCopyAttributeKeys()
+        : masterConnector->GetSupportedInheritableAttributeKeys();
+
+    auto requestTemplate = TYPathProxy::Get("/@");
+    ToProto(requestTemplate->mutable_attributes(), TAttributeFilter(*inheritableAttributeList));
+
+    std::vector<TNodeId> nodeIds(std::accumulate(
+        nodeRanges.begin(),
+        nodeRanges.end(),
+        size_t(0),
+        [] (size_t sum, const auto& range) { return sum + range.size(); }));
+    {
+        auto it = nodeIds.begin();
+        for (auto nodes : nodeRanges) {
+            std::ranges::transform(nodes, it, [] (const TCypressNodeDescriptor& node) { return node.Id; });
+            it += nodes.size();
+        }
+    }
+
+    auto batcher = TMasterYPathProxy::CreateGetBatcher(
+        client,
+        requestTemplate,
+        nodeIds,
+        GetCurrentCypressTransactionId());
+    auto nodeIdToRspOrError = WaitFor(batcher.Invoke())
+        .ValueOrThrow();
+
+    THashMap<TNodeId, IConstAttributeDictionaryPtr> inheritableAttributes;
+    inheritableAttributes.reserve(nodeIds.size());
+    for (const auto& [nodeId, rspOrError] : nodeIdToRspOrError) {
+        inheritableAttributes.emplace(
+            nodeId,
+            ConvertToAttributes(TYsonString(rspOrError.ValueOrThrow()->value())));
+    }
+
+    return inheritableAttributes;
+}
+
 void TSequoiaSession::AcquireCypressLockInSequoia(
     TNodeId nodeId,
     ELockMode mode)
@@ -967,16 +1023,18 @@ void TSequoiaSession::DetachAndRemoveSubtree(
 }
 
 TNodeId TSequoiaSession::CopySubtree(
-    const TSubtree& subtree,
+    const TSubtree& sourceSubtree,
+    const TNodeIdToAttributes& sourceInheritableAttributes,
     TAbsolutePathBuf destinationRoot,
-    TNodeId destinationParentId,
+    TNodeId destinationSubtreeRootParentId,
+    const IAttributeDictionary* destinationInheritedAttributes,
     const std::vector<TResolvedPrerequisiteRevision>& prerequisiteRevisions,
     const TCopyOptions& options)
 {
     // To copy simlinks properly we have to fetch their target paths.
 
     std::vector<TNodeId> linkIds;
-    for (const auto& node : subtree.Nodes) {
+    for (const auto& node : sourceSubtree.Nodes) {
         if (IsLinkType(TypeFromId(node.Id))) {
             linkIds.push_back(node.Id);
         }
@@ -988,10 +1046,12 @@ TNodeId TSequoiaSession::CopySubtree(
     auto links = GetLinkTargetPaths(linkIds);
 
     auto createdSubtreeRootId = NCypressProxy::CopySubtree(
-        subtree.Nodes,
-        subtree.Nodes[0].Path,
+        sourceSubtree.Nodes,
+        sourceSubtree.Nodes[0].Path,
+        sourceInheritableAttributes,
         destinationRoot,
-        destinationParentId,
+        destinationSubtreeRootParentId,
+        destinationInheritedAttributes,
         GetCurrentCypressTransactionId(),
         options,
         links,
@@ -999,7 +1059,7 @@ TNodeId TSequoiaSession::CopySubtree(
         SequoiaTransaction_);
 
     AttachChild(
-        {destinationParentId, GetCurrentCypressTransactionId()},
+        {destinationSubtreeRootParentId, GetCurrentCypressTransactionId()},
         createdSubtreeRootId,
         destinationRoot.GetBaseName(),
         /*options*/ {},
@@ -1204,6 +1264,7 @@ std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsolutePathBuf> paths
 TNodeId TSequoiaSession::CreateMapNodeChain(
     TAbsolutePathBuf startPath,
     TNodeId startId,
+    const IAttributeDictionary* inheritedAttributes,
     TRange<std::string> names,
     const TSuppressableAccessTrackingOptions& options)
 {
@@ -1226,6 +1287,7 @@ TNodeId TSequoiaSession::CreateMapNodeChain(
         {startId, GetCurrentCypressTransactionId()},
         names,
         options,
+        inheritedAttributes,
         ProgenitorTransactionCache_,
         SequoiaTransaction_);
 }
@@ -1234,6 +1296,7 @@ TNodeId TSequoiaSession::CreateNode(
     EObjectType type,
     TAbsolutePathBuf path,
     const IAttributeDictionary* explicitAttributes,
+    const IAttributeDictionary* inheritedAttributes,
     TNodeId parentId,
     const TSuppressableAccessTrackingOptions& options)
 {
@@ -1246,6 +1309,7 @@ TNodeId TSequoiaSession::CreateNode(
         parentId,
         path,
         explicitAttributes,
+        inheritedAttributes,
         ProgenitorTransactionCache_,
         SequoiaTransaction_);
 

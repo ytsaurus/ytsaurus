@@ -2183,10 +2183,17 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(dst_path)
 
     @authors("h0pless")
-    @not_implemented_in_sequoia
-    @pytest.mark.parametrize("enable_inheritance", [True, False])
-    @pytest.mark.parametrize("use_tx", [True, False])
+    @pytest.mark.parametrize("enable_inheritance,use_tx", [
+        (False, False),
+        (True, False),
+        (True, True),
+        # The permutation (False, True) does not test anything meaningful, it's
+        # fine to just skip it.
+    ])
     def test_inheritable_attributes(self, enable_inheritance, use_tx):
+        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA and not enable_inheritance:
+            pytest.skip()
+
         #                                                 portal_exit               attribute = A
         # starting_node         attribute = NONE          `-- starting_node         attribute = NONE
         # |-- map_node          attribute = B                 |-- map_node          attribute = B
@@ -2194,10 +2201,6 @@ class TestCrossCellCopy(YTEnvSetup):
         # |   `-- table_c_to_b  attribute = C       ->        |   `-- table_c_to_b  attribute = B
         # |-- table_c_to_a      attribute = C                 |-- table_c_to_a      attribute = A
         # `-- table_none_to_a   attribute = NONE              `-- table_none_to_a   attribute = A
-
-        # This permutation does not test anything meaningful, it's fine to just skip it.
-        if use_tx and not enable_inheritance:
-            pytest.skip()
 
         # For the sake of simplicity I used "chunk_merger_mode". Later this test can be expanded.
         attribute_not_found = "Attribute \"chunk_merger_mode\" is not found"

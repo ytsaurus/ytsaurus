@@ -28,6 +28,7 @@ message TReqCreateNode
     optional NYT.NYTree.NProto.TAttributeDictionary node_attributes = 4;
     optional NYT.NProto.TGuid transaction_id = 5;
     optional NYT.NProto.TGuid parent_id = 6;
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_attributes = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +55,7 @@ message TReqCloneNode
     required TCloneOptions options = 4;
     optional NYT.NProto.TGuid transaction_id = 5;
     optional NYT.NProto.TGuid dst_parent_id = 6;
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_attributes = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
