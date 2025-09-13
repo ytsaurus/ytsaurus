@@ -142,6 +142,9 @@ def start(args):
     coordinator_url = "http://localhost:" + str(coordinator_port)
     set_env("FMR_COORDINATOR_URL", coordinator_url)
 
+    # set fmr pool name for tests
+    set_env("FMR_POOL_NAME", "yql_test_pool")
+
     # starting workers
     for i in range(worker_nodes_num):
         worker_port = get_port_range(pid_filename=get_pid_filename(WORKER_PID_FILE, i))
