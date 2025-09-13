@@ -322,6 +322,8 @@ struct TDynamicDataNodeTrackerConfig
 
     bool EnableLocationIndexesInDataNodeHeartbeats;
 
+    bool VerifyAllLocationsAreReportedInFullHeartbeats;
+
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

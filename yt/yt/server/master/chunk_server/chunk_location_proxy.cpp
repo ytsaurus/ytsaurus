@@ -43,8 +43,9 @@ private:
         if (!location->GetNode()) {
             THROW_ERROR_EXCEPTION("Location is not bound to any node");
         }
-        if (location->GetState() == EChunkLocationState::Online) {
-            THROW_ERROR_EXCEPTION("Location is online");
+        if (location->GetState() == EChunkLocationState::Online ||
+            location->GetState() == EChunkLocationState::Registered) {
+            THROW_ERROR_EXCEPTION("Location is %v", location->GetState());
         }
     }
 

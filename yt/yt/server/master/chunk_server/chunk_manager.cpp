@@ -3109,6 +3109,10 @@ private:
             location->ReserveReplicas(stats.chunk_count());
         }
 
+        for (const auto& location : node->ChunkLocations()) {
+            location->SetState(EChunkLocationState::Online);
+        }
+
         // We've checked everything in TDataNodeTracker::HydraFullDataNodeHeartbeat.
 
         auto announceReplicaRequests = ProcessAddedReplicas(
@@ -3132,6 +3136,7 @@ private:
         // We've checked everything in TDataNodeTracker::HydraProcessLocationFullHeartbeat.
         auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
         location->ReserveReplicas(request->chunks_size());
+        location->SetState(EChunkLocationState::Online);
 
         auto announceReplicaRequests = ProcessAddedReplicas(
             node,
@@ -3144,10 +3149,22 @@ private:
             announceReplicaRequests);
     }
 
-    void FinalizeDataNodeFullHeartbeatSession(TNode* node) override
+    void FinalizeDataNodeFullHeartbeatSession(TNode* node) noexcept override
     {
         ChunkPlacement_->OnNodeRegistered(node);
         ChunkPlacement_->OnNodeUpdated(node);
+
+        for (const auto& location : node->ChunkLocations()) {
+            // The node may turn online at this point, so all locations should have ben checked before.
+            if (location->GetState() != EChunkLocationState::Online) {
+                YT_LOG_ALERT(
+                    "Data node has location with non online state (NodeId: %v, NodeAddress: %v, LocationId: %v, LocationState: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    location->GetId(),
+                    location->GetState());
+            }
+        }
 
         // Calculating the exact CRP token count for a node is hard because it
         // requires analyzing total space distribution for all nodes. This is

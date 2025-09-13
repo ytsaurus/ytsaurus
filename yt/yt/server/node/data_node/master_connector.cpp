@@ -195,7 +195,7 @@ public:
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
             const auto& location = chunk->GetLocation();
-            if (location->CanPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
+            if (!SkipLocationInHeartbeat(location) && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
                 ++perMediumChunkCounts[mediumIndex];
@@ -1223,8 +1223,10 @@ private:
             const auto& chunkStore = Bootstrap_->GetChunkStore();
             std::vector<TDataNodeTrackerServiceProxy::TReqLocationFullHeartbeatPtr> requests;
             for (const auto& [location, chunks] : chunkStore->GetPerLocationChunks()) {
-                if (!(location->CanPublish() &&
-                    (location->IsEnabled() || chunkStore->ShouldPublishDisabledLocations())))
+                if (SkipLocationInHeartbeat(location) || (
+                    chunks.empty() && (
+                        SkipLocationInStatistics(location) ||
+                        GetNodeDynamicConfig()->TestingOptions->IgnoreEmptyLocationsInFullHeartbeats)))
                 {
                     continue;
                 }
@@ -1345,16 +1347,11 @@ private:
         bool full = !chunkStore->Locations().empty();
 
         for (const auto& location : chunkStore->Locations()) {
-            if (!(location->CanPublish() &&
-                (location->IsEnabled() || chunkStore->ShouldPublishDisabledLocations()))) {
+            if (SkipLocationInStatistics(location)) {
                 continue;
             }
 
             auto mediumIndex = location->GetMediumDescriptor().Index;
-
-            if (mediumIndex == GenericMediumIndex) {
-                continue;
-            }
 
             totalAvailableSpace += location->GetAvailableSpace();
             totalLowWatermarkSpace += location->GetLowWatermarkSpace();
@@ -1412,6 +1409,28 @@ private:
         statistics->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
 
         statistics->set_max_write_sessions(Bootstrap_->GetConfig()->DataNode->MaxWriteSessions);
+    }
+
+    bool SkipLocationInHeartbeat(const TChunkLocationPtr& location) const {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        return !location->CanPublish() || (
+            !location->IsEnabled() &&
+            !chunkStore->ShouldPublishDisabledLocations());
+    }
+
+    bool SkipLocationInStatistics(const TStoreLocationPtr& location) const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (SkipLocationInHeartbeat(location)) {
+            return true;
+        }
+
+        auto mediumIndex = location->GetMediumDescriptor().Index;
+
+        return mediumIndex == GenericMediumIndex;
     }
 
     bool IsLocationWriteable(const TStoreLocationPtr& location) const

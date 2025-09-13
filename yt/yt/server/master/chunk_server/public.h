@@ -251,13 +251,15 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
 
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.
-    ((Offline) (0))
+    ((Offline)   (0))
     // Belongs to a node that is online and reports presence of this location.
-    ((Online)  (1))
+    ((Online)    (1))
     // Belongs to a node that is online but does not report presence of this location.
-    ((Dangling)(2))
+    ((Dangling)  (2))
     // The location is disposed. Can belong to any node, should be treated same way as Dangling.
-    ((Disposed)(3))
+    ((Disposed)  (3))
+    // Belongs to a node that is registered and no heartbeat was sent for this location.
+    ((Registered)(4))
 );
 
 DEFINE_ENUM(EChunkTreeBalancerMode,
