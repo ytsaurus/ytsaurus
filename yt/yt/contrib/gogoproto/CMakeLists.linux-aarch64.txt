@@ -53,7 +53,7 @@ target_sources(yt-contrib-gogoproto PRIVATE
 
 target_proto_outs(yt-contrib-gogoproto
   --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
 )
 
 target_proto_addincls(yt-contrib-gogoproto

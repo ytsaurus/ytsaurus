@@ -70,7 +70,7 @@ target_proto_messages(01_02_par_do_simple_proto PRIVATE
 
 target_proto_outs(01_02_par_do_simple_proto
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(01_02_par_do_simple_proto

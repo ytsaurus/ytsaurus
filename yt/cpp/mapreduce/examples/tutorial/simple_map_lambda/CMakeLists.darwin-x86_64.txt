@@ -71,7 +71,7 @@ target_proto_messages(simple_map_lambda PRIVATE
 
 target_proto_outs(simple_map_lambda
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(simple_map_lambda

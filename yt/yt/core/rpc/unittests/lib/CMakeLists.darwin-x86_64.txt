@@ -63,7 +63,7 @@ target_proto_messages(rpc-unittests-lib PRIVATE
 
 target_proto_outs(rpc-unittests-lib
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(rpc-unittests-lib

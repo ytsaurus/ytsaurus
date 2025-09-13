@@ -49,7 +49,7 @@ target_sources(roren-yt-proto PRIVATE
 
 target_proto_outs(roren-yt-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(roren-yt-proto

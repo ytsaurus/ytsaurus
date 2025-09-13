@@ -100,7 +100,7 @@ add_custom_command(
 
 target_proto_outs(yt-ytlib-query_tracker_client
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(yt-ytlib-query_tracker_client

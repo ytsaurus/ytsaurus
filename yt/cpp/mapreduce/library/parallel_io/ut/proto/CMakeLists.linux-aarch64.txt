@@ -60,7 +60,7 @@ target_sources(parallel_io-ut-proto PRIVATE
 
 target_proto_outs(parallel_io-ut-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(parallel_io-ut-proto

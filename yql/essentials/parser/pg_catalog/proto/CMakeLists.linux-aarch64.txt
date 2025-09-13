@@ -50,7 +50,7 @@ target_sources(parser-pg_catalog-proto PRIVATE
 
 target_proto_outs(parser-pg_catalog-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(parser-pg_catalog-proto
