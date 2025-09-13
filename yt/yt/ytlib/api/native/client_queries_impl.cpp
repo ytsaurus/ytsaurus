@@ -318,6 +318,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
         .EnginesInfo = rpcResponse.has_engines_info() ? std::optional(TYsonString(rpcResponse.engines_info())) : std::nullopt,
+        .ExpectedTablesVersion = rpcResponse.has_expected_tables_version() ? std::optional(rpcResponse.expected_tables_version()) : std::nullopt,
     };
 }
 

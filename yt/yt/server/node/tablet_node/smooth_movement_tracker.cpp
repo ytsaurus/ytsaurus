@@ -287,6 +287,111 @@ public:
             ESmoothMovementStage::TargetActivated);
     }
 
+    void ValidateAgainstUnimplementedFeatures() const override
+    {
+        std::vector<std::string> reasons;
+
+        constexpr int ExpectedMutationHandlerCount = 79;
+        if (Automaton_->GetRegisteredMethodCount() != ExpectedMutationHandlerCount) {
+            reasons.push_back(Format(
+                "new mutation handler registered (ExpectedCount: %v, ActualCount: %v)",
+                ExpectedMutationHandlerCount,
+                Automaton_->GetRegisteredMethodCount()));
+        }
+
+        auto validateProto = [&] (
+            const ::google::protobuf::Descriptor* descriptor,
+            int fieldCount,
+            int reservedFieldCount)
+        {
+            if (descriptor->field_count() != fieldCount) {
+                reasons.push_back(Format(
+                    "field count mismatch in protobuf (Name: %v, "
+                    "ExpectedCount: %v, ActualCount: %v)",
+                    descriptor->name(),
+                    fieldCount,
+                    descriptor->field_count()));
+            }
+
+            int actualReservedFieldCount = 0;
+            for (int index = 0; index < descriptor->reserved_range_count(); ++index) {
+                const auto* range = descriptor->reserved_range(index);
+                actualReservedFieldCount += range->end - range->start;
+            }
+
+            if (actualReservedFieldCount != reservedFieldCount) {
+                reasons.push_back(Format(
+                    "reserved field count mismatch in protobuf (Name: %v, "
+                    "ExpectedCount: %v, ActualCount: %v)",
+                    descriptor->name(),
+                    reservedFieldCount,
+                    actualReservedFieldCount));
+            }
+        };
+
+        validateProto(NProto::TReqMountTablet::GetDescriptor(),            30, 5);
+        validateProto(NProto::TReplicatableTabletContent::GetDescriptor(), 11, 0);
+        validateProto(NProto::TEssentialTabletContent::GetDescriptor(),     8, 0);
+        validateProto(NProto::TChunkViewDescriptor::GetDescriptor(),        5, 0);
+        validateProto(NProto::TAddStoreDescriptor::GetDescriptor(),         6, 0);
+        validateProto(NProto::TAddHunkChunkDescriptor::GetDescriptor(),     2, 0);
+        validateProto(NProto::TTableReplicaDescriptor::GetDescriptor(),     8, 0);
+        validateProto(NProto::TTableSettings::GetDescriptor(),             10, 0);
+        validateProto(NProto::TReqWriteRows::GetDescriptor(),              20, 0);
+        validateProto(NProto::TReqWriteDelayedRows::GetDescriptor(),       11, 0);
+        validateProto(NProto::TReqAlterTableReplica::GetDescriptor(),       6, 0);
+
+        /*
+           Essential parts of smooth tablet movement:
+             - Tablet content replication. Most of persistent data is sent to a
+               target servant at once. If you send a new portion of data to a
+               tablet in TReqMountTablet and want it to be replicated then
+               likely it should go into TReplicatableTabletContent.
+
+               Two relevant parts of code:
+               - TTabletManager::PrepareReplicateTabletContentRequest
+                 Populated at source servant. May throw on unsupported features.
+               - HydraReplcateTabletContent
+                 Executed at target servant. Must not throw.
+
+            - Mutation forwarding. Most mutations (particularly those affecting
+              a single tablet) are forwarded to a target servant via an avenue
+              channel. Roughly speaking, if your mutation does something simple
+              with a single tablet, it should be forwarded. To to do, use
+              RegisterForwardedMethod instead of RegisterMethod and ensure that
+              the mutation protobuf has a |tablet_id| field.
+
+              Some mutations (e.g. TReqWriteRows) are forwarded in a different
+              manner.
+
+              If your mutation affects multiple tablets, probably it should be
+              forwarded in a complicated way. See use cases of
+              MaybeForwardMutationToSiblingServant for details.
+
+            It is also recommended to write an integration test. Typically it
+            looks like this:
+
+                create_table_and_fill_with_new_data()
+
+                # Create tablet action, initiate smooth movement and
+                # replicate content. Relevant mutations are now forwarded.
+                with SmoothMovementHelper("//tmp/t").forwarding_context():
+                    issue_new_mutations_that_should_be_forwarded()
+
+                # Smooth movement finishes with the context.
+                check_that_everything_is_ok_with_moved_tablet()
+
+            When you've done, feel free to modify the constants that lead to
+            this message.
+         */
+
+        YT_LOG_FATAL_UNLESS(reasons.empty(),
+            "Please ensure that the added persistent feature works well with smooth "
+            "tablet movement. Refer to the place of code where this message is located "
+            "to see all necessary requirements. Failure reason: %v",
+            reasons);
+    }
+
 private:
     const ISmoothMovementTrackerHostPtr Host_;
 

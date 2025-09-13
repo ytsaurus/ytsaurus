@@ -528,6 +528,8 @@ public:
         TabletManager_->Initialize();
         HunkTabletManager_->Initialize();
         TabletCellWriteManager_->Initialize();
+
+        SmoothMovementTracker_->ValidateAgainstUnimplementedFeatures();
     }
 
     void RegisterRpcServices() override

@@ -614,6 +614,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("delay_before_probe_block_set_execution", &TThis::DelayBeforeProbeBlockSetExecution)
         .Default();
+
+    registrar.Parameter("ignore_empty_locations_in_full_heartbeats", &TThis::IgnoreEmptyLocationsInFullHeartbeats)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

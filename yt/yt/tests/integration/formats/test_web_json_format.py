@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, insert_rows, select_rows, read_table, write_table, reshard_table,
     sync_create_cells, sync_mount_table,
-    sync_unmount_table)
+    sync_unmount_table, get_supported_features)
 
 from yt_type_helpers import optional_type, variant_tuple_type, list_type, struct_type, make_schema
 
@@ -597,3 +597,17 @@ class TestWebJsonFormat(YTEnvSetup):
         assert output["incomplete_columns"] == "false"
         assert output["incomplete_all_column_names"] == "false"
         assert output["all_column_names"] == [encoded_column_name.decode("utf-8")]
+
+
+@pytest.mark.enabled_multidaemon
+class TestStructuredWebJsonFormat(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("rp-1")
+    def test_web_json_feature(self):
+        features = get_supported_features()
+
+        assert "structured_web_json" in features
+        assert features["structured_web_json"] == yson.YsonBoolean(True)

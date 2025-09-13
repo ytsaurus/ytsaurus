@@ -87,7 +87,7 @@ TRecord CreateSimpleQuery(const TQueryId& queryId, ui64 startTime = 0, const std
         .AccessControlObjects = ConvertToYsonString(acos),
         .StartTime = TInstant::FromValue(startTime),
         .State = EQueryState::Draft,
-        .Progress = EmptyMap,
+        .Progress = "",
         .Annotations = EmptyMap,
         .Secrets = EmptyList,
     };
@@ -102,7 +102,7 @@ public:
         MockClient = New<TStrictMockClient>();
         MockTransaction = New<TStrictMockTransaction>();
 
-        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config);
+        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, 0);
 
         EXPECT_CALL(*MockClient, StartTransaction(_, _))
             .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
@@ -242,7 +242,7 @@ public:
     {
         MockClient = New<TStrictMockClient>();
         MockClient->SetTimestampProvider(CreateNoopTimestampProvider());
-        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config);
+        Proxy = CreateQueryTrackerProxy(MockClient, StateRoot, Config, 0);
     }
 
     void ExpectListQueriesGetAcoCalls(bool everyoneAcoExists, bool isSuperuser = false)

@@ -331,8 +331,7 @@ protected:
             const auto& channelFactory = Client_->GetChannelFactory();
             auto channel = channelFactory->CreateChannel(*address);
             TQueryServiceProxy proxy(channel);
-            // TODO(nadya02): Set the correct timeout here.
-            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+            proxy.SetDefaultTimeout(Config_->RequestTimeout);
 
             auto req = proxy.ReadDynamicStore();
             ToProto(req->mutable_store_id(), storeId);
@@ -925,7 +924,6 @@ protected:
             return;
         }
 
-
         auto now = TInstant::Now();
         if (LastLocateRequestTimestamp_ + Config_->LocateRequestBackoffTime > now) {
             auto locateDynamicStoreAsync = BIND(&TRetryingRemoteDynamicStoreReaderBase::DoLocateDynamicStore, MakeStrong(this), promise)
@@ -1071,7 +1069,6 @@ protected:
         ChunkReaderFallbackOccurred_ = true;
         return OpenCurrentReader();
     }
-
 
     void CombineDataStatistics(TDataStatistics* statistics, const TDataStatistics& delta) const
     {

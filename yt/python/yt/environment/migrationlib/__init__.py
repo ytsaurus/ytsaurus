@@ -215,7 +215,7 @@ class Conversion(object):
         whether to remove table_name if it exists
     """
 
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None, remove_table=False):
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None, remove_table=False, job_count=None):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
@@ -223,6 +223,7 @@ class Conversion(object):
         self.use_default_mapper = use_default_mapper
         self.filter_callback = filter_callback
         self.remove_table = remove_table
+        self.job_count = job_count
         if self.remove_table:
             assert self.table_info is None
 
@@ -264,6 +265,8 @@ class Conversion(object):
                 spec = {"data_size_per_job": 2 * 2**30}
                 if pool is not None:
                     spec["pool"] = pool
+                if self.job_count is not None:
+                    spec["job_count"] = self.job_count
                 client.run_map(mapper, source_table, target_table, spec=spec, ordered=not need_sort)
                 table_info.to_dynamic_table(client, target_table, pool)
                 client.set(target_table + "/@forced_compaction_revision", 1)

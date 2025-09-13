@@ -640,6 +640,11 @@ void TCompositeAutomaton::CheckInvariants()
     }
 }
 
+int TCompositeAutomaton::GetRegisteredMethodCount() const
+{
+    return MethodNameToDescriptor_.size();
+}
+
 void TCompositeAutomaton::SubscribeWaitTimeObserved(const IInvoker::TWaitTimeObserver& callback)
 {
     WaitTimeObserved_.Subscribe(callback);

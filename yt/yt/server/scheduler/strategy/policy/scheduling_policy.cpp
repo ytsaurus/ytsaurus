@@ -3544,7 +3544,7 @@ void TSchedulingPolicy::RunRegularSchedulingStage(
         "(NodeAddress: %v, ConsideredOperationCount: %v, CustomMinSpareAllocationResources: %v, "
         "OneAllocationOnly: %v, IgnorePacking: %v)",
         context->SchedulingHeartbeatContext()->GetNodeDescriptor()->GetDefaultAddress(),
-        parameters.ConsideredOperations ? static_cast<int>(std::ssize(*parameters.ConsideredOperations)) : 0,
+        parameters.ConsideredOperations.transform([] (const auto& operations) { return operations.size(); }),
         parameters.CustomMinSpareAllocationResources,
         parameters.OneAllocationOnly,
         parameters.IgnorePacking);

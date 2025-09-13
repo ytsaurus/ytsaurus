@@ -630,7 +630,6 @@ SRCS(
     scipy/odr/odrpack/d_lpk.f
     scipy/odr/odrpack/d_mprec.f
     scipy/odr/odrpack/d_odr.f
-    scipy/odr/odrpack/d_test.f
     scipy/odr/odrpack/dlunoc.f
     scipy/optimize/__lbfgsb.c
     scipy/optimize/__minpack.c

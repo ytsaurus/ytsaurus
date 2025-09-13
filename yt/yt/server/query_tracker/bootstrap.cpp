@@ -261,7 +261,8 @@ private:
         QueryTrackerProxy_ = CreateQueryTrackerProxy(
             NativeClient_,
             Config_->Root,
-            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig);
+            DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig,
+            Config_->MinRequiredStateVersion);
 
         ComponentStateChecker_ = CreateComponentStateChecker(
             ControlInvoker_,

@@ -957,7 +957,8 @@ def _build_controller_agent_configs(multidaemon_config_output,
                           "controller-agent-" + str(index),
                           singletons_config.setdefault("logging", {}),
                           yt_config,
-                          has_structured_logs=True)
+                          has_structured_logs=True,
+                          debug_logging_min_level="trace")
 
         init_jaeger_collector(singletons_config, "controller_agent", {"controller_agent_index": str(index)})
 
@@ -2042,7 +2043,8 @@ def _init_logging(path, name, logging_config, yt_config,
                   log_errors_to_stderr=False,
                   has_structured_logs=False,
                   enable_log_compression=None,
-                  use_name_in_writer_name=True):
+                  use_name_in_writer_name=True,
+                  debug_logging_min_level="debug"):
     if enable_log_compression is None:
         enable_log_compression = yt_config.enable_log_compression
     return init_logging(
@@ -2054,7 +2056,8 @@ def _init_logging(path, name, logging_config, yt_config,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr,
-        use_name_in_writer_name=use_name_in_writer_name)
+        use_name_in_writer_name=use_name_in_writer_name,
+        debug_logging_min_level=debug_logging_min_level)
 
 
 def init_logging(path, name,
@@ -2065,7 +2068,8 @@ def init_logging(path, name,
                  enable_structured_logging=False,
                  abort_on_alert=None,
                  log_errors_to_stderr=False,
-                 use_name_in_writer_name=True):
+                 use_name_in_writer_name=True,
+                 debug_logging_min_level="debug"):
     def _get_writer_name(writer_name):
         if use_name_in_writer_name:
             return f"{writer_name}-{name}"
@@ -2130,7 +2134,7 @@ def init_logging(path, name,
     if enable_debug_logging:
         writer_name = _get_writer_name("debug")
         logging_config["rules"].append({
-            "min_level": "debug",
+            "min_level": debug_logging_min_level,
             "family": "plain_text",
             "exclude_categories": ["Bus", "Concurrency"],
             "writers": [writer_name],

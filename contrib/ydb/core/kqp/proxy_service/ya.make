@@ -4,7 +4,6 @@ SRCS(
     kqp_proxy_service.cpp
     kqp_proxy_databases_cache.cpp
     kqp_proxy_peer_stats_calculator.cpp
-    kqp_script_execution_retries.cpp
     kqp_script_executions.cpp
     kqp_session_info.cpp
 )
@@ -22,6 +21,7 @@ PEERDIR(
     contrib/ydb/core/kqp/counters
     contrib/ydb/core/kqp/gateway/behaviour/resource_pool_classifier
     contrib/ydb/core/kqp/proxy_service/proto
+    contrib/ydb/core/kqp/proxy_service/script_executions_utils
     contrib/ydb/core/kqp/run_script_actor
     contrib/ydb/core/kqp/workload_service
     contrib/ydb/core/mind
@@ -46,6 +46,10 @@ PEERDIR(
 YQL_LAST_ABI_VERSION()
 
 END()
+
+RECURSE(
+    script_executions_utils
+)
 
 RECURSE_FOR_TESTS(
     ut

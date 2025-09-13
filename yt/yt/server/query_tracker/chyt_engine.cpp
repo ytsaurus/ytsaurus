@@ -60,6 +60,8 @@ public:
 
     std::optional<ui64> Instance;
 
+    TDuration QueryTimeout;
+
     THashMap<TString, TString> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
@@ -72,6 +74,8 @@ public:
             .Default();
         registrar.Parameter("instance", &TThis::Instance)
             .Default();
+        registrar.Parameter("query_timeout", &TThis::QueryTimeout)
+            .Default(DefaultChytQueryTimeout);
         registrar.Parameter("query_settings", &TThis::QuerySettings)
             .Default();
         registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -295,8 +299,9 @@ private:
 
         auto instanceChannel = GetChannelForInstance();
         TQueryServiceProxy proxy(instanceChannel);
-        // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+        // NB: CHYT has its own internal timeout setting (max_execution_time) for queries,
+        // but for safety reasons we need to further limit the rpc request.
+        proxy.SetDefaultTimeout(Settings_->QueryTimeout);
 
         auto req = proxy.ExecuteQuery();
 

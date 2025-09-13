@@ -57,10 +57,10 @@ struct TDynamicCypressManagerConfig
 
     double DefaultExternalCellBias;
 
-    TDuration PortalSynchronizationPeriod;
+    TDuration GraftSynchronizationPeriod;
 
-    // COMPAT(kvk1920)
-    bool EnablePortalSynchronization;
+    // COMPAT(danilalexeev): YT-24575.
+    bool EnableScionSynchronization;
 
     bool EnableSymlinkCyclicityCheck;
 

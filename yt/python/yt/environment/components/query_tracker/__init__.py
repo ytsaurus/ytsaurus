@@ -51,8 +51,6 @@ class QueryTracker(YTServerComponentBase, YTComponent):
 
         wait(wait_tablet_cell_initialization)
 
-        init_query_tracker_state.create_tables_latest_version(self.client)
-
         logger.info("Query tracker prepared")
 
     def run(self):
@@ -80,6 +78,16 @@ class QueryTracker(YTServerComponentBase, YTComponent):
         }
         self.client.set(f"//sys/clusters/{self.env.id}/query_tracker", query_tracker_config)
         self.client.set("//sys/@cluster_connection/query_tracker", query_tracker_config)
+
+        wait(lambda: self.client.get_query_tracker_info(attributes=["expected_tables_version"]), ignore_exceptions=True)
+        tracker_info = self.client.get_query_tracker_info(attributes=["expected_tables_version"])
+
+        if "expected_tables_version" not in tracker_info:
+            init_query_tracker_state.create_tables_required_version(self.client, 16)
+        else:
+            init_query_tracker_state.create_tables_required_version(self.client, tracker_info["expected_tables_version"])
+
+        wait(lambda: len(self.client.get(f"//sys/query_tracker/instances/{self.addresses[0]}/orchid/alerts")) == 0)
 
         logger.info("Query tracker started")
 
