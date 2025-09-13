@@ -7,7 +7,6 @@ RECURSE(
     job_launcher
     process
     proto
-    recipe
     request_options
     table_data_service
     tests
@@ -16,6 +15,10 @@ RECURSE(
     worker
     yt_job_service
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE(recipe)
+ENDIF()
 
 RECURSE_FOR_TESTS(
     tests
