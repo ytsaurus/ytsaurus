@@ -774,6 +774,9 @@ private:
             FetcherInvoker_,
             Logger(),
             ClickHouseYtProfiler().WithPrefix("/table_columnar_statistics_cache"));
+
+        PermissionCache_->Initialize();
+        TableAttributeCache_->Initialize();
     }
 
     void InitializeReaderMemoryManager()
