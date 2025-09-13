@@ -69,7 +69,7 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
 
     auto fmrServices = MakeIntrusive<NFmr::TFmrServices>();
     fmrServices->FunctionRegistry = functionRegistry.Get();
-    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(false);
+    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{.RunInSeparateProcess = false});
     fmrServices->DisableLocalFmrWorker = false;
     fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();

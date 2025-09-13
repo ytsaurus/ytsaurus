@@ -18,6 +18,7 @@ protected:
     TString TableDataServiceDiscoveryFilePath_;
     TString FmrCoordinatorServerUrl_;
     bool DisableLocalFmrWorker_ = false;
+    TString FmrJobBin_;
 
 private:
     NFmr::IFmrWorker::TPtr FmrWorker_;
