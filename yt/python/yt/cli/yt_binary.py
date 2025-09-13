@@ -87,7 +87,7 @@ Transaction commands:
 ACL (permission) commands:
     check-permission, add-member, remove-member
 Operation tools:
-    shuffle, transform
+    shuffle, transform, convert
 Diagnostics:
     job-tool, download-core-dump
 Other commands:
@@ -2242,6 +2242,67 @@ def add_job_tool_parser(add_parser):
     yt_job_tool.create_job_tool_parser(parser)
 
 
+def convert_format(**kwargs):
+    """Convert data between JSON and YSON formats."""
+    from_format = kwargs.get("from_format")
+    to_format = kwargs.get("to_format")
+    without_attributes = kwargs.get("without_attributes", False)
+    pretty = kwargs.get("pretty", False)
+    
+    # Read from stdin
+    input_data = sys.stdin.read()
+    
+    try:
+        if from_format == "json" and to_format == "yson":
+            # JSON -> YSON
+            data = json.loads(input_data)
+            if without_attributes:
+                # Remove attributes if requested
+                if isinstance(data, dict) and "@" in data:
+                    del data["@"]
+            
+            if pretty:
+                output = yson.dumps(data, yson_format=True, indent=2)
+            else:
+                output = yson.dumps(data, yson_format=True)
+                
+        elif from_format == "yson" and to_format == "json":
+            # YSON -> JSON
+            data = yson.loads(input_data)
+            if without_attributes:
+                # Remove attributes if requested
+                if isinstance(data, dict) and "@" in data:
+                    del data["@"]
+            
+            if pretty:
+                output = json.dumps(data, indent=2, ensure_ascii=False)
+            else:
+                output = json.dumps(data, ensure_ascii=False)
+        else:
+            raise ValueError("Unsupported format conversion: {} -> {}".format(from_format, to_format))
+            
+        # Write to stdout
+        print(output, end="")
+        
+    except Exception as e:
+        print("Error converting data: {}".format(e), file=sys.stderr)
+        sys.exit(1)
+
+
+def add_convert_parser(add_parser):
+    parser = add_parser("convert",
+                       function=convert_format,
+                       pythonic_help="Convert data between JSON and YSON formats")
+    parser.add_argument("--from", dest="from_format", required=True, 
+                       choices=["json", "yson"], help="Source format")
+    parser.add_argument("--to", dest="to_format", required=True,
+                       choices=["json", "yson"], help="Target format")
+    parser.add_argument("--without-attributes", action="store_true",
+                       help="Remove attributes from the data")
+    parser.add_argument("--pretty", action="store_true",
+                       help="Format output with indentation")
+
+
 def run_compression_benchmarks(**kwargs):
     yt_run_compression_benchmarks.run_compression_benchmarks(**kwargs)
 
@@ -3082,6 +3143,8 @@ def _prepare_parser():
     add_transform_parser(add_parser)
 
     add_job_tool_parser(add_parser)
+
+    add_convert_parser(add_parser)
 
     add_compression_benchmark_parser(add_parser)
 
