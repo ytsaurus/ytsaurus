@@ -318,6 +318,7 @@ private:
         RpcServer_->RegisterService(CreateAdminService(
             ControlInvoker_,
             coreDumper,
+            NativeConnection_->GetChannelFactory(),
             NativeAuthenticator_));
         RpcServer_->RegisterService(CreateOrchidService(
             orchidRoot,

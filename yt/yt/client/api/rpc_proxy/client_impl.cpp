@@ -2020,6 +2020,13 @@ TFuture<void> TClient::KillProcess(
     ThrowUnimplemented("KillProcess");
 }
 
+TFuture<TPingNodeResult> TClient::PingNode(
+    const std::string& /*nodeAddress*/,
+    const TPingNodeOptions& /*options*/)
+{
+    ThrowUnimplemented("PingNode");
+}
+
 TFuture<TString> TClient::WriteCoreDump(
     const std::string& /*address*/,
     const TWriteCoreDumpOptions& /*options*/)
