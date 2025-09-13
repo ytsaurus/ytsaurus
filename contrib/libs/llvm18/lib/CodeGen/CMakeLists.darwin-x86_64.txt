@@ -12,7 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(LowLevelType)
 add_subdirectory(AsmPrinter)
 add_subdirectory(GlobalISel)
 add_subdirectory(SelectionDAG)
@@ -35,7 +34,6 @@ target_link_libraries(llvm18-lib-CodeGen PUBLIC
   llvm18-lib-Analysis
   lib-Bitcode-Reader
   lib-Bitcode-Writer
-  lib-CodeGen-LowLevelType
   llvm18-lib-IR
   llvm18-lib-MC
   llvm18-lib-ProfileData
@@ -130,6 +128,7 @@ target_sources(llvm18-lib-CodeGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/LiveVariables.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/LocalStackSlotAllocation.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/LoopTraversal.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/LowLevelType.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/LowLevelTypeUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/LowerEmuTLS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/CodeGen/MBFIWrapper.cpp

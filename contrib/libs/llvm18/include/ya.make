@@ -2,10 +2,6 @@
 
 LIBRARY()
 
-PROVIDES(llvm)
-
-VERSION(18.1.8)
-
 LICENSE(
     Apache-2.0 WITH LLVM-exception AND
     BSD-2-Clause AND
@@ -16,6 +12,10 @@ LICENSE(
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+PROVIDES(llvm)
+
+VERSION(18.1.8)
 
 PEERDIR(
     contrib/libs/llvm18
@@ -716,7 +716,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/Target.td llvm/Target/Target.td llvm/Target/TargetCallingConv.td
         llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td llvm/Target/TargetPfmCounters.td
         llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/AArch64/AArch64GenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/AArch64/AArch64GenInstrInfo.inc.d
 )
@@ -1765,7 +1765,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/ARM/ARMGenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/ARM/ARMGenInstrInfo.inc.d
 )
@@ -2238,7 +2238,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/BPF/BPFGenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/BPF/BPFGenInstrInfo.inc.d
 )
@@ -2555,7 +2555,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/LoongArch/LoongArchGenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/LoongArch/LoongArchGenInstrInfo.inc.d
 )
@@ -2796,7 +2796,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/NVPTX/NVPTXGenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/NVPTX/NVPTXGenInstrInfo.inc.d
 )
@@ -3389,7 +3389,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenInstrInfo.inc.d
 )
@@ -3866,7 +3866,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/WebAssembly/WebAssemblyGenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/WebAssembly/WebAssemblyGenInstrInfo.inc.d
 )
@@ -4835,7 +4835,7 @@ RUN_PROGRAM(
         llvm/Target/GlobalISel/SelectionDAGCompat.td llvm/Target/GlobalISel/Target.td llvm/Target/Target.td
         llvm/Target/TargetCallingConv.td llvm/Target/TargetInstrPredicate.td llvm/Target/TargetItinerary.td
         llvm/Target/TargetPfmCounters.td llvm/Target/TargetSchedule.td llvm/Target/TargetSelectionDAG.td
-    OUTPUT_INCLUDES _llvm_sstream.h
+    OUTPUT_INCLUDES sstream
     OUT_NOAUTO ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/X86/X86GenInstrInfo.inc
         ${ARCADIA_BUILD_ROOT}/contrib/libs/llvm18/lib/Target/X86/X86GenInstrInfo.inc.d
 )

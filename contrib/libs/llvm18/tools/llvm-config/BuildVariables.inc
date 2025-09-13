@@ -15,15 +15,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define LLVM_SRC_ROOT "/var/empty/tmp/llvm-src-18.1.8/llvm"
-#define LLVM_OBJ_ROOT "/var/empty/tmp/llvm-src-18.1.8/llvm/build"
+#define LLVM_SRC_ROOT "/var/empty/tmp/source/llvm"
+#define LLVM_OBJ_ROOT "/var/empty/tmp/source/llvm/build"
 #define LLVM_CPPFLAGS "-D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
 #define LLVM_CFLAGS " -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
 #define LLVM_LDFLAGS ""
 #define LLVM_CXXFLAGS "-std=c++17   -fno-exceptions -funwind-tables -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS"
 #define LLVM_BUILDMODE "MinSizeRel"
 #define LLVM_LIBDIR_SUFFIX ""
-#define LLVM_INSTALL_LIBDIR "/var/empty/tmp/out/lib"
 #define LLVM_INSTALL_INCLUDEDIR "/var/empty/tmp/out/include"
 #define LLVM_INSTALL_PACKAGE_DIR "/02qcpld1y6xhs5gz9bchpxaw0xdhmsp5dv88lh25r2ss44kh8dxz/lib/cmake/llvm"
 #define LLVM_TARGETS_BUILT "AArch64 ARM BPF PowerPC X86 NVPTX LoongArch WebAssembly"
