@@ -9,10 +9,6 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents a downward path to this node in a Sequoia tree.
-//! See #TSequoiaResolveResult::NodeAncestry.
-using TNodeAncestry = TRange<TCypressNodeDescriptor>;
-
 NSecurityServer::TPermissionCheckResponse CheckPermissionForNode(
     const TSequoiaSessionPtr& sequoiaSession,
     TNodeAncestry nodeAncestry,

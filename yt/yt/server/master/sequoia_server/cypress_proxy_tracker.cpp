@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cypress_server/composite_node.h>
 #include <yt/yt/server/master/cypress_server/config.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -85,6 +86,7 @@ public:
         if (error.IsOK()) {
             response.set_master_reign(ToProto(GetCurrentReign()));
             response.mutable_limits()->set_max_copiable_subtree_size(MaxCopiableSubtreeSize_.load());
+            FillSupportedInheritableAttributes(&response);
         } else {
             YT_LOG_ALERT(error, "Failed to register Cypress proxy");
         }
@@ -134,6 +136,7 @@ private:
 
     // Part of dynamic config to read it from non-automaton thread.
     std::atomic<int> MaxCopiableSubtreeSize_;
+    std::atomic<bool> EnableInheritAttributesDuringCopy_;
 
     // Persistent.
     THashMap<std::string, TCypressProxyObject*> CypressProxyByAddress_;
@@ -241,7 +244,23 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = Bootstrap_->GetDynamicConfig();
-        MaxCopiableSubtreeSize_.store(config->CypressManager->CrossCellCopyMaxSubtreeSize);
+        const auto& cypressManagerConfig = config->CypressManager;
+        MaxCopiableSubtreeSize_.store(cypressManagerConfig->CrossCellCopyMaxSubtreeSize);
+    }
+
+    void FillSupportedInheritableAttributes(NProto::TRspHeartbeat* response)
+    {
+        auto* inheritableAttributesInfo = response->mutable_supported_inheritable_attributes();
+
+        #define XX(CamelCase, snake_case) \
+            inheritableAttributesInfo->add_inheritable_attribute_keys(#snake_case);
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+        #undef XX
+
+        #define XX(CamelCase, snake_case) \
+            inheritableAttributesInfo->add_inheritable_during_copy_attribute_keys(#snake_case);
+        FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
+        #undef XX
     }
 };
 

@@ -15,10 +15,17 @@ message TSequoiaRelevantLimits
     required int32 max_copiable_subtree_size = 1;
 }
 
+message TSequoiaSupportedInheritableAttributes
+{
+    repeated string inheritable_attribute_keys = 1;
+    repeated string inheritable_during_copy_attribute_keys = 2;
+}
+
 message TRspHeartbeat
 {
     optional uint64 master_reign = 1;
     optional TSequoiaRelevantLimits limits = 2;
+    optional TSequoiaSupportedInheritableAttributes supported_inheritable_attributes = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

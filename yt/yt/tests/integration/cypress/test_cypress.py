@@ -828,8 +828,8 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@compression_codec") == "none"
         tx = start_transaction()
         assert get("//tmp/t/@compression_codec", tx=tx) == "none"
-        set("//tmp/t/@compression_codec", "lz4", tx=tx)
-        assert get("//tmp/t/@compression_codec", tx=tx) == "lz4"
+        set("//tmp/t/@compression_codec", "zlib_9", tx=tx)
+        assert get("//tmp/t/@compression_codec", tx=tx) == "zlib_9"
         assert get("//tmp/t/@compression_codec") == "none"
         locks = get("//tmp/t/@locks")
         assert len(locks) == 1
@@ -837,9 +837,9 @@ class TestCypress(YTEnvSetup):
         assert locks[0]["transaction_id"] == tx
         assert locks[0]["attribute_key"] == "compression_codec"
         with raises_yt_error(f"since this attribute is locked by concurrent transaction {tx}"):
-            set("//tmp/t/@compression_codec", "lz4")
+            set("//tmp/t/@compression_codec", "zlib_9")
         commit_transaction(tx)
-        assert get("//tmp/t/@compression_codec") == "lz4"
+        assert get("//tmp/t/@compression_codec") == "zlib_9"
 
     @authors("babenko", "ignat")
     def test_copy_id1(self):
@@ -3021,14 +3021,13 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a", tx=tx)
         assert get("#{}/@path".format(node_id), tx=tx) == "#{}".format(node_id)
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes1(self):
         # parent inheritance
         create("map_node", "//tmp/dir1")
-        set("//tmp/dir1/@compression_codec", "lz4")
+        set("//tmp/dir1/@compression_codec", "zstd_1")
         create("table", "//tmp/dir1/t1")
-        assert get("//tmp/dir1/t1/@compression_codec") == "lz4"
+        assert get("//tmp/dir1/t1/@compression_codec") == "zstd_1"
 
         # explicit attribute precedence
         create("table", "//tmp/dir1/t2", attributes={"compression_codec": "zstd_17"})
@@ -3044,15 +3043,14 @@ class TestCypress(YTEnvSetup):
 
         # ancestor inheritance
         create("table", "//tmp/dir1/dir2/t1")
-        assert get("//tmp/dir1/dir2/t1/@compression_codec") == "lz4"
+        assert get("//tmp/dir1/dir2/t1/@compression_codec") == "zstd_1"
 
         # parent inheritance
         set("//tmp/dir1/dir2/@compression_codec", "zlib_6")
         create("table", "//tmp/dir1/dir2/t2")
         assert get("//tmp/dir1/dir2/t2/@compression_codec") == "zlib_6"
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes2(self):
         create_domestic_medium("hdd")
         create_tablet_cell_bundle("b")
@@ -3061,7 +3059,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/dir1/dir2")
 
         # inherited from parent
-        set("//tmp/dir1/@compression_codec", "lz4")
+        set("//tmp/dir1/@compression_codec", "zlib_9")
         set("//tmp/dir1/@replication_factor", 5)
         set("//tmp/dir1/@commit_ordering", "strong")
 
@@ -3086,7 +3084,7 @@ class TestCypress(YTEnvSetup):
                 "optimize_for": optimize_for,
             },
         )
-        assert get("//tmp/dir1/dir2/t1/@compression_codec") == "lz4"
+        assert get("//tmp/dir1/dir2/t1/@compression_codec") == "zlib_9"
         assert get("//tmp/dir1/dir2/t1/@replication_factor") == 5
         assert get("//tmp/dir1/dir2/t1/@commit_ordering") == "strong"
         assert get("//tmp/dir1/dir2/t1/@erasure_codec") == "reed_solomon_6_3"
@@ -3098,23 +3096,23 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@media") == {"hdd": {"replication_factor": 5, "data_parts_only": False}}
         assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
 
-    @authors("h0pless")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "h0pless")
+    @not_implemented_in_sequoia  # This attribute should be handled in CP like @recursive_resource_usage.
     def test_effective_inheritable_attributes_attribute(self):
         create("map_node", "//tmp/grandparent")
         set("//tmp/grandparent/@compression_codec", "zlib_9")
         set("//tmp/grandparent/@chunk_merger_mode", "auto")
 
         create("map_node", "//tmp/grandparent/parent")
-        set("//tmp/grandparent/parent/@compression_codec", "lz4")
+        set("//tmp/grandparent/parent/@compression_codec", "zlib_9")
 
         child_path = "//tmp/grandparent/parent/child"
         create("map_node", child_path)
 
-        assert get(f"{child_path}/@effective_inheritable_attributes") == {"chunk_merger_mode": "auto", "compression_codec": "lz4"}
+        assert get(f"{child_path}/@effective_inheritable_attributes") == {"chunk_merger_mode": "auto", "compression_codec": "zlib_9"}
 
         set(f"{child_path}/@chunk_merger_mode", "deep")
-        assert get(f"{child_path}/@effective_inheritable_attributes") == {"chunk_merger_mode": "deep", "compression_codec": "lz4"}
+        assert get(f"{child_path}/@effective_inheritable_attributes") == {"chunk_merger_mode": "deep", "compression_codec": "zlib_9"}
 
         tx = start_transaction(timeout=60000)
         remove("//tmp/grandparent/parent/@compression_codec", tx=tx)
@@ -3125,8 +3123,56 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Attribute \"effective_inheritable_attributes\" is not found"):
             get(f"{child_path}/grandchild/@effective_inheritable_attributes")
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920")
+    @pytest.mark.parametrize("inherit_from", ["source", "destination"])
+    def test_inheritable_attributes_during_copy(self, inherit_from):
+        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
+
+        create("table", "//tmp/source/dir/table", recursive=True, attributes={
+            "chunk_merger_mode": "shallow",
+            "compression_codec": "zlib_9",
+        })
+        set("//tmp/source/dir/@compression_codec", "zlib_8")
+
+        create("map_node", "//tmp/destination", attributes={"chunk_merger_mode": "deep", "compression_codec": "zlib_7"})
+
+        match inherit_from:
+            case "source":
+                set("//tmp/source/dir/@chunk_merger_mode", "auto")
+                expected_chunk_merger_mode = "auto"
+            case "destination":
+                expected_chunk_merger_mode = "deep"
+
+        copy("//tmp/source/dir", "//tmp/destination/dir")
+
+        if inherit_from == "source" and not self.ENABLE_TMP_ROOTSTOCK:
+            # NB: in Cypress -> Cypress copy chunk merger mode is always
+            # inherited from destination.
+            # COMPAT(h0pless): fix Cypress behavior.
+            expected_chunk_merger_mode = "deep"
+        assert get("//tmp/destination", attributes=["chunk_merger_mode", "compression_codec"]) == yson.loads(f"""
+            <chunk_merger_mode = "deep"; compression_codec = "zlib_7"> {{
+                dir = <{'chunk_merger_mode = "auto"; ' if inherit_from == 'source' else ''}compression_codec = "zlib_8"> {{
+                    table = <chunk_merger_mode = "{expected_chunk_merger_mode}"; compression_codec = "zlib_9"> #
+                }}
+            }}
+            """.encode())
+
+    @authors("kvk1920")
+    def test_inheritable_attributes_during_copy_from_dst(self):
+        set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", True)
+
+        create("table", "//tmp/source/dir/table", recursive=True, attributes={
+            "chunk_merger_mode": "shallow",
+            "compression_codec": "zlib_9",
+        })
+        set("//tmp/source/dir/@", {
+            "chunk_merger_mode": "auto",
+            "compression_codec": "zlib_8",
+        })
+        create("map_node", "//tmp/destination", attributes={"chunk_merger_mode": "deep", "compression_codec": "zlib_7"})
+
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes_with_transactions(self):
         create("map_node", "//tmp/dir1")
 
@@ -3152,8 +3198,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/@compression_codec") == "zlib_9"
         assert get("//tmp/dir1/@erasure_codec") == "reed_solomon_6_3"
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes_with_nested_transactions(self):
         tx1 = start_transaction(timeout=60000)
         tx2 = start_transaction(tx=tx1, timeout=60000)
@@ -3162,33 +3207,32 @@ class TestCypress(YTEnvSetup):
         def prepare_dir(dir_base_name, tx):
             dir_name = "//tmp/" + dir_base_name
             create("map_node", dir_name)
-            set(dir_name + "/@compression_codec", "lz4", tx=tx)
+            set(dir_name + "/@compression_codec", "zlib_9", tx=tx)
             with raises_yt_error("Cannot parse \"enum\"; expected \"string_value\", actual \"entity_value\""):
                 set(dir_name + "/@erasure_codec", None, tx=tx)
             remove(dir_name + "/@erasure_codec", tx=tx)
 
         # Non-transactional changes.
         prepare_dir("dir1", "0-0-0-0")
-        assert get("//tmp/dir1/@compression_codec", tx=tx3) == "lz4"
+        assert get("//tmp/dir1/@compression_codec", tx=tx3) == "zlib_9"
         assert not exists("//tmp/dir1/@erasure_codec", tx=tx3)
 
         # Ancestor transaction changes.
         prepare_dir("dir2", tx1)
-        assert get("//tmp/dir2/@compression_codec", tx=tx3) == "lz4"
+        assert get("//tmp/dir2/@compression_codec", tx=tx3) == "zlib_9"
         assert not exists("//tmp/dir2/@erasure_codec", tx=tx3)
 
         # Parent transaction changes.
         prepare_dir("dir3", tx2)
-        assert get("//tmp/dir3/@compression_codec", tx=tx3) == "lz4"
+        assert get("//tmp/dir3/@compression_codec", tx=tx3) == "zlib_9"
         assert not exists("//tmp/dir3/@erasure_codec", tx=tx3)
 
         # Immediate transaction changes.
         prepare_dir("dir4", tx3)
-        assert get("//tmp/dir4/@compression_codec", tx=tx3) == "lz4"
+        assert get("//tmp/dir4/@compression_codec", tx=tx3) == "zlib_9"
         assert not exists("//tmp/dir4/@erasure_codec", tx=tx3)
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes_media_validation(self):
         create_domestic_medium("ssd")
 
@@ -3344,8 +3388,7 @@ class TestCypress(YTEnvSetup):
         )
         set("//tmp/dir5/@primary_medium", "ssd")
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes_tablet_cell_bundle(self):
         create("map_node", "//tmp/dir1")
         create("map_node", "//tmp/dir2")
@@ -3401,8 +3444,7 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/dir1")
         wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes_no_extraneous_inheritance(self):
         create("map_node", "//tmp/dir1")
 
@@ -3419,22 +3461,21 @@ class TestCypress(YTEnvSetup):
             set("//tmp/dir1/@" + attr_name, attr_val)
 
         # Inheritable by all.
-        set("//tmp/dir1/@compression_codec", "lz4")
+        set("//tmp/dir1/@compression_codec", "zlib_9")
 
         create("table", "//tmp/dir1/t1")
         create("file", "//tmp/dir1/f1")
         create("journal", "//tmp/dir1/j1")
 
         for node in ("t1", "f1"):
-            assert get("//tmp/dir1/{0}/@compression_codec".format(node)) == "lz4"
+            assert get("//tmp/dir1/{0}/@compression_codec".format(node)) == "zlib_9"
 
         for attr_name, attr_val in attrs:
             assert get("//tmp/dir1/t1/@" + attr_name) == attr_val
             assert not exists("//tmp/dir1/f1/@" + attr_name)
             assert not exists("//tmp/dir1/j1/@" + attr_name)
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "shakurov")
     def test_inheritable_attributes_yt_14207(self):
         create_domestic_medium("m1")
         create("map_node", "//tmp/d1", attributes={"primary_medium": "m1"})
@@ -3682,7 +3723,7 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
 
         set("//tmp/t1/@optimize_for", "scan", tx=tx)
-        set("//tmp/t1/@compression_codec", "lz4", tx=tx)
+        set("//tmp/t1/@compression_codec", "zlib_9", tx=tx)
         set("//tmp/t1/@erasure_codec", "lrc_12_2_2", tx=tx)
         set("//tmp/t1/@enable_striped_erasure", True, tx=tx)
         set("//tmp/t1/@enable_skynet_sharing", True, tx=tx)
@@ -3696,7 +3737,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@chunk_merger_mode") == "none"
 
         assert get("//tmp/t1/@optimize_for", tx=tx) == "scan"
-        assert get("//tmp/t1/@compression_codec", tx=tx) == "lz4"
+        assert get("//tmp/t1/@compression_codec", tx=tx) == "zlib_9"
         assert get("//tmp/t1/@erasure_codec", tx=tx) == "lrc_12_2_2"
         assert get("//tmp/t1/@enable_striped_erasure", tx=tx)
         assert get("//tmp/t1/@enable_skynet_sharing", tx=tx)
@@ -3705,7 +3746,7 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
 
         assert get("//tmp/t1/@optimize_for") == "scan"
-        assert get("//tmp/t1/@compression_codec") == "lz4"
+        assert get("//tmp/t1/@compression_codec") == "zlib_9"
         assert get("//tmp/t1/@erasure_codec") == "lrc_12_2_2"
         assert get("//tmp/t1/@enable_striped_erasure")
         assert get("//tmp/t1/@enable_skynet_sharing")
