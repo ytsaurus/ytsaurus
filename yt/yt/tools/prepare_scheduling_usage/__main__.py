@@ -203,6 +203,7 @@ class OperationInfo:
     cumulative_sm_utilization: typing.Optional[float]
     time_total: typing.Optional[float]
     time_prepare: typing.Optional[float]
+    time_wait_for_resources: typing.Optional[float]
     data_input_chunk_count: typing.Optional[float]
     data_input_data_weight: typing.Optional[float]
     data_input_compressed_data_size: typing.Optional[float]
@@ -212,6 +213,10 @@ class OperationInfo:
     chunk_reader_data_bytes_from_disk: typing.Optional[float]
     chunk_reader_data_bytes_from_cache: typing.Optional[float]
     chunk_reader_data_io_requests: typing.Optional[float]
+    chunk_reader_data_blocks: typing.Optional[float]
+    chunk_reader_wait_time: typing.Optional[float]
+    chunk_reader_idle_time: typing.Optional[float]
+    chunk_reader_read_time: typing.Optional[float]
     jobs_count: typing.Optional[int]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
@@ -371,6 +376,7 @@ def merge_info(info_base, info_update):
     info_base.cumulative_sm_utilization += info_update.cumulative_sm_utilization
     info_base.time_total += info_update.time_total
     info_base.time_prepare += info_update.time_prepare
+    info_base.time_wait_for_resources += info_update.time_wait_for_resources
     info_base.data_input_chunk_count += info_update.data_input_chunk_count
     info_base.data_input_data_weight += info_update.data_input_data_weight
     info_base.data_input_compressed_data_size += info_update.data_input_compressed_data_size
@@ -380,6 +386,10 @@ def merge_info(info_base, info_update):
     info_base.chunk_reader_data_bytes_from_disk += info_update.chunk_reader_data_bytes_from_disk
     info_base.chunk_reader_data_bytes_from_cache += info_update.chunk_reader_data_bytes_from_cache
     info_base.chunk_reader_data_io_requests += info_update.chunk_reader_data_io_requests
+    info_base.chunk_reader_data_blocks += info_update.chunk_reader_data_blocks
+    info_base.chunk_reader_wait_time += info_update.chunk_reader_wait_time
+    info_base.chunk_reader_idle_time += info_update.chunk_reader_idle_time
+    info_base.chunk_reader_read_time += info_update.chunk_reader_read_time
     info_base.jobs_count += info_update.jobs_count
     info_base.aborted_time_total += info_update.aborted_time_total
     info_base.aborted_cumulative_used_cpu += info_update.aborted_cumulative_used_cpu
@@ -529,6 +539,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 tmpfs_limit=0.0,
                 time_total=0.0,
                 time_prepare=0.0,
+                time_wait_for_resources=0.0,
                 data_input_chunk_count=0.0,
                 data_input_data_weight=0.0,
                 data_input_compressed_data_size=0.0,
@@ -538,6 +549,10 @@ class FilterAndNormalizeEvents(TypedJob):
                 chunk_reader_data_bytes_from_disk=0.0,
                 chunk_reader_data_bytes_from_cache=0.0,
                 chunk_reader_data_io_requests=0.0,
+                chunk_reader_data_blocks=0.0,
+                chunk_reader_wait_time=0.0,
+                chunk_reader_idle_time=0.0,
+                chunk_reader_read_time=0.0,
                 jobs_count=0,
                 job_statistics=None,
                 start_time=None,
@@ -644,6 +659,7 @@ class FilterAndNormalizeEvents(TypedJob):
                 tmpfs_limit=extract_statistic(job_statistics, "user_job/tmpfs_limit", default=0),
                 time_total=extract_statistic(job_statistics, "time/total", default=0) * ms_multiplier,
                 time_prepare=extract_statistic(job_statistics, "time/prepare", default=0) * ms_multiplier,
+                time_wait_for_resources=extract_statistic(job_statistics, "time/wait_for_resources", default=0) * ms_multiplier,
                 data_input_chunk_count=extract_statistic(job_statistics, "data/input/chunk_count", default=0),
                 data_input_data_weight=extract_statistic(job_statistics, "data/input/data_weight", default=0),
                 data_input_compressed_data_size=extract_statistic(
@@ -667,6 +683,26 @@ class FilterAndNormalizeEvents(TypedJob):
                 chunk_reader_data_io_requests=extract_statistic(
                     job_statistics,
                     "chunk_reader_statistics/data_io_requests",
+                    default=0
+                ),
+                chunk_reader_data_blocks=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/data_blocks_read_from_disk",
+                    default=0
+                ),
+                chunk_reader_wait_time=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/wait_time",
+                    default=0
+                ),
+                chunk_reader_idle_time=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/idle_time",
+                    default=0
+                ),
+                chunk_reader_read_time=extract_statistic(
+                    job_statistics,
+                    "chunk_reader_statistics/read_time",
                     default=0
                 ),
                 # time/total in count since it is presented in all jobs
