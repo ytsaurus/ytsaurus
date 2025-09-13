@@ -77,6 +77,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RlsInOperations)                       (301905))
     // 25.4 starts here
     ((BumpTo_25_4)                           (302000))
+    ((DistributedJobManagers)                (302001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
