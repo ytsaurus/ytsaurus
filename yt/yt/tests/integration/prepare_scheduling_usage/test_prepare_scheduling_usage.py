@@ -62,6 +62,7 @@ class OperationInfo:
     cumulative_sm_utilization: typing.Optional[float]
     time_total: typing.Optional[float]
     time_prepare: typing.Optional[float]
+    time_wait_for_resources: typing.Optional[float]
     data_input_chunk_count: typing.Optional[float]
     data_input_data_weight: typing.Optional[float]
     data_input_compressed_data_size: typing.Optional[float]
@@ -71,6 +72,10 @@ class OperationInfo:
     chunk_reader_data_bytes_from_disk: typing.Optional[float]
     chunk_reader_data_bytes_from_cache: typing.Optional[float]
     chunk_reader_data_io_requests: typing.Optional[float]
+    chunk_reader_data_blocks: typing.Optional[float]
+    chunk_reader_wait_time: typing.Optional[float]
+    chunk_reader_idle_time: typing.Optional[float]
+    chunk_reader_read_time: typing.Optional[float]
     jobs_count: typing.Optional[int]
     start_time: typing.Optional[int]
     finish_time: typing.Optional[int]
@@ -116,7 +121,8 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                    "cumulative_sm_utilization", "jobs_count", "aborted_time_total", "aborted_cumulative_used_cpu",
                    "data_input_compressed_data_size", "data_output_compressed_data_size",
                    "chunk_reader_data_bytes_from_disk", "chunk_reader_data_bytes_from_cache",
-                   "chunk_reader_data_io_requests"]
+                   "chunk_reader_data_io_requests", "time_wait_for_resources", "chunk_reader_data_blocks",
+                   "chunk_reader_wait_time", "chunk_reader_idle_time", "chunk_reader_read_time"]
 
         for index, row in enumerate(rows):
             for key in columns:
