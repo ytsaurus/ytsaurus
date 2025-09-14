@@ -56,6 +56,8 @@ public:
 
     //! Only the leader has incoming traffic utilization collected over all members.
     virtual std::optional<THashMap<NScheduler::TClusterName, TIncomingTrafficUtilization>> GetClusterToIncomingTrafficUtilization(EThrottlerTrafficType trafficType) const = 0;
+
+    virtual std::optional<THashMap<NScheduler::TClusterName, bool>> GetClusterToIncomingTrafficAvailability(EThrottlerTrafficType trafficType) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IThrottlerManager)
