@@ -75,6 +75,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistentCompletedRankCount)          (301903))
     ((JobEnvironmentPreparationStatistics)   (301904))
     ((RlsInOperations)                       (301905))
+    ((FixRlsSnapshots)                       (301906))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
