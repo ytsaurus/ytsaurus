@@ -285,6 +285,13 @@ void TCreateNodeCommand::Register(TRegistrar registrar)
             return command->Options.IgnoreTypeMismatch;
         })
         .Optional(/*init*/ false);
+
+    registrar.Postprocessor([] (TThis* command) {
+        if (command->Type == EObjectType::Directory) {
+            // Directory as a Type argument is an alias to MapNode.
+            command->Type = EObjectType::MapNode;
+        }
+    });
 }
 
 void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
