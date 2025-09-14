@@ -67,6 +67,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     req->set_permission(ToProto(permission));
     req->set_acl(ToProto(ConvertToYsonString(acl)));
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
+    req->set_ignore_pending_removal_subjects(options.IgnorePendingRemovalSubjects);
     SetCachingHeader(req, options);
 
     batchReq->AddRequest(req);
@@ -77,10 +78,11 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
         .ValueOrThrow();
 
     TCheckPermissionByAclResult result;
-    result.Action = ESecurityAction(rsp->action());
+    result.Action = CheckedEnumCast<ESecurityAction>(rsp->action());
     result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
     result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
     result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
+    result.PendingRemovalSubjects = FromProto<std::vector<std::string>>(rsp->pending_removal_subjects());
     return result;
 }
 
