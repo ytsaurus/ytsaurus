@@ -59,6 +59,9 @@ public:
     std::optional<THashMap<TClusterName, TIncomingTrafficUtilization>> GetClusterToIncomingTrafficUtilization(
         EThrottlerTrafficType trafficType) const override;
 
+    std::optional<THashMap<TClusterName, bool>> GetClusterToIncomingTrafficAvailability(
+        EThrottlerTrafficType trafficType) override;
+
 private:
     NClusterNode::IBootstrap* const Bootstrap_;
     // Fields from bootstrap.
@@ -92,6 +95,7 @@ private:
         TThroughputThrottlerConfigPtr ThrottlerConfig;
     };
     std::map<TThrottlerId, TThroughputThrottlerData> DistributedThrottlersHolder_;
+    std::map<TThrottlerId, NProfiling::TGauge> NetworkAvailabilityGauges_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -670,6 +674,72 @@ std::optional<THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilizat
             trafficUtilization.MinEstimatedTimeToReadPendingBytes = totalUsage.MinEstimatedOverdraftDuration;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Unexpected throttler id %Qv", throttlerId);
+        }
+    }
+    return result;
+}
+
+std::optional<THashMap<TClusterName, bool>> TThrottlerManager::GetClusterToIncomingTrafficAvailability(EThrottlerTrafficType trafficType)
+{
+    auto clusterTrafficUtilization = GetClusterToIncomingTrafficUtilization(trafficType);
+    if (!clusterTrafficUtilization) {
+        auto guard = Guard(Lock_);
+        // Leave monitoring sensors only on leader.
+        NetworkAvailabilityGauges_.clear();
+        return std::nullopt;
+    }
+
+    THashMap<TClusterName, bool> result;
+    if (clusterTrafficUtilization) {
+        auto guard = Guard(Lock_);
+        for (const auto& [clusterName, trafficUtilization] : *clusterTrafficUtilization) {
+            YT_VERIFY(0 < trafficUtilization.Limit);
+            auto rateLimitRatio = trafficUtilization.Rate / trafficUtilization.Limit;
+            auto isAvailable = true;
+
+            if (trafficUtilization.RateLimitRatioHardThreshold < rateLimitRatio) {
+                // Network usage is higher than the available limit.
+                isAvailable = false;
+            } else if (trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MinEstimatedTimeToReadPendingBytes) {
+                // There is a queue of pending read requests on every exe node.
+                isAvailable = false;
+            } else if (trafficUtilization.RateLimitRatioSoftThreshold < rateLimitRatio) {
+                // Network usage is above threshold.
+                if (trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MaxEstimatedTimeToReadPendingBytes) {
+                    // There is a big queue of pending read requests on some exe node.
+                    isAvailable = false;
+                }
+            }
+
+            result[clusterName] = isAvailable;
+            auto throttlerId = ToThrottlerId(trafficType, clusterName);
+            if (!NetworkAvailabilityGauges_.contains(throttlerId)) {
+                NetworkAvailabilityGauges_[throttlerId] = Profiler_
+                    .WithPrefix("/distributed_throttler")
+                    .WithTag("throttler_id", throttlerId)
+                    .Gauge("/network_availability");
+            }
+            NetworkAvailabilityGauges_[throttlerId].Update(isAvailable);
+
+            YT_LOG_DEBUG(
+                "Add cluster network bandwidth availability to controller agent heartbeat request "
+                "(ClusterName: %v, Rate: %v, Limit: %v, "
+                "RateLimitRatio: %v, RateLimitRatioHardThreshold: %v, RateLimitRatioSoftThreshold: %v, "
+                "MaxEstimatedTimeToReadPendingBytes: %v, MaxEstimatedTimeToReadPendingBytesThreshold: %v, "
+                "MinEstimatedTimeToReadPendingBytes: %v, MinEstimatedTimeToReadPendingBytesThreshold: %v, "
+                "PendingBytes: %v, IsAvailable: %v)",
+                clusterName,
+                trafficUtilization.Rate,
+                trafficUtilization.Limit,
+                rateLimitRatio,
+                trafficUtilization.RateLimitRatioHardThreshold,
+                trafficUtilization.RateLimitRatioSoftThreshold,
+                trafficUtilization.MaxEstimatedTimeToReadPendingBytes,
+                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold,
+                trafficUtilization.MinEstimatedTimeToReadPendingBytes,
+                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold,
+                trafficUtilization.PendingBytes,
+                isAvailable);
         }
     }
     return result;
