@@ -189,6 +189,8 @@ DEFINE_ENUM(EMasterReign,
     ((AddRegisteredLocationState)                                   (3034))  // grphil
     ((RootstockScionAttributesSync)                                 (3035))  // danilalexeev
     ((SequoiaInheritableAttributes)                                 (3036))  // kvk1920
+    ((PendingRemovalInCheckPermissionByAcl)                         (3037))  // cherepashka
+
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
