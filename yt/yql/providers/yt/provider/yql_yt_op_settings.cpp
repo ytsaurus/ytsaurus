@@ -45,7 +45,7 @@ bool ValidateColumnWithTypesSettings(TExprNode& columnsSettings, TExprContext& c
     }
 
     for (const auto& child : columnsSettings.Children()) {
-        if (!EnsureTupleSize(*child, 2U, ctx)) {
+        if (!EnsureTupleMinSize(*child, 2U, ctx)) {
             return false;
         }
 
@@ -57,7 +57,7 @@ bool ValidateColumnWithTypesSettings(TExprNode& columnsSettings, TExprContext& c
             return false;
         }
 
-        columns.emplace_back(child->Content(), child->Tail().GetTypeAnn());
+        columns.emplace_back(child->Content(), child->Child(1U)->GetTypeAnn());
     }
     return true;
 }
@@ -395,7 +395,7 @@ bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, T
                 return false;
             }
             TVector<std::pair<TString, const TTypeAnnotationNode*>> columns;
-            if (!ValidateColumnWithTypesSettings(*setting->Child(1), ctx, columns)) {
+            if (!ValidateColumnWithTypesSettings(setting->Tail(), ctx, columns)) {
                 return false;
             }
             break;
