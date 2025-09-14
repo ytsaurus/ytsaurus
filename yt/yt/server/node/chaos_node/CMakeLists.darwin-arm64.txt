@@ -84,7 +84,7 @@ target_proto_messages(server-node-chaos_node PRIVATE
 
 target_proto_outs(server-node-chaos_node
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-node-chaos_node

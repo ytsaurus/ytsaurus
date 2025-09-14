@@ -2,14 +2,14 @@
 
 LIBRARY()
 
-VERSION(18.1.8)
-
 LICENSE(
     Apache-2.0 WITH LLVM-exception AND
     NCSA
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+VERSION(18.1.8)
 
 PEERDIR(
     contrib/libs/llvm18
@@ -19,7 +19,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/CodeGen
     contrib/libs/llvm18/lib/CodeGen/AsmPrinter
     contrib/libs/llvm18/lib/CodeGen/GlobalISel
-    contrib/libs/llvm18/lib/CodeGen/LowLevelType
     contrib/libs/llvm18/lib/CodeGen/SelectionDAG
     contrib/libs/llvm18/lib/IR
     contrib/libs/llvm18/lib/MC

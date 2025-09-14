@@ -207,7 +207,7 @@ TConstInheritedAttributeDictionaryPtr TCompositeCypressNode::MaybePatchInheritab
     const TConstInheritedAttributeDictionaryPtr& attributes,
     ENodeMaterializationReason reason) const
 {
-    if (CompareInheritableAttributes(attributes->Attributes())) {
+    if (CompareInheritableAttributes(attributes->Attributes(), reason)) {
         return attributes;
     }
 

@@ -51,7 +51,7 @@ target_sources(chyt-client-protos PRIVATE
 
 target_proto_outs(chyt-client-protos
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(chyt-client-protos

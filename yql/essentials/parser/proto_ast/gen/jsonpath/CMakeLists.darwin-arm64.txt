@@ -113,7 +113,7 @@ run_antlr(
 
 target_proto_outs(proto_ast-gen-jsonpath
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(proto_ast-gen-jsonpath

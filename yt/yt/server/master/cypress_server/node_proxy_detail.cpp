@@ -2313,7 +2313,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
             iterateOverAttributeDeltaDuringInheritance(
                 inheritedAttributes,
                 currentNodeAttributes,
-                [&] (const std::string& key, const TYsonString& value) {
+                [&] (const std::string& key, const TYsonString& inheritedValue) {
                     if (!delta) {
                         delta = response->add_node_to_attribute_deltas();
                         ToProto(delta->mutable_node_id(), currentNode->GetId());
@@ -2325,14 +2325,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
                     // This helps to avoid creating an extra ephemeral attributes instance.
                     auto* attributeOverride = attributeOverrideDictionary->add_attributes();
                     attributeOverride->set_key(key);
-                    attributeOverride->set_value(ToProto(value));
+                    attributeOverride->set_value(ToProto(inheritedValue));
                 });
             continue;
         }
 
         if (currentNode->GetType() != EObjectType::MapNode) {
             THROW_ERROR_EXCEPTION("Type %Qlv cannot be cross-cell copied", currentNode->GetType());
-            continue;
         }
 
         TKeyToCypressNode keyToChildMapStorage;

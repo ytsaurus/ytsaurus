@@ -29,7 +29,7 @@ target_link_libraries(Target-ARM-AsmParser PUBLIC
   contrib-libs-cxxsupp
   contrib-libs-llvm18
   libs-llvm18-include
-  lib-CodeGen-LowLevelType
+  llvm18-lib-CodeGen
   llvm18-lib-MC
   lib-MC-MCParser
   llvm18-lib-Support

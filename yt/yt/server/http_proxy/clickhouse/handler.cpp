@@ -128,6 +128,7 @@ public:
         if (auto* xRequestId = req->GetHeaders()->Find("X-Request-Id")) {
             YT_LOG_INFO("Request contains X-Request-Id header (X-Request-Id: %v)", xRequestId);
         }
+        PermissionCache_->Initialize();
     }
 
     void ProcessRequest()
@@ -1287,6 +1288,7 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
         Config_->PermissionCache,
         Bootstrap_->GetNativeConnection(),
         ClickHouseProxyProfiler().WithPrefix("/permission_cache"));
+    PermissionCache_->Initialize();
 
     DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProxyProfiler().WithPrefix("/discovery_cache"));
 }

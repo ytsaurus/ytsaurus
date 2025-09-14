@@ -63,7 +63,7 @@ target_sources(server-lib-table_server PRIVATE
 
 target_proto_outs(server-lib-table_server
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-table_server

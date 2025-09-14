@@ -28,7 +28,6 @@ target_link_libraries(lib-CodeGen-SelectionDAG PUBLIC
   contrib-libs-llvm18
   llvm18-lib-Analysis
   llvm18-lib-CodeGen
-  lib-CodeGen-LowLevelType
   llvm18-lib-IR
   llvm18-lib-MC
   llvm18-lib-Support

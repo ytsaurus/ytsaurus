@@ -850,7 +850,7 @@ void InstrInfoEmitter::emitFeatureVerifier(raw_ostream &OS,
 
   OS << "#ifdef ENABLE_INSTR_PREDICATE_VERIFIER\n"
      << "#undef ENABLE_INSTR_PREDICATE_VERIFIER\n"
-     << "#include <_llvm_sstream.h>\n\n";
+     << "#include <sstream>\n\n";
 
   OS << "namespace llvm {\n";
   OS << "namespace " << Target.getName() << "_MC {\n\n";

@@ -72,7 +72,7 @@ target_proto_messages(server-lib-exec_node PRIVATE
 
 target_proto_outs(server-lib-exec_node
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-exec_node

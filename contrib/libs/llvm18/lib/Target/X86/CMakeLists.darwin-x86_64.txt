@@ -37,7 +37,6 @@ target_link_libraries(lib-Target-X86 PUBLIC
   llvm18-lib-CodeGen
   lib-CodeGen-AsmPrinter
   lib-CodeGen-GlobalISel
-  lib-CodeGen-LowLevelType
   lib-CodeGen-SelectionDAG
   llvm18-lib-IR
   llvm18-lib-IRPrinter

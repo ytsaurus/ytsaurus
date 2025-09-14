@@ -51,6 +51,7 @@ void CreateNode(
     NCypressClient::TNodeId parentId,
     NSequoiaClient::TAbsolutePathBuf path,
     const NYTree::IAttributeDictionary* explicitAttributes,
+    const NYTree::IAttributeDictionary* inheritedAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
@@ -60,6 +61,7 @@ NCypressClient::TNodeId CopyNode(
     NCypressClient::TNodeId destinationParentId,
     NCypressClient::TTransactionId cypressTransactionId,
     const TCopyOptions& options,
+    const NYTree::IAttributeDictionary* inheritedAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 

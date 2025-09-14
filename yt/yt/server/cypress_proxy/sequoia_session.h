@@ -6,10 +6,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
-#include <yt/yt/client/api/client_common.h>
-#include <yt/yt/client/api/cypress_client.h>
-
-#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
 
@@ -124,8 +121,10 @@ public:
     //! parent. Does _not_ S-lock destination's parent.
     NCypressClient::TNodeId CopySubtree(
         const TSubtree& sourceSubtree,
+        const TNodeIdToAttributes& sourceInheritableAttributs,
         NSequoiaClient::TAbsolutePathBuf destinationRoot,
-        NCypressClient::TNodeId destinationParentId,
+        NCypressClient::TNodeId destinationSubtreeRootParentId,
+        const NYTree::IAttributeDictionary* destinationInheritedAttributes,
         const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& prerequisiteRevisions,
         const TCopyOptions& options);
 
@@ -202,6 +201,7 @@ public:
     NCypressClient::TNodeId CreateMapNodeChain(
         NSequoiaClient::TAbsolutePathBuf startPath,
         NCypressClient::TNodeId startId,
+        const NYTree::IAttributeDictionary* inheritedAttributes,
         TRange<std::string> names,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
@@ -215,6 +215,7 @@ public:
         NObjectClient::EObjectType type,
         NSequoiaClient::TAbsolutePathBuf path,
         const NYTree::IAttributeDictionary* explicitAttributes,
+        const NYTree::IAttributeDictionary* inheritedAttributes,
         NCypressClient::TNodeId parentId,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
@@ -313,6 +314,16 @@ public:
     const TAcdFetcherPtr& GetAcdFetcher() const;
 
     const TUserDescriptorPtr& GetCurrentAuthenticatedUser() const;
+
+    // TODO(kvk1920): don't use native client. Fetch from Sequoia tables instead.
+    TNodeIdToAttributes FetchInheritableAttributes(
+        TRange<TCypressNodeDescriptor> nodes,
+        bool duringCopy,
+        const NApi::NNative::IClientPtr& client);
+    TNodeIdToAttributes FetchInheritableAttributes(
+        std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
+        bool duringCopy,
+        const NApi::NNative::IClientPtr& client);
 
 private:
     IBootstrap* const Bootstrap_;

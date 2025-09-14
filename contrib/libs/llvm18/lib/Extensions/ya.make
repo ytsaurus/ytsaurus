@@ -2,17 +2,15 @@
 
 LIBRARY()
 
-WITHOUT_LICENSE_TEXTS()
+LICENSE(Apache-2.0 WITH LLVM-exception)
+
+LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
 VERSION(18.1.8)
-
-LICENSE(NCSA)
 
 PEERDIR(
     contrib/libs/llvm18
     contrib/libs/llvm18/lib/Support
-    contrib/libs/llvm18/tools/polly/lib
-    contrib/libs/llvm18/tools/polly/lib/External/isl
 )
 
 ADDINCL(

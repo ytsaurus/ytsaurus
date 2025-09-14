@@ -73,7 +73,7 @@ target_proto_messages(rpc_benchmark PRIVATE
 
 target_proto_outs(rpc_benchmark
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(rpc_benchmark

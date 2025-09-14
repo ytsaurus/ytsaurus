@@ -1,5 +1,7 @@
 #include "row_level_security.h"
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
@@ -324,6 +326,15 @@ const TTableSchemaPtr& TRlsReadSpec::GetTableSchema() const
 {
     return TableSchema_;
 }
+
+void TRlsReadSpec::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, TableSchema_,
+        .template Serializer<TNonNullableIntrusivePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(2, ExpressionOrTrivialDeny_);
+}
+
+PHOENIX_DEFINE_TYPE(TRlsReadSpec);
 
 void ToProto(
     NProto::TRlsReadSpec* protoRlsReadSpec,

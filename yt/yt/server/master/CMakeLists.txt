@@ -521,7 +521,7 @@ target_proto_messages(yt-server-master PRIVATE
 
 target_proto_outs(yt-server-master
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-server-master

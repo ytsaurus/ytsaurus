@@ -70,7 +70,7 @@ target_sources(server-lib-discovery_server PRIVATE
 
 target_proto_outs(server-lib-discovery_server
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-discovery_server

@@ -71,7 +71,7 @@ target_proto_messages(core-rpc-grpc PRIVATE
 
 target_proto_outs(core-rpc-grpc
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(core-rpc-grpc

@@ -2,11 +2,11 @@
 
 LIBRARY()
 
-VERSION(18.1.8)
-
 LICENSE(Apache-2.0 WITH LLVM-exception)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+VERSION(18.1.8)
 
 PEERDIR(
     contrib/libs/llvm18
@@ -15,7 +15,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/Bitcode/Reader
     contrib/libs/llvm18/lib/Bitcode/Writer
     contrib/libs/llvm18/lib/CodeGen
-    contrib/libs/llvm18/lib/CodeGen/LowLevelType
     contrib/libs/llvm18/lib/Extensions
     contrib/libs/llvm18/lib/IR
     contrib/libs/llvm18/lib/Linker
@@ -33,8 +32,6 @@ PEERDIR(
     contrib/libs/llvm18/lib/Transforms/ObjCARC
     contrib/libs/llvm18/lib/Transforms/Scalar
     contrib/libs/llvm18/lib/Transforms/Utils
-    contrib/libs/llvm18/tools/polly/lib
-    contrib/libs/llvm18/tools/polly/lib/External/isl
 )
 
 ADDINCL(

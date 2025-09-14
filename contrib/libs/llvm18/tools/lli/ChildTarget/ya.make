@@ -2,11 +2,11 @@
 
 PROGRAM(lli-child-target)
 
-VERSION(18.1.8)
-
 LICENSE(Apache-2.0 WITH LLVM-exception)
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
+
+VERSION(18.1.8)
 
 PEERDIR(
     contrib/libs/llvm18

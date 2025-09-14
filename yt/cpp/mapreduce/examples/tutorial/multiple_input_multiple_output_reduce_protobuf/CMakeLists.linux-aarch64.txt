@@ -75,7 +75,7 @@ target_proto_messages(multiple_input_multiple_output_reduce_protobuf PRIVATE
 
 target_proto_outs(multiple_input_multiple_output_reduce_protobuf
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(multiple_input_multiple_output_reduce_protobuf
