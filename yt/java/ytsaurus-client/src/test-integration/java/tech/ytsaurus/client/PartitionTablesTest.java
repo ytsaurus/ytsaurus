@@ -20,6 +20,7 @@ import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PartitionTablesMode;
+import tech.ytsaurus.client.request.TablePartitionCookie;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.DataSize;

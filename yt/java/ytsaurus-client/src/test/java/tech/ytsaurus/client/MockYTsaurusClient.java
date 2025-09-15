@@ -34,6 +34,7 @@ import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.CreateTablePartitionReader;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.FinishDistributedWriteSession;
 import tech.ytsaurus.client.request.FlowExecute;
 import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
@@ -79,6 +80,7 @@ import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PausePipeline;
+import tech.ytsaurus.client.request.PingDistributedWriteSession;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PullQueue;
@@ -104,6 +106,7 @@ import tech.ytsaurus.client.request.SetPipelineSpec;
 import tech.ytsaurus.client.request.SetPipelineSpecResult;
 import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.SortOperation;
+import tech.ytsaurus.client.request.StartDistributedWriteSession;
 import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.StartPipeline;
 import tech.ytsaurus.client.request.StartQuery;
@@ -119,6 +122,7 @@ import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.request.WriteTableFragment;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.client.rows.UnversionedRow;
@@ -709,6 +713,26 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<AsyncReader<UnversionedRow>> createTablePartitionReader(CreateTablePartitionReader req) {
         return (CompletableFuture<AsyncReader<UnversionedRow>>) callMethod("createTablePartitionReader");
+    }
+
+    @Override
+    public CompletableFuture<DistributedWriteHandle> startDistributedWriteSession(StartDistributedWriteSession req) {
+        return (CompletableFuture<DistributedWriteHandle>) callMethod("startDistributedWriteSession");
+    }
+
+    @Override
+    public CompletableFuture<Void> pingDistributedWriteSession(PingDistributedWriteSession req) {
+        return (CompletableFuture<Void>) callMethod("pingDistributedWriteSession");
+    }
+
+    @Override
+    public CompletableFuture<Void> finishDistributedWriteSession(FinishDistributedWriteSession req) {
+        return (CompletableFuture<Void>) callMethod("finishDistributedWriteSession");
+    }
+
+    @Override
+    public <T> CompletableFuture<AsyncFragmentWriter<T>> writeTableFragment(WriteTableFragment<T> req) {
+        return (CompletableFuture<AsyncFragmentWriter<T>>) callMethod("writeTableFragment");
     }
 
     private CompletableFuture<?> callMethod(String methodName) {
