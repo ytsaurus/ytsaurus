@@ -39,7 +39,7 @@ cdef _safe_remove(deq, item)
 cdef class SimpleQueue:
     cdef __weakref__
     cdef readonly hub
-    cdef public queue # Subclasses may write this
+    cdef readonly queue
     cdef readonly bint is_shutdown
 
     cdef getters
@@ -50,16 +50,7 @@ cdef class SimpleQueue:
 
     cpdef _get(self)
     cpdef _put(self, item)
-    cpdef Py_ssize_t _qsize(self)
-    # But the stdlib signature is
-    # ``_init(maxsize)``; even if we call
-    # it with just one argument, cython will always add
-    # a placeholder argument for the *items*. This means
-    # we can't ``cpdef`` this method.
-    # cpdef _init(self, maxsize, items=*)
-
     cpdef _peek(self)
-
 
     cpdef Py_ssize_t qsize(self)
     cpdef bint empty(self)

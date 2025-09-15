@@ -63,11 +63,7 @@ def get_hub_class():
 
     If there's no type of hub for the current thread yet, 'gevent.hub.Hub' is used.
     """
-    try:
-        hubtype = _threadlocal.Hub
-    except AttributeError:
-        hubtype = None
-
+    hubtype = _threadlocal.Hub
     if hubtype is None:
         hubtype = _threadlocal.Hub = Hub
     return hubtype

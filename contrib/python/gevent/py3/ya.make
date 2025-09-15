@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(25.8.2)
+VERSION(25.5.1)
 
 LICENSE(MIT)
 
@@ -40,14 +40,12 @@ NO_CHECK_IMPORTS(
 IF(OS_WINDOWS)
     CFLAGS(
         -DCARES_EMBED
-        -DLIBEV_EMBED=0
     )
     SRCS(
         hstrerror_stub.c
     )
 ELSE()
     CFLAGS(
-        -DLIBEV_EMBED=0
         -DHAVE_NETDB_H
     )
 ENDIF()
