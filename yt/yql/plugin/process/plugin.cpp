@@ -435,11 +435,6 @@ private:
         config->SlotIndex = slotIndex;
         config->BusServer = serverConfig;
 
-        auto fileStoragePath = BuildYsonNodeFluently()
-            .Value(NFS::CombinePaths(GetSlotPath(slotIndex), "tmp"));
-
-        config->PluginConfig->FileStorageConfig->AsMap()->AddChild("path", fileStoragePath);
-
         auto logManagerConfig = config->SingletonsConfig->GetSingletonConfig<NLogging::TLogManagerConfig>();
         logManagerConfig->UpdateWriters([&](const NYTree::IMapNodePtr& writerConfigNode) {
             auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
