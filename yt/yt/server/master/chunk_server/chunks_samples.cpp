@@ -122,22 +122,22 @@ void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSampl
     InconsistentlyPlacedChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->inconsistently_placed_chunk_ids());
 
     if (!request->lost_vital_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received lost vital chunks sample (LostVitalChunksSample: %v)", request->lost_vital_chunk_ids());
+        YT_LOG_DEBUG("Received lost vital chunks sample (LostVitalChunksSampleSize: %v)", request->lost_vital_chunk_ids_size());
     }
     if (!request->data_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received data missing chunks sample (DataMissingChunksSample: %v)", request->data_missing_chunk_ids());
+        YT_LOG_DEBUG("Received data missing chunks sample (DataMissingChunksSampleSize: %v)", request->data_missing_chunk_ids_size());
     }
     if (!request->parity_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received parity missing chunks sample (ParityMissingChunksSample: %v)", request->parity_missing_chunk_ids());
+        YT_LOG_DEBUG("Received parity missing chunks sample (ParityMissingChunksSampleSize: %v)", request->parity_missing_chunk_ids_size());
     }
     if (!request->oldest_part_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received oldest part missing chunks sample (OldestPartMissingChunksSample: %v)", request->oldest_part_missing_chunk_ids());
+        YT_LOG_DEBUG("Received oldest part missing chunks sample (OldestPartMissingChunksSampleSize: %v)", request->oldest_part_missing_chunk_ids_size());
     }
     if (!request->quorum_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received quorum missing chunks sample (QuorumMissingChunksSample: %v)", request->quorum_missing_chunk_ids());
+        YT_LOG_DEBUG("Received quorum missing chunks sample (QuorumMissingChunksSampleSize: %v)", request->quorum_missing_chunk_ids_size());
     }
     if (!request->inconsistently_placed_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received inconsistently placed chunks sample (InconsistentlyPlacedChunksSample: %v)", request->inconsistently_placed_chunk_ids());
+        YT_LOG_DEBUG("Received inconsistently placed chunks sample (InconsistentlyPlacedChunksSampleSize: %v)", request->inconsistently_placed_chunk_ids_size());
     }
 }
 
@@ -235,7 +235,7 @@ TFuture<NProto::TReqChunksSamples> TChunksSamples::GetLocalCellUpdate() {
         GetLocalSample("//sys/local_oldest_part_missing_chunks"),
         GetLocalSample("//sys/local_quorum_missing_chunks"),
         GetLocalSample("//sys/local_inconsistently_placed_chunks")})
-        .ApplyUnique(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (std::vector<TErrorOr<TLocalSampleVector>>&& samples) {
+        .Apply(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (const std::vector<TErrorOr<TLocalSampleVector>>& samples) {
             NProto::TReqChunksSamples req;
             req.set_cell_tag(ToProto(cellTag));
             YT_VERIFY(samples.size() == 6);

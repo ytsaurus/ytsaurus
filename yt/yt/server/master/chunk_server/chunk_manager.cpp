@@ -6685,12 +6685,12 @@ private:
                 auto processResponse = [&] (const TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>& rsp, int index, TStringBuf name) {
                     auto currentRspOrError = rsp->GetResponse<TYPathProxy::TRspGet>(index);
                     if (!currentRspOrError.IsOK()) {
-                        YT_LOG_WARNING(currentRspOrError, "Failed to get local cell %v", name);
+                        YT_LOG_WARNING(currentRspOrError, "Failed to get local cell statistics (StatiscicsName: %v)", name);
                         return;
                     }
                     auto response = ConvertTo<INodePtr>(TYsonString{currentRspOrError.Value()->value()});
                     if (response->GetType() != ENodeType::Int64) {
-                        YT_LOG_ALERT("Response type for local cell %v is invalid (ResponseType: %v)", name, response->GetType());
+                        YT_LOG_ALERT("Response type for local cell statistics is invalid (StatisticsName: %v, ResponseType: %v)", name, response->GetType());
                         return;
                     }
                     responsesSum[index] += response->AsInt64()->GetValue();

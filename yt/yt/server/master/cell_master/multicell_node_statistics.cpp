@@ -184,10 +184,10 @@ TFuture<NProto::TReqSetCellStatistics> TMulticellNodeStatistics::GetLocalCellUpd
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
     return chunkManager->GetCellStatistics()
-        .Apply(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (const TErrorOr<NProto::TCellStatistics>& cellStatistics) {
+        .Apply(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (const NProto::TCellStatistics& cellStatistics) {
             NProto::TReqSetCellStatistics result;
             result.set_cell_tag(ToProto(cellTag));
-            result.mutable_statistics()->CopyFrom(cellStatistics.ValueOrThrow());
+            result.mutable_statistics()->CopyFrom(cellStatistics);
             return result;
         }));
 }
