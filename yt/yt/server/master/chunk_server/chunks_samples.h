@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cell_master/public.h>
 #include <yt/yt/server/master/cell_master/multicell_statistics_collector.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/public.h>
 
 namespace NYT::NChunkServer {
@@ -65,6 +66,13 @@ private:
     using TLocalSampleVector = TCompactVector<NCypressClient::TObjectId, TDynamicChunkManagerConfig::DefaultMaxChunksSampleSizePerCell>;
 
     TFuture<TLocalSampleVector> GetLocalSample(NYPath::TYPath localChunksPath);
+
+    TFuture<TChunksSamples::TLocalSampleVector> GetLocalOldestPartMissingChunkSample();
+
+    std::vector<TFuture<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr>> SendLocalSampleRequests(
+        NYPath::TYPath localChunksPath,
+        NYTree::TAttributeFilter attributeFilter,
+        std::optional<int> limit);
 };
 
 static_assert(NCellMaster::CMulticellStatisticsValue<TChunksSamples>);
