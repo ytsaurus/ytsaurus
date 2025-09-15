@@ -165,24 +165,29 @@ private:
             : securityManager->GetAuthenticatedUser();
         auto permission = EPermission(request->permission());
 
-        bool ignoreMissingSubjects = request->ignore_missing_subjects();
+        auto ignoreMissingSubjects = request->ignore_missing_subjects();
+        auto ignorePendingRemovalSubjects = request->ignore_pending_removal_subjects();
 
         context->SetRequestInfo("User: %v, Permission: %v",
             user->GetName(),
             permission);
 
         auto aclNode = ConvertToNode(TYsonString(request->acl()));
-        TAccessControlList acl;
+        auto validatedAcl = DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
+            aclNode,
+            securityManager,
+            ignoreMissingSubjects,
+            ignorePendingRemovalSubjects);
+
         if (ignoreMissingSubjects) {
-            auto [deserializedAcl, missingSubjects] =
-                DeserializeAclGatherMissingSubjectsOrThrow(aclNode, securityManager);
-            ToProto(response->mutable_missing_subjects(), missingSubjects);
-            acl = std::move(deserializedAcl);
-        } else {
-            acl = DeserializeAclOrThrow(aclNode, securityManager);
+            ToProto(response->mutable_missing_subjects(), validatedAcl.MissingSubjects);
         }
 
-        auto result = securityManager->CheckPermission(user, permission, acl);
+        if (ignorePendingRemovalSubjects) {
+            ToProto(response->mutable_pending_removal_subjects(), validatedAcl.PendingRemovalSubjects);
+        }
+
+        auto result = securityManager->CheckPermission(user, permission, validatedAcl.Acl);
 
         response->set_action(ToProto(result.Action));
         if (result.SubjectId) {

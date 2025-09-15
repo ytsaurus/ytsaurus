@@ -75,10 +75,18 @@ TAccessControlList DeserializeAclOrThrow(
     const NYTree::INodePtr& node,
     const ISecurityManagerPtr& securityManager);
 
-std::pair<TAccessControlList, std::vector<std::string>>
-DeserializeAclGatherMissingSubjectsOrThrow(
+struct TValidatedAccessControlList
+{
+    TAccessControlList Acl;
+    std::vector<std::string> MissingSubjects;
+    std::vector<std::string> PendingRemovalSubjects;
+};
+
+TValidatedAccessControlList DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
     const NYTree::INodePtr& node,
-    const ISecurityManagerPtr& securityManager);
+    const ISecurityManagerPtr& securityManager,
+    bool ignoreMissingSubjects,
+    bool ignorePendingRemovalSubjects);
 
 TAccessControlList DeserializeAclOrAlert(
     const NYTree::INodePtr& node,

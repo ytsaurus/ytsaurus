@@ -214,6 +214,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         typedReq->set_permission(ToProto(key.Permission));
         typedReq->set_acl(ToProto(*key.Acl));
         typedReq->set_ignore_missing_subjects(true);
+        typedReq->set_ignore_pending_removal_subjects(true);
         req = std::move(typedReq);
     }
     SetCachingHeader(req, connection, *Config_->MasterReadOptions);
@@ -273,6 +274,7 @@ TError TPermissionCache::ParseCheckPermissionByAclResponse(
     result.Action = FromProto<ESecurityAction>(rsp->action());
     result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
     result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
+    result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
     result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
     return result.ToError(key.User, key.Permission);
 }
