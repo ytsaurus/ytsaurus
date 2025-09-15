@@ -25,12 +25,12 @@ public:
         const TAttributeFilter& attributeFilter,
         int maxAllowedNodeDepth,
         const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-        const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
+        const THashMap<TNodeId, INodePtr>& nodesWithAttributes)
         : Consumer_(consumer)
         , AttributeFilter_(attributeFilter)
         , MaxAllowedNodeDepth_(maxAllowedNodeDepth)
         , NodeIdToChildren_(std::move(nodeIdToChildren))
-        , NodeIdToMasterResponse_(std::move(nodeIdToMasterResponse))
+        , NodesWithAttributes_(std::move(nodesWithAttributes))
     { }
 
     void Visit(TNodeId rootId)
@@ -43,16 +43,19 @@ private:
     const TAttributeFilter AttributeFilter_;
     const int MaxAllowedNodeDepth_;
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>> NodeIdToChildren_;
-    const THashMap<TNodeId, TYPathProxy::TRspGetPtr> NodeIdToMasterResponse_;
+    const THashMap<TNodeId, INodePtr> NodesWithAttributes_;
 
     void VisitAny(TNodeId nodeId, int currentNodeDepth)
     {
         ++currentNodeDepth;
 
-        if (AttributeFilter_) {
-            auto masterResponse = GetOrCrash(NodeIdToMasterResponse_, nodeId)->value();
-            auto node = ConvertToNode(NYson::TYsonString(masterResponse));
-            node->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
+        if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
+            auto nodeIter = NodesWithAttributes_.find(nodeId);
+            if (nodeIter != NodesWithAttributes_.end()) {
+                nodeIter->second->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
+            } else {
+                THROW_ERROR_EXCEPTION("Cannot fetch attributes for node %v", nodeId);
+            }
         }
 
         auto nodeType = TypeFromId(nodeId);
@@ -79,8 +82,7 @@ private:
     void VisitScalar(TNodeId nodeId)
     {
         auto nodeType = TypeFromId(nodeId);
-        auto masterResponse = GetOrCrash(NodeIdToMasterResponse_, nodeId)->value();
-        auto node = ConvertToNode(NYson::TYsonString(masterResponse));
+        auto node = GetOrCrash(NodesWithAttributes_, nodeId);
         switch (nodeType) {
             case EObjectType::StringNode:
                 Consumer_->OnStringScalar(node->AsString()->GetValue());
@@ -140,7 +142,7 @@ void VisitSequoiaTree(
     NYson::IYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
+    const THashMap<TNodeId, INodePtr>& nodesWithAttributes)
 {
     NYson::TAsyncYsonConsumerAdapter adapter(consumer);
     VisitSequoiaTree(
@@ -149,7 +151,7 @@ void VisitSequoiaTree(
         &adapter,
         attributeFilter,
         std::move(nodeIdToChildren),
-        std::move(nodeIdToMasterResponse));
+        std::move(nodesWithAttributes));
 }
 
 void VisitSequoiaTree(
@@ -158,14 +160,14 @@ void VisitSequoiaTree(
     NYson::IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const THashMap<TNodeId, TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse)
+    const THashMap<TNodeId, INodePtr>& nodesWithAttributes)
 {
     TSequoiaTreeVisitor treeVisitor(
         consumer,
         attributeFilter,
         maxAllowedNodeDepth,
         std::move(nodeIdToChildren),
-        std::move(nodeIdToMasterResponse));
+        std::move(nodesWithAttributes));
     treeVisitor.Visit(rootId);
 }
 

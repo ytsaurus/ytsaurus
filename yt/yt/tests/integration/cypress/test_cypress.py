@@ -2722,7 +2722,6 @@ class TestCypress(YTEnvSetup):
             assert get_batch_output(get_results[i]) == i
 
     @authors("babenko", "shakurov")
-    @not_implemented_in_sequoia
     def test_recursive_resource_usage_map(self):
         create("map_node", "//tmp/m")
         for i in range(10):
@@ -2743,7 +2742,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/l/@recursive_resource_usage/node_count", tx=tx) == 11
 
     @authors("aleksandra-zh")
-    @not_implemented_in_sequoia
     def test_master_memory_resource_usage(self):
         create("map_node", "//tmp/m")
         for i in range(10):

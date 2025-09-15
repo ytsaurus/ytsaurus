@@ -324,7 +324,8 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     switch (key) {
         case EInternedAttributeKey::RecursiveResourceUsage: {
             if (GetThisImpl()->IsSequoia()) {
-                THROW_ERROR_EXCEPTION("Attribute \"recursive_resource_usage\" is not supported in Sequoia yet");
+                THROW_ERROR_EXCEPTION("Attribute %Qv cannot be read directly from master server",
+                    EInternedAttributeKey::RecursiveResourceUsage.Unintern());
             }
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             return cypressManager->ComputeRecursiveResourceUsage(GetTrunkNode(), GetTransaction());
@@ -610,8 +611,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetExternal(isExternal));
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
-        .SetOpaque(true)
-        .SetPresent(!node->IsSequoia()));
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Account)
         .SetWritable(true)
         .SetReplicated(true));
