@@ -1,5 +1,6 @@
 package tech.ytsaurus.client;
 
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -14,6 +15,9 @@ import com.google.protobuf.Message;
 import com.google.protobuf.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.request.SerializationContext;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rpc.Codec;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.LazyResponse;
@@ -22,11 +26,12 @@ import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.rpc.TResponseHeader;
 import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
 import tech.ytsaurus.rpc.TStreamingPayloadHeader;
-import tech.ytsaurus.rpcproxy.TRspWriteTable;
+import tech.ytsaurus.rpcproxy.TWriteTableMeta;
 
 
 abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer {
@@ -411,15 +416,24 @@ interface RawTableWriter extends Abortable<Void> {
 }
 
 @NonNullApi
-class RawTableWriterImpl extends StreamWriterImpl<TRspWriteTable>
+abstract class RawTableWriterImpl<T, Rsp extends Message> extends StreamWriterImpl<Rsp>
         implements RawTableWriter, RpcStreamConsumer {
-    RawTableWriterImpl(long windowSize, long packetSize) {
-        super(windowSize, packetSize);
-    }
 
-    @Override
-    protected Parser<TRspWriteTable> responseParser() {
-        return TRspWriteTable.parser();
+    protected @Nullable TableSchema schema;
+    protected @Nullable TableRowsSerializer<T> tableRowsSerializer;
+    private final SerializationResolver serializationResolver;
+    private final SerializationContext<T> serializationContext;
+
+    RawTableWriterImpl(
+            long windowSize,
+            long packetSize,
+            SerializationResolver serializationResolver,
+            SerializationContext<T> serializationContext) {
+        super(windowSize, packetSize);
+        this.serializationResolver = serializationResolver;
+        this.serializationContext = serializationContext;
+        this.tableRowsSerializer = TableRowsSerializerUtil.createTableRowsSerializer(
+                serializationContext, serializationResolver).orElse(null);
     }
 
     @Override
@@ -441,6 +455,62 @@ class RawTableWriterImpl extends StreamWriterImpl<TRspWriteTable>
     @Override
     public CompletableFuture<Void> readyEvent() {
         return super.readyEvent();
+    }
+
+    protected CompletableFuture<RawTableWriterImpl<T, Rsp>> startUploadImpl() {
+        RawTableWriterImpl<T, Rsp> self = this;
+
+        return startUpload.thenApply((attachments) -> {
+            if (attachments.size() != 1) {
+                throw new IllegalArgumentException("protocol error");
+            }
+            byte[] head = attachments.get(0);
+            if (head == null) {
+                throw new IllegalArgumentException("protocol error");
+            }
+
+            TWriteTableMeta metadata = RpcUtil.parseMessageBodyWithCompression(
+                    head,
+                    TWriteTableMeta.parser(),
+                    Compression.None
+            );
+            self.schema = ApiServiceUtil.deserializeTableSchema(metadata.getSchema());
+            logger.debug("schema -> {}", schema.toYTree().toString());
+
+            if (this.tableRowsSerializer == null) {
+                if (serializationContext.getObjectClass().isEmpty()) {
+                    throw new IllegalStateException("No object clazz");
+                }
+                Class<T> objectClazz = serializationContext.getObjectClass().get();
+                if (UnversionedRow.class.equals(objectClazz)) {
+                    this.tableRowsSerializer =
+                            (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());
+                } else {
+                    this.tableRowsSerializer = new TableRowsWireSerializer<>(
+                            serializationResolver.createWireRowSerializer(
+                                    serializationResolver.forClass(objectClazz, self.schema))
+                    );
+                }
+            }
+
+            return self;
+        });
+    }
+
+    public boolean write(List<T> rows, TableSchema schema) throws IOException {
+        byte[] serializedRows;
+        if (tableRowsSerializer instanceof TableRowsWireSerializer) {
+            var tableRowsWireSerializer = ((TableRowsWireSerializer<T>) tableRowsSerializer);
+            var descriptorDelta = tableRowsWireSerializer.getCurrentRowsetDescriptor(schema);
+            tableRowsWireSerializer.write(rows, schema, descriptorDelta);
+            serializedRows = TableRowsSerializerUtil.serializeRowsWithDescriptor(tableRowsSerializer, descriptorDelta);
+        } else {
+            tableRowsSerializer.write(rows);
+            serializedRows = TableRowsSerializerUtil.serializeRowsWithDescriptor(
+                    tableRowsSerializer, tableRowsSerializer.getRowsetDescriptor()
+            );
+        }
+        return write(serializedRows);
     }
 }
 

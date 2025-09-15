@@ -26,6 +26,7 @@ import tech.ytsaurus.rpcproxy.TReqCopyNode;
 import tech.ytsaurus.rpcproxy.TReqCreateNode;
 import tech.ytsaurus.rpcproxy.TReqCreateObject;
 import tech.ytsaurus.rpcproxy.TReqExistsNode;
+import tech.ytsaurus.rpcproxy.TReqFinishDistributedWriteSession;
 import tech.ytsaurus.rpcproxy.TReqFlowExecute;
 import tech.ytsaurus.rpcproxy.TReqFreezeTable;
 import tech.ytsaurus.rpcproxy.TReqGCCollect;
@@ -58,6 +59,7 @@ import tech.ytsaurus.rpcproxy.TReqMultiLookup;
 import tech.ytsaurus.rpcproxy.TReqPartitionTables;
 import tech.ytsaurus.rpcproxy.TReqPatchOperationSpec;
 import tech.ytsaurus.rpcproxy.TReqPausePipeline;
+import tech.ytsaurus.rpcproxy.TReqPingDistributedWriteSession;
 import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 import tech.ytsaurus.rpcproxy.TReqPullQueue;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
@@ -76,6 +78,7 @@ import tech.ytsaurus.rpcproxy.TReqSelectRows;
 import tech.ytsaurus.rpcproxy.TReqSetNode;
 import tech.ytsaurus.rpcproxy.TReqSetPipelineDynamicSpec;
 import tech.ytsaurus.rpcproxy.TReqSetPipelineSpec;
+import tech.ytsaurus.rpcproxy.TReqStartDistributedWriteSession;
 import tech.ytsaurus.rpcproxy.TReqStartOperation;
 import tech.ytsaurus.rpcproxy.TReqStartPipeline;
 import tech.ytsaurus.rpcproxy.TReqStartQuery;
@@ -91,6 +94,7 @@ import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TReqWriteFile;
 import tech.ytsaurus.rpcproxy.TReqWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TReqWriteTable;
+import tech.ytsaurus.rpcproxy.TReqWriteTableFragment;
 import tech.ytsaurus.rpcproxy.TRspAbortJob;
 import tech.ytsaurus.rpcproxy.TRspAbortOperation;
 import tech.ytsaurus.rpcproxy.TRspAbortQuery;
@@ -109,6 +113,7 @@ import tech.ytsaurus.rpcproxy.TRspCopyNode;
 import tech.ytsaurus.rpcproxy.TRspCreateNode;
 import tech.ytsaurus.rpcproxy.TRspCreateObject;
 import tech.ytsaurus.rpcproxy.TRspExistsNode;
+import tech.ytsaurus.rpcproxy.TRspFinishDistributedWriteSession;
 import tech.ytsaurus.rpcproxy.TRspFlowExecute;
 import tech.ytsaurus.rpcproxy.TRspFreezeTable;
 import tech.ytsaurus.rpcproxy.TRspGCCollect;
@@ -141,6 +146,7 @@ import tech.ytsaurus.rpcproxy.TRspMultiLookup;
 import tech.ytsaurus.rpcproxy.TRspPartitionTables;
 import tech.ytsaurus.rpcproxy.TRspPatchOperationSpec;
 import tech.ytsaurus.rpcproxy.TRspPausePipeline;
+import tech.ytsaurus.rpcproxy.TRspPingDistributedWriteSession;
 import tech.ytsaurus.rpcproxy.TRspPingTransaction;
 import tech.ytsaurus.rpcproxy.TRspPullQueue;
 import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
@@ -159,6 +165,7 @@ import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspSetNode;
 import tech.ytsaurus.rpcproxy.TRspSetPipelineDynamicSpec;
 import tech.ytsaurus.rpcproxy.TRspSetPipelineSpec;
+import tech.ytsaurus.rpcproxy.TRspStartDistributedWriteSession;
 import tech.ytsaurus.rpcproxy.TRspStartOperation;
 import tech.ytsaurus.rpcproxy.TRspStartPipeline;
 import tech.ytsaurus.rpcproxy.TRspStartQuery;
@@ -174,6 +181,7 @@ import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
 import tech.ytsaurus.rpcproxy.TRspWriteFile;
 import tech.ytsaurus.rpcproxy.TRspWriteShuffleData;
 import tech.ytsaurus.rpcproxy.TRspWriteTable;
+import tech.ytsaurus.rpcproxy.TRspWriteTableFragment;
 
 
 public class ApiServiceMethodTable {
@@ -408,6 +416,27 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqReadShuffleData.Builder, TRspReadShuffleData> READ_SHUFFLE_DATA =
             apiServiceMethod("ReadShuffleData", TReqReadShuffleData::newBuilder, TRspReadShuffleData.parser());
+
+    public static final RpcMethodDescriptor<TReqStartDistributedWriteSession.Builder,
+            TRspStartDistributedWriteSession> START_DISTRIBUTED_WRITE_SESSION =
+            apiServiceMethod("StartDistributedWriteSession", TReqStartDistributedWriteSession::newBuilder,
+                    TRspStartDistributedWriteSession.parser());
+
+    public static final RpcMethodDescriptor<TReqPingDistributedWriteSession.Builder,
+            TRspPingDistributedWriteSession> PING_DISTRIBUTED_WRITE_SESSION =
+            apiServiceMethod("PingDistributedWriteSession", TReqPingDistributedWriteSession::newBuilder,
+                    TRspPingDistributedWriteSession.parser());
+
+    public static final RpcMethodDescriptor<TReqFinishDistributedWriteSession.Builder,
+            TRspFinishDistributedWriteSession> FINISH_DISTRIBUTED_WRITE_SESSION =
+            apiServiceMethod("FinishDistributedWriteSession", TReqFinishDistributedWriteSession::newBuilder,
+                    TRspFinishDistributedWriteSession.parser());
+
+    public static final RpcMethodDescriptor<TReqWriteTableFragment.Builder, TRspWriteTableFragment>
+            WRITE_TABLE_FRAGMENT = apiServiceMethod(
+                    "WriteTableFragment",
+                    TReqWriteTableFragment::newBuilder,
+                    TRspWriteTableFragment.parser());
 
     public static final RpcMethodDescriptor<TReqGetFileFromCache.Builder, TRspGetFileFromCache> GET_FILE_FROM_CACHE =
             apiServiceMethod("GetFileFromCache", TReqGetFileFromCache::newBuilder, TRspGetFileFromCache.parser());
