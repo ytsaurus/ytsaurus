@@ -556,6 +556,14 @@ private:
             newJobProxyConfigTemplate->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
             newJobProxyConfigTemplate->TvmBridgeConnection->Address = localAddress;
 
+            // Duplicate the TBusConfig part from SupervisorConnection to TvmBridgeConnection,
+            // because it may have ssl parameters.
+            if (const NBus::TBusConfigPtr& busConfig = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+                newJobProxyConfigTemplate->TvmBridgeConnection = UpdateYsonStruct(
+                    newJobProxyConfigTemplate->TvmBridgeConnection,
+                    NYson::ConvertToYsonString(busConfig));
+            }
+
             newJobProxyConfigTemplate->TvmBridge = New<NAuth::TTvmBridgeConfig>();
             newJobProxyConfigTemplate->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
         }

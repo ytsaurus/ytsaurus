@@ -87,7 +87,7 @@ class TestRpcProxy(YTEnvSetup):
 
         wait(config_updated, ignore_exceptions=True)
 
-        wait(lambda: get("//sys/rpc_proxies/" + proxy_name + "/orchid/bus_server/encryption_mode") == "optional")
+        wait(lambda: get("//sys/rpc_proxies/" + proxy_name + "/orchid/bus_server/encryption_mode") == "disabled")
         wait(lambda: get("//sys/rpc_proxies/" + proxy_name + "/orchid/bus_server/verification_mode") == "none")
 
 
