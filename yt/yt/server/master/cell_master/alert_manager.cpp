@@ -165,10 +165,24 @@ private:
 
         YT_LOG_DEBUG("Updating master alerts");
 
+        auto isPrefixOf = [] (const std::string& message, const std::vector<std::string>& prefixes) {
+            for (const auto& prefix : prefixes) {
+                if (message.starts_with(prefix)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         std::vector<TError> localAlerts;
         for (const auto& alertSource : AlertSources_) {
-            auto alerts = alertSource();
-            localAlerts.insert(localAlerts.end(), alerts.begin(), alerts.end());
+            for (const auto& alert : alertSource()) {
+                if (!isPrefixOf(
+                        alert.GetMessage(),
+                        Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->SuppressedAlerts)) {
+                    localAlerts.emplace_back(alert);
+                }
+            }
         }
 
         for (const auto& alert : localAlerts) {

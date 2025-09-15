@@ -303,6 +303,15 @@ class TestMasterCellsSync(YTEnvSetup):
         remove("//sys/@config/foo")
         check(0)
 
+    @authors("theevilbird")
+    def test_master_alert_suppressed_messages(self):
+        banned_message = "Found unrecognized options in dynamic cluster config"
+        set("//sys/@config/foo", "bar")
+        wait(lambda: len(get("//sys/@master_alerts")) == 1)
+        set("//sys/@config/cell_master/suppressed_messages", [banned_message])
+        wait(lambda: len(get("//sys/@master_alerts")) == 0)
+        remove("//sys/@config/foo")
+
 
 ##################################################################
 
