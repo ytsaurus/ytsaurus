@@ -485,6 +485,8 @@ struct TStrategyTreeConfig
 
     TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
 
+    bool EnableDetailedLogsForStarvingOperations;
+
     REGISTER_YSON_STRUCT(TStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
