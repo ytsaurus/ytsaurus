@@ -3237,6 +3237,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
         proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
         proxyInternalConfig->EnablePerClusterChunkReaderStatistics = proxyDynamicConfig->EnablePerClusterChunkReaderStatistics;
+        proxyInternalConfig->DumpSingleLocalClusterStatistics = proxyDynamicConfig->DumpSingleLocalClusterStatistics;
 
         proxyInternalConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
 

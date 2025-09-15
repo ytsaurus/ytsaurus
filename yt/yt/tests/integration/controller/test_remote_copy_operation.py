@@ -1346,6 +1346,32 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         do_copy("has_full_read")
 
+    @authors("coteeq")
+    def test_chunk_reader_statistics(self):
+        skip_if_component_old(self.Env, (25, 3), "controller-agent")
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a": "b"}], driver=self.remote_driver)
+
+        op = remote_copy(
+            in_=[
+                "//tmp/t1",
+            ],
+            out="<create=%true>//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            }
+        )
+
+        assert_statistic = partial(
+            assert_statistics_v2,
+            op,
+            job_type="remote_copy"
+        )
+
+        assert assert_statistic("chunk_reader_statistics.data_bytes_transmitted", lambda actual: actual is not None and actual > 0)
+        # NB: remote_copy jobs do not operate on rows, so row count should be zero.
+        assert assert_statistic("chunk_reader_statistics.row_count", lambda actual: actual is None)
+
 
 ##################################################################
 
