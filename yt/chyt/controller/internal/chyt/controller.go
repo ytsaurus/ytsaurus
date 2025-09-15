@@ -110,6 +110,10 @@ type Controller struct {
 	config                  Config
 }
 
+type ChytOpletInfo struct {
+	ChytRunningVersion string `yson:"chyt_running_version"`
+}
+
 func (c *Controller) prepareTvmSecret() {
 	clusterName := strings.ReplaceAll(strings.ToUpper(c.cluster), "-", "_")
 	envVar := "CHYT_TVM_SECRET_" + clusterName
@@ -197,6 +201,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
 	speclet := oplet.ControllerSpeclet().(Speclet)
 
+	var opletInfo ChytOpletInfo
 	var filePaths []ypath.Rich
 
 	// Populate resources.
@@ -212,11 +217,14 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	// Build artifacts if there are no local binaries.
 	if c.config.LocalBinariesDir == nil {
-		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description)
+		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description, &opletInfo.ChytRunningVersion)
 		if err != nil {
 			return
 		}
+	} else {
+		opletInfo.ChytRunningVersion = "LocalVersion"
 	}
+	oplet.SetOpletInfo(opletInfo)
 
 	// Build configs.
 	err = c.appendConfigs(ctx, oplet, &speclet, &filePaths)

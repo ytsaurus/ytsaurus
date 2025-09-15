@@ -276,6 +276,15 @@ func (oplet *Oplet) SetSecret(secret string, value any) {
 	oplet.secrets[secret] = value
 }
 
+func (oplet *Oplet) SetOpletInfo(info any) {
+	parsedInfo, err := yson.Marshal(info)
+	if err != nil {
+		oplet.l.Error("Failed to marshal oplet info", log.Error(err))
+		return
+	}
+	oplet.persistentState.OpletInfo = parsedInfo
+}
+
 type OpletState string
 
 const (
@@ -1236,6 +1245,7 @@ type OpletBriefInfo struct {
 	SpecletModificationTime         *yson.Time           `yson:"speclet_modification_time,omitempty" json:"speclet_modification_time,omitempty"`
 	IncarnationIndex                int                  `yson:"incarnation_index" json:"incarnation_index"`
 	CtlAttributes                   map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
+	OpletInfo                       yson.RawValue        `yson:"oplet_info,omitempty" json:"oplet_info,omitempty"`
 	Error                           string               `yson:"error,omitempty" json:"error,omitempty"`
 }
 
@@ -1249,6 +1259,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	briefInfo.StrawberryStateModificationTime = getYSONTimePointerOrNil(oplet.strawberryStateModificationTime)
 	briefInfo.SpecletModificationTime = getYSONTimePointerOrNil(oplet.specletModificationTime)
 	briefInfo.IncarnationIndex = oplet.persistentState.IncarnationIndex
+	briefInfo.OpletInfo = oplet.persistentState.OpletInfo
 	if oplet.strawberrySpeclet.Pool != nil {
 		briefInfo.Pool = *oplet.strawberrySpeclet.Pool
 	}

@@ -2,6 +2,7 @@ package chyt
 
 import (
 	"context"
+	"path/filepath"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -41,7 +42,7 @@ func (c *Controller) buildArtifact(ctx context.Context, artifact artifact) (path
 	return
 }
 
-func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any) (err error) {
+func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any, chytVersion *string) (err error) {
 	artifacts := []artifact{
 		{"ytserver-clickhouse", CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault())},
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
@@ -56,6 +57,9 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 	for _, artifact := range artifacts {
 		var path ypath.Rich
 		path, err = c.buildArtifact(ctx, artifact)
+		if artifact.name == "ytserver-clickhouse" {
+			*chytVersion = filepath.Base(path.YPath().String())
+		}
 		if err != nil {
 			return
 		}
