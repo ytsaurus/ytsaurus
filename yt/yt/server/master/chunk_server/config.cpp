@@ -778,9 +778,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
         .Default(false);
 
-    registrar.Parameter("use_proper_replica_addition_reason", &TThis::UseProperReplicaAdditionReason)
-        .Default(false);
-
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
