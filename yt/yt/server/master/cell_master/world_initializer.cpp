@@ -1162,6 +1162,8 @@ private:
 
     TTransactionId StartTransaction()
     {
+        YT_LOG_INFO("Starting world initialization transaction");
+
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
         req->set_timeout(ToProto(Config_->WorldInitializer->InitTransactionTimeout));
@@ -1169,25 +1171,40 @@ private:
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        return FromProto<TTransactionId>(rsp->id());
+        auto transactionId = FromProto<TTransactionId>(rsp->id());
+
+        YT_LOG_INFO("World initialization transaction started (TransactionId: %v)",
+            transactionId);
+
+        return transactionId;
     }
 
     void AbortTransaction(TTransactionId transactionId)
     {
+        YT_LOG_INFO("Aborting world initialization transaction (TransactionId: %v)",
+            transactionId);
+
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.AbortTransaction();
         ToProto(req->mutable_transaction_id(), transactionId);
         WaitFor(req->Invoke())
             .ThrowOnError();
+
+        YT_LOG_INFO("World initialization transaction aborted");
     }
 
     void CommitTransaction(TTransactionId transactionId)
     {
+        YT_LOG_INFO("Committing world initialization transaction (TransactionId: %v)",
+            transactionId);
+
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.CommitTransaction();
         ToProto(req->mutable_transaction_id(), transactionId);
         WaitFor(req->Invoke())
             .ThrowOnError();
+
+        YT_LOG_INFO("World initialization transaction committed");
     }
 
     template <class TTypedRequest>
@@ -1209,6 +1226,9 @@ private:
         const TYsonString& attributes = TYsonString(TStringBuf("{}")),
         bool force = false)
     {
+        YT_LOG_DEBUG("Scheduling node creation (Path: %v)",
+            path);
+
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
@@ -1229,6 +1249,9 @@ private:
         TTransactionId transactionId,
         bool force = false)
     {
+        YT_LOG_DEBUG("Scheduling node removal (Path: %v)",
+            path);
+
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Remove(path);
         SetTransactionId(req, transactionId);
@@ -1241,8 +1264,11 @@ private:
 
     void ScheduleCreateObject(
         EObjectType type,
-        const IAttributeDictionaryPtr attributesPtr)
+        const IAttributeDictionaryPtr& attributesPtr)
     {
+        YT_LOG_DEBUG("Scheduling object creation (Type: %v)",
+            type);
+
         auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
         // For some reasons TObjectServiceProxy::FromDirectMasterChannel cannot
         // be used here.
@@ -1256,10 +1282,11 @@ private:
         ToProto(req->mutable_object_attributes(), *attributes);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-        batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
-            .ThrowOnError();
+        ScheduledMutations_.push_back(
+            batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                GetCumulativeError(batchRspOrError)
+                    .ThrowOnError();
+            })));
     }
 
     void ScheduleSetNode(
@@ -1267,6 +1294,9 @@ private:
         TTransactionId transactionId,
         const TYsonString& value)
     {
+        YT_LOG_DEBUG("Scheduling node set (Path: %v)",
+            path);
+
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Set(path);
         SetTransactionId(req, transactionId);
@@ -1297,10 +1327,14 @@ private:
 
     void FlushScheduled()
     {
-        std::vector<TFuture<void>> scheduledMutations;
-        ScheduledMutations_.swap(scheduledMutations);
+        YT_LOG_INFO("Flushing scheduled mutations (Count: %v)",
+            ScheduledMutations_.size());
+
+        auto scheduledMutations = std::exchange(ScheduledMutations_, {});
         WaitFor(AllSucceeded(scheduledMutations))
             .ThrowOnError();
+
+        YT_LOG_INFO("Scheduled mutations flushed");
     }
 
     void AbandonScheduled()
