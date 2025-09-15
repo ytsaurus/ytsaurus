@@ -1001,7 +1001,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
             setAlert(
                 ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
                 TError("Too many consecutive GPU job failures")
-                    << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures),
+                    << TErrorAttribute("max_consecutive_gpu_job_failures", dynamicConfig->MaxConsecutiveGpuJobFailures),
                 BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)));
         }
     }
