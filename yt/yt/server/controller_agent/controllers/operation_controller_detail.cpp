@@ -7130,7 +7130,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                     OperationType_ == EOperationType::RemoteCopy &&
                     table->TableUploadOptions.TableSchema->HasHunkColumns())
                 {
-                    req->set_fetch_hunk_chunk_list_ids(true);
+                    req->set_fetch_tablet_hunk_chunk_list_ids(true);
                 }
                 batchReq->AddRequest(req);
             }
