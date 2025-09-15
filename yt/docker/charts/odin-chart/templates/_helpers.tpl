@@ -25,3 +25,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ include "odin.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+
+{{- define "odin.enableIPv4" -}}
+{{- if .Values.config.odin.useIPv4 -}}
+{{- .Values.config.odin.useIPv4 -}}
+{{- else -}}
+{{- not .Values.config.odin.useIPv6 -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "odin.enableIPv6" -}}
+{{- if .Values.config.odin.useIPv6 -}}
+{{- .Values.config.odin.useIPv6 -}}
+{{- else -}}
+{{- false -}}
+{{- end -}}
+{{- end -}}

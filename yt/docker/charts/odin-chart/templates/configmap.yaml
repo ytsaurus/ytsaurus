@@ -32,7 +32,7 @@ data:
       "logging": {
         "level": "DEBUG",
         "port": {{ .Values.config.odin.logging.port }},
-        "filename": "{{ .Values.config.odin.logging.filename }}",
+        "filename": "{{ .Values.config.odin.logging.filename }}"
       },
       "service_config": {
         "path": "//sys/odin",
@@ -94,7 +94,11 @@ data:
             "heavy_request_retry_timeout": 15000,
             "request_retry_count": 3,
             "request_retry_timeout": 10000,
-            "request_timeout": 30000
+            "request_timeout": 30000,
+            "driver_address_resolver_config": {
+                "enable_ipv4": {{ include "odin.enableIPv4" . }},
+                "enable_ipv6": {{ include "odin.enableIPv6" . }}
+            }
         }
       }
     }
