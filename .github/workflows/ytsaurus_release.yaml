@@ -56,12 +56,13 @@ jobs:
           then
               echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
               echo "PROD_IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker-test/ytsaurus/})" >> $GITHUB_OUTPUT
+              echo "TEST_IMAGE_TAG=dev-$(echo ${GITHUB_REF#refs/*/docker-test/ytsaurus/})" >> $GITHUB_OUTPUT
           elif [[ "${tmp%%/*}" == "docker" ]]
           then
               echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
               echo "PROD_IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})" >> $GITHUB_OUTPUT
+              echo "TEST_IMAGE_TAG=dev-$(echo ${GITHUB_REF#refs/*/docker/ytsaurus/})" >> $GITHUB_OUTPUT
           fi
-          echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
 
   checkout:
     name: Checkout
