@@ -1,6 +1,9 @@
 from yt_odin_checks.lib.check_runner import main
+
 from yt.wrapper import get_retriable_errors, YtClient
 from yt.common import join_exceptions, YtError
+
+from copy import deepcopy
 
 
 def run_check(secrets, yt_client, logger, options, states):
@@ -9,10 +12,10 @@ def run_check(secrets, yt_client, logger, options, states):
 
     logger.info("Checking for relevant query tracker alerts from query tracker stage on cluster %s", cluster_name)
 
-    yt_client_no_retries = YtClient(
-        proxy=yt_client.config["proxy"]["url"],
-        token=secrets["yt_token"],
-        config={"proxy": {"retries": {"count": 1, "enable": False}}})
+    config = deepcopy(yt_client.config)
+    config["proxy"]["retries"] = {"count": 1, "enable": False}
+
+    yt_client_no_retries = YtClient(config=config)
 
     disconnected_query_trackers = []
     connected_query_tracker_count = 0

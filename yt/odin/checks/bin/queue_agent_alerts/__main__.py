@@ -4,6 +4,7 @@ from yt.common import YtError, YtResponseError
 
 import yt.yson as yson
 
+from copy import deepcopy
 from collections import defaultdict
 
 BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME = "banned_queue_agent_instance"
@@ -35,10 +36,9 @@ def run_check(secrets, yt_client, logger, options, states):
 
         logger.info("Checking for relevant queue agent alerts from queue agent stage on cluster %s", queue_agent_stage_cluster)
 
-        queue_agent_stage_client = YtClient(
-            proxy=queue_agent_stage_proxy,
-            token=secrets["yt_token"],
-            config={"proxy": {"retries": {"count": 1, "enable": False}}})
+        config = deepcopy(yt_client.config)
+        config["proxy"]["retries"] = {"count": 1, "enable": False}
+        queue_agent_stage_client = YtClient(proxy=queue_agent_stage_proxy, config=config)
 
         queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances", attributes=[BANNED_QUEUE_AGENT_INSTANCE_ATTRIBUTE_NAME]),
                                            null_value=[])

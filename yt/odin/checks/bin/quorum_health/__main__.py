@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# coding=utf-8
 from datetime import datetime
 
 from yt_odin_checks.lib.check_runner import main
@@ -14,7 +12,6 @@ def run_check(yt_client, logger, options, states):
     configure_timeout_and_retries(yt_client)
     configure_loggers()
 
-    # Если не получилось получить схема мастеров - возвращаем CRIT
     masters_cells = discover_masters(yt_client, options, logger)
     if masters_cells is None:
         juggler_message = "Can't discover masters"
