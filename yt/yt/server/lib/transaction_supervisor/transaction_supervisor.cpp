@@ -1033,7 +1033,7 @@ private:
                 pingAncestors);
 
             auto owner = GetOwnerOrThrow();
-            context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
+            context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors, /*pingerAddress*/ std::nullopt));
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, PingTransactions)
@@ -1048,7 +1048,7 @@ private:
             for (const auto& subrequest : request->subrequests()) {
                 auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
                 bool pingAncestors = subrequest.ping_ancestors();
-                resultFutures.push_back(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
+                resultFutures.push_back(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors, /*pingerAddress*/ std::nullopt));
             }
 
             auto handlePingResults = [=, this, this_ = MakeStrong(this)] (const std::vector<TErrorOr<void>>& results) {

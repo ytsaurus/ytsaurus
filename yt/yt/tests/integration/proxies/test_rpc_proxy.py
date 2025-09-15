@@ -1106,6 +1106,12 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         events_on_fs().release_breakpoint()
         op.track()
 
+    @authors("theevilbird")
+    def test_transaction_pinger_ip(self):
+        tx = start_transaction()
+        ping_transaction(tx)
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") != yson.YsonEntity
+
 
 ##################################################################
 

@@ -789,11 +789,11 @@ public:
         }
     }
 
-    TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors) override
+    TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors, std::optional<std::string> pingerAddress) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+        return LeaseTracker_->PingTransaction(transactionId, pingAncestors, pingerAddress);
     }
 
     bool CommitTransaction(TCtxCommitTransactionPtr /*context*/) override

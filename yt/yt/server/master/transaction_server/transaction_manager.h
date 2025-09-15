@@ -109,6 +109,9 @@ struct ITransactionManager
     //! a given #transactionId was last pinged.
     virtual TFuture<TInstant> GetLastPingTime(const TTransaction* transaction) = 0;
 
+    //! Returns the address of the last client that pinged #transactionId. May be null.
+    virtual TFuture<std::optional<std::string>> GetLastPingAddress(const TTransaction* transaction) = 0;
+
     //! Sets the transaction timeout. Current lease is not renewed.
     virtual void SetTransactionTimeout(
         TTransaction* transaction,

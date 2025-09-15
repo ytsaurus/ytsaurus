@@ -67,6 +67,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ParentId)
             .SetReplicated(true));
         descriptors->push_back(EInternedAttributeKey::StartTime);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastPingAddress));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NestedTransactionIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagedObjectIds)
@@ -256,6 +257,15 @@ private:
                     ->GetTransactionManager()
                     ->GetLastPingTime(transaction)
                     .Apply(BIND([] (TInstant value) {
+                        return ConvertToYsonString(value);
+                    }));
+
+            case EInternedAttributeKey::LastPingAddress:
+                RequireLeader();
+                return Bootstrap_
+                    ->GetTransactionManager()
+                    ->GetLastPingAddress(transaction)
+                    .Apply(BIND([] (std::optional<std::string> value) {
                         return ConvertToYsonString(value);
                     }));
 
