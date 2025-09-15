@@ -838,8 +838,8 @@ protected:
     void AlterTable(TYPath path, const NTableClient::NProto::TTableSchemaExt& schema)
     {
         auto req = NTableClient::TTableYPathProxy::Alter(path);
-        NCypressClient::SetTransactionId(req, TGuid{});
-        NRpc::SetMutationId(req, NRpc::GenerateMutationId(), false);
+        SetTransactionId(req, TGuid{});
+        SetMutationId(req, GenerateMutationId(), false);
 
         req->mutable_schema()->CopyFrom(schema);
 
@@ -2017,6 +2017,77 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
     // Start rotation should be a no-op now.
     auto startFuture = Components->StartRotation();
     EXPECT_TRUE(startFuture.IsSet() && startFuture.Get().IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCheckPermissionByAclTest
+    : public TApiTestBase
+{
+public:
+    TFuture<TNodeId> CreateUser(const std::string& name)
+    {
+        TCreateObjectOptions options;
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", name);
+        options.Attributes = std::move(attributes);
+        return Client_->CreateObject(EObjectType::User, options);
+    }
+};
+
+TEST_F(TCheckPermissionByAclTest, MissingSubjects)
+{
+    WaitFor(CreateUser("test-user"))
+        .ThrowOnError();
+
+    std::string aclString = "[{subjects=[\"buba\"];permissions=[\"read\"];action=\"allow\"}]";
+    auto aclNode = ConvertToNode(TYsonString(aclString));
+
+    TCheckPermissionByAclOptions options = {
+        .IgnoreMissingSubjects = true,
+    };
+    auto checkPermissionResult = WaitFor(
+        Client_->CheckPermissionByAcl(
+            "test-user",
+            EPermission::Create,
+            aclNode,
+            options))
+        .ValueOrThrow();
+
+    EXPECT_EQ(1, std::ssize(checkPermissionResult.MissingSubjects));
+    EXPECT_EQ("buba", checkPermissionResult.MissingSubjects.back());
+    EXPECT_EQ(0, std::ssize(checkPermissionResult.PendingRemovalSubjects));
+}
+
+TEST_F(TCheckPermissionByAclTest, PendingRemovalSubjects)
+{
+    std::vector<TFuture<TNodeId>> userCreationFutures = {
+        CreateUser("uba"),
+        CreateUser("buba"),
+    };
+
+    WaitFor(AllSucceeded(std::move(userCreationFutures)))
+        .ThrowOnError();
+    WaitFor(Client_->SetNode("//sys/users/buba/@pending_removal", ConvertToYsonString(true)))
+        .ThrowOnError();
+
+    std::string aclString = "[{subjects=[\"buba\"];permissions=[\"read\"];action=\"allow\"}]";
+    auto aclNode = ConvertToNode(TYsonString(aclString));
+
+    TCheckPermissionByAclOptions options = {
+        .IgnorePendingRemovalSubjects = true,
+    };
+    auto checkPermissionResult = WaitFor(
+        Client_->CheckPermissionByAcl(
+            "uba",
+            EPermission::Create,
+            aclNode,
+            options))
+        .ValueOrThrow();
+
+    EXPECT_EQ(0, std::ssize(checkPermissionResult.MissingSubjects));
+    EXPECT_EQ(1, std::ssize(checkPermissionResult.PendingRemovalSubjects));
+    EXPECT_EQ("buba", checkPermissionResult.PendingRemovalSubjects.back());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

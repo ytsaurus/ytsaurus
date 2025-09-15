@@ -19,7 +19,6 @@ Embedded C++ libraries are linked using UDFs in C++.
 * [Re2](re2.md)
 * [Streaming](streaming.md)
 * [String](string.md)
-* [Tensorflow](tensorflow.md)
 * [Unicode](unicode.md)
 * [Url](url.md)
 * [Yson](yson.md)

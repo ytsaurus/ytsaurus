@@ -350,49 +350,11 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatR
         nodeDescriptor,
         request);
 
-    auto clusterTrafficUtilization = bootstrap->GetExecNodeBootstrap()->GetThrottlerManager()->GetClusterToIncomingTrafficUtilization(EThrottlerTrafficType::Bandwidth);
-    if (clusterTrafficUtilization) {
+    auto clusterTrafficAvailability = bootstrap->GetExecNodeBootstrap()->GetThrottlerManager()->GetClusterToIncomingTrafficAvailability(EThrottlerTrafficType::Bandwidth);
+    if (clusterTrafficAvailability) {
         // I (this exe node) am the leader and so I am responsible for sending bandwidth availability to controller agents.
         auto* cluster_network_bandwidth_availability = request->mutable_cluster_network_bandwidth_availability();
-        for (const auto& [clusterName, trafficUtilization] : *clusterTrafficUtilization) {
-            YT_VERIFY(0 < trafficUtilization.Limit);
-            auto rateLimitRatio = trafficUtilization.Rate / trafficUtilization.Limit;
-            auto isAvailable = true;
-
-            if (trafficUtilization.RateLimitRatioHardThreshold < rateLimitRatio) {
-                // Network usage is higher than the available limit.
-                isAvailable = false;
-            } else if (trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MinEstimatedTimeToReadPendingBytes) {
-                // There is a queue of pending read requests on every exe node.
-                isAvailable = false;
-            } else if (trafficUtilization.RateLimitRatioSoftThreshold < rateLimitRatio) {
-                // Network usage is above threshold.
-                if (trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold < trafficUtilization.MaxEstimatedTimeToReadPendingBytes) {
-                    // There is a big queue of pending read requests on some exe node.
-                    isAvailable = false;
-                }
-            }
-
-            YT_LOG_DEBUG(
-                "Add cluster network bandwidth availability to controller agent heartbeat request "
-                "(ClusterName: %v, Rate: %v, Limit: %v, "
-                "RateLimitRatio: %v, RateLimitRatioHardThreshold: %v, RateLimitRatioSoftThreshold: %v, "
-                "MaxEstimatedTimeToReadPendingBytes: %v, MaxEstimatedTimeToReadPendingBytesThreshold: %v, "
-                "MinEstimatedTimeToReadPendingBytes: %v, MinEstimatedTimeToReadPendingBytesThreshold: %v, "
-                "PendingBytes: %v, IsAvailable: %v)",
-                clusterName,
-                trafficUtilization.Rate,
-                trafficUtilization.Limit,
-                rateLimitRatio,
-                trafficUtilization.RateLimitRatioHardThreshold,
-                trafficUtilization.RateLimitRatioSoftThreshold,
-                trafficUtilization.MaxEstimatedTimeToReadPendingBytes,
-                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold,
-                trafficUtilization.MinEstimatedTimeToReadPendingBytes,
-                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold,
-                trafficUtilization.PendingBytes,
-                isAvailable);
-
+        for (const auto& [clusterName, isAvailable] : *clusterTrafficAvailability) {
             if (isAvailable) {
                 // Skip available clusters.
                 continue;
