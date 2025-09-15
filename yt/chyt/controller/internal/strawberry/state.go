@@ -47,6 +47,9 @@ type PersistentState struct {
 	// Creator is a user who created the strawberry operation.
 	// Creator will automatically gain access to the strawberry operation when the access control object is created.
 	Creator string `yson:"creator"`
+
+	// OpletInfo is some runtime specific info about current oplet. For example it can be current version of CHYT.
+	OpletInfo yson.RawValue `yson:"oplet_info,omitempty"`
 }
 
 const (
