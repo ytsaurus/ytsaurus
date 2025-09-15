@@ -97,6 +97,7 @@ jobs:
     needs:
       - start-vm
       - build
+      - tag
     if: ${{ needs.tag.outputs.release-type == 'test' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
@@ -111,17 +112,17 @@ jobs:
 
   push-test-to-prod:
     name: Release
-    if: ${{ needs.tag.outputs.release-type == 'prod' }}
     needs:
       - start-vm
       - tag
+    if: ${{ needs.tag.outputs.release-type == 'prod' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Docker Pull And Push
         run: |
           docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }}
           docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tags.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
-          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }} 
+          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tags.outputs.prod-image-tag }}
 
   stop-vm:
     name: Stop VM
