@@ -1956,7 +1956,9 @@ void TPoolTreeOperationElement::BuildLoggingStringAttributes(TDelimitedStringBui
 
 bool TPoolTreeOperationElement::AreDetailedLogsEnabled() const
 {
-    return RuntimeParameters_->EnableDetailedLogs;
+    bool enabledDueToStarvation = TreeConfig_->EnableDetailedLogsForStarvingOperations &&
+        PersistentAttributes_.StarvationStatus != EStarvationStatus::NonStarving;
+    return RuntimeParameters_->EnableDetailedLogs || enabledDueToStarvation;
 }
 
 TString TPoolTreeOperationElement::GetId() const

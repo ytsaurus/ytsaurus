@@ -7,9 +7,10 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, wait, wait_no_assert, ls, get, set, remove,
-    exists, create_user, print_debug,
+    exists, create_user, print_debug, update_pool_tree_config_option,
     create_pool, add_member, map, run_test_vanilla, run_sleeping_vanilla,
-    update_op_parameters, create_test_tables, execute_command, make_ace)
+    update_op_parameters, create_test_tables, execute_command, make_ace,
+    abort_job)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
@@ -603,7 +604,10 @@ class TestOperationDetailedLogs(YTEnvSetup):
         }
     }
 
-    def _get_schedule_allocation_attempt_log_entries(self):
+    def _get_log_timestamp(self, line):
+        return line.split("\t")[0]
+
+    def _get_schedule_allocation_attempt_log_entries(self, timestamp_threshold=None):
         writers = self.Env.configs["scheduler"][0]["logging"]["writers"]
         scheduler_debug_logs_filename = None
         for writer_name in writers:
@@ -622,10 +626,18 @@ class TestOperationDetailedLogs(YTEnvSetup):
         else:
             logfile = open(scheduler_debug_logs_filename, "b")
 
-        return [line for line in logfile if "Trying to schedule allocation" in line]
+        def _filter(line):
+            if "Trying to schedule allocation" not in line:
+                return False
+            return timestamp_threshold is None or self._get_log_timestamp(line) > timestamp_threshold
+
+        return [line for line in logfile if _filter(line)]
 
     @authors("antonkikh", "eshcherbin")
     def test_enable_detailed_logs(self):
+        log_lines = self._get_schedule_allocation_attempt_log_entries()
+        log_timestamp_threshold = self._get_log_timestamp(log_lines[-1]) if log_lines else None
+
         create_pool("fake_pool")
         set("//sys/pool_trees/default/fake_pool/@resource_limits", {"user_slots": 1})
 
@@ -634,7 +646,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         # Check that there are no detailed logs by default.
 
-        assert len(self._get_schedule_allocation_attempt_log_entries()) == 0
+        assert len(self._get_schedule_allocation_attempt_log_entries(log_timestamp_threshold)) == 0
 
         # Enable detailed logging and check that expected the expected log entries are produced.
 
@@ -652,8 +664,8 @@ class TestOperationDetailedLogs(YTEnvSetup):
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 3)
         wait(lambda: len(op.get_running_jobs()) == 3)
 
-        wait(lambda: len(self._get_schedule_allocation_attempt_log_entries()) >= 2)
-        log_entries = self._get_schedule_allocation_attempt_log_entries()
+        wait(lambda: len(self._get_schedule_allocation_attempt_log_entries(log_timestamp_threshold)) >= 2)
+        log_entries = self._get_schedule_allocation_attempt_log_entries(log_timestamp_threshold)
         for log_entry in log_entries:
             assert "OperationId: {}".format(op.id) in log_entry
             assert "TreeId: default" in log_entry
@@ -679,7 +691,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
         @wait_no_assert
         def check():
             nonlocal last_log_entry_count
-            log_entries = self._get_schedule_allocation_attempt_log_entries()
+            log_entries = self._get_schedule_allocation_attempt_log_entries(log_timestamp_threshold)
             print_debug(len(log_entries))
             if len(log_entries) != last_log_entry_count:
                 last_log_entry_count = len(log_entries)
@@ -711,3 +723,21 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         add_member("u1", "superusers")
         update_enable_detailed_logs()
+
+    @authors("eshcherbin")
+    def test_enable_detailed_logs_for_starving_operations(self):
+        log_lines = self._get_schedule_allocation_attempt_log_entries()
+        log_timestamp_threshold = self._get_log_timestamp(log_lines[-1]) if log_lines else None
+
+        op = run_sleeping_vanilla(job_count=4, task_patch={"cpu_limit": 1.5})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots", default=None) == 3)
+
+        time.sleep(1.0)
+        assert not self._get_schedule_allocation_attempt_log_entries(log_timestamp_threshold)
+
+        update_pool_tree_config_option("default", "enable_detailed_logs_for_starving_operations", True)
+
+        job_id = list(op.get_running_jobs())[0]
+        abort_job(job_id)
+
+        wait(lambda: self._get_schedule_allocation_attempt_log_entries(log_timestamp_threshold))
