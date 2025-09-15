@@ -57,7 +57,6 @@ public:
     bool UsesHeapInTest() const;
 
 private:
-    const TPoolTreeCompositeElement* OwningElement_;
     TDynamicAttributesList* const DynamicAttributesList_;
     const bool UseHeap_;
 
