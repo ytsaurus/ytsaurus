@@ -118,6 +118,7 @@ void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOp
         }
     }
 }
+
 TFuture<void> TMasterHeartbeatReporterBase::AsyncStopNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
