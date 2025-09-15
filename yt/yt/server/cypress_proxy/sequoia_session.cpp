@@ -116,37 +116,6 @@ void SortRecordsByTransactionDepth(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NRecords::TNodeIdToPath> LookupNodeById(
-    const ISequoiaTransactionPtr& sequoiaTransaction,
-    TNodeId nodeId,
-    TCypressTransactionAncestryView ancestry)
-{
-    VerifyCypressTransactionAncestryInitialized(ancestry);
-
-    std::vector<NRecords::TNodeIdToPathKey> keys(ancestry.size());
-    std::ranges::copy(
-        std::views::transform(ancestry, [=] (TTransactionId cypressTransactionId) {
-            return NRecords::TNodeIdToPathKey{
-                .NodeId = nodeId,
-                .TransactionId = cypressTransactionId,
-            };
-        }),
-        keys.begin());
-
-    auto rsp = WaitFor(sequoiaTransaction->LookupRows(keys))
-        .ValueOrThrow();
-    YT_VERIFY(rsp.size() == keys.size());
-    for (auto& record : rsp) {
-        if (record.has_value()) {
-            return std::move(record);
-        }
-    }
-
-    return std::nullopt;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void FillProgenitorTransactionCache(
     TProgenitorTransactionCache* cache,
     TRange<std::optional<NRecords::TPathToNodeId>> parentRecords,
@@ -652,15 +621,19 @@ TLockId TSequoiaSession::LockNodeExplicitly(
     RequireLatePrepareOnNativeCellFor(nodeId);
 
     if (lockMode == ELockMode::Snapshot) {
-        auto record = LookupNodeById(SequoiaTransaction_, nodeId, CypressTransactionAncestry_);
-        // This should have been already resolved.
-        YT_VERIFY(record.has_value());
-        YT_VERIFY(record->ForkKind != EForkKind::Tombstone);
+        auto resolvedNode = FindNodePath(nodeId);
+        // Node must be already resolved before.
+        YT_VERIFY(resolvedNode);
+
+        std::optional<TYPath> targetPath;
+        if (auto it = CachedLinkTargetPaths_.find(nodeId); it != CachedLinkTargetPaths_.end()) {
+            targetPath = it->second;
+        }
 
         CreateSnapshotLockInSequoia(
             {nodeId, GetCurrentCypressTransactionId()},
-            TAbsolutePath::UnsafeMakeCanonicalPath(std::move(record->Path)),
-            record->TargetPath.empty() ? std::nullopt : std::optional(std::move(record->TargetPath)),
+            resolvedNode->Path,
+            targetPath,
             SequoiaTransaction_);
     }
 
@@ -691,15 +664,19 @@ void TSequoiaSession::LockNodeImplicitly(
     YT_VERIFY(!JustCreated(nodeId));
 
     if (lockMode == ELockMode::Snapshot) {
-        auto record = LookupNodeById(SequoiaTransaction_, nodeId, CypressTransactionAncestry_);
-        // This should have been already resolved.
-        YT_VERIFY(record.has_value());
-        YT_VERIFY(record->ForkKind != EForkKind::Tombstone);
+        auto resolvedNode = FindNodePath(nodeId);
+        // Node must be already resolved before.
+        YT_VERIFY(resolvedNode);
+
+        std::optional<TYPath> targetPath;
+        if (auto it = CachedLinkTargetPaths_.find(nodeId); it != CachedLinkTargetPaths_.end()) {
+            targetPath = it->second;
+        }
 
         CreateSnapshotLockInSequoia(
             {nodeId, GetCurrentCypressTransactionId()},
-            TAbsolutePath::UnsafeMakeCanonicalPath(std::move(record->Path)),
-            record->TargetPath.empty() ? std::nullopt : std::optional(std::move(record->TargetPath)),
+            resolvedNode->Path,
+            targetPath,
             SequoiaTransaction_);
     }
 
@@ -1098,14 +1075,22 @@ std::optional<TSequoiaSession::TResolvedNodeId> TSequoiaSession::FindNodePath(TN
             return {.NodeId = id, .TransactionId = cypressTransactionId};
         });
 
-    auto rsp = WaitFor(SequoiaTransaction_->LookupRows(keys))
+    auto rsp = WaitFor(SequoiaTransaction_->LookupRowsPartial(keys))
         .ValueOrThrow();
     YT_VERIFY(rsp.size() == CypressTransactionAncestry_.size());
 
     // Note that we've requested records with order of transactions from nested
     // to progenitor.
-    for (auto&& record : rsp) {
+    for (auto& record : rsp) {
         if (!record.has_value()) {
+            continue;
+        }
+
+        // Id row was locked but not written it can appear with "null" in
+        // non-key columns because of dyntables bug. Since such rows are never
+        // written into "node_id_to_path" Sequoia table the can be just filtered
+        // out.
+        if (!record->ForkKind.has_value() && !record->Path.has_value()) {
             continue;
         }
 
@@ -1114,11 +1099,11 @@ std::optional<TSequoiaSession::TResolvedNodeId> TSequoiaSession::FindNodePath(TN
         }
 
         if (IsLinkType(TypeFromId(id))) {
-            CachedLinkTargetPaths_.emplace(id, std::move(record->TargetPath));
+            CachedLinkTargetPaths_.emplace(id, std::move(*record->TargetPath));
         }
 
         return TResolvedNodeId{
-            .Path = TAbsolutePath::UnsafeMakeCanonicalPath(std::move(record->Path)),
+            .Path = TAbsolutePath::UnsafeMakeCanonicalPath(std::move(*record->Path)),
             .IsSnapshot = record->ForkKind == EForkKind::Snapshot,
         };
     }

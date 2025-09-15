@@ -1275,17 +1275,18 @@ class TestCypress(YTEnvSetup):
         txs = ls("//sys/transactions", attributes=["type"])
         assert yson.to_yson_type(tx, attributes={"type": "transaction"}) in txs
 
-    @authors("aleksandra-zh")
-    @not_implemented_in_sequoia
+    @authors("babenko", "kvk1920")
     def test_map_node_branch(self):
         create("map_node", "//tmp/m")
         tx1 = start_transaction()
         tx2 = start_transaction(tx=tx1)
-        create("table", "//tmp/m/t", tx=tx1)
+        node_id = create("table", "//tmp/m/t", tx=tx1)
         lock("//tmp/m", tx=tx2, mode="snapshot")
+        lock("//tmp/m/t", tx=tx2, mode="snapshot")
         assert get("//tmp/m/t/@key", tx=tx2) == "t"
         remove("//tmp/m/t", tx=tx1)
-        assert get("//tmp/m/t/@key", tx=tx2) == "t"
+
+        assert get(f"#{node_id}/@key", tx=tx2) == "t"
 
     @authors("babenko", "ignat")
     def test_exists(self):
