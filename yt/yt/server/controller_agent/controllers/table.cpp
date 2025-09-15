@@ -191,13 +191,14 @@ void TOutputTable::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(16, OutputHunkChunks,
         .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
     PHOENIX_REGISTER_FIELD(17, TableIndex);
-    // COMPAT(coteeq)
-    PHOENIX_REGISTER_DELETED_FIELD(
-        18,
-        std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>,
-        "RlAcl",
-        ESnapshotVersion::FixRlsSnapshots,
-        .SinceVersion(ESnapshotVersion::RlsInOperations));
+    // COMPAT(coteeq): Absence of this field is protected by banning revive from
+    // ESnapshotVersion::RlsInOperations in NControllerAgent::ValidateSnapshotVersion.
+    // PHOENIX_REGISTER_DELETED_FIELD(
+    //     18,
+    //     std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>,
+    //     "RlAcl",
+    //     ESnapshotVersion::FixRlsSnapshots,
+    //     .SinceVersion(ESnapshotVersion::RlsInOperations));
 }
 
 TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)

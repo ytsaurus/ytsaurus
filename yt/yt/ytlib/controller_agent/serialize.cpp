@@ -16,7 +16,9 @@ bool ValidateSnapshotVersion(int version)
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
     return
         version >= ToUnderlying(ESnapshotVersion::BumpTo_25_3) &&
-        version <= ToUnderlying(GetCurrentSnapshotVersion());
+        version <= ToUnderlying(GetCurrentSnapshotVersion())
+        // COMPAT(coteeq): This snapshot is completely broken and cannot be loaded from.
+        && version != ToUnderlying(ESnapshotVersion::RlsInOperations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
