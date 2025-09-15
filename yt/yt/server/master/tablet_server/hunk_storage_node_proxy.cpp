@@ -159,6 +159,7 @@ private:
                             .DoListFor(xrange(std::ssize(nodeIds)), [&] (TFluentList fluent, int index) {
                                 const auto& nodeId = nodeIds[index];
                                 const auto& pathOrError = pathOrErrors[index];
+
                                 auto path = [&] {
                                     auto code = pathOrError.GetCode();
                                     if (code == NYTree::EErrorCode::ResolveError ||

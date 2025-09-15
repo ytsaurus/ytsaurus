@@ -1632,6 +1632,108 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
     }
 }
 
+TEST_F(TChunkTreeTraversingTest, HunkListInStaticTable)
+{
+    auto* mainRoot = CreateChunkList(EChunkListKind::Static);
+    auto* mainBranch = CreateChunkList(EChunkListKind::Static);
+    auto* chunk = CreateChunk(1, 1, 1, 1);
+    AttachToChunkList(mainRoot, {mainBranch});
+    AttachToChunkList(mainBranch, {chunk});
+
+    auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
+    auto* hunkBranch1 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkBranch2 = CreateChunkList(EChunkListKind::Hunk);
+
+    // NB: Journal chunks are intentional here.
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk);
+    auto* hunkChunk2 = CreateChunk(2, 2, 2, 2, {}, {}, EChunkType::Hunk);
+
+    AttachToChunkList(hunkRoot, {hunkBranch1, hunkBranch2});
+    AttachToChunkList(hunkBranch1, {hunkChunk1});
+    AttachToChunkList(hunkBranch2, {hunkChunk2});
+
+    auto context = GetSyncChunkTraverserContext();
+    TChunkLists roots{
+        {EChunkListContentType::Main, mainRoot},
+        {EChunkListContentType::Hunk, hunkRoot},
+    };
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseChunkTree(
+            context,
+            visitor,
+            roots,
+            TReadLimit(),
+            TReadLimit(),
+            TComparator(),
+            /*testingOptions*/ {},
+            EChunkListContentType::Hunk);
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(hunkChunk1),
+            TChunkInfo(hunkChunk2),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    // NB: Putting journal chunk is intentional.
+    auto* hunkChunk3 = CreateChunk(3, 3, 3, 3, {}, {}, EChunkType::Journal);
+    AttachToChunkList(hunkBranch2, {hunkChunk3});
+
+    {
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(0);
+
+        auto visitor = New<TTestChunkVisitor>();
+        EXPECT_THROW_WITH_SUBSTRING(
+            TraverseChunkTree(
+                context,
+                visitor,
+                roots,
+                lowerLimit,
+                TLegacyReadLimit(),
+                TComparator(),
+                /*testingOptions*/ {},
+                EChunkListContentType::Hunk),
+            "Chunk tree traverser encountered journal chunk while fetching hunk chunks");
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseChunkTree(
+            context,
+            visitor,
+            roots);
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(chunk),
+            TChunkInfo(hunkChunk1),
+            TChunkInfo(hunkChunk2),
+            TChunkInfo(hunkChunk3),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+
+    {
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetChunkIndex(0);
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseChunkTree(
+            context,
+            visitor,
+            roots,
+            lowerLimit,
+            TLegacyReadLimit(),
+            /*keyColumnCount*/ {});
+
+        std::set<TChunkInfo> expected{
+            TChunkInfo(chunk, 0),
+        };
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraverseWithKeyColumnCount
