@@ -48,7 +48,7 @@ void VisitSequoiaTree(
     NYson::IYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
     const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const THashMap<NCypressClient::TNodeId, NYTree::TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse);
+    const THashMap<NCypressClient::TNodeId, NYTree::INodePtr>& nodesWithAttributes);
 
 // NB: Same as the above, but using async consumer instead of a sync one.
 void VisitSequoiaTree(
@@ -57,7 +57,7 @@ void VisitSequoiaTree(
     NYson::IAsyncYsonConsumer* consumer,
     const NYTree::TAttributeFilter& attributeFilter,
     const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren,
-    const THashMap<NCypressClient::TNodeId, NYTree::TYPathProxy::TRspGetPtr>& nodeIdToMasterResponse);
+    const THashMap<NCypressClient::TNodeId, NYTree::INodePtr>& nodesWithAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

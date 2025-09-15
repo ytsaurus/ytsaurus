@@ -7,6 +7,7 @@
 #include "master_connector.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
+#include "sequoia_attribute_fetcher.h"
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 
@@ -659,16 +660,104 @@ protected:
     }
 
     void GetAttribute(
-        const TYPath& /*path*/,
-        TReqGet* /*request*/,
-        TRspGet* /*response*/,
+        const TYPath& path,
+        TReqGet* request,
+        TRspGet* response,
         const TCtxGetPtr& context) override
     {
-        context->SetRequestInfo("TargetObjectId: %v", Id_);
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        context->SetRequestInfo("AttributeFilter: %v", attributeFilter);
 
         ValidatePermissionForThis(EPermission::Read);
 
-        AbortSequoiaSessionForLaterForwardingToMaster();
+        NYPath::TTokenizer tokenizer(path);
+        std::optional<TString> key;
+        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            key = tokenizer.GetLiteralValue();
+            tokenizer.Advance();
+
+            // We ignore attribute filter if the attribute is defined in path.
+            attributeFilter = TAttributeFilter({key.value()});
+        }
+
+        auto [attributeFetcher, leftAttributes] = CreateSpecialAttributeFetcherAndLeftAttributesForNode(
+            GetNativeAuthenticatedClient(),
+            SequoiaSession_,
+            attributeFilter,
+            Id_);
+
+        if (key && !leftAttributes.Keys().empty()) {
+            // Key is not a special attribute, so it can be requested by master.
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
+        if (!nodesWithAttributes.contains(Id_)) {
+            // No special attributes are fetched, so we can forward request to master.
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+        auto node = GetOrCrash(nodesWithAttributes, Id_);
+
+        TYsonString result;
+        if (key) {
+            // The key is requested by path, and we haven't forwarded request to master.
+            // This means that key is special attribute which we have fetched, so we can return it.
+            if (!node->Attributes().Contains(key.value())) {
+                THROW_ERROR_EXCEPTION("Attribute %v not found", key.value());
+            }
+
+            auto attributeFragmentPath = TYPath(tokenizer.GetInput());
+            auto attributeYson = node->Attributes().GetYson(key.value());
+            if (attributeFragmentPath.empty()) {
+                result = attributeYson;
+            } else {
+                auto attributeNode = ConvertToNode(attributeYson);
+                result = SyncYPathGet(attributeNode, attributeFragmentPath, TAttributeFilter());
+            }
+        } else {
+            if (!leftAttributes.IsEmpty()) {
+                // We will fetch all basic attributes from master to preserve logic implemented in cypress server.
+                // After that, basic attributes will be combined with special attributes.
+                auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@");
+                ToProto(reqGet->mutable_attributes(), leftAttributes);
+                SetAllowResolveFromSequoiaObject(reqGet, true);
+
+                auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
+                    .ValueOrThrow();
+
+                auto masterResponseNode = ConvertToNode(TYsonString(rspGet->value()));
+                if (masterResponseNode->GetType() != ENodeType::Map) {
+                    THROW_ERROR_EXCEPTION("Error while getting attributes");
+                }
+
+                auto masterResponseAttributes = masterResponseNode->AsMap();
+                for (const auto& [key, value] : masterResponseAttributes->GetChildren()) {
+                    if (!node->Attributes().Contains(key)) {
+                        node->MutableAttributes()->Set(key, value);
+                    }
+                }
+
+            }
+
+            TAsyncYsonWriter writer;
+            writer.OnBeginMap();
+            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);;
+            writer.OnEndMap();
+            result = WaitForFast(writer.Finish()).ValueOrThrow();
+        }
+
+        MaybeTouchCurrentNode(TYPathProxy::Get, context);
+        // Should not throw after this point.
+
+        response->set_value(ToProto(result));
+
+        context->Reply();
     }
 
     void SetAttribute(
@@ -2092,36 +2181,14 @@ private:
             populateNodesToFetchFromMaster();
         }
 
-        // Form a template.
-        auto requestTemplate = TYPathProxy::Get();
-        if (attributeFilter) {
-            ToProto(requestTemplate->mutable_attributes(), attributeFilter);
-        }
-        SetSuppressAccessTracking(requestTemplate, true);
-        SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
-
-        auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
+        auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             GetNativeAuthenticatedClient(),
-            requestTemplate,
-            nodesToFetchFromMaster,
-            SequoiaSession_->GetCurrentCypressTransactionId());
-        auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
-            .ValueOrThrow();
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            nodeIdToChildren);
 
-        THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
-        for (auto [nodeId, rspOrError] : nodeIdToRspOrError) {
-            if (!rspOrError.IsOK()) {
-                // TODO(kvk1920): in case of race between Get(path) and
-                // Create(path, force=true) for the same path we can get an
-                // error "no such node". Retry is needed if a given path still
-                // exists. Since retry mechanism is not implemented yet, this
-                // will do for now.
-                THROW_ERROR_EXCEPTION("Error getting requested information from master")
-                    << rspOrError;
-            }
-            nodeIdToMasterResponse[nodeId] = rspOrError.Value();
-        }
-
+        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
         // Build a DFS over this mess.
         TStringStream stream;
         TYsonWriter writer(&stream);
@@ -2132,7 +2199,7 @@ private:
             &writer,
             attributeFilter,
             std::move(nodeIdToChildren),
-            std::move(nodeIdToMasterResponse));
+            std::move(nodesWithAttributes));
 
         writer.Flush();
 
@@ -2314,45 +2381,25 @@ private:
             writer.OnEndAttributes();
         }
 
-        THashMap<TNodeId, IAttributeDictionaryPtr> nodeIdToAttributes;
-        if (attributeFilter) {
-            // Form a template.
-            auto requestTemplate = TYPathProxy::Get("/@");
-            ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+        auto attributeFetcher = CreateAttributeFetcherForListRequest(
+            GetNativeAuthenticatedClient(),
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            children);
 
-            std::vector<TNodeId> childNodeIds;
-            for (const auto& child : children) {
-                childNodeIds.push_back(child.ChildId);
-            }
-
-            auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
-                GetNativeAuthenticatedClient(),
-                requestTemplate,
-                childNodeIds,
-                SequoiaSession_->GetCurrentCypressTransactionId());
-
-            auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
-                .ValueOrThrow();
-
-            for (auto [nodeId, rspOrError] : nodeIdToRspOrError) {
-                if (!rspOrError.IsOK()) {
-                    // TODO(kvk1920): See the similar |TMapLikeNodeProxy::GetSelf| comment.
-                    THROW_ERROR_EXCEPTION("Error getting requested information from master")
-                        << rspOrError;
-                }
-                EmplaceOrCrash(
-                    nodeIdToAttributes,
-                    nodeId,
-                    ConvertToAttributes(TYsonStringBuf(rspOrError.Value()->value())));
-            }
-        }
+        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
 
         writer.OnBeginList();
         for (const auto& child : children) {
             writer.OnListItem();
-            if (attributeFilter) {
-                const auto& attributes = GetOrCrash(nodeIdToAttributes, child.ChildId);
-                ConsumeAttributes(&writer, attributes);
+            if (attributeFilter && !attributeFilter.IsEmpty()) {
+                auto nodeIter = nodesWithAttributes.find(child.ChildId);
+                if (nodeIter != nodesWithAttributes.end()) {
+                    nodeIter->second->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
+                } else {
+                    THROW_ERROR_EXCEPTION("Can not fetch attributes for nodes");
+                }
             }
             writer.OnStringScalar(child.ChildKey);
         }
