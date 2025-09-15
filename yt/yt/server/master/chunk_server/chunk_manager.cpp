@@ -3272,7 +3272,7 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         bool isIncrementalHeartbeat = true;
-        if (dynamicConfig->UseProperReplicaAdditionReason && request->has_is_incremental_heartbeat()) {
+        if (request->has_is_incremental_heartbeat()) {
             isIncrementalHeartbeat = request->is_incremental_heartbeat();
         }
 
@@ -3746,7 +3746,6 @@ private:
         bool incremental)
     {
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto useProperReplicaAdditionReason = GetDynamicConfig()->UseProperReplicaAdditionReason;
 
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
@@ -3770,7 +3769,7 @@ private:
                 node,
                 location,
                 chunkInfo,
-                useProperReplicaAdditionReason ? incremental : true))
+                incremental))
             {
                 if (chunk->IsBlob()) {
                     announceReplicaRequests.push_back(chunk);
