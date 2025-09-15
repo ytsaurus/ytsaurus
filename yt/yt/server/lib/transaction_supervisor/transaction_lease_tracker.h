@@ -84,7 +84,7 @@ struct ITransactionLeaseTracker
      *
      *  Optionally also pings all ancestor transactions.
      */
-    virtual TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors = false) = 0;
+    virtual TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors = false, std::optional<std::string> pingerAddress = std::nullopt) = 0;
 
     //! Asynchronously returns the (approximate) moment when transaction with
     //! a given #transactionId was last pinged.
@@ -92,6 +92,9 @@ struct ITransactionLeaseTracker
      *  If the instance is not active, an error with #NYT::EErrorCode::NRpc::Unavailable code is returned.
      */
     virtual TFuture<TInstant> GetLastPingTime(TTransactionId transactionId) = 0;
+
+    //! Returns the address of the last client that pinged #transactionId. May be null.
+    virtual TFuture<std::optional<std::string>> GetLastPingAddress(TTransactionId transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionLeaseTracker)

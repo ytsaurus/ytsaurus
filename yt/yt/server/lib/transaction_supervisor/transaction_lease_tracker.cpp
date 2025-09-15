@@ -145,7 +145,7 @@ public:
         });
     }
 
-    TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors = false) override
+    TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors = false, std::optional<std::string> pingerAddress = std::nullopt) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -154,6 +154,7 @@ public:
         ShardFromTransactionId(transactionId)->Requests.Enqueue(TPingRequest{
             .TransactionId = transactionId,
             .PingAncestors = pingAncestors,
+            .PingerAddress = pingerAddress,
             .Promise = std::move(promise),
         });
         return future;
@@ -162,6 +163,13 @@ public:
     TFuture<TInstant> GetLastPingTime(TTransactionId transactionId) override
     {
         return BIND(&TTransactionLeaseTracker::DoGetLastPingTime, MakeStrong(this))
+            .AsyncVia(ThreadPool_->GetInvoker(ShardIndexFromTransactionId(transactionId)))
+            .Run(transactionId);
+    }
+
+    TFuture<std::optional<std::string>> GetLastPingAddress(TTransactionId transactionId) override
+    {
+        return BIND(&TTransactionLeaseTracker::DoGetLastPingAddress, MakeStrong(this))
             .AsyncVia(ThreadPool_->GetInvoker(ShardIndexFromTransactionId(transactionId)))
             .Run(transactionId);
     }
@@ -200,6 +208,7 @@ private:
     {
         TTransactionId TransactionId;
         bool PingAncestors = false;
+        std::optional<std::string> PingerAddress;
         TPromise<void> Promise;
     };
 
@@ -233,6 +242,7 @@ private:
         TTransactionLeaseExpirationHandler ExpirationHandler;
         TInstant Deadline;
         TInstant LastPingTime;
+        std::optional<std::string> PingerAddress;
         bool TimedOut = false;
     };
 
@@ -379,6 +389,7 @@ private:
             ValidateActive(rootShard);
 
             rootDescriptor = GetDescriptorOrThrow(rootShard, request.TransactionId);
+            rootDescriptor->PingerAddress = request.PingerAddress;
             RenewLease(rootShard, rootDescriptor);
         } catch (const std::exception& ex) {
             if (request.Promise) {
@@ -396,10 +407,12 @@ private:
         }
 
         auto currentId = rootDescriptor->ParentId;
+        auto pingerAddress = rootDescriptor->PingerAddress;
         while (currentId) {
             if (auto* currentShard = ShardFromTransactionId(currentId); currentShard != rootShard) {
                 currentShard->Requests.Enqueue(TPingRequest{
                     .TransactionId = currentId,
+                    .PingerAddress = pingerAddress
                 });
                 break;
             }
@@ -433,6 +446,15 @@ private:
             descriptor->TimedOut = true;
             descriptor->ExpirationHandler.Run(descriptor->TransactionId);
         }
+    }
+
+    std::optional<std::string> DoGetLastPingAddress(TTransactionId transactionId)
+    {
+        auto* shard = ShardFromTransactionId(transactionId);
+        ProcessRequests(shard);
+        ValidateActive(shard);
+        auto* descriptor = GetDescriptorOrThrow(shard, transactionId);
+        return descriptor->PingerAddress;
     }
 
     TInstant DoGetLastPingTime(TTransactionId transactionId)
@@ -529,7 +551,7 @@ public:
     void SetTimeout(TTransactionId /*transactionId*/, TDuration /*timeout*/) override
     { }
 
-    TFuture<void> PingTransaction(TTransactionId /*transactionId*/, bool /*pingAncestors*/) override
+    TFuture<void> PingTransaction(TTransactionId /*transactionId*/, bool /*pingAncestors*/, std::optional<std::string> /*pingerAddress*/) override
     {
         return VoidFuture;
     }
@@ -537,6 +559,11 @@ public:
     TFuture<TInstant> GetLastPingTime(TTransactionId /*transactionId*/) override
     {
         return MakeFuture(TInstant::Zero());
+    }
+
+    TFuture<std::optional<std::string>> GetLastPingAddress(TTransactionId /*transactionId*/) override
+    {
+        return MakeFuture(std::optional<std::string>());
     }
 };
 

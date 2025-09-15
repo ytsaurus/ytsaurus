@@ -282,6 +282,7 @@
     XX(LastHeartbeatTime, last_heartbeat_time) \
     XX(LastMountTransactionId, last_mount_transaction_id) \
     XX(LastPersistentHeartbeatTime, last_persistent_heartbeat_time) \
+    XX(LastPingAddress, last_ping_address) \
     XX(LastPingTime, last_ping_time) \
     XX(LastSeenReplicas, last_seen_replicas) \
     XX(LastSeenTime, last_seen_time) \
