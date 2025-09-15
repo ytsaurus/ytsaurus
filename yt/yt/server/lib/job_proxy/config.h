@@ -503,6 +503,7 @@ struct TJobProxyInternalConfig
     bool EnableSignatureValidation;
 
     bool EnablePerClusterChunkReaderStatistics;
+    bool DumpSingleLocalClusterStatistics;
 
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
@@ -551,6 +552,7 @@ struct TJobProxyDynamicConfig
     NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
     bool EnablePerClusterChunkReaderStatistics;
+    bool DumpSingleLocalClusterStatistics;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
