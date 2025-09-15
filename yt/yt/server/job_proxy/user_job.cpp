@@ -1452,7 +1452,7 @@ private:
     {
         IJob::TStatistics result;
 
-        auto& statistics = result.Statstics;
+        auto& statistics = result.Statistics;
         {
             auto guard = Guard(StatisticsLock_);
             statistics = CustomStatistics_;
