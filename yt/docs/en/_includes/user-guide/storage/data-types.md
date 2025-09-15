@@ -56,8 +56,8 @@ The table lists the supported types and their representation in the `type`/`type
 | an integer belonging to the range `[0, 2^32-1]` | `uint32` | `uint32` |
 | an integer belonging to the range `[0, 2^16-1]` | `uint16` | `uint16` |
 | an integer belonging to the range `[0, 2^8-1]` | `uint8` | `uint8` |
-| an 8-byte real number | `double` | `double` |
-| a 4-byte real number | `float` | `float` |
+| [an 8-byte floating-point number](https://en.wikipedia.org/wiki/Double-precision_floating-point_format) according to [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) | `double` | `double` |
+| [a 4-byte floating-point number](https://en.wikipedia.org/wiki/Single-precision_floating-point_format) according to [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) | `float` | `float` |
 | Standard `true/false` boolean | `boolean` | `bool` (different from `type`) |
 | a random sequence of bytes | `string` | `string` |
 | a proper UTF8 sequence | `utf8` | `utf8` |
@@ -89,7 +89,7 @@ type_v3=yson
 
 ### Temporal types { #temporal_types }
 
-Temporal types in {{product-name}} are categorized into two groups. Historically, the first ones to appear in the system were `date`, `datetime`, `timestamp`, and `interval`. They are used to represent times from the beginning of 1970 to the end of 2105. They were followed by `date32`, `datetime64`, `timestamp64`, and `interval64`. These types can be used to represent times over a wider range, about 145,000 into the past and into the future. We recommend using the latter types, because they have a wider range of values.
+Temporal types in {{product-name}} are categorized into two groups. Historically, the first ones to appear in the system were `date`, `datetime`, `timestamp`, and `interval`. They are used to represent times from the beginning of 1970 to the end of 2105. They were followed by `date32`, `datetime64`, `timestamp64`, and `interval64`. These types can be used to represent times over a wider range, about 145,000 years into the past and into the future. We recommend using the latter types, because they have a wider range of values.
 
 The Gregorian calendar should be used for all of the temporal types. When dealing with values in the distant past, note that {{product-name}} in no way accounts for the [transition to the Gregorian calendar](https://en.wikipedia.org/wiki/Adoption_of_the_Gregorian_calendar), which occurred in different countries at different times: YT assumes that the Gregorian calendar has always been in use.
 
