@@ -10,6 +10,8 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(ISequoiaAttributeFetcher)
+
 struct TRequestExecutedPayload
 { };
 
