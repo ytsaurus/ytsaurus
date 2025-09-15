@@ -679,6 +679,8 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         const auto& tabletNodeConfig = newConfig->TabletNode;
 
         if (!GetConfig()->EnableFairThrottler) {
@@ -757,6 +759,8 @@ private:
     {
         return OverloadController_;
     }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
