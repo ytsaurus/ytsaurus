@@ -7,13 +7,11 @@ Internal use only.
 """
 import sys
 
-from gevent.exceptions import LoopExit
-
-from ._state import is_object_patched
-from ._util import _notify_patch
 from ._util import _patch_module
 from ._util import _queue_warning
+from ._util import _notify_patch
 
+from ._state import is_object_patched
 
 def _patch_existing_locks(threading):
     if len(list(threading.enumerate())) != 1:
@@ -193,9 +191,8 @@ class BasePatcher:
             self.patch_logging()
 
     def patch_event(self):
-        from gevent.event import Event
-
         from .api import patch_item
+        from gevent.event import Event
         patch_item(self.threading_mod, 'Event', Event)
         # Python 2 had `Event` as a function returning
         # the private class `_Event`. Some code may be relying
@@ -218,9 +215,8 @@ class BasePatcher:
 
     def patch__threading_local(self):
         _threading_local = __import__('_threading_local')
-        from gevent.local import local
-
         from .api import patch_item
+        from gevent.local import local
         patch_item(_threading_local, 'local', local)
 
     def patch_active_threads(self):
@@ -270,19 +266,14 @@ class BasePatcher:
             # XXX: There's probably a better way to do this. Probably need to take a
             # step back and look at the whole picture.
             main_thread._ident = get_ident()
-            try:
-                orig_shutdown()
-            except LoopExit: # pragma: no cover
-                pass
+            orig_shutdown()
             patch_item(threading_mod, '_shutdown', orig_shutdown)
         patch_item(threading_mod, '_shutdown', _shutdown)
 
     @staticmethod # Static to be sure we don't accidentally capture `self` and keep it alive
     def _make_existing_non_main_thread_join_func(thread, thread_greenlet, threading_mod):
-        from time import time
-
         from gevent.hub import sleep
-
+        from time import time
         # TODO: This is almost the algorithm that the 3.13 _ThreadHandle class
         # employs. UNIFY them.
         def join(timeout=None):
