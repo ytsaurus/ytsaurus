@@ -8,6 +8,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 type loggingReader struct {
@@ -113,7 +114,37 @@ func (l *LoggingInterceptor) logFinish(ctx context.Context, err error, fields ..
 func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	ctx = l.logStart(ctx, call)
 	res, err = invoke(ctx, call)
-	l.logFinish(ctx, err)
+	var rspFields []log.Field
+	if err == nil && res != nil {
+		rspFields = responseLogFields(call, res)
+	}
+	l.logFinish(ctx, err, rspFields...)
+	return
+}
+
+func responseLogFields(call *Call, res *CallResult) (fields []log.Field) {
+	switch call.Params.HTTPVerb() {
+	case VerbCreate, VerbCopy, VerbMove, VerbLink:
+		var id yt.NodeID
+		if res.decodeSingle("node_id", &id) == nil {
+			fields = append(fields, log.Any("node_id", id))
+		}
+	case VerbStartTransaction:
+		var tx yt.TxID
+		if StartTxResultDecoder(&tx)(res) == nil {
+			fields = append(fields, log.Any("transaction_id", tx))
+		}
+	case VerbStartOperation:
+		var op yt.OperationID
+		if StartOperationResultDecoder(&op)(res) == nil {
+			fields = append(fields, log.Any("operation_id", op))
+		}
+	case VerbGenerateTimestamp:
+		var ts yt.Timestamp
+		if GenerateTimestampResultDecoder(&ts)(res) == nil {
+			fields = append(fields, log.Any("timestamp", ts))
+		}
+	}
 	return
 }
 
