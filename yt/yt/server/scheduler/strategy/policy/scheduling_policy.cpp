@@ -335,12 +335,11 @@ const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulableChildSet::TSchedulableChildSet(
-    const TPoolTreeCompositeElement* owningElement,
+    const TPoolTreeCompositeElement* /*owningElement*/,
     TNonOwningElementList children,
     TDynamicAttributesList* dynamicAttributesList,
     bool useHeap)
-    : OwningElement_(owningElement)
-    , DynamicAttributesList_(dynamicAttributesList)
+    : DynamicAttributesList_(dynamicAttributesList)
     , UseHeap_(useHeap)
     , Children_(std::move(children))
 {
