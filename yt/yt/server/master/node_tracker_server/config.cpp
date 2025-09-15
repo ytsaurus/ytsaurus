@@ -46,9 +46,8 @@ void TNodeGroupConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicNodeTrackerTestingConfig::Register(TRegistrar registrar)
+void TDynamicNodeTrackerTestingConfig::Register(TRegistrar /*registrar*/)
 {
-    Y_UNUSED(registrar);
     // Testing parameters should be placed here.
 }
 
