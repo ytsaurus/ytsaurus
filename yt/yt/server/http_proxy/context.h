@@ -73,6 +73,8 @@ public:
     void LogAndProfile();
     void Finalize();
 
+    std::optional<std::string> GetBalancerRealIPOrRemoteAddress() const;
+
 private:
     const TApiPtr Api_;
     const NHttp::IRequestPtr Request_;

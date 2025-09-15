@@ -224,6 +224,7 @@ bool TContext::TryParseUser()
 
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
         DriverRequest_.AuthenticatedUser = authenticatedUser;
+        DriverRequest_.UserRemoteAddress = GetBalancerRealIPOrRemoteAddress();
         return true;
     }
 
@@ -244,7 +245,7 @@ bool TContext::TryParseUser()
     }
 
     DriverRequest_.AuthenticatedUser = authenticatedUser;
-    DriverRequest_.UserRemoteAddress = Request_->GetRemoteAddress();
+    DriverRequest_.UserRemoteAddress = GetBalancerRealIPOrRemoteAddress();
     return true;
 }
 
@@ -1108,6 +1109,14 @@ void TContext::Finalize()
             Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
+}
+
+std::optional<std::string> TContext::GetBalancerRealIPOrRemoteAddress() const
+{
+    if (auto pingerAddress = FindBalancerRealIP(Request_)) {
+        return pingerAddress;
+    }
+    return ToString(Request_->GetRemoteAddress());
 }
 
 template <class TJsonProducer>

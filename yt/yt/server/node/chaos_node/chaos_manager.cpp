@@ -460,7 +460,7 @@ public:
         auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
         bool pingAncestors = context->Request().ping_ancestors();
 
-        auto pingFuture = ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
+        auto pingFuture = ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors, /*pingerAddress*/ std::nullopt);
         context->Reply();
     }
 
