@@ -5,11 +5,28 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/attributes.h>
 
 namespace NYT::NChunkServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NCellMaster;
+using namespace NConcurrency;
+using namespace NServer;
+using namespace NYTree;
+using namespace NYson;
+
+using NCypressClient::TCypressYPathProxy;
+using NObjectClient::TCellTag;
+using NObjectClient::TObjectId;
+using NObjectClient::TObjectServiceProxy;
+using NObjectClient::TObjectYPathProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,19 +34,32 @@ namespace {
 
 constexpr auto& Logger = ChunkServerLogger;
 
+using TRspExecuteBatchPtr = TObjectServiceProxy::TRspExecuteBatchPtr;
+
+using TRspEnumeratePtr = TCypressYPathProxy::TRspEnumeratePtr;
+
+std::vector<TRspEnumeratePtr> ExtractResponses(TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& responses)
+{
+    auto extractResponse = [] (const TErrorOr<TRspExecuteBatchPtr>& batchRsp) -> TRspEnumeratePtr {
+        if (!batchRsp.IsOK()) {
+            return {};
+        }
+
+        auto rspOrError = batchRsp.Value()->GetResponse<TCypressYPathProxy::TRspEnumerate>("enumerate");
+        if (!rspOrError.IsOK()) {
+            return {};
+        }
+
+        return std::move(rspOrError).Value();
+    };
+
+    auto batchRsps = std::move(responses).ValueOrDefault({});
+    std::vector<TRspEnumeratePtr> batchResponses(batchRsps.size());
+    std::ranges::transform(batchRsps, batchResponses.begin(), extractResponse);
+    return batchResponses;
+}
+
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-using namespace NCellMaster;
-using namespace NConcurrency;
-using namespace NYTree;
-
-using NCypressClient::TCypressYPathProxy;
-using NObjectClient::TCellTag;
-using NObjectClient::TObjectId;
-using NObjectClient::TObjectServiceProxy;
-using NObjectClient::TObjectYPathProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,11 +174,11 @@ void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSampl
 void TChunksSamples::FinishUpdate()
 { }
 
-TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(NYPath::TYPath localChunksPath)
+std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::SendLocalSampleRequests(
+        NYPath::TYPath localChunksPath,
+        TAttributeFilter attributeFilter,
+        std::optional<int> limit)
 {
-    const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-    auto limit = dynamicConfig->MaxChunksSampleSizePerCell;
-
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto channels = chunkManager->GetChunkReplicatorChannels();
 
@@ -160,32 +190,30 @@ TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(NYPat
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
         auto batchReq = proxy.ExecuteBatch();
         auto req = TCypressYPathProxy::Enumerate(localChunksPath);
-        req->set_limit(limit);
+        if (limit) {
+            req->set_limit(limit.value());
+        }
+
+        if (attributeFilter) {
+            ToProto(req->mutable_attributes(), attributeFilter);
+        }
+
         batchReq->AddRequest(req, "enumerate");
         responseFutures.push_back(batchReq->Invoke());
     }
+    return responseFutures;
+}
 
-    using TRspExecuteBatchPtr = TObjectServiceProxy::TRspExecuteBatchPtr;
+TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(NYPath::TYPath localChunksPath)
+{
+    const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+    auto limit = dynamicConfig->MaxChunksSampleSizePerCell;
+
+    auto responseFutures = SendLocalSampleRequests(localChunksPath, TAttributeFilter(), limit);
 
     return AllSet(std::move(responseFutures))
         .ApplyUnique(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
-        using TRspEnumeratePtr = TCypressYPathProxy::TRspEnumeratePtr;
-        auto extractResponse = [] (const TErrorOr<TRspExecuteBatchPtr>& batchRsp) -> TRspEnumeratePtr {
-            if (!batchRsp.IsOK()) {
-                return {};
-            }
-
-            auto rspOrError = batchRsp.Value()->GetResponse<TCypressYPathProxy::TRspEnumerate>("enumerate");
-            if (!rspOrError.IsOK()) {
-                return {};
-            }
-
-            return std::move(rspOrError).Value();
-        };
-
-        auto batchRsps = std::move(response).ValueOrDefault({});
-        std::vector<TRspEnumeratePtr> batchResponses(batchRsps.size());
-        std::ranges::transform(batchRsps, batchResponses.begin(), extractResponse);
+        auto batchResponses = ExtractResponses(std::move(response));
 
         std::ranges::sort(batchResponses, [&] (const auto& lhs, const auto& rhs) {
             if (!lhs) {
@@ -227,12 +255,80 @@ TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(NYPat
     }));
 }
 
-TFuture<NProto::TReqChunksSamples> TChunksSamples::GetLocalCellUpdate() {
+TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalOldestPartMissingChunkSample()
+{
+    const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+
+    auto responseFutures = SendLocalSampleRequests(
+        "//sys/local_oldest_part_missing_chunks",
+        TAttributeFilter({
+            EInternedAttributeKey::Vital.Unintern(),
+            EInternedAttributeKey::PartLossTime.Unintern()}),
+        dynamicConfig->MaxOldestPartMissingChunks);
+
+    auto limit = dynamicConfig->MaxChunksSampleSizePerCell;
+
+    return AllSet(std::move(responseFutures))
+        .ApplyUnique(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
+        auto batchResponses = ExtractResponses(std::move(response));
+
+        struct TMissingPartChunkInfo {
+            TChunkId ChunkId;
+            TInstant PartLossTime;
+        };
+
+        std::vector<TMissingPartChunkInfo> partLostChunks;
+
+        for (const auto& response : batchResponses) {
+            if (!response) {
+                continue;
+            }
+            for (const auto& chunk : response->items()) {
+                if (!chunk.has_attributes()) {
+                    continue;
+                }
+                auto attr = ConvertToAttributes(
+                    TYsonString(chunk.attributes(), EYsonType::MapFragment));
+
+                auto vitalChunk = attr->Find<bool>(EInternedAttributeKey::Vital.Unintern());
+                if (!vitalChunk || !vitalChunk.value()) {
+                    continue;
+                }
+
+                auto partLossTime = attr->Find<TInstant>(EInternedAttributeKey::PartLossTime.Unintern());
+                if (partLossTime) {
+                    partLostChunks.emplace_back(
+                        TChunkId::FromString(chunk.key()),
+                        partLossTime.value());
+                }
+            }
+        }
+        if (std::ssize(partLostChunks) > limit) {
+            std::ranges::nth_element(
+                partLostChunks,
+                partLostChunks.begin() + limit,
+                [](const auto& lhs, const auto& rhs) {
+                    return lhs.PartLossTime < rhs.PartLossTime;
+                });
+            partLostChunks.resize(limit);
+        }
+
+        TLocalSampleVector keys(partLostChunks.size());
+        std::ranges::transform(partLostChunks, keys.begin(), [](const auto& chunkInfo) {
+            return chunkInfo.ChunkId;
+        });
+
+        return keys;
+    }));
+}
+
+TFuture<NProto::TReqChunksSamples> TChunksSamples::GetLocalCellUpdate()
+{
     return AllSet(std::vector{
         GetLocalSample("//sys/local_lost_vital_chunks"),
         GetLocalSample("//sys/local_data_missing_chunks"),
         GetLocalSample("//sys/local_parity_missing_chunks"),
-        GetLocalSample("//sys/local_oldest_part_missing_chunks"),
+        GetLocalOldestPartMissingChunkSample(),
         GetLocalSample("//sys/local_quorum_missing_chunks"),
         GetLocalSample("//sys/local_inconsistently_placed_chunks")})
         .ApplyUnique(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (std::vector<TErrorOr<TLocalSampleVector>>&& samples) {
