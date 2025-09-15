@@ -29,6 +29,30 @@ func writeTransactionOptions(w *yson.Writer, o *yt.TransactionOptions) {
 	w.Any(o.SuppressUpstreamSync)
 }
 
+func logTransactionOptions(o *yt.TransactionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	var zero yt.TxID
+	if o.TransactionID != zero {
+		fields = append(fields, log.Any("transaction_id", o.TransactionID))
+	}
+	if o.Ping {
+		fields = append(fields, log.Any("ping", o.Ping))
+	}
+	if o.PingAncestors {
+		fields = append(fields, log.Any("ping_ancestor_transactions", o.PingAncestors))
+	}
+	if o.SuppressTransactionCoordinatorSync {
+		fields = append(fields, log.Any("suppress_transaction_coordinator_sync", o.SuppressTransactionCoordinatorSync))
+	}
+	if o.SuppressUpstreamSync {
+		fields = append(fields, log.Any("suppress_upstream_sync", o.SuppressUpstreamSync))
+	}
+	return fields
+}
+
 func writeAccessTrackingOptions(w *yson.Writer, o *yt.AccessTrackingOptions) {
 	if o == nil {
 		return
@@ -37,6 +61,20 @@ func writeAccessTrackingOptions(w *yson.Writer, o *yt.AccessTrackingOptions) {
 	w.Any(o.SuppressAccessTracking)
 	w.MapKeyString("suppress_modification_tracking")
 	w.Any(o.SuppressModificationTracking)
+}
+
+func logAccessTrackingOptions(o *yt.AccessTrackingOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.SuppressAccessTracking {
+		fields = append(fields, log.Any("suppress_access_tracking", o.SuppressAccessTracking))
+	}
+	if o.SuppressModificationTracking {
+		fields = append(fields, log.Any("suppress_modification_tracking", o.SuppressModificationTracking))
+	}
+	return fields
 }
 
 func writeMutatingOptions(w *yson.Writer, o *yt.MutatingOptions) {
@@ -49,10 +87,33 @@ func writeMutatingOptions(w *yson.Writer, o *yt.MutatingOptions) {
 	w.Any(o.Retry)
 }
 
+func logMutatingOptions(o *yt.MutatingOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	var zero yt.MutationID
+	if o.MutationID != zero {
+		fields = append(fields, log.Any("mutation_id", o.MutationID))
+	}
+	if o.Retry {
+		fields = append(fields, log.Any("retry", o.Retry))
+	}
+	return fields
+}
+
 func writeReadRetryOptions(w *yson.Writer, o *yt.ReadRetryOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logReadRetryOptions(o *yt.ReadRetryOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeMasterReadOptions(w *yson.Writer, o *yt.MasterReadOptions) {
@@ -83,6 +144,33 @@ func writeMasterReadOptions(w *yson.Writer, o *yt.MasterReadOptions) {
 	}
 }
 
+func logMasterReadOptions(o *yt.MasterReadOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	var zero yt.ReadKind
+	if o.ReadFrom != zero {
+		fields = append(fields, log.Any("read_from", o.ReadFrom))
+	}
+	if o.DisablePerUserCache != nil {
+		fields = append(fields, log.Any("disable_per_user_cache", o.DisablePerUserCache))
+	}
+	if o.ExpireAfterSuccessfulUpdateTime != nil {
+		fields = append(fields, log.Any("expire_after_successful_update_time", o.ExpireAfterSuccessfulUpdateTime))
+	}
+	if o.ExpireAfterFailedUpdateTime != nil {
+		fields = append(fields, log.Any("expire_after_failed_update_time", o.ExpireAfterFailedUpdateTime))
+	}
+	if o.CacheStickyGroupSize != nil {
+		fields = append(fields, log.Any("cache_sticky_group_size", o.CacheStickyGroupSize))
+	}
+	if o.SuccessStalenessBound != nil {
+		fields = append(fields, log.Any("success_staleness_bound", o.SuccessStalenessBound))
+	}
+	return fields
+}
+
 func writePrerequisiteOptions(w *yson.Writer, o *yt.PrerequisiteOptions) {
 	if o == nil {
 		return
@@ -97,12 +185,38 @@ func writePrerequisiteOptions(w *yson.Writer, o *yt.PrerequisiteOptions) {
 	}
 }
 
+func logPrerequisiteOptions(o *yt.PrerequisiteOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.TransactionIDs != nil {
+		fields = append(fields, log.Any("prerequisite_transaction_ids", o.TransactionIDs))
+	}
+	if o.Revisions != nil {
+		fields = append(fields, log.Any("prerequisite_revisions", o.Revisions))
+	}
+	return fields
+}
+
 func writeTimeoutOptions(w *yson.Writer, o *yt.TimeoutOptions) {
 	if o == nil {
 		return
 	}
 	w.MapKeyString("timeout")
 	w.Any(o.Timeout)
+}
+
+func logTimeoutOptions(o *yt.TimeoutOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	var zero yson.Duration
+	if o.Timeout != zero {
+		fields = append(fields, log.Any("timeout", o.Timeout))
+	}
+	return fields
 }
 
 func writeCreateNodeOptions(w *yson.Writer, o *yt.CreateNodeOptions) {
@@ -125,6 +239,30 @@ func writeCreateNodeOptions(w *yson.Writer, o *yt.CreateNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logCreateNodeOptions(o *yt.CreateNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.IgnoreExisting {
+		fields = append(fields, log.Any("ignore_existing", o.IgnoreExisting))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeCreateObjectOptions(w *yson.Writer, o *yt.CreateObjectOptions) {
 	if o == nil {
 		return
@@ -144,6 +282,29 @@ func writeCreateObjectOptions(w *yson.Writer, o *yt.CreateObjectOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logCreateObjectOptions(o *yt.CreateObjectOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.IgnoreExisting {
+		fields = append(fields, log.Any("ignore_existing", o.IgnoreExisting))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeNodeExistsOptions(w *yson.Writer, o *yt.NodeExistsOptions) {
 	if o == nil {
 		return
@@ -152,6 +313,18 @@ func writeNodeExistsOptions(w *yson.Writer, o *yt.NodeExistsOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
+}
+
+func logNodeExistsOptions(o *yt.NodeExistsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
 }
 
 func writeRemoveNodeOptions(w *yson.Writer, o *yt.RemoveNodeOptions) {
@@ -166,6 +339,24 @@ func writeRemoveNodeOptions(w *yson.Writer, o *yt.RemoveNodeOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logRemoveNodeOptions(o *yt.RemoveNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeGetNodeOptions(w *yson.Writer, o *yt.GetNodeOptions) {
@@ -187,6 +378,25 @@ func writeGetNodeOptions(w *yson.Writer, o *yt.GetNodeOptions) {
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
+func logGetNodeOptions(o *yt.GetNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	if o.MaxSize != nil {
+		fields = append(fields, log.Any("max_size", o.MaxSize))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
+}
+
 func writeSetNodeOptions(w *yson.Writer, o *yt.SetNodeOptions) {
 	if o == nil {
 		return
@@ -201,6 +411,24 @@ func writeSetNodeOptions(w *yson.Writer, o *yt.SetNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logSetNodeOptions(o *yt.SetNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeMultisetAttributesOptions(w *yson.Writer, o *yt.MultisetAttributesOptions) {
 	if o == nil {
 		return
@@ -209,6 +437,18 @@ func writeMultisetAttributesOptions(w *yson.Writer, o *yt.MultisetAttributesOpti
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+}
+
+func logMultisetAttributesOptions(o *yt.MultisetAttributesOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
 }
 
 func writeListNodeOptions(w *yson.Writer, o *yt.ListNodeOptions) {
@@ -228,6 +468,25 @@ func writeListNodeOptions(w *yson.Writer, o *yt.ListNodeOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
+}
+
+func logListNodeOptions(o *yt.ListNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	if o.MaxSize != nil {
+		fields = append(fields, log.Any("max_size", o.MaxSize))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
 }
 
 func writeCopyNodeOptions(w *yson.Writer, o *yt.CopyNodeOptions) {
@@ -269,6 +528,44 @@ func writeCopyNodeOptions(w *yson.Writer, o *yt.CopyNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logCopyNodeOptions(o *yt.CopyNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.IgnoreExisting {
+		fields = append(fields, log.Any("ignore_existing", o.IgnoreExisting))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.PreserveAccount != nil {
+		fields = append(fields, log.Any("preserve_account", o.PreserveAccount))
+	}
+	if o.PreserveExpirationTime != nil {
+		fields = append(fields, log.Any("preserve_expiration_time", o.PreserveExpirationTime))
+	}
+	if o.PreserveExpirationTimeout != nil {
+		fields = append(fields, log.Any("preserve_expiration_timeout", o.PreserveExpirationTimeout))
+	}
+	if o.PreserveCreationTime != nil {
+		fields = append(fields, log.Any("preserve_creation_time", o.PreserveCreationTime))
+	}
+	if o.PessimisticQuotaCheck != nil {
+		fields = append(fields, log.Any("pessimistic_quota_check", o.PessimisticQuotaCheck))
+	}
+	if o.EnableCrossCellCopying != nil {
+		fields = append(fields, log.Any("enable_cross_cell_copying", o.EnableCrossCellCopying))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeMoveNodeOptions(w *yson.Writer, o *yt.MoveNodeOptions) {
 	if o == nil {
 		return
@@ -302,6 +599,38 @@ func writeMoveNodeOptions(w *yson.Writer, o *yt.MoveNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logMoveNodeOptions(o *yt.MoveNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.PreserveAccount != nil {
+		fields = append(fields, log.Any("preserve_account", o.PreserveAccount))
+	}
+	if o.PreserveExpirationTime != nil {
+		fields = append(fields, log.Any("preserve_expiration_time", o.PreserveExpirationTime))
+	}
+	if o.PreserveExpirationTimeout != nil {
+		fields = append(fields, log.Any("preserve_expiration_timeout", o.PreserveExpirationTimeout))
+	}
+	if o.PessimisticQuotaCheck != nil {
+		fields = append(fields, log.Any("pessimistic_quota_check", o.PessimisticQuotaCheck))
+	}
+	if o.EnableCrossCellCopying != nil {
+		fields = append(fields, log.Any("enable_cross_cell_copying", o.EnableCrossCellCopying))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeLinkNodeOptions(w *yson.Writer, o *yt.LinkNodeOptions) {
 	if o == nil {
 		return
@@ -319,6 +648,29 @@ func writeLinkNodeOptions(w *yson.Writer, o *yt.LinkNodeOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+}
+
+func logLinkNodeOptions(o *yt.LinkNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Recursive {
+		fields = append(fields, log.Any("recursive", o.Recursive))
+	}
+	if o.IgnoreExisting {
+		fields = append(fields, log.Any("ignore_existing", o.IgnoreExisting))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
 }
 
 func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
@@ -351,11 +703,48 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
+func logStartTxOptions(o *yt.StartTxOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Timeout != nil {
+		fields = append(fields, log.Any("timeout", o.Timeout))
+	}
+	if o.Deadline != nil {
+		fields = append(fields, log.Any("deadline", o.Deadline))
+	}
+	if o.Type != nil {
+		fields = append(fields, log.Any("type", o.Type))
+	}
+	if o.Sticky {
+		fields = append(fields, log.Any("sticky", o.Sticky))
+	}
+	if o.PrerequisiteTransactionIDs != nil {
+		fields = append(fields, log.Any("prerequisite_transaction_ids", o.PrerequisiteTransactionIDs))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
+}
+
 func writePingTxOptions(w *yson.Writer, o *yt.PingTxOptions) {
 	if o == nil {
 		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logPingTxOptions(o *yt.PingTxOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
 }
 
 func writeAbortTxOptions(w *yson.Writer, o *yt.AbortTxOptions) {
@@ -369,6 +758,20 @@ func writeAbortTxOptions(w *yson.Writer, o *yt.AbortTxOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logAbortTxOptions(o *yt.AbortTxOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Sticky {
+		fields = append(fields, log.Any("sticky", o.Sticky))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeCommitTxOptions(w *yson.Writer, o *yt.CommitTxOptions) {
 	if o == nil {
 		return
@@ -378,6 +781,20 @@ func writeCommitTxOptions(w *yson.Writer, o *yt.CommitTxOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logCommitTxOptions(o *yt.CommitTxOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Sticky {
+		fields = append(fields, log.Any("sticky", o.Sticky))
+	}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
 }
 
 func writeWriteFileOptions(w *yson.Writer, o *yt.WriteFileOptions) {
@@ -390,6 +807,22 @@ func writeWriteFileOptions(w *yson.Writer, o *yt.WriteFileOptions) {
 	w.Any(o.FileWriter)
 	writeTransactionOptions(w, o.TransactionOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+}
+
+func logWriteFileOptions(o *yt.WriteFileOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.ComputeMD5 {
+		fields = append(fields, log.Any("compute_md5", o.ComputeMD5))
+	}
+	if o.FileWriter != nil {
+		fields = append(fields, log.Any("file_writer", o.FileWriter))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
 }
 
 func writeReadFileOptions(w *yson.Writer, o *yt.ReadFileOptions) {
@@ -410,6 +843,25 @@ func writeReadFileOptions(w *yson.Writer, o *yt.ReadFileOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 }
 
+func logReadFileOptions(o *yt.ReadFileOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Offset != nil {
+		fields = append(fields, log.Any("offset", o.Offset))
+	}
+	if o.Length != nil {
+		fields = append(fields, log.Any("length", o.Length))
+	}
+	if o.FileReader != nil {
+		fields = append(fields, log.Any("file_reader", o.FileReader))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	return fields
+}
+
 func writePutFileToCacheOptions(w *yson.Writer, o *yt.PutFileToCacheOptions) {
 	if o == nil {
 		return
@@ -421,6 +873,21 @@ func writePutFileToCacheOptions(w *yson.Writer, o *yt.PutFileToCacheOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logPutFileToCacheOptions(o *yt.PutFileToCacheOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	var zero ypath.YPath
+	if o.CachePath != zero {
+		fields = append(fields, log.Any("cache_path", o.CachePath))
+	}
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeGetFileFromCacheOptions(w *yson.Writer, o *yt.GetFileFromCacheOptions) {
 	if o == nil {
 		return
@@ -429,6 +896,20 @@ func writeGetFileFromCacheOptions(w *yson.Writer, o *yt.GetFileFromCacheOptions)
 	w.Any(o.CachePath)
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
+}
+
+func logGetFileFromCacheOptions(o *yt.GetFileFromCacheOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	var zero ypath.YPath
+	if o.CachePath != zero {
+		fields = append(fields, log.Any("cache_path", o.CachePath))
+	}
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
 }
 
 func writeWriteTableOptions(w *yson.Writer, o *yt.WriteTableOptions) {
@@ -443,6 +924,22 @@ func writeWriteTableOptions(w *yson.Writer, o *yt.WriteTableOptions) {
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
+}
+
+func logWriteTableOptions(o *yt.WriteTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.TableWriter != nil {
+		fields = append(fields, log.Any("table_writer", o.TableWriter))
+	}
+	if o.Format != nil {
+		fields = append(fields, log.Any("input_format", o.Format))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	return fields
 }
 
 func writeReadTableOptions(w *yson.Writer, o *yt.ReadTableOptions) {
@@ -469,12 +966,47 @@ func writeReadTableOptions(w *yson.Writer, o *yt.ReadTableOptions) {
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 }
 
+func logReadTableOptions(o *yt.ReadTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Unordered {
+		fields = append(fields, log.Any("unordered", o.Unordered))
+	}
+	if o.TableReader != nil {
+		fields = append(fields, log.Any("table_reader", o.TableReader))
+	}
+	if o.Format != nil {
+		fields = append(fields, log.Any("output_format", o.Format))
+	}
+	if o.ControlAttributes != nil {
+		fields = append(fields, log.Any("control_attributes", o.ControlAttributes))
+	}
+	if o.StartRowIndexOnly != nil {
+		fields = append(fields, log.Any("start_row_index_only", o.StartRowIndexOnly))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logAccessTrackingOptions(o.AccessTrackingOptions)...)
+	return fields
+}
+
 func writeStartOperationOptions(w *yson.Writer, o *yt.StartOperationOptions) {
 	if o == nil {
 		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logStartOperationOptions(o *yt.StartOperationOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeAbortOperationOptions(w *yson.Writer, o *yt.AbortOperationOptions) {
@@ -487,6 +1019,17 @@ func writeAbortOperationOptions(w *yson.Writer, o *yt.AbortOperationOptions) {
 	}
 }
 
+func logAbortOperationOptions(o *yt.AbortOperationOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.AbortMessage != nil {
+		fields = append(fields, log.Any("abort_message", o.AbortMessage))
+	}
+	return fields
+}
+
 func writeSuspendOperationOptions(w *yson.Writer, o *yt.SuspendOperationOptions) {
 	if o == nil {
 		return
@@ -495,10 +1038,29 @@ func writeSuspendOperationOptions(w *yson.Writer, o *yt.SuspendOperationOptions)
 	w.Any(o.AbortRunningJobs)
 }
 
+func logSuspendOperationOptions(o *yt.SuspendOperationOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.AbortRunningJobs {
+		fields = append(fields, log.Any("abort_running_jobs", o.AbortRunningJobs))
+	}
+	return fields
+}
+
 func writeResumeOperationOptions(w *yson.Writer, o *yt.ResumeOperationOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logResumeOperationOptions(o *yt.ResumeOperationOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeCompleteOperationOptions(w *yson.Writer, o *yt.CompleteOperationOptions) {
@@ -507,10 +1069,26 @@ func writeCompleteOperationOptions(w *yson.Writer, o *yt.CompleteOperationOption
 	}
 }
 
+func logCompleteOperationOptions(o *yt.CompleteOperationOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeUpdateOperationParametersOptions(w *yson.Writer, o *yt.UpdateOperationParametersOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logUpdateOperationParametersOptions(o *yt.UpdateOperationParametersOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeTransferAccountResourcesOptions(w *yson.Writer, o *yt.TransferAccountResourcesOptions) {
@@ -520,11 +1098,29 @@ func writeTransferAccountResourcesOptions(w *yson.Writer, o *yt.TransferAccountR
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logTransferAccountResourcesOptions(o *yt.TransferAccountResourcesOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeTransferPoolResourcesOptions(w *yson.Writer, o *yt.TransferPoolResourcesOptions) {
 	if o == nil {
 		return
 	}
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logTransferPoolResourcesOptions(o *yt.TransferPoolResourcesOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
@@ -577,6 +1173,49 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
+}
+
+func logListOperationsOptions(o *yt.ListOperationsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.FromTime != nil {
+		fields = append(fields, log.Any("from_time", o.FromTime))
+	}
+	if o.ToTime != nil {
+		fields = append(fields, log.Any("to_time", o.ToTime))
+	}
+	if o.Cursor != nil {
+		fields = append(fields, log.Any("cursor_time", o.Cursor))
+	}
+	if o.User != nil {
+		fields = append(fields, log.Any("user", o.User))
+	}
+	if o.State != nil {
+		fields = append(fields, log.Any("state", o.State))
+	}
+	if o.Type != nil {
+		fields = append(fields, log.Any("type", o.Type))
+	}
+	if o.Filter != nil {
+		fields = append(fields, log.Any("filter", o.Filter))
+	}
+	if o.Limit != nil {
+		fields = append(fields, log.Any("limit", o.Limit))
+	}
+	if o.Pool != nil {
+		fields = append(fields, log.Any("pool", o.Pool))
+	}
+	if o.PoolTree != nil {
+		fields = append(fields, log.Any("pool_tree", o.PoolTree))
+	}
+	if o.IncludeArchive != nil {
+		fields = append(fields, log.Any("include_archive", o.IncludeArchive))
+	}
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
 }
 
 func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
@@ -641,6 +1280,56 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 	}
 }
 
+func logListJobsOptions(o *yt.ListJobsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.JobType != nil {
+		fields = append(fields, log.Any("job_type", o.JobType))
+	}
+	if o.JobState != nil {
+		fields = append(fields, log.Any("job_state", o.JobState))
+	}
+	if o.Address != nil {
+		fields = append(fields, log.Any("address", o.Address))
+	}
+	if o.WithStderr != nil {
+		fields = append(fields, log.Any("with_stderr", o.WithStderr))
+	}
+	if o.WithFailContext != nil {
+		fields = append(fields, log.Any("with_fail_context", o.WithFailContext))
+	}
+	if o.WithMonitoringDescriptor != nil {
+		fields = append(fields, log.Any("with_monitoring_descriptor", o.WithMonitoringDescriptor))
+	}
+	if o.WithInterruptionInfo != nil {
+		fields = append(fields, log.Any("with_interruption_info", o.WithInterruptionInfo))
+	}
+	if o.TaskName != nil {
+		fields = append(fields, log.Any("task_name", o.TaskName))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	if o.SortField != nil {
+		fields = append(fields, log.Any("sort_field", o.SortField))
+	}
+	if o.SortOrder != nil {
+		fields = append(fields, log.Any("sort_order", o.SortOrder))
+	}
+	if o.Limit != nil {
+		fields = append(fields, log.Any("limit", o.Limit))
+	}
+	if o.Offset != nil {
+		fields = append(fields, log.Any("offset", o.Offset))
+	}
+	if o.DataSource != nil {
+		fields = append(fields, log.Any("data_source", o.DataSource))
+	}
+	return fields
+}
+
 func writeGetJobOptions(w *yson.Writer, o *yt.GetJobOptions) {
 	if o == nil {
 		return
@@ -651,10 +1340,29 @@ func writeGetJobOptions(w *yson.Writer, o *yt.GetJobOptions) {
 	}
 }
 
+func logGetJobOptions(o *yt.GetJobOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	return fields
+}
+
 func writeGetJobStderrOptions(w *yson.Writer, o *yt.GetJobStderrOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logGetJobStderrOptions(o *yt.GetJobStderrOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
@@ -673,12 +1381,38 @@ func writeGetOperationOptions(w *yson.Writer, o *yt.GetOperationOptions) {
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
+func logGetOperationOptions(o *yt.GetOperationOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	if o.IncludeRuntime != nil {
+		fields = append(fields, log.Any("include_runtime", o.IncludeRuntime))
+	}
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	fields = append(fields, logReadRetryOptions(o.ReadRetryOptions)...)
+	return fields
+}
+
 func writeAddMemberOptions(w *yson.Writer, o *yt.AddMemberOptions) {
 	if o == nil {
 		return
 	}
 	writeMutatingOptions(w, o.MutatingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+}
+
+func logAddMemberOptions(o *yt.AddMemberOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
 }
 
 func writeBuildMasterSnapshotsOptions(w *yson.Writer, o *yt.BuildMasterSnapshotsOptions) {
@@ -699,6 +1433,23 @@ func writeBuildMasterSnapshotsOptions(w *yson.Writer, o *yt.BuildMasterSnapshots
 	}
 }
 
+func logBuildMasterSnapshotsOptions(o *yt.BuildMasterSnapshotsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.SetReadOnly != nil {
+		fields = append(fields, log.Any("set_read_only", o.SetReadOnly))
+	}
+	if o.WaitForSnapshotCompletion != nil {
+		fields = append(fields, log.Any("wait_for_snapshot_completion", o.WaitForSnapshotCompletion))
+	}
+	if o.Retry != nil {
+		fields = append(fields, log.Any("retry", o.Retry))
+	}
+	return fields
+}
+
 func writeBuildSnapshotOptions(w *yson.Writer, o *yt.BuildSnapshotOptions) {
 	if o == nil {
 		return
@@ -717,6 +1468,23 @@ func writeBuildSnapshotOptions(w *yson.Writer, o *yt.BuildSnapshotOptions) {
 	}
 }
 
+func logBuildSnapshotOptions(o *yt.BuildSnapshotOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.CellID != nil {
+		fields = append(fields, log.Any("cell_id", o.CellID))
+	}
+	if o.SetReadOnly != nil {
+		fields = append(fields, log.Any("set_read_only", o.SetReadOnly))
+	}
+	if o.WaitForSnapshotCompletion != nil {
+		fields = append(fields, log.Any("wait_for_snapshot_completion", o.WaitForSnapshotCompletion))
+	}
+	return fields
+}
+
 func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 	if o == nil {
 		return
@@ -725,10 +1493,28 @@ func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func logRemoveMemberOptions(o *yt.RemoveMemberOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	return fields
+}
+
 func writeSetUserPasswordOptions(w *yson.Writer, o *yt.SetUserPasswordOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logSetUserPasswordOptions(o *yt.SetUserPasswordOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeIssueTokenOptions(w *yson.Writer, o *yt.IssueTokenOptions) {
@@ -737,10 +1523,26 @@ func writeIssueTokenOptions(w *yson.Writer, o *yt.IssueTokenOptions) {
 	}
 }
 
+func logIssueTokenOptions(o *yt.IssueTokenOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeRevokeTokenOptions(w *yson.Writer, o *yt.RevokeTokenOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logRevokeTokenOptions(o *yt.RevokeTokenOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeListUserTokensOptions(w *yson.Writer, o *yt.ListUserTokensOptions) {
@@ -749,16 +1551,40 @@ func writeListUserTokensOptions(w *yson.Writer, o *yt.ListUserTokensOptions) {
 	}
 }
 
+func logListUserTokensOptions(o *yt.ListUserTokensOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeWhoAmIOptions(w *yson.Writer, o *yt.WhoAmIOptions) {
 	if o == nil {
 		return
 	}
 }
 
+func logWhoAmIOptions(o *yt.WhoAmIOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeAddMaintenanceOptions(w *yson.Writer, o *yt.AddMaintenanceOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logAddMaintenanceOptions(o *yt.AddMaintenanceOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeRemoveMaintenanceOptions(w *yson.Writer, o *yt.RemoveMaintenanceOptions) {
@@ -787,6 +1613,29 @@ func writeRemoveMaintenanceOptions(w *yson.Writer, o *yt.RemoveMaintenanceOption
 	}
 }
 
+func logRemoveMaintenanceOptions(o *yt.RemoveMaintenanceOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Mine != nil {
+		fields = append(fields, log.Any("mine", o.Mine))
+	}
+	if o.All != nil {
+		fields = append(fields, log.Any("all", o.All))
+	}
+	if o.User != nil {
+		fields = append(fields, log.Any("user", o.User))
+	}
+	if o.IDs != nil {
+		fields = append(fields, log.Any("ids", o.IDs))
+	}
+	if o.Type != nil {
+		fields = append(fields, log.Any("type", o.Type))
+	}
+	return fields
+}
+
 func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	if o == nil {
 		return
@@ -800,6 +1649,20 @@ func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	writeMasterReadOptions(w, o.MasterReadOptions)
 }
 
+func logCheckPermissionOptions(o *yt.CheckPermissionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Columns != nil {
+		fields = append(fields, log.Any("columns", o.Columns))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	return fields
+}
+
 func writeCheckPermissionByACLOptions(w *yson.Writer, o *yt.CheckPermissionByACLOptions) {
 	if o == nil {
 		return
@@ -810,10 +1673,31 @@ func writeCheckPermissionByACLOptions(w *yson.Writer, o *yt.CheckPermissionByACL
 	writeMasterReadOptions(w, o.MasterReadOptions)
 }
 
+func logCheckPermissionByACLOptions(o *yt.CheckPermissionByACLOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.IgnoreMissingSubjects {
+		fields = append(fields, log.Any("ignore_missing_subjects", o.IgnoreMissingSubjects))
+	}
+	fields = append(fields, logPrerequisiteOptions(o.PrerequisiteOptions)...)
+	fields = append(fields, logMasterReadOptions(o.MasterReadOptions)...)
+	return fields
+}
+
 func writeDisableChunkLocationsOptions(w *yson.Writer, o *yt.DisableChunkLocationsOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logDisableChunkLocationsOptions(o *yt.DisableChunkLocationsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeDestroyChunkLocationsOptions(w *yson.Writer, o *yt.DestroyChunkLocationsOptions) {
@@ -822,16 +1706,40 @@ func writeDestroyChunkLocationsOptions(w *yson.Writer, o *yt.DestroyChunkLocatio
 	}
 }
 
+func logDestroyChunkLocationsOptions(o *yt.DestroyChunkLocationsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeResurrectChunkLocationsOptions(w *yson.Writer, o *yt.ResurrectChunkLocationsOptions) {
 	if o == nil {
 		return
 	}
 }
 
+func logResurrectChunkLocationsOptions(o *yt.ResurrectChunkLocationsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeRequestRestartOptions(w *yson.Writer, o *yt.RequestRestartOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logRequestRestartOptions(o *yt.RequestRestartOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
@@ -852,12 +1760,41 @@ func writeLockNodeOptions(w *yson.Writer, o *yt.LockNodeOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logLockNodeOptions(o *yt.LockNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Waitable {
+		fields = append(fields, log.Any("waitable", o.Waitable))
+	}
+	if o.ChildKey != nil {
+		fields = append(fields, log.Any("child_key", o.ChildKey))
+	}
+	if o.AttributeKey != nil {
+		fields = append(fields, log.Any("attribute_key", o.AttributeKey))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeUnlockNodeOptions(w *yson.Writer, o *yt.UnlockNodeOptions) {
 	if o == nil {
 		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logUnlockNodeOptions(o *yt.UnlockNodeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeTabletRangeOptions(w *yson.Writer, o *yt.TabletRangeOptions) {
@@ -868,6 +1805,20 @@ func writeTabletRangeOptions(w *yson.Writer, o *yt.TabletRangeOptions) {
 	w.Any(o.FirstTabletIndex)
 	w.MapKeyString("last_tablet_index")
 	w.Any(o.LastTabletIndex)
+}
+
+func logTabletRangeOptions(o *yt.TabletRangeOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.FirstTabletIndex != 0 {
+		fields = append(fields, log.Any("first_tablet_index", o.FirstTabletIndex))
+	}
+	if o.LastTabletIndex != 0 {
+		fields = append(fields, log.Any("last_tablet_index", o.LastTabletIndex))
+	}
+	return fields
 }
 
 func writeMountTableOptions(w *yson.Writer, o *yt.MountTableOptions) {
@@ -888,6 +1839,25 @@ func writeMountTableOptions(w *yson.Writer, o *yt.MountTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logMountTableOptions(o *yt.MountTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.CellID != nil {
+		fields = append(fields, log.Any("cell_id", o.CellID))
+	}
+	if o.TargetCellIDs != nil {
+		fields = append(fields, log.Any("target_cell_ids", o.TargetCellIDs))
+	}
+	if o.Freeze {
+		fields = append(fields, log.Any("freeze", o.Freeze))
+	}
+	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeUnmountTableOptions(w *yson.Writer, o *yt.UnmountTableOptions) {
 	if o == nil {
 		return
@@ -898,12 +1868,35 @@ func writeUnmountTableOptions(w *yson.Writer, o *yt.UnmountTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logUnmountTableOptions(o *yt.UnmountTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeRemountTableOptions(w *yson.Writer, o *yt.RemountTableOptions) {
 	if o == nil {
 		return
 	}
 	writeTabletRangeOptions(w, o.TabletRangeOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logRemountTableOptions(o *yt.RemountTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeFreezeTableOptions(w *yson.Writer, o *yt.FreezeTableOptions) {
@@ -914,12 +1907,32 @@ func writeFreezeTableOptions(w *yson.Writer, o *yt.FreezeTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logFreezeTableOptions(o *yt.FreezeTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeUnfreezeTableOptions(w *yson.Writer, o *yt.UnfreezeTableOptions) {
 	if o == nil {
 		return
 	}
 	writeTabletRangeOptions(w, o.TabletRangeOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logUnfreezeTableOptions(o *yt.UnfreezeTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
@@ -936,6 +1949,22 @@ func writeReshardTableOptions(w *yson.Writer, o *yt.ReshardTableOptions) {
 	}
 	writeTabletRangeOptions(w, o.TabletRangeOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logReshardTableOptions(o *yt.ReshardTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.PivotKeys != nil {
+		fields = append(fields, log.Any("pivot_keys", o.PivotKeys))
+	}
+	if o.TabletCount != nil {
+		fields = append(fields, log.Any("tablet_count", o.TabletCount))
+	}
+	fields = append(fields, logTabletRangeOptions(o.TabletRangeOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 func writeAlterTableOptions(w *yson.Writer, o *yt.AlterTableOptions) {
@@ -957,6 +1986,24 @@ func writeAlterTableOptions(w *yson.Writer, o *yt.AlterTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logAlterTableOptions(o *yt.AlterTableOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Schema != nil {
+		fields = append(fields, log.Any("schema", o.Schema))
+	}
+	if o.Dynamic != nil {
+		fields = append(fields, log.Any("dynamic", o.Dynamic))
+	}
+	if o.UpstreamReplicaID != nil {
+		fields = append(fields, log.Any("upstream_replica_id", o.UpstreamReplicaID))
+	}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeAlterTableReplicaOptions(w *yson.Writer, o *yt.AlterTableReplicaOptions) {
 	if o == nil {
 		return
@@ -971,10 +2018,32 @@ func writeAlterTableReplicaOptions(w *yson.Writer, o *yt.AlterTableReplicaOption
 	}
 }
 
+func logAlterTableReplicaOptions(o *yt.AlterTableReplicaOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Enabled != nil {
+		fields = append(fields, log.Any("enabled", o.Enabled))
+	}
+	if o.Mode != nil {
+		fields = append(fields, log.Any("mode", o.Mode))
+	}
+	return fields
+}
+
 func writeAttachTxOptions(w *yson.Writer, o *yt.AttachTxOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logAttachTxOptions(o *yt.AttachTxOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
@@ -994,16 +2063,50 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
+func logLookupRowsOptions(o *yt.LookupRowsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.KeepMissingRows {
+		fields = append(fields, log.Any("keep_missing_rows", o.KeepMissingRows))
+	}
+	if o.Timestamp != nil {
+		fields = append(fields, log.Any("timestamp", o.Timestamp))
+	}
+	if o.Columns != nil {
+		fields = append(fields, log.Any("column_names", o.Columns))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
+}
+
 func writeTabletReadOptions(w *yson.Writer, o *yt.TabletReadOptions) {
 	if o == nil {
 		return
 	}
 }
 
+func logTabletReadOptions(o *yt.TabletReadOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeMultiplexingBandOptions(w *yson.Writer, o *yt.MultiplexingBandOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logMultiplexingBandOptions(o *yt.MultiplexingBandOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeMultiLookupRowsOptions(w *yson.Writer, o *yt.MultiLookupRowsOptions) {
@@ -1013,6 +2116,17 @@ func writeMultiLookupRowsOptions(w *yson.Writer, o *yt.MultiLookupRowsOptions) {
 	writeMultiplexingBandOptions(w, o.MultiplexingBandOptions)
 	writeTabletReadOptions(w, o.TabletReadOptions)
 	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logMultiLookupRowsOptions(o *yt.MultiLookupRowsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logMultiplexingBandOptions(o.MultiplexingBandOptions)...)
+	fields = append(fields, logTabletReadOptions(o.TabletReadOptions)...)
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
 }
 
 func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
@@ -1038,6 +2152,27 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
+func logInsertRowsOptions(o *yt.InsertRowsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Atomicity != nil {
+		fields = append(fields, log.Any("atomicity", o.Atomicity))
+	}
+	if o.RequireSyncReplica != nil {
+		fields = append(fields, log.Any("require_sync_replica", o.RequireSyncReplica))
+	}
+	if o.Update != nil {
+		fields = append(fields, log.Any("update", o.Update))
+	}
+	if o.Aggregate != nil {
+		fields = append(fields, log.Any("aggregate", o.Aggregate))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
+}
+
 func writePushQueueProducerOptions(w *yson.Writer, o *yt.PushQueueProducerOptions) {
 	if o == nil {
 		return
@@ -1053,11 +2188,35 @@ func writePushQueueProducerOptions(w *yson.Writer, o *yt.PushQueueProducerOption
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
+func logPushQueueProducerOptions(o *yt.PushQueueProducerOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.UserMeta != nil {
+		fields = append(fields, log.Any("user_meta", o.UserMeta))
+	}
+	if o.SequenceNumber != nil {
+		fields = append(fields, log.Any("sequence_number", o.SequenceNumber))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
+}
+
 func writeLockRowsOptions(w *yson.Writer, o *yt.LockRowsOptions) {
 	if o == nil {
 		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logLockRowsOptions(o *yt.LockRowsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
 }
 
 func writeDeleteRowsOptions(w *yson.Writer, o *yt.DeleteRowsOptions) {
@@ -1069,6 +2228,18 @@ func writeDeleteRowsOptions(w *yson.Writer, o *yt.DeleteRowsOptions) {
 		w.Any(o.RequireSyncReplica)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func logDeleteRowsOptions(o *yt.DeleteRowsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.RequireSyncReplica != nil {
+		fields = append(fields, log.Any("require_sync_replica", o.RequireSyncReplica))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	return fields
 }
 
 func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
@@ -1103,6 +2274,34 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 	writeTimeoutOptions(w, o.TimeoutOptions)
 }
 
+func logSelectRowsOptions(o *yt.SelectRowsOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.FailOnIncompleteResult != nil {
+		fields = append(fields, log.Any("fail_on_incomplete_result", o.FailOnIncompleteResult))
+	}
+	if o.InputRowLimit != nil {
+		fields = append(fields, log.Any("input_row_limit", o.InputRowLimit))
+	}
+	if o.OutputRowLimit != nil {
+		fields = append(fields, log.Any("output_row_limit", o.OutputRowLimit))
+	}
+	if o.UseCanonicalNullRelations != nil {
+		fields = append(fields, log.Any("use_canonical_null_relations", o.UseCanonicalNullRelations))
+	}
+	if o.Timestamp != nil {
+		fields = append(fields, log.Any("timestamp", o.Timestamp))
+	}
+	if o.PlaceholderValues != nil {
+		fields = append(fields, log.Any("placeholder_values", o.PlaceholderValues))
+	}
+	fields = append(fields, logTransactionOptions(o.TransactionOptions)...)
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
 func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	if o == nil {
 		return
@@ -1121,6 +2320,27 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	w.Any(o.Sticky)
 }
 
+func logStartTabletTxOptions(o *yt.StartTabletTxOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Atomicity != nil {
+		fields = append(fields, log.Any("atomicity", o.Atomicity))
+	}
+	if o.Timeout != nil {
+		fields = append(fields, log.Any("timeout", o.Timeout))
+	}
+	var zero yt.TxType
+	if o.Type != zero {
+		fields = append(fields, log.Any("type", o.Type))
+	}
+	if o.Sticky {
+		fields = append(fields, log.Any("sticky", o.Sticky))
+	}
+	return fields
+}
+
 func writeCreateQueueProducerSessionOptions(w *yson.Writer, o *yt.CreateQueueProducerSessionOptions) {
 	if o == nil {
 		return
@@ -1133,11 +2353,33 @@ func writeCreateQueueProducerSessionOptions(w *yson.Writer, o *yt.CreateQueuePro
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func logCreateQueueProducerSessionOptions(o *yt.CreateQueueProducerSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.UserMeta != nil {
+		fields = append(fields, log.Any("user_meta", o.UserMeta))
+	}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
+}
+
 func writeRemoveQueueProducerSessionOptions(w *yson.Writer, o *yt.RemoveQueueProducerSessionOptions) {
 	if o == nil {
 		return
 	}
 	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func logRemoveQueueProducerSessionOptions(o *yt.RemoveQueueProducerSessionOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
 }
 
 func writeCreateTableBackupOptions(w *yson.Writer, o *yt.CreateTableBackupOptions) {
@@ -1161,6 +2403,27 @@ func writeCreateTableBackupOptions(w *yson.Writer, o *yt.CreateTableBackupOption
 	writeTimeoutOptions(w, o.TimeoutOptions)
 }
 
+func logCreateTableBackupOptions(o *yt.CreateTableBackupOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.CheckpointTimestampDelay != nil {
+		fields = append(fields, log.Any("checkpoint_timestamp_delay", o.CheckpointTimestampDelay))
+	}
+	if o.CheckpointCheckPeriod != nil {
+		fields = append(fields, log.Any("checkpoint_check_period", o.CheckpointCheckPeriod))
+	}
+	if o.CheckpointCheckTimeout != nil {
+		fields = append(fields, log.Any("checkpoint_check_timeout", o.CheckpointCheckTimeout))
+	}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
 func writeRestoreTableBackupOptions(w *yson.Writer, o *yt.RestoreTableBackupOptions) {
 	if o == nil {
 		return
@@ -1174,6 +2437,24 @@ func writeRestoreTableBackupOptions(w *yson.Writer, o *yt.RestoreTableBackupOpti
 	writeTimeoutOptions(w, o.TimeoutOptions)
 }
 
+func logRestoreTableBackupOptions(o *yt.RestoreTableBackupOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Force {
+		fields = append(fields, log.Any("force", o.Force))
+	}
+	if o.Mount {
+		fields = append(fields, log.Any("mount", o.Mount))
+	}
+	if o.EnableReplicas {
+		fields = append(fields, log.Any("enable_replicas", o.EnableReplicas))
+	}
+	fields = append(fields, logTimeoutOptions(o.TimeoutOptions)...)
+	return fields
+}
+
 func writeQueryTrackerOptions(w *yson.Writer, o *yt.QueryTrackerOptions) {
 	if o == nil {
 		return
@@ -1182,6 +2463,17 @@ func writeQueryTrackerOptions(w *yson.Writer, o *yt.QueryTrackerOptions) {
 		w.MapKeyString("stage")
 		w.Any(o.Stage)
 	}
+}
+
+func logQueryTrackerOptions(o *yt.QueryTrackerOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Stage != nil {
+		fields = append(fields, log.Any("stage", o.Stage))
+	}
+	return fields
 }
 
 func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
@@ -1215,6 +2507,33 @@ func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
 }
 
+func logStartQueryOptions(o *yt.StartQueryOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Settings != nil {
+		fields = append(fields, log.Any("settings", o.Settings))
+	}
+	if o.Draft != nil {
+		fields = append(fields, log.Any("draft", o.Draft))
+	}
+	if o.Annotations != nil {
+		fields = append(fields, log.Any("annotations", o.Annotations))
+	}
+	if o.AccessControlObjects != nil {
+		fields = append(fields, log.Any("access_control_objects", o.AccessControlObjects))
+	}
+	if o.AccessControlObject != nil {
+		fields = append(fields, log.Any("access_control_object", o.AccessControlObject))
+	}
+	if o.Secrets != nil {
+		fields = append(fields, log.Any("secrets", o.Secrets))
+	}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
+}
+
 func writeAbortQueryOptions(w *yson.Writer, o *yt.AbortQueryOptions) {
 	if o == nil {
 		return
@@ -1224,6 +2543,18 @@ func writeAbortQueryOptions(w *yson.Writer, o *yt.AbortQueryOptions) {
 		w.Any(o.AbortMessage)
 	}
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func logAbortQueryOptions(o *yt.AbortQueryOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.AbortMessage != nil {
+		fields = append(fields, log.Any("abort_message", o.AbortMessage))
+	}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
 }
 
 func writeGetQueryOptions(w *yson.Writer, o *yt.GetQueryOptions) {
@@ -1239,6 +2570,21 @@ func writeGetQueryOptions(w *yson.Writer, o *yt.GetQueryOptions) {
 		w.Any(o.Timestamp)
 	}
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func logGetQueryOptions(o *yt.GetQueryOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	if o.Timestamp != nil {
+		fields = append(fields, log.Any("timestamp", o.Timestamp))
+	}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
 }
 
 func writeListQueriesOptions(w *yson.Writer, o *yt.ListQueriesOptions) {
@@ -1288,11 +2634,59 @@ func writeListQueriesOptions(w *yson.Writer, o *yt.ListQueriesOptions) {
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
 }
 
+func logListQueriesOptions(o *yt.ListQueriesOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.FromTime != nil {
+		fields = append(fields, log.Any("from_time", o.FromTime))
+	}
+	if o.ToTime != nil {
+		fields = append(fields, log.Any("to_time", o.ToTime))
+	}
+	if o.CursorTime != nil {
+		fields = append(fields, log.Any("cursor_time", o.CursorTime))
+	}
+	if o.CursorDirection != nil {
+		fields = append(fields, log.Any("cursor_direction", o.CursorDirection))
+	}
+	if o.UserFilter != nil {
+		fields = append(fields, log.Any("user_filter", o.UserFilter))
+	}
+	if o.StateFilter != nil {
+		fields = append(fields, log.Any("state_filter", o.StateFilter))
+	}
+	if o.EngineFilter != nil {
+		fields = append(fields, log.Any("engine_filter", o.EngineFilter))
+	}
+	if o.SubstrFilter != nil {
+		fields = append(fields, log.Any("substr_filter", o.SubstrFilter))
+	}
+	if o.Limit != nil {
+		fields = append(fields, log.Any("limit", o.Limit))
+	}
+	if o.Attributes != nil {
+		fields = append(fields, log.Any("attributes", o.Attributes))
+	}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
+}
+
 func writeGetQueryResultOptions(w *yson.Writer, o *yt.GetQueryResultOptions) {
 	if o == nil {
 		return
 	}
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func logGetQueryResultOptions(o *yt.GetQueryResultOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
 }
 
 func writeReadQueryResultOptions(w *yson.Writer, o *yt.ReadQueryResultOptions) {
@@ -1314,6 +2708,24 @@ func writeReadQueryResultOptions(w *yson.Writer, o *yt.ReadQueryResultOptions) {
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
 }
 
+func logReadQueryResultOptions(o *yt.ReadQueryResultOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Columns != nil {
+		fields = append(fields, log.Any("columns", o.Columns))
+	}
+	if o.LowerRowIndex != nil {
+		fields = append(fields, log.Any("lower_row_index", o.LowerRowIndex))
+	}
+	if o.UpperRowIndex != nil {
+		fields = append(fields, log.Any("upper_row_index", o.UpperRowIndex))
+	}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
+}
+
 func writeAlterQueryOptions(w *yson.Writer, o *yt.AlterQueryOptions) {
 	if o == nil {
 		return
@@ -1333,10 +2745,36 @@ func writeAlterQueryOptions(w *yson.Writer, o *yt.AlterQueryOptions) {
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
 }
 
+func logAlterQueryOptions(o *yt.AlterQueryOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Annotations != nil {
+		fields = append(fields, log.Any("annotations", o.Annotations))
+	}
+	if o.AccessControlObjects != nil {
+		fields = append(fields, log.Any("access_control_objects", o.AccessControlObjects))
+	}
+	if o.AccessControlObject != nil {
+		fields = append(fields, log.Any("access_control_object", o.AccessControlObject))
+	}
+	fields = append(fields, logQueryTrackerOptions(o.QueryTrackerOptions)...)
+	return fields
+}
+
 func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logLocateSkynetShareOptions(o *yt.LocateSkynetShareOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 func writeGenerateTimestampOptions(w *yson.Writer, o *yt.GenerateTimestampOptions) {
@@ -1345,10 +2783,26 @@ func writeGenerateTimestampOptions(w *yson.Writer, o *yt.GenerateTimestampOption
 	}
 }
 
+func logGenerateTimestampOptions(o *yt.GenerateTimestampOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
+}
+
 func writeGetInSyncReplicasOptions(w *yson.Writer, o *yt.GetInSyncReplicasOptions) {
 	if o == nil {
 		return
 	}
+}
+
+func logGetInSyncReplicasOptions(o *yt.GetInSyncReplicasOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	return fields
 }
 
 type CreateNodeParams struct {
@@ -1386,11 +2840,7 @@ func (p *CreateNodeParams) Log() []log.Field {
 		log.Any("path", p.path),
 		log.Any("typ", p.typ),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCreateNodeOptions(p.options)...)
 	return fields
 }
 
@@ -1449,11 +2899,7 @@ func (p *CreateObjectParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("typ", p.typ),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCreateObjectOptions(p.options)...)
 	return fields
 }
 
@@ -1506,11 +2952,7 @@ func (p *NodeExistsParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logNodeExistsOptions(p.options)...)
 	return fields
 }
 
@@ -1567,11 +3009,7 @@ func (p *RemoveNodeParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRemoveNodeOptions(p.options)...)
 	return fields
 }
 
@@ -1628,11 +3066,7 @@ func (p *GetNodeParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetNodeOptions(p.options)...)
 	return fields
 }
 
@@ -1693,11 +3127,7 @@ func (p *SetNodeParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logSetNodeOptions(p.options)...)
 	return fields
 }
 
@@ -1754,11 +3184,7 @@ func (p *MultisetAttributesParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logMultisetAttributesOptions(p.options)...)
 	return fields
 }
 
@@ -1815,11 +3241,7 @@ func (p *ListNodeParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logListNodeOptions(p.options)...)
 	return fields
 }
 
@@ -1884,11 +3306,7 @@ func (p *CopyNodeParams) Log() []log.Field {
 		log.Any("src", p.src),
 		log.Any("dst", p.dst),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCopyNodeOptions(p.options)...)
 	return fields
 }
 
@@ -1947,11 +3365,7 @@ func (p *MoveNodeParams) Log() []log.Field {
 		log.Any("src", p.src),
 		log.Any("dst", p.dst),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logMoveNodeOptions(p.options)...)
 	return fields
 }
 
@@ -2010,11 +3424,7 @@ func (p *LinkNodeParams) Log() []log.Field {
 		log.Any("target", p.target),
 		log.Any("link", p.link),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logLinkNodeOptions(p.options)...)
 	return fields
 }
 
@@ -2064,11 +3474,7 @@ func (p *StartTxParams) YPath() (ypath.YPath, bool) {
 }
 func (p *StartTxParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logStartTxOptions(p.options)...)
 	return fields
 }
 
@@ -2110,11 +3516,7 @@ func (p *StartTabletTxParams) YPath() (ypath.YPath, bool) {
 }
 func (p *StartTabletTxParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logStartTabletTxOptions(p.options)...)
 	return fields
 }
 
@@ -2153,11 +3555,7 @@ func (p *PingTxParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logPingTxOptions(p.options)...)
 	return fields
 }
 
@@ -2202,11 +3600,7 @@ func (p *AbortTxParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAbortTxOptions(p.options)...)
 	return fields
 }
 
@@ -2259,11 +3653,7 @@ func (p *CommitTxParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCommitTxOptions(p.options)...)
 	return fields
 }
 
@@ -2316,11 +3706,7 @@ func (p *WriteFileParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logWriteFileOptions(p.options)...)
 	return fields
 }
 
@@ -2369,11 +3755,7 @@ func (p *ReadFileParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logReadFileOptions(p.options)...)
 	return fields
 }
 
@@ -2426,11 +3808,7 @@ func (p *PutFileToCacheParams) Log() []log.Field {
 		log.Any("path", p.path),
 		log.Any("md5", p.md5),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logPutFileToCacheOptions(p.options)...)
 	return fields
 }
 
@@ -2485,11 +3863,7 @@ func (p *GetFileFromCacheParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("md5", p.md5),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetFileFromCacheOptions(p.options)...)
 	return fields
 }
 
@@ -2538,11 +3912,7 @@ func (p *WriteTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logWriteTableOptions(p.options)...)
 	return fields
 }
 
@@ -2591,11 +3961,7 @@ func (p *ReadTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logReadTableOptions(p.options)...)
 	return fields
 }
 
@@ -2647,11 +4013,7 @@ func (p *StartOperationParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opType", p.opType),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logStartOperationOptions(p.options)...)
 	return fields
 }
 
@@ -2702,11 +4064,7 @@ func (p *AbortOperationParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAbortOperationOptions(p.options)...)
 	return fields
 }
 
@@ -2747,11 +4105,7 @@ func (p *SuspendOperationParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logSuspendOperationOptions(p.options)...)
 	return fields
 }
 
@@ -2792,11 +4146,7 @@ func (p *ResumeOperationParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logResumeOperationOptions(p.options)...)
 	return fields
 }
 
@@ -2837,11 +4187,7 @@ func (p *CompleteOperationParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCompleteOperationOptions(p.options)...)
 	return fields
 }
 
@@ -2886,11 +4232,7 @@ func (p *UpdateOperationParametersParams) Log() []log.Field {
 		log.Any("opID", p.opID),
 		log.Any("params", p.params),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logUpdateOperationParametersOptions(p.options)...)
 	return fields
 }
 
@@ -2933,11 +4275,7 @@ func (p *GetOperationParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetOperationOptions(p.options)...)
 	return fields
 }
 
@@ -2986,11 +4324,7 @@ func (p *GetOperationByAliasParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("alias", p.alias),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetOperationOptions(p.options)...)
 	return fields
 }
 
@@ -3026,11 +4360,7 @@ func (p *ListOperationsParams) YPath() (ypath.YPath, bool) {
 }
 func (p *ListOperationsParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logListOperationsOptions(p.options)...)
 	return fields
 }
 
@@ -3077,11 +4407,7 @@ func (p *ListJobsParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("opID", p.opID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logListJobsOptions(p.options)...)
 	return fields
 }
 
@@ -3126,11 +4452,7 @@ func (p *GetJobParams) Log() []log.Field {
 		log.Any("opID", p.opID),
 		log.Any("jobID", p.jobID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetJobOptions(p.options)...)
 	return fields
 }
 
@@ -3177,11 +4499,7 @@ func (p *GetJobStderrParams) Log() []log.Field {
 		log.Any("opID", p.opID),
 		log.Any("jobID", p.jobID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetJobStderrOptions(p.options)...)
 	return fields
 }
 
@@ -3228,11 +4546,7 @@ func (p *AddMemberParams) Log() []log.Field {
 		log.Any("group", p.group),
 		log.Any("member", p.member),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAddMemberOptions(p.options)...)
 	return fields
 }
 
@@ -3278,11 +4592,7 @@ func (p *BuildMasterSnapshotsParams) YPath() (ypath.YPath, bool) {
 }
 func (p *BuildMasterSnapshotsParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logBuildMasterSnapshotsOptions(p.options)...)
 	return fields
 }
 
@@ -3316,11 +4626,7 @@ func (p *BuildSnapshotParams) YPath() (ypath.YPath, bool) {
 }
 func (p *BuildSnapshotParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logBuildSnapshotOptions(p.options)...)
 	return fields
 }
 
@@ -3363,11 +4669,7 @@ func (p *RemoveMemberParams) Log() []log.Field {
 		log.Any("group", p.group),
 		log.Any("member", p.member),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRemoveMemberOptions(p.options)...)
 	return fields
 }
 
@@ -3430,11 +4732,7 @@ func (p *AddMaintenanceParams) Log() []log.Field {
 		log.Any("maintenanceType", p.maintenanceType),
 		log.Any("comment", p.comment),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAddMaintenanceOptions(p.options)...)
 	return fields
 }
 
@@ -3485,11 +4783,7 @@ func (p *RemoveMaintenanceParams) Log() []log.Field {
 		log.Any("component", p.component),
 		log.Any("address", p.address),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRemoveMaintenanceOptions(p.options)...)
 	return fields
 }
 
@@ -3540,11 +4834,7 @@ func (p *TransferAccountResourcesParams) Log() []log.Field {
 		log.Any("dstAccount", p.dstAccount),
 		log.Any("resourceDelta", p.resourceDelta),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logTransferAccountResourcesOptions(p.options)...)
 	return fields
 }
 
@@ -3605,11 +4895,7 @@ func (p *TransferPoolResourcesParams) Log() []log.Field {
 		log.Any("poolTree", p.poolTree),
 		log.Any("resourceDelta", p.resourceDelta),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logTransferPoolResourcesOptions(p.options)...)
 	return fields
 }
 
@@ -3668,11 +4954,7 @@ func (p *CheckPermissionParams) Log() []log.Field {
 		log.Any("permission", p.permission),
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCheckPermissionOptions(p.options)...)
 	return fields
 }
 
@@ -3737,11 +5019,7 @@ func (p *CheckPermissionByACLParams) Log() []log.Field {
 		log.Any("permission", p.permission),
 		log.Any("ACL", p.ACL),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCheckPermissionByACLOptions(p.options)...)
 	return fields
 }
 
@@ -3798,11 +5076,7 @@ func (p *DisableChunkLocationsParams) Log() []log.Field {
 		log.Any("nodeAddress", p.nodeAddress),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logDisableChunkLocationsOptions(p.options)...)
 	return fields
 }
 
@@ -3853,11 +5127,7 @@ func (p *DestroyChunkLocationsParams) Log() []log.Field {
 		log.Any("recoverUnlinkedDisks", p.recoverUnlinkedDisks),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logDestroyChunkLocationsOptions(p.options)...)
 	return fields
 }
 
@@ -3906,11 +5176,7 @@ func (p *ResurrectChunkLocationsParams) Log() []log.Field {
 		log.Any("nodeAddress", p.nodeAddress),
 		log.Any("locationUUIDs", p.locationUUIDs),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logResurrectChunkLocationsOptions(p.options)...)
 	return fields
 }
 
@@ -3953,11 +5219,7 @@ func (p *RequestRestartParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("nodeAddress", p.nodeAddress),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRequestRestartOptions(p.options)...)
 	return fields
 }
 
@@ -4002,11 +5264,7 @@ func (p *LockNodeParams) Log() []log.Field {
 		log.Any("path", p.path),
 		log.Any("mode", p.mode),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logLockNodeOptions(p.options)...)
 	return fields
 }
 
@@ -4057,11 +5315,7 @@ func (p *UnlockNodeParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logUnlockNodeOptions(p.options)...)
 	return fields
 }
 
@@ -4110,11 +5364,7 @@ func (p *SelectRowsParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("query", p.query),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logSelectRowsOptions(p.options)...)
 	return fields
 }
 
@@ -4163,11 +5413,7 @@ func (p *LookupRowsParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logLookupRowsOptions(p.options)...)
 	return fields
 }
 
@@ -4220,11 +5466,7 @@ func (p *LockRowsParams) Log() []log.Field {
 		log.Any("locks", p.locks),
 		log.Any("lockType", p.lockType),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logLockRowsOptions(p.options)...)
 	return fields
 }
 
@@ -4273,11 +5515,7 @@ func (p *InsertRowsParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logInsertRowsOptions(p.options)...)
 	return fields
 }
 
@@ -4322,11 +5560,7 @@ func (p *DeleteRowsParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logDeleteRowsOptions(p.options)...)
 	return fields
 }
 
@@ -4383,11 +5617,7 @@ func (p *PushQueueProducerParams) Log() []log.Field {
 		log.Any("sessionID", p.sessionID),
 		log.Any("epoch", p.epoch),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logPushQueueProducerOptions(p.options)...)
 	return fields
 }
 
@@ -4446,11 +5676,7 @@ func (p *CreateQueueProducerSessionParams) Log() []log.Field {
 		log.Any("queuePath", p.queuePath),
 		log.Any("sessionID", p.sessionID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCreateQueueProducerSessionOptions(p.options)...)
 	return fields
 }
 
@@ -4511,11 +5737,7 @@ func (p *RemoveQueueProducerSessionParams) Log() []log.Field {
 		log.Any("queuePath", p.queuePath),
 		log.Any("sessionID", p.sessionID),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRemoveQueueProducerSessionOptions(p.options)...)
 	return fields
 }
 
@@ -4564,11 +5786,7 @@ func (p *MountTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logMountTableOptions(p.options)...)
 	return fields
 }
 
@@ -4617,11 +5835,7 @@ func (p *UnmountTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logUnmountTableOptions(p.options)...)
 	return fields
 }
 
@@ -4670,11 +5884,7 @@ func (p *RemountTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRemountTableOptions(p.options)...)
 	return fields
 }
 
@@ -4723,11 +5933,7 @@ func (p *ReshardTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logReshardTableOptions(p.options)...)
 	return fields
 }
 
@@ -4776,11 +5982,7 @@ func (p *AlterTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAlterTableOptions(p.options)...)
 	return fields
 }
 
@@ -4825,11 +6027,7 @@ func (p *FreezeTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logFreezeTableOptions(p.options)...)
 	return fields
 }
 
@@ -4878,11 +6076,7 @@ func (p *UnfreezeTableParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logUnfreezeTableOptions(p.options)...)
 	return fields
 }
 
@@ -4931,11 +6125,7 @@ func (p *AlterTableReplicaParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAlterTableReplicaOptions(p.options)...)
 	return fields
 }
 
@@ -4976,11 +6166,7 @@ func (p *CreateTableBackupParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("manifest", p.manifest),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logCreateTableBackupOptions(p.options)...)
 	return fields
 }
 
@@ -5025,11 +6211,7 @@ func (p *RestoreTableBackupParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("manifest", p.manifest),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRestoreTableBackupOptions(p.options)...)
 	return fields
 }
 
@@ -5078,11 +6260,7 @@ func (p *StartQueryParams) Log() []log.Field {
 		log.Any("engine", p.engine),
 		log.Any("query", p.query),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logStartQueryOptions(p.options)...)
 	return fields
 }
 
@@ -5129,11 +6307,7 @@ func (p *AbortQueryParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAbortQueryOptions(p.options)...)
 	return fields
 }
 
@@ -5178,11 +6352,7 @@ func (p *GetQueryParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetQueryOptions(p.options)...)
 	return fields
 }
 
@@ -5222,11 +6392,7 @@ func (p *ListQueriesParams) YPath() (ypath.YPath, bool) {
 }
 func (p *ListQueriesParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logListQueriesOptions(p.options)...)
 	return fields
 }
 
@@ -5273,11 +6439,7 @@ func (p *GetQueryResultParams) Log() []log.Field {
 		log.Any("id", p.id),
 		log.Any("resultIndex", p.resultIndex),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetQueryResultOptions(p.options)...)
 	return fields
 }
 
@@ -5328,11 +6490,7 @@ func (p *ReadQueryResultParams) Log() []log.Field {
 		log.Any("id", p.id),
 		log.Any("resultIndex", p.resultIndex),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logReadQueryResultOptions(p.options)...)
 	return fields
 }
 
@@ -5379,11 +6537,7 @@ func (p *AlterQueryParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("id", p.id),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logAlterQueryOptions(p.options)...)
 	return fields
 }
 
@@ -5436,11 +6590,7 @@ func (p *SetUserPasswordParams) Log() []log.Field {
 		log.Any("newPassword", p.newPassword),
 		log.Any("currentPassword", p.currentPassword),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logSetUserPasswordOptions(p.options)...)
 	return fields
 }
 
@@ -5489,11 +6639,7 @@ func (p *IssueTokenParams) Log() []log.Field {
 		log.Any("user", p.user),
 		log.Any("password", p.password),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logIssueTokenOptions(p.options)...)
 	return fields
 }
 
@@ -5544,11 +6690,7 @@ func (p *RevokeTokenParams) Log() []log.Field {
 		log.Any("password", p.password),
 		log.Any("token", p.token),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logRevokeTokenOptions(p.options)...)
 	return fields
 }
 
@@ -5597,11 +6739,7 @@ func (p *ListUserTokensParams) Log() []log.Field {
 		log.Any("user", p.user),
 		log.Any("password", p.password),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logListUserTokensOptions(p.options)...)
 	return fields
 }
 
@@ -5639,11 +6777,7 @@ func (p *WhoAmIParams) YPath() (ypath.YPath, bool) {
 }
 func (p *WhoAmIParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logWhoAmIOptions(p.options)...)
 	return fields
 }
 
@@ -5677,11 +6811,7 @@ func (p *GenerateTimestampParams) YPath() (ypath.YPath, bool) {
 }
 func (p *GenerateTimestampParams) Log() []log.Field {
 	fields := []log.Field{}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGenerateTimestampOptions(p.options)...)
 	return fields
 }
 
@@ -5720,11 +6850,7 @@ func (p *LocateSkynetShareParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("path", p.path),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logLocateSkynetShareOptions(p.options)...)
 	return fields
 }
 
@@ -5769,11 +6895,7 @@ func (p *GetInSyncReplicasParams) Log() []log.Field {
 		log.Any("path", p.path),
 		log.Any("ts", p.ts),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logGetInSyncReplicasOptions(p.options)...)
 	return fields
 }
 
@@ -5794,6 +6916,18 @@ func writeExecuteBatchOptions(w *yson.Writer, o *ExecuteBatchOptions) {
 		w.Any(o.Concurrency)
 	}
 	writeMutatingOptions(w, o.MutatingOptions)
+}
+
+func logExecuteBatchOptions(o *ExecuteBatchOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.Concurrency != nil {
+		fields = append(fields, log.Any("concurrency", o.Concurrency))
+	}
+	fields = append(fields, logMutatingOptions(o.MutatingOptions)...)
+	return fields
 }
 
 type ExecuteBatchParams struct {
@@ -5827,11 +6961,7 @@ func (p *ExecuteBatchParams) Log() []log.Field {
 	fields := []log.Field{
 		log.Any("requests", p.requests),
 	}
-	if v, ok := any(p.options).(interface {
-		Log() []log.Field
-	}); ok {
-		fields = append(fields, v.Log()...)
-	}
+	fields = append(fields, logExecuteBatchOptions(p.options)...)
 	return fields
 }
 
