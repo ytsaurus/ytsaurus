@@ -1,5 +1,6 @@
-from .taggable import Taggable, SystemFields
+from .sensor import EmptyCell
 from .serializer import DebugSerializer
+from .taggable import Taggable, SystemFields
 
 from tabulate import tabulate
 
@@ -79,7 +80,10 @@ class Row(Taggable):
         cells = [cell.serialize(begin_values, end_values, serializer) for cell in self.cells]
         return serializer.on_row(self, cells)
 
-    def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None):
+    def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None, skip_cell=False):
+        if skip_cell:
+            self.cells.append(Cell(title="", sensor=EmptyCell()))
+            return self
         self.cells.append(Cell(
             title, sensor, yaxis_label=yaxis_label, display_legend=display_legend,
             description=description, colors=colors))

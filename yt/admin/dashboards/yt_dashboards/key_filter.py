@@ -5,7 +5,7 @@ from .common.sensors import NodeTablet, yt_host
 try:
     from .constants import KEY_FILTER_DASHBOARD_DEFAULT_CLUSTER
 except ImportError:
-    KEY_FILTER_DASHBOARD_DEFAULT_CLUSTER = ""
+    from .yandex_constants import KEY_FILTER_DASHBOARD_DEFAULT_CLUSTER
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag

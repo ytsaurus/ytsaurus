@@ -114,6 +114,7 @@ NodeTablet =       ProjectSensor("node_tablet",         "yt-tablet-node.*")  # n
 
 # Master.
 Master =           ProjectSensor("master",            "yt-master")  # noqa: E222
+MasterAccounts =   ProjectSensor("master_accounts",   "yt-master")  # noqa: E222
 MasterCpu =        ProjectSensor("master_cpu",        "yt-master")  # noqa: E222
 MasterMemory =     ProjectSensor("master_memory",     "yt-master")  # noqa: E222
 MasterInternal =   ProjectSensor("master_internal",   "yt-master")  # noqa: E222
@@ -149,9 +150,6 @@ FlowWorker =     ProjectSensor("worker")  # noqa: E222
 
 # Queue Agent.
 QueueAgent = ProjectSensor("queue_agent_default", "yt-queue-agent")
-
-# Old account sensors.
-Accounts = ProjectSensor("accounts", "yt-accounts")
 
 
 class SplitNodeSensorsGuard:

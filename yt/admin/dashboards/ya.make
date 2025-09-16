@@ -54,6 +54,7 @@ IF (OPENSOURCE)
     PY_SRCS(
         TOP_LEVEL
         yt_dashboards/common/opensource_settings.py
+        yt_dashboards/yandex_constants.py
     )
 ELSE()
     PY_SRCS(

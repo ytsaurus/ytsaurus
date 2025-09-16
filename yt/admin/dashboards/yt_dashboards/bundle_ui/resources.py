@@ -31,7 +31,7 @@ container_memory_usage = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage
     .value("container_category", "pod"))
 
 
-def build_user_resource_overview_rowset():
+def build_user_resource_overview_rowset(has_porto):
     net_guarantee = lambda direction: MonitoringExpr(TabNodePorto(f"yt.porto.network.{direction}_limit")
         .value("container_category", "pod"))
     net_usage = lambda direction: MonitoringExpr(TabNodePorto(f"yt.porto.network.{direction}_bytes")
@@ -52,7 +52,8 @@ def build_user_resource_overview_rowset():
                 .aggr(MonitoringTag("host")))
             .cell(f"Net {DIR} per container", MultiSensor(
                 net_guarantee(direction).all(MonitoringTag("host")).series_max().alias("Guarantee"),
-                *top_max_bottom_min(f"yt.porto.network.{direction}_bytes"))))
+                *top_max_bottom_min(f"yt.porto.network.{direction}_bytes")),
+                skip_cell=not has_porto))
 
     def chunk_reader_statistics(reader_type):
         if reader_type:
@@ -67,6 +68,8 @@ About the difference between CPU and vCPU:
 - vCPU: virtual cores of the instances scaled in order that all instances have \
     similar actual performance. CPU quotas correspond to vCPU.
 """
+    if not has_porto:
+        cpu_vs_vcpu_hint += "\nCurrently vCPU is not available in this dashboard."
 
     return (Rowset()
         .stack(False)
@@ -75,8 +78,8 @@ About the difference between CPU and vCPU:
             .cell("", EmptyCell())
         .row()
             .cell("CPU Total", MultiSensor(
-                    cpu_guarantee.alias("Container CPU Guarantee"),
-                    container_cpu_usage.alias("Container CPU Usage"),
+                    cpu_guarantee.alias("Container CPU Guarantee") if has_porto else None,
+                    container_cpu_usage.alias("Container CPU Usage") if has_porto else None,
                     MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu")
                         .sensor_stack()
                         .all("thread")).alias("{{thread}}") / 100)
@@ -85,27 +88,31 @@ About the difference between CPU and vCPU:
                 "CPU Per container",
                 MultiSensor(
                     *[x / 100 for x in top_max_bottom_min("yt.porto.cpu.total")]),
-                description="Physical CPU limits may differ between containers and are not displayed")
+                description="Physical CPU limits may differ between containers and are not displayed",
+                skip_cell=not has_porto)
         .row()
             .cell("vCPU Total", MultiSensor(
                     vcpu_guarantee.alias("Container vCPU Guarantee"),
                     container_vcpu_usage.alias("Container vCPU Usage"))
-                .aggr(MonitoringTag("host")))
+                .aggr(MonitoringTag("host")),
+                skip_cell=not has_porto)
             .cell("vCPU Per container", MultiSensor(
                 vcpu_guarantee.all(MonitoringTag("host")).series_max().alias("Guarantee"),
-                *[x / 100 for x in top_max_bottom_min("yt.porto.vcpu.total")]))
+                *[x / 100 for x in top_max_bottom_min("yt.porto.vcpu.total")]),
+                skip_cell=not has_porto)
         .row()
             .min(0)
             .cell("Memory Total", MultiSensor(
-                    memory_guarantee.alias("Container Memory Guarantee"),
-                    container_memory_usage.alias("Container Memory Usage"),
+                    memory_guarantee.alias("Container Memory Guarantee") if has_porto else None,
+                    container_memory_usage.alias("Container Memory Usage") if has_porto else None,
                     MonitoringExpr(TabNode("yt.cluster_node.memory_usage.used")
                         .sensor_stack()
                         .all("category")).alias("{{category}}"))
                 .aggr(MonitoringTag("host")))
             .cell("Memory per container", MultiSensor(
                 memory_guarantee.all(MonitoringTag("host")).series_max().alias("Guarantee"),
-                *top_max_bottom_min("yt.porto.memory.anon_usage")))
+                *top_max_bottom_min("yt.porto.memory.anon_usage")),
+                skip_cell=not has_porto)
         .apply_func(lambda row: net(row, "tx"))
         .apply_func(lambda row: net(row, "rx"))
         .row()
@@ -113,9 +120,9 @@ About the difference between CPU and vCPU:
             .cell("Disk Write Total", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                 .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium")
                 .all("method")).alias("{{method}}"))
-            .cell("Disk Write per container", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
+            .cell("Disk Write per container" if has_porto else "Disk Write per pod", MonitoringExpr(NodeTablet("yt.tablet_node.chunk_writer.disk_space.rate")
                 .aggr("method", "table_path", "table_tag", "account", "medium"))
-                .alias("{{container}}")
+                .alias("{{container}}" if has_porto else "{{exported_pod}}")
                 .all(MonitoringTag("host"))
                 .top()
                 .stack(False))
@@ -128,10 +135,10 @@ About the difference between CPU and vCPU:
                 .aggr(MonitoringTag("host"))
                 .stack())
             .cell(
-                "Disk Read per container",
+                "Disk Read per container" if has_porto else "Disk Read per pod",
                 (chunk_reader_statistics("") + chunk_reader_statistics("lookup") + chunk_reader_statistics("select"))
                     .aggr("method", "table_path", "table_tag", "account", "medium", "user")
-                    .alias("{{container}}")
+                    .alias("{{container}}" if has_porto else "{{exported_pod}}")
                     .all(MonitoringTag("host"))
                     .top_avg(10)
                     .stack(False))

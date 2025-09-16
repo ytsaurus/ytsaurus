@@ -51,7 +51,7 @@ class MultiSensor(Taggable):
         return getattr(s, "callable", False)
 
     def __init__(self, *sensors):
-        self.sensors = list(sensors)
+        self.sensors = [s for s in sensors if s is not None]
         self.callable = any(self._is_callable(s) for s in self.sensors)
 
     def value(self, key, value, overwrite=True):
