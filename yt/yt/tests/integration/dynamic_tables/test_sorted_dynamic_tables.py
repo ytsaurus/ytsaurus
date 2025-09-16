@@ -376,10 +376,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with raises_yt_error(yt_error_codes.TransactionLockConflict):
             commit_transaction(tx_to_conflict_after_recovery)
 
-    # It actually works with RPC proxies so we use "run=False" here to avoid
-    # XPASS test result.
     @authors("kvk1920")
-    @pytest.mark.xfail(run=False, reason="YT-23209")
     def test_lock_unexisting_key(self):
         sync_create_cells(1)
 
@@ -397,6 +394,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(tx)
         assert lookup_rows("//tmp/t", [{"key": 42}]) == []
         assert select_rows("* from [//tmp/t]") == []
+
+        # However explicit write of a None should be visible.
+        tx = start_transaction(type="tablet")
+        insert_rows("//tmp/t", [{"key": 42, "value": None}], tx=tx)
+        commit_transaction(tx)
+        assert lookup_rows("//tmp/t", [{"key": 42}]) == [{'key': 42, 'value': yson.YsonEntity()}]
+        assert select_rows("* from [//tmp/t]") == [{'key': 42, 'value': yson.YsonEntity()}]
 
     @authors("ponasenko-rs")
     def test_transaction_shared_write_locks(self):

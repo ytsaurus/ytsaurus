@@ -781,7 +781,7 @@ public:
                 // Lock groups that were already serialized before the snapshot saving were persisted to the snapshot as part of TSortedDynamicStore.
                 // StartSerializingLockedRows at this point is needed to recalculate prepare sets and serializing heaps.
                 // Some heaps will be drained during OnAfterSnapshotLoaded but its values already in edit lists so edit list modifications will be skipped.
-                StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded=*/true);
+                StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded*/ true);
                 transaction->DecrementPartsLeftToPerRowSerialize();
 
                 // NB: Otherwise this transaction should be committed and removed TransactionIdToPersistentWriteState_ before saving to snapshot.

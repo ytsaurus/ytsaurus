@@ -686,13 +686,17 @@ public:
                         RowExistence.TryUpdate(/*value*/ std::nullopt, commitTimestamp);
                     } else {
                         auto row = modification->Row;
+
                         for (int index = 0; index < ValueCount; ++index) {
                             if (auto value = row.GetValue(index)) {
                                 values[index].TryUpdate(value, commitTimestamp);
                                 RowExistence.TryUpdate(/*value*/ 1, commitTimestamp);
                             }
                             // TODO(gritukan): Exclusive lock ~ write.
-                            if (modification->LockMask.Get(index) == ELockType::Exclusive) {
+                            // NB(ponasenko-rs): However pure exclusive lock (lock without data) should not be accounted as write.
+                            if (modification->LockMask.Get(index) == ELockType::Exclusive &&
+                                row.ToRow().GetCount() != GetSchema()->GetKeyColumnCount())
+                            {
                                 RowExistence.TryUpdate(/*value*/ 1, commitTimestamp);
                             }
                         }
