@@ -2090,17 +2090,28 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         assert hunk_job_count == get_job_count("hunk_remote_copy")
         assert regular_job_count == get_job_count("remote_copy")
 
-    @authors("alexelexa", "akozhikhov")
+    @authors("alexelexa")
     def test_no_hunks_in_static_table(self):
         self._create_sorted_table("//tmp/t1", max_inline_hunk_size=1, dynamic=False, driver=self.remote_driver)
         self._create_sorted_table("//tmp/t2", max_inline_hunk_size=1, dynamic=False)
+        self._create_sorted_table("//tmp/t3", max_inline_hunk_size=1, dynamic=False)
 
-        with raises_yt_error("Remote copy for static tables with hunks is not supported"):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-            )
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        rows = [{"key": 1, "value": "foo"}]
+        write_table("//tmp/t1", rows, driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t3",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        assert read_table("//tmp/t3") == [{"key": 1, "value": "foo"}]
 
     @authors("alexelexa")
     @pytest.mark.parametrize("max_inline_hunk_size", [1, 5, 10])

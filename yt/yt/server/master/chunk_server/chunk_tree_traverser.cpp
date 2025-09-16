@@ -42,17 +42,6 @@ static const auto DataSizeMember = &TCumulativeStatisticsEntry::DataSize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsHunkRelatedChunkList(EChunkListKind kind)
-{
-    return
-        kind == EChunkListKind::HunkRoot ||
-        kind == EChunkListKind::HunkStorageRoot ||
-        kind == EChunkListKind::Hunk ||
-        kind == EChunkListKind::HunkTablet;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Returns smallest iterator it s.t.:
 //! 1) start <= it <= end
 //! 2) it == end || (!isMissing(*it) && isLess(key, *it))
@@ -213,7 +202,7 @@ protected:
             auto child = chunkList->Children()[entry.ChildIndex];
 
             // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
-            if (IsEmpty(child) && !IsHunkRelatedChunkList(chunkList->GetKind())) {
+            if (IsEmpty(child)) {
                 if (IsObjectAlive(child)) {
                     YT_LOG_TRACE("Child is empty (Index: %v, Id: %v, Kind: %v)",
                         entry.ChildIndex,
@@ -225,12 +214,6 @@ protected:
                 }
                 ++entry.ChildIndex;
                 continue;
-            }
-
-            if (IsJournalChunkType(child->GetType()) && ShouldTraverseHunkChunkListAsMain()) {
-                // NB: This constraint on fetching journal hunk chunks is a robust way
-                // to ensure they are not accessed in such operations as remote copy.
-                THROW_ERROR_EXCEPTION("Chunk tree traverser encountered journal chunk while fetching hunk chunks");
             }
 
             YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)",
@@ -683,7 +666,7 @@ protected:
         PushFirstChild(
             childChunkList,
             childIndex,
-            /*rowIndex*/ {},
+            {} /*rowIndex*/,
             tabletIndex,
             subtreeStartLimit,
             subtreeEndLimit);
@@ -1320,8 +1303,6 @@ protected:
 
         // Adjust for journal chunks.
         if (IsJournalChunkType(child->GetType())) {
-            YT_VERIFY(!ShouldTraverseHunkChunkListAsMain());
-
             const auto* chunk = child->AsChunk();
             auto [startRowIndex, endRowIndex] = GetJournalChunkRowRange(chunk);
 
@@ -1514,22 +1495,6 @@ public:
         if (!chunkList && PrimaryChunkListContentType_ == EChunkListContentType::Hunk) {
             YT_LOG_DEBUG("Started chunk tree traversal by hunk chunk list for node without hunk chunk list");
             return;
-        }
-
-        if (chunkList->GetKind() == EChunkListKind::Static &&
-            !EnforceBounds_ &&
-            RootHunkChunkList_)
-        {
-            YT_VERIFY(!ShouldTraverseHunkChunkListAsMain());
-
-            auto* hunkChunkList = RootHunkChunkList_.Get();
-            if (hunkChunkList->GetKind() != EChunkListKind::HunkRoot) {
-                THROW_ERROR_EXCEPTION("Encountered root hunk chunk list of wrong kind: expected %Qlv, got %Qlv",
-                    EChunkListKind::HunkRoot,
-                    hunkChunkList->GetKind());
-            }
-
-            PushFirstChild(hunkChunkList, 0, 0, std::nullopt, lowerLimit, upperLimit);
         }
 
         PushFirstChild(chunkList, 0, 0, std::nullopt, lowerLimit, upperLimit);

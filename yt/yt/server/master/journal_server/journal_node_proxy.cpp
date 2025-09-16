@@ -46,8 +46,6 @@ public:
     TJournalQuorumRowCountSession(TJournalNode* node, TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     {
-        YT_VERIFY(!node->GetHunkChunkList());
-
         const auto* chunkList = node->GetChunkList();
         if (!chunkList) {
             Promise_.Set(0);

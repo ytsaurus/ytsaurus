@@ -601,10 +601,9 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             }
         }
 
-        if (inputChunk->HunkChunkRefsExt()) {
-            YT_VERIFY(table->Schema->HasHunkColumns());
-            YT_VERIFY(table->Dynamic || !table->Schema->IsSorted());
-        }
+        YT_VERIFY(
+            !inputChunk->HunkChunkRefsExt() ||
+            table->Dynamic && table->Schema->IsSorted() && table->Schema->HasHunkColumns());
 
         if (inputChunk->GetRowCount() > 0 || inputChunk->IsFile() || inputChunk->IsHunk()) {
             // Input chunks may have zero row count in case of unsensible read range with coinciding
@@ -850,7 +849,6 @@ void TInputManager::FetchInputTablesAttributes()
                 "tablet_state",
                 "account",
                 "mount_config",
-                "hunk_storage_id",
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -927,7 +925,6 @@ void TInputManager::FetchInputTablesAttributes()
             table->Comparator = table->Schema->ToComparator();
         }
         table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
-        table->HunkStorageId = attributes->Get<THunkStorageId>("hunk_storage_id", NullObjectId);
 
         haveTablesWithEnabledDynamicStoreRead |= attributes->Get<bool>("enable_dynamic_store_read", false);
 
@@ -970,43 +967,28 @@ void TInputManager::FetchInputTablesAttributes()
                 *table->Schema);
         }
 
-        if (Host_->GetOperationType() == EOperationType::RemoteCopy) {
-            if (table->Dynamic) {
-                if (!Host_->GetConfig()->EnableVersionedRemoteCopy) {
-                    THROW_ERROR_EXCEPTION("Remote copy for dynamic tables is disabled")
-                        << TErrorAttribute("table_path", table->Path);
-                }
+        if (table->Dynamic && Host_->GetOperationType() == EOperationType::RemoteCopy) {
+            if (!Host_->GetConfig()->EnableVersionedRemoteCopy) {
+                THROW_ERROR_EXCEPTION("Remote copy for dynamic tables is disabled");
+            }
 
-                auto tabletState = attributes->Get<ETabletState>("tablet_state");
-                if (tabletState != ETabletState::Frozen && tabletState != ETabletState::Unmounted) {
-                    THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
-                        tabletState,
-                        ETabletState::Frozen,
-                        ETabletState::Unmounted)
-                        << TErrorAttribute("table_path", table->Path);
-                }
-            } else if (table->Schema->HasHunkColumns()) {
-                // NB: This is due to prohibition of remote copy of journal hunk chunks.
-                THROW_ERROR_EXCEPTION("Remote copy for static tables with hunks is not supported")
+            auto tabletState = attributes->Get<ETabletState>("tablet_state");
+            if (tabletState != ETabletState::Frozen && tabletState != ETabletState::Unmounted) {
+                THROW_ERROR_EXCEPTION("Input table has tablet state %Qlv: expected %Qlv or %Qlv",
+                    tabletState,
+                    ETabletState::Frozen,
+                    ETabletState::Unmounted)
                     << TErrorAttribute("table_path", table->Path);
             }
+        }
 
-            if (table->Schema->HasHunkColumns()) {
-                if (!Host_->GetConfig()->EnableHunksRemoteCopy &&
-                    !Host_->GetSpec()->BypassHunkRemoteCopyProhibition.value_or(false))
-                {
-                    THROW_ERROR_EXCEPTION("Remote copy for tables with hunks is disabled")
-                        << TErrorAttribute("table_path", table->Path);
-                }
-
-                if (!Host_->GetConfig()->EnableCompressionDictionaryRemoteCopy && HasCompressionDictionaries(attributes)) {
-                    THROW_ERROR_EXCEPTION("Remote copy for tables with compression dictionaries is not supported")
-                        << TErrorAttribute("table_path", table->Path);
-                }
+        if (table->Schema->HasHunkColumns() && Host_->GetOperationType() == EOperationType::RemoteCopy) {
+            if (!Host_->GetConfig()->EnableHunksRemoteCopy && !Host_->GetSpec()->BypassHunkRemoteCopyProhibition.value_or(false)) {
+                THROW_ERROR_EXCEPTION("Remote copy for dynamic tables with hunks is disabled");
             }
 
-            if (table->HunkStorageId) {
-                THROW_ERROR_EXCEPTION("Remote copy for tables connected to hunk storage is not supported")
+            if (!Host_->GetConfig()->EnableCompressionDictionaryRemoteCopy && HasCompressionDictionaries(attributes)) {
+                THROW_ERROR_EXCEPTION("Table with compression dictionaries cannot be copied to another cluster")
                     << TErrorAttribute("table_path", table->Path);
             }
         }

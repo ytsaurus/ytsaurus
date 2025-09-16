@@ -2216,24 +2216,8 @@ public:
 
         table->ValidateAllTabletsUnmounted("Cannot switch mode from dynamic to static");
 
-        if (table->GetSchema()->AsCompactTableSchema()->HasHunkColumns() || table->GetHunkStorage()) {
-            if (!GetDynamicConfig()->EnableAlterToStaticWithHunks ||
-                table->IsSorted() ||
-                table->IsPhysicallyLog())
-            {
-                THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static for a table that has hunks")
-                    << TErrorAttribute("alter_to_static_with_hunks_enabled", GetDynamicConfig()->EnableAlterToStaticWithHunks);
-            }
-        }
-
-        if (auto* hunkChunkList = table->GetHunkChunkList()) {
-            auto hunkChunks = EnumerateChunksInChunkTree(hunkChunkList);
-            for (auto hunkChunk : hunkChunks) {
-                if (!hunkChunk->IsSealed()) {
-                    THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table contains unsealed hunk chunk %v",
-                        hunkChunk->GetId());
-                }
-            }
+        if (table->GetSchema()->AsCompactTableSchema()->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table schema contains hunk columns");
         }
     }
 
@@ -2245,10 +2229,6 @@ public:
         if (!table->IsDynamic()) {
             return;
         }
-
-        // NB: This is safe because all captured hunk chunks produced by hunk storage
-        // shall already be referenced by regular chunks as table must be unmounted before alter.
-        table->ResetHunkStorage();
 
         table->SetDynamic(false);
 
@@ -2590,10 +2570,6 @@ public:
 
             auto* tableNode = node->As<TTableNode>();
             if (!tableNode->IsDynamic()) {
-                YT_LOG_ALERT("Upon sealing of hunk journal chunk encountered static parent table node "
-                    "(ChunkId: %v, OwningNodeId: %v)",
-                    chunk->GetId(),
-                    node->GetId());
                 continue;
             }
 

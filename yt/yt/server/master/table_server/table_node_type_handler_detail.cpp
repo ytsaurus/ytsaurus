@@ -136,7 +136,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
     auto trimmedRowCounts = combinedAttributes->GetAndRemove<std::vector<i64>>("trimmed_row_counts", {});
     auto hunkStorageId = combinedAttributes->FindAndRemove<TObjectId>("hunk_storage_id");
-    auto hasHunkChunkList = combinedAttributes->Find<bool>("has_hunk_chunk_list");
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -155,11 +154,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     if (log && !dynamic) {
         THROW_ERROR_EXCEPTION("Table of type %Qlv must be dynamic",
             type);
-    }
-
-    // NB: We use this option in e.g. queue exporter so we can attach hunk chunks directly to new static tables.
-    if (dynamic && hasHunkChunkList) {
-        THROW_ERROR_EXCEPTION("Cannot set \"has_hunk_chunk_list\" option for dynamic tables");
     }
 
     // TODO(cherepashka): offload from Automaton thread (YT-22284).
@@ -348,18 +342,6 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             const auto& objectManager = this->GetBootstrap()->GetObjectManager();
             auto* object = objectManager->GetObjectOrThrow(*hunkStorageId);
             node->ValidateAndSetHunkStorage(object);
-        }
-
-        if (hasHunkChunkList) {
-            YT_VERIFY(!node->GetHunkChunkList());
-
-            const auto& chunkManager = this->GetBootstrap()->GetChunkManager();
-            auto* newHunkRootChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkRoot);
-            node->SetHunkChunkList(newHunkRootChunkList);
-            newHunkRootChunkList->AddOwningNode(node);
-
-            auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
-            chunkManager->AttachToChunkList(newHunkRootChunkList, {newHunkChunkList});
         }
     } catch (const std::exception&) {
         this->Zombify(node);

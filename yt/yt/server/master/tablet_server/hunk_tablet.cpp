@@ -29,8 +29,6 @@ void THunkTablet::ValidateReshard() const
 {
     TBase::ValidateReshard();
 
-    YT_VERIFY(!GetHunkChunkList());
-
     auto* chunkList = GetChunkList();
     if (chunkList->Statistics().ChunkCount > 0) {
         THROW_ERROR_EXCEPTION("Non-empty hunk tablet %v cannot participate in reshard",

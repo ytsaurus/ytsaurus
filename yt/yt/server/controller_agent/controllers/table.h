@@ -73,7 +73,6 @@ struct TInputTable
     NTableClient::ETableSchemaMode SchemaMode;
     bool Dynamic = false;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
-    NTabletClient::THunkStorageId HunkStorageId;
 
     NScheduler::TClusterName ClusterName;
 

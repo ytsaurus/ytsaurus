@@ -12,13 +12,11 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
@@ -26,8 +24,6 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/client/queue_client/config.h>
-
-#include <library/cpp/yt/containers/enum_indexed_array.h>
 
 #include <library/cpp/cron_expression/cron_expression.h>
 
@@ -54,7 +50,6 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkClient::NProto;
-using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,8 +291,6 @@ private:
     std::vector<TChunkSpec> ChunkSpecs_;
     //! Grouping of chunk specs by their corresponding export unix ts.
     TMap<ui64, std::vector<const TChunkSpec*>> ChunkSpecsToExportByUnixTs_;
-    //! Ids of hunk chunks referenced by corresponding group of chunk specs scheduled for export.
-    THashMap<ui64, std::vector<TChunkId>> HunkChunkIdsToExportByUnixTs_;
     // Export task part error.
     TError ExportError_;
     //! Most recent export progress.
@@ -316,9 +309,6 @@ private:
         //! Chunk specs corresponding to exported table to be created.
         const std::vector<const TChunkSpec*>& ChunkSpecsToExport;
 
-        //! Ids of hunk chunks referenced by chunks corresponding to this task part.
-        const std::vector<TChunkId>* HunkChunkIdsToExport = nullptr;
-
         //! Options used for Cypress requests.
         TTransactionalOptions TransactionOptions;
         //! Corresponds to the actual output table created.
@@ -328,10 +318,6 @@ private:
         //! Data statistics collected from attaching chunks.
         TDataStatistics DataStatistics;
 
-        bool ShouldExportHunkChunks() const
-        {
-            return HunkChunkIdsToExport && !HunkChunkIdsToExport->empty();
-        }
     };
 
     std::vector<TTaskPart> TaskParts_;
@@ -478,11 +464,6 @@ private:
                 .ExportUnixTs = exportUnixTs,
                 .ChunkSpecsToExport = chunkSpecs,
             });
-
-            auto hunkChunkIdsIt = HunkChunkIdsToExportByUnixTs_.find(exportUnixTs);
-            if (hunkChunkIdsIt != HunkChunkIdsToExportByUnixTs_.end()) {
-                TaskParts_.back().HunkChunkIdsToExport = &hunkChunkIdsIt->second;
-            }
 
             ++preparedTableCount;
         }
@@ -644,9 +625,9 @@ private:
         if (QueueSchema_->IsSorted()) {
             THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", Queue_);
         }
-
-        if (!ExportConfig_->EnableExportFromQueueWithHunks && QueueSchema_->HasHunkColumns()) {
-            THROW_ERROR_EXCEPTION("Exporting queue %v that contains hunk columns is disabled", Queue_);
+        // TODO(akozhikhov): Support export of queues with hunk storage.
+        if (QueueSchema_->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Cannot export queue %v that contains hunk columns", Queue_);
         }
 
         QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
@@ -728,24 +709,6 @@ private:
                 ChunkSpecsToExportByUnixTs_[accumulatedMinExportUnixTs].push_back(chunkSpec);
             }
         }
-
-        if (QueueSchema_->HasHunkColumns()) {
-            for (const auto& [exportUnixTs, chunkSpecs] : ChunkSpecsToExportByUnixTs_) {
-                std::vector<TChunkId> hunkChunkIds;
-                for (const auto& chunkSpec : chunkSpecs) {
-                    if (auto hunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkSpec->chunk_meta().extensions())) {
-                        for (const auto& ref : hunkChunkRefsExt->refs()) {
-                            hunkChunkIds.push_back(FromProto<TChunkId>(ref.chunk_id()));
-                        }
-                    }
-                }
-
-                if (!hunkChunkIds.empty()) {
-                    SortUnique(hunkChunkIds);
-                    EmplaceOrCrash(HunkChunkIdsToExportByUnixTs_, exportUnixTs, std::move(hunkChunkIds));
-                }
-            }
-        }
     }
 
     void FetchChunkSpecs()
@@ -754,7 +717,6 @@ private:
 
         auto prepareFetchRequest = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int /*index*/) {
             request->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-            request->add_extension_tags(TProtoExtensionTag<THunkChunkRefsExt>::Value);
             request->set_omit_dynamic_stores(true);
             SetTransactionId(request, *QueueObject_.TransactionId);
         };
@@ -829,11 +791,6 @@ private:
             // TODO(apachee): Implement exported table skipping mechanics to further reduce queue agent and master load.
             createOptions.Attributes->Set("expiration_time", TInstant::Seconds(taskPart.ExportUnixTs) + ExportConfig_->ExportTtl);
         }
-        if (QueueSchema_->HasHunkColumns()) {
-            // NB: Teleportation of (journal) hunk chunks is not allowed.
-            createOptions.Attributes->Set("external_cell_tag", QueueObject_.ExternalCellTag);
-            createOptions.Attributes->Set("has_hunk_chunk_list", true);
-        }
         WaitFor(Client_->CreateNode(taskPart.DestinationObject.GetPath(), EObjectType::Table, createOptions))
             .ThrowOnError();
 
@@ -848,30 +805,20 @@ private:
         GetAndFillBasicAttributes(Logger, Client_, taskPart.DestinationObject, /*populateSecurityTags*/ false);
     }
 
-    TCellTagList GetAffectedCellTags(
-        const TTaskPart& taskPart,
+    static TCellTagList GetAffectedCellTags(
+        const std::vector<const TChunkSpec*>& chunkSpecs,
+        const TUserObject& destinationObject,
         const std::optional<TCellTag> cellTagToExclude)
     {
         THashSet<TCellTag> cellTags;
 
-        auto populateCellTags = [&] (TChunkId chunkId) {
+        for (const auto& chunkSpec : chunkSpecs) {
+            auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
             auto cellTag = CellTagFromId(chunkId);
             cellTags.insert(cellTag);
-        };
-
-        for (const auto& chunkSpec : taskPart.ChunkSpecsToExport) {
-            auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
-            populateCellTags(chunkId);
-        }
-        // NB: This is done just to ensure later on that all the chunks (including hunk ones) actually reside
-        // on the destitaion cell as we are not allowing teleporation in case of presence of (journal) hunk chunks.
-        if (taskPart.HunkChunkIdsToExport) {
-            for (const auto& hunkChunkId : *taskPart.HunkChunkIdsToExport) {
-                populateCellTags(hunkChunkId);
-            }
         }
 
-        cellTags.insert(taskPart.DestinationObject.ExternalCellTag);
+        cellTags.insert(destinationObject.ExternalCellTag);
 
         if (cellTagToExclude) {
             cellTags.erase(*cellTagToExclude);
@@ -883,22 +830,6 @@ private:
     void BeginUpload(TTaskPart& taskPart)
     {
         auto destinationObjectCellTag = CellTagFromId(taskPart.DestinationObject.ObjectId);
-
-        auto cellTags = GetAffectedCellTags(
-            taskPart,
-            /*cellTagToExclude*/ destinationObjectCellTag);
-
-        if (QueueSchema_->HasHunkColumns() &&
-            !cellTags.empty() &&
-            (cellTags.size() != 1 || cellTags[0] != taskPart.DestinationObject.ExternalCellTag))
-        {
-            THROW_ERROR_EXCEPTION("Cannot perform cross-cell export of a queue that contains hunks")
-                << TErrorAttribute("queue_object_cell_tag", QueueObject_.ExternalCellTag)
-                << TErrorAttribute("destination_object_cell_tag", destinationObjectCellTag)
-                << TErrorAttribute("destination_object_external_cell_tag", taskPart.DestinationObject.ExternalCellTag)
-                << TErrorAttribute("affected_cell_tags", ToString(cellTags));
-        }
-
         auto proxy = CreateObjectServiceWriteProxy(Client_, destinationObjectCellTag);
 
         auto req = TChunkOwnerYPathProxy::BeginUpload(taskPart.DestinationObject.GetObjectIdPath());
@@ -916,6 +847,10 @@ private:
             Queue_,
             taskPart.DestinationObject.GetPath()));
 
+        auto cellTags = GetAffectedCellTags(
+            taskPart.ChunkSpecsToExport,
+            taskPart.DestinationObject,
+            /*cellTagToExclude*/ destinationObjectCellTag);
         ToProto(req->mutable_upload_transaction_secondary_cell_tags(), cellTags);
         req->set_upload_transaction_timeout(
             ToProto(Connection_->GetConfig()->UploadTransactionTimeout));
@@ -965,36 +900,20 @@ private:
             .ThrowOnError();
     }
 
-    TEnumIndexedArray<EChunkListContentType, TChunkListId> GetChunkListIds(const TTaskPart& taskPart)
+    TChunkListId GetChunkListId(const TTaskPart& taskPart)
     {
         YT_VERIFY(taskPart.UploadTransaction);
 
         auto proxy = CreateObjectServiceWriteProxy(Client_, taskPart.DestinationObject.ExternalCellTag);
         auto req = TChunkOwnerYPathProxy::GetUploadParams(taskPart.DestinationObject.GetObjectIdPath());
         SetTransactionId(req, taskPart.UploadTransaction->GetId());
-        if (taskPart.ShouldExportHunkChunks()) {
-            req->set_fetch_hunk_chunk_list_id(true);
-        }
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError, "Error requesting upload parameters for %v", taskPart.DestinationObject.GetPath());
 
         const auto& rsp = rspOrError.Value();
-        TEnumIndexedArray<EChunkListContentType, TChunkListId> result;
-        result[EChunkListContentType::Main] = FromProto<TChunkListId>(rsp->chunk_list_id());
-        if (taskPart.ShouldExportHunkChunks()) {
-            if (!rsp->has_hunk_chunk_list_id()) {
-                THROW_ERROR_EXCEPTION("Hunk chunk list id was not received");
-            }
-
-            result[EChunkListContentType::Hunk] = FromProto<TChunkListId>(rsp->hunk_chunk_list_id());
-        }
-
-        YT_LOG_DEBUG("Fetched chunk list ids (FetchResult: %v)",
-            result);
-
-        return result;
+        return FromProto<TChunkListId>(rsp->chunk_list_id());
     }
 
     void AttachChunks(TTaskPart& taskPart)
@@ -1016,24 +935,15 @@ private:
         SetTransactionId(batchReq, taskPart.UploadTransaction->GetId());
         SetSuppressUpstreamSync(&batchReq->Header(), true);
 
-        auto chunkListIds = GetChunkListIds(taskPart);
+        auto chunkListId = GetChunkListId(taskPart);
 
-        auto mainReq = batchReq->add_attach_chunk_trees_subrequests();
-        ToProto(mainReq->mutable_parent_id(), chunkListIds[EChunkListContentType::Main]);
+        auto req = batchReq->add_attach_chunk_trees_subrequests();
+        ToProto(req->mutable_parent_id(), chunkListId);
+
         for (const auto* chunkSpec : taskPart.ChunkSpecsToExport) {
-            *mainReq->add_child_ids() = chunkSpec->chunk_id();
+            *req->add_child_ids() = chunkSpec->chunk_id();
         }
-        mainReq->set_request_statistics(true);
-
-        if (taskPart.ShouldExportHunkChunks()) {
-            auto hunkReq = batchReq->add_attach_chunk_trees_subrequests();
-
-            ToProto(hunkReq->mutable_parent_id(), chunkListIds[EChunkListContentType::Hunk]);
-            for (auto hunkChunkId : *taskPart.HunkChunkIdsToExport) {
-                ToProto(hunkReq->add_child_ids(), hunkChunkId);
-            }
-            hunkReq->set_request_statistics(true);
-        }
+        req->set_request_statistics(true);
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -1043,13 +953,9 @@ private:
 
         const auto& batchRsp = batchRspOrError.Value();
 
-        const auto& mainRsp = batchRsp->attach_chunk_trees_subresponses(0);
-        taskPart.DataStatistics = mainRsp.statistics();
-        if (taskPart.ShouldExportHunkChunks()) {
-            YT_VERIFY(batchRsp->attach_chunk_trees_subresponses_size() == 2);
-            const auto& hunkRsp = batchRsp->attach_chunk_trees_subresponses(1);
-            taskPart.DataStatistics += hunkRsp.statistics();
-        }
+        const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
+
+        taskPart.DataStatistics = rsp.statistics();
 
         YT_LOG_DEBUG(
             "Finished chunk upload (Destination: %v, UploadTransactionId: %v, ChunkCount: %v)",
