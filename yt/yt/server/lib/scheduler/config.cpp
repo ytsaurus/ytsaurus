@@ -640,6 +640,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
         .Default();
 
+    registrar.Parameter("enable_detailed_logs_for_starving_operations", &TThis::EnableDetailedLogsForStarvingOperations)
+        .Default(false);
+
     registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
