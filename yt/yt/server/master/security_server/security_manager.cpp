@@ -4553,7 +4553,7 @@ private:
         {
             YT_LOG_ALERT_IF(
                 PopCount(permission) > 1 && Any(permission & EPermission::FullRead),
-                "Checking \"full_read\" and some other permission (FullPermissions: %Qlv)",
+                "Checking \"full_read\" and some other permission (FullPermissions: %v)",
                 permission);
 
             if (auto fastAction = FastCheckPermission(user, permission, impl);
@@ -4577,7 +4577,7 @@ private:
             if (auto error = NSecurityClient::CheckAceCorrect(ace); !error.IsOK()) {
                 YT_LOG_ALERT(
                     error,
-                    "Got invalid ACE; skipping");
+                    "Got invalid ACE; skipping (Ace: %v)", ConvertToYsonString(ace, EYsonFormat::Text));
                 return;
             }
 
