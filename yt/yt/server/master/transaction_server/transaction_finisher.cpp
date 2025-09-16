@@ -447,11 +447,13 @@ public:
         // NB: active request has to be unregistered to allow transaction to be
         // aborted by transaction finisher.
         if (auto it = ActiveRequests_.find(transaction); it != ActiveRequests_.end()) {
-            if (it->second.erase(requestId) != 1) {
-                YT_LOG_ALERT("Active transaction finish request is not registered for alive transaction (RequestId: %v, TransactionId: %v)",
+            // NB: request may be not registered if lease revocation was already
+            // started by someone else.
+            if (it->second.erase(requestId) == 1) {
+                YT_LOG_DEBUG("Active transaction finish request unregistered due to commit failure (RequestId: %v, TransactionId: %v, ActiveRequestCount: %v)",
                     requestId,
-                    transactionId);
-                return VoidFuture;
+                    transactionId,
+                    it->second.size());
             }
         }
 
