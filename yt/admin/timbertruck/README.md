@@ -69,6 +69,15 @@ admin_panel:
   # Default value is 'spack'.
   metrics_format: spack
 
+# OPTIONAL.
+# List of streams that are explicitly deprecated. Timbertruck will:
+# - Complete active tasks for these streams if encountered in the datastore on start.
+# - Remove per-stream working directories under work_dir for these names.
+# If a stream listed here is also present in the current configuration, timbertruck will panic on start.
+deprecated_streams:
+  - old_stream1
+  - old_stream2
+
 # List of json log files to send (i.e. logs where each line of file is JSON).
 json_logs:
 -
