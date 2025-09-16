@@ -1233,7 +1233,10 @@ TEST_F(TSchedulingPolicyTest, TestConditionalPreemption)
 
     EXPECT_EQ(0, context->SchedulingHeartbeatContext()->DiskResources().DefaultMediumIndex);
 
-    context->StartStage(EAllocationSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
+    context->StartStage(
+        EAllocationSchedulingStage::PreemptiveNormal,
+        &PreemptiveSchedulingProfilingCounters_,
+        /*preemptive*/ true);
     context->PrepareForScheduling();
 
     for (int allocationIndex = 0; allocationIndex < 10; ++allocationIndex) {

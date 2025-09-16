@@ -258,6 +258,8 @@ struct TPoolPresetConfig
 
     bool EnableLightweightOperations;
 
+    TJobResourcesConfigPtr ResourceLimitsOvercommitTolerance;
+
     REGISTER_YSON_STRUCT(TPoolPresetConfig);
 
     static void Register(TRegistrar registrar);

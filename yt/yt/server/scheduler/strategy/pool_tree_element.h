@@ -87,6 +87,7 @@ struct TPersistentAttributes
     TIntegralResourcesState IntegralResourcesState;
 
     std::optional<TJobResources> AppliedSpecifiedResourceLimits;
+    TJobResources AppliedSpecifiedResourceLimitsOvercommitTolerance;
 
     void ResetOnElementEnabled();
 };
@@ -167,6 +168,7 @@ public:
     // Assigned in preupdate, used in schedule allocations.
     DEFINE_BYVAL_RO_PROPERTY(bool, Tentative, false);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TJobResources>, MaybeSpecifiedResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, SpecifiedResourceLimitsOvercommitTolerance);
 
     // These fields are set in post update.
     DEFINE_BYREF_RO_PROPERTY(TResourceVector, LimitedDemandShare);
@@ -284,6 +286,7 @@ public:
     TJobResources GetMaxShareResourceLimits() const;
 
     virtual TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const = 0;
+    virtual TJobResourcesConfigPtr GetSpecifiedResourceLimitsOvercommitToleranceConfig() const;
 
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
 
@@ -311,8 +314,8 @@ public:
     //! Schedule allocations interface.
     double ComputeLocalSatisfactionRatio(const TJobResources& resourceUsage) const;
 
-    // bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
     std::optional<TJobResources> ComputeMaybeSpecifiedResourceLimits() const;
+    TJobResources ComputeSpecifiedResourceLimitsOvercommitTolerance() const;
     bool AreSpecifiedResourceLimitsViolated() const;
 
     //! Resource tree methods.
@@ -715,6 +718,7 @@ public:
 protected:
     //! Pre fair share update methods.
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
+    TJobResourcesConfigPtr GetSpecifiedResourceLimitsOvercommitToleranceConfig() const override;
 
     //! Post fair share update methods.
     void SetStarvationStatus(EStarvationStatus starvationStatus) override;
@@ -919,6 +923,7 @@ public:
     //! Resource tree methods.
     EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
+        bool allowLimitsOvercommit,
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);

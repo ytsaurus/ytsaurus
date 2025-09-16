@@ -37,8 +37,9 @@ public:
     void IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
     EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TResourceTreeElementPtr& element,
-        const TJobResources &delta,
-        TJobResources *availableResourceLimitsOutput);
+        const TJobResources& delta,
+        bool allowLimitsOvercommit,
+        TJobResources* availableResourceLimitsOutput);
     void CommitHierarchicalResourceUsage(
         const TResourceTreeElementPtr& element,
         const TJobResources& resourceUsageDelta,
