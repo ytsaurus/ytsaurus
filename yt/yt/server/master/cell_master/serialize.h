@@ -192,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((PendingRemovalInCheckPermissionByAcl)                         (3037))  // cherepashka
     ((DropUseProperReplicaAdditionReasonFlag)                       (3038))  // grphil
     ((FixOldestPartMissingChunksRanking)                            (3039))  // grphil
+    ((FixLoadingTransactionLeasesStateFromSnapshot)                 (3040))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
