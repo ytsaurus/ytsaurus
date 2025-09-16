@@ -30,7 +30,9 @@ jobs:
         shell: bash
 
       - name: Delete search index
-        run: bash ../scripts/delete_search_index.sh
+        run: |
+          ls
+          bash ../scripts/delete_search_index.sh
 
       - name: Build doc md2html
         id: build-md2html
