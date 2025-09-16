@@ -107,6 +107,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions: write-all
+    env:
+      revision: "${{ github.sha }}"
     steps:
       - name: Upload to testing
         uses: diplodoc-platform/docs-upload-action@v1

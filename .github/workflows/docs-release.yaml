@@ -111,7 +111,6 @@ jobs:
       - name: Upload
         uses: diplodoc-platform/docs-upload-action@v1
         with:
-          revision: "${{ github.sha }}"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
           storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
