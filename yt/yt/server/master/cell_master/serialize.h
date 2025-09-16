@@ -192,9 +192,11 @@ DEFINE_ENUM(EMasterReign,
     ((PendingRemovalInCheckPermissionByAcl)                         (3037))  // cherepashka
     ((DropUseProperReplicaAdditionReasonFlag)                       (3038))  // grphil
     ((FixOldestPartMissingChunksRanking)                            (3039))  // grphil
-    ((HunksInStaticTables)                                          (3040))  // akozhikhov
-    ((SealHunkJournalChunkWithMultipleParents)                      (3041))  // akozhikhov
-    ((FixLoadingTransactionLeasesStateFromSnapshot)                 (3042))  // kvk1920
+    ((FixLoadingTransactionLeasesStateFromSnapshot)                 (3040))  // kvk1920
+    // 25.4 starts here.
+    ((Start_25_4)                                                   (3100))  // community bot
+    ((HunksInStaticTables)                                          (3101))  // akozhikhov
+    ((SealHunkJournalChunkWithMultipleParents)                      (3102))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
