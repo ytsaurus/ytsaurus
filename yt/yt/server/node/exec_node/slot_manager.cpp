@@ -597,15 +597,6 @@ bool TSlotManager::GuardedHasArmedTransientAlerts() const
         Alerts_.HasArmedPersistentAlert(/*inverseCondition*/ true);
 }
 
-bool TSlotManager::FixableByResurrect() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-    auto guard = ReaderGuard(AlertsLock_);
-
-    return
-        !Alerts_.HasArmedFixableByResurrectAlert(/*inverseCondition*/ true);
-}
-
 bool TSlotManager::CanResurrect() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -614,7 +605,9 @@ bool TSlotManager::CanResurrect() const
 
     auto guard = ReaderGuard(AlertsLock_);
 
-    return jobSchedulingDisabled && FixableByResurrect();
+    bool allAlertsAreFixableByResurrect = !Alerts_.HasArmedFixableByResurrectAlert(/*inverseCondition*/ true);
+
+    return jobSchedulingDisabled && allAlertsAreFixableByResurrect;
 }
 
 void TSlotManager::InitializeSlots()
