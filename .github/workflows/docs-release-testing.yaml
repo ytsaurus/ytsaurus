@@ -2,6 +2,9 @@ name: Docs Release
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - ogorbacheva-test-algolia
 
 jobs:
   build:
@@ -20,10 +23,14 @@ jobs:
         with:
           node-version: 22
 
-      - run: |
+      - name: Install diplodoc
+        run: |
           npm install -g @diplodoc/cli
           npm install -g @diplodoc/algolia-extension
         shell: bash
+
+      - name: Delete search index
+        run: bash ../scripts/delete_search_index.sh
 
       - name: Build doc md2html
         id: build-md2html
