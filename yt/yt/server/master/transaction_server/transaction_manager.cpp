@@ -2093,7 +2093,7 @@ public:
                         authenticationIdentity,
                         context->GetMutationId(),
                         context->IsRetry());
-                })));
+                }).AsyncVia(EpochAutomatonInvoker_)));
             return;
         }
 

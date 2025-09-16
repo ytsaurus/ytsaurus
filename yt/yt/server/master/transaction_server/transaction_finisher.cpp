@@ -368,7 +368,7 @@ public:
 
         auto leasesState = transaction->GetTransactionLeasesState();
         if (leasesState == ETransactionLeasesState::Active) {
-            YT_LOG_ALERT("Attempted to persist finish request for foreign Cypress transaction before lease revocation (TransactionId: %v, LeasesState: %v, %v)",
+            YT_LOG_ALERT("Attempted to persist finish request for foreign Cypress transaction before lease revocation (TransactionId: %v, LeasesState: %v%v)",
                 transaction->GetId(),
                 leasesState,
                 MakeFinishRequestFormatter(request));
@@ -378,7 +378,7 @@ public:
         auto [it, inserted] = Requests_.emplace(TWeakTransactionPtr(transaction), request);
         if (!inserted) {
             if (!update) {
-                YT_LOG_DEBUG("Transaction finish request was already persisted (TransactionId: %v, LeasesState: %v, %v)",
+                YT_LOG_DEBUG("Transaction finish request was already persisted (TransactionId: %v, LeasesState: %v%v)",
                     transaction->GetId(),
                     leasesState,
                     MakeFinishRequestFormatter(it->second));
@@ -951,13 +951,13 @@ private:
 
         for (const auto& [transaction, request] : Requests_) {
             if (!IsObjectAlive(transaction)) {
-                YT_LOG_ALERT("Found persisted finish request for non-alive transaction (TransactionId: %v, %v)",
+                YT_LOG_ALERT("Found persisted finish request for non-alive transaction (TransactionId: %v%v)",
                     transaction->GetId(),
                     MakeFinishRequestFormatter(request));
                 continue;
             }
 
-            YT_LOG_DEBUG("Found persisted finish request for alive transation (TransactionId: %v, %v)",
+            YT_LOG_DEBUG("Found persisted finish request for alive transation (TransactionId: %v%v)",
                 transaction->GetId(),
                 MakeFinishRequestFormatter(request));
 
@@ -965,7 +965,7 @@ private:
                 case ETransactionLeasesState::Active:
                     YT_LOG_ALERT(
                         "Unexpected transaction leases state after persisting transaction finish request "
-                        "(TransactionId: %v, LeasesState: %v, %v)",
+                        "(TransactionId: %v, LeasesState: %v%v)",
                         transaction->GetId(),
                         transaction->GetTransactionLeasesState(),
                         MakeFinishRequestFormatter(request));
@@ -1010,6 +1010,7 @@ private:
         LeasesRevocationQueue_.Clear();
         FinishQueue_.Clear();
         Requests_.clear();
+        FailedCommitCompletionPromises_.clear();
     }
 
     void CheckInvariants() override
@@ -1019,7 +1020,7 @@ private:
         for (const auto& [transaction, request] : Requests_) {
             YT_LOG_FATAL_UNLESS(
                 IsObjectAlive(transaction),
-                "Transaction finisher contains request for non-alive transaction (TransactionId: %v, %v)",
+                "Transaction finisher contains request for non-alive transaction (TransactionId: %v%v)",
                 transaction->GetId(),
                 MakeFinishRequestFormatter(request));
 

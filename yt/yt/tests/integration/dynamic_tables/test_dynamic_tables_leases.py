@@ -4,8 +4,10 @@ from yt_commands import (
     authors, ls, issue_lease, revoke_lease, reference_lease, unreference_lease, insert_rows, select_rows,
     create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells, build_snapshot,
     sync_unmount_table, raises_yt_error, start_transaction, commit_transaction, abort_transaction,
-    sync_reshard_table, mount_table, wait_for_tablet_state, gc_collect,
+    sync_reshard_table, mount_table, wait_for_tablet_state, gc_collect, build_master_snapshots,
 )
+
+from yt_helpers import master_exit_read_only_sync
 
 from yt.test_helpers import (
     assert_items_equal,
@@ -613,3 +615,37 @@ class TestDynamicTablesLeases(YTEnvSetup):
         # already aborted before lease revocation is finished.
         wait(lambda: not exists(f"#{ltx}"))
         assert not exists("//tmp/m")
+
+    @authors("kvk1920")
+    def test_leases_state_persistance(self):
+        cell_id = sync_create_cells(1)[0]
+        tx = self._create_lease(cell_id)
+
+        reference_lease(cell_id, tx)
+        self._check_lease(cell_id, "active", 1, 0, lease_id=tx)
+
+        assert get(f"#{tx}/@leases_state") == "active"
+
+        set("//sys/@config/transaction_manager/testing/throw_on_lease_revocation", True)
+        set("//sys/@config/transaction_manager/transaction_finisher/scan_period", 60000)
+
+        with raises_yt_error("Testing error"):
+            abort_transaction(tx)
+
+        assert get(f"#{tx}/@leases_state") == "revoking"
+
+        build_master_snapshots(set_read_only=True)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        master_exit_read_only_sync()
+
+        assert get(f"#{tx}/@leases_state") == "revoking"
+
+        wait(lambda: self._get_leases(cell_id)[tx]["state"] == "revoking")
+
+        self._check_lease(cell_id, "revoking", 1, 0, lease_id=tx)
+        unreference_lease(cell_id, tx)
+
+        wait(lambda: get(f"#{tx}/@leases_state") == "revoked")

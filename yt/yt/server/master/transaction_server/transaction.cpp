@@ -327,9 +327,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, NativeCommitMutationRevision_);
     Load(context, IsCypressTransaction_);
 
-    SetTransactionLeasesState(Load<ETransactionLeasesState>(context));
+    auto leasesState = Load<ETransactionLeasesState>(context);
     Load(context, LeaseCellIds_);
     Load(context, SuccessorTransactionLeaseCount_);
+    SetTransactionLeasesState(leasesState);
 
     Load(context, AccountResourceUsageLeases_);
     Load(context, SequoiaTransaction_);
