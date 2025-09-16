@@ -335,12 +335,12 @@ TFuture<NProto::TReqChunksSamples> TChunksSamples::GetLocalCellUpdate()
             NProto::TReqChunksSamples req;
             req.set_cell_tag(ToProto(cellTag));
             YT_VERIFY(samples.size() == 6);
-            ToProto(req.mutable_lost_vital_chunk_ids(), samples[0].Value());
-            ToProto(req.mutable_data_missing_chunk_ids(), samples[1].Value());
-            ToProto(req.mutable_parity_missing_chunk_ids(), samples[2].Value());
-            ToProto(req.mutable_oldest_part_missing_chunk_ids(), samples[3].Value());
-            ToProto(req.mutable_quorum_missing_chunk_ids(), samples[4].Value());
-            ToProto(req.mutable_inconsistently_placed_chunk_ids(), samples[5].Value());
+            ToProto(req.mutable_lost_vital_chunk_ids(), samples[0].ValueOrDefault({}));
+            ToProto(req.mutable_data_missing_chunk_ids(), samples[1].ValueOrDefault({}));
+            ToProto(req.mutable_parity_missing_chunk_ids(), samples[2].ValueOrDefault({}));
+            ToProto(req.mutable_oldest_part_missing_chunk_ids(), samples[3].ValueOrDefault({}));
+            ToProto(req.mutable_quorum_missing_chunk_ids(), samples[4].ValueOrDefault({}));
+            ToProto(req.mutable_inconsistently_placed_chunk_ids(), samples[5].ValueOrDefault({}));
             return req;
         }));
 }
