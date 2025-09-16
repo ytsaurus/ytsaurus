@@ -8,7 +8,7 @@
 SELECT * FROM my_table
 WHERE key = 'www.youtube.com/watch?v=Xn599R0ZBwg';
 ```
-...можно сделать workaround:
+... можно сделать workaround:
 ``` yql
 SELECT * FROM my_table
 WHERE Yson::ConvertToString(Yson::Parse(key)) = 'www.youtube.com/watch?v=Xn599R0ZBwg';
