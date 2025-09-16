@@ -26,6 +26,7 @@
 **********************************************************************/
 
 #include <yt/yt/core/misc/isa_crc64/crc64_yt_norm_refs.c>
+#include <yt/yt/core/misc/isa_crc64/checksum.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,10 +62,20 @@ uint64_t crc64_yt_norm_base(
     const unsigned char *buf,
     uint64_t len);
 
+#ifdef ISA_CRC64_FAST_IMPL_SUPPORTED
 uint64_t crc64_yt_norm_by8(
     uint64_t init_crc,
     const unsigned char *buf,
     uint64_t len);
+#else
+static uint64_t crc64_yt_norm_by8(
+    uint64_t init_crc,
+    const unsigned char *buf,
+    uint64_t len)
+{
+	return crc64_yt_norm_ref(init_crc, buf, len);
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
