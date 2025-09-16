@@ -1,4 +1,4 @@
-name: Docs Release
+name: Docs Auto Release
 
 on:
   workflow_dispatch:
