@@ -357,7 +357,7 @@ public:
             return;
         }
 
-        OnBoggleLockFailed(hunkStoreId, lock, {});
+        OnBoggleLockFailed(hunkStoreId, lock, /*innerError*/ {});
     }
 
     void BuildOrchid(TFluentAny fluent) const override

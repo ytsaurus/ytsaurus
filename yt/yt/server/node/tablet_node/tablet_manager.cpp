@@ -304,10 +304,9 @@ public:
             .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this)),
             .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this)),
         });
+        // Coordinator: TReqBoggleHunkTabletStoreLock, late prepare.
         transactionManager->RegisterTransactionActionHandlers<TReqBoggleHunkTabletStoreLock>({
-            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareBoggleHunkTabletStoreLock, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitBoggleHunkTabletStoreLock, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortBoggleHunkTabletStoreLock, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareAndCommitBoggleHunkTabletStoreLock, Unretained(this)),
         });
 
         BackupManager_->Initialize();
@@ -2388,6 +2387,55 @@ private:
             updateReason);
     }
 
+    void HydraPrepareAndCommitBoggleHunkTabletStoreLock(
+        TTransaction* /*transaction*/,
+        TReqBoggleHunkTabletStoreLock* request,
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.LatePrepare);
+
+        const auto* context = GetCurrentMutationContext();
+        if (context->GetTerm() != request->term()) {
+            THROW_ERROR_EXCEPTION("Request term %v does not match mutation term %v",
+                request->term(),
+                context->GetTerm());
+        }
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        const auto& hunkLockManager = tablet->GetHunkLockManager();
+
+        auto hunkStoreId = FromProto<THunkStoreId>(request->store_id());
+        auto lock = request->lock();
+        if (!lock) {
+            auto lockCount = hunkLockManager->GetPersistentLockCount(hunkStoreId);
+            if (lockCount > 0) {
+                THROW_ERROR_EXCEPTION("Hunk store %v has positive lock count %v",
+                    hunkStoreId,
+                    lockCount);
+            }
+        }
+
+        // Set transient flags and create futures once again if we are in recovery, as they were lost.
+        hunkLockManager->OnBoggleLockPrepared(hunkStoreId, lock);
+
+        auto hunkCellId = FromProto<TCellId>(request->hunk_cell_id());
+        auto hunkTabletId = FromProto<TTabletId>(request->hunk_tablet_id());
+        auto hunkMountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
+
+        if (lock) {
+            hunkLockManager->RegisterHunkStore(hunkStoreId, hunkCellId, hunkTabletId, hunkMountRevision);
+        } else {
+            hunkLockManager->UnregisterHunkStore(hunkStoreId);
+            CheckIfTabletFullyFlushed(tablet);
+        }
+    }
+
+    // COMPAT(akozhikhov)
     void HydraPrepareBoggleHunkTabletStoreLock(
         TTransaction* /*transaction*/,
         TReqBoggleHunkTabletStoreLock* request,
@@ -2426,6 +2474,7 @@ private:
         hunkLockManager->OnBoggleLockPrepared(hunkStoreId, lock);
     }
 
+    // COMPAT(akozhikhov)
     void HydraCommitBoggleHunkTabletStoreLock(
         TTransaction* /*transaction*/,
         TReqBoggleHunkTabletStoreLock* request,
@@ -2455,6 +2504,7 @@ private:
         }
     }
 
+    // COMPAT(akozhikhov)
     void HydraAbortBoggleHunkTabletStoreLock(
         TTransaction* /*transaction*/,
         TReqBoggleHunkTabletStoreLock* request,
