@@ -22,6 +22,7 @@ app_installation=''
 local_cypress_dir=''
 rpc_proxy_count=0
 rpc_proxy_port=8002
+rpc_proxy_config=''
 node_count=1
 queue_agent_count=1
 with_auth=false
@@ -30,7 +31,6 @@ extra_yt_docker_opts=''
 yt_fqdn=''
 init_operations_archive=false
 disable_query_tracker=false
-enable_shuffle_service=false
 
 network_name=yt_local_cluster_network
 ui_network=$network_name
@@ -63,6 +63,7 @@ Usage: $script_name [-h|--help]
                     [--local-cypress-dir dir]
                     [--rpc-proxy-count count]
                     [--rpc-proxy-port port]
+                    [--rpc-proxy-config config]
                     [--port-range-start port]
                     [--node-count count]
                     [--queue-agent-count count]
@@ -73,7 +74,6 @@ Usage: $script_name [-h|--help]
                     [--run-prometheus]
                     [--prometheus-port port]
                     [--disable-query-tracker]
-                    [--enable-shuffle-service]
                     [--stop]
 
   --cluster-name: Sets name of cluster '//sys/@cluster_name' (default: $cluster_name)
@@ -90,6 +90,7 @@ Usage: $script_name [-h|--help]
   --local-cypress-dir: Sets the directory on the docker host to be mapped into local cypress dir inside yt local cluster container (default: $local_cypress_dir)
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
+  --rpc-proxy-config: Sets the config for rpc proxies
   --port-range-start: Assign ports from continuous range starting from this port number (default: $port_range_start)
   --node-port-set-size: Assign node port set size (default: $node_port_set_size)
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
@@ -101,7 +102,6 @@ Usage: $script_name [-h|--help]
   --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
   --run-prometheus: Run prometheus and collect metrics
   --prometheus-port: Sets the prometheus port on docker host (default: $prometheus_port)
-  --enable-shuffle-service: Enables shuffle service in rpc proxy
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -167,6 +167,10 @@ while [[ $# -gt 0 ]]; do
         rpc_proxy_port="$2"
         shift 2
         ;;
+    --rpc-proxy-config)
+        rpc_proxy_config="$2"
+        shift 2
+        ;;
     --port-range-start)
         port_range_start="$2"
         shift 2
@@ -218,10 +222,6 @@ while [[ $# -gt 0 ]]; do
         ;;
     --disable-query-tracker)
         disable_query_tracker=true
-        shift 1
-        ;;
-    --enable-shuffle-service)
-        enable_shuffle_service=true
         shift 1
         ;;
     -h | --help)
@@ -318,8 +318,8 @@ if [ "${disable_query_tracker}" != "true" ]; then
     params="$params -c {name=query-tracker} -c {name=yql-agent;config={ui_origin=\"$(printf '%q' "${docker_hostname}:${interface_port}")\";path=\"/usr/bin\";count=1;artifacts_path=\"/usr/bin\"}}"
 fi
 
-if [ "${enable_shuffle_service}" == true ]; then
-    params="$params --rpc-proxy-config {enable_shuffle_service=true;}"
+if [ -n "${rpc_proxy_config}" ]; then
+    params="$params --rpc-proxy-config $rpc_proxy_config"
 fi
 
 set +e
