@@ -114,7 +114,9 @@ protected:
         MockBuilder_.reset();
         Fetchers_.clear();
 
-        // TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool.
+        // MinTeleportChunkSize is only relevant for the legacy sorted chunk pool.
+        // In the new sorted pool, chunk teleportability is determined by size checks
+        // in TSortedController (see TLegacyDataSlice::IsTeleportable).
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
@@ -797,17 +799,12 @@ protected:
     }
 
     //! Check that:
-    //! * All teleport chunks satisfy the Options_.MinTeleportChunkSize constraint;
     //! * All stripe lists have no more than Options_.MaxDataSlicesPerJob + InputTables_.size() - 1 data slices in total.
     //! Unfortunately we cannot check the Options_.MaxPrimaryDataSizePerJob constraint satisfaction as this is not an absolute
     //! restriction, but only a best-effort bound.
     void TryCheckJobConstraintsSatisfaction(
         const std::vector<TChunkStripeListPtr>& stripeLists)
     {
-        for (const auto& teleportChunk : TeleportChunks_) {
-            EXPECT_TRUE(teleportChunk->IsLargeCompleteChunk(Options_.MinTeleportChunkSize));
-        }
-
         for (const auto& stripeList : stripeLists) {
             int dataSlicesTotalNumber = 0;
             for (const auto& stripe : stripeList->Stripes) {
@@ -1019,7 +1016,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports1)
         /*isTeleportable*/ {true, true, true, true},
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1056,7 +1052,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports2)
         /*isTeleportable*/ {false, true, true, true},
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1094,7 +1089,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({0}), BuildRow({1}), 0);
@@ -1127,7 +1121,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1169,7 +1162,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(3);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1639,7 +1631,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     MaxDataSlicesPerJob_ = 1;
     InitJobConstraints();
     PrepareNewMock();
@@ -1683,7 +1674,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1718,7 +1708,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(3);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2016,7 +2005,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2059,7 +2047,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3406,7 +3393,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 100_KB;
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3483,7 +3469,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
@@ -3579,7 +3564,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkALeft = CreateChunk(BuildRow({1, 0}), BuildRow({10, 0}), 0);
@@ -3720,7 +3704,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
         /*isTeleportable*/ {true, false},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     DataWeightPerJob_ = 10_KB;
     SamplingRate_ = 1.0;
     SamplingDataWeightPerJob_ = 10_KB;
@@ -3873,7 +3856,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -4350,7 +4332,6 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
         std::vector<bool>(TableCount, false) /*isTeleportable*/,
         std::vector<bool>(TableCount, false) /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = Inf32;
 
     const int ChunkCount = 50;
     const int MaxEndpoint = 50000;
