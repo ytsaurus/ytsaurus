@@ -238,10 +238,10 @@ public:
 
         // Fastpath.
         if (!fetchReplicasFromSequoia) {
-            TChunkToLocationPtrWithReplicaInfoList result;
+            TChunkToStoredReplicaList result;
             for (const auto& chunk : chunks) {
                 auto masterReplicas = chunk->StoredReplicas();
-                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+                TStoredReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
                 result.emplace(chunk->GetId(), replicaList);
             }
             return result;
@@ -255,12 +255,11 @@ public:
                 auto masterReplicas = chunk->StoredReplicas();
                 std::vector<TSequoiaChunkReplica> replicas;
                 for (const auto& masterReplica : masterReplicas) {
-                    auto location = masterReplica.GetPtr();
                     TSequoiaChunkReplica replica;
                     replica.ChunkId = chunk->GetId();
                     replica.ReplicaIndex = masterReplica.GetReplicaIndex();
-                    replica.NodeId = location->GetNode()->GetId();
-                    replica.LocationIndex = location->GetIndex();
+                    replica.NodeId = masterReplica.GetNodeId();
+                    replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                     replica.ReplicaState = masterReplica.GetReplicaState();
                     replicas.push_back(replica);
                 }
@@ -286,7 +285,7 @@ public:
         if (validate) {
             ValidateSequoiaReplicaFetch(sequoiaChunkIds, masterReplicasInSequoiaSkin, sequoiaReplicasOrError, timestamp);
 
-            TChunkToLocationPtrWithReplicaInfoList result;
+            TChunkToStoredReplicaList result;
             for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
                 EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
             }
