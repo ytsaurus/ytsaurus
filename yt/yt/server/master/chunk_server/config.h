@@ -523,6 +523,16 @@ struct TDynamicSequoiaChunkReplicasConfig
 
     bool ClearMasterRequest;
 
+    // When fetching replicas from Sequoia, validate they are the same as master replicas.
+    // This only makes sense when replicas are stored on master.
+    bool ValidateSequoiaReplicasFetch;
+
+    // If Sequoia replicas were enabled recently, not all chunk replicas will be present in
+    // dynamic tables, which is OK. There still should not be any replicas that are
+    // not present on master.
+    bool AllowExtraMasterReplicasDuringValidation;
+
+    // TODO(aleksandra-zh): remove that.
     std::vector<TErrorCode> RetriableErrorCodes;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);

@@ -20,6 +20,7 @@ DEFINE_ENUM(ETransactionSupervisorReign,
     ((AbortFailedSimpleTransactions)                                (13))  // gritukan
     ((Sequencer)                                                    (14))  // aleksandra-zh
     ((SequencerFixes)                                               (15))  // aleksandra-zh
+    ((SaveLastCoordinatorCommitTimestamp)                           (16))  // aleksandra-zh
 );
 
 static_assert(
