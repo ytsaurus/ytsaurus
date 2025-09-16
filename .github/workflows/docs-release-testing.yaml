@@ -107,13 +107,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions: write-all
-    env:
-      revision: "${{ github.sha }}"
     steps:
+      - name: Show docs revision
+        run: |
+          echo "Revision: "${{ github.sha }}
       - name: Upload to testing
         uses: diplodoc-platform/docs-upload-action@v1
         with:
-          revision: "${{ github.sha }}"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
           storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
