@@ -43,11 +43,12 @@ struct ITransactionSupervisor
     //! finished.
     virtual TFuture<void> WaitUntilPreparedTransactionsFinished() = 0;
 
+    virtual TTimestamp GetLastCoordinatorCommitTimestamp() = 0;
+
     //! COMPAT(aleksandra-zh).
     virtual void RecomputeStronglyOrderedTransactionRefsOnCoordinator() = 0;
 
     virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

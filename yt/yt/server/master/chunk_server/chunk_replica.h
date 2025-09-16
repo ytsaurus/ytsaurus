@@ -231,6 +231,8 @@ struct TSequoiaChunkReplica
 void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica);
 void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkReplica& replica);
 
+void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
