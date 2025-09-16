@@ -39,6 +39,7 @@ public:
 
     void SetSpecifiedResourceLimits(
         const std::optional<TJobResources>& specifiedResourceLimits,
+        const TJobResources& overcommitTolerance,
         const std::vector<TResourceTreeElementPtr>& descendantOperations);
     bool AreSpecifiedResourceLimitsViolated() const;
 
@@ -58,6 +59,7 @@ private:
 
     NThreading::TPaddedReaderWriterSpinLock ResourceUsageLock_;
     std::optional<TJobResources> SpecifiedResourceLimits_;
+    TJobResources SpecifiedResourceLimitsOvercommitTolerance_;
     TJobResources ResourceUsage_;
     TJobResources ResourceUsagePrecommit_;
 
@@ -74,6 +76,7 @@ private:
 
     bool IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,
+        bool allowLimitsOvercommit,
         TJobResources* availableResourceLimitsOutput);
 
     bool IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);

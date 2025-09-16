@@ -346,6 +346,7 @@ public:
     void StartStage(
         EAllocationSchedulingStage stage,
         TSchedulingStageProfilingCounters* profilingCounters,
+        bool preemptive = false,
         int stageAttemptIndex = 0);
     void FinishStage();
     int GetStageMaxSchedulingIndex() const;
@@ -391,6 +392,7 @@ private:
     struct TStageState
     {
         const EAllocationSchedulingStage Stage;
+        const bool Preemptive;
         TSchedulingStageProfilingCounters* const ProfilingCounters;
         const int StageAttemptIndex;
 
@@ -438,8 +440,8 @@ private:
     // Returns resource usage observed in current heartbeat.
     TJobResources GetCurrentResourceUsage(const TPoolTreeElement* element) const;
 
-    TJobResources GetHierarchicalAvailableResources(const TPoolTreeElement* element) const;
-    TJobResources GetLocalAvailableResourceLimits(const TPoolTreeElement* element) const;
+    TJobResources GetHierarchicalAvailableResources(const TPoolTreeElement* element, bool allowLimitsOvercommit) const;
+    TJobResources GetLocalAvailableResourceLimits(const TPoolTreeElement* element, bool allowLimitsOvercommit) const;
     TJobResources GetLocalUnconditionalUsageDiscount(const TPoolTreeElement* element) const;
 
     void CollectConsideredSchedulableChildrenPerPool(

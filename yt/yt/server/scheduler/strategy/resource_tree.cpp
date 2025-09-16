@@ -246,8 +246,9 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
 EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TResourceTreeElementPtr& element,
-    const TJobResources &delta,
-    TJobResources *availableResourceLimitsOutput)
+    const TJobResources& delta,
+    bool allowLimitsOvercommit,
+    TJobResources* availableResourceLimitsOutput)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -268,7 +269,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     TResourceTreeElement* currentElement = element.Get();
     while (currentElement) {
         TJobResources localAvailableResourceLimits;
-        if (!currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, &localAvailableResourceLimits)) {
+        if (!currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, allowLimitsOvercommit, &localAvailableResourceLimits)) {
             failedParent = currentElement;
             break;
         }

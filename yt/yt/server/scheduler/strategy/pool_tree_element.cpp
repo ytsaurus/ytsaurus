@@ -95,20 +95,33 @@ void TPoolTreeElement::InitializeUpdate(TInstant /*now*/)
     YT_VERIFY(Mutable_);
 
     MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
+    SpecifiedResourceLimitsOvercommitTolerance_ = ComputeSpecifiedResourceLimitsOvercommitTolerance();
 
-    if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
+    if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_ ||
+        SpecifiedResourceLimitsOvercommitTolerance_ != PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance)
+    {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && !PersistentAttributes_.AppliedSpecifiedResourceLimits && MaybeSpecifiedResourceLimits_) {
             // NB: This code executed in control thread, therefore tree structure is actual and agreed with tree structure of resource tree.
             CollectResourceTreeOperationElements(&descendantOperationElements);
         }
 
-        YT_LOG_INFO("Updating applied specified resource limits (NewSpecifiedResourceLimits: %v, CurrentSpecifiedResourceLimits: %v)",
+        YT_LOG_INFO(
+            "Updating applied specified resource limits "
+            "(NewSpecifiedResourceLimits: %v, CurrentSpecifiedResourceLimits: %v, "
+            "NewOvercommitTolerance: %v, CurrentOvercommitTolerance: %v)",
             MaybeSpecifiedResourceLimits_,
-            PersistentAttributes_.AppliedSpecifiedResourceLimits);
+            PersistentAttributes_.AppliedSpecifiedResourceLimits,
+            SpecifiedResourceLimitsOvercommitTolerance_,
+            PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance);
 
-        ResourceTreeElement_->SetSpecifiedResourceLimits(MaybeSpecifiedResourceLimits_, descendantOperationElements);
+        ResourceTreeElement_->SetSpecifiedResourceLimits(
+            MaybeSpecifiedResourceLimits_,
+            SpecifiedResourceLimitsOvercommitTolerance_,
+            descendantOperationElements);
+
         PersistentAttributes_.AppliedSpecifiedResourceLimits = MaybeSpecifiedResourceLimits_;
+        PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance = SpecifiedResourceLimitsOvercommitTolerance_;
     }
 }
 
@@ -314,6 +327,11 @@ std::optional<TJobResources> TPoolTreeElement::ComputeMaybeSpecifiedResourceLimi
     }
 
     return {};
+}
+
+TJobResources TPoolTreeElement::ComputeSpecifiedResourceLimitsOvercommitTolerance() const
+{
+    return ToJobResources(GetSpecifiedResourceLimitsOvercommitToleranceConfig(), TJobResources());
 }
 
 bool TPoolTreeElement::AreSpecifiedResourceLimitsViolated() const
@@ -576,6 +594,12 @@ TJobResources TPoolTreeElement::GetTotalResourceLimits() const
 TJobResources TPoolTreeElement::GetMaxShareResourceLimits() const
 {
     return GetTotalResourceLimits() * GetMaxShare();
+}
+
+TJobResourcesConfigPtr TPoolTreeElement::GetSpecifiedResourceLimitsOvercommitToleranceConfig() const
+{
+    static const TJobResourcesConfigPtr EmptyConfig = New<TJobResourcesConfig>();
+    return EmptyConfig;
 }
 
 void TPoolTreeElement::BuildResourceMetering(
@@ -1678,6 +1702,11 @@ TJobResourcesConfigPtr TPoolTreePoolElement::GetSpecifiedResourceLimitsConfig() 
     return Config_->ResourceLimits;
 }
 
+TJobResourcesConfigPtr TPoolTreePoolElement::GetSpecifiedResourceLimitsOvercommitToleranceConfig() const
+{
+    return Config_->ResourceLimitsOvercommitTolerance;
+}
+
 void TPoolTreePoolElement::BuildElementMapping(TFairSharePostUpdateContext* context)
 {
     context->PoolNameToElement.emplace(GetId(), this);
@@ -2248,11 +2277,13 @@ TJobResources TPoolTreeOperationElement::GetAggregatedInitialMinNeededResources(
 
 EResourceTreeIncreaseResult TPoolTreeOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
+    bool allowLimitsOvercommit,
     TJobResources* availableResourceLimitsOutput)
 {
     return TreeElementHost_->GetResourceTree()->TryIncreaseHierarchicalResourceUsagePrecommit(
         ResourceTreeElement_,
         delta,
+        allowLimitsOvercommit,
         availableResourceLimitsOutput);
 }
 
