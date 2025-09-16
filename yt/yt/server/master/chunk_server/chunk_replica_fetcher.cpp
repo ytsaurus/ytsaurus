@@ -238,10 +238,10 @@ public:
 
         // Fastpath.
         if (!fetchReplicasFromSequoia || sequoiaChunkIds.empty()) {
-            TChunkToLocationPtrWithReplicaInfoList result;
+            TChunkToStoredReplicaList result;
             for (const auto& chunk : chunks) {
                 auto masterReplicas = chunk->StoredReplicas();
-                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+                TStoredReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
                 result.emplace(chunk->GetId(), replicaList);
             }
             return result;
@@ -263,12 +263,11 @@ public:
                 std::vector<TSequoiaChunkReplica> replicas;
                 std::vector<TSequoiaChunkReplica> unapprovedReplicas;
                 for (const auto& masterReplica : masterReplicas) {
-                    auto location = masterReplica.GetPtr();
                     TSequoiaChunkReplica replica;
                     replica.ChunkId = chunk->GetId();
                     replica.ReplicaIndex = masterReplica.GetReplicaIndex();
-                    replica.NodeId = location->GetNode()->GetId();
-                    replica.LocationIndex = location->GetIndex();
+                    replica.NodeId = masterReplica.GetNodeId();
+                    replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                     replica.ReplicaState = masterReplica.GetReplicaState();
                     if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
                         unapprovedReplicas.push_back(replica);
@@ -312,7 +311,7 @@ public:
                 masterReplicas.insert(masterReplicas.end(), unapprovedMasterReplicas.begin(), unapprovedMasterReplicas.end());
             }
 
-            TChunkToLocationPtrWithReplicaInfoList result;
+            TChunkToStoredReplicaList result;
             for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
                 EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
             }
