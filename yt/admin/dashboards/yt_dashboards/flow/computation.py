@@ -141,6 +141,9 @@ class ComputationCellGenerator:
                             .alias(f"input - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.source_streams.persisted_count.rate"))
                             .alias(f"source - {stream_alias}"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.source.source_streams.persisted_count.rate"))
+                            .query_transformation("{query} / 4")
+                            .alias(f"bugfix source - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_count.rate"))
                             .alias(f"timer - {stream_alias}")
                     )
@@ -163,6 +166,9 @@ class ComputationCellGenerator:
                             .alias(f"input - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.source_streams.persisted_bytes.rate"))
                             .alias(f"source - {stream_alias}"),
+                        MonitoringExpr(FlowWorker("yt.flow.worker.computation.source.source_streams.persisted_bytes.rate"))
+                            .query_transformation("{query} / 4")
+                            .alias(f"bugfix source - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_bytes.rate"))
                             .alias(f"timer - {stream_alias}")
                     )
