@@ -470,6 +470,7 @@
     XX(Requisition, requisition) \
     XX(ResolveCached, resolve_cached) \
     XX(ResourceLimits, resource_limits) \
+    XX(ResourceLimitsOvercommitTolerance, resource_limits_overcommit_tolerance) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
     XX(ResourceQuota, resource_quota) \
     XX(ResourceUsage, resource_usage) \

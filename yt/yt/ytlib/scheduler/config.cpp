@@ -2492,6 +2492,9 @@ void TPoolPresetConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_lightweight_operations", &TThis::EnableLightweightOperations)
         .Default(false);
+
+    registrar.Parameter("resource_limits_overcommit_tolerance", &TThis::ResourceLimitsOvercommitTolerance)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1342,6 +1342,7 @@ TNonOwningOperationElementList TScheduleAllocationsContext::ExtractBadPackingOpe
 void TScheduleAllocationsContext::StartStage(
     EAllocationSchedulingStage stage,
     TSchedulingStageProfilingCounters* profilingCounters,
+    bool preemptive,
     int stageAttemptIndex)
 {
     YT_VERIFY(!StageState_);
@@ -1353,6 +1354,7 @@ void TScheduleAllocationsContext::StartStage(
 
     StageState_.emplace(TStageState{
         .Stage = stage,
+        .Preemptive = preemptive,
         .ProfilingCounters = profilingCounters,
         .StageAttemptIndex = stageAttemptIndex,
     });
@@ -1518,28 +1520,38 @@ TJobResources TScheduleAllocationsContext::GetCurrentResourceUsage(const TPoolTr
     }
 }
 
-TJobResources TScheduleAllocationsContext::GetHierarchicalAvailableResources(const TPoolTreeElement* element) const
+TJobResources TScheduleAllocationsContext::GetHierarchicalAvailableResources(
+    const TPoolTreeElement* element,
+    bool allowLimitsOvercommit) const
 {
     auto availableResources = TJobResources::Infinite();
     while (element) {
-        availableResources = Min(availableResources, GetLocalAvailableResourceLimits(element));
+        availableResources = Min(availableResources, GetLocalAvailableResourceLimits(element, allowLimitsOvercommit));
         element = element->GetParent();
     }
 
     return availableResources;
 }
 
-TJobResources TScheduleAllocationsContext::GetLocalAvailableResourceLimits(const TPoolTreeElement* element) const
+TJobResources TScheduleAllocationsContext::GetLocalAvailableResourceLimits(
+    const TPoolTreeElement* element,
+    bool allowLimitsOvercommit) const
 {
     if (element->MaybeSpecifiedResourceLimits()) {
+        auto resourceDiscount = allowLimitsOvercommit
+            ? element->SpecifiedResourceLimitsOvercommitTolerance()
+            : TJobResources();
         return ComputeAvailableResources(
             element->ResourceLimits(),
             element->GetResourceUsageWithPrecommit(),
-            GetLocalUnconditionalUsageDiscount(element));
+            resourceDiscount);
     }
+
     return TJobResources::Infinite();
 }
 
+// TODO(eshcherbin): Local unconditional discount (i.e. total resources of unconditionally preemptible jobs in the given pool)
+// is not needed anymore. Remove it alongside conditional discount.
 TJobResources TScheduleAllocationsContext::GetLocalUnconditionalUsageDiscount(const TPoolTreeElement* element) const
 {
     int index = element->GetTreeIndex();
@@ -1911,7 +1923,8 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     const auto& minNeededResources = element->AggregatedMinNeededAllocationResources();
 
     // Do preliminary checks to avoid the overhead of updating and reverting precommit usage.
-    if (!Dominates(GetHierarchicalAvailableResources(element), minNeededResources)) {
+    bool allowLimitsOvercommit = StageState_->Preemptive;
+    if (!Dominates(GetHierarchicalAvailableResources(element, allowLimitsOvercommit), minNeededResources)) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
     if (!element->CheckAvailableDemand(minNeededResources)) {
@@ -1921,6 +1934,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     TJobResources availableResourceLimits;
     auto increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(
         minNeededResources,
+        allowLimitsOvercommit,
         &availableResourceLimits);
 
     if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
@@ -1971,10 +1985,12 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
         // Discard the allocation in case of resource overcommit.
         // Note: |resourceDelta| might be negative.
         const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
+
         // NB: If the element is disabled, we still choose the success branch. This is kind of a hotfix. See: YT-16070.
         auto increaseResult = EResourceTreeIncreaseResult::Success;
+        bool allowLimitsOvercommit = StageState_->Preemptive;
         if (IsOperationEnabled(element)) {
-            increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
+            increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta, allowLimitsOvercommit);
         }
         switch (increaseResult) {
             case EResourceTreeIncreaseResult::Success: {
@@ -1984,9 +2000,9 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
             case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
                 // NB(eshcherbin): GetHierarchicalAvailableResource will never return infinite resources here,
                 // because ResourceLimitExceeded could only be triggered if there's an ancestor with specified limits.
-                auto availableDelta = GetHierarchicalAvailableResources(element);
+                auto availableDelta = GetHierarchicalAvailableResources(element, allowLimitsOvercommit);
                 YT_LOG_DEBUG(
-                    "Aborting allocation with resource overcommit (AllocationId: %v, ResourceLimits: %v, AllocationResources: %v)",
+                    "Aborting allocation with resource overcommit (AllocationId: %v, AvailableResources: %v, AllocationResources: %v)",
                     allocationId,
                     FormatResources(*precommittedResources + availableDelta),
                     FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
@@ -3381,7 +3397,11 @@ void TSchedulingPolicy::DoRegularAllocationScheduling(TScheduleAllocationsContex
         const TRegularSchedulingParameters& parameters = {},
         int stageAttemptIndex = 0)
     {
-        context->StartStage(stageType, SchedulingStageProfilingCounters_[stageType].get(), stageAttemptIndex);
+        context->StartStage(
+            stageType,
+            SchedulingStageProfilingCounters_[stageType].get(),
+            /*preemptive*/ false,
+            stageAttemptIndex);
         RunRegularSchedulingStage(parameters, context);
         context->FinishStage();
     };
@@ -3493,7 +3513,10 @@ void TSchedulingPolicy::DoPreemptiveAllocationScheduling(TScheduleAllocationsCon
             break;
         }
 
-        context->StartStage(stage, SchedulingStageProfilingCounters_[stage].get());
+        context->StartStage(
+            stage,
+            SchedulingStageProfilingCounters_[stage].get(),
+            /*preemptive*/ true);
         RunPreemptiveSchedulingStage(parameters, context);
         context->FinishStage();
     }
