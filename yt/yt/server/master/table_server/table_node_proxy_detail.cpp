@@ -2200,10 +2200,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             ValidateNoTransaction();
         }
 
-        if (table->IsDynamic() && !dynamic && table->GetHunkStorage()) {
-            THROW_ERROR_EXCEPTION("Cannot alter table with a hunk storage node to static");
-        }
-
         if (schemaReceived && table->IsDynamic()) {
             table->ValidateAllTabletsUnmounted("Cannot change table schema");
         }

@@ -967,6 +967,7 @@ public:
     void MakeTableDynamic(NTableServer::TTableNode* table) override
     {
         auto* oldChunkList = table->GetChunkList();
+        auto* oldHunkChunkList = table->GetHunkChunkList();
 
         auto chunks = EnumerateChunksInChunkTree(oldChunkList);
 
@@ -1007,10 +1008,20 @@ public:
         std::vector<TChunkTreeRawPtr> chunkTrees(chunks.begin(), chunks.end());
         chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
 
+        oldChunkList->RemoveOwningNode(table);
+
         auto* tabletHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
         chunkManager->AttachToChunkList(newHunkChunkList, {tabletHunkChunkList});
 
-        oldChunkList->RemoveOwningNode(table);
+        if (oldHunkChunkList) {
+            auto hunkChunks = EnumerateChunksInChunkTree(oldHunkChunkList);
+
+            // NB: In static tables it is guaranteed that we can only have single hunk root and single hunk chunk list.
+            std::vector<TChunkTreeRawPtr> hunkChunkTrees(hunkChunks.begin(), hunkChunks.end());
+            chunkManager->AttachToChunkList(tabletHunkChunkList, hunkChunkTrees);
+
+            oldHunkChunkList->RemoveOwningNode(table);
+        }
     }
 
     void MakeTableStatic(NTableServer::TTableNode* table) override
@@ -1024,12 +1035,24 @@ public:
         table->SetChunkList(newChunkList);
         newChunkList->AddOwningNode(table);
 
-        table->SetHunkChunkList(nullptr);
-
         auto chunks = EnumerateChunksInChunkTree(oldChunkList);
         chunkManager->AttachToChunkList(newChunkList, std::vector<TChunkTreeRawPtr>{chunks.begin(), chunks.end()});
 
-        YT_VERIFY(EnumerateChunksInChunkTree(oldHunkChunkList).empty());
+        auto hunkChunks = EnumerateChunksInChunkTree(oldHunkChunkList);
+        if (hunkChunks.empty()) {
+            table->SetHunkChunkList(nullptr);
+        } else {
+            auto* newHunkRootChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkRoot);
+            table->SetHunkChunkList(newHunkRootChunkList);
+            newHunkRootChunkList->AddOwningNode(table);
+
+            auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
+            chunkManager->AttachToChunkList(newHunkRootChunkList, {newHunkChunkList});
+
+            std::vector<TChunkTreeRawPtr> hunkChunkTrees(hunkChunks.begin(), hunkChunks.end());
+            SortUnique(hunkChunkTrees, TObjectIdComparer());
+            chunkManager->AttachToChunkList(newHunkChunkList, hunkChunkTrees);
+        }
 
         oldChunkList->RemoveOwningNode(table);
         oldHunkChunkList->RemoveOwningNode(table);

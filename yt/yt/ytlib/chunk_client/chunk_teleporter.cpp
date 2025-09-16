@@ -98,6 +98,12 @@ void TChunkTeleporter::Export()
 {
     THashMap<TCellTag, std::vector<TChunkEntry*>> exportMap;
     for (auto& chunk : Chunks_) {
+        // NB: Ensure that journal hunk chunks won't be teleported.
+        if (IsJournalChunkId(chunk.ChunkId)) {
+            THROW_ERROR_EXCEPTION("Cannot teleport journal chunk %v",
+                chunk.ChunkId);
+        }
+
         auto cellTag = CellTagFromId(chunk.ChunkId);
         exportMap[cellTag].push_back(&chunk);
     }

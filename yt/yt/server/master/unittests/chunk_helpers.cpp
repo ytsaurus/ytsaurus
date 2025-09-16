@@ -42,7 +42,11 @@ TChunk* TChunkGeneratorTestBase::CreateChunk(
     NTableClient::TLegacyOwningKey maxKey,
     EChunkType chunkType)
 {
-    auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::Chunk));
+    auto objectType = chunkType == EChunkType::Journal
+        ? EObjectType::JournalChunk
+        : EObjectType::Chunk;
+
+    auto chunk = TPoolAllocator::New<TChunk>(GenerateId(objectType));
     chunk->RefObject();
 
     NChunkClient::NProto::TChunkMeta chunkMeta;

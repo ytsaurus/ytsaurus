@@ -463,6 +463,10 @@ private:
             return false;
         }
 
+        if (Node_->GetHunkChunkList()) {
+            return false;
+        }
+
         auto* table = Node_->As<TTableNode>();
         auto schema = table->GetSchema()->AsCompactTableSchema();
         return !table->IsDynamic() && !schema->HasHunkColumns();
@@ -2071,6 +2075,15 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
             return;
         }
+    }
+
+    if (chunkOwner->GetHunkChunkList()) {
+        YT_LOG_ALERT("Cannot replace chunk after merge: table contains hunk chunks (NodeId: %v, AccountId: %v)",
+            nodeId,
+            accountId);
+        updateFailedReplacements(replacementCount);
+        FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
+        return;
     }
 
     auto* rootChunkList = chunkOwner->GetChunkList();

@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
     sync_unmount_table, write_hunks, read_hunks, raises_yt_error, get_driver,
-    sync_freeze_table, sync_unfreeze_table, copy, move, alter_table,
+    sync_freeze_table, sync_unfreeze_table, copy, move,
     lock_hunk_store, unlock_hunk_store, start_transaction, commit_transaction, abort_transaction, lock
 )
 
@@ -384,16 +384,6 @@ class TestHunkStorage(YTEnvSetup):
             set("//tmp/t1/@hunk_storage_id", table_id)
 
     @authors("aleksandra-zh")
-    def test_alter_table_with_hunk_storage_node(self):
-        hunk_storage_id = self._create_hunk_storage("//tmp/h")
-
-        self._create_ordered_table("//tmp/t")
-        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
-
-        with raises_yt_error("Cannot alter table with a hunk storage node to static"):
-            alter_table("//tmp/t", dynamic=False)
-
-    @authors("aleksandra-zh")
     def test_copy_linked_hunk_storage_node(self):
         hunk_storage_id = self._create_hunk_storage("//tmp/h")
 
@@ -519,6 +509,37 @@ class TestHunkStorage(YTEnvSetup):
         table_id = create("table", "//tmp/s")
         with raises_yt_error("dynamic table"):
             set("//tmp/s/@hunk_storage_id", table_id)
+
+    @authors("akozhikhov")
+    def test_multiple_hunk_tablets(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h", tablet_count=2)
+        sync_mount_table("//tmp/h")
+
+        assert len(get("//tmp/h/@tablets")) == 2
+
+        hunk1 = write_hunks("//tmp/h", ["a"], tablet_index=0)[0]
+        hunk2 = write_hunks("//tmp/h", ["b"], tablet_index=1)[0]
+
+        assert hunk1["chunk_id"] != hunk2["chunk_id"]
+
+    @authors("akozhikhov")
+    def test_get_hunk_storage_chunk_ids(self):
+        sync_create_cells(1)
+        self._create_hunk_storage("//tmp/h")
+        set("//tmp/h/@store_rotation_period", 1000)
+        sync_mount_table("//tmp/h")
+
+        hunk_chunk_id = write_hunks("//tmp/h", ["a" * 100])[0]["chunk_id"]
+        lock_hunk_store("//tmp/h", 0, hunk_chunk_id)
+
+        wait(lambda: self._get_active_store_id("//tmp/h") != hunk_chunk_id)
+
+        hunk_chunk_ids = get("//tmp/h/@chunk_ids")
+        assert len(hunk_chunk_ids) >= 2
+        assert hunk_chunk_id in hunk_chunk_ids
+
+        unlock_hunk_store("//tmp/h", 0, hunk_chunk_id)
 
 
 @pytest.mark.enabled_multidaemon

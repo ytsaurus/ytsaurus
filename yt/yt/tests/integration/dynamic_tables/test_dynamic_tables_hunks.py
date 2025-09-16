@@ -2,11 +2,11 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
-    lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address,
-    write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells,
+    lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address, concatenate,
+    write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
-    start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
-    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy,
+    start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
+    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user)
 
 from yt_type_helpers import make_schema
@@ -1977,8 +1977,11 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         remove("//tmp/t/@hunk_storage_id")
 
-        with raises_yt_error("table schema contains hunk columns"):
+        with raises_yt_error() as err:
             alter_table("//tmp/t", dynamic=False)
+
+        assert err[0].contains_text("for a table that has hunks") or \
+            err[0].contains_text("table contains unsealed hunk chunk")
 
     @authors("akozhikhov")
     def test_reshard_ordered_table_with_hunks(self):
@@ -2107,6 +2110,11 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             command="cat",
         )
         assert read_table("//tmp/t_out") == rows
+
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
 ################################################################################
 
@@ -3697,3 +3705,583 @@ class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/h")
         wait(lambda: not exists("#{}".format(cell_id)))
+
+
+################################################################################
+
+class TestHunksInStaticTable(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
+
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "hunk_store_extra_lifetime": 100,
+                    "unlock_check_period": 100
+                }
+            }
+        }
+    }
+
+    SCHEMA = [
+        {"name": "key", "type": "int64"},
+        {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+    ]
+
+    def _create_primary_dynamic_table(self, path, table_attrs={}):
+        self._create_simple_table(
+            path,
+            schema=self.SCHEMA,
+            enable_dynamic_store_read=False,
+            hunk_chunk_reader={
+                "max_hunk_count_per_read": 2,
+                "max_total_hunk_length_per_read": 60,
+                "fragment_read_hedging_delay": 1
+            },
+            hunk_chunk_writer={
+                "desired_block_size": 50,
+            },
+            max_hunk_compaction_garbage_ratio=0.5,
+            enable_lsm_verbose_logging=True,
+            **table_attrs)
+
+    def _alter_to_static(self):
+        def _wait_sealed():
+            _, hunk_chunk_ids = self._get_chunk_ids()
+            for hunk_chunk_id in hunk_chunk_ids:
+                if not get("#{}/@sealed".format(hunk_chunk_id)):
+                    return False
+            return True
+
+        wait(lambda: _wait_sealed())
+        set("//sys/@config/tablet_manager/enable_alter_to_static_with_hunks", True)
+        alter_table("//tmp/t", dynamic=False)
+
+    def _generate_static_table_with_hunks(self, do_alter=True, table_attrs={}, hunk_storage_attrs={}):
+        self._create_primary_dynamic_table("//tmp/t", table_attrs)
+
+        hunk_storage_attrs_copy = hunk_storage_attrs.copy()
+        if "store_rotation_period" not in hunk_storage_attrs_copy:
+            hunk_storage_attrs_copy["store_rotation_period"] = 1000
+        if self.is_multicell():
+            if "external_cell_tag" not in hunk_storage_attrs_copy and hunk_storage_attrs_copy.get("external", True):
+                external_cell_tag = get("//tmp/t/@external_cell_tag")
+                hunk_storage_attrs_copy["external_cell_tag"] = external_cell_tag
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attrs_copy)
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        if do_alter:
+            sync_unmount_table("//tmp/t")
+            self._alter_to_static()
+
+        return rows
+
+    def _get_hunk_storage_store_ids(self):
+        tablet_id = get("//tmp/h/@tablets")[0]["tablet_id"]
+        wait(lambda: exists("//sys/tablets/{}/orchid/active_store_id".format(tablet_id)))
+        return get("//sys/tablets/{}/orchid/stores".format(tablet_id)).keys()
+
+    def _get_chunk_ids(self):
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+        hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
+        return store_chunk_ids, hunk_chunk_ids
+
+    @authors("akozhikhov")
+    def test_static_hunks_simple(self):
+        sync_create_cells(1)
+        rows = self._generate_static_table_with_hunks()
+
+        assert read_table("//tmp/t") == rows
+
+    @authors("akozhikhov")
+    def test_static_hunks_chunk_list(self):
+        sync_create_cells(1)
+        self._generate_static_table_with_hunks()
+
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+        assert len(store_chunk_ids) == 1
+        assert len(hunk_chunk_ids) == 1
+        assert hunk_chunk_ids != store_chunk_ids
+
+    @authors("akozhikhov")
+    def test_static_hunks_chunk_lifetime(self):
+        sync_create_cells(1)
+        self._generate_static_table_with_hunks()
+
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+
+        sync_unmount_table("//tmp/h")
+
+        time.sleep(1)
+
+        assert exists("#{}".format(list(hunk_chunk_ids)[0]))
+
+        remove("//tmp/t")
+        wait(lambda: not exists("#{}".format(list(hunk_chunk_ids)[0])))
+
+    @authors("akozhikhov")
+    def test_static_hunks_alter_back(self):
+        sync_create_cells(1)
+        rows = self._generate_static_table_with_hunks()
+
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+
+        alter_table("//tmp/t", dynamic=True)
+
+        assert read_table("//tmp/t") == rows
+
+        store_chunk_ids_1, hunk_chunk_ids_1 = self._get_chunk_ids()
+
+        assert store_chunk_ids == store_chunk_ids_1
+        assert hunk_chunk_ids == hunk_chunk_ids_1
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("alter_immediately", [False, True])
+    def test_static_hunks_store_rotated(self, alter_immediately):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks(
+            do_alter=alter_immediately,
+            hunk_storage_attrs={
+                "store_removal_grace_period": 4000
+            })
+
+        if not alter_immediately:
+            sync_unmount_table("//tmp/t")
+
+        store_ids = builtins.set(self._get_hunk_storage_store_ids())
+        wait(lambda: len(store_ids.intersection(builtins.set(self._get_hunk_storage_store_ids()))) == 0)
+
+        if not alter_immediately:
+            self._alter_to_static()
+
+        assert read_table("//tmp/t") == rows
+
+        _, hunk_chunk_ids = self._get_chunk_ids()
+        hunk_chunk_ids = list(hunk_chunk_ids)
+        assert len(hunk_chunk_ids) == 1
+
+        remove("//tmp/t")
+        wait(lambda: not exists("#{}".format(hunk_chunk_ids[0])))
+
+    @authors("akozhikhov")
+    def test_static_hunks_hunk_storage_link(self):
+        sync_create_cells(1)
+
+        rows1 = self._generate_static_table_with_hunks()
+
+        assert get("//tmp/h/@associated_nodes") == []
+        assert not exists("//tmp/t/@hunk_storage_id")
+
+        alter_table("//tmp/t", dynamic=True)
+        assert get("//tmp/h/@associated_nodes") == []
+        assert not exists("//tmp/t/@hunk_storage_id")
+
+        sync_mount_table("//tmp/t")
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
+        insert_rows("//tmp/t", rows2)
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2)
+        sync_unmount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows1 + rows2
+
+        hunk_storage_id = get("//tmp/h/@id")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/t")
+        rows3 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(20, 30)]
+        insert_rows("//tmp/t", rows3)
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2 + rows3)
+        sync_unmount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows1 + rows2 + rows3
+
+        with raises_yt_error():
+            remove("//tmp/h")
+        self._alter_to_static()
+        remove("//tmp/h")
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        rows4 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(20, 30)]
+        insert_rows("//tmp/t", rows4)
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows1 + rows2 + rows3 + rows4)
+        sync_unmount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows1 + rows2 + rows3 + rows4
+
+    @authors("akozhikhov")
+    @pytest.mark.skip(reason="YT-24832")
+    def test_static_hunks_multiple_tablets(self):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks(
+            do_alter=False,
+            hunk_storage_attrs={
+                "store_removal_grace_period": 4000
+            })
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 3)
+        sync_mount_table("//tmp/t")
+
+        for i in range(3):
+            new_rows = [{"$tablet_index": i, "key": i, "value": str(i) + "y" * 20}]
+            rows += [{"key": i, "value": str(i) + "y" * 20}]
+            insert_rows("//tmp/t", new_rows)
+
+        sync_unmount_table("//tmp/t")
+        store_chunk_ids, hunk_chunk_ids = self._get_chunk_ids()
+        self._alter_to_static()
+
+        assert read_table("//tmp/t") == rows
+        new_rows = [{"key": 4, "value": str(4) + "a" * 20}]
+        rows += new_rows
+        write_table("<append=%true>//tmp/t", new_rows)
+        assert read_table("//tmp/t") == rows
+
+        store_chunk_ids_1, hunk_chunk_ids_1 = self._get_chunk_ids()
+        assert store_chunk_ids.issubset(store_chunk_ids_1)
+        assert hunk_chunk_ids == hunk_chunk_ids_1
+
+        store_ids = builtins.set(self._get_hunk_storage_store_ids())
+        wait(lambda: len(store_ids.intersection(builtins.set(self._get_hunk_storage_store_ids()))) == 0)
+
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@hunk_storage_id", get("//tmp/h/@id"))
+        sync_mount_table("//tmp/t")
+        assert get("//tmp/t/@tablet_count") == 1
+        assert read_table("//tmp/t") == rows
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+        new_rows = [{"key": 5, "value": str(5) + "z" * 20}]
+        rows += new_rows
+        insert_rows("//tmp/t", new_rows)
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+        sync_unmount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows
+
+        store_chunk_ids_2, hunk_chunk_ids_2 = self._get_chunk_ids()
+        assert hunk_chunk_ids_1.issubset(hunk_chunk_ids_2)
+        assert store_chunk_ids_1.issubset(store_chunk_ids_2)
+        assert len(store_chunk_ids_2 - store_chunk_ids_1) == 1
+        assert len(hunk_chunk_ids_2 - hunk_chunk_ids_1) == 1
+
+        self._alter_to_static()
+        assert read_table("//tmp/t") == rows
+
+        store_chunk_ids_3, hunk_chunk_ids_3 = self._get_chunk_ids()
+        assert hunk_chunk_ids_2 == hunk_chunk_ids_3
+        assert store_chunk_ids_2 == store_chunk_ids_3
+
+        remove("//tmp/t")
+
+        for chunk_id in store_chunk_ids_3:
+            wait(lambda: not exists("#{}".format(chunk_id)))
+        for chunk_id in hunk_chunk_ids_3:
+            wait(lambda: not exists("#{}".format(chunk_id)))
+
+    @authors("akozhikhov")
+    def test_static_hunks_copy_and_move(self):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks()
+
+        copy("//tmp/t", "//tmp/t2")
+        move("//tmp/t2", "//tmp/t3")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        remove("//tmp/t")
+
+        try:
+            assert read_table("//tmp/t2") == rows
+        except YtError as err:
+            if not err.contains_code(yt_error_codes.ResolveErrorCode):
+                raise
+
+        assert read_table("//tmp/t3") == rows
+        assert builtins.set(chunk_ids) == builtins.set(get("//tmp/t3/@chunk_ids"))
+
+    @authors("akozhikhov")
+    def test_static_hunks_overwrite(self):
+        sync_create_cells(1)
+
+        self._generate_static_table_with_hunks()
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
+        write_table("<append=%false>//tmp/t", rows)
+        assert read_table("//tmp/t") == rows
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("do_alter", [False, True])
+    def test_static_hunks_remote_copy(self, do_alter):
+        sync_create_cells(1)
+
+        self._generate_static_table_with_hunks(do_alter=do_alter)
+
+        if do_alter:
+            create("table", "//tmp/t_out")
+        else:
+            sync_unmount_table("//tmp/t")
+            self._create_primary_dynamic_table("//tmp/t_out")
+
+        with raises_yt_error() as err:
+            remote_copy(
+                in_="//tmp/t",
+                out="//tmp/t_out",
+                spec={"cluster_connection": self.__class__.Env.configs["driver"]},
+            )
+
+        if do_alter:
+            assert "Remote copy for static tables with hunks is not supported" in str(err)
+        else:
+            assert "Remote copy for tables connected to hunk storage is not supported" in str(err)
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("do_alter", [False, True])
+    def test_static_hunks_map(self, do_alter):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks(do_alter=do_alter)
+        if not do_alter:
+            sync_unmount_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat",
+        )
+        assert read_table("//tmp/t_out") == rows
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("do_alter", [False, True])
+    def test_static_hunks_merge(self, do_alter):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks(do_alter=do_alter)
+        if not do_alter:
+            sync_unmount_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+        merge(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": "ordered",
+            }
+        )
+        assert read_table("//tmp/t_out") == rows
+
+        create("table", "//tmp/t_out", force=True)
+        merge(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            spec={
+                "force_transform": False,
+                "mode": "ordered",
+            }
+        )
+        assert read_table("//tmp/t_out") == rows
+
+    @authors("akozhikhov")
+    def test_static_hunks_schema_stability(self):
+        sync_create_cells(1)
+
+        self._generate_static_table_with_hunks()
+
+        assert not get("//tmp/t/@dynamic")
+        schema = get("//tmp/t/@schema")
+        assert schema[1]["name"] == "value"
+        assert schema[1]["max_inline_hunk_size"] == 10
+
+    @authors("akozhikhov")
+    def test_static_hunks_run_select(self):
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks()
+
+        assert read_table("//tmp/t") == rows
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
+
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+
+@pytest.mark.enabled_multidaemon
+class TestHunksInStaticTableMulticell(TestHunksInStaticTable):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    def _generate_input_table_attributes(self, external_cell_tag):
+        if external_cell_tag == 10:
+            return {"external": False}
+        return {"external_cell_tag": external_cell_tag}
+
+    def _generate_output_table_attributes(self, external_cell_tag):
+        if external_cell_tag == 10:
+            return {"external_cell_tag": 12, "schema": self.SCHEMA}
+        elif external_cell_tag == 11:
+            return {"external": False, "schema": self.SCHEMA}
+        return {"external_cell_tag": 11, "schema": self.SCHEMA}
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("external_cell_tag", [10, 11, 12])
+    def test_static_hunks_multicell(self, external_cell_tag):
+        sync_create_cells(1)
+
+        in_table_attributes = self._generate_input_table_attributes(external_cell_tag)
+
+        rows = self._generate_static_table_with_hunks(
+            table_attrs=in_table_attributes,
+            hunk_storage_attrs=in_table_attributes)
+
+        assert read_table("//tmp/t") == rows
+
+        rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]
+        write_table("<append=%true>//tmp/t", rows2)
+        assert read_table("//tmp/t") == rows + rows2
+
+        rows3 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(20, 30)]
+        write_table("<append=%false>//tmp/t", rows3)
+        assert read_table("//tmp/t") == rows3
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        rows4 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(30, 40)]
+        insert_rows("//tmp/t", rows4)
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows3 + rows4)
+        sync_unmount_table("//tmp/t")
+        assert read_table("//tmp/t") == rows3 + rows4
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("external_cell_tag", [10, 11, 12])
+    def test_static_hunks_no_teleport_in_merge(self, external_cell_tag):
+        sync_create_cells(1)
+
+        in_table_attributes = self._generate_input_table_attributes(external_cell_tag)
+        out_table_attributes = self._generate_output_table_attributes(external_cell_tag)
+
+        rows = self._generate_static_table_with_hunks(
+            table_attrs=in_table_attributes,
+            hunk_storage_attrs=in_table_attributes)
+        create("table", "//tmp/t_out", attributes=out_table_attributes)
+
+        op = merge(mode="unordered", in_=["//tmp/t"], out="//tmp/t_out")
+        op.track()
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 2
+        assert directions[("unordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
+        assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 0
+
+        assert read_table("//tmp/t_out") == rows
+        out_chunk_ids = get("//tmp/t_out/@chunk_ids")
+        assert len(out_chunk_ids) == 1
+        assert out_chunk_ids[0] not in get("//tmp/t/@chunk_ids")
+
+        out_schema = get("//tmp/t_out/@schema")
+        assert out_schema[1]["name"] == "value"
+        assert out_schema[1]["max_inline_hunk_size"] == 10
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("external_cell_tag", [10, 11, 12])
+    def test_static_hunks_teleport_forbidden(self, external_cell_tag):
+        if getattr(self, "ENABLE_TMP_PORTAL", False) and external_cell_tag == 11:
+            pytest.skip()
+
+        sync_create_cells(1)
+
+        in_table_attributes = self._generate_input_table_attributes(external_cell_tag)
+        out_table_attributes = self._generate_output_table_attributes(external_cell_tag)
+
+        self._generate_static_table_with_hunks(
+            table_attrs=in_table_attributes,
+            hunk_storage_attrs=in_table_attributes)
+        create("table", "//tmp/t_out", attributes=out_table_attributes)
+
+        with raises_yt_error("cannot be exported because it has hunk refs"):
+            concatenate(["//tmp/t"], "//tmp/t_out")
+
+
+@pytest.mark.enabled_multidaemon
+class TestHunksInStaticTablePortals(TestHunksInStaticTableMulticell):
+    ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+    }
+
+    @authors("akozhikhov")
+    def test_static_hunks_portals_1(self):
+        create("portal_entrance", "//p", attributes={"exit_cell_tag": 11})
+
+        sync_create_cells(1)
+
+        rows = self._generate_static_table_with_hunks(
+            table_attrs={"external_cell_tag": 12, "external": True},
+            hunk_storage_attrs={"external_cell_tag": 12})
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        move("//tmp/t", "//p/t")
+        sync_unmount_table("//tmp/h")
+        remove("//tmp/h")
+        assert read_table("//p/t") == rows
+
+        assert chunk_ids == get("//p/t/@chunk_ids")
+
+        assert not exists("//tmp/t")
+        assert get("#{}/@sealed".format(chunk_ids[0]))
+        assert get("#{}/@sealed".format(chunk_ids[1]))
+        assert get("#{}/@owning_nodes".format(chunk_ids[0])) == ["//p/t"]
+        assert get("#{}/@owning_nodes".format(chunk_ids[1])) == ["//p/t"]
+
+        remove("//p/t")
+        wait(lambda: not exists("#{}".format(chunk_ids[0])))
+        wait(lambda: not exists("#{}".format(chunk_ids[1])))
+
+        remove("//p")
+
+    @authors("akozhikhov")
+    def test_static_hunks_portals_2(self):
+        create("portal_entrance", "//p", attributes={"exit_cell_tag": 12})
+
+        sync_create_cells(1)
+
+        self._generate_static_table_with_hunks(
+            table_attrs={"external": False},
+            hunk_storage_attrs={"external": False})
+
+        with raises_yt_error("//tmp/t must be external"):
+            move("//tmp/t", "//p/t")
+
+        remove("//p")
