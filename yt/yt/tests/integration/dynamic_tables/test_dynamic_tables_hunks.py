@@ -2703,6 +2703,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
             "enable": True,
             "column_dictionary_size": 256,
             "max_processed_chunk_count": 2,
+            "backoff_period": 1000,
         })
         set("{}/@hunk_chunk_reader/max_decompression_blob_size".format(path), 100)
 
