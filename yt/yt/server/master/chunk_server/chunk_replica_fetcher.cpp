@@ -263,7 +263,7 @@ public:
                     replica.ReplicaState = masterReplica.GetReplicaState();
                     replicas.push_back(replica);
                 }
-                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+                TStoredReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
                 // Chunks can have duplicates.
                 masterReplicasInSequoiaSkin.emplace(chunk->GetId(), replicas);
             }
