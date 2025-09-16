@@ -1513,6 +1513,7 @@ void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
     TLockMask lockMask,
     TUnversionedRow row,
     ESortedDynamicStoreCommand command,
+    bool commandIsPureLock,
     bool onAfterSnapshotLoaded)
 {
     // For onAfterSnapshotLoaded = true this function just updates lock states to be in sync with edit lists.
@@ -1522,6 +1523,13 @@ void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
     YT_ASSERT(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
     YT_ASSERT((command == ESortedDynamicStoreCommand::Delete) == dynamicRow.GetDeleteLockFlag());
     YT_ASSERT(HasMutationContext() == !onAfterSnapshotLoaded);
+
+    // COMPAT(ponasenko-rs)
+    if (auto context = TryGetCurrentMutationContext();
+        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
+    {
+        commandIsPureLock = false;
+    }
 
     // COMPAT(ponasenko-rs)
     bool newBehaviour = false;
@@ -1558,7 +1566,7 @@ void TSortedDynamicStore::CommitAndWriteRowPartsWithNoNeedForSerialization(
 
             if (!onAfterSnapshotLoaded) {
                 AddExclusiveLockRevision(*lock, commitRevision);
-                if (!dynamicRow.GetDeleteLockFlag()) {
+                if (!dynamicRow.GetDeleteLockFlag() && !commandIsPureLock) {
                     AddWriteRevision(*lock, commitRevision);
                 }
             }
@@ -1596,14 +1604,23 @@ void TSortedDynamicStore::CommitPerRowsSerializedLockGroup(
     TSortedDynamicRow row,
     ELockType lockType,
     int lockIndex,
+    bool commandIsPureLock,
     bool onAfterSnapshotLoaded)
 {
+    // COMPAT(ponasenko-rs)
+    if (auto context = TryGetCurrentMutationContext();
+        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
+    {
+        commandIsPureLock = false;
+    }
+
     auto* lock = row.BeginLocks(KeyColumnCount_) + lockIndex;
     CommitLockGroup(
         transaction,
         row,
         lockType,
         lock,
+        commandIsPureLock,
         onAfterSnapshotLoaded);
 }
 
@@ -1612,10 +1629,18 @@ void TSortedDynamicStore::CommitLockGroup(
     TSortedDynamicRow row,
     ELockType lockType,
     TLockDescriptor* lock,
+    bool commandIsPureLock,
     bool onAfterSnapshotLoaded)
 {
     // For onAfterSnapshotLoaded = true this function just updates lock states to be in sync with edit lists.
     YT_VERIFY(!onAfterSnapshotLoaded || lockType == ELockType::SharedWrite);
+
+    // COMPAT(ponasenko-rs)
+    if (auto context = TryGetCurrentMutationContext();
+        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
+    {
+        commandIsPureLock = false;
+    }
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
     // NB: This place may generate a lot of revisions in per-row serialized case.
@@ -1625,7 +1650,7 @@ void TSortedDynamicStore::CommitLockGroup(
         // Write Lock
         YT_ASSERT(lockType == ELockType::Exclusive);
         AddExclusiveLockRevision(*lock, commitRevision);
-        if (!row.GetDeleteLockFlag()) {
+        if (!row.GetDeleteLockFlag() && !commandIsPureLock) {
             AddWriteRevision(*lock, commitRevision);
         }
         lock->WriteTransaction = nullptr;
@@ -1641,7 +1666,9 @@ void TSortedDynamicStore::CommitLockGroup(
         YT_ASSERT(!row.GetDeleteLockFlag());
         if (!onAfterSnapshotLoaded) {
             AddSharedWriteLockRevision(*lock, commitRevision);
-            AddWriteRevision(*lock, commitRevision);
+            if (!commandIsPureLock) {
+                AddWriteRevision(*lock, commitRevision);
+            }
         }
 
         EraseOrCrash(
@@ -1658,10 +1685,17 @@ void TSortedDynamicStore::CommitLockGroup(
     RecalculatePrepareTimestamp(lock);
 }
 
-void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask)
+void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask, bool commandIsPureLock)
 {
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
     YT_ASSERT(FlushRevision_ != MaxRevision);
+
+    // COMPAT(ponasenko-rs)
+    if (auto context = TryGetCurrentMutationContext();
+        context != nullptr && static_cast<ETabletReign>(context->Request().Reign) < ETabletReign::DoNotAccountPureLocksAsWritesWithData)
+    {
+        commandIsPureLock = false;
+    }
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
 
@@ -1675,7 +1709,8 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
             row,
             lockMask.Get(lockIndex),
             lock,
-            /*onAfterSnapshotLoaded=*/ false);
+            commandIsPureLock,
+            /*onAfterSnapshotLoaded*/ false);
     }
 
     row.SetDeleteLockFlag(false);
