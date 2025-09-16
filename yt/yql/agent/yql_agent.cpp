@@ -538,7 +538,7 @@ private:
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
             auto finally = Finally([&refreshTokenExecutor] {
-                WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
+                WaitUntilSet(refreshTokenExecutor->Stop());
             });
 
             if (result.YsonError) {
