@@ -421,6 +421,9 @@ message THistoryTableOptions
     // occasionally omitting some events after switching.
     // reads from primary to index table.
     optional bool use_deprecated_hashing = 10;
+
+    // Specifies `max_inline_hunk_size` attribute for `value` column in history table.
+    optional uint64 value_column_max_inline_hunk_size = 11;
 }
 
 // Next field 30050.
