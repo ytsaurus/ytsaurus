@@ -1259,6 +1259,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
             ValidateSuperuserOnAttributeModification(Bootstrap_->GetSecurityManager(), key.Unintern());
 
+            // TODO(kvk1920): Schedule for hunk chunk list.
             const auto& chunkReincarnator = chunkManager->GetChunkReincarnator();
             chunkReincarnator->ScheduleReincarnation(
                 node->GetChunkList(),
@@ -1865,8 +1866,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 auto* snapshotChunkList = lockedNode->GetChunkList();
                 switch (snapshotChunkList->GetKind()) {
                     case EChunkListKind::Static: {
-                        YT_VERIFY(!lockedNode->GetHunkChunkList());
-
                         auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                         newChunkList->AddOwningNode(lockedNode);
 
@@ -1945,6 +1944,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                                     chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
                                 }
+                            } else if (oldMainChunkList->GetKind() == EChunkListKind::Static &&
+                                contentType == EChunkListContentType::Hunk)
+                            {
+                                auto* appendChunkList = chunkManager->CreateChunkList(appendChunkListKind);
+                                chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
                             }
 
                             oldChunkList->RemoveOwningNode(lockedNode);
@@ -1952,14 +1956,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         processChunkList(EChunkListContentType::Main, EChunkListKind::SortedDynamicTablet);
                         processChunkList(EChunkListContentType::Hunk, EChunkListKind::Hunk);
 
-                        if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                            context->SetIncrementalResponseInfo("NewChunkListId: %v, NewHunkChunkListId: %v",
-                                lockedNode->GetChunkList()->GetId(),
-                                lockedNode->GetHunkChunkList()->GetId());
-                        } else {
-                            context->SetIncrementalResponseInfo("NewChunkListId: %v",
-                                lockedNode->GetChunkList()->GetId());
-                        }
+                        auto hunkChunkListId = lockedNode->GetHunkChunkList()
+                            ? lockedNode->GetHunkChunkList()->GetId()
+                            : NullChunkListId;
+                        context->SetIncrementalResponseInfo("NewChunkListId: %v, NewHunkChunkListId: %v",
+                            lockedNode->GetChunkList()->GetId(),
+                            hunkChunkListId);
+
                         break;
                     }
 
@@ -2016,14 +2019,21 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     DeclareNonMutating();
 
     bool fetchLastKey = request->fetch_last_key();
-    bool fetchHunkChunkListIds = request->fetch_hunk_chunk_list_ids();
+    bool fetchHunkChunkListId = request->fetch_hunk_chunk_list_id();
+    bool fetchTabletHunkChunkListIds = request->fetch_tablet_hunk_chunk_list_ids();
 
-    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListIds: %v",
+    context->SetRequestInfo("FetchLastKey: %v, FetchHunkChunkListId: %v, FetchTabletHunkChunkListIds: %v",
         fetchLastKey,
-        fetchHunkChunkListIds);
+        fetchHunkChunkListId,
+        fetchTabletHunkChunkListIds);
 
     ValidateNotExternal();
     ValidateInUpdate();
+
+    if (fetchHunkChunkListId && fetchTabletHunkChunkListIds) {
+        THROW_ERROR_EXCEPTION("Parameters \"fetch_hunk_chunk_list_id\" and \"fetch_tablet_hunk_chunk_list_ids\" "
+            "cannot be set to \"true\" simultaneously");
+    }
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
@@ -2033,6 +2043,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             auto* snapshotChunkList = node->GetSnapshotChunkList();
             auto* deltaChunkList = node->GetDeltaChunkList();
 
+            // NB: No hunk chunk list here as we only support appending into main chunk list.
             const auto& uploadChunkListId = deltaChunkList->GetId();
             ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
 
@@ -2097,21 +2108,31 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
                 chunkList->GetKind());
     }
 
-    if (fetchHunkChunkListIds) {
+    if (fetchHunkChunkListId || fetchTabletHunkChunkListIds) {
         auto* hunkChunkList = node->GetHunkChunkList();
         if (!hunkChunkList) {
             THROW_ERROR_EXCEPTION("Requested hunk chunk list ids when there is no root hunk chunk list");
         }
 
-        for (auto tabletList : hunkChunkList->Children()) {
-            auto chunkListKind = tabletList->AsChunkList()->GetKind();
+        if (fetchHunkChunkListId && hunkChunkList->Children().size() != 1) {
+            THROW_ERROR_EXCEPTION("Unexpected number of child hunk chunk lists: expected 1, got %v",
+                hunkChunkList->Children().size());
+        }
+
+        for (auto childChunkList : hunkChunkList->Children()) {
+            auto chunkListKind = childChunkList->AsChunkList()->GetKind();
             if (chunkListKind != EChunkListKind::Hunk) {
                 THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv when %Qv expected",
-                    tabletList->GetId(),
+                    childChunkList->GetId(),
                     chunkListKind,
                     EChunkListKind::Hunk);
             }
-            ToProto(response->add_tablet_hunk_chunk_list_ids(), tabletList->GetId());
+
+            if (fetchHunkChunkListId) {
+                ToProto(response->mutable_hunk_chunk_list_id(), childChunkList->GetId());
+            } else {
+                ToProto(response->add_tablet_hunk_chunk_list_ids(), childChunkList->GetId());
+            }
         }
     }
 

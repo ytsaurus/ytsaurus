@@ -149,13 +149,15 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         bool pingAncestors = request->ping_ancestors();
+        auto pingerAddress = YT_OPTIONAL_FROM_PROTO(*request, pinger_address);
 
-        context->SetRequestInfo("TransactionId: %v, PingAncestors: %v",
+        context->SetRequestInfo("TransactionId: %v, PingAncestors: %v, PingerAddress: %v",
             transactionId,
-            pingAncestors);
+            pingAncestors,
+            pingerAddress);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        context->ReplyFrom(transactionManager->PingTransaction(transactionId, pingAncestors));
+        context->ReplyFrom(transactionManager->PingTransaction(transactionId, pingAncestors, pingerAddress));
     }
 };
 

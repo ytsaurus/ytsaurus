@@ -44,10 +44,10 @@ int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child);
 
 TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList);
 
-i64 GetJournalChunkStartRowIndex(const TChunk* chunk);
+//! NB: Returns null in case of journal hunk chunk.
+std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk);
 
 TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
-TChunkList* GetUniqueParentOrThrow(const TChunkTree* chunkTree);
 int GetParentCount(const TChunkTree* chunkTree);
 bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 

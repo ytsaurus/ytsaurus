@@ -1,5 +1,7 @@
 from yt_odin_checks.lib.check_runner import main
 
+from yt.wrapper.http_helpers import get_proxy_address_url, get_token
+
 from yt.packages.requests.adapters import HTTPAdapter
 from yt.packages.requests.exceptions import RequestException
 import yt.packages.requests as requests
@@ -34,7 +36,10 @@ class Worker(Thread):
             url = "http://{}/auth/whoami".format(proxy)
             check_result = CRITICAL
             try:
-                resp = s.post(url, headers={"Authorization": "OAuth " + self.token}, timeout=TIMEOUT)
+                headers = {}
+                if self.token is not None:
+                    headers["Authorization"] = "OAuth " + self.token
+                resp = s.post(url, headers=headers, timeout=TIMEOUT)
                 if self.is_testing_environment:
                     if resp.status_code == 200:
                         check_result = OK
@@ -77,14 +82,8 @@ def get_active_proxies(cluster_url, test_url):
 
 
 def run_check(secrets, yt_client, logger, options, states):
+    cluster_url = get_proxy_address_url(client=yt_client)
     is_testing_environment = options.get("is_testing_environment", False)
-    url_from_config = yt_client.config['proxy']['url']
-    if is_testing_environment:
-        cluster_url = "http://localhost:" + url_from_config.split(":")[1]
-    elif any(i in url_from_config for i in ["yt.yandex", ".ofd."]):
-        cluster_url = "http://{}".format(url_from_config)
-    else:
-        cluster_url = "http://{}.yt.yandex.net".format(url_from_config)
 
     try:
         proxies = get_active_proxies(cluster_url, is_testing_environment)
@@ -96,7 +95,7 @@ def run_check(secrets, yt_client, logger, options, states):
     workers = []
     for i in range(0, len(proxies), MAX_REQUESTS_PER_WORKER):
         worker = Worker(
-            secrets["yt_token"],
+            get_token(client=yt_client),
             proxies[i:i + MAX_REQUESTS_PER_WORKER],
             is_testing_environment,
             logger)

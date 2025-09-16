@@ -23,7 +23,8 @@ Assign the minimal required ACLs to the service user (assuming the user is `robo
 ```bash
 yt set //sys/@acl/end '{action=allow; subjects=[robot-odin]; permissions=[read; write; create; remove; mount]}'
 yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-odin]; permissions=[use]}'
-yt set //sys/tablet_cell_bundles/sys/@acl/end '[{subjects=[robot-odin];permissions=[use];action=allow}]'
+yt set //sys/tablet_cell_bundles/@acl/end '{subjects=[robot-odin];permissions=[use];action=allow}'
+yt set //sys/operations/@acl/end '{subjects=[robot-odin];permissions=[read];action=allow}'
 ```
 
 #### Creating a Kubernetes Secret with Tokens
@@ -95,7 +96,7 @@ kubectl logs deploy/odin-odin-chart -n <namespace> --tail=200
 
 {{product-name}} UI includes a page that displays Odin check results. To enable it, specify the Odin web service address in the UI configuration.
 
-The UI must be installed as a Helm chart (see [installation guide](../install-ytsaurus#ui)).
+The UI must be installed as a Helm chart (see [installation guide](install-ytsaurus#ui)).
 
 Specify the Odin web service address in the `values.yaml` file under `.ui.settings.odinBaseUrl`. Example address when Odin is deployed in the `default` namespace and exposed on port 9002 (default):
 `"http://odin-odin-chart-web.default.svc.cluster.local:9002"`.

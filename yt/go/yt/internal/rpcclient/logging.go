@@ -8,6 +8,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/bus"
+	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 )
 
 type LoggingInterceptor struct {
@@ -40,6 +41,30 @@ func (l *LoggingInterceptor) logFinish(ctx context.Context, err error, fields ..
 func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
 	ctx = l.logStart(ctx, call)
 	err = invoke(ctx, call, rsp, opts...)
-	l.logFinish(ctx, err)
+	var rspFields []log.Field
+	if err == nil && rsp != nil {
+		rspFields = responseLogFields(call, rsp)
+	}
+	l.logFinish(ctx, err, rspFields...)
+	return
+}
+
+func responseLogFields(call *Call, rsp proto.Message) (fields []log.Field) {
+	switch r := rsp.(type) {
+	case *rpc_proxy.TRspCreateNode:
+		fields = append(fields, log.Any("node_id", makeGUID(r.GetNodeId())))
+	case *rpc_proxy.TRspCopyNode:
+		fields = append(fields, log.Any("node_id", makeGUID(r.GetNodeId())))
+	case *rpc_proxy.TRspMoveNode:
+		fields = append(fields, log.Any("node_id", makeGUID(r.GetNodeId())))
+	case *rpc_proxy.TRspLinkNode:
+		fields = append(fields, log.Any("node_id", makeGUID(r.GetNodeId())))
+	case *rpc_proxy.TRspStartTransaction:
+		fields = append(fields, log.Any("transaction_id", makeGUID(r.GetId())))
+	case *rpc_proxy.TRspStartOperation:
+		fields = append(fields, log.Any("operation_id", makeGUID(r.GetOperationId())))
+	case *rpc_proxy.TRspGenerateTimestamps:
+		fields = append(fields, log.Any("timestamp", r.GetTimestamp()))
+	}
 	return
 }

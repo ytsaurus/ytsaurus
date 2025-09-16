@@ -1,5 +1,8 @@
 from yt_odin_checks.lib.check_runner import main
 from yt_odin_checks.lib.query_tracker_engine_liveness import Data, run_check_impl
+
+from yt.wrapper.http_helpers import get_token
+
 from yt.wrapper import YtClient
 
 
@@ -12,7 +15,7 @@ RESULT_DATA = [{"result": i + 1} for i in range(VALUES_COUNT)]
 
 def run_check(secrets, yt_client, logger, options, states):
     chyt_cluster_address = options.get("chyt_cluster_address", options["chyt_cluster_name"])
-    chyt_stage_client = YtClient(proxy=chyt_cluster_address, token=secrets["yt_token"])
+    chyt_stage_client = YtClient(proxy=chyt_cluster_address, token=get_token(client=yt_client))
     stage = options["cluster_name_to_query_tracker_stage"].get(options["cluster_name"], "production")
     soft_timeout = options["soft_query_timeout"]
 

@@ -564,7 +564,7 @@ private:
             ObjectClientLogger(),
             /*profiler*/ {},
             /*authenticator*/ nullptr);
-        EmplaceOrCrash(CachingObjectServices_, cellTag, cachingObjectService);
+        CachingObjectServices_.emplace(cellTag, cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
         CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }

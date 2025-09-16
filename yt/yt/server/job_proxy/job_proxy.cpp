@@ -1188,7 +1188,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
 
     if (auto job = FindJob()) {
         auto extendedStatistics = job->GetStatistics();
-        statistics = std::move(extendedStatistics.Statstics);
+        statistics = std::move(extendedStatistics.Statistics);
 
         if (job->HasInputStatistics()) {
             statistics.AddSample("/data/input"_SP, extendedStatistics.TotalInputStatistics.DataStatistics);
@@ -1202,9 +1202,14 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         }
 
         auto totalChunkReaderStatistics = New<TChunkReaderStatistics>();
+        if (auto customStatistics = extendedStatistics.CustomChunkReaderStatistics) {
+            totalChunkReaderStatistics->AddFrom(customStatistics);
+        }
 
+        bool shouldDumpLocalStatistics = MultiChunkReaderHost_->GetChunkReaderStatistics().size() > 1u || Config_->DumpSingleLocalClusterStatistics;
         for (const auto& [clusterName, chunkReaderStatistics] : MultiChunkReaderHost_->GetChunkReaderStatistics()) {
-            if (Config_->EnablePerClusterChunkReaderStatistics) {
+            bool shouldDump = Config_->EnablePerClusterChunkReaderStatistics && (!IsLocal(clusterName) || shouldDumpLocalStatistics);
+            if (shouldDump) {
                 DumpChunkReaderStatistics(
                     &statistics,
                     "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),

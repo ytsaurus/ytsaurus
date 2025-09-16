@@ -1485,6 +1485,8 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         if (auto stockpile = newConfig->GetSingletonConfig<TStockpileDynamicConfig>();
             stockpile->TotalMemoryFractionOverride)
         {
@@ -1627,6 +1629,8 @@ private:
 
     void OnMasterConnected()
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->RegisterService(cachingObjectService);
         }
@@ -1634,6 +1638,8 @@ private:
 
     void OnMasterDisconnected()
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->UnregisterService(cachingObjectService);
         }
@@ -1767,6 +1773,8 @@ private:
 
         return netLimit.value_or(Config_->NetworkBandwidth) * (1. - throttlerFreeBandwidthRatio);
     }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

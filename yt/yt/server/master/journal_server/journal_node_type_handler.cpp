@@ -264,6 +264,8 @@ protected:
             return;
         }
 
+        YT_VERIFY(!trunkNode->GetHunkChunkList());
+
         auto* chunkList = trunkNode->GetChunkList();
         if (auto* unsealedChild = chunkList ? FindFirstUnsealedChild(chunkList) : nullptr) {
             YT_LOG_DEBUG(

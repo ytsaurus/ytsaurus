@@ -427,16 +427,18 @@ public:
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
+        PingerAddress_ = options.PingerAddress;
         State_ = ETransactionState::Active;
         YT_VERIFY(RegisteredParticipantIds_.insert(CoordinatorMasterCellId_).second);
 
         Register();
 
-        YT_LOG_DEBUG("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+        YT_LOG_DEBUG("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v, PingerAddress: %v)",
             Id_,
             AutoAbort_,
             Ping_,
-            PingAncestors_);
+            PingAncestors_,
+            PingerAddress_);
 
         if (Ping_) {
             RunPeriodicPings();
@@ -684,6 +686,7 @@ private:
     std::optional<TDuration> PingPeriod_;
     bool Ping_ = false;
     bool PingAncestors_ = false;
+    std::optional<std::string> PingerAddress_;
     std::optional<TDuration> Timeout_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
@@ -879,6 +882,7 @@ private:
             PingPeriod_ = options.PingPeriod;
             Ping_ = options.Ping;
             PingAncestors_ = options.PingAncestors;
+            PingerAddress_ = options.PingerAddress;
             Timeout_ = options.Timeout;
             Atomicity_ = options.Atomicity;
             Durability_ = options.Durability;
@@ -1454,6 +1458,7 @@ private:
             if (cellId == CoordinatorMasterCellId_) {
                 req->set_ping_ancestors(PingAncestors_);
             }
+            YT_OPTIONAL_SET_PROTO(req, pinger_address, PingerAddress_);
 
             return req->Invoke().Apply(
                 BIND(

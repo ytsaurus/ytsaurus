@@ -1285,6 +1285,13 @@ public:
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }
 
+    TFuture<std::optional<std::string>> GetLastPingAddress(const TTransaction* transaction) override
+    {
+        VerifyPersistentStateRead();
+
+        return LeaseTracker_->GetLastPingAddress(transaction->GetId());
+    }
+
     void SetTransactionTimeout(
         TTransaction* transaction,
         TDuration timeout) override
@@ -1687,11 +1694,12 @@ public:
 
     TFuture<void> PingTransaction(
         TTransactionId transactionId,
-        bool pingAncestors) override
+        bool pingAncestors,
+        std::optional<std::string> pingerAddress) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+        return LeaseTracker_->PingTransaction(transactionId, pingAncestors, pingerAddress);
     }
 
     TTransactionId FindUsedNonMirroredTransaction(const TCtxStartCypressTransactionPtr& context)

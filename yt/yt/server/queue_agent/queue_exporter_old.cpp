@@ -360,6 +360,11 @@ private:
             THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", Queue_);
         }
 
+        // NB: Supported in the new version of queue exporter.
+        if (QueueSchema_->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Cannot export queue %v that contains hunk columns", Queue_);
+        }
+
         QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
     }
 

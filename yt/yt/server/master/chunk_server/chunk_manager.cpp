@@ -3272,7 +3272,7 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         bool isIncrementalHeartbeat = true;
-        if (dynamicConfig->UseProperReplicaAdditionReason && request->has_is_incremental_heartbeat()) {
+        if (request->has_is_incremental_heartbeat()) {
             isIncrementalHeartbeat = request->is_incremental_heartbeat();
         }
 
@@ -3746,7 +3746,6 @@ private:
         bool incremental)
     {
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto useProperReplicaAdditionReason = GetDynamicConfig()->UseProperReplicaAdditionReason;
 
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
@@ -3770,7 +3769,7 @@ private:
                 node,
                 location,
                 chunkInfo,
-                useProperReplicaAdditionReason ? incremental : true))
+                incremental))
             {
                 if (chunk->IsBlob()) {
                     announceReplicaRequests.push_back(chunk);
@@ -4467,6 +4466,14 @@ private:
                     chunkId);
             }
 
+            if (chunk->IsJournal()) {
+                THROW_ERROR_EXCEPTION("Cannot export a journal chunk %v", chunkId);
+            }
+
+            if (chunk->GetChunkType() == EChunkType::Hunk) {
+                THROW_ERROR_EXCEPTION("Cannot export a hunk chunk %v", chunkId);
+            }
+
             auto cellTag = FromProto<TCellTag>(exportData.destination_cell_tag());
             if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
                 THROW_ERROR_EXCEPTION("Cell %v is not registered",
@@ -4901,11 +4908,52 @@ private:
             ? FromProto<TTransactionId>(subrequest->transaction_id())
             : NullTransactionId;
 
+        if (parent->GetKind() == EChunkListKind::HunkStorageRoot ||
+            parent->GetKind() == EChunkListKind::HunkTablet)
+        {
+            THROW_ERROR_EXCEPTION("Attempted to attach chunks to hunk storage chunk list %v of kind %Qlv",
+                parentId,
+                parent->GetKind());
+        }
+
+        if (parent->GetKind() == EChunkListKind::HunkRoot) {
+            THROW_ERROR_EXCEPTION("Attempted to attach chunks to hunk chunk list %v of kind %Qlv",
+                parentId,
+                parent->GetKind());
+        }
+
         std::vector<TChunkTreeRawPtr> children;
         children.reserve(subrequest->child_ids_size());
         for (const auto& protoChildId : subrequest->child_ids()) {
             auto childId = FromProto<TChunkTreeId>(protoChildId);
             auto* child = GetChunkTreeOrThrow(childId);
+
+            if (IsJournalChunkType(child->GetType())) {
+                if (parent->GetKind() != EChunkListKind::Hunk &&
+                    parent->GetKind() != EChunkListKind::JournalRoot)
+                {
+                    YT_LOG_ALERT("Attempted to attach journal chunk to chunk list of unexpected kind "
+                        "(ChunkTreeId: %v, Type: %v, ChunkListId: %v, ChunkListKind: %v)",
+                        childId,
+                        child->GetType(),
+                        parent->GetId(),
+                        parent->GetKind());
+                    THROW_ERROR_EXCEPTION("Attempted to attach journal chunk %v to chunk list %v of unexpected kind %Qlv",
+                        childId,
+                        parent->GetId(),
+                        parent->GetKind());
+                }
+
+                // NB: This forbids e.g. exporting queue's chunks into a static table if some hunk journal chunks are not sealed yet.
+                // Apart from attaching unsealed journal hunk chunks looking too sketchy, this condition is necessary
+                // for proper statistics managment upon chunks attachment, as unsealed journal chunks effectively have null statistics.
+                if (parent->GetKind() == EChunkListKind::Hunk && !child->AsChunk()->IsSealed()) {
+                    THROW_ERROR_EXCEPTION("Attempted to attach unsealed journal chunk %v to a hunk chunk list %v",
+                        childId,
+                        parent->GetId());
+                }
+            }
+
             if (parent->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
                 parent->GetKind() == EChunkListKind::SortedDynamicTablet)
             {
@@ -6685,12 +6733,12 @@ private:
                 auto processResponse = [&] (const TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>& rsp, int index, TStringBuf name) {
                     auto currentRspOrError = rsp->GetResponse<TYPathProxy::TRspGet>(index);
                     if (!currentRspOrError.IsOK()) {
-                        YT_LOG_WARNING(currentRspOrError, "Failed to get local cell %v", name);
+                        YT_LOG_WARNING(currentRspOrError, "Failed to get local cell statistics (StatiscicsName: %v)", name);
                         return;
                     }
                     auto response = ConvertTo<INodePtr>(TYsonString{currentRspOrError.Value()->value()});
                     if (response->GetType() != ENodeType::Int64) {
-                        YT_LOG_ALERT("Response type for local cell %v is invalid (ResponseType: %v)", name, response->GetType());
+                        YT_LOG_ALERT("Response type for local cell statistics is invalid (StatisticsName: %v, ResponseType: %v)", name, response->GetType());
                         return;
                     }
                     responsesSum[index] += response->AsInt64()->GetValue();

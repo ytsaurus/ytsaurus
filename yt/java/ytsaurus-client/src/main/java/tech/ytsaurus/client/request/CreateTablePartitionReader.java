@@ -10,7 +10,6 @@ import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.TableAttachmentByteBufferPartitionReader;
 import tech.ytsaurus.client.TableAttachmentReader;
 import tech.ytsaurus.client.TableAttachmentSkiffPartitionReader;
-import tech.ytsaurus.client.TablePartitionCookie;
 import tech.ytsaurus.client.TablePartitionRowsetReader;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.UnversionedRow;

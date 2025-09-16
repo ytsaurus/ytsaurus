@@ -10,7 +10,7 @@ from yt_commands import (
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
 
-from yt_sequoia_helpers import is_sequoia_id, not_implemented_in_sequoia
+from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt_helpers import (
     wait_until_unlocked
@@ -1276,14 +1276,8 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_recursive_resource_usage(self):
-        t1_id = create("table", "//tmp/t1")
+        create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})
-
-        # TODO(kvk1920): support @recursive_resource_usage in Sequoia.
-        if is_sequoia_id(t1_id):
-            with raises_yt_error("Attribute \"recursive_resource_usage\" is not supported in Sequoia yet"):
-                get_recursive_disk_space("//tmp")
-            return
 
         copy("//tmp/t1", "//tmp/t2")
 

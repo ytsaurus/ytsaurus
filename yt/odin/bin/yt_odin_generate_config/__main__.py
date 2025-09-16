@@ -275,7 +275,7 @@ def create_odin_checks_config():
             },
             "tmp_node_count": {
                 "options": {
-                    "files_count_threshold": 40000,
+                    "file_count_threshold": 40000,
                     "table_count_threshold": 40000,
                     "root_count_threshold": 40000,
                 }

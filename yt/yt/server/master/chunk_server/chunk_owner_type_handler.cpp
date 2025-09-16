@@ -471,6 +471,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                         continue;
                     }
 
+                    if (contentType == EChunkListContentType::Hunk) {
+                        YT_VERIFY(originatingChunkList == branchedChunkList);
+                        continue;
+                    }
+
                     YT_VERIFY(branchedChunkList->Children().size() == 2);
                     auto deltaChunkList = branchedChunkList->Children()[1];
 

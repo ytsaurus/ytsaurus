@@ -1392,6 +1392,7 @@ private:
         options.Sticky = request->sticky();
         options.Ping = request->ping();
         options.PingAncestors = request->ping_ancestors();
+        options.PingerAddress = context->GetEndpointDescription();
         options.Atomicity = FromProto<NTransactionClient::EAtomicity>(request->atomicity());
         options.Durability = FromProto<NTransactionClient::EDurability>(request->durability());
         if (request->has_attributes()) {
@@ -1449,6 +1450,7 @@ private:
         TTransactionAttachOptions attachOptions = {};
         attachOptions.Ping = false;
         attachOptions.PingAncestors = request->ping_ancestors();
+        attachOptions.PingerAddress = context->GetEndpointDescription();
 
         context->SetRequestInfo("TransactionId: %v",
             transactionId);

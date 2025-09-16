@@ -92,7 +92,8 @@ struct ITransactionManager
 
     virtual TFuture<void> PingTransaction(
         TTransactionId transactionId,
-        bool pingAncestors) = 0;
+        bool pingAncestors,
+        std::optional<std::string> pingerAddress) = 0;
 
     virtual ETransactionState GetTransactionStateOrThrow(TTransactionId transactionId) = 0;
 

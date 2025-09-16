@@ -128,7 +128,7 @@ message TReqToggleHunkTabletStoreLock
     required bool lock = 5;
 }
 
-// For normal tablet cell.
+// For regular table tablet cell.
 message TReqBoggleHunkTabletStoreLock
 {
     required NYT.NProto.TGuid hunk_tablet_id = 1;

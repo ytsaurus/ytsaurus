@@ -10,6 +10,8 @@ config:
   mountPath: /opt/odin
 
   odin:
+    useIPv4: false
+    useIPv6: false
     db:
       proxy: "ytsaurus.http.proxy.tech"
       tokenEnvVariable: "YT_TOKEN"
@@ -50,7 +52,7 @@ config:
         check_timeout: 180
     - name: dynamic_table_commands
       displayName: Dynamic Table Commands
-      enable: false
+      enable: true
       config:
         options:
           temp_tables_path: "//sys/admin/odin/dynamic_table_commands"
@@ -69,7 +71,8 @@ config:
           max_size: 10
     - name: clock_quorum_health
       displayName: Clock Quorum Health
-      enable: true
+      # Separate clock servers are not configured in cluster by default.
+      enable: false
       config:
         enable: false
         options:
@@ -122,7 +125,7 @@ config:
       displayName: Operations Snapshots
       enable: true
       config:
-        enable: false
+        enable: true
         options:
           critical_time_without_snapshot_threshold: 3600
     - name: operations_count
@@ -135,22 +138,23 @@ config:
           recoursive_node_count_crit: 60000
     - name: dynamic_table_replication
       displayName: Dynamic Table Replication
-      enable: true
+      # This check applicable for group of clusters with dynamic table replication.
+      enable: false
       config:
         enable: false
     - name: register_watcher
       displayName: Register Watcher
-      enable: false
+      enable: true
       config:
         options:
           crit_threshold: 7
           warn_threshold: 5
     - name: tmp_node_count
       displayName: Tmp Node Count
-      enable: false
+      enable: true
       config:
         options:
-          files_count_threshold: 40000
+          file_count_threshold: 40000
           table_count_threshold: 40000
           root_count_threshold: 40000
     - name: destroyed_replicas_size
@@ -162,13 +166,15 @@ config:
           total_threshold: 1000000
     - name: query_tracker_yql_liveness
       displayName: Query Tracker Yql Liveness
-      enable: false
+      enable: true
       config:
         check_timeout: 240
         options:
           soft_query_timeout: 165
+          cluster_name_to_query_tracker_stage: {}
     - name: query_tracker_chyt_liveness
       displayName: Query Tracker Chyt Liveness
+      # This check applicable only if default CHYT clique is configured.
       enable: false
       config:
         check_timeout: 60
@@ -183,6 +189,7 @@ config:
           soft_query_timeout: 30
     - name: query_tracker_dq_liveness
       displayName: Query Tracker Dq Liveness
+      # This check applicable only if DQ is configured.
       enable: false
       config:
         check_timeout: 60
@@ -202,6 +209,7 @@ config:
       config: {}
     - name: discovery
       displayName: Discovery
+      # This check applicable only for cluster with discovery servers.
       enable: false
       config: {}
     - name: master
@@ -214,7 +222,7 @@ config:
       config: {}
     - name: master_chunk_management
       displayName: Master Chunk Management
-      enable: false
+      enable: true
       config: {}
     - name: medium_balancer_alerts
       displayName: Medium Balancer Alerts
@@ -226,7 +234,7 @@ config:
       config: {}
     - name: oauth_health
       displayName: Oauth Health
-      enable: false
+      enable: true
       config: {}
     - name: operations_archive_tablet_store_preload
       displayName: Operations Archive Tablet Store Preload
@@ -238,16 +246,27 @@ config:
       config: {}
     - name: queue_api
       displayName: Queue Api
+      # Queue agents are not configured in cluster by default.
       enable: false
-      config: {}
+      config:
+        options:
+          temp_tables_path: "//sys/admin/odin/queue_api"
+          tablet_cell_bundle: "sys"
+          wait_timeout: 15
     - name: queue_agent_alerts
       displayName: Queue Agent Alerts
+      # Queue agents are not configured in cluster by default.
       enable: false
-      config: {}
+      config:
+        options:
+          cluster_name_to_query_tracker_count: {}
+          queue_agent_stage_clusters: {}
     - name: query_tracker_alerts
       displayName: Query Tracker Alerts
-      enable: false
-      config: {}
+      enable: true
+      config:
+        options:
+          cluster_name_to_query_tracker_count: {}
     - name: scheduler
       displayName: Scheduler
       enable: true
@@ -274,6 +293,7 @@ config:
       config: {}
     - name: unaware_nodes
       displayName: Unaware Nodes
+      # This check applicable only for large cluster with nodes distributed by racks.
       enable: false
       config: {}
 

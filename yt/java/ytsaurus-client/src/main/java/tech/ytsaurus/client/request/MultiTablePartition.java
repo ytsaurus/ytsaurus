@@ -3,7 +3,6 @@ package tech.ytsaurus.client.request;
 import java.util.ArrayList;
 import java.util.List;
 
-import tech.ytsaurus.client.TablePartitionCookie;
 import tech.ytsaurus.core.cypress.YPath;
 
 public class MultiTablePartition {

@@ -23,6 +23,7 @@ import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.CreateTablePartitionReader;
+import tech.ytsaurus.client.request.FinishDistributedWriteSession;
 import tech.ytsaurus.client.request.FlowExecute;
 import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
@@ -55,6 +56,7 @@ import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PausePipeline;
+import tech.ytsaurus.client.request.PingDistributedWriteSession;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PullQueue;
@@ -70,6 +72,7 @@ import tech.ytsaurus.client.request.SetPipelineDynamicSpecResult;
 import tech.ytsaurus.client.request.SetPipelineSpec;
 import tech.ytsaurus.client.request.SetPipelineSpecResult;
 import tech.ytsaurus.client.request.ShuffleHandle;
+import tech.ytsaurus.client.request.StartDistributedWriteSession;
 import tech.ytsaurus.client.request.StartPipeline;
 import tech.ytsaurus.client.request.StartQuery;
 import tech.ytsaurus.client.request.StartShuffle;
@@ -81,6 +84,7 @@ import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
+import tech.ytsaurus.client.request.WriteTableFragment;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.client.rows.UnversionedRow;
@@ -496,6 +500,37 @@ public interface ApiServiceClient extends TransactionalClient {
      * @return TablePartitionReader that can be used to read partition rows.
      */
     <T> CompletableFuture<AsyncReader<T>> createTablePartitionReader(CreateTablePartitionReader<T> req);
+
+    /**
+     * Starts distributed write session.
+     *
+     * @param req StartDistributedWriteSession request
+     * @return DistributedWriteHandle that pings distributed write session and contains DistributedWriteSession id and
+     * a list of DistributedWriteCookie that must be passed to WriteTableFragment method.
+     */
+    CompletableFuture<DistributedWriteHandle> startDistributedWriteSession(StartDistributedWriteSession req);
+
+    /**
+     * Pings active distributed write session.
+     *
+     * @param req Distributed write session request that contain distributed write session id.
+     */
+    CompletableFuture<Void> pingDistributedWriteSession(PingDistributedWriteSession req);
+
+    /**
+     * Finishes distributed write session.
+     *
+     * @param req Distributed write session finish request with all distributed write fragment resultd
+     */
+    CompletableFuture<Void> finishDistributedWriteSession(FinishDistributedWriteSession req);
+
+    /**
+     * Creates an AsyncFragmentWriter for an active distribute wrote session.
+     *
+     * @param req Write table fragment request with DistributedWriteCookie
+     * @return An AsyncFragmentWriter that must be used to write data.
+     */
+    <T> CompletableFuture<AsyncFragmentWriter<T>> writeTableFragment(WriteTableFragment<T> req);
 
 
     /**
