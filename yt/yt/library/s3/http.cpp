@@ -273,7 +273,10 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto connection = WaitFor(Dialer_->Dial(Address_))
+        auto dialerContext = New<TDialerContext>();
+        dialerContext->Host = request.Host;
+
+        auto connection = WaitFor(Dialer_->Dial(Address_, dialerContext))
             .ValueOrThrow();
 
         auto input = New<THttpInput>(
