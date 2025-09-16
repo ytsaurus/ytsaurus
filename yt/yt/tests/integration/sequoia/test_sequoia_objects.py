@@ -75,7 +75,8 @@ class TestSequoiaReplicas(YTEnvSetup):
             "replica_approve_timeout": 5000,
             "sequoia_chunk_replicas": {
                 "replicas_percentage": 100,
-                "fetch_replicas_from_sequoia": True
+                "fetch_replicas_from_sequoia": True,
+                "validate_sequoia_replicas_fetch": True,
             },
             "data_node_tracker": {
                 "enable_location_indexes_in_data_node_heartbeats": True
@@ -334,6 +335,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: chunk_id in get("//sys/lost_chunks"))
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/validate_sequoia_replicas_fetch", False)
             set("//sys/@config/chunk_manager/sequoia_chunk_replicas/store_sequoia_replicas_on_master", False)
 
         wait(lambda: chunk_id not in get("//sys/lost_chunks"))
@@ -424,7 +426,8 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "store_sequoia_replicas_on_master": False,
-                "processed_removed_sequoia_replicas_on_master": False
+                "processed_removed_sequoia_replicas_on_master": False,
+                "validate_sequoia_replicas_fetch": False,
             }
         }
     }

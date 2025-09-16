@@ -435,10 +435,22 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
         .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
+
+    registrar.Parameter("validate_sequoia_replicas_fetch", &TThis::ValidateSequoiaReplicasFetch)
+        .Default(false);
+
+    registrar.Parameter("allow_extra_master_replicas_during_validation", &TThis::AllowExtraMasterReplicasDuringValidation)
+        .Default(true);
+
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
                 "new Sequoia replicas");
+        }
+
+        if (!config->StoreSequoiaReplicasOnMaster && config->ValidateSequoiaReplicasFetch) {
+            THROW_ERROR_EXCEPTION("Cannot validate Sequoia replicas fetch as they are not stored on master");
         }
     });
 }

@@ -290,6 +290,11 @@ public:
         return it->second.Promise.ToFuture().ToUncancelable();
     }
 
+    TTimestamp GetLastCoordinatorCommitTimestamp() override
+    {
+        return LastCoordinatorCommitTimestamp_;
+    }
+
     // COMPAT(aleksandra-zh): remove that after Sequencer is more stable.
     void RecomputeStronglyOrderedTransactionRefsOnCoordinator() override
     {
@@ -358,6 +363,8 @@ private:
     THashMap<TTransactionId, i64> ParticipantStronglyOrderedTransactionsToPrepareTimestamp_;
     THashMap<TTransactionId, i64> ExternalReadyToCommitTransactionToCommitTimestamp_;
     std::map<TTimestamp, TTransactionInfo> ExternalReadyToCommitTransactions_;
+
+    TTimestamp LastCoordinatorCommitTimestamp_ = NullTimestamp;
 
     template <class T>
     struct TPromiseWithCreationTime
@@ -2600,6 +2607,8 @@ private:
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
+            LastCoordinatorCommitTimestamp_ = commitTimestamp;
+
             TTransactionCommitOptions options{
                 .CommitTimestamp = commitTimestamp,
                 .CommitTimestampClusterTag = SelfClockClusterTag_
@@ -3419,6 +3428,8 @@ private:
             StronglyOrderedTransactionToState_.clear();
         }
 
+        LastCoordinatorCommitTimestamp_ = NullTimestamp;
+
         ClearBarriers();
     }
 
@@ -3444,6 +3455,7 @@ private:
             Save(context, ExternalReadyToCommitTransactions_);
             Save(context, ExternalReadyToCommitTransactionToCommitTimestamp_);
             Save(context, StronglyOrderedTransactionToState_);
+            Save(context, LastCoordinatorCommitTimestamp_);
         }
     }
 
@@ -3473,6 +3485,11 @@ private:
             Load(context, ExternalReadyToCommitTransactions_);
             Load(context, ExternalReadyToCommitTransactionToCommitTimestamp_);
             Load(context, StronglyOrderedTransactionToState_);
+        }
+
+        // COMPAT(aleksandra-zh).
+        if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::SaveLastCoordinatorCommitTimestamp) {
+            Load(context, LastCoordinatorCommitTimestamp_);
         }
     }
 };

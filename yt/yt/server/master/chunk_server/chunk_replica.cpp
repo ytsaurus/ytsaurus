@@ -151,6 +151,16 @@ void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkRepli
     protoReplica->set_location_index(ToProto(replica.LocationIndex));
 }
 
+void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("{ChunkId: %v, ReplicaIndex: %v, NodeId: %v, LocationIndex: %v, ReplicaState: %v}",
+        value.ChunkId,
+        value.ReplicaIndex,
+        value.NodeId,
+        value.LocationIndex,
+        value.ReplicaState);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
