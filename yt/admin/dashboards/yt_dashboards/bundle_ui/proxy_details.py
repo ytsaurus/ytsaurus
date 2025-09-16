@@ -11,7 +11,7 @@ from ..common.sensors import *
 ##################################################################
 
 
-def build_rpc_proxy_cpu():
+def build_rpc_proxy_cpu(has_porto):
     utilization = MonitoringExpr(RpcProxyCpu("yt.resource_tracker.utilization")).value("thread", "*").alias("{{thread}} {{container}}")
     cpu_usage = (lambda thread: MultiSensor(RpcProxyCpu("yt.resource_tracker.thread_count"),
         MonitoringExpr(RpcProxyCpu("yt.resource_tracker.total_cpu")) / 100)
@@ -27,12 +27,14 @@ def build_rpc_proxy_cpu():
                                         .top(3)
                                         .alias("Container CPU Guarantee {{container}}")/100,
                                     MonitoringExpr(RpcProxyPorto("yt.porto.vcpu.total").value("container_category", "pod"))
-                                        .alias("Container CPU Usage {{container}}")/100))
+                                        .alias("Container CPU Usage {{container}}")/100),
+                                    skip_cell=not has_porto)
                 .cell("Memory Total", MultiSensor(
                                     MonitoringExpr(RpcProxyPorto("yt.porto.memory.memory_limit").value("container_category", "pod"))
                                         .alias("Container Memory Guarantee {{container}}"),
                                     MonitoringExpr(RpcProxyPorto("yt.porto.memory.anon_usage").value("container_category", "pod"))
-                                        .alias("Container Memory Usage {{container}}")))
+                                        .alias("Container Memory Usage {{container}}")),
+                                    skip_cell=not has_porto)
             .row()
                 .cell(
                     "Memory usage per method",

@@ -105,6 +105,8 @@ class ExprFuncSerializer:
                 ExprFuncSerializer.serialize_arg(item) for item in arg
             ]
             return ", ".join(serialized_elements)
+        if isinstance(arg, str):
+            return arg.replace("\"", "")
 
         return str(arg)
 
@@ -132,8 +134,8 @@ class ExprFuncSerializer:
 
     @staticmethod
     def moving_avg(serializer, expression):
-        query_parts, other_tags = serializer._prepare_expr_query(expression.args[2])
-        return f"(avg_over_time({query_parts}[{expression.args[1]}]))", other_tags
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        return f"(avg_over_time(({query_parts})[{expression.args[2]}:]))", other_tags
 
     @staticmethod
     def series_avg(serializer, expression):
@@ -159,6 +161,7 @@ class ExprFuncSerializer:
             args = ExprFuncSerializer.serialize_arg(expression.args[1])
         return f"{func} by({args}) ({query_parts})", other_tags
 
+
 ##################################################################
 
 
@@ -177,15 +180,23 @@ class GrafanaSerializerBase(SerializerBase):
         return "".join(regex)
 
     def _prepare_bin_op_expr_query(self, expression):
-        assert expression.args[0] in "+-*/", f"Binary operation {expression.args[0]} is not supported. Expression: {expression}, expression type: {type(expression)}"
+        assert (
+            expression.args[0] in "+-*/|"
+        ), f"Binary operation {expression.args[0]} is not supported. Expression: {expression}, expression type: {type(expression)}"
         left_query, left_tags = self._prepare_expr_query(expression.args[1])
         right_query, right_tags = self._prepare_expr_query(expression.args[2])
         left_tags.update(right_tags)
-        return f"({left_query}) {expression.args[0]} ({right_query})", left_tags
+
+        operator_mapping = {"|": "or"}
+
+        binary_operator = operator_mapping.get(expression.args[0], expression.args[0])
+
+        return f"({left_query}) {binary_operator} ({right_query})", left_tags
 
     def _prepare_func_expr_query(self, expression):
         builders = {
             "alias": lambda expression: ExprFuncSerializer.alias_expr_builder(self, expression),
+            "top_avg": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "top_max": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "top_min": lambda expression: ExprFuncSerializer.topk_expr_builder(self, expression),
             "bottom_min": lambda expression: ExprFuncSerializer.bottomk_expr_builder(self, expression),
@@ -197,7 +208,9 @@ class GrafanaSerializerBase(SerializerBase):
         }
         builder = builders.get(expression.args[0])
         if builder is None:
-            raise NotImplementedError(f"Function {expression.args[0]} is not supported. Expression: {expression}, expression type: {type(expression)}")
+            raise NotImplementedError(
+                f"Function {expression.args[0]} is not supported. Expression: {expression}, expression type: {type(expression)}"
+            )
         return builder(expression)
 
     def _prepare_expr_query(self, expression):
@@ -213,7 +226,9 @@ class GrafanaSerializerBase(SerializerBase):
             if GrafanaSystemTags.Rate in other_tags:  # cthulhu fhtagn
                 query = f'rate({query}[$__rate_interval])'
             return query, other_tags
-        assert issubclass(type(expression), MonitoringExpr), f"Expression can be either Sensor or MonitoringExpression. Expression: {expression}, expression type: {type(expression)}"
+        assert issubclass(
+            type(expression), MonitoringExpr
+        ), f"Expression can be either Sensor or MonitoringExpression. Expression: {expression}, expression type: {type(expression)}"
         if expression.node_type == MonitoringExpr.NodeType.BinaryOp:
             return self._prepare_bin_op_expr_query(expression)
         if expression.node_type == MonitoringExpr.NodeType.Terminal:

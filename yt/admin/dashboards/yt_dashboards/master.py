@@ -12,19 +12,25 @@ try:
         MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER,
         MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER,
         MASTER_MERGE_JOBS_DASHBOARD_DEFAULT_CLUSTER,
+        MASTER_DISK_USAGE_DESCRIPTION,
+        MASTER_CHUNK_USAGE_DESCRIPTION,
     )
 except ImportError:
-    MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER = ""
-    MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER = ""
-    MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER = ""
-    MASTER_MERGE_JOBS_DASHBOARD_DEFAULT_CLUSTER = ""
+    from .yandex_constants import (
+        MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER,
+        MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER,
+        MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER,
+        MASTER_MERGE_JOBS_DASHBOARD_DEFAULT_CLUSTER,
+        MASTER_DISK_USAGE_DESCRIPTION,
+        MASTER_CHUNK_USAGE_DESCRIPTION,
+    )
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.specific_sensors.monitoring import MonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringTag, MonitoringLabelDashboardParameter
-from yt_dashboard_generator.backends.grafana import GrafanaTag
-from yt_dashboard_generator.sensor import MultiSensor, Text
+from yt_dashboard_generator.backends.grafana import GrafanaTag, GrafanaTextboxDashboardParameter
+from yt_dashboard_generator.sensor import MultiSensor, Text, EmptyCell
 
 import string
 
@@ -144,7 +150,7 @@ def common_sensors():
         ("Tablet Store Updates: Cumulative Time", tablet_store_update_time),
     ]
 
-def build_global_rowset():
+def build_global_rowset(has_portal_cells, has_chunk_cells):
     node_count = (Master("yt.node_tracker.{}_node_count")
         .stack(False)
         .all(MonitoringTag("host"))
@@ -156,8 +162,11 @@ def build_global_rowset():
     full_node_count = node_count("full")
     with_alerts_node_count = node_count("with_alerts")
     job_rates = (MultiSensor(
-        Master("yt.chunk_server.jobs_*.rate"),
-        Master("yt.chunk_server.misscheduled_jobs.rate"))
+            Master("yt.chunk_server.jobs_aborted.rate"),
+            Master("yt.chunk_server.jobs_completed.rate"),
+            Master("yt.chunk_server.jobs_failed.rate"),
+            Master("yt.chunk_server.jobs_started.rate"),
+            Master("yt.chunk_server.misscheduled_jobs.rate"))
             .stack(False)
             .aggr(MonitoringTag("host"))
             .aggr("cell_tag")
@@ -189,25 +198,37 @@ def build_global_rowset():
 
     rowset = Rowset()
 
-    def by_cell_roles(title, sensor):
-        (rowset.row()
-            .cell(
-                f"{title} (Primary Cell)",
-                sensor
-                    .value("container", "m0*"))
-            .cell(
+    def _get_cell_roles(title, sensor):
+        cells = []
+        cells.append((
+            f"{title} (Primary Cell)",
+            sensor
+                .value(MonitoringTag("container"), "m0*")
+                .value(GrafanaTag("pod"), "ms*")))
+        # TODO(ilyaibraev): Enable metrics when portal cells are fully supported.
+        if has_portal_cells:
+            cells.append((
                 f"{title} (Top by Portal Cells)",
                 sensor
                     .top()
-                    .value("container", "mp*"))
-            .cell(
+                    .value("container", "mp*")))
+        # TODO(ilyaibraev): Enable metrics when chunk cells are fully supported.
+        if has_chunk_cells:
+            cells.append((
                 f"{title} (Top by Chunk Cells)",
                 sensor
                     .top()
                     .value("container", "mc*")))
+        return cells
 
+    cells = []
     for sensor in common_sensors():
-        by_cell_roles(*sensor)
+        cells += _get_cell_roles(*sensor)
+
+    for i, cell in enumerate(cells):
+        if i % 3 == 0:
+            row = rowset.row()
+        row.cell(*cell)
 
     rowset = (rowset
         .row()
@@ -217,6 +238,8 @@ def build_global_rowset():
         .row()
             .cell("Chunk Locations Being Disposed", chunk_locations_being_disposed)
             .cell("Chunk Locations Awaiting Disposal", chunk_locations_awaiting_disposal)
+            .cell("", EmptyCell())
+        .row()
             .cell("Data Nodes Being Disposed", data_nodes_being_disposed)
             .cell("Data Nodes Awaiting For Being Disposed", data_nodes_awaiting_for_being_disposed)
             .cell("Full Node Count", full_node_count)
@@ -228,17 +251,29 @@ def build_global_rowset():
 
     return rowset.owner
 
-def build_master_global():
+
+def build_master_global(has_portal_cells, has_chunk_cells):
     rowsets = [
-        build_global_rowset(),
+        build_global_rowset(has_portal_cells, has_chunk_cells),
     ]
 
     d = Dashboard()
     for r in rowsets:
         d.add(r)
 
-    d.set_title("Master Global")
-    d.add_parameter("cluster", "YT cluster", MonitoringLabelDashboardParameter("yt", "cluster", MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER))
+    d.set_title("Master Global [Autogenerated]")
+    d.add_parameter(
+        "cluster",
+        "YT cluster",
+        MonitoringLabelDashboardParameter("yt", "cluster", MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["monitoring"],
+    )
+    d.add_parameter(
+        "cluster",
+        "Сluster",
+        GrafanaTextboxDashboardParameter(MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["grafana"],
+    )
 
     return d
 
@@ -320,6 +355,7 @@ def build_local_rowset():
 
     return rowset
 
+
 def build_master_local():
     rowsets = [
         build_local_rowset(),
@@ -329,22 +365,34 @@ def build_master_local():
     for r in rowsets:
         d.add(r)
 
-    d.set_title("Master Local")
+    d.set_title("Master Local [Autogenerated]")
     d.add_parameter(
         "cluster",
         "YT cluster",
         MonitoringLabelDashboardParameter("yt", "cluster", MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER),
-        backends=["monitoring"])
+        backends=["monitoring"],
+    )
+    d.add_parameter(
+        "cluster",
+        "Cluster",
+        GrafanaTextboxDashboardParameter(MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["grafana"],
+    )
     d.add_parameter(
         "container",
         "Container",
         MonitoringLabelDashboardParameter("yt", "container", MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER),
-        backends=["monitoring"])
+        backends=["monitoring"],
+    )
+    d.add_parameter(
+        "pod", "Pod", GrafanaTextboxDashboardParameter(MASTER_LOCAL_DASHBOARD_DEFAULT_CONTAINER), backends=["grafana"]
+    )
 
     d.value(MonitoringTag("container"), TemplateTag("container"))
     d.value(GrafanaTag("pod"), TemplateTag("pod"))
 
     return d
+
 
 def build_node_tracker_rowsets():
     online_node_count = Master("yt.node_tracker.online_node_count")
@@ -535,7 +583,8 @@ def build_merge_jobs_rowsets():
     average_merge_duration = Master("yt.chunk_server.chunk_merger.average_merge_duration")
 
     return [
-        Rowset().value("account", "{{account}}")
+        Rowset()
+            .value("account", TemplateTag("account"))
             .row()
                 .cell("Nodes being merged", nodes_being_merged)
                 .cell("Account queue size", account_queue_size),
@@ -611,18 +660,23 @@ def build_master_merge_jobs():
 
 def build_accounts_rowsets():
     def _build_disk_usage(parameter_tag):
+
+        disk_space_limit_in_gb_metric_name = "yt.accounts.disk_space_limit_in_gb"
+        detailed_disk_space_in_gb_metric_name = "yt.accounts.detailed_disk_space_in_gb"
+
+
         return (MultiSensor(
-            MonitoringExpr(Accounts("disk_space_limit_in_gb"))
+            MonitoringExpr(MasterAccounts(disk_space_limit_in_gb_metric_name))
                 .alias(f"{{{{{parameter_tag}}}}} limit")
                 .sensor_stack(False),
-            MonitoringExpr(Accounts("detailed_disk_space_in_gb")
+            MonitoringExpr(MasterAccounts(detailed_disk_space_in_gb_metric_name)
                 .value("status", "committed"))
                 .alias(f"{{{{{parameter_tag}}}}} usage committed"),
-            MonitoringExpr(Accounts("detailed_disk_space_in_gb")
+            MonitoringExpr(MasterAccounts(detailed_disk_space_in_gb_metric_name)
                 .value("status", "uncommitted"))
                 .alias(f"{{{{{parameter_tag}}}}} usage uncommitted"),
             )
-        .value("medium", f"{{{{{parameter_tag}}}}}")
+        .value("medium", TemplateTag(parameter_tag))
         .unit("UNIT_GIBIBYTES")
         .stack(True))
 
@@ -630,14 +684,18 @@ def build_accounts_rowsets():
     right_disk_usage = _build_disk_usage("right_medium")
 
     def _build_account_multisensor(resource_name, metric_infix):
+
+        limit_metrics_infix = f"yt.accounts.{metric_infix}_limit"
+        detailed_metric_infix = f"yt.accounts.detailed_{metric_infix}"
+
         return (MultiSensor(
-                MonitoringExpr(Accounts(f"{metric_infix}_limit"))
+                MonitoringExpr(MasterAccounts(limit_metrics_infix))
                     .alias(f"{resource_name} limit")
                     .sensor_stack(False),
-                MonitoringExpr(Accounts(f"detailed_{metric_infix}")
+                MonitoringExpr(MasterAccounts(detailed_metric_infix)
                     .value("status", "committed"))
                     .alias(f"{resource_name} usage committed"),
-                MonitoringExpr(Accounts(f"detailed_{metric_infix}")
+                MonitoringExpr(MasterAccounts(detailed_metric_infix)
                     .value("status", "uncommitted"))
                     .alias(f"{resource_name} usage uncommitted"),
                 )
@@ -654,17 +712,16 @@ def build_accounts_rowsets():
                 .cell("Disk usage/limit", right_disk_usage, yaxis_label="Disk space", display_legend=True),
         Rowset()
             .row(height=2)
-                .cell("", Text("""Disk space usage and limit represents raw space available for account and total usage of this raw space.
-                                  If you are running out of quota, then you can [order more via ABCD](https://yt.yandex-team.ru/docs/description/common/quota_request#zapros-na-rasshirenie-kvoty-pod-sushestvuyushij-akkaunt).""")),
+                .cell("", Text(MASTER_DISK_USAGE_DESCRIPTION)),
         Rowset()
             .row(height=10)
                 .cell("Chunk usage/limit", chunk_usage, yaxis_label="Chunks count", display_legend=True)
                 .cell("Nodes usage/limit", nodes_usage, yaxis_label="Nodes count", display_legend=True),
         Rowset()
             .row(height=2)
-                .cell("", Text("""All data stored in tables and files are split into parts called [chunks](https://yt.yandex-team.ru/docs/description/storage/chunks). **Nodes** - is a number of objects in the account (tables, files, folders, locks, etc.).
-                                  Both resources are virtual and you do not need to order them. If you need to increase the limit, please follow these [instructions](https://yt.yandex-team.ru/docs/instructions/quota/get_more_node_chunks).""")),
+                .cell("", Text(MASTER_CHUNK_USAGE_DESCRIPTION)),
     ]
+
 
 def build_master_accounts():
     rowsets = build_accounts_rowsets()
@@ -673,29 +730,55 @@ def build_master_accounts():
     for rowset in rowsets:
         dashboard.add(rowset)
 
-    dashboard.set_title("Accounts dashboard")
+    dashboard.set_title("Accounts [Autogenerated]")
     dashboard.add_parameter(
         "cluster",
         "YT cluster",
         MonitoringLabelDashboardParameter("yt", "cluster", MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER),
-        backends=["monitoring"])
+        backends=["monitoring"],
+    )
+    dashboard.add_parameter(
+        "cluster",
+        "Cluster",
+        GrafanaTextboxDashboardParameter(MASTER_LOCAL_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["grafana"],
+    )
+    dashboard.add_parameter(
+        "account", "Account", MonitoringLabelDashboardParameter("yt", "account", "sys"), backends=["monitoring"]
+    )
     dashboard.add_parameter(
         "account",
         "Account",
-        MonitoringLabelDashboardParameter("yt", "account", "sys"),
-        backends=["monitoring"])
+        GrafanaTextboxDashboardParameter("sys"),
+        backends=["grafana"],
+    )
+
     dashboard.add_parameter(
         "left_medium",
         "Left medium",
         MonitoringLabelDashboardParameter("yt", "medium", "default"),
-        backends=["monitoring"])
+        backends=["monitoring"],
+    )
+    dashboard.add_parameter(
+        "left_medium",
+        "Left medium",
+        GrafanaTextboxDashboardParameter("default"),
+        backends=["grafana"],
+    )
+
     dashboard.add_parameter(
         "right_medium",
         "Right medium",
         MonitoringLabelDashboardParameter("yt", "medium", "ssd_blobs"),
-        backends=["monitoring"])
+        backends=["monitoring"],
+    )
+    dashboard.add_parameter(
+        "right_medium",
+        "Right medium",
+        GrafanaTextboxDashboardParameter("ssd_blobs"),
+        backends=["grafana"],
+    )
 
-    dashboard.value("host", "none")
-    dashboard.value("account", "{{account}}")
+    dashboard.value("account", TemplateTag("account"))
 
     return dashboard

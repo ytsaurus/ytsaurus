@@ -33,6 +33,12 @@ class MonitoringExpr(Taggable):
         else:
             self.node_type, self.args = self.NodeType.Terminal, args
 
+    def __or__(self, x):
+        return self.binary_op("|", self, x)
+
+    def __ror__(self, x):
+        return self.binary_op("|", x, self)
+
     def __add__(self, x):
         return self.binary_op("+", self, x)
 

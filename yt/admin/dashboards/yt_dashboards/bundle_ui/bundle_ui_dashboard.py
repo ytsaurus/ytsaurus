@@ -2,8 +2,8 @@
 from yt_dashboard_generator.dashboard import Dashboard
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
-from yt_dashboard_generator.backends.monitoring import (
-    MonitoringTag, MonitoringLabelDashboardParameter)
+from yt_dashboard_generator.backends.grafana import GrafanaTextboxDashboardParameter
+from yt_dashboard_generator.backends.monitoring import MonitoringTag, MonitoringLabelDashboardParameter
 
 from .user_load import build_max_lookup_select_execute_time_per_host, build_user_load
 from .lsm import build_user_lsm
@@ -11,21 +11,29 @@ from .cpu import build_user_thread_cpu, build_total_cpu
 from .maintenance import build_user_hydra, build_tablet_balancer, build_bundle_controller
 from .memory import build_user_memory, build_reserved_memory
 from .network import (
-    build_tablet_network, build_user_network, build_throttling, build_rpc_request_rate,
-    build_lookup_select_ack_time, build_rpc_message_size_stats_per_host)
-from .disk import (
-    build_user_disk, build_user_background_disk, build_user_caches,
-    build_block_cache_planning)
+    build_tablet_network,
+    build_user_network,
+    build_throttling,
+    build_rpc_request_rate,
+    build_lookup_select_ack_time,
+    build_rpc_message_size_stats_per_host,
+)
+from .disk import build_user_disk, build_user_background_disk, build_user_caches, build_block_cache_planning
 from .efficiency import build_efficiency_rowset
 from .resources import build_user_resource_overview_rowset
 from .proxy_resources import build_rpc_proxy_resource_overview_rowset
 from .proxy_details import (
-    build_rpc_proxy_cpu, build_rpc_proxy_network, build_rpc_proxy_rpc_request_rate,
-    build_rpc_proxy_rpc_request_wait, build_rpc_proxy_maintenance)
+    build_rpc_proxy_cpu,
+    build_rpc_proxy_network,
+    build_rpc_proxy_rpc_request_rate,
+    build_rpc_proxy_rpc_request_wait,
+    build_rpc_proxy_maintenance,
+)
 from .planning import (
     build_node_resource_capacity_planning,
     build_rpc_proxy_resource_capacity_planning,
-    build_tablet_static_planning)
+    build_tablet_static_planning,
+)
 
 from ..key_filter import build_key_filter_rowset
 from .key_filter import build_bundle_key_filter_rowset
@@ -34,9 +42,17 @@ from ..common.sensors import *
 
 
 try:
-    from .constants import BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER
+    from ..constants import (
+        BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER,
+        BUNDLE_UI_DASHBOARD_DEFAULT_TABLET_CELL_BUNDLE,
+        BUNDLE_UI_DASHBOARD_DEFAULT_PROXY_ROLE,
+    )
 except ImportError:
-    BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER = ""
+    from ..yandex_constants import (
+        BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER,
+        BUNDLE_UI_DASHBOARD_DEFAULT_TABLET_CELL_BUNDLE,
+        BUNDLE_UI_DASHBOARD_DEFAULT_PROXY_ROLE,
+    )
 
 ##################################################################
 
@@ -49,7 +65,16 @@ def build_dashboard(rowsets, bundle=False, role=False, host=False, only_paramete
     d.add_parameter(
         "cluster",
         "YT cluster",
-        MonitoringLabelDashboardParameter("yt", "cluster", BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER))
+        MonitoringLabelDashboardParameter("yt", "cluster", BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["monitoring"],
+    )
+
+    d.add_parameter(
+        "cluster",
+        "Cluster",
+        GrafanaTextboxDashboardParameter(BUNDLE_UI_DASHBOARD_DEFAULT_CLUSTER),
+        backends=["grafana"],
+    )
 
     if bundle:
         if not only_parameters:
@@ -57,7 +82,15 @@ def build_dashboard(rowsets, bundle=False, role=False, host=False, only_paramete
         d.add_parameter(
             "tablet_cell_bundle",
             "Tablet cell bundle",
-            MonitoringLabelDashboardParameter("yt", "tablet_cell_bundle", "default"))
+            MonitoringLabelDashboardParameter("yt", "tablet_cell_bundle", BUNDLE_UI_DASHBOARD_DEFAULT_TABLET_CELL_BUNDLE),
+            backends=["monitoring"],
+        )
+        d.add_parameter(
+            "tablet_cell_bundle",
+            "Tablet cell bundle",
+            GrafanaTextboxDashboardParameter(BUNDLE_UI_DASHBOARD_DEFAULT_TABLET_CELL_BUNDLE),
+            backends=["grafana"],
+        )
 
     if role:
         if not only_parameters:
@@ -65,15 +98,24 @@ def build_dashboard(rowsets, bundle=False, role=False, host=False, only_paramete
         d.add_parameter(
             "proxy_role",
             "Proxy role",
-            MonitoringLabelDashboardParameter("yt", "proxy_role", "default"))
+            MonitoringLabelDashboardParameter("yt", "proxy_role", BUNDLE_UI_DASHBOARD_DEFAULT_PROXY_ROLE),
+            backends=["monitoring"],
+        )
+        d.add_parameter(
+            "proxy_role",
+            "Proxy role",
+            GrafanaTextboxDashboardParameter(BUNDLE_UI_DASHBOARD_DEFAULT_PROXY_ROLE),
+            backends=["grafana"],
+        )
 
     if host:
         if not only_parameters:
             d = d.value(MonitoringTag("host"), TemplateTag("host"))
+            d = d.value(GrafanaTag("pod"), TemplateTag("pod"))
         d.add_parameter(
-            "host",
-            "Host",
-            MonitoringLabelDashboardParameter("yt", "host", "Aggr"))
+            "host", "Host", MonitoringLabelDashboardParameter("yt", "host", "Aggr"), backends=["monitoring"]
+        )
+        d.add_parameter("pod", "Pod", GrafanaTextboxDashboardParameter(".*"), backends=["grafana"])
 
     return d
 
@@ -88,19 +130,24 @@ def build_rpc_proxy_dashboard(rowsets, *, host=False):
 
 ##################################################################
 
+
 def build_bundle_ui_user_load():
     rowsets = [
         build_max_lookup_select_execute_time_per_host().aggr("#U").all(MonitoringTag("host")),
         build_user_load(),
     ]
-    return build_bundle_dashboard(rowsets)
+    d = build_bundle_dashboard(rowsets)
+    d.set_title("Bundle user load [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_lsm():
     rowsets = [
         build_user_lsm(),
     ]
-    return build_bundle_dashboard(rowsets)
+    d = build_bundle_dashboard(rowsets)
+    d.set_title("Bundle LSM [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_downtime():
@@ -109,15 +156,19 @@ def build_bundle_ui_downtime():
         build_tablet_balancer(),
         build_bundle_controller(),
     ]
-    return build_bundle_dashboard(rowsets)
+    d = build_bundle_dashboard(rowsets)
+    d.set_title("Bundle downtime [Autogenerated]")
+    return d
 
 
-def build_bundle_ui_cpu():
+def build_bundle_ui_cpu(has_porto):
     rowsets = [
-        build_total_cpu(),
+        build_total_cpu(has_porto),
         build_user_thread_cpu(),
     ]
-    return build_bundle_dashboard(rowsets, host=True)
+    d = build_bundle_dashboard(rowsets, host=True)
+    d.set_title("Bundle CPU [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_memory():
@@ -125,7 +176,9 @@ def build_bundle_ui_memory():
         build_user_memory(),
         build_reserved_memory()
     ]
-    return build_bundle_dashboard(rowsets, host=True)
+    d = build_bundle_dashboard(rowsets, host=True)
+    d.set_title("Bundle memory [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_network():
@@ -141,7 +194,9 @@ def build_bundle_ui_network():
         build_rpc_message_size_stats_per_host(
             TabNodeRpc, "server", "Rpc server (yt_node)"),
     ]
-    return build_bundle_dashboard(rowsets, host=True)
+    d = build_bundle_dashboard(rowsets, host=True)
+    d.set_title("Bundle network [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_disk():
@@ -151,39 +206,49 @@ def build_bundle_ui_disk():
         build_user_caches(),
         build_block_cache_planning()
     ]
-    return build_bundle_dashboard(rowsets, host=True)
+    d = build_bundle_dashboard(rowsets, host=True)
+    d.set_title("Bundle disk [Autogenerated]")
+    return d
 
 
-def build_bundle_ui_resource_overview():
+def build_bundle_ui_resource_overview(has_porto):
     rowsets = [
-        build_user_resource_overview_rowset(),
+        build_user_resource_overview_rowset(has_porto),
     ]
-    return build_bundle_dashboard(rowsets)
+    d = build_bundle_dashboard(rowsets)
+    d.set_title("Bundle resource overview [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_rpc_resource_overview():
     rowsets = [
         build_rpc_proxy_resource_overview_rowset(),
     ]
-    return build_rpc_proxy_dashboard(rowsets)
+    d = build_rpc_proxy_dashboard(rowsets)
+    d.set_title("Bundle RPC proxy resource overview [Autogenerated]")
+    return d
 
 
-def build_bundle_rpc_proxy_dashboard():
+def build_bundle_rpc_proxy_dashboard(has_porto):
     rowsets = [
-        build_rpc_proxy_cpu(),
+        build_rpc_proxy_cpu(has_porto),
         build_rpc_proxy_network(),
         build_rpc_proxy_rpc_request_rate(),
         build_rpc_proxy_rpc_request_wait(),
         build_rpc_proxy_maintenance(),
     ]
-    return build_rpc_proxy_dashboard(rowsets, host=True)
+    d = build_rpc_proxy_dashboard(rowsets, host=True)
+    d.set_title("Bundle RPC proxy [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_efficiency():
     rowsets = [
         build_efficiency_rowset(),
     ]
-    return build_dashboard(rowsets, bundle=True, only_parameters=True)
+    d = build_dashboard(rowsets, bundle=True, only_parameters=True)
+    d.set_title("Bundle efficiency [Autogenerated]")
+    return d
 
 
 def build_bundle_capacity_planning():
@@ -194,7 +259,9 @@ def build_bundle_capacity_planning():
         build_rpc_proxy_resource_capacity_planning(),
     ]
 
-    return build_dashboard(rowsets, bundle=True, role=True, only_parameters=True)
+    d = build_dashboard(rowsets, bundle=True, role=True, only_parameters=True)
+    d.set_title("Bundle capacity planning [Autogenerated]")
+    return d
 
 
 def build_bundle_ui_key_filter():
@@ -202,5 +269,7 @@ def build_bundle_ui_key_filter():
         build_key_filter_rowset(),
         build_bundle_key_filter_rowset(),
     ]
-    return (build_bundle_dashboard(rowsets)
+    d = (build_bundle_dashboard(rowsets)
         .aggr("user", "table_path", "table_tag", MonitoringTag("host")))
+    d.set_title("Bundle key filter [Autogenerated]")
+    return d

@@ -14,14 +14,15 @@ from ..common.sensors import *
 ##################################################################
 
 
-def build_total_cpu():
+def build_total_cpu(has_porto):
     return (Rowset()
         .stack(False)
         .min(0)
         .row()
             .cell("vCPU usage and guarantee", MultiSensor(
                 vcpu_guarantee.all(MonitoringTag("host")).series_max().alias("Guarantee"),
-                container_vcpu_usage.alias("Usage {{container}}")).top())
+                container_vcpu_usage.alias("Usage {{container}}")).top(),
+                skip_cell=not has_porto)
             .cell(
                 "Node CPU usage (all threads)",
                 MonitoringExpr(TabNodeCpu("yt.resource_tracker.total_cpu").aggr("thread")).top() / 100)
@@ -32,7 +33,8 @@ def build_total_cpu():
                 MonitoringExpr(TabNodeCpu("yt.resource_tracker.cpu_wait").aggr("thread")) / 100)
             .cell(
                 "CPU throttled",
-                MonitoringExpr(TabNodePorto("yt.porto.cpu.throttled").value("container_category", "pod")) / 100)
+                MonitoringExpr(TabNodePorto("yt.porto.cpu.throttled").value("container_category", "pod")) / 100,
+                skip_cell=not has_porto)
     ).owner
 
 
