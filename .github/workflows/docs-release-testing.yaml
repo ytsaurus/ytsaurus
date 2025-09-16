@@ -1,4 +1,4 @@
-name: Docs Release
+name: Docs Upload [to testing only]
 
 on:
   workflow_dispatch:
@@ -31,7 +31,7 @@ jobs:
 
       - name: Delete search index
         run: |
-          ls
+          pwd
           bash ../scripts/delete_search_index.sh
 
       - name: Build doc md2html
