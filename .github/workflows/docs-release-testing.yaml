@@ -32,7 +32,7 @@ jobs:
       - name: Delete search index
         run: |
           pwd
-          bash scripts/delete_search_index.sh
+          bash .github/scripts/delete_search_index.sh
 
       - name: Build doc md2html
         id: build-md2html
