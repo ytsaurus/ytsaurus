@@ -1,11 +1,7 @@
-name: Docs Auto Release
+name: Docs manual Upload [to testing only]
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths: 'yt/docs/**'
 
 jobs:
   build:
@@ -31,7 +27,8 @@ jobs:
         shell: bash
 
       - name: Delete search index
-        run: bash .github/scripts/delete_search_index.sh
+        run: |
+          bash .github/scripts/delete_search_index.sh
 
       - name: Build doc md2html
         id: build-md2html
@@ -108,7 +105,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions: write-all
     steps:
-      - name: Upload
+      - name: Show docs revision
+        run: |
+          echo "Revision: "${{ github.sha }}
+      - name: Upload to testing
         uses: diplodoc-platform/docs-upload-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -117,17 +117,3 @@ jobs:
           storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
           storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
           storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-
-  release:
-    needs: upload
-    runs-on: ubuntu-latest
-    steps:
-      - name: Release
-        uses: diplodoc-platform/docs-release-action@v2
-        with:
-          revision: "${{ github.sha }}"
-          storage-bucket: "${{ vars.DIPLODOC_STORAGE_BUCKET }}"
-          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
-          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}
-          server: "https://viewer.ydocs.io"
-          project-link: https://ytsaurus.viewer.ydocs.io
