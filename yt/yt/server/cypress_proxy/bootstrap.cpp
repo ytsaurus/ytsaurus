@@ -156,6 +156,11 @@ public:
         return NativeRootClient_;
     }
 
+    bool IsSequoiaEnabled() const override
+    {
+        return NativeConnection_->IsSequoiaConfigured();
+    }
+
     ISequoiaClientPtr GetSequoiaClient() const override
     {
         return NativeConnection_->GetSequoiaClient();
