@@ -537,8 +537,12 @@ private:
 
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
-            auto finally = Finally([&refreshTokenExecutor] {
-                WaitUntilSet(refreshTokenExecutor->Stop());
+            auto finally = Finally([&] {
+                try {
+                    WaitUntilSet(refreshTokenExecutor->Stop());
+                } catch (...) {
+                    YT_LOG_ERROR("Caught exception while stopping token refresh: %v", CurrentExceptionMessage());
+                }
             });
 
             if (result.YsonError) {
