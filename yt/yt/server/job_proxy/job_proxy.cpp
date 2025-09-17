@@ -1188,20 +1188,39 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         }
 
         auto totalChunkReaderStatistics = New<TChunkReaderStatistics>();
-        if (auto customStatistics = extendedStatistics.CustomChunkReaderStatistics) {
-            totalChunkReaderStatistics->AddFrom(customStatistics);
-        }
+        if (GetJobSpecHelper()->GetJobType() == EJobType::RemoteCopy) {
+            // Chunk reader statistics for remote copy is collected in a custom way.
+            if (auto chunkReaderStatistics = extendedStatistics.RemoteCopyChunkReaderStatistics) {
+                auto remoteCopyJobSpecExt = GetJobSpecHelper()->GetJobSpec()
+                    .GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
 
-        bool shouldDumpLocalStatistics = MultiChunkReaderHost_->GetChunkReaderStatistics().size() > 1u || Config_->DumpSingleLocalClusterStatistics;
-        for (const auto& [clusterName, chunkReaderStatistics] : MultiChunkReaderHost_->GetChunkReaderStatistics()) {
-            bool shouldDump = Config_->EnablePerClusterChunkReaderStatistics && (!IsLocal(clusterName) || shouldDumpLocalStatistics);
-            if (shouldDump) {
-                DumpChunkReaderStatistics(
-                    &statistics,
-                    "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),
-                    chunkReaderStatistics);
+                if (remoteCopyJobSpecExt.has_remote_cluster_name() &&
+                    Config_->EnablePerClusterChunkReaderStatistics &&
+                    Config_->DumpSingleLocalClusterStatistics)
+                {
+                    TClusterName clusterName{remoteCopyJobSpecExt.remote_cluster_name()};
+                    YT_VERIFY(!IsLocal(clusterName));
+
+                    DumpChunkReaderStatistics(
+                        &statistics,
+                        "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),
+                        chunkReaderStatistics);
+                }
+
+                totalChunkReaderStatistics->AddFrom(chunkReaderStatistics);
             }
-            totalChunkReaderStatistics->AddFrom(chunkReaderStatistics);
+        } else {
+            bool shouldDumpLocalStatistics = MultiChunkReaderHost_->GetChunkReaderStatistics().size() > 1u || Config_->DumpSingleLocalClusterStatistics;
+            for (const auto& [clusterName, chunkReaderStatistics] : MultiChunkReaderHost_->GetChunkReaderStatistics()) {
+                bool shouldDump = Config_->EnablePerClusterChunkReaderStatistics && (!IsLocal(clusterName) || shouldDumpLocalStatistics);
+                if (shouldDump) {
+                    DumpChunkReaderStatistics(
+                        &statistics,
+                        "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),
+                        chunkReaderStatistics);
+                }
+                totalChunkReaderStatistics->AddFrom(chunkReaderStatistics);
+            }
         }
 
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, totalChunkReaderStatistics);
