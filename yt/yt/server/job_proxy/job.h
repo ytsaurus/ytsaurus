@@ -197,7 +197,7 @@ struct IJob
 
         TLatencyStatistics LatencyStatistics = {};
 
-        NChunkClient::TChunkReaderStatisticsPtr CustomChunkReaderStatistics;
+        NChunkClient::TChunkReaderStatisticsPtr RemoteCopyChunkReaderStatistics;
     };
 
     virtual TStatistics GetStatistics() const = 0;
