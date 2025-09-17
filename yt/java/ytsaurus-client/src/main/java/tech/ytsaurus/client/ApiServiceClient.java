@@ -42,6 +42,7 @@ import tech.ytsaurus.client.request.ListQueueConsumerRegistrations;
 import tech.ytsaurus.client.request.ListQueueConsumerRegistrationsResult;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
+import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.Query;
@@ -62,8 +63,10 @@ import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.LookupRowsResult;
 import tech.ytsaurus.client.rows.QueueRowset;
 import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
@@ -143,6 +146,8 @@ public interface ApiServiceClient extends TransactionalClient {
             LookupRowsRequest.BuilderBase<?> request, YtTimestamp timestamp) {
         return versionedLookupRows(request.setTimestamp(timestamp));
     }
+
+    
 
     CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request);
 

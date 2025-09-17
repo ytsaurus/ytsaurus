@@ -57,6 +57,7 @@ import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.LookupRowsResult;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
@@ -325,6 +326,21 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
+    public <T> CompletableFuture<LookupRowsResult<List<T>>> lookupRowsWithPartialResult(
+            AbstractLookupRowsRequest<?, ?> request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return client.lookupRowsWithPartialResult(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
+    }
+
+    @Override
+    public CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
+            AbstractLookupRowsRequest<?, ?> request
+    ) {
+        return client.lookupRowsWithPartialResult(request.toBuilder().setTimestamp(startTimestamp).build());
+    }
+
+    @Override
     public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
         return client.multiLookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
     }
@@ -338,8 +354,30 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     @Override
+    public <T> CompletableFuture<List<LookupRowsResult<List<T>>>> multiLookupRowsWithPartialResult(
+            MultiLookupRowsRequest request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return client.multiLookupRowsWithPartialResult(request.toBuilder().setTimestamp(startTimestamp).build(), serializer);
+    }
+
+    @Override
+    public CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
+            MultiLookupRowsRequest request
+    ) {
+        return client.multiLookupRowsWithPartialResult(request.toBuilder().setTimestamp(startTimestamp).build());
+    }
+
+    @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
         return client.versionedLookupRows(request.toBuilder().setTimestamp(startTimestamp).build());
+    }
+
+    @Override
+    public CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
+            AbstractLookupRowsRequest<?, ?> request
+    ) {
+        return client.versionedLookupRowsWithPartialResult(request.toBuilder().setTimestamp(startTimestamp).build());
     }
 
     @Override

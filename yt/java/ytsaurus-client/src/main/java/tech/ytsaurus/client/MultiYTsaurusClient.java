@@ -18,6 +18,7 @@ import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.LookupRowsResult;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
@@ -152,6 +153,43 @@ public class MultiYTsaurusClient implements ImmutableTransactionalClient, Closea
             YTreeRowSerializer<T> serializer
     ) {
         return executor.execute((client) -> client.multiLookupRows(request, serializer));
+    }
+
+    @Override
+    public <T> CompletableFuture<LookupRowsResult<List<T>>> lookupRowsWithPartialResult(
+            AbstractLookupRowsRequest<?, ?> request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return executor.execute(client -> client.lookupRowsWithPartialResult(request, serializer));
+    }
+
+    @Override
+    public CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
+            AbstractLookupRowsRequest<?, ?> request
+    ) {
+        return executor.execute(client -> client.lookupRowsWithPartialResult(request));
+    }
+
+    @Override
+    public CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
+            AbstractLookupRowsRequest<?, ?> request
+    ) {
+        return executor.execute(client -> client.versionedLookupRowsWithPartialResult(request));
+    }
+
+    @Override
+    public <T> CompletableFuture<List<LookupRowsResult<List<T>>>> multiLookupRowsWithPartialResult(
+            MultiLookupRowsRequest request,
+            YTreeRowSerializer<T> serializer
+    ) {
+        return executor.execute(client -> client.multiLookupRowsWithPartialResult(request, serializer));
+    }
+
+    @Override
+    public CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
+            MultiLookupRowsRequest request
+    ) {
+        return executor.execute(client -> client.multiLookupRowsWithPartialResult(request));
     }
 
     @Override
