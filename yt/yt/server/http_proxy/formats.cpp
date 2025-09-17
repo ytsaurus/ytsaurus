@@ -101,7 +101,7 @@ TFormat InferFormat(
         }
     }
     formatNode = GetDefaultFormatNodeForDataType(dataType);
-    return formatManager.ConvertToFormat(formatNode, Format("%lv format inferred from data type %Qlv", target, dataType));
+    return formatManager.ConvertToFormat(formatNode, Format("%Qlv format inferred from data type %Qlv", target, dataType));
 }
 
 TFormat InferHeaderFormat(const TFormatManager& formatManager, const std::string* ytHeader)
