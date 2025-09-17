@@ -186,6 +186,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
+        set("//sys/@config/chunk_manager/data_node_tracker/verify_all_locations_are_reported_in_full_heartbeats", True)
 
         with Restarter(self.Env, NODES_SERVICE):
             pass
