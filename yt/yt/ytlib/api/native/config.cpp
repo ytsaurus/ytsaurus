@@ -85,6 +85,15 @@ void TClockServersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDistributedWriteDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_children_per_attach_request", &TThis::MaxChildrenPerAttachRequest)
+        .Default(10'000)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
@@ -407,6 +416,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .Default(10'000)
         .GreaterThan(0);
+
+    registrar.Parameter("distributed_write_dynamic_config", &TThis::DistributedWriteDynamicConfig)
+        .DefaultNew();
 
     registrar.Parameter("nested_input_transaction_timeout", &TThis::NestedInputTransactionTimeout)
         .Default(TDuration::Minutes(10));
