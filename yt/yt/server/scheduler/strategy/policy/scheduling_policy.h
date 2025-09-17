@@ -355,7 +355,6 @@ public:
     // NB(eshcherbin): The following methods are public for testing purposes.
     const TPoolTreeElement* FindPreemptionBlockingAncestor(
         const TPoolTreeOperationElement* element,
-        EAllocationPreemptionLevel allocationPreemptionLevel,
         EOperationPreemptionPriority operationPreemptionPriority) const;
 
     struct TPrepareConditionalUsageDiscountsContext

@@ -257,30 +257,6 @@ EAllocationSchedulingStage GetRegularSchedulingStageByPriority(EOperationSchedul
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSsdAllocationPreemptionLevel(EAllocationPreemptionLevel allocationPreemptionLevel)
-{
-    switch (allocationPreemptionLevel) {
-        case EAllocationPreemptionLevel::SsdNonPreemptible:
-        case EAllocationPreemptionLevel::SsdAggressivelyPreemptible:
-            return true;
-        default:
-            return false;
-    }
-}
-
-bool IsSsdOperationPreemptionPriority(EOperationPreemptionPriority operationPreemptionPriority)
-{
-    switch (operationPreemptionPriority) {
-        case EOperationPreemptionPriority::SsdNormal:
-        case EOperationPreemptionPriority::SsdAggressive:
-            return true;
-        default:
-            return false;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Builds the subtree induced by |operationSubset| and returns the list of children in this subtree for each pool.
 //! Children lists are returned in a vector indexed by elements' tree indexes, like dynamic attributes list (for performance reasons).
 // TODO(eshcherbin): Add a class which would represent a subtree.
@@ -1055,7 +1031,7 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
             continue;
         }
 
-        auto preemptionBlockingAncestor = FindPreemptionBlockingAncestor(operationElement, allocationPreemptionLevel, targetOperationPreemptionPriority);
+        auto preemptionBlockingAncestor = FindPreemptionBlockingAncestor(operationElement, targetOperationPreemptionPriority);
         bool isUnconditionalPreemptionAllowed = isAllocationForcefullyPreemptible || preemptionBlockingAncestor == nullptr;
         bool isConditionalPreemptionAllowed = treeConfig->EnableConditionalPreemption &&
             !isUnconditionalPreemptionAllowed &&
@@ -1380,10 +1356,8 @@ bool TScheduleAllocationsContext::GetStagePrescheduleExecuted() const
     return StageState_->PrescheduleExecuted;
 }
 
-// TODO(eshcherbin): Reconsider this logic.
 const TPoolTreeElement* TScheduleAllocationsContext::FindPreemptionBlockingAncestor(
     const TPoolTreeOperationElement* element,
-    EAllocationPreemptionLevel allocationPreemptionLevel,
     EOperationPreemptionPriority targetOperationPreemptionPriority) const
 {
     const auto& treeConfig = TreeSnapshot_->TreeConfig();
@@ -1391,11 +1365,6 @@ const TPoolTreeElement* TScheduleAllocationsContext::FindPreemptionBlockingAnces
 
     if (spec->PreemptionMode == EPreemptionMode::Graceful) {
         return element;
-    }
-
-    // NB(eshcherbin): We ignore preemption blocking ancestors for allocations with SSD priority preemption.
-    if (IsSsdOperationPreemptionPriority(targetOperationPreemptionPriority) && !IsSsdAllocationPreemptionLevel(allocationPreemptionLevel)) {
-        return {};
     }
 
     if (targetOperationPreemptionPriority == EOperationPreemptionPriority::Normal) {
@@ -1416,42 +1385,8 @@ const TPoolTreeElement* TScheduleAllocationsContext::FindPreemptionBlockingAnces
         return element;
     }
 
-    // TODO(eshcherbin): Remove this and conditional preemption logic if it proves to be pointless.
-    const TPoolTreeElement* current = element->GetParent();
-    while (current && !current->IsRoot()) {
-        // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.
-        // Maybe just satisfaction is enough?
-        if (treeConfig->PreemptionCheckStarvation && current->GetStarvationStatus() != EStarvationStatus::NonStarving) {
-            UpdateOperationPreemptionStatusStatistics(
-                element,
-                current == element
-                    ? EOperationPreemptionStatus::ForbiddenSinceStarving
-                    : EOperationPreemptionStatus::AllowedConditionally);
-            return current;
-        }
-
-        bool useAggressiveThreshold = StaticAttributesOf(current).EffectiveAggressivePreemptionAllowed &&
-            targetOperationPreemptionPriority >= EOperationPreemptionPriority::Aggressive;
-        auto threshold = useAggressiveThreshold
-            ? treeConfig->AggressivePreemptionSatisfactionThreshold
-            : treeConfig->PreemptionSatisfactionThreshold;
-
-        // NB: We want to use *local* satisfaction ratio here.
-        double localSatisfactionRatio = current->ComputeLocalSatisfactionRatio(GetCurrentResourceUsage(current));
-        if (treeConfig->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + NVectorHdrf::RatioComparisonPrecision) {
-            UpdateOperationPreemptionStatusStatistics(
-                element,
-                current == element
-                    ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied
-                    : EOperationPreemptionStatus::AllowedConditionally);
-            return current;
-        }
-
-        current = current->GetParent();
-    }
-
-
     UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::AllowedUnconditionally);
+
     return {};
 }
 

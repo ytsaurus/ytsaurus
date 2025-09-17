@@ -385,7 +385,7 @@ struct TStrategyTreeConfig
 
     bool AllowPreemptionFromStarvingOperations;
 
-    // TODO(eshcherbin): Remove these old options if checking pools' starvation proves to be pointless.
+    // COMPAT(eshcherbin): Remove after 25.4 is created.
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
 
