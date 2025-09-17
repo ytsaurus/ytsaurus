@@ -123,11 +123,11 @@ struct IMulticellManager
      */
     virtual EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag) const = 0;
 
-    //! Returns the set of leases owned by master cell.
+    //! Returns the set of leases owned by master cell. If master cell is not registered, a nullptr will be returned.
     /*!
      *  \note Thread affinity: any
      */
-    virtual THashSet<NTransactionServer::TTransactionId>* GetLocalMasterIssuedLeaseIds(NObjectClient::TCellTag cellTag) = 0;
+    virtual THashSet<NTransactionServer::TTransactionId>* FindLocalMasterIssuedLeaseIds(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns the set of cells configured for a given role.
     /*!

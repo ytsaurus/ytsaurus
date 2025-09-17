@@ -126,11 +126,6 @@ public:
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
         alertManager->RegisterAlertSource(BIND_NO_PROPAGATE(&TMulticellManager::GetAlerts, MakeWeak(this)));
-
-        LocalMasterIssuedLeaseIds_.insert({Bootstrap_->GetPrimaryCellTag(), {}});
-        for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
-            LocalMasterIssuedLeaseIds_.insert({cellTag, {}});
-        }
     }
 
     bool IsPrimaryMaster() const override
@@ -322,12 +317,25 @@ public:
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
-    THashSet<TTransactionId>* GetLocalMasterIssuedLeaseIds(TCellTag cellTag) override
+    THashSet<TTransactionId>* FindLocalMasterIssuedLeaseIds(TCellTag cellTag) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        return &GetOrCrash(LocalMasterIssuedLeaseIds_, cellTag);
+        // NB: There are two cases when not registered master cell can attempt issuing leases:
+        // - if master is in registration process, we don't want to allow to issue leases for it until it is registered.
+        // - if request to issue leases came from different cluster, we don't want to allow lease issuing to another cluster.
+        // NB: Master cell could attemt to issue leases for itself, since locally it will be consideren as not registered, we explicitly allow this.
+        if (!IsRegisteredMasterCell(cellTag) && cellTag != GetCellTag()) {
+            return nullptr;
+        }
+
+        auto [it, inserted] = LocalMasterIssuedLeaseIds_.insert({cellTag, {}});
+        if (inserted) {
+            YT_LOG_INFO("Created entry for local leases issued for master (CellTag: %v)",
+                cellTag);
+        }
+        return &it->second;
     }
 
     TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const override
