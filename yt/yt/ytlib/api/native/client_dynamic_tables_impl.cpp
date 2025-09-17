@@ -3313,6 +3313,7 @@ private:
             if (ReplicationRowIndex_.has_value()) {
                 req->set_start_replication_row_index(*ReplicationRowIndex_);
             }
+            ToProto(req->mutable_puller_tablet_id(), Options_.SelfTabletId);
 
             auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
             ext->set_execution_tag(ToString(Options_.SelfTabletId));

@@ -21,6 +21,7 @@
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
+#include <yt/yt/server/node/tablet_node/puller_replica_cache.h>
 #include <yt/yt/server/node/tablet_node/replication_log.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
@@ -656,6 +657,9 @@ private:
             : std::numeric_limits<i64>::max();
         auto requestTimeout = context->GetTimeout()
             .value_or(Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout);
+        auto pullerTabletId = request->has_puller_tablet_id()
+            ? std::make_optional(FromProto<TTabletId>(request->puller_tablet_id()))
+            : std::nullopt;
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -668,14 +672,15 @@ private:
         };
 
         context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, "
-            "ResponseCodec: %v, ReadSessionId: %v, RequestTimeout: %v)",
+            "ResponseCodec: %v, ReadSessionId: %v, RequestTimeout: %v, PullerTabletId: %v)",
             tabletId,
             startReplicationRowIndex,
             progress,
             upperTimestamp,
             responseCodecId,
             chunkReadOptions.ReadSessionId,
-            requestTimeout);
+            requestTimeout,
+            pullerTabletId);
 
         auto requestDeadLine = (requestTimeout - Config_->PullRowsTimeoutSlack).ToDeadLine();
 
@@ -717,6 +722,10 @@ private:
 
                 auto serviceCounters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(currentProfilingUser);
                 profilerGuard.Start(serviceCounters->PullRows);
+
+                if (pullerTabletId) {
+                    tabletSnapshot->TabletChaosData->PullerReplicaCache.Acquire()->OnPull(*pullerTabletId);
+                }
 
                 snapshotStore->ValidateTabletAccess(tabletSnapshot, AsyncLastCommittedTimestamp);
                 tabletSnapshot->ValidateMountRevision(mountRevision);
