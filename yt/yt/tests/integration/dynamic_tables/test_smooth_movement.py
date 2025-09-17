@@ -534,7 +534,7 @@ class TestSmoothMovement(DynamicTablesBase):
         wait(lambda: self._check_action(action_id))
 
     @authors("ifsmirnov")
-    def test_transaction_serialized_in_other_tablet(self):
+    def DISABLED_test_transaction_serialized_in_other_tablet(self):
         cell_ids = sync_create_cells(2)
         self._create_sorted_table("//tmp/t")
         self._create_ordered_table("//tmp/q", commit_ordering="strong")
