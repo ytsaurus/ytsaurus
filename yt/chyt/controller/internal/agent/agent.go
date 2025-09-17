@@ -334,16 +334,8 @@ func (a *Agent) pass() {
 }
 
 func (a *Agent) updateControllerState() error {
-	changed, err := a.controller.UpdateState()
-	if err != nil {
-		return err
-	}
-	if changed {
-		for _, oplet := range a.aliasToOp {
-			oplet.SetPendingRestart("controller's state changed")
-		}
-	}
-	return nil
+	_, err := a.controller.UpdateState()
+	return err
 }
 
 func (a *Agent) initializeFromCypress() error {

@@ -157,13 +157,6 @@ type Oplet struct {
 	// (e.g. from RevisionTracker) and we need to reload it from a cypress during the next pass.
 	pendingUpdateFromCypressNode bool
 
-	// pendingRestart is set when an external event triggers operation restart
-	// (e.g. changing cluster_connection).
-	//
-	// TODO(dakovalkov): We should not rely on non-persistent fields,
-	// because it is not fault-tolerant. Eliminate this.
-	pendingRestart bool
-
 	// brokenError is an error that led the oplet to broken state.
 	// Flush persistent state is not allowed for a broken oplet because the state may be unparsed yet.
 	// So this error cannot be a part of persistent or info state and cannot be flushed.
@@ -203,12 +196,6 @@ func NewOplet(options OpletOptions) *Oplet {
 		passTimeout:                  options.PassTimeout,
 	}
 	return oplet
-}
-
-// TODO(dakovalkov): eliminate this.
-func (oplet *Oplet) SetPendingRestart(reason string) {
-	oplet.l.Debug("setting pending restart", log.String("reason", reason))
-	oplet.pendingRestart = true
 }
 
 func (oplet *Oplet) Alias() string {
@@ -530,10 +517,6 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 		if err == nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
 			return true, "controller snapshot changed"
 		}
-	}
-	// TODO(dakovalkov): eliminate this.
-	if oplet.pendingRestart {
-		return true, "pendingRestart is set"
 	}
 	return false, "up to date"
 }
@@ -1063,9 +1046,6 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.persistentState.YTOpPoolTrees = oplet.strawberrySpeclet.PoolTrees
 
 	oplet.persistentState.IncarnationIndex++
-
-	// TODO(dakovalkov): eliminate this.
-	oplet.pendingRestart = false
 
 	oplet.l.Info("operation started",
 		log.String("alias", oplet.alias),

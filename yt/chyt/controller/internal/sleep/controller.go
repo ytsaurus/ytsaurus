@@ -21,6 +21,10 @@ type Controller struct {
 	controllerParameter string
 }
 
+type controllerSnapshot struct {
+	ControllerParameter string `yson:"controller_parameter,omitempty"`
+}
+
 func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]any, description map[string]any, annotations map[string]any, runAsUser bool, err error) {
 	err = nil
@@ -73,7 +77,11 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
-	return nil, nil
+	snapshot := controllerSnapshot {
+		ControllerParameter: c.controllerParameter,
+	}
+	// NOTE: Must use same yson format as cypress node get response to match.
+	return yson.MarshalFormat(snapshot, yson.FormatBinary)
 }
 
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
