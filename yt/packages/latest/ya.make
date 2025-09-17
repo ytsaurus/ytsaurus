@@ -8,13 +8,13 @@ INCLUDE(${ARCADIA_ROOT}/yt/packages/ya.make.common)
 # E.g: ya make -DYT_RECIPE_BUILD_FROM_SOURCE=yes -r -tt yt/idm-integration/internal/app/gotest/
 IF (NOT YT_RECIPE_BUILD_FROM_SOURCE)
     FROM_SANDBOX(
-        FILE 9460394485
+        FILE 9620949091
         OUT ytserver-all RENAME result/ytserver-all
         EXECUTABLE
     )
 
     FROM_SANDBOX(
-        FILE 9460422122
+        FILE 9620982918
         OUT yt_local RENAME result/yt_local
         EXECUTABLE
     )
