@@ -104,6 +104,21 @@ DEFINE_REFCOUNTED_TYPE(TClockServersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDistributedWriteDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    //! Maximum number of chunk trees to attach per request.
+    int MaxChildrenPerAttachRequest;
+
+    REGISTER_YSON_STRUCT(TDistributedWriteDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedWriteDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressProxyConnectionConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
@@ -329,6 +344,9 @@ struct TConnectionDynamicConfig
 
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
+
+    //! Configuration for (Start/Ping/Finish)DistributedWriteSession
+    TDistributedWriteDynamicConfigPtr DistributedWriteDynamicConfig;
 
     TDuration NestedInputTransactionTimeout;
     TDuration NestedInputTransactionPingPeriod;

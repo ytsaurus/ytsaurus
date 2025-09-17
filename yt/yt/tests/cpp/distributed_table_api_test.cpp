@@ -112,11 +112,8 @@ void TDistributedTableApiTest::FinishDistributedWriteSession(
             TDistributedWriteSessionWithResults{
                 .Session = std::move(session),
                 .Results = std::move(results),
-            },
-            TDistributedWriteSessionFinishOptions{
-                .MaxChildrenPerAttachRequest = chunkListsPerAttachRequest,
-        }))
-        .ThrowOnError();
+            }))
+    .ThrowOnError();
 }
 
 NYPath::TRichYPath TDistributedTableApiTest::MakeRichPath(bool append)

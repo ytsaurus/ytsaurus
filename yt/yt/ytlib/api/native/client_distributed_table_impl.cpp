@@ -364,7 +364,7 @@ void TClient::DoPingDistributedWriteSession(
 
 void TClient::DoFinishDistributedWriteSession(
     const TDistributedWriteSessionWithResults& sessionWithResults,
-    const TDistributedWriteSessionFinishOptions& options)
+    const TDistributedWriteSessionFinishOptions& /*options*/)
 {
     YT_VERIFY(sessionWithResults.Session);
 
@@ -433,8 +433,9 @@ void TClient::DoFinishDistributedWriteSession(
         int currentRequestSize = 0;
         THashSet<TChunkTreeId> addedChunkTrees;
 
+        const auto& config = GetNativeConnection()->GetConfig()->DistributedWriteDynamicConfig;
         auto addChunkTree = [&] (TChunkTreeId chunkTreeId) {
-            if (batchReq && currentRequestSize >= options.MaxChildrenPerAttachRequest) {
+            if (batchReq && currentRequestSize >= config->MaxChildrenPerAttachRequest) {
                 // NB: Static tables do not need statistics for intermediate requests.
                 flushRequest(false);
                 currentRequestSize = 0;
