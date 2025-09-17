@@ -2607,7 +2607,20 @@ private:
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
-            LastCoordinatorCommitTimestamp_ = commitTimestamp;
+
+            constexpr int TabletReignBase = 100000;
+            constexpr int TabletAddLastCoordinatorCommitTimestamp = 101305;
+            constexpr int ChaosReignBase = 300000;
+            constexpr int ChaosAddLastCoordinatorCommitTimestamp = 300201;
+
+            auto reign = GetCurrentMutationContext()->Request().Reign;
+            if ((reign > TabletReignBase && reign < TabletAddLastCoordinatorCommitTimestamp) ||
+                (reign > ChaosReignBase && reign < ChaosAddLastCoordinatorCommitTimestamp))
+            {
+                // COMPAT(aleksandra-zh).
+            } else {
+                LastCoordinatorCommitTimestamp_ = commitTimestamp;
+            }
 
             TTransactionCommitOptions options{
                 .CommitTimestamp = commitTimestamp,
