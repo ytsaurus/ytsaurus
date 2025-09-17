@@ -144,12 +144,11 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
     const auto& chunkManager = bootstrap->GetChunkManager();
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
     for (const auto& chunk : InputChunks_) {
-        auto* protoChunk = jobSpecExt->add_input_chunks();
-        ToProto(protoChunk->mutable_id(), chunk->GetId());
-
         if (!IsObjectAlive(chunk)) {
             return false;
         }
+        auto* protoChunk = jobSpecExt->add_input_chunks();
+        ToProto(protoChunk->mutable_id(), chunk->GetId());
 
         auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(chunk);
         if (!replicasOrError.IsOK()) {
