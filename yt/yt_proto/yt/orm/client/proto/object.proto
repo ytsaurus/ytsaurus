@@ -426,7 +426,23 @@ message THistoryTableOptions
     optional uint64 value_column_max_inline_hunk_size = 11;
 }
 
-// Next field 30050.
+message TLockGroup
+{
+    // Corresponds to the 'lock' attribute in the table schema.
+    optional string name = 1;
+
+    // Assigns a unique number to each lock group.
+    // Number `1` is reserved for the default lock group.
+    optional int32 number = 2;
+}
+
+message TColumnsOptions
+{
+    // Used as the field number offsets for the revision fields.
+    repeated TLockGroup lock_groups = 1;
+}
+
+// Next field 30051.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -530,6 +546,8 @@ extend google.protobuf.FileOptions
 
     // Enables meta.type, meta.key, meta.parent_key, meta.fqid attributes.
     optional bool enable_additional_meta_key_attributes = 30045 [default = true];
+
+    optional TColumnsOptions columns_options = 30050;
 }
 
 enum EGenerationPolicy
