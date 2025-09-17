@@ -28,12 +28,22 @@ def _unmount_table(client, path):
     client.unmount_table(path, sync=True)
 
 
+def _copy_table(client, source, target):
+    logging.info("Copying table %s -> %s", source, target)
+    client.copy(source, target)
+
+
+def _remove_table(client, path):
+    logging.info("Removing table %s", path)
+    client.remove(path)
+
+
 def _mount_table(client, path):
     logging.info("Mounting table %s", path)
     client.mount_table(path, sync=True)
 
 
-def _swap_table(client, target, source, version):
+def _swap_table(client, target, source, version, mount=True):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
     if client.exists(target):
@@ -47,7 +57,8 @@ def _swap_table(client, target, source, version):
         client.move(target, backup_path, force=True)
     client.move(source, target)
 
-    _mount_table(client, target)
+    if mount:
+        _mount_table(client, target)
 
 
 def _make_dynamic_table_attributes(schema, key_columns, optimize_for):
@@ -97,6 +108,8 @@ class TableInfo(object):
                 result["lock"] = lock
             if "max_inline_hunk_size" in attributes:
                 result["max_inline_hunk_size"] = attributes["max_inline_hunk_size"]
+            if "aggregate" in attributes:
+                result["aggregate"] = attributes["aggregate"]
             return result
 
         def make_key_column(name, type_name, expression=None):
@@ -202,81 +215,129 @@ class Conversion(object):
         result table name
     :param table_info:
         result table TableInfo
-    :param mapper:
-        mapper for map operations
+    :param operation:
+        the type of operation to be applied to the source tables. Can be one of "map", "reduce", "merge", "temporarily-copy", "mount", "remove".\n
+        "temporarily-copy" operation creates a temporary copy of the source table that is only available within the current transformation.
+        Copy will be automatically removed at the end of the transformation.\n
+        "mount" operation mounts previously unmounted source tables without waiting for the transformation to complete.\n
+        "remove" operation removes table that was previously created in migration.
+    :param operation_args:
+        arguments to be passed to the operation excluding parameters specifying the source and target tables
     :param source:
-        name of the table before the conversion, for cases when it differs from the "table" parameter
+        name of source table or tables, for cases when it differs from the "table" parameter
     :param use_default_mapper:
-        whether to use the default mapper for map operations if the "mapper" parameter is not specified
+        whether to use the default mapper for operation. Has higher priority than "operation" parameter
     :param filter_callback:
         a callback called with "client" and "table_path" arguments used to ignore some conversions
         for re-using migration in different environments
-    :param remove_table:
-        whether to remove table_name if it exists
+    :param copy_user_attributes:
+        whether to copy user-defined attributes from source tables
+    :param make_result_available_after_conversion:
+        whether to make result table available for use as an input for the next conversions in current transformation
     """
 
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None, remove_table=False, job_count=None):
+    def __init__(self, table, table_info=None, operation=None, operation_args={}, source=None, use_default_mapper=False, filter_callback=None,
+                 copy_user_attributes=False, make_result_available_after_conversion=False):
         self.table = table
         self.table_info = table_info
-        self.mapper = mapper
+        self.operation = operation
+        self.operation_args = operation_args
         self.source = source
-        self.use_default_mapper = use_default_mapper
         self.filter_callback = filter_callback
-        self.remove_table = remove_table
-        self.job_count = job_count
-        if self.remove_table:
+        self.copy_user_attributes = copy_user_attributes
+        self.make_result_available_after_conversion = make_result_available_after_conversion
+        if self.operation == "remove":
             assert self.table_info is None
+        if self.operation == "temporarily-copy":
+            assert not isinstance(self.source, list) or len(self.source) == 1
+        if use_default_mapper:
+            self.operation_args = {}
+            self.operation = "map"
 
-    def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count, pool=None):
+    def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count, pool=None, version=None):
         if self.table_info:
             table_info = self.table_info
 
         source_table = self.source or source_table
+        source_tables = []
         if source_table:
-            source_table = ypath_join(tables_path, source_table)
-            old_key_columns = client.get(source_table + "/@key_columns")
-            need_sort = old_key_columns != table_info.key_columns
+            if isinstance(source_table, list):
+                source_tables = [ypath_join(tables_path, table) for table in source_table]
+            else:
+                source_table = ypath_join(tables_path, source_table)
+                source_tables = [source_table,]
+
+            if len(source_tables) == 1:
+                old_key_columns = client.get(source_tables[0] + "/@key_columns")
+                need_sort = False if self.operation == "temporarily-copy" else old_key_columns != table_info.key_columns
+            else:
+                need_sort = True
         else:
             need_sort = False
 
-        if not self.use_default_mapper and not self.mapper and not self.source and source_table and not need_sort:
+        if self.operation is None and not need_sort and source_table and not self.source:
+            logging.info("Changing table schema in-place: %s", source_table)
             table_info.alter_table(client, source_table, shard_count, mount=False)
             return True  # in place transformation
 
-        if source_table:
-            if client.exists(source_table):
-                primary_medium = client.get(source_table + "/@primary_medium")
-                # If need_sort == True, we create target table non-sorted to avoid
-                # sort order violation error during map.
-                table_info.create_table(client, target_table, sorted=not need_sort)
-                client.set(target_table + "/@account", client.get(source_table + "/@account"))
-                client.set(target_table + "/@tablet_cell_bundle", client.get(source_table + "/@tablet_cell_bundle"))
-                client.set(target_table + "/@primary_medium", primary_medium)
-                for key, value in client.get(source_table + "/@user_attributes").items():
-                    client.set(target_table + "/@" + key, value)
+        if source_tables and all([client.exists(source_table) for source_table in source_tables]):
+            if self.operation == "mount":
+                for source_table in source_tables:
+                    _mount_table(client, source_table)
+                return True
 
-                assert self.use_default_mapper or self.mapper is not None
-                mapper = self.mapper if self.mapper else table_info.get_default_mapper()
+            for source_table in source_tables:
                 _unmount_table(client, source_table)
 
-                logging.info("Run mapper '%s': %s -> %s", mapper.__name__, source_table, target_table)
+            if self.operation == "temporarily-copy":
+                _copy_table(client, source_tables[0], target_table)
+                return True
+
+            primary_medium = client.get(source_tables[0] + "/@primary_medium")
+            # If need_sort == True, we create target table non-sorted to avoid
+            # sort order violation error during map.
+            table_info.create_table(client, target_table, sorted=not need_sort)
+            client.set(target_table + "/@account", client.get(source_tables[0] + "/@account"))
+            client.set(target_table + "/@tablet_cell_bundle", client.get(source_tables[0] + "/@tablet_cell_bundle"))
+            client.set(target_table + "/@primary_medium", primary_medium)
+            if self.copy_user_attributes:
+                for source_table in source_tables:
+                    for key, value in client.get(source_table + "/@user_attributes").items():
+                        client.set(target_table + "/@" + key, value)
+
+            spec = {"data_size_per_job": 2 * 2**30}
+            if pool is not None:
+                spec["pool"] = pool
+
+            if "spec" in self.operation_args:
+                spec |= self.operation_args.pop("spec")
+            if self.operation == "map":
+                if "binary" not in self.operation_args:
+                    self.operation_args["binary"] = table_info.get_default_mapper()
+                logging.info("Starting map operation '%s': %s -> %s", self.operation_args["binary"].__name__, source_tables, target_table)
                 # If need_sort == False, we already created target table sorted and we need to run ordered map
                 # to avoid sort order violation error during map.
-                spec = {"data_size_per_job": 2 * 2**30}
-                if pool is not None:
-                    spec["pool"] = pool
-                if self.job_count is not None:
-                    spec["job_count"] = self.job_count
-                client.run_map(mapper, source_table, target_table, spec=spec, ordered=not need_sort)
-                table_info.to_dynamic_table(client, target_table, pool)
-                client.set(target_table + "/@forced_compaction_revision", 1)
-        else:
+                client.run_map(source_table=source_tables, destination_table=target_table, spec=spec, ordered=not need_sort, **self.operation_args)
+            if self.operation == "reduce":
+                logging.info("Starting reduce operation '%s': %s -> %s", self.operation_args["binary"].__name__, source_tables, target_table)
+                client.run_reduce(source_table=source_tables, destination_table=target_table, spec=spec, **self.operation_args)
+            if self.operation == "merge":
+                logging.info("Starting merge operation : %s -> %s", source_tables, target_table)
+                client.run_merge(source_table=source_tables, destination_table=target_table, spec=spec, **self.operation_args)
+
+            table_info.to_dynamic_table(client, target_table)
+            client.set(target_table + "/@forced_compaction_revision", 1)
+        elif not client.exists(target_table):
             logging.info("Creating dynamic table %s", target_table)
             table_info.create_dynamic_table(client, target_table)
 
         if table_info.in_memory:
             client.set(target_table + "/@in_memory_mode", "compressed")
         table_info.alter_table(client, target_table, shard_count, mount=False)
+
+        if self.make_result_available_after_conversion:
+            _swap_table(client, ypath_join(tables_path, self.table), target_table, version=version, mount=False)
+            return True
         return False  # need additional swap
 
 
@@ -338,7 +399,7 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
-                elif conversion.remove_table:
+                elif conversion.operation == "remove":
                     table_infos.pop(conversion.table, None)
 
         for table_name, table_info in table_infos.items():
@@ -368,7 +429,7 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
-                elif conversion.remove_table:
+                elif conversion.operation == "remove":
                     table_infos.pop(conversion.table, None)
 
         # NB(omgronny): Allow retransform to the current version.
@@ -376,11 +437,25 @@ class Migration(object):
             transform_begin -= 1
 
         new_tables = set()
+        temporary_tables = []
         for version in range(transform_begin, transform_end + 1):
             logging.info("Transforming to version %d", version)
             swap_tasks = []
             if version in self.transforms:
                 for conversion in self.transforms[version]:
+                    if conversion.operation == "mount":
+                        conversion(
+                            client=client,
+                            table_info=None,
+                            target_table=None,
+                            source_table=None,
+                            tables_path=tables_path,
+                            shard_count=shard_count,
+                            pool=pool,
+                            version=version,
+                        )
+                        continue
+
                     table = conversion.table
                     table_path = ypath_join(tables_path, table)
 
@@ -390,7 +465,7 @@ class Migration(object):
 
                     table_exists = client.exists(table_path)
 
-                    if conversion.remove_table:
+                    if conversion.operation == "remove":
                         table_infos.pop(table, None)
                         if table_exists:
                             client.remove(table_path)
@@ -404,6 +479,9 @@ class Migration(object):
                         shard_count = int(client.get(table_path + "/@tablet_count"))
 
                     tmp_path = "{0}/{1}.tmp.{2}".format(tables_path, table, version)
+                    if conversion.operation == "temporarily-copy":
+                        tmp_path = table_path
+                        temporary_tables.append(table_path)
                     if force and client.exists(tmp_path):
                         client.remove(tmp_path)
                     in_place = conversion(
@@ -414,14 +492,17 @@ class Migration(object):
                         tables_path=tables_path,
                         shard_count=shard_count,
                         pool=pool,
+                        version=version,
                     )
-                    if not in_place:
+                    if not in_place and table_path != tmp_path:
                         swap_tasks.append((table_path, tmp_path))
                     if conversion.table_info:
                         table_infos[table] = conversion.table_info
 
                 for target_path, tmp_path in swap_tasks:
                     _swap_table(client, target_path, tmp_path, version)
+                for temporary_table in temporary_tables:
+                    _remove_table(client, temporary_table)
 
             if version in self.actions:
                 for action in self.actions[version]:
@@ -458,7 +539,7 @@ class Migration(object):
                     del table_infos[conversion.source]
                 if conversion.table_info:
                     table_infos[conversion.table] = copy.deepcopy(conversion.table_info)
-                elif conversion.remove_table:
+                elif conversion.operation == "remove":
                     table_infos.pop(conversion.table, None)
 
         return {table: table_info.schema for table, table_info in table_infos.items()}
@@ -488,7 +569,7 @@ class Migration(object):
             for conversion in self.transforms.get(version, []):
                 if conversion.table_info:
                     table_infos[conversion.table] = conversion.table_info
-                elif conversion.remove_table:
+                elif conversion.operation == "remove":
                     table_infos.pop(conversion.table, None)
 
         for table, table_info in table_infos.items():

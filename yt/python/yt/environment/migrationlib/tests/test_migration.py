@@ -315,6 +315,7 @@ class TestInitCallback(YTEnvSetup):
                     [("field", "string")],
                 ),
                 use_default_mapper=True,
+                copy_user_attributes=True,
             )
         ],
         2: [
@@ -326,6 +327,7 @@ class TestInitCallback(YTEnvSetup):
                     attributes={"tablet_cell_bundle": "sys"},
                 ),
                 use_default_mapper=True,
+                copy_user_attributes=True,
             )
         ],
     }

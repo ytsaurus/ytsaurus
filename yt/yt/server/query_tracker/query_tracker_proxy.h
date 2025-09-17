@@ -4,8 +4,6 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/server/query_tracker/engine.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -72,6 +70,8 @@ private:
     TQueryTrackerProxyConfigPtr ProxyConfig_;
     std::unordered_map<EQueryEngine, IQueryEngineInfoProviderPtr> EngineInfoProviders_;
     const int ExpectedTablesVersion_;
+    ISearchIndexPtr TimeBasedIndex_;
+    ISearchIndexPtr TokenBasedIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)

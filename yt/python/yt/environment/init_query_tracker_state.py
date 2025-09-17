@@ -8,6 +8,8 @@ import yt.yson as yson
 
 import argparse
 import logging
+import re
+from typing import Counter
 
 DEFAULT_BUNDLE_NAME = "default"
 SYS_BUNDLE_NAME = "sys"
@@ -15,6 +17,14 @@ DEFAULT_STATE_PATH = "//sys/query_tracker"
 DEFAULT_SHARD_COUNT = 1
 
 MAX_DYNTABLE_STRING_SIZE = 16 * 1024 * 1024
+UNINDEXED_TOKENS = {"select", "from", "where"}
+UNINDEXED_ANNOTATION_KEYS = {"chartConfig", "assigned_engine"}
+TOKENIZER_SYMBOLS_LIMIT = 4096
+# Regex for splitting text filters and queries started using query tracker into tokens
+DEFAULT_TOKEN_REGEX = r"[\(\)\.\,\;\[\]\{\}\$\*\s\:\'\"\`\>\<\=\+\/\|\\\%\-]+"
+USER_PREFIX = "user:"
+ACO_PREFIX = "aco:"
+SUPERUSER_SEARCH_ACCESS_SCOPE = "su"
 
 INITIAL_TABLE_INFOS = {
     "active_queries": TableInfo(
@@ -566,17 +576,26 @@ TRANSFORMS[8] = [
     Conversion(
         "active_queries",
         table_info=ACTIVE_QUERIES_TABLE_V8,
-        mapper=get_access_control_objects_mapper(ACTIVE_QUERIES_TABLE_V8),
+        operation="map",
+        operation_args={
+            "binary": get_access_control_objects_mapper(ACTIVE_QUERIES_TABLE_V8),
+        }
     ),
     Conversion(
         "finished_queries",
         table_info=FINISHED_QUERIES_TABLE_V8,
-        mapper=get_access_control_objects_mapper(FINISHED_QUERIES_TABLE_V8)
+        operation="map",
+        operation_args={
+            "binary": get_access_control_objects_mapper(FINISHED_QUERIES_TABLE_V8),
+        }
     ),
     Conversion(
         "finished_queries_by_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V8,
-        mapper=get_access_control_objects_mapper(FINISHED_QUERIES_TABLE_BY_START_TIME_V8)
+        operation="map",
+        operation_args={
+            "binary": get_access_control_objects_mapper(FINISHED_QUERIES_TABLE_BY_START_TIME_V8),
+        }
     ),
 ]
 
@@ -663,19 +682,28 @@ TRANSFORMS[9] = [
         "finished_queries_by_aco_and_start_time",
         source="finished_queries_by_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V9,
-        mapper=finished_queries_table_by_aco_and_start_time_mapper
+        operation="map",
+        operation_args={
+            "binary": finished_queries_table_by_aco_and_start_time_mapper,
+        }
     ),
     Conversion(
         "finished_queries_by_user_and_start_time",
         source="finished_queries_by_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9,
-        mapper=get_minus_start_time_mapper(FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9)
+        operation="map",
+        operation_args={
+            "binary": get_minus_start_time_mapper(FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V9),
+        }
     ),
     Conversion(
         "finished_queries_by_start_time",
         source="finished_queries_by_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V9,
-        mapper=get_minus_start_time_mapper(FINISHED_QUERIES_TABLE_BY_START_TIME_V9)
+        operation="map",
+        operation_args={
+            "binary": get_minus_start_time_mapper(FINISHED_QUERIES_TABLE_BY_START_TIME_V9),
+        }
     ),
 ]
 
@@ -1073,7 +1101,7 @@ FINISHED_QUERY_RESULTS_V13 = TableInfo(
 TRANSFORMS[13] = [
     Conversion(
         "finished_queries_results",
-        remove_table=True,
+        operation="remove",
     ),
     Conversion(
         "finished_query_results",
@@ -1205,7 +1233,10 @@ TRANSFORMS[15] = [
         "active_queries",
         source="active_queries",
         table_info=ACTIVE_QUERIES_TABLE_V15,
-        mapper=start_time_to_execution_start_time_mapper
+        operation="map",
+        operation_args={
+            "binary": start_time_to_execution_start_time_mapper,
+        }
     ),
 ]
 
@@ -1246,7 +1277,6 @@ TRANSFORMS[16] = [
     ),
 ]
 
-
 FINISHED_QUERIES_V17 = TableInfo(
     [
         ("query_id", "string"),
@@ -1276,7 +1306,6 @@ FINISHED_QUERIES_V17 = TableInfo(
         "auto_compaction_period": 3600000,
     },
 )
-
 ACTIVE_QUERIES_V17 = TableInfo(
     [
         ("query_id", "string"),
@@ -1310,7 +1339,7 @@ ACTIVE_QUERIES_V17 = TableInfo(
         "min_data_ttl": 60000,
         "merge_rows_on_flush": True,
         "auto_compaction_period": 3600000,
-    },
+    }
 )
 
 
@@ -1332,18 +1361,237 @@ except ImportError:
     def compress_progress_mapper(row):
         raise Exception("Module 'zstandard' is not found. Migration from version 16 to 17 is not possible.")
 
-
 TRANSFORMS[17] = [
     Conversion(
         "finished_queries",
         table_info=FINISHED_QUERIES_V17,
-        mapper=compress_progress_mapper,
-        job_count=500,
+        operation="map",
+        operation_args={
+            "binary": compress_progress_mapper,
+            "spec": {"job_count": 500},
+        }
     ),
     Conversion(
         "active_queries",
         table_info=ACTIVE_QUERIES_V17,
-        mapper=compress_progress_mapper,
+        operation="map",
+        operation_args={
+            "binary": compress_progress_mapper,
+        }
+    ),
+]
+
+
+SEARCH_INVERTED_INDEX_V18 = TableInfo(
+    [
+        ("access_scope", "string"),
+        ("token", "string"),
+        ("engine", "string"),
+        ("user", "string"),
+        ("minus_start_time", "int64"),
+        ("query_id", "string"),
+    ],
+    [
+        ("occurrences", "int64"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+SEARCH_META_V18 = TableInfo(
+    [
+        ("access_scope", "string"),
+        ("token", "string"),
+        ("engine", "string"),
+        ("user", "string"),
+    ],
+    [
+        ("total_occurrences", "int64", {"aggregate": "sum"}),
+        ("unique_queries", "int64", {"aggregate": "sum"}),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+
+def do_query_parsing_for_search_map(row, engine, user):
+    acos = yson.YsonList(row.get("access_control_objects"))
+    if "nobody" in acos:
+        acos.remove("nobody")
+    annotations = yson.YsonMap(row.get("annotations")) if row.get("annotations") is not None else yson.YsonMap()
+    token_counter = Counter()
+
+    annotations_string = ""
+    for key in annotations.keys():
+        if key not in UNINDEXED_ANNOTATION_KEYS:
+            annotations_string += key + " " + str(annotations[key]) + " "
+
+    if acos:
+        token_counter.update(["aco",])
+        token_counter.update([ACO_PREFIX + aco for aco in acos])
+
+    strings_to_tokenize = [
+        row.get("query"),
+        annotations_string,
+    ]
+
+    for string in strings_to_tokenize:
+        token_counter.update(re.split(DEFAULT_TOKEN_REGEX, string.strip().lower()[:TOKENIZER_SYMBOLS_LIMIT]))
+
+    for token, occurrences in token_counter.items():
+        if len(token) <= 1 or token in UNINDEXED_TOKENS:
+            continue
+        for aco in acos:
+            if aco != "nobody":
+                yield {
+                    "access_scope": f"{ACO_PREFIX}{aco}",
+                    "token": token,
+                    "engine": engine,
+                    "user": user,
+                    "minus_start_time": -row.get("start_time"),
+                    "query_id": row.get("query_id"),
+                    "occurrences": occurrences,
+                }
+        if (user == ""):
+            query_author = row.get("user")
+            yield {
+                "access_scope": f"{USER_PREFIX}{query_author}",
+                "token": token,
+                "engine": engine,
+                "user": "",
+                "minus_start_time": -row.get("start_time"),
+                "query_id": row.get("query_id"),
+                "occurrences": occurrences,
+            }
+            yield {
+                "access_scope": SUPERUSER_SEARCH_ACCESS_SCOPE,
+                "token": token,
+                "engine": engine,
+                "user": "",
+                "minus_start_time": -row.get("start_time"),
+                "query_id": row.get("query_id"),
+                "occurrences": occurrences,
+            }
+
+
+def query_parsing_search_reducer(_, rows):
+    row = next(rows)
+    engine = row.get("engine").lower()
+    user = row.get("user")
+    yield from do_query_parsing_for_search_map(row, engine, "")
+    yield from do_query_parsing_for_search_map(row, "", "")
+    yield from do_query_parsing_for_search_map(row, "", user)
+    yield from do_query_parsing_for_search_map(row, engine, user)
+
+
+def group_by_pk_search_reducer(keys, rows):
+    total_occurrences = 0
+    unique_queries = 0
+    for row in rows:
+        total_occurrences += row.get("occurrences")
+        unique_queries += 1
+    yield {
+        "access_scope": keys["access_scope"],
+        "token": keys["token"],
+        "engine": keys["engine"],
+        "user": keys["user"],
+        "total_occurrences": total_occurrences,
+        "unique_queries": unique_queries,
+    }
+
+
+def group_by_pk_meta_search_reducer(keys, rows):
+    total_occurrences = 0
+    unique_queries = 0
+    for row in rows:
+        total_occurrences += row.get("total_occurrences")
+        unique_queries += row.get("unique_queries")
+    yield {
+        "access_scope": keys["access_scope"],
+        "token": keys["token"],
+        "engine": keys["engine"],
+        "user": keys["user"],
+        "total_occurrences": total_occurrences,
+        "unique_queries": unique_queries,
+    }
+
+
+TRANSFORMS[18] = [
+    Conversion(
+        "search_inverted_index",
+        table_info=SEARCH_INVERTED_INDEX_V18,
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "search_meta",
+        table_info=SEARCH_META_V18,
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "finished_queries.copy",
+        source="finished_queries",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        "active_queries.copy",
+        source="active_queries",
+        operation="temporarily-copy",
+    ),
+    Conversion(
+        table=None,
+        source=["search_inverted_index", "search_meta", "finished_queries", "active_queries"],
+        operation="mount",
+    ),
+    Conversion(
+        "search_inverted_index_tmp",
+        source=["finished_queries.copy", "active_queries.copy"],
+        table_info=SEARCH_INVERTED_INDEX_V18,
+        operation="reduce",
+        operation_args={
+            "binary": query_parsing_search_reducer,
+            "reduce_by": ["query_id"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "search_meta_tmp",
+        source="search_inverted_index_tmp",
+        table_info=SEARCH_META_V18,
+        operation="reduce",
+        operation_args={
+            "binary": group_by_pk_search_reducer,
+            "reduce_by": ["access_scope", "token", "engine", "user"],
+        },
+        make_result_available_after_conversion=True,
+    ),
+    Conversion(
+        "search_inverted_index",
+        source=["search_inverted_index", "search_inverted_index_tmp"],
+        table_info=SEARCH_INVERTED_INDEX_V18,
+        operation="merge",
+    ),
+    Conversion(
+        "search_meta",
+        source=["search_meta", "search_meta_tmp"],
+        table_info=SEARCH_META_V18,
+        operation="reduce",
+        operation_args={
+            "binary": group_by_pk_meta_search_reducer,
+            "reduce_by": ["access_scope", "token", "engine", "user"],
+            "spec": {"job_count": 50}
+        }
+    ),
+    Conversion(
+        "search_meta_tmp",
+        operation="remove",
+    ),
+    Conversion(
+        "search_inverted_index_tmp",
+        operation="remove",
     ),
 ]
 

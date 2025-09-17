@@ -5,10 +5,10 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     bootstrap.cpp
     chyt_engine.cpp
-    compression_helpers.cpp
     config.cpp
     dynamic_config_manager.cpp
     handler_base.cpp
+    helpers.cpp
     profiler.cpp
     proxy_service.cpp
     query_tracker.cpp
@@ -16,16 +16,18 @@ SRCS(
     mock_engine.cpp
     program.cpp
     ql_engine.cpp
+    search_index.cpp
     spyt_discovery.cpp
     spyt_engine.cpp
     yql_engine.cpp
+    tokenizer.cpp
 )
 
 PEERDIR(
     library/cpp/yt/phdr_cache
-
+    
     library/cpp/streams/zstd
-
+    
     library/cpp/getopt
 
     yt/chyt/client
