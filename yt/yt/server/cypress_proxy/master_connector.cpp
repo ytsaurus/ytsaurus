@@ -127,15 +127,14 @@ private:
 
         auto rspOrError = WaitFor(request->Invoke());
         if (!rspOrError.IsOK()) {
-            if (rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
-                YT_LOG_ALERT(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
-                    GetCurrentSequoiaReign(),
-                    GetVersion());
-            } else {
-                YT_LOG_ERROR(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
-                    GetCurrentSequoiaReign(),
-                    GetVersion());
-            }
+            YT_LOG_EVENT(
+                Logger,
+                Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
+                    ? NLogging::ELogLevel::Alert
+                    : NLogging::ELogLevel::Error,
+                "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
+                GetCurrentSequoiaReign(),
+                GetVersion());
 
             auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
 

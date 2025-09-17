@@ -88,7 +88,11 @@ public:
             response.mutable_limits()->set_max_copiable_subtree_size(MaxCopiableSubtreeSize_.load());
             FillSupportedInheritableAttributes(&response);
         } else {
-            YT_LOG_ALERT(error, "Failed to register Cypress proxy");
+            YT_LOG_EVENT(
+                Logger,
+                SequoiaEnabled_.load() ? NLogging::ELogLevel::Alert : NLogging::ELogLevel::Error,
+                error,
+                "Failed to register Cypress proxy");
         }
         context->Reply(error);
 
@@ -136,7 +140,7 @@ private:
 
     // Part of dynamic config to read it from non-automaton thread.
     std::atomic<int> MaxCopiableSubtreeSize_;
-    std::atomic<bool> EnableInheritAttributesDuringCopy_;
+    std::atomic<bool> SequoiaEnabled_;
 
     // Persistent.
     THashMap<std::string, TCypressProxyObject*> CypressProxyByAddress_;
@@ -246,6 +250,7 @@ private:
         const auto& config = Bootstrap_->GetDynamicConfig();
         const auto& cypressManagerConfig = config->CypressManager;
         MaxCopiableSubtreeSize_.store(cypressManagerConfig->CrossCellCopyMaxSubtreeSize);
+        SequoiaEnabled_.store(config->SequoiaManager->Enable);
     }
 
     void FillSupportedInheritableAttributes(NProto::TRspHeartbeat* response)
