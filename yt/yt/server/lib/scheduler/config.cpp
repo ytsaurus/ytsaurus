@@ -538,7 +538,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_conditional_preemption", &TThis::EnableConditionalPreemption)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("allowed_resource_usage_staleness", &TThis::AllowedResourceUsageStaleness)
         .Default(TDuration::MilliSeconds(100));

@@ -24,20 +24,15 @@ public:
 
     int GetNodeShardId() const override;
 
-    void InitializeConditionalDiscounts(int capacity) override;
-    void ResetDiscounts() override;
+    void ResetDiscount() override;
 
-    TJobResourcesWithQuota GetUnconditionalDiscount() const override;
-    void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources) override;
+    TJobResourcesWithQuota GetDiscount() const override;
+    void IncreaseDiscount(const TJobResourcesWithQuota& allocationResources) override;
 
-    TJobResourcesWithQuota GetMaxConditionalDiscount() const override;
-    TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationIndex operationIndex) const override;
-    void SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation) override;
-
-    TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const override;
     TJobResources GetNodeFreeResourcesWithoutDiscount() const override;
+
     TJobResources GetNodeFreeResourcesWithDiscount() const override;
-    TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const override;
+    TDiskResources GetNodeFreeDiskResourcesWithDiscount(const TJobResources& allocationResources) const override;
 
     const TJobResources& ResourceLimits() const override;
     const TJobResources& ResourceUsage() const;
@@ -49,9 +44,8 @@ public:
 
     const TExecNodeDescriptorPtr& GetNodeDescriptor() const override;
 
-    bool CanStartAllocationForOperation(
+    bool CanStartAllocation(
         const TJobResourcesWithQuota& allocationResourcesWithQuota,
-        TOperationIndex operationIndex,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const override;
     bool CanStartMoreAllocations(
         const std::optional<TJobResources>& customMinSpareAllocationResources) const override;
@@ -111,9 +105,7 @@ private:
     };
 
     std::optional<int> DiscountMediumIndex_;
-    TJobResourcesWithQuotaDiscount UnconditionalDiscount_;
-    TJobResourcesWithQuotaDiscount MaxConditionalDiscount_;
-    std::vector<TJobResourcesWithQuotaDiscount> ConditionalDiscounts_;
+    TJobResourcesWithQuotaDiscount Discount_;
 
     NPolicy::TScheduleAllocationsStatistics SchedulingStatistics_;
 
@@ -124,10 +116,7 @@ private:
     // NB(omgronny): Don't collect unsatisfied resources info if unsatisfiedResources is nullptr.
     bool CanSatisfyResourceRequest(
         const TJobResources& allocationResources,
-        const TJobResources& conditionalDiscount,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources = nullptr) const;
-
-    const TJobResourcesWithQuotaDiscount& ConditionalDiscountForOperation(TOperationIndex operationIndex) const;
 
     TJobResourcesWithQuota ToJobResourcesWithQuota(const TJobResourcesWithQuotaDiscount& resources) const;
     TDiskQuota ToDiscountDiskQuota(std::optional<i64> discountMediumQuota) const;

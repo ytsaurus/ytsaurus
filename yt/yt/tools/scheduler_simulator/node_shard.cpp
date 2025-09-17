@@ -198,8 +198,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
         "StartedJobs: %v, PreemptedJobs: %v, "
-        "AllocationsScheduledDuringPreemption: %v, UnconditionallyPreemptibleJobCount: %v, UnconditionalDiscount: %v, "
-        "TotalConditionalAllocationCount: %v, MaxConditionalAllocationCountPerPool: %v, MaxConditionalDiscount: %v, "
+        "AllocationsScheduledDuringPreemption: %v, PreemptibleAllocationCount: %v, Discount: %v, "
         "ControllerScheduleAllocationCount: %v, ScheduleAllocationAttemptCountPerStage: %v, "
         "OperationCountByPreemptionPriority: %v, %v)",
         event.Time,
@@ -208,11 +207,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         schedulingHeartbeatContext->StartedAllocations().size(),
         schedulingHeartbeatContext->PreemptedAllocations().size(),
         statistics.ScheduledDuringPreemption,
-        statistics.UnconditionallyPreemptibleAllocationCount,
-        FormatResources(statistics.UnconditionalResourceUsageDiscount),
-        statistics.TotalConditionallyPreemptibleAllocationCount,
-        statistics.MaxConditionallyPreemptibleAllocationCountInPool,
-        FormatResources(statistics.MaxConditionalResourceUsageDiscount),
+        statistics.PreemptibleAllocationCount,
+        FormatResources(statistics.ResourceUsageDiscount),
         statistics.ControllerScheduleAllocationCount,
         statistics.ScheduleAllocationAttemptCountPerStage,
         statistics.OperationCountByPreemptionPriority,
