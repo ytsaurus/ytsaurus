@@ -313,31 +313,47 @@ void TSortedStoreManager::CommitRow(
         [&] (const TWriteAndLockRowCommand& command) { verifyWireKey(command.Row); },
         [&] (auto) { YT_ABORT(); });
 
+    // TODO: Add nodiscard after c++23.
     auto applyCommand = [&] (
         const TSortedDynamicStorePtr& store,
         TSortedDynamicRow dynamicRow)
     {
+        bool commandIsPureLock = false;
         Visit(command,
-            [&] (const TWriteRowCommand& command) { store->WriteRow(transaction, dynamicRow, command.Row); },
-            [&] (const TDeleteRowCommand&) { store->DeleteRow(transaction, dynamicRow); },
-            [&] (const TWriteAndLockRowCommand& command) { store->WriteRow(transaction, dynamicRow, command.Row); },
+            [&] (const TWriteRowCommand& command) {
+                store->WriteRow(transaction, dynamicRow, command.Row);
+                commandIsPureLock = false;
+            },
+            [&] (const TDeleteRowCommand&) {
+                store->DeleteRow(transaction, dynamicRow);
+                commandIsPureLock = false;
+            },
+            [&] (const TWriteAndLockRowCommand& command) {
+                store->WriteRow(transaction, dynamicRow, command.Row);
+                commandIsPureLock = command.Row.GetCount() == static_cast<ui32>(Tablet_->GetPhysicalSchema()->GetKeyColumnCount());
+            },
             [&] (auto) { YT_ABORT(); });
+
+        return commandIsPureLock;
     };
 
     if (rowRef.Store == ActiveStore_) {
-        applyCommand(ActiveStore_, rowRef.Row);
-        ActiveStore_->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
+        auto commandIsPureLock = applyCommand(ActiveStore_, rowRef.Row);
+        ActiveStore_->CommitRow(transaction, rowRef.Row, rowRef.LockMask, commandIsPureLock);
     } else {
         auto migratedRow = ActiveStore_->MigrateRow(
             transaction,
             rowRef.Row,
             rowRef.LockMask,
             /*skipSharedWriteLocks*/ false);
-        applyCommand(rowRef.Store, rowRef.Row);
-        rowRef.Store->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
+
+        auto commandIsPureLock = applyCommand(rowRef.Store, rowRef.Row);
+        rowRef.Store->CommitRow(transaction, rowRef.Row, rowRef.LockMask, commandIsPureLock);
+
         CheckForUnlockedStore(rowRef.Store);
-        applyCommand(ActiveStore_, migratedRow);
-        ActiveStore_->CommitRow(transaction, migratedRow, rowRef.LockMask);
+
+        commandIsPureLock = applyCommand(ActiveStore_, migratedRow);
+        ActiveStore_->CommitRow(transaction, migratedRow, rowRef.LockMask, commandIsPureLock);
     }
 }
 
@@ -357,6 +373,7 @@ void TSortedStoreManager::StartSerializingRow(
 
     TUnversionedRow row;
     std::optional<ESortedDynamicStoreCommand> dynamicStoreCommand;
+    bool commandIsPureLock = false;
     Visit(command,
         [&] (const TWriteRowCommand& command) {
             verifyWireKey(command.Row);
@@ -372,6 +389,7 @@ void TSortedStoreManager::StartSerializingRow(
             verifyWireKey(command.Row);
             row = command.Row;
             dynamicStoreCommand.emplace(ESortedDynamicStoreCommand::Write);
+            commandIsPureLock = command.Row.GetCount() == static_cast<ui32>(Tablet_->GetPhysicalSchema()->GetKeyColumnCount());
         },
         [&] (auto) { YT_ABORT(); });
 
@@ -383,6 +401,7 @@ void TSortedStoreManager::StartSerializingRow(
             rowRef.LockMask,
             row,
             *dynamicStoreCommand,
+            commandIsPureLock,
             onAfterSnapshotLoaded);
 
         aliveRow = rowRef.Row;
@@ -399,6 +418,7 @@ void TSortedStoreManager::StartSerializingRow(
             rowRef.LockMask,
             row,
             *dynamicStoreCommand,
+            commandIsPureLock,
             onAfterSnapshotLoaded);
         CheckForUnlockedStore(rowRef.Store);
 
@@ -408,6 +428,7 @@ void TSortedStoreManager::StartSerializingRow(
             rowRef.LockMask,
             row,
             *dynamicStoreCommand,
+            commandIsPureLock,
             onAfterSnapshotLoaded);
 
         aliveRow = migratedRow;
@@ -1557,24 +1578,30 @@ void TSortedStoreManager::CommitPerRowsSerializedLockGroup(
     YT_VERIFY(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
     YT_ASSERT(rowRef.StoreManager == this);
 
+    // TODO: Add nodiscard after c++23.
     auto applyCommand = [&] (
         const TSortedDynamicStorePtr& store,
         TSortedDynamicRow dynamicRow)
     {
+        bool commandIsPureLock = false;
         Visit(command,
             [&] (const TWriteAndLockRowCommand& command) {
                 store->WriteLockGroup(transaction, lockIndex, dynamicRow, command.Row);
+                commandIsPureLock = command.Row.GetCount() == static_cast<ui32>(Tablet_->GetPhysicalSchema()->GetKeyColumnCount());
             },
             [&] (auto) { YT_ABORT(); });
+
+        return commandIsPureLock;
     };
 
     if (rowRef.Store == ActiveStore_) {
-        applyCommand(ActiveStore_, rowRef.Row);
+        bool commandIsPureLock = applyCommand(ActiveStore_, rowRef.Row);
         ActiveStore_->CommitPerRowsSerializedLockGroup(
             transaction,
             rowRef.Row,
             ELockType::SharedWrite,
             lockIndex,
+            commandIsPureLock,
             onAfterSnapshotLoaded);
     } else {
         YT_VERIFY(!onAfterSnapshotLoaded);
@@ -1585,22 +1612,24 @@ void TSortedStoreManager::CommitPerRowsSerializedLockGroup(
             rowRef.Row,
             lockIndex);
 
-        applyCommand(rowRef.Store, rowRef.Row);
+        bool commandIsPureLock = applyCommand(rowRef.Store, rowRef.Row);
         rowRef.Store->CommitPerRowsSerializedLockGroup(
             transaction,
             rowRef.Row,
             ELockType::SharedWrite,
             lockIndex,
+            commandIsPureLock,
             onAfterSnapshotLoaded);
 
         CheckForUnlockedStore(rowRef.Store);
 
-        applyCommand(ActiveStore_, migratedRow);
+        commandIsPureLock = applyCommand(ActiveStore_, migratedRow);
         ActiveStore_->CommitPerRowsSerializedLockGroup(
             transaction,
             migratedRow,
             ELockType::SharedWrite,
             lockIndex,
+            commandIsPureLock,
             onAfterSnapshotLoaded);
     }
 

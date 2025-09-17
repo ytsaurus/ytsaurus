@@ -114,6 +114,7 @@ public:
         TLockMask lockMask,
         TUnversionedRow row,
         ESortedDynamicStoreCommand command,
+        bool commandIsPureLock,
         bool onAfterSnapshotLoaded);
 
     void CommitPerRowsSerializedLockGroup(
@@ -121,9 +122,10 @@ public:
         TSortedDynamicRow row,
         NTableClient::ELockType lockType,
         int lockIndex,
+        bool commandIsPureLock,
         bool onAfterSnapshotLoaded);
 
-    void CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask);
+    void CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask, bool commandIsPureLock);
     void AbortRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask);
     void DeleteRow(TTransaction* transaction, TSortedDynamicRow row);
     void WriteRow(TTransaction* transaction, TSortedDynamicRow dynamicRow, TUnversionedRow row);
@@ -307,6 +309,7 @@ private:
         TSortedDynamicRow row,
         NTableClient::ELockType lockType,
         TLockDescriptor* lock,
+        bool commandIsPureLock,
         bool onAfterSnapshotLoaded);
 
     void DrainSerializationHeap(
