@@ -1196,7 +1196,7 @@ private:
             } else if (location->GetState() != EChunkLocationState::Online) {
                 // COMPAT(grphil)
                 if (GetDynamicConfig()->VerifyAllLocationsAreReportedInFullHeartbeats) {
-                    THROW_ERROR_EXCEPTION("Node has not reported all locations, location %v does not have online state", location->GetUuid());
+                    THROW_ERROR_EXCEPTION("Node did not report all locations with heartbeats: location %v is not online", location->GetUuid());
                 } else {
                     location->SetState(EChunkLocationState::Online);
                 }
