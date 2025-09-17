@@ -420,6 +420,7 @@ struct TStrategyTreeConfig
 
     bool EnableFairShareTruncationInFifoPool;
 
+    // COMPAT(eshcherbin): Remove after 25.4 is created.
     bool EnableConditionalPreemption;
 
     TDuration AllowedResourceUsageStaleness;

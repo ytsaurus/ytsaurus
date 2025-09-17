@@ -21,22 +21,18 @@ struct TScheduleAllocationsStatistics
     TEnumIndexedArray<EAllocationSchedulingStage, int> ScheduleAllocationAttemptCountPerStage;
     int MaxNonPreemptiveSchedulingIndex = -1;
     int ScheduledDuringPreemption = 0;
-    int UnconditionallyPreemptibleAllocationCount = 0;
-    int TotalConditionallyPreemptibleAllocationCount = 0;
-    int MaxConditionallyPreemptibleAllocationCountInPool = 0;
+    int PreemptibleAllocationCount = 0;
     bool ScheduleWithPreemption = false;
     TEnumIndexedArray<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
     TJobResources ResourceLimits;
     TJobResources ResourceUsage;
-    TJobResources UnconditionalResourceUsageDiscount;
-    TJobResources MaxConditionalResourceUsageDiscount;
+    TJobResources ResourceUsageDiscount;
     bool SsdPriorityPreemptionEnabled = false;
     THashSet<int> SsdPriorityPreemptionMedia;
 };
 
 void Serialize(const TScheduleAllocationsStatistics& statistics, NYson::IYsonConsumer* consumer);
 
-TString FormatPreemptibleInfoCompact(const TScheduleAllocationsStatistics& statistics);
 TString FormatScheduleAllocationAttemptsCompact(const TScheduleAllocationsStatistics& statistics);
 
 TString FormatOperationCountByPreemptionPriorityCompact(
@@ -73,27 +69,23 @@ struct ISchedulingHeartbeatContext
 
     //! Discounts are used during preemption to allow second-chance scheduling.
     using TOperationIndex = int;
-    //! Capacity should be greater than the maximum operation index.
-    virtual void InitializeConditionalDiscounts(int capacity) = 0;
-    virtual void ResetDiscounts() = 0;
-    virtual TJobResourcesWithQuota GetUnconditionalDiscount() const = 0;
-    virtual void IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources) = 0;
-    virtual TJobResourcesWithQuota GetMaxConditionalDiscount() const = 0;
-    virtual TJobResourcesWithQuota GetConditionalDiscountForOperation(TOperationIndex operationIndex) const = 0;
-    virtual void SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discount) = 0;
-    virtual TDiskResources GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const = 0;
+
+    virtual void ResetDiscount() = 0;
+    virtual TJobResourcesWithQuota GetDiscount() const = 0;
+    virtual void IncreaseDiscount(const TJobResourcesWithQuota& allocationResources) = 0;
+
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() const = 0;
+
     virtual TJobResources GetNodeFreeResourcesWithDiscount() const = 0;
-    virtual TJobResources GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const = 0;
+    virtual TDiskResources GetNodeFreeDiskResourcesWithDiscount(const TJobResources& allocationResources) const = 0;
 
     virtual const std::vector<TStartedAllocation>& StartedAllocations() const = 0;
     virtual const std::vector<TAllocationPtr>& RunningAllocations() const = 0;
     virtual const std::vector<TPreemptedAllocation>& PreemptedAllocations() const = 0;
 
     //! Returns |true| if node has enough resources to start allocation with given limits.
-    virtual bool CanStartAllocationForOperation(
+    virtual bool CanStartAllocation(
         const TJobResourcesWithQuota& allocationResources,
-        TOperationIndex operationIndex,
         TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const = 0;
     //! Returns |true| if any more new allocations can be scheduled at this node.
     virtual bool CanStartMoreAllocations(

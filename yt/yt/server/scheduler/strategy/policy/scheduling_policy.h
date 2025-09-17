@@ -292,9 +292,6 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
     DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatistics, SchedulingStatistics);
 
-    // NB(eshcherbin): The following properties are public for testing purposes.
-    DEFINE_BYREF_RW_PROPERTY(TAllocationWithPreemptionInfoSetMap, ConditionallyPreemptibleAllocationSetMap);
-
 public:
     TScheduleAllocationsContext(
         ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
@@ -328,7 +325,7 @@ public:
     void AnalyzePreemptibleAllocations(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
         EAllocationPreemptionLevel minAllocationPreemptionLevel,
-        std::vector<TAllocationWithPreemptionInfo>* unconditionallyPreemptibleAllocations,
+        std::vector<TAllocationWithPreemptionInfo>* preemptibleAllocations,
         TNonOwningAllocationSet* forcefullyPreemptibleAllocations);
     void PreemptAllocationsAfterScheduling(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
@@ -356,17 +353,6 @@ public:
     const TPoolTreeElement* FindPreemptionBlockingAncestor(
         const TPoolTreeOperationElement* element,
         EOperationPreemptionPriority operationPreemptionPriority) const;
-
-    struct TPrepareConditionalUsageDiscountsContext
-    {
-        const EOperationPreemptionPriority TargetOperationPreemptionPriority;
-        TJobResourcesWithQuota CurrentConditionalDiscount;
-    };
-    void PrepareConditionalUsageDiscounts(
-        const TPoolTreeElement* element,
-        TPrepareConditionalUsageDiscountsContext* context);
-    const TAllocationWithPreemptionInfoSet& GetConditionallyPreemptibleAllocationsInPool(
-        const TPoolTreeCompositeElement* element) const;
 
     const TDynamicAttributes& DynamicAttributesOf(const TPoolTreeElement* element) const;
 
@@ -425,9 +411,6 @@ private:
 
     std::vector<bool> CanSchedule_;
 
-    //! Populated only for pools.
-    TJobResourcesMap LocalUnconditionalUsageDiscountMap_;
-
     // Indexed with tree index like static/dynamic attributes list.
     std::optional<std::vector<TNonOwningElementList>> ConsideredSchedulableChildrenPerPool_;
 
@@ -441,7 +424,6 @@ private:
 
     TJobResources GetHierarchicalAvailableResources(const TPoolTreeElement* element, bool allowLimitsOvercommit) const;
     TJobResources GetLocalAvailableResourceLimits(const TPoolTreeElement* element, bool allowLimitsOvercommit) const;
-    TJobResources GetLocalUnconditionalUsageDiscount(const TPoolTreeElement* element) const;
 
     void CollectConsideredSchedulableChildrenPerPool(
         const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations);
@@ -457,13 +439,6 @@ private:
     TPoolTreeOperationElement* FindBestOperationForScheduling();
     //! Returns whether scheduling attempt was successful.
     bool ScheduleAllocation(TPoolTreeOperationElement* element, bool ignorePacking);
-
-    void PrepareConditionalUsageDiscountsAtCompositeElement(
-        const TPoolTreeCompositeElement* element,
-        TPrepareConditionalUsageDiscountsContext* context);
-    void PrepareConditionalUsageDiscountsAtOperation(
-        const TPoolTreeOperationElement* element,
-        TPrepareConditionalUsageDiscountsContext* context);
 
     //! Pool methods.
     // Empty for now, save space for later.
