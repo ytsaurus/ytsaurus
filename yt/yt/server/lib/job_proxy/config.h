@@ -178,8 +178,9 @@ struct TEnvironmentVariableConfig
     //! Load value from present variable.
     std::optional<TString> EnvironmentVariable;
 
-    //! Export or not variable to child processes.
-    std::optional<bool> Export;
+    //! Forward or not this variable into user job environment.
+    //! Default behavior is controlled by option "forward_all_environment_variables".
+    std::optional<bool> ForwardToUserJob;
 
     TString LoadValue() const;
 

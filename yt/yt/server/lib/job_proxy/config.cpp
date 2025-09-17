@@ -118,11 +118,12 @@ void TEnvironmentVariableConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("value", &TThis::Value)
         .Default();
-    registrar.Parameter("export", &TThis::Export)
+    registrar.Parameter("forward_to_user_job", &TThis::ForwardToUserJob)
+        .Alias("export")
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (!!config->EnvironmentVariable + !!config->FileName + !!config->Value != 1) {
+        if (config->EnvironmentVariable.has_value() + config->FileName.has_value() + config->Value.has_value() != 1) {
             THROW_ERROR_EXCEPTION("Must specify one of \"environment_variable\", \"file_name\", or \"value\"");
         }
     });

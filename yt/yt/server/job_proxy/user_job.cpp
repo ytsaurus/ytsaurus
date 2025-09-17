@@ -1376,11 +1376,11 @@ private:
         }
 
         for (const auto& variable : Config_->EnvironmentVariables) {
-            if (variable->Export.value_or(false) && !Config_->ForwardAllEnvironmentVariables) {
+            if (variable->ForwardToUserJob.value_or(false) && !Config_->ForwardAllEnvironmentVariables) {
                 // Set if it is not forwarded yet.
                 SetEnvironment(Format("%v=%v", variable->Name, GetEnv(variable->Name)));
-            } else if (!variable->Export.value_or(true) && Config_->ForwardAllEnvironmentVariables) {
-                // Unset if should not be forwarded.
+            } else if (!variable->ForwardToUserJob.value_or(true) && Config_->ForwardAllEnvironmentVariables) {
+                // Unset if should not be forwarded together with all variables.
                 SetEnvironment(variable->Name);
             }
         }
