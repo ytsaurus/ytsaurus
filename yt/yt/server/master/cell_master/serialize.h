@@ -193,6 +193,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropUseProperReplicaAdditionReasonFlag)                       (3038))  // grphil
     ((FixOldestPartMissingChunksRanking)                            (3039))  // grphil
     ((FixLoadingTransactionLeasesStateFromSnapshot)                 (3040))  // kvk1920
+    ((FixPrerequisiteLeasesIssuingForMasterCells)                   (3041))  // cherepashka
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
