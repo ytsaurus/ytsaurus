@@ -1,7 +1,7 @@
 #include "handler_base.h"
 
-#include "compression_helpers.h"
 #include "config.h"
+#include "helpers.h"
 #include "profiler.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>

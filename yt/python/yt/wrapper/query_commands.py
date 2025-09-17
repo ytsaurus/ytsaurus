@@ -179,7 +179,8 @@ def alter_query(query_id, stage=None, annotations=None, access_control_objects=N
 
 
 def list_queries(user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
-                 cursor_direction=None, limit=None, attributes=None, stage=None, format=None, client=None):
+                 cursor_direction=None, limit=None, attributes=None, stage=None, format=None, search_by_token_prefix=None,
+                 use_full_text_search=None, client=None):
     """List operations that satisfy given options.
     """
     def format_time(time):
@@ -200,6 +201,8 @@ def list_queries(user=None, engine=None, state=None, filter=None, from_time=None
     set_param(params, "cursor_direction", cursor_direction)
     set_param(params, "limit", limit)
     set_param(params, "attributes", attributes)
+    set_param(params, "search_by_token_prefix", search_by_token_prefix)
+    set_param(params, "use_full_text_search", use_full_text_search)
 
     return make_formatted_request(
         "list_queries",

@@ -1510,6 +1510,11 @@ def add_list_queries_parser(add_parser):
     parser.add_argument("--limit", type=int, help="maximum number of operations in output")
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--use-full-scan-search", action="store_false", dest="use_full_text_search", help='forces the use of full-scan search for exact substring match')
+    group.add_argument("--search-by-token-prefix", action="store_true", help='can\'t be used with "--use-full-scan-search". '
+                                                                             'If set, search will be performed not by exact token '
+                                                                             'match but by prefix match')
     add_structured_format_argument(parser)
 
 
