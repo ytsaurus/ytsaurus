@@ -469,10 +469,10 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("preemption_check_starvation", &TThis::PreemptionCheckStarvation)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("preemption_check_satisfaction", &TThis::PreemptionCheckSatisfaction)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
         .Alias("job_interrupt_timeout")

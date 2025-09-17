@@ -46,9 +46,7 @@ DEFINE_ENUM(EResourceTreeElementKind,
 
 DEFINE_ENUM(EOperationPreemptionStatus,
     (AllowedUnconditionally)
-    (AllowedConditionally)
     (ForbiddenSinceStarving)
-    (ForbiddenSinceUnsatisfied)
     (ForbiddenInAncestorConfig)
 );
 
