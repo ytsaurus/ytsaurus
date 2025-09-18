@@ -562,9 +562,10 @@ void TDiskRequestConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([&] (TDiskRequestConfig* config) {
-        if (config->NbdDisk && static_cast<i64>(20_GB) < config->DiskSpace) {
+        static constexpr i64 MaxNbdDiskSize = 60_GB;
+        if (config->NbdDisk && static_cast<i64>(MaxNbdDiskSize) < config->DiskSpace) {
             THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk.")
-                << TErrorAttribute("max_disk_space", 20_GB)
+                << TErrorAttribute("max_disk_space", MaxNbdDiskSize)
                 << TErrorAttribute("disk_space", config->DiskSpace);
         }
         if (config->Account && !config->MediumName) {
