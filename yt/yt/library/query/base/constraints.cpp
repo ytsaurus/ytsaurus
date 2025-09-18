@@ -329,10 +329,8 @@ TConstraintRef TConstraintsHolder::Invert(TConstraintRef constraints)
     auto currentBound = MinBound;
 
     for (auto index = constraints.StartIndex; index != constraints.EndIndex; ++index) {
-        const auto& item = columnConstraints[index];
-
-        auto lower = item.GetLowerBound();
-        auto upper = item.GetUpperBound();
+        auto lower = columnConstraints[index].GetLowerBound();
+        auto upper = columnConstraints[index].GetUpperBound();
 
         if (currentBound < lower) {
             columnConstraints.push_back(TConstraint::Make(
@@ -340,8 +338,8 @@ TConstraintRef TConstraintsHolder::Invert(TConstraintRef constraints)
                 lower));
         }
 
-        if (item.Next.ColumnId != SentinelColumnId) {
-            auto invertedNext = Invert(item.Next);
+        if (columnConstraints[index].Next.ColumnId != SentinelColumnId) {
+            auto invertedNext = Invert(columnConstraints[index].Next);
             columnConstraints.push_back(TConstraint::Make(
                 lower,
                 upper,
