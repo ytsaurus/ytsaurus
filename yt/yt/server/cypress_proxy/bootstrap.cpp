@@ -305,6 +305,7 @@ private:
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
             ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+            NativeConnection_->GetChannelFactory(),
             /*authenticator*/ nullptr));
 
         ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());

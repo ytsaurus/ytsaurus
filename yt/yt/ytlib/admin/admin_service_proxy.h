@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/admin/proto/admin_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
@@ -15,6 +17,8 @@ public:
     DEFINE_RPC_PROXY(TAdminServiceProxy, AdminService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Die);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, PingNode);
 
     DEFINE_RPC_PROXY_METHOD(NProto, WriteCoreDump);
 
