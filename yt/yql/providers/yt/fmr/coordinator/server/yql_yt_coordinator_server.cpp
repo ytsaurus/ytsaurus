@@ -21,7 +21,8 @@ enum class EOperationHandler {
     DeleteOperation,
     SendHeartbeatResponse,
     GetFmrTableInfo,
-    ClearSession
+    ClearSession,
+    Ping
 };
 
 class TReplier: public TRequestReplier {
@@ -36,10 +37,21 @@ public:
         auto handlerName = GetHandlerName(httpRequest);
         if (!handlerName) {
             params.Output << THttpResponse(HTTP_NOT_FOUND);
-        } else {
+            return true;
+        }
+
+        try {
             YQL_ENSURE(Handlers_.contains(*handlerName));
             auto callbackFunc = Handlers_[*handlerName];
             params.Output << callbackFunc(params.Input);
+        } catch (...) {
+            YQL_CLOG(ERROR, FastMapReduce) << "Error while processing url path " << httpRequest.Path << " is: " << CurrentExceptionMessage();
+            THttpResponse response = THttpResponse(HTTP_INTERNAL_SERVER_ERROR);
+            NProto::TErrorResponse errorResponse;
+            errorResponse.SetErrorMessage(CurrentExceptionMessage());
+            response.SetContentType("application/x-protobuf");
+            response.SetContent(errorResponse.SerializeAsString());
+            params.Output << response;
         }
         return true;
     }
@@ -68,6 +80,8 @@ private:
             return EOperationHandler::GetFmrTableInfo;
         } else if (queryPath == "clear_session") {
             return EOperationHandler::ClearSession;
+        } else if (queryPath == "ping") {
+            return EOperationHandler::Ping;
         }
         return Nothing();
     }
@@ -88,7 +102,7 @@ public:
         THandler sendHeartbeatResponseHandler = std::bind(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this, std::placeholders::_1);
         THandler getFmrTableInfoHandler = std::bind(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this, std::placeholders::_1);
         THandler clearSessionHandler = std::bind(&TFmrCoordinatorServer::ClearSessionHandler, this, std::placeholders::_1);
-
+        THandler pingHandler = std::bind(&TFmrCoordinatorServer::PingHandler, this, std::placeholders::_1);
 
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
@@ -97,7 +111,8 @@ public:
             {EOperationHandler::DeleteOperation, deleteOperationHandler},
             {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler},
             {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler},
-            {EOperationHandler::ClearSession, clearSessionHandler}
+            {EOperationHandler::ClearSession, clearSessionHandler},
+            {EOperationHandler::Ping, pingHandler}
         };
     }
 
@@ -203,6 +218,11 @@ private:
         YQL_ENSURE(protoClearSessionRequest.ParseFromString(input.ReadAll()));
 
         Coordinator_->ClearSession(ClearSessionRequestFromProto(protoClearSessionRequest)).GetValueSync();
+        THttpResponse httpResponse(HTTP_OK);
+        return httpResponse;
+    }
+
+    THttpResponse PingHandler(THttpInput& /*input*/) {
         THttpResponse httpResponse(HTTP_OK);
         return httpResponse;
     }

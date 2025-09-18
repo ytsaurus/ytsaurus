@@ -16,6 +16,7 @@ PEERDIR(
     library/cpp/getopt
     library/cpp/uri
     yt/yql/providers/yt/fmr/worker/impl
+    yt/yql/providers/yt/fmr/worker/server
     yt/yql/providers/yt/fmr/coordinator/client
     yt/yql/providers/yt/fmr/job_factory/impl
     yt/yql/providers/yt/fmr/job/impl
