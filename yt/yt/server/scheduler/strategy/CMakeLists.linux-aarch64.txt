@@ -58,9 +58,9 @@ target_sources(server-scheduler-strategy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/scheduling_heartbeat_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/scheduling_heartbeat_context_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/strategy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu_allocation_assignment_plan_update.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu_allocation_scheduler_structs.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu_allocation_scheduler_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/structs.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/gpu/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/operation_shared_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/policy/packing.cpp

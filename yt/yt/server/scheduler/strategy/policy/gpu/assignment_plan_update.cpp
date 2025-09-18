@@ -1,4 +1,4 @@
-#include "gpu_allocation_assignment_plan_update.h"
+#include "assignment_plan_update.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -9,7 +9,7 @@
 
 #include <library/cpp/yt/yson/consumer.h>
 
-namespace NYT::NScheduler::NStrategy::NPolicy {
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 using namespace NLogging;
 using namespace NYTree;
@@ -31,7 +31,7 @@ int TModuleState::GetUnreservedNodeCount() const
     return GetNodeCount() - ReservedNodeCount_;
 }
 
-void TModuleState::AddFullHostBoundOperation(const TGpuSchedulerOperationPtr& operation)
+void TModuleState::AddFullHostBoundOperation(const TOperationPtr& operation)
 {
     YT_VERIFY(operation->IsFullHost());
 
@@ -40,7 +40,7 @@ void TModuleState::AddFullHostBoundOperation(const TGpuSchedulerOperationPtr& op
     ReservedNodeCount_ += operation->GetInitialNeededAllocationCount();
 }
 
-void TModuleState::RemoveFullHostBoundOperation(const TGpuSchedulerOperationPtr& operation)
+void TModuleState::RemoveFullHostBoundOperation(const TOperationPtr& operation)
 {
     EraseOrCrash(FullHostBoundOperations_, operation.Get());
     ReservedNodeCount_ -= operation->GetInitialNeededAllocationCount();
@@ -91,8 +91,8 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 
 // TODO(eshcherbin): Support opportunistic jobs.
 TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateExecutor(
-    const TGpuSchedulerOperationMap& operations,
-    const TGpuSchedulerNodeMap& nodes,
+    const TOperationMap& operations,
+    const TNodeMap& nodes,
     TInstant now,
     TGpuAllocationSchedulerConfigPtr config,
     NLogging::TLogger logger)
@@ -203,7 +203,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
 void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOperations()
 {
     // 1. Initialize.
-    std::vector<TGpuSchedulerOperationPtr> fullHostModuleBoundOperations;
+    std::vector<TOperationPtr> fullHostModuleBoundOperations;
     for (const auto& [_, operation] : Operations_) {
         if (operation->IsFullHostModuleBound()) {
             fullHostModuleBoundOperations.push_back(operation);
@@ -213,7 +213,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOpera
     YT_LOG_DEBUG("Collected full-host module-bound operations (Count: %v)", std::ssize(fullHostModuleBoundOperations));
 
     // 2. Process priority full-host module-bound operations.
-    std::vector<TGpuSchedulerOperationPtr> priorityOperationsToPlan;
+    std::vector<TOperationPtr> priorityOperationsToPlan;
     for (const auto& operation : fullHostModuleBoundOperations) {
         if (operation->GetReadyToAssignNeededAllocationCount() > 0 && ShouldUsePriorityModuleBinding(operation)) {
             priorityOperationsToPlan.push_back(operation);
@@ -224,7 +224,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOpera
 
     // 3. Process regular full-host module-bound operations.
     // NB(eshcherbin): Some operations could have been evicted, so we need to do a whole new pass over |fullHostModuleBoundOperations|.
-    std::vector<TGpuSchedulerOperationPtr> regularOperationsToPlan;
+    std::vector<TOperationPtr> regularOperationsToPlan;
     for (const auto& operation : fullHostModuleBoundOperations) {
         if (operation->GetReadyToAssignNeededAllocationCount() > 0) {
             regularOperationsToPlan.push_back(operation);
@@ -235,7 +235,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOpera
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperations(
-    std::vector<TGpuSchedulerOperationPtr>& operationsToPlan,
+    std::vector<TOperationPtr>& operationsToPlan,
     bool priorityModuleBinding)
 {
     if (operationsToPlan.empty()) {
@@ -308,9 +308,9 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
     }
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::SortFullHostModuleBoundOperations(std::vector<TGpuSchedulerOperationPtr>& operations)
+void TGpuAllocationAssignmentPlanUpdateExecutor::SortFullHostModuleBoundOperations(std::vector<TOperationPtr>& operations)
 {
-    auto comparator = [&] (const TGpuSchedulerOperationPtr& lhs, const TGpuSchedulerOperationPtr& rhs) {
+    auto comparator = [&] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
         // This happens in case some of the operation's assignments are removed,
         // and we want to reschedule the allocations ASAP.
         if (lhs->SchedulingModule().has_value() != rhs->SchedulingModule().has_value()) {
@@ -335,14 +335,14 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::SortFullHostModuleBoundOperatio
     std::ranges::sort(operations, comparator);
 }
 
-bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUseFullHostAggressivePreemption(const TGpuSchedulerOperationPtr& operation) const
+bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUseFullHostAggressivePreemption(const TOperationPtr& operation) const
 {
     return operation->IsFullHostModuleBound() &&
         operation->WaitingForAssignmentsSince() &&
         *operation->WaitingForAssignmentsSince() + Config_->FullHostAggressivePreemptionTimeout < Now_;
 }
 
-bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUsePriorityModuleBinding(const TGpuSchedulerOperationPtr& operation) const
+bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const
 {
     return operation->IsPriorityModuleBindingEnabled() &&
         operation->WaitingForModuleBindingSince() &&
@@ -350,7 +350,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldUsePriorityModuleBinding(
 }
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     bool priorityModuleBinding)
 {
     const int allocationCount = operation->GetInitialNeededAllocationCount();
@@ -453,7 +453,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
 }
 
 std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentPlanUpdateExecutor::ConsiderModuleForFullHostOperation(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     const std::string& module,
     bool priorityModuleBinding) const
 {
@@ -481,7 +481,7 @@ std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentP
     }
 
     if (priorityModuleBinding) {
-        std::vector<TGpuSchedulerOperation*> availableForEvictionOperations;
+        std::vector<TOperation*> availableForEvictionOperations;
         for (auto* operation : moduleState.FullHostBoundOperations()) {
             if (!operation->IsPriorityModuleBindingEnabled()) {
                 availableForEvictionOperations.push_back(operation);
@@ -489,7 +489,7 @@ std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentP
         }
 
         int freedNodeCount;
-        std::vector<TGpuSchedulerOperation*> operationsToEvict;
+        std::vector<TOperation*> operationsToEvict;
         bool success = FindOperationsToEvict(
             availableForEvictionOperations,
             /*neededNodeCount*/ allocationCount - availableNodeCount,
@@ -511,16 +511,16 @@ std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentP
 //! such that the total freed node count exceeds |neededNodeCount|.
 //! If total node count reserved for all available operations is not enough, returns false.
 bool TGpuAllocationAssignmentPlanUpdateExecutor::FindOperationsToEvict(
-    const std::vector<TGpuSchedulerOperation*>& availableOperations,
+    const std::vector<TOperation*>& availableOperations,
     int neededNodeCount,
-    std::vector<TGpuSchedulerOperation*>* operationsToEvict,
+    std::vector<TOperation*>* operationsToEvict,
     int* freedNodeCount) const
 {
-    auto getReservedNodeCount = [] (const TGpuSchedulerOperation* operation) {
+    auto getReservedNodeCount = [] (const TOperation* operation) {
         return operation->GetInitialNeededAllocationCount();
     };
 
-    auto willSatisfyNeededNodeCountAfterOperation = [&] (const TGpuSchedulerOperation* operation) {
+    auto willSatisfyNeededNodeCountAfterOperation = [&] (const TOperation* operation) {
         return *freedNodeCount + getReservedNodeCount(operation) >= neededNodeCount;
     };
 
@@ -561,7 +561,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::FindOperationsToEvict(
 void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
 {
     // 1. Initialize.
-    std::vector<TGpuSchedulerOperationPtr> operationsToPlan;
+    std::vector<TOperationPtr> operationsToPlan;
     for (const auto& [_, operation] : Operations_ ) {
         if (operation->IsFullHostModuleBound()) {
             continue;
@@ -582,7 +582,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
     // 2. Sort operations.
     std::ranges::sort(
         operationsToPlan,
-        [&] (const TGpuSchedulerOperationPtr& lhs, const TGpuSchedulerOperationPtr& rhs) {
+        [&] (const TOperationPtr& lhs, const TOperationPtr& rhs) {
             // Usually, vanilla operations are used for model training and map operations are used for batch inference.
             bool lhsVanilla = lhs->GetType() == EOperationType::Vanilla;
             bool rhsVanilla = rhs->GetType() == EOperationType::Vanilla;
@@ -621,7 +621,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
     }
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::AddAssignment(const TGpuSchedulerAssignmentPtr& assignment)
+void TGpuAllocationAssignmentPlanUpdateExecutor::AddAssignment(const TAssignmentPtr& assignment)
 {
     YT_LOG_DEBUG("Adding assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, OperationId: %v)",
         assignment->AllocationGroupName,
@@ -634,7 +634,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::AddAssignment(const TGpuSchedul
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAssignment(
-    const TGpuSchedulerAssignmentPtr& assignment,
+    const TAssignmentPtr& assignment,
     EAllocationPreemptionReason preemptionReason,
     std::string preemptionDescription)
 {
@@ -655,7 +655,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAssignment(
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAllOperationAssignments(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     EAllocationPreemptionReason preemptionReason,
     const std::string& preemptionDescription)
 {
@@ -667,17 +667,17 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PreemptAllOperationAssignments(
 
 // TODO(eshcherbin): Support non-empty assignments.
 NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::GetAssignmentPreemptionPenalty(
-    const TGpuSchedulerAssignmentPtr& assignment) const
+    const TAssignmentPtr& assignment) const
 {
     return static_cast<NDetail::TPreemptionPenalty>(Config_->MinAssignmentPreemptibleDuration.Seconds()) *
         assignment->ResourceUsage.GetGpu();
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroup(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     const std::string& allocationGroupName,
     const TAllocationGroupResources allocationGroupResources,
-    std::vector<TGpuSchedulerNode*>* availableNodes)
+    std::vector<TNode*>* availableNodes)
 {
     if (allocationGroupResources.AllocationCount == 0) {
         return;
@@ -704,10 +704,10 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroup(
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroupWithPreemption(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     const std::string& allocationGroupName,
     TAllocationGroupResources allocationGroupResources,
-    std::vector<TGpuSchedulerNode*>* availableNodes,
+    std::vector<TNode*>* availableNodes,
     bool useFullHostAggressivePreemption)
 {
     if (allocationGroupResources.AllocationCount == 0) {
@@ -745,7 +745,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllocationGroupWithPreempti
 ////////////////////////////////////////////////////////////////////////////////
 
 TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::TAllocationGroupPlannerBase(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     const std::string& allocationGroupName,
     const TAllocationGroupResources& allocationGroupResources,
     TGpuAllocationAssignmentPlanUpdateExecutor* host)
@@ -770,7 +770,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ru
 
 // TODO(eshcherbin): Support genuine disk usage discount.
 bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanAddAssignmentToNode(
-    TGpuSchedulerNode* node,
+    TNode* node,
     const TJobResources& discount) const
 {
     // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
@@ -778,7 +778,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
 }
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyResourceRequest(
-    TGpuSchedulerNode* node,
+    TNode* node,
     const TJobResources& discount) const
 {
     return Dominates(
@@ -786,7 +786,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
         (node->AssignedResourceUsage() - discount) + AllocationGroupResources_.MinNeededResources.ToJobResources());
 }
 
-bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyDiskRequest(TGpuSchedulerNode* node) const
+bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::CanSatisfyDiskRequest(TNode* node) const
 {
     const auto& diskRequest = AllocationGroupResources_.MinNeededResources.DiskQuota();
     if (!diskRequest) {
@@ -805,9 +805,9 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Ca
         ShouldConsiderDiskUsage());
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(TGpuSchedulerNode* node)
+void TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::AddAssignmentToNode(TNode* node)
 {
-    auto assignment = New<TGpuSchedulerAssignment>(
+    auto assignment = New<TAssignment>(
         AllocationGroupName_,
         AllocationGroupResources_.MinNeededResources,
         Operation_.Get(),
@@ -823,10 +823,10 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlannerBase::Sh
 ////////////////////////////////////////////////////////////////////////////////
 
 TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::TAllocationGroupPlanner(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     const std::string& allocationGroupName,
     const TAllocationGroupResources& allocationGroupResources,
-    std::vector<TGpuSchedulerNode*>* availableNodes,
+    std::vector<TNode*>* availableNodes,
     TGpuAllocationAssignmentPlanUpdateExecutor* host)
     : TAllocationGroupPlannerBase(operation, allocationGroupName, allocationGroupResources, host)
     , AvailableNodes_(availableNodes)
@@ -839,7 +839,7 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::TAllocation
     NextNodeIt_ = AvailableNodes_->begin();
 }
 
-TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::FindBestAvailableNode()
+TNode* TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupPlanner::FindBestAvailableNode()
 {
     while (NextNodeIt_ != AvailableNodes_->end()) {
         if (CanAddAssignmentToNode(*NextNodeIt_)) {
@@ -855,10 +855,10 @@ TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TAllocationGroupP
 ////////////////////////////////////////////////////////////////////////////////
 
 TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::TPreemptiveAllocationGroupPlanner(
-    const TGpuSchedulerOperationPtr& operation,
+    const TOperationPtr& operation,
     const std::string& allocationGroupName,
     const TAllocationGroupResources& allocationGroupResources,
-    std::vector<TGpuSchedulerNode*>* availableNodes,
+    std::vector<TNode*>* availableNodes,
     bool useFullHostAggressivePreemption,
     TGpuAllocationAssignmentPlanUpdateExecutor* host)
     : TAllocationGroupPlannerBase(operation, allocationGroupName, allocationGroupResources, host)
@@ -903,7 +903,7 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::T
 }
 
 // TODO(eshcherbin): Current greedy algorithm is quite naive. We can do much better, maybe even just solve the knapsack problem.
-NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::GetNextPreemptionPenaltyForNode(TGpuSchedulerNode* node) const
+NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::GetNextPreemptionPenaltyForNode(TNode* node) const
 {
     const auto& nodeState = GetOrCrash(NodeStates_, node);
     NDetail::TPreemptionPenalty penalty = 0;
@@ -920,7 +920,7 @@ NDetail::TPreemptionPenalty TGpuAllocationAssignmentPlanUpdateExecutor::TPreempt
     return penalty;
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::AddAssignmentToNode(TGpuSchedulerNode* node)
+void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::AddAssignmentToNode(TNode* node)
 {
     auto& nodeState = GetOrCrash(NodeStates_, node);
     while (!CanAddAssignmentToNode(node)) {
@@ -949,7 +949,7 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
     }
 }
 
-TGpuSchedulerNode* TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::FindBestAvailableNode()
+TNode* TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlanner::FindBestAvailableNode()
 {
     if (NodeHeap_.empty()) {
         return {};
@@ -973,4 +973,4 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::TPreemptiveAllocationGroupPlann
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NStrategy::NPolicy
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

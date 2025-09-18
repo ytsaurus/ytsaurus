@@ -1,12 +1,12 @@
 #pragma once
 
-#include "gpu_allocation_scheduler_structs.h"
+#include "structs.h"
 
 #include <library/cpp/yt/string/string_builder.h>
 
 #include <library/cpp/yt/yson/public.h>
 
-namespace NYT::NScheduler::NStrategy::NPolicy {
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,15 +22,15 @@ class TModuleState
 {
 public:
     // NB(eshcherbin): This vector can and will be sorted in-place.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TGpuSchedulerNode*>, AvailableNodes);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TGpuSchedulerOperation*>, FullHostBoundOperations);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, AvailableNodes);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TOperation*>, FullHostBoundOperations);
 
 public:
     int GetNodeCount() const;
     int GetUnreservedNodeCount() const;
 
-    void AddFullHostBoundOperation(const TGpuSchedulerOperationPtr& operation);
-    void RemoveFullHostBoundOperation(const TGpuSchedulerOperationPtr& operation);
+    void AddFullHostBoundOperation(const TOperationPtr& operation);
+    void RemoveFullHostBoundOperation(const TOperationPtr& operation);
 
 private:
     int ReservedNodeCount_ = 0;
@@ -46,7 +46,7 @@ struct TOperationModuleBindingOutcome
     const int RemainingUnreservedNodeCount = 0;
 
     const int TotalEvictionPenalty = 0;
-    const std::vector<TGpuSchedulerOperation*> OperationsToEvict;
+    const std::vector<TOperation*> OperationsToEvict;
 };
 
 bool operator <(const TOperationModuleBindingOutcome& lhs, const TOperationModuleBindingOutcome& rhs);
@@ -63,8 +63,8 @@ class TGpuAllocationAssignmentPlanUpdateExecutor
 {
 public:
     TGpuAllocationAssignmentPlanUpdateExecutor(
-        const TGpuSchedulerOperationMap& operations,
-        const TGpuSchedulerNodeMap& nodes,
+        const TOperationMap& operations,
+        const TNodeMap& nodes,
         TInstant now,
         TGpuAllocationSchedulerConfigPtr config,
         NLogging::TLogger logger);
@@ -72,8 +72,8 @@ public:
     void Run();
 
 private:
-    const TGpuSchedulerOperationMap& Operations_;
-    const TGpuSchedulerNodeMap& Nodes_;
+    const TOperationMap& Operations_;
+    const TNodeMap& Nodes_;
     const TInstant Now_;
 
     const TGpuAllocationSchedulerConfigPtr Config_;
@@ -81,7 +81,7 @@ private:
 
     // NB(eshcherbin): This vector can and will be sorted in-place.
     // TODO(eshcherbin): Optimize by using set or heap instead of sorting the vector every time.
-    std::vector<TGpuSchedulerNode*> SchedulableNodes_;
+    std::vector<TNode*> SchedulableNodes_;
     THashMap<std::string, NDetail::TModuleState> ModuleStates_;
 
     void InitializeModuleStates();
@@ -89,53 +89,53 @@ private:
     //! Full-host module-bound operations planning.
     void ProcessFullHostModuleBoundOperations();
     void PlanFullHostModuleBoundOperations(
-        std::vector<TGpuSchedulerOperationPtr>& operationsToPlan,
+        std::vector<TOperationPtr>& operationsToPlan,
         bool priorityModuleBinding = false);
-    void SortFullHostModuleBoundOperations(std::vector<TGpuSchedulerOperationPtr>& operations);
+    void SortFullHostModuleBoundOperations(std::vector<TOperationPtr>& operations);
 
-    bool ShouldUseFullHostAggressivePreemption(const TGpuSchedulerOperationPtr& operation) const;
-    bool ShouldUsePriorityModuleBinding(const TGpuSchedulerOperationPtr& operation) const;
+    bool ShouldUseFullHostAggressivePreemption(const TOperationPtr& operation) const;
+    bool ShouldUsePriorityModuleBinding(const TOperationPtr& operation) const;
 
-    bool BindFullHostOperationToModule(const TGpuSchedulerOperationPtr& operation, bool priorityModuleBinding);
+    bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
 
     std::optional<NDetail::TOperationModuleBindingOutcome> ConsiderModuleForFullHostOperation(
-        const TGpuSchedulerOperationPtr& operation,
+        const TOperationPtr& operation,
         const std::string& module,
         bool priorityModuleBinding) const;
     bool FindOperationsToEvict(
-        const std::vector<TGpuSchedulerOperation*>& availableOperations,
+        const std::vector<TOperation*>& availableOperations,
         int neededNodeCount,
-        std::vector<TGpuSchedulerOperation*>* operationsToEvict,
+        std::vector<TOperation*>* operationsToEvict,
         int* freedNodeCount) const;
 
     //! Other operations planning.
     void ProcessRegularOperations();
 
     //! General assignment planning.
-    void AddAssignment(const TGpuSchedulerAssignmentPtr& assignment);
+    void AddAssignment(const TAssignmentPtr& assignment);
     void PreemptAssignment(
-        const TGpuSchedulerAssignmentPtr& assignment,
+        const TAssignmentPtr& assignment,
         EAllocationPreemptionReason preemptionReason,
         std::string preemptionDescription);
 
     void PreemptAllOperationAssignments(
-        const TGpuSchedulerOperationPtr& operation,
+        const TOperationPtr& operation,
         EAllocationPreemptionReason preemptionReason,
         const std::string& preemptionDescription);
 
-    NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(const TGpuSchedulerAssignmentPtr& assignment) const;
+    NDetail::TPreemptionPenalty GetAssignmentPreemptionPenalty(const TAssignmentPtr& assignment) const;
 
     //! NB: These methods sort |availableNodes| in-place.
     void PlanAllocationGroup(
-        const TGpuSchedulerOperationPtr& operation,
+        const TOperationPtr& operation,
         const std::string& allocationGroupName,
         TAllocationGroupResources allocationGroupResources,
-        std::vector<TGpuSchedulerNode*>* availableNodes);
+        std::vector<TNode*>* availableNodes);
     void PlanAllocationGroupWithPreemption(
-        const TGpuSchedulerOperationPtr& operation,
+        const TOperationPtr& operation,
         const std::string& allocationGroupName,
         TAllocationGroupResources allocationGroupResources,
-        std::vector<TGpuSchedulerNode*>* availableNodes,
+        std::vector<TNode*>* availableNodes,
         bool useFullHostAggressivePreemption = false);
 
     class TAllocationGroupPlannerBase
@@ -145,7 +145,7 @@ private:
 
     public:
         TAllocationGroupPlannerBase(
-            const TGpuSchedulerOperationPtr& operation,
+            const TOperationPtr& operation,
             const std::string& allocationGroupName,
             const TAllocationGroupResources& allocationGroupResources,
             TGpuAllocationAssignmentPlanUpdateExecutor* host);
@@ -155,24 +155,24 @@ private:
         void Run();
 
     protected:
-        const TGpuSchedulerOperationPtr& Operation_;
+        const TOperationPtr& Operation_;
         const std::string& AllocationGroupName_;
         const TAllocationGroupResources& AllocationGroupResources_;
         TGpuAllocationAssignmentPlanUpdateExecutor* const Host_;
 
         bool CanAddAssignmentToNode(
-            TGpuSchedulerNode* node,
+            TNode* node,
             const TJobResources& discount = {}) const;
-        virtual void AddAssignmentToNode(TGpuSchedulerNode* node);
+        virtual void AddAssignmentToNode(TNode* node);
 
     private:
         //! Returns |nullptr| if there are no available nodes.
-        virtual TGpuSchedulerNode* FindBestAvailableNode() = 0;
+        virtual TNode* FindBestAvailableNode() = 0;
 
         virtual bool ShouldConsiderDiskUsage() const;
 
-        bool CanSatisfyResourceRequest(TGpuSchedulerNode* node, const TJobResources& discount) const;
-        bool CanSatisfyDiskRequest(TGpuSchedulerNode* node) const;
+        bool CanSatisfyResourceRequest(TNode* node, const TJobResources& discount) const;
+        bool CanSatisfyDiskRequest(TNode* node) const;
     };
 
     class TAllocationGroupPlanner
@@ -180,17 +180,17 @@ private:
     {
     public:
         TAllocationGroupPlanner(
-            const TGpuSchedulerOperationPtr& operation,
+            const TOperationPtr& operation,
             const std::string& allocationGroupName,
             const TAllocationGroupResources& allocationGroupResources,
-            std::vector<TGpuSchedulerNode*>* availableNodes,
+            std::vector<TNode*>* availableNodes,
             TGpuAllocationAssignmentPlanUpdateExecutor* host);
 
     private:
-        std::vector<TGpuSchedulerNode*>* AvailableNodes_;
-        std::vector<TGpuSchedulerNode*>::iterator NextNodeIt_;
+        std::vector<TNode*>* AvailableNodes_;
+        std::vector<TNode*>::iterator NextNodeIt_;
 
-        virtual TGpuSchedulerNode* FindBestAvailableNode() override;
+        virtual TNode* FindBestAvailableNode() override;
     };
 
     class TPreemptiveAllocationGroupPlanner
@@ -203,10 +203,10 @@ private:
         using TBase = TAllocationGroupPlannerBase;
 
         TPreemptiveAllocationGroupPlanner(
-            const TGpuSchedulerOperationPtr& operation,
+            const TOperationPtr& operation,
             const std::string& allocationGroupName,
             const TAllocationGroupResources& allocationGroupResources,
-            std::vector<TGpuSchedulerNode*>* availableNodes,
+            std::vector<TNode*>* availableNodes,
             bool useFullHostAggressivePreemption,
             TGpuAllocationAssignmentPlanUpdateExecutor* host);
 
@@ -218,7 +218,7 @@ private:
 
         struct TNodeWithPenalty
         {
-            TGpuSchedulerNode* Node = {};
+            TNode* Node = {};
             NDetail::TPreemptionPenalty Penalty = 0;
         };
         std::vector<TNodeWithPenalty> NodeHeap_;
@@ -226,16 +226,16 @@ private:
         struct TNodeState
         {
             TJobResources PreemptibleResourceUsage;
-            std::vector<TGpuSchedulerAssignmentPtr> PreemptibleAssignments;
+            std::vector<TAssignmentPtr> PreemptibleAssignments;
         };
-        THashMap<TGpuSchedulerNode*, TNodeState> NodeStates_;
+        THashMap<TNode*, TNodeState> NodeStates_;
 
         //! Returns the penalty for adding one more assignment to |node|.
-        NDetail::TPreemptionPenalty GetNextPreemptionPenaltyForNode(TGpuSchedulerNode* node) const;
+        NDetail::TPreemptionPenalty GetNextPreemptionPenaltyForNode(TNode* node) const;
 
-        void AddAssignmentToNode(TGpuSchedulerNode* node) override;
+        void AddAssignmentToNode(TNode* node) override;
 
-        TGpuSchedulerNode* FindBestAvailableNode() override;
+        TNode* FindBestAvailableNode() override;
 
         bool ShouldConsiderDiskUsage() const override;
     };
@@ -243,4 +243,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NStrategy::NPolicy
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

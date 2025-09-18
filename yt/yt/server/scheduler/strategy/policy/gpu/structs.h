@@ -2,14 +2,17 @@
 
 #include "private.h"
 
+#include <yt/yt/server/scheduler/strategy/policy/public.h>
+
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
+#include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <library/cpp/yt/compact_containers/compact_set.h>
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
-namespace NYT::NScheduler::NStrategy::NPolicy {
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,11 +20,11 @@ inline constexpr int MaxNodeGpuCount = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGpuSchedulerAssignment final
+struct TAssignment final
 {
     const std::string AllocationGroupName;
-    TGpuSchedulerOperation* const Operation = nullptr;
-    TGpuSchedulerNode* const Node = nullptr;
+    TOperation* const Operation = nullptr;
+    TNode* const Node = nullptr;
 
     TJobResourcesWithQuota ResourceUsage;
 
@@ -30,18 +33,18 @@ struct TGpuSchedulerAssignment final
     std::optional<EAllocationPreemptionReason> PreemptionReason;
     std::optional<std::string> PreemptionDescription;
 
-    TGpuSchedulerAssignment(
+    TAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
-        TGpuSchedulerOperation* operation,
-        TGpuSchedulerNode* node);
+        TOperation* operation,
+        TNode* node);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGpuSchedulerAssignment)
+DEFINE_REFCOUNTED_TYPE(TAssignment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuSchedulerOperation final
+class TOperation final
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);
@@ -49,7 +52,7 @@ public:
     // TODO(eshcherbin): What if some allocations complete successfully?
     DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, InitialGroupedNeededResources);
 
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TGpuSchedulerAssignmentPtr>, Assignments);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TAssignmentPtr>, Assignments);
 
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
@@ -78,7 +81,7 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
 
 public:
-    TGpuSchedulerOperation(
+    TOperation(
         TOperationId id,
         EOperationType type,
         const TAllocationGroupResourcesMap& initialGroupedNeededResources,
@@ -91,8 +94,8 @@ public:
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
 
-    void AddAssignment(const TGpuSchedulerAssignmentPtr& assignment);
-    void RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment);
+    void AddAssignment(const TAssignmentPtr& assignment);
+    void RemoveAssignment(const TAssignmentPtr& assignment);
 
     void SetPreemptible(bool preemptible);
 
@@ -105,21 +108,21 @@ private:
     int DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const;
 };
 
-using TGpuSchedulerOperationMap = THashMap<TOperationId, TGpuSchedulerOperationPtr>;
+using TOperationMap = THashMap<TOperationId, TOperationPtr>;
 
-DEFINE_REFCOUNTED_TYPE(TGpuSchedulerOperation)
+DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(eshcherbin): Support disk
-class TGpuSchedulerNode final
+class TNode final
 {
 public:
     // NB: Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
     DEFINE_BYREF_RO_PROPERTY(TExecNodeDescriptorPtr, Descriptor);
     DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, SchedulingModule);
 
-    using TAssignmentSet = TCompactSet<TGpuSchedulerAssignmentPtr, MaxNodeGpuCount>;
+    using TAssignmentSet = TCompactSet<TAssignmentPtr, MaxNodeGpuCount>;
     DEFINE_BYREF_RO_PROPERTY(TAssignmentSet, Assignments);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AssignedResourceUsage);
 
@@ -133,16 +136,16 @@ public:
 
     std::vector<TDiskQuota> GetPreliminaryAssignedDiskRequests() const;
 
-    void AddAssignment(const TGpuSchedulerAssignmentPtr& assignment);
-    void RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment);
-    void PreemptAssignment(const TGpuSchedulerAssignmentPtr& assignment);
+    void AddAssignment(const TAssignmentPtr& assignment);
+    void RemoveAssignment(const TAssignmentPtr& assignment);
+    void PreemptAssignment(const TAssignmentPtr& assignment);
 };
 
-using TGpuSchedulerNodeMap = THashMap<NNodeTrackerClient::TNodeId, TGpuSchedulerNodePtr>;
+using TNodeMap = THashMap<NNodeTrackerClient::TNodeId, TNodePtr>;
 
-DEFINE_REFCOUNTED_TYPE(TGpuSchedulerNode)
+DEFINE_REFCOUNTED_TYPE(TNode)
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NStrategy::NPolicy
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu
