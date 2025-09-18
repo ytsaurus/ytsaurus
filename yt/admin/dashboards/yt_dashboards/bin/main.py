@@ -1,3 +1,5 @@
+import logging
+
 from yt_dashboards.common.runner import run
 
 from yt_dashboards.master import (
@@ -29,6 +31,15 @@ from yt_dashboards import lsm
 from yt_dashboards import flow
 
 from yt_dashboards import queue_and_consumer_metrics
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+
+logger = logging.getLogger(__name__)
 
 
 dashboards = {

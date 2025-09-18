@@ -1,14 +1,14 @@
-from ...serializer import SerializerBase
+from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent, monitoring_to_grafana_unit
+from ...postprocessors import DollarTemplateTagPostprocessor
 from ...sensor import Sensor, MultiSensor, Text, Title
+from ...serializer import SerializerBase
+from ...specific_sensors.monitoring import MonitoringExpr
 from ...specific_tags.tags import BackendTag, Regex
 from ...taggable import SystemFields, NotEquals, SensorTemplate
-from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent, monitoring_to_grafana_unit
-from ...specific_sensors.monitoring import MonitoringExpr
-from ...postprocessors import DollarTemplateTagPostprocessor
 
-import requests
 import enum
 import lark
+import requests
 
 ##################################################################
 

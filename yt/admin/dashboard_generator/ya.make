@@ -37,6 +37,8 @@ PEERDIR(
 
     contrib/python/grpcio/py3
     contrib/python/protobuf/py3
+
+    yt/python/client
 )
 
 END()
