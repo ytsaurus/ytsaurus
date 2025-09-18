@@ -1063,6 +1063,8 @@ struct TOperationSpecBase
     //! slicing.
     i64 MaxCompressedDataSizePerJob;
 
+    i64 MaxPrimaryCompressedDataSizePerJob;
+
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
 

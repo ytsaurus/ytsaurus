@@ -29,10 +29,11 @@ DECLARE_REFCOUNTED_STRUCT(IVanillaChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IOrderedChunkPool)
 
 YT_DEFINE_ERROR_ENUM(
-    ((DataSliceLimitExceeded)              (2000))
-    ((MaxDataWeightPerJobExceeded)         (2001))
-    ((MaxPrimaryDataWeightPerJobExceeded)  (2002))
-    ((MaxCompressedDataSizePerJobExceeded) (2003))
+    ((DataSliceLimitExceeded)                     (2000))
+    ((MaxDataWeightPerJobExceeded)                (2001))
+    ((MaxPrimaryDataWeightPerJobExceeded)         (2002))
+    ((MaxCompressedDataSizePerJobExceeded)        (2003))
+    ((MaxPrimaryCompressedDataSizePerJobExceeded) (2004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
