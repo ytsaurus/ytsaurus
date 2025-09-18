@@ -82,7 +82,8 @@ public:
             "Base job size constraints initialized (InputDataWeight: %v, InputCompressedDataSize: %v, "
             "PrimaryInputDataWeight: %v, PrimaryInputCompressedDataSize: %v, InputRowCount: %v, "
             "InputChunkCount: %v, MergeInputTableCount: %v, MergePrimaryInputTableCount: %v, "
-            "SamplingRate: %v)",
+            "SamplingRate: %v, MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v, "
+            "MaxPrimaryDataWeightPerJob: %v, MaxPrimaryCompressedDataSizePerJob: %v)",
             InputDataWeight_,
             InputCompressedDataSize_,
             PrimaryInputDataWeight_,
@@ -91,7 +92,11 @@ public:
             InputChunkCount_,
             MergeInputTableCount_,
             MergePrimaryInputTableCount_,
-            GetSamplingRate());
+            GetSamplingRate(),
+            GetMaxDataWeightPerJob(),
+            GetMaxCompressedDataSizePerJob(),
+            GetMaxPrimaryDataWeightPerJob(),
+            GetMaxPrimaryCompressedDataSizePerJob());
 
         if (GetSamplingRate()) {
             InitializeSampling();
@@ -176,6 +181,11 @@ public:
         return Spec_->MaxCompressedDataSizePerJob;
     }
 
+    i64 GetMaxPrimaryCompressedDataSizePerJob() const override
+    {
+        return Spec_->MaxPrimaryCompressedDataSizePerJob;
+    }
+
     i64 GetInputSliceRowCount() const override
     {
         if (GetJobCount() == 0) {
@@ -199,6 +209,7 @@ public:
         return false;
     }
 
+    // TODO(apollo1321): Apply sampling when updating initial parameters.
     void UpdateInputDataWeight(i64 inputDataWeight) override
     {
         YT_LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
@@ -213,6 +224,22 @@ public:
             PrimaryInputDataWeight_,
             primaryInputDataWeight);
         PrimaryInputDataWeight_ = primaryInputDataWeight;
+    }
+
+    void UpdateInputCompressedDataSize(i64 inputCompressedDataSize) override
+    {
+        YT_LOG_DEBUG("Job size constraints input compressed data size updated (OldInputCompressedDataSize: %v, NewInputCompressedDataSize: %v)",
+            InputCompressedDataSize_,
+            inputCompressedDataSize);
+        InputCompressedDataSize_ = inputCompressedDataSize;
+    }
+
+    void UpdateInputPrimaryCompressedDataSize(i64 primaryInputCompressedDataSize) override
+    {
+        YT_LOG_DEBUG("Job size constraints primary input compressed data size updated (OldInputCompressedDataSize: %v, NewInputCompressedDataSize: %v)",
+            InputCompressedDataSize_,
+            primaryInputCompressedDataSize);
+        PrimaryInputCompressedDataSize_ = primaryInputCompressedDataSize;
     }
 
 protected:
@@ -438,6 +465,13 @@ public:
             : 1;
     }
 
+    i64 GetPrimaryCompressedDataSizePerJob() const override
+    {
+        return JobCountByCompressedDataSize_ > 0
+            ? std::max<i64>(1, DivCeil(PrimaryInputCompressedDataSize_, JobCountByCompressedDataSize_))
+            : 1;
+    }
+
     i64 GetMaxDataSlicesPerJob() const override
     {
         auto maxDataSlicesPerJob = std::min(
@@ -452,21 +486,9 @@ public:
             : 1);
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return Spec_->MaxCompressedDataSizePerJob;
-    }
-
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
-
-    i64 GetPrimaryCompressedDataSizePerJob() const
-    {
-        return JobCountByCompressedDataSize_ > 0
-            ? std::max<i64>(1, DivCeil(PrimaryInputCompressedDataSize_, JobCountByCompressedDataSize_))
-            : 1;
-    }
 
     i64 GetSizePerJob(i64 jobCount, i64 primaryInputSize, i64 inputSize, i64 primarySizePerJob) const
     {
@@ -669,9 +691,9 @@ public:
         return std::min(compressedDataSizePerJob, DivCeil<i64>(GetMaxCompressedDataSizePerJob(), 2));
     }
 
-    i64 GetMaxCompressedDataSizePerJob() const override
+    i64 GetPrimaryCompressedDataSizePerJob() const override
     {
-        return Spec_->MaxCompressedDataSizePerJob;
+        return GetCompressedDataSizePerJob();
     }
 
     i64 GetInputSliceRowCount() const override
@@ -817,6 +839,11 @@ public:
     }
 
     i64 GetCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
+    }
+
+    i64 GetPrimaryCompressedDataSizePerJob() const override
     {
         return InfiniteSize;
     }
@@ -979,6 +1006,11 @@ public:
     }
 
     i64 GetCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
+    }
+
+    i64 GetPrimaryCompressedDataSizePerJob() const override
     {
         return InfiniteSize;
     }
@@ -1148,10 +1180,12 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         /*dataWeightPerJob*/ dataWeightPerJob,
         /*primaryDataWeightPerJob*/ dataWeightPerJob,
         /*compressedDataSizePerJob*/ InfiniteSize,
+        /*primaryCompressedDataSizePerJob*/ InfiniteSize,
         options->MaxDataSlicesPerJob,
         spec->MaxDataWeightPerJob,
         spec->MaxPrimaryDataWeightPerJob,
         /*maxCompressedDataSizePerJob*/ InfiniteSize,
+        /*maxPrimaryCompressedDataSizePerJob*/ InfiniteSize,
         /*inputSliceDataSize*/ InfiniteSize,
         /*inputSliceRowCount*/ InfiniteCount,
         /*batchRowCount*/ {},

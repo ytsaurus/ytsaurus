@@ -20,12 +20,14 @@ protected:
     static TResourceVector CreateVector(
         i64 dataSliceCount = 0,
         i64 dataWeight = 0,
-        i64 primaryDataWeight = 0)
+        i64 primaryDataWeight = 0,
+        i64 compressedDataSize = 0)
     {
         TResourceVector vector;
         vector.Values[EResourceKind::DataSliceCount] = dataSliceCount;
         vector.Values[EResourceKind::DataWeight] = dataWeight;
         vector.Values[EResourceKind::PrimaryDataWeight] = primaryDataWeight;
+        vector.Values[EResourceKind::CompressedDataSize] = compressedDataSize;
         return vector;
     }
 
@@ -652,6 +654,56 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_0_5)
 
     ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 201, /*PDW*/ 0)));
     ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(/*DW*/ 200, /*PDW*/ 0)));
+}
+
+TEST_F(TJobSizeTrackerTest, CompressedDataSizeLimit)
+{
+    auto tracker = CreateJobSizeTracker(
+        /*limitVector*/ CreateVector(
+            /*DSC*/ std::numeric_limits<i64>::max(),
+            /*DW*/ std::numeric_limits<i64>::max(),
+            /*PDW*/ std::numeric_limits<i64>::max(),
+            /*CDS*/ 1000),
+        TJobSizeTrackerOptions(),
+        Logger);
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 500);
+        ASSERT_FALSE(tracker->CheckOverflow(resources));
+        tracker->AccountSlice(resources);
+        ASSERT_FALSE(tracker->CheckOverflow().has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 400);
+        ASSERT_FALSE(tracker->CheckOverflow(resources));
+        tracker->AccountSlice(resources);
+        ASSERT_FALSE(tracker->CheckOverflow().has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 600);
+        auto token = tracker->CheckOverflow(resources);
+        ASSERT_TRUE(token);
+        tracker->Flush(token);
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 800);
+        ASSERT_FALSE(tracker->CheckOverflow(resources));
+        tracker->AccountSlice(resources);
+        ASSERT_FALSE(tracker->CheckOverflow().has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 200);
+        ASSERT_FALSE(tracker->CheckOverflow(resources).has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 201);
+        ASSERT_TRUE(tracker->CheckOverflow(resources).has_value());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

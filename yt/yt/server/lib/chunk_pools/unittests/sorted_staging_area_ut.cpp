@@ -58,13 +58,14 @@ protected:
         ForeignComparator_ = TComparator(std::vector<ESortOrder>(1, ESortOrder::Ascending));
     }
 
-    TInputChunkPtr CreateChunk(i64 chunkId, i64 dataWeight = 1000, i64 rowCount = 100)
+    TInputChunkPtr CreateChunk(i64 chunkId, i64 dataWeight = 1000, i64 rowCount = 100, i64 compressedDataSize = 500)
     {
         auto chunk = New<TInputChunk>();
         chunk->SetChunkId(TChunkId(chunkId, 0));
         chunk->SetTotalDataWeight(dataWeight);
         chunk->SetTotalRowCount(rowCount);
         chunk->SetTableIndex(0);
+        chunk->SetCompressedDataSize(compressedDataSize);
         return chunk;
     }
 
@@ -151,12 +152,14 @@ protected:
     static TResourceVector CreateVector(
         i64 dataSliceCount = 0,
         i64 dataWeight = 0,
-        i64 primaryDataWeight = 0)
+        i64 primaryDataWeight = 0,
+        i64 compressedDataSize = 0)
     {
         TResourceVector vector;
         vector.Values[EResourceKind::DataSliceCount] = dataSliceCount;
         vector.Values[EResourceKind::DataWeight] = dataWeight;
         vector.Values[EResourceKind::PrimaryDataWeight] = primaryDataWeight;
+        vector.Values[EResourceKind::CompressedDataSize] = compressedDataSize;
         return vector;
     }
 };
@@ -390,21 +393,21 @@ TEST_F(TSortedStagingAreaTest, WithForeign)
         BuildBound("<=", {5})),
         ESliceType::Foreign);
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0, /*CDS*/ 500));
 
     StagingArea_->PromoteUpperBound(BuildBound("<=", {2}));
     FlushAndValidateStatistics({.ExpectedJobCount = 1, .ExpectedDataSliceCount = 2});
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0, /*CDS*/ 500));
 
     StagingArea_->PromoteUpperBound(BuildBound("<=", {3}));
     FlushAndValidateStatistics({.ExpectedJobCount = 1, .ExpectedDataSliceCount = 2});
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0, /*CDS*/ 500));
 
     StagingArea_->PromoteUpperBound(BuildBound("<", {4}));
 
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 1, /*DW*/ 1000, /*PDW*/ 0, /*CDS*/ 500));
 
     StagingArea_->Put(CreateDataSlice(
         CreateChunk(3),
@@ -445,35 +448,34 @@ TEST_F(TSortedStagingAreaTest, ForeignResourceVectorTracksAddAndTrimOnFlush)
     EXPECT_TRUE(StagingArea_->GetForeignResourceVector().IsZero());
 
     StagingArea_->Put(CreateDataSlice(
-        CreateChunk(/*chunkId*/ 11, /*dataWeight*/ 700),
+        CreateChunk(/*chunkId*/ 11, /*dataWeight*/ 700, /*rowCount*/ 100, /*compressedDataSize*/ 100),
         BuildBound(">=", {-10}),
         BuildBound("<=", {-5})),
         ESliceType::Foreign); // F1
 
     StagingArea_->Put(CreateDataSlice(
-        CreateChunk(/*chunkId*/ 12, /*dataWeight*/ 800),
+        CreateChunk(/*chunkId*/ 12, /*dataWeight*/ 800, /*rowCount*/ 100, /*compressedDataSize*/ 200),
         BuildBound(">=", {-3}),
         BuildBound("<", {0})),
         ESliceType::Foreign); // F2
 
     StagingArea_->Put(CreateDataSlice(
-        CreateChunk(/*chunkId*/ 13, /*dataWeight*/ 500),
+        CreateChunk(/*chunkId*/ 13, /*dataWeight*/ 500, /*rowCount*/ 100, /*compressedDataSize*/ 300),
         BuildBound(">=", {-1}),
         BuildBound("<=", {0})),
         ESliceType::Foreign); // F_touch
 
     StagingArea_->Put(CreateDataSlice(
-        CreateChunk(/*chunkId*/ 14, /*dataWeight*/ 600),
+        CreateChunk(/*chunkId*/ 14, /*dataWeight*/ 600,  /*rowCount*/ 100, /*compressedDataSize*/ 400),
         BuildBound(">=", {1}),
         BuildBound("<=", {5})),
         ESliceType::Foreign); // F_right
 
-    // Verify aggregated foreign resources: 4 slices, total foreign weight = 700+800+500+600 = 2600.
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 4, /*DW*/ 2600, /*PDW*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 4, /*DW*/ 2600, /*PDW*/ 0, /*CDS*/ 1000));
 
     // Add a primary slice so that a job is built on flush with lower bound at >= 0.
     StagingArea_->Put(CreateDataSlice(
-        CreateChunk(/*chunkId*/ 21, /*dataWeight*/ 1000),
+        CreateChunk(/*chunkId*/ 21, /*dataWeight*/ 1000, /*rowCount*/ 100, /*compressedDataSize*/ 500),
         BuildBound(">=", {0}),
         BuildBound("<", {5})),
         ESliceType::Buffer);
@@ -484,7 +486,7 @@ TEST_F(TSortedStagingAreaTest, ForeignResourceVectorTracksAddAndTrimOnFlush)
     FlushAndValidateStatistics({.ExpectedJobCount = 1, .ExpectedDataSliceCount = 3});
 
     // Remaining foreign slices: F_touch (upper=0 inclusive) and F_right. Total weight = 500 + 600 = 1100.
-    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 2, /*DW*/ 1100, /*PDW*/ 0));
+    EXPECT_EQ(StagingArea_->GetForeignResourceVector(), CreateVector(/*DSC*/ 2, /*DW*/ 1100, /*PDW*/ 0, /*CDS*/ 700));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
