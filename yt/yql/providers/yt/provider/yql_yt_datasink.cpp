@@ -255,16 +255,18 @@ public:
             TExprNode::TListType children = node->ChildrenList();
             children.resize(3);
             return ctx.NewCallable(node->Pos(), TYtDropTable::CallableName(), std::move(children));
-        } else if (mode && FromString<EYtWriteMode>(mode->Child(1)->Content()) == EYtWriteMode::Create) {
-            if (!node->Child(3)->IsCallable("Void")) {
-                ctx.AddError(TIssue(ctx.GetPosition(node->Child(3)->Pos()), TStringBuilder()
-                    << "Expected Void, but got: " << node->Child(3)->Content()));
+        } else if (mode && FromString<EYtWriteMode>(mode->Child(1U)->Content()) == EYtWriteMode::Create) {
+            if (!node->Child(3U)->IsCallable("Void")) {
+                ctx.AddError(TIssue(ctx.GetPosition(node->Child(3U)->Pos()), TStringBuilder()
+                    << "Expected Void, but got: " << node->Child(3U)->Content()));
                 return {};
             }
 
             auto children = node->ChildrenList();
-            children.resize(4U);
-            children.back() = NYql::GetSetting(*node->Child(4), EYtSettingType::Columns)->TailPtr();
+            children.resize(5U);
+            children[3U] = NYql::GetSetting(*node->Child(4U), EYtSettingType::Columns)->TailPtr();
+            const auto keys = NYql::GetSetting(*node->Child(4U), EYtSettingType::PrimaryKey);
+            children.back() = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
             return ctx.NewCallable(node->Pos(), TYtCreateTable::CallableName(), std::move(children));
         } else {
             auto res = ctx.RenameNode(*node, TYtWriteTable::CallableName());

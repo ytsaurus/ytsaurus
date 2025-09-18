@@ -1731,7 +1731,7 @@ private:
 
 
     TStatus HandleCreateTable(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
-        if (!EnsureArgsCount(*input, 4U, ctx)) {
+        if (!EnsureArgsCount(*input, 5U, ctx)) {
             return TStatus::Error;
         }
 
@@ -1755,6 +1755,11 @@ private:
 
         const auto columns = input->ChildPtr(TYtCreateTable::idx_Columns);
         if (!EnsureTupleMinSize(*columns, 1U, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto keys = input->ChildPtr(TYtCreateTable::idx_Keys);
+        if (!EnsureTupleOfAtoms(*keys, ctx)) {
             return TStatus::Error;
         }
 

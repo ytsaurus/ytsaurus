@@ -403,7 +403,8 @@
             "Base": "TYtIsolatedOpBase",
             "Match": {"Type": "Callable", "Name": "YtCreateTable!"},
             "Children": [
-                {"Index": 3, "Name": "Columns", "Type": "TExprList"}
+                {"Index": 3, "Name": "Columns", "Type": "TExprList"},
+                {"Index": 4, "Name": "Keys", "Type": "TCoAtomList"}
             ]
         },
         {
