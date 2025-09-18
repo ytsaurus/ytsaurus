@@ -29,7 +29,7 @@ ISequoiaAttributeFetcherPtr CreateAttributeFetcherForGetRequest(
     const TSequoiaSessionPtr sequoiaSession,
     const NYTree::TAttributeFilter& attributeFilter,
     const NCypressClient::TNodeId rootId,
-    const THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren);
+    const std::vector<NCypressClient::TNodeId>& nodesToFetchFromMaster);
 
 ISequoiaAttributeFetcherPtr CreateAttributeFetcherForListRequest(
     const NApi::NNative::IClientPtr client,
