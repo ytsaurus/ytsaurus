@@ -15,10 +15,7 @@ struct IStoreCompactor
 {
     // TODO(ifsmirnov): check for semaphores availability.
     virtual void OnBeginSlotScan() = 0;
-    virtual void ProcessLsmActionBatch(
-        const ITabletSlotPtr& slot,
-        const NLsm::TLsmActionBatch& batch) = 0;
-    virtual void OnEndSlotScan() = 0;
+    virtual void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) = 0;
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 

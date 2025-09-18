@@ -263,7 +263,6 @@ struct TStoreCompactorDynamicConfig
     std::string CompactionFairSharePool;
     std::string PartitioningFairSharePool;
 
-    bool IgnoreFutureEffect;
     bool ScheduleNewTasksAfterTaskCompletion;
 
     REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
