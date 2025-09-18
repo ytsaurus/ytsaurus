@@ -3,7 +3,7 @@ from yt_queries import start_query
 from yt.environment.helpers import assert_items_equal
 from yt.wrapper.flow_commands import wait_pipeline_state, PipelineState
 
-from yt_commands import authors, create, mount_table, insert_rows, select_rows
+from yt_commands import authors, create, sync_mount_table, insert_rows, select_rows
 
 from yt_queue_agent_test_base import TestQueueAgentBase
 
@@ -78,8 +78,8 @@ pragma Ytflow.YtProducerPath = "{self.PRODUCER_PATH}";
         output_table_attrs.update(dynamic=True)
         create("table", output_table, attributes=output_table_attrs)
 
-        mount_table(input_table, sync=True)
-        mount_table(output_table, sync=True)
+        sync_mount_table(input_table)
+        sync_mount_table(output_table)
 
         insert_rows(input_table, input_rows)
 
