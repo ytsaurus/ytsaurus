@@ -698,6 +698,7 @@ protected:
     {
         UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, protoChunkReaderStatistics);
         TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk() +
+            protoChunkReaderStatistics.wasted_data_bytes_read_from_disk() +
             protoChunkReaderStatistics.meta_bytes_read_from_disk();
     }
 
