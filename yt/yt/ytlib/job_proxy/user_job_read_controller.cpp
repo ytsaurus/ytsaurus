@@ -574,7 +574,8 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     i64 adaptiveRowCountUpperBound,
     TInstant ioStartTime)
 {
-    if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
+    const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
+    if (jobSpecHelper->GetJobType() != EJobType::Vanilla && !jobSpecExt.user_job_spec().is_secondary_distributed()) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {
             const auto& inputQuerySpec = jobSpecHelper->GetJobSpecExt().input_query_spec();
             auto query = FromProto<TConstQueryPtr>(inputQuerySpec.query());
