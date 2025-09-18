@@ -944,6 +944,9 @@ extend google.protobuf.FieldOptions
     // Alias `value` can be used instead of spelling out full attribute path in the expression.
     // Validation is performed only for mutating API calls, not for server-side plugins.
     repeated string field_validation_predicates = 31055;
+
+    // Ignored in source protos. Set by codegen to mark key fields of references.
+    optional bool referenced = 31056;
 }
 
 // Next field 32016.
