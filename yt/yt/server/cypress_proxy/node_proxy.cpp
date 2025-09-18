@@ -2186,7 +2186,7 @@ private:
             SequoiaSession_,
             attributeFilter,
             Id_,
-            nodeIdToChildren);
+            nodesToFetchFromMaster);
 
         auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
         // Build a DFS over this mess.
