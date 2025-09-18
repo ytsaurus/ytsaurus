@@ -1,12 +1,10 @@
-#include "gpu_allocation_scheduler_helpers.h"
+#include "helpers.h"
 
-#include "gpu_allocation_scheduler_structs.h"
-
-namespace NYT::NScheduler::NStrategy::NPolicy {
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsAssignmentPreliminary(const TGpuSchedulerAssignmentPtr& /*assignment*/)
+bool IsAssignmentPreliminary(const TAssignmentPtr& /*assignment*/)
 {
     // TODO(eshcherbin): Should be true only for assignments without a running allocation.
     return true;
@@ -14,4 +12,4 @@ bool IsAssignmentPreliminary(const TGpuSchedulerAssignmentPtr& /*assignment*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NStrategy::NPolicy
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

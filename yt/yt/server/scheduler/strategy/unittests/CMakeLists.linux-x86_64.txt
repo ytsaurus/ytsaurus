@@ -55,7 +55,7 @@ target_link_options(unittester-scheduler-strategy PRIVATE
 )
 
 target_sources(unittester-scheduler-strategy PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/gpu_allocation_assignment_plan_update_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/assignment_plan_update_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/packing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/pool_tree_element_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/scheduler/strategy/unittests/scheduling_policy_ut.cpp

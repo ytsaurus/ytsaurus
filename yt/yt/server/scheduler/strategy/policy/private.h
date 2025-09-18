@@ -10,11 +10,6 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TGpuSchedulerAssignment)
-
-DECLARE_REFCOUNTED_CLASS(TGpuSchedulerOperation)
-DECLARE_REFCOUNTED_CLASS(TGpuSchedulerNode)
-
 DECLARE_REFCOUNTED_CLASS(TScheduleAllocationsContext)
 
 DECLARE_REFCOUNTED_STRUCT(TDynamicAttributesListSnapshot)

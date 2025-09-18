@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/scheduler/strategy/policy/gpu_allocation_assignment_plan_update.h>
+#include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -15,7 +15,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NScheduler::NStrategy::NPolicy {
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,12 +139,12 @@ protected:
         return config;
     }
 
-    TGpuSchedulerNodePtr CreateTestNode(
+    TNodePtr CreateTestNode(
         std::string module,
         const TJobResources& nodeResources,
         TDiskResources diskResources = TestSingleMediumDiskResources)
     {
-        auto node = New<TGpuSchedulerNode>();
+        auto node = New<TNode>();
         node->SetSchedulingModule(std::move(module));
 
         auto descriptor = New<TExecNodeDescriptor>();
@@ -160,11 +160,11 @@ protected:
         return node;
     }
 
-    std::vector<TGpuSchedulerNodePtr> CreateSingleModuleTestNodes(
+    std::vector<TNodePtr> CreateSingleModuleTestNodes(
         int nodeCount = 1,
         const TDiskResources& diskResources = TestSingleMediumDiskResources)
     {
-        std::vector<TGpuSchedulerNodePtr> nodes;
+        std::vector<TNodePtr> nodes;
         nodes.reserve(nodeCount);
 
         const auto& module = *TestModules.begin();
@@ -175,11 +175,11 @@ protected:
         return nodes;
     }
 
-    std::vector<TGpuSchedulerNodePtr> CreateMultiModuleTestNodes(
+    std::vector<TNodePtr> CreateMultiModuleTestNodes(
         const THashMap<std::string, int>& nodeCountPerModule,
         const TDiskResources& diskResources = TestSingleMediumDiskResources)
     {
-        std::vector<TGpuSchedulerNodePtr> nodes;
+        std::vector<TNodePtr> nodes;
         for (const auto& [module, nodeCount] : nodeCountPerModule) {
             for (int i = 0; i < nodeCount; ++i) {
                 nodes.push_back(CreateTestNode(module, TestNodeResources, diskResources));
@@ -204,7 +204,7 @@ protected:
         };
     }
 
-    std::vector<TGpuSchedulerNodePtr> CreateStandardMultiModuleTestNodes()
+    std::vector<TNodePtr> CreateStandardMultiModuleTestNodes()
     {
         constexpr int StandardNodeCount = 10;
         static const THashMap<std::string, int> StandardNodeCountPerModule = [&] {
@@ -218,13 +218,13 @@ protected:
         return CreateMultiModuleTestNodes(StandardNodeCountPerModule);
     }
 
-    TGpuSchedulerOperationPtr CreateTestOperation(
+    TOperationPtr CreateTestOperation(
         TAllocationGroupResourcesMap groupedNeededResources,
         EOperationType type = EOperationType::Vanilla,
         std::optional<THashSet<std::string>> specifiedSchedulingModules = {},
         bool gang = false)
     {
-        return New<TGpuSchedulerOperation>(
+        return New<TOperation>(
             TOperationId(TGuid::Create()),
             type,
             groupedNeededResources,
@@ -232,7 +232,7 @@ protected:
             std::move(specifiedSchedulingModules));
     }
 
-    TGpuSchedulerOperationPtr CreateSingleGroupTestOperation(
+    TOperationPtr CreateSingleGroupTestOperation(
         TJobResourcesWithQuota allocationResources,
         int allocationCount,
         EOperationType type = EOperationType::Vanilla,
@@ -249,7 +249,7 @@ protected:
             gang.value_or(defaultGang));
     }
 
-    TGpuSchedulerOperationPtr CreateFullHostTestOperation(
+    TOperationPtr CreateFullHostTestOperation(
         int allocationCount = 1,
         EOperationType type = EOperationType::Vanilla,
         std::optional<bool> gang = {},
@@ -263,7 +263,7 @@ protected:
             gang);
     }
 
-    TGpuSchedulerOperationPtr CreateFullHostTestOperationWithDisk(
+    TOperationPtr CreateFullHostTestOperationWithDisk(
         TDiskRequest diskRequest = UnitDiskSpace,
         int allocationCount = 1,
         EOperationType type = EOperationType::Vanilla,
@@ -278,7 +278,7 @@ protected:
             gang);
     }
 
-    TGpuSchedulerOperationPtr CreateSimpleTestOperation(
+    TOperationPtr CreateSimpleTestOperation(
         int gpuCount = 1,
         int allocationCount = 1,
         EOperationType type = EOperationType::Vanilla,
@@ -293,7 +293,7 @@ protected:
             std::move(specifiedSchedulingModules));
     }
 
-    TGpuSchedulerOperationPtr CreateSimpleTestOperationWithDisk(
+    TOperationPtr CreateSimpleTestOperationWithDisk(
         TDiskRequest diskRequest = UnitDiskSpace,
         int gpuCount = 1,
         int allocationCount = 1,
@@ -310,8 +310,8 @@ protected:
     }
 
     void DoAllocationAssignmentPlanUpdate(
-        const TGpuSchedulerOperationMap& operations,
-        const TGpuSchedulerNodeMap& nodes,
+        const TOperationMap& operations,
+        const TNodeMap& nodes,
         TGpuAllocationSchedulerConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
@@ -325,17 +325,17 @@ protected:
     }
 
     void DoAllocationAssignmentPlanUpdate(
-        const std::vector<TGpuSchedulerOperationPtr>& operations,
-        const std::vector<TGpuSchedulerNodePtr>& nodes,
+        const std::vector<TOperationPtr>& operations,
+        const std::vector<TNodePtr>& nodes,
         TGpuAllocationSchedulerConfigPtr config = GetTestConfig(),
         TInstant now = {})
     {
-        TGpuSchedulerOperationMap operationMap;
+        TOperationMap operationMap;
         for (const auto& operation : operations) {
             EmplaceOrCrash(operationMap, operation->GetId(), operation);
         }
 
-        TGpuSchedulerNodeMap nodeMap;
+        TNodeMap nodeMap;
         for (const auto& node : nodes) {
             EmplaceOrCrash(nodeMap, node->Descriptor()->Id, node);
         }
@@ -344,7 +344,7 @@ protected:
     }
 
     void AddReadyToAssignAllocations(
-        const TGpuSchedulerOperationPtr& operation,
+        const TOperationPtr& operation,
         int allocationCount,
         const std::string& allocationGroupName = TestAllocationGroupName)
     {
@@ -352,20 +352,20 @@ protected:
         allocationGroupResources.AllocationCount += allocationCount;
     }
 
-    void RemoveAssignment(TGpuSchedulerAssignmentPtr assignment)
+    void RemoveAssignment(TAssignmentPtr assignment)
     {
         assignment->Operation->RemoveAssignment(assignment);
         assignment->Node->RemoveAssignment(assignment);
     }
 
-    void RemoveOperationAssignments(const TGpuSchedulerOperationPtr& operation)
+    void RemoveOperationAssignments(const TOperationPtr& operation)
     {
         for (auto&& assignment : GetItems(operation->Assignments())) {
             RemoveAssignment(std::move(assignment));
         }
     }
 
-    void CheckOperationAssignmentsAreInCorrectModule(const TGpuSchedulerOperationPtr& operation)
+    void CheckOperationAssignmentsAreInCorrectModule(const TOperationPtr& operation)
     {
         if (const auto& module = operation->SchedulingModule()) {
             for (const auto& assignment : operation->Assignments()) {
@@ -374,7 +374,7 @@ protected:
         }
     }
 
-    bool CheckNodePreliminaryAssignedDiskRequests(const TGpuSchedulerNodePtr& node, std::vector<TDiskRequest> expectedDiskRequests)
+    bool CheckNodePreliminaryAssignedDiskRequests(const TNodePtr& node, std::vector<TDiskRequest> expectedDiskRequests)
     {
         std::vector<TDiskRequest> actualDiskRequests;
         for (const auto& diskRequest : node->GetPreliminaryAssignedDiskRequests()) {
@@ -463,7 +463,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleFullHost)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleMultipleOperations)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
         CreateSimpleTestOperation(/*gpuCount*/ 4),
@@ -519,7 +519,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleMap)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOperationOrderMix)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 4, EOperationType::Map),
         CreateFullHostTestOperation(),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
@@ -538,7 +538,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOperationOrderMix)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestBiggerGpuDemandGoesFirst)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 1),
         CreateSimpleTestOperation(/*gpuCount*/ 4),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
@@ -561,7 +561,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestBiggerGpuDemandGoesFirst)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestBiggerMapGoesFirst)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 2, EOperationType::Map),
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 3, EOperationType::Map),
     };
@@ -578,7 +578,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestBiggerMapGoesFirst)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestMapWithBiggerDemandGoesFirst)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 2, EOperationType::Map),
         CreateSimpleTestOperation(/*gpuCount*/ 3, /*allocationCount*/ 2, EOperationType::Map),
     };
@@ -595,7 +595,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestMapWithBiggerDemandGoesFirst)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestGangCannotScheduleOnSingleNode)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 2),
         CreateFullHostTestOperation(/*allocationCount*/ 1),
     };
@@ -615,7 +615,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSkewedCpuDemandFirst)
     skewedAllocationResources.SetCpu(12.0);
 
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSingleGroupTestOperation(skewedAllocationResources * 3, /*allocationCount*/ 1),
         CreateSimpleTestOperation(/*gpuCount*/ 3),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
@@ -637,7 +637,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSkewedCpuDemandLast)
     skewedAllocationResources.SetCpu(12.0);
 
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSingleGroupTestOperation(skewedAllocationResources, /*allocationCount*/ 3),
         CreateSimpleTestOperation(/*gpuCount*/ 3),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
@@ -656,7 +656,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSkewedCpuDemandLast)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOperationAddedBetweenUpdates)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 4),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
     };
@@ -689,7 +689,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOperationAddedBetweenUpdates)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRemoveAssignmentAfterPlanning)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 2),
     };
 
@@ -718,7 +718,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRemoveAssignmentAfterPlanning
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestVanillaGoesBeforeMap)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 3, /*allocationCount*/ 2, EOperationType::Map),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
         CreateSimpleTestOperation(/*gpuCount*/ 6),
@@ -737,7 +737,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestVanillaGoesBeforeMap)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestMapPartialAssignment)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 3, /*allocationCount*/ 3, EOperationType::Map),
     };
 
@@ -754,7 +754,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSmallOperationsPack)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 2);
 
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     for (int i = 0; i < 8; ++i) {
         operations.push_back(CreateSimpleTestOperation());
     }
@@ -779,7 +779,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSmallOperationsPackBestEffort
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 2);
 
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 3, /*allocationCount*/ 2),
         CreateSimpleTestOperation(/*gpuCount*/ 3),
         CreateSimpleTestOperation(/*gpuCount*/ 1),
@@ -804,7 +804,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSmallOperationsPackBestEffort
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestBiggerGangGoesFirst)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 8);
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 1),
         CreateFullHostTestOperation(/*allocationCount*/ 4),
         CreateFullHostTestOperation(/*allocationCount*/ 2),
@@ -830,7 +830,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestBiggerGangGoesFirst)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPartiallyScheduledGangGoesFirst)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 4);
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 3),
     };
 
@@ -861,7 +861,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestTwoAllocationGroups)
     memoryIntensiveSkewedAllocationResources.SetCpu(38.0);
 
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSingleGroupTestOperation(cpuIntensiveSkewedAllocationResources, /*allocationCount*/ 1),
     };
 
@@ -901,7 +901,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestHeterogeneousNodes)
     otherNodeResources.SetCpu(120.0);
 
     const auto& module = *TestModules.begin();
-    std::vector<TGpuSchedulerNodePtr> nodes{
+    std::vector<TNodePtr> nodes{
         CreateTestNode(module, TestNodeResources),
         CreateTestNode(module, otherNodeResources),
     };
@@ -909,7 +909,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestHeterogeneousNodes)
     auto skewedAllocationResources = UnitResources;
     skewedAllocationResources.SetCpu(15.0);
 
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSingleGroupTestOperation(skewedAllocationResources, /*allocationCount*/ 16, EOperationType::Map),
     };
 
@@ -926,7 +926,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestHeterogeneousNodes)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDiskSimple)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperationWithDisk(),
         CreateSimpleTestOperation(),
     };
@@ -950,7 +950,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDiskSimple)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestLargeDiskRequest)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperationWithDisk(
             /*diskRequest*/ UnitDiskSpace * 10,
             /*gpuCount*/ 1,
@@ -969,7 +969,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestLargeDiskRequest)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestImpossibleDiskRequest)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperationWithDisk(/*diskRequest*/ UnitDiskSpace * 30),
     };
 
@@ -983,7 +983,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestImpossibleDiskRequest)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestMediumIndex)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 1, /*diskResources*/ TestTwoMediaDiskResources);
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperationWithDisk(TDiskRequest(UnitDiskSpace * 10, /*mediumIndex*/ 0), /*gpuCount*/ 2),
         CreateSimpleTestOperationWithDisk(),
         CreateSimpleTestOperationWithDisk(TDiskRequest(UnitDiskSpace * 10, /*mediumIndex*/ 1)),
@@ -1013,7 +1013,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestMediumIndex)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 6),
         CreateSimpleTestOperation(/*gpuCount*/ 2),
         CreateSimpleTestOperation(/*gpuCount*/ 1),
@@ -1081,7 +1081,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignments)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 8),
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 2),
     };
@@ -1118,7 +1118,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignmen
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignments)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 8),
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 2),
     };
@@ -1157,7 +1157,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionOfSeveralAssignment
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionFromSeveralNodes)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 2);
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 4, /*allocationCount*/ 2),
         CreateSimpleTestOperation(/*gpuCount*/ 4, /*allocationCount*/ 2),
     };
@@ -1174,7 +1174,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionFromSeveralNodes)
         }
     }
 
-    std::vector<TGpuSchedulerAssignmentPtr> preemptibleAssignments;
+    std::vector<TAssignmentPtr> preemptibleAssignments;
     for (const auto& operation : operations) {
         auto preemptibleAssignment = *operation->Assignments().begin();
         preemptibleAssignment->Preemptible = true;
@@ -1211,7 +1211,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptionFromSeveralNodes)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSeveralStarvingOperations)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 4),
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 3),
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 1),
@@ -1254,7 +1254,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSeveralStarvingOperations)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDoNotPreemptMoreThanNeeded)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 4),
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 1),
     };
@@ -1284,7 +1284,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDoNotPreemptMoreThanNeeded)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreemption)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 1, /*allocationCount*/ 1),
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 1),
         CreateSimpleTestOperation(/*gpuCount*/ 3, /*allocationCount*/ 1),
@@ -1318,7 +1318,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfAssignmentsDuringPreem
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfNodesDuringPreemption)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 3);
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperation(/*gpuCount*/ 4, /*allocationCount*/ 2),
         CreateSimpleTestOperation(/*gpuCount*/ 2, /*allocationCount*/ 1),
         CreateSimpleTestOperation(/*gpuCount*/ 5, /*allocationCount*/ 1),
@@ -1355,7 +1355,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOrderOfNodesDuringPreemption)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostRegularPreemption)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 10);
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 1),
     };
 
@@ -1400,7 +1400,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostRegularPreemption)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemption)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 10);
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateSimpleTestOperation(/*gpuCount*/ 1),
     };
 
@@ -1441,7 +1441,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemption)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionDoesNotPreemptOtherFullHost)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 10);
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 5),
         CreateSimpleTestOperation(/*gpuCount*/ 4, /*allocationCount*/ 2),
     };
@@ -1482,7 +1482,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionD
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
 {
     auto nodes = CreateSingleModuleTestNodes(/*nodeCount*/ 10);
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 5),
         CreateFullHostTestOperation(/*allocationCount*/ 5),
     };
@@ -1550,7 +1550,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPreemptibleFullHostOperation)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRegularPreemptionDoesNotConsiderDiskUsage)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperationWithDisk(UnitDiskSpace * 10, /*gpuCount*/ 6),
         CreateSimpleTestOperationWithDisk(UnitDiskSpace * 20, /*gpuCount*/ 2),
         CreateSimpleTestOperationWithDisk(/*gpuCount*/ 1),
@@ -1577,7 +1577,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestRegularPreemptionDoesNotConsi
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionConsidersDiskUsage)
 {
     auto nodes = CreateSingleModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations{
+    std::vector<TOperationPtr> operations{
         CreateSimpleTestOperationWithDisk(UnitDiskSpace * 10, /*gpuCount*/ 6),
         CreateSimpleTestOperationWithDisk(UnitDiskSpace * 20, /*gpuCount*/ 2),
     };
@@ -1618,7 +1618,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostAggressivePreemptionC
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSingleAllocationOperationsPack)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     for (int i = 0; i < 10; ++i) {
         operations.push_back(CreateFullHostTestOperation());
     }
@@ -1641,7 +1641,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSingleAllocationOpera
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSingleAllocationOperationsPackBestEffort)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 1),
         CreateFullHostTestOperation(/*allocationCount*/ 4),
         CreateFullHostTestOperation(/*allocationCount*/ 2),
@@ -1675,7 +1675,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostSpecifiedModules)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
 
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     {
         std::vector<std::pair<int, std::optional<THashSet<std::string>>>> operationDescriptions{
             {1, {}},
@@ -1716,7 +1716,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostLessSpecifiedModulesG
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
 
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     {
         std::vector<std::pair<int, std::optional<THashSet<std::string>>>> operationDescriptions{
             {10, {{"ALA", "BEG"}}},
@@ -1751,7 +1751,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBinding)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
 
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     {
         std::vector<std::pair<int, std::optional<THashSet<std::string>>>> operationDescriptions{
             {1, {{"EVN"}}},
@@ -1813,7 +1813,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingWithSpec
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
 
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     {
         std::vector<std::pair<int, std::optional<THashSet<std::string>>>> operationDescriptions{
             {1, {{"EVN"}}},
@@ -1874,7 +1874,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingOtherPri
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
 
-    std::vector<TGpuSchedulerOperationPtr> operations;
+    std::vector<TOperationPtr> operations;
     {
         std::vector<std::pair<int, std::optional<THashSet<std::string>>>> operationDescriptions{
             {1, {{"EVN"}}},
@@ -1932,7 +1932,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestPriorityModuleBindingOtherPri
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostMap)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 15, EOperationType::Map),
         CreateFullHostTestOperation(/*allocationCount*/ 7),
         CreateFullHostTestOperation(/*allocationCount*/ 8),
@@ -1956,7 +1956,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostMap)
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAndLaterReturnsToSameModule)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 2),
         CreateFullHostTestOperation(/*allocationCount*/ 8),
         CreateSimpleTestOperation(/*gpuCount*/ 4, /*allocationCount*/ 40),
@@ -2005,7 +2005,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAndLaterBoundToOtherModule)
 {
     auto nodes = CreateStandardMultiModuleTestNodes();
-    std::vector<TGpuSchedulerOperationPtr> operations = {
+    std::vector<TOperationPtr> operations = {
         CreateFullHostTestOperation(/*allocationCount*/ 2),
         CreateFullHostTestOperation(/*allocationCount*/ 8),
         CreateSimpleTestOperation(/*gpuCount*/ 4, /*allocationCount*/ 40),
@@ -2079,4 +2079,4 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestFullHostOperationPreemptedAnd
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NScheduler::NStrategy::NPolicy
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu
