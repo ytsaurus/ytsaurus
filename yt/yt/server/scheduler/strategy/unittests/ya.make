@@ -5,7 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
-    gpu_allocation_assignment_plan_update_ut.cpp
+    assignment_plan_update_ut.cpp
     packing_ut.cpp
     pool_tree_element_ut.cpp
     scheduling_policy_ut.cpp

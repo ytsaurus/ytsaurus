@@ -1,20 +1,20 @@
-#include "gpu_allocation_scheduler_structs.h"
+#include "structs.h"
 
-#include "gpu_allocation_scheduler_helpers.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-namespace NYT::NScheduler::NStrategy::NPolicy {
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGpuSchedulerAssignment::TGpuSchedulerAssignment(
+TAssignment::TAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
-    TGpuSchedulerOperation* operation,
-    TGpuSchedulerNode* node)
+    TOperation* operation,
+    TNode* node)
     : AllocationGroupName(std::move(allocationGroupName))
     , Operation(operation)
     , Node(node)
@@ -23,7 +23,7 @@ TGpuSchedulerAssignment::TGpuSchedulerAssignment(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGpuSchedulerOperation::TGpuSchedulerOperation(
+TOperation::TOperation(
         TOperationId id,
         EOperationType type,
         const TAllocationGroupResourcesMap& initialGroupedNeededResources,
@@ -37,7 +37,7 @@ TGpuSchedulerOperation::TGpuSchedulerOperation(
     , Gang_(gang)
 { }
 
-bool TGpuSchedulerOperation::IsFullHost() const
+bool TOperation::IsFullHost() const
 {
     return std::ranges::all_of(
         InitialGroupedNeededResources_,
@@ -47,24 +47,24 @@ bool TGpuSchedulerOperation::IsFullHost() const
         });
 }
 
-bool TGpuSchedulerOperation::IsFullHostModuleBound() const
+bool TOperation::IsFullHostModuleBound() const
 {
     bool singleAllocationVanilla = GetType() == EOperationType::Vanilla &&
         GetInitialNeededAllocationCount() == 1;
     return IsFullHost() && (IsGang() || singleAllocationVanilla);
 }
 
-int TGpuSchedulerOperation::GetInitialNeededAllocationCount() const
+int TOperation::GetInitialNeededAllocationCount() const
 {
     return DoGetNeededAllocationCount(InitialGroupedNeededResources_);
 }
 
-int TGpuSchedulerOperation::GetReadyToAssignNeededAllocationCount() const
+int TOperation::GetReadyToAssignNeededAllocationCount() const
 {
     return DoGetNeededAllocationCount(ReadyToAssignGroupedNeededResources_);
 }
 
-void TGpuSchedulerOperation::AddAssignment(const TGpuSchedulerAssignmentPtr& assignment)
+void TOperation::AddAssignment(const TAssignmentPtr& assignment)
 {
     YT_VERIFY(assignment->Operation == this);
 
@@ -76,7 +76,7 @@ void TGpuSchedulerOperation::AddAssignment(const TGpuSchedulerAssignmentPtr& ass
     --allocationGroupResources.AllocationCount;
 }
 
-void TGpuSchedulerOperation::RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment)
+void TOperation::RemoveAssignment(const TAssignmentPtr& assignment)
 {
     YT_VERIFY(assignment->Operation == this);
 
@@ -84,7 +84,7 @@ void TGpuSchedulerOperation::RemoveAssignment(const TGpuSchedulerAssignmentPtr& 
     AssignedResourceUsage_ -= assignment->ResourceUsage;
 }
 
-void TGpuSchedulerOperation::SetPreemptible(bool preemptible)
+void TOperation::SetPreemptible(bool preemptible)
 {
     YT_VERIFY(IsFullHostModuleBound());
 
@@ -94,7 +94,7 @@ void TGpuSchedulerOperation::SetPreemptible(bool preemptible)
     }
 }
 
-std::optional<std::string> TGpuSchedulerOperation::GetUsedSchedulingModule() const
+std::optional<std::string> TOperation::GetUsedSchedulingModule() const
 {
     if (Assignments_.empty()) {
         return {};
@@ -103,7 +103,7 @@ std::optional<std::string> TGpuSchedulerOperation::GetUsedSchedulingModule() con
     return (*Assignments_.begin())->Node->SchedulingModule();
 }
 
-int TGpuSchedulerOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const
+int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const
 {
     int count = 0;
     for (const auto& [_, allocationGroupResources] : groupedNeededResources) {
@@ -115,19 +115,19 @@ int TGpuSchedulerOperation::DoGetNeededAllocationCount(const TAllocationGroupRes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TGpuSchedulerNode::GetUnassignedGpuCount() const
+int TNode::GetUnassignedGpuCount() const
 {
     return Descriptor_->ResourceLimits.GetGpu() - AssignedResourceUsage_.GetGpu();
 }
 
-void TGpuSchedulerNode::SetSchedulingModule(std::string schedulingModule)
+void TNode::SetSchedulingModule(std::string schedulingModule)
 {
     YT_VERIFY(!SchedulingModule_);
 
     SchedulingModule_ = std::move(schedulingModule);
 }
 
-void TGpuSchedulerNode::UpdateDescriptor(TExecNodeDescriptorPtr descriptor)
+void TNode::UpdateDescriptor(TExecNodeDescriptorPtr descriptor)
 {
     if (Descriptor_) {
         YT_VERIFY(Descriptor_->Id == descriptor->Id);
@@ -136,7 +136,7 @@ void TGpuSchedulerNode::UpdateDescriptor(TExecNodeDescriptorPtr descriptor)
     Descriptor_ = std::move(descriptor);
 }
 
-std::vector<TDiskQuota> TGpuSchedulerNode::GetPreliminaryAssignedDiskRequests() const
+std::vector<TDiskQuota> TNode::GetPreliminaryAssignedDiskRequests() const
 {
     std::vector<TDiskQuota> result;
     result.reserve(size(Assignments_));
@@ -150,7 +150,7 @@ std::vector<TDiskQuota> TGpuSchedulerNode::GetPreliminaryAssignedDiskRequests() 
     return result;
 }
 
-void TGpuSchedulerNode::AddAssignment(const TGpuSchedulerAssignmentPtr& assignment)
+void TNode::AddAssignment(const TAssignmentPtr& assignment)
 {
     YT_VERIFY(assignment->Node == this);
 
@@ -158,7 +158,7 @@ void TGpuSchedulerNode::AddAssignment(const TGpuSchedulerAssignmentPtr& assignme
     AssignedResourceUsage_ += assignment->ResourceUsage;
 }
 
-void TGpuSchedulerNode::RemoveAssignment(const TGpuSchedulerAssignmentPtr& assignment)
+void TNode::RemoveAssignment(const TAssignmentPtr& assignment)
 {
     YT_VERIFY(assignment->Node == this);
 
@@ -166,7 +166,7 @@ void TGpuSchedulerNode::RemoveAssignment(const TGpuSchedulerAssignmentPtr& assig
     AssignedResourceUsage_ -= assignment->ResourceUsage;
 }
 
-void TGpuSchedulerNode::PreemptAssignment(const TGpuSchedulerAssignmentPtr& assignment)
+void TNode::PreemptAssignment(const TAssignmentPtr& assignment)
 {
     RemoveAssignment(assignment);
 
@@ -176,4 +176,4 @@ void TGpuSchedulerNode::PreemptAssignment(const TGpuSchedulerAssignmentPtr& assi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NStrategy::NPolicy
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu
