@@ -1,3 +1,4 @@
+from ...dashboard import Dashboard
 from ...helpers import break_long_lines_in_multiline_cell, pretty_print_fixed_indent, monitoring_to_grafana_unit
 from ...postprocessors import DollarTemplateTagPostprocessor
 from ...sensor import Sensor, MultiSensor, Text, Title
@@ -6,8 +7,9 @@ from ...specific_sensors.monitoring import MonitoringExpr
 from ...specific_tags.tags import BackendTag, Regex
 from ...taggable import SystemFields, NotEquals, SensorTemplate
 
-import enum
 import lark
+
+import enum
 import requests
 
 ##################################################################
@@ -515,7 +517,7 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
             result.append(dct)
         return result
 
-    def on_dashboard(self, dashboard, rowsets):
+    def on_dashboard(self, dashboard: Dashboard, rowsets):
         result = {
             "panels": self.panels,
         }
@@ -542,6 +544,17 @@ class GrafanaDictSerializer(GrafanaSerializerBase):
                     **GrafanaTextboxDashboardParameter().dict,
                 } for k in keys]
             }
+        if len(dashboard.permissions) > 0:
+            result["templating"]["permissions"] = []
+            for permission in dashboard.permissions:
+                permission_to_add = {
+                    "permission": permission.permission,
+                    "path": permission.path,
+                    "cluster": permission.cluster,
+                }
+                if permission.ignore_paths is not None:
+                    permission_to_add["ignorePaths"] = permission.ignore_paths
+                result["templating"]["permissions"].append(permission_to_add)
 
         return result
 

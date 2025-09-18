@@ -340,6 +340,17 @@ def build_scheduler_pool(has_porto=True, os_documentation=False):
         GrafanaTextboxDashboardParameter(SCHEDULER_DASHBOARD_DEFAULT_POOL),
         backends=["grafana"],
     )
+    d.add_permission(
+        "use",
+        "//sys/pool_trees/$tree/$pool",
+        "$cluster",
+        [r"^\/\/sys\/pool_trees\/[a-zA-Z0-9]+\/<Root>"],
+    )
+    d.add_permission(
+        "use",
+        "//sys/pool_trees/$tree",
+    )
+
     d.value("pool", TemplateTag("pool"))
 
     d.set_monitoring_serializer_options(dict(default_row_height=9))
