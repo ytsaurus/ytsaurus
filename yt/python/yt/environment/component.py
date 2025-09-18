@@ -75,7 +75,7 @@ class YTServerComponentBase:
     def stop(self):
         self.env.kill_service(self.LOWERCASE_NAME)
 
-    def get_default_config(self):
+    def get_default_config(self, instance_index: int):
         raise NotImplementedError("Override me in the derived class")
 
     def _build_configs(self, count, yt_config, cluster_connection, ports_generator, logs_dir):
@@ -83,7 +83,7 @@ class YTServerComponentBase:
         addresses = []
 
         for index in range(count):
-            config = self.get_default_config()
+            config = self.get_default_config(index)
 
             init_singletons(config, yt_config)
             init_cypress_annotations(config, index)

@@ -327,6 +327,7 @@ class TYqlPlugin
 public:
     TYqlPlugin(TYqlPluginOptions options)
         : DqManagerConfig_(options.DqManagerConfig ? NYTree::ConvertTo<TDqManagerConfigPtr>(options.DqManagerConfig) : nullptr)
+        , StartDqManager_(options.StartDqManager)
     {
         try {
             auto singletonsConfig = NYTree::ConvertTo<TSingletonsConfigPtr>(options.SingletonsConfig);
@@ -468,7 +469,7 @@ public:
 
     void Start() override
     {
-        if (DqManager_) {
+        if (DqManager_ && StartDqManager_) {
             DqManager_->Start();
         }
     }
@@ -710,6 +711,7 @@ public:
     }
 
     TClustersResult GetUsedClusters(
+        TQueryId /*queryId*/,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) noexcept override
@@ -855,6 +857,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
+
+    bool StartDqManager_;
 
     std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false) {
         // NB: TProgram destructor must be called without locking.
