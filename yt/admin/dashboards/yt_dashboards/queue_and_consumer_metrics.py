@@ -38,7 +38,10 @@ def add_queue_parameters(dashboard: Dashboard, default_queue_cluster="", default
         backends=["monitoring"],
     )
     dashboard.add_parameter(
-        "queue_cluster", "Queue cluster", GrafanaTextboxDashboardParameter(default_queue_cluster), backends=["grafana"]
+        "queue_cluster",
+        "Queue cluster",
+        GrafanaTextboxDashboardParameter(default_queue_cluster),
+        backends=["grafana"],
     )
 
     dashboard.add_parameter(
@@ -47,9 +50,16 @@ def add_queue_parameters(dashboard: Dashboard, default_queue_cluster="", default
         MonitoringLabelDashboardParameter("yt", "queue_path", default_queue_path),
         backends=["monitoring"],
     )
-
     dashboard.add_parameter(
-        "queue_path", "Queue path", GrafanaTextboxDashboardParameter(default_queue_path), backends=["grafana"]
+        "queue_path",
+        "Queue path",
+        GrafanaTextboxDashboardParameter(default_queue_path),
+        backends=["grafana"])
+
+    dashboard.add_permission(
+        "read",
+        "$queue_path",
+        "$queue_cluster",
     )
 
     dashboard.value("queue_cluster", TemplateTag("queue_cluster"))
@@ -76,6 +86,12 @@ def add_consumer_parameters(dashboard: Dashboard, default_consumer_cluster="", d
         "Consumer cluster",
         GrafanaTextboxDashboardParameter(default_consumer_cluster),
         backends=["grafana"],
+    )
+
+    dashboard.add_permission(
+        "read",
+        "$consumer_path",
+        "$consumer_cluster",
     )
 
     dashboard.add_parameter(

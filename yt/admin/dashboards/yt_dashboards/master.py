@@ -752,6 +752,10 @@ def build_master_accounts():
         GrafanaTextboxDashboardParameter("sys"),
         backends=["grafana"],
     )
+    dashboard.add_permission(
+        "use",
+        "//sys/accounts/$account",
+    )
 
     dashboard.add_parameter(
         "left_medium",
