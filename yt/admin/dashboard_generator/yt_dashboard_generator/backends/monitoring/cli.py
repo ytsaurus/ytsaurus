@@ -3,6 +3,7 @@ from ... import cli
 from ...helpers import pretty_print_fixed_indent
 
 import os
+from typing import Any
 
 
 class MonitoringFacade(cli.FacadeBase):
@@ -54,15 +55,21 @@ class MonitoringFacade(cli.FacadeBase):
         result = dashboard.serialize(serializer)
         pretty_print_fixed_indent(result)
 
-    def do_submit(self, verbose):
+    def _prepare_serialized_dashboard(self, verbose):
         dashboard = self.func()
         if self.set_name:
             dashboard.try_set_name(self.uid)
         serializer = monitoring.MonitoringDictSerializer(self.tag_postprocessor)
         widgets = dashboard.serialize(serializer)
+        return widgets
 
+    def do_submit(self, verbose):
+        serialized_dashboard = self._prepare_serialized_dashboard(verbose)
         proxy = monitoring.MonitoringProxy(self.endpoint, self.token)
-        proxy.submit_dashboard(widgets, self.dashboard_id, verbose=verbose)
+        proxy.submit_dashboard(serialized_dashboard, self.dashboard_id, verbose=verbose)
+
+    def generate_serialized_dashboard(self, verbose: bool) -> dict[str, Any]:
+        return self._prepare_serialized_dashboard(verbose)
 
     def json(self, file=False):
         raise NotImplementedError()
