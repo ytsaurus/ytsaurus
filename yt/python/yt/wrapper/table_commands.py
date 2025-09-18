@@ -1056,7 +1056,10 @@ def attach_table(
     params = {"path": TablePath(destination_table, client=client)}
     set_param(params, "source_uris", source_uris)
 
-    return make_request("attach_table", params, client=client)
+    # Attaching external sources may take a long time.
+    # Set timeout to 1 year.
+    timeout = 365 * 24 * 60 * 60 * 1000
+    return make_request("attach_table", params, client=client, timeout=timeout, use_heavy_proxy=True)
 
 
 def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replica_id=None,

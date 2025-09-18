@@ -576,11 +576,6 @@ def add_upload_orc_parser(add_parser):
     parser.add_argument("--input-file", type=str, required=True)
 
 
-@copy_docstring_from(yt.attach_table)
-def attach_table(**kwargs):
-    yt.attach_table(**kwargs)
-
-
 @copy_docstring_from(yt.write_table)
 def write_table(**kwargs):
     func_args = dict(kwargs)
@@ -608,6 +603,11 @@ def add_write_file_parser(add_parser):
         parser.add_argument("--executable", action="store_true", help="do file executable")
         parser.add_argument("--compute-md5", action="store_true", help="compute md5 of file content")
         add_no_compression_arg(parser)
+
+
+@copy_docstring_from(yt.attach_table)
+def attach_table(**kwargs):
+    yt.attach_table(**kwargs)
 
 
 def add_attach_table_parser(add_parser):

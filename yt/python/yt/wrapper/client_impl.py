@@ -364,6 +364,23 @@ class YtClient(ClientState):
             client=self,
             enabled=enabled, mode=mode, enable_replicated_table_tracker=enable_replicated_table_tracker)
 
+    def attach_table(
+            self,
+            destination_table,
+            source_uris,
+    ):
+        """
+        Attaches external sources, e.g. S3 URIs, to table.
+
+        :param destination_table: output table. Specify `TablePath` attributes for append mode or something like `<append=%true>//path/to/table`.
+        :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param source_uris: URIs, e.g. s3://bucket/key.
+        """
+        return client_api.attach_table(
+            destination_table,
+            client=self,
+            source_uris=source_uris)
+
     def balance_tablet_cells(
             self,
             bundle,
@@ -3023,19 +3040,6 @@ class YtClient(ClientState):
             client=self,
             file_writer=file_writer, is_stream_compressed=is_stream_compressed, force_create=force_create,
             compute_md5=compute_md5, size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor)
-
-    def attach_table(
-            self,
-            destination_table,
-            source_uris,
-    ):
-        """
-        Attaches external sources, e.g. S3 URIs, to table.
-        """
-        return client_api.attach_table(
-            destination_table,
-            client=self,
-            source_uris=source_uris)
 
     def write_table(
             self,
