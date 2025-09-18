@@ -19,6 +19,8 @@ struct TCompactionRequest
     bool DiscardStores = false;
     EStoreCompactionReason Reason = EStoreCompactionReason::None;
     TEnumIndexedArray<EHunkCompactionReason, i64> HunkChunkCountByReason;
+    // A random number to deterministically break ties.
+    ui64 Random = RandomNumber<ui64>();
 };
 
 struct TSamplePartitionRequest
