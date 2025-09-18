@@ -2,7 +2,6 @@ package chyt
 
 import (
 	"context"
-	"path/filepath"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -31,6 +30,12 @@ func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (targe
 	return
 }
 
+func (c *Controller) resolveChytVersion(ctx context.Context, path ypath.Path, chytVersion *chytOpletInfo) error {
+	chytVersion.ChytRunningVersionPath = path.String()
+	err := c.ytc.GetNode(ctx, path.Attr("version"), &chytVersion.ChytRunningVersion, nil)
+	return err
+}
+
 type artifact struct {
 	name string
 	path ypath.Path
@@ -42,7 +47,7 @@ func (c *Controller) buildArtifact(ctx context.Context, artifact artifact) (path
 	return
 }
 
-func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any, chytVersion *string) (err error) {
+func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any, chytVersion *chytOpletInfo) (err error) {
 	artifacts := []artifact{
 		{"ytserver-clickhouse", CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault())},
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
@@ -57,11 +62,14 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 	for _, artifact := range artifacts {
 		var path ypath.Rich
 		path, err = c.buildArtifact(ctx, artifact)
-		if artifact.name == "ytserver-clickhouse" {
-			*chytVersion = filepath.Base(path.YPath().String())
-		}
 		if err != nil {
 			return
+		}
+		if artifact.name == "ytserver-clickhouse" {
+			err = c.resolveChytVersion(ctx, path.Path, chytVersion)
+			if err != nil {
+				return
+			}
 		}
 		*filePaths = append(*filePaths, path)
 		err = appendArtifactDescription(ctx, &artifactDescription, c.ytc, artifact.name, path.Path)
