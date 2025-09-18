@@ -1303,6 +1303,7 @@ After that, a special code from the `_py_runner.py` module is executed on the cl
 #### Link to the post with tips { #pickling_advises }
 
 {% cut "Examples of module filtering " %}
+
 Here's an example of how to filter out transmission of .so and .pyc files but continue to transmit the yt module (by the way, the same thing enables you to run scripts on Mac OS X):
 
 ```python
