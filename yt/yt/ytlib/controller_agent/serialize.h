@@ -76,6 +76,9 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobEnvironmentPreparationStatistics)   (301904))
     ((RlsInOperations)                       (301905))
     ((FixRlsSnapshots)                       (301906))
+    ((PrimaryCompressedDataSizePerJob)       (301907))
+    // 25.4 starts here
+    ((BumpTo_25_4)                           (302000))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

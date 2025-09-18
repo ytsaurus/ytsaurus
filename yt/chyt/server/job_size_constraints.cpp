@@ -137,10 +137,12 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
         dataWeightPerJob,
         /*primaryDataWeightPerJob*/ 1_EB,
         /*compressedDataSizePerJob*/ 1_EB,
+        /*primaryCompressedDataSizePerJob*/ 1_EB,
         /*maxDataSlicesPerJob*/ 1'000'000'000'000ll,
         /*maxDataWeightPerJob*/ 1_EB,
         /*maxPrimaryDataWeightPerJob*/ 1_EB,
         /*maxCompressedDataSizePerJob*/ 1_EB,
+        /*maxPrimaryCompressedDataSizePerJob*/ 1_EB,
         /*inputSliceDataWeight*/ inputSliceDataWeight,
         /*inputSliceRowCount*/ std::max<i64>(1, totalRowCount / jobCount),
         /*batchRowCount*/ {},
@@ -155,4 +157,4 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NClickHouseServer
+} // namespace NYT::NClickHouseServer

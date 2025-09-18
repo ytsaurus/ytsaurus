@@ -12,6 +12,8 @@ DEFINE_ENUM(EResourceKind,
     (DataSliceCount)
     (DataWeight)
     (PrimaryDataWeight)
+    (CompressedDataSize)
+    (PrimaryCompressedDataSize)
 );
 
 //! Helper structure for representing job parameters.
@@ -26,6 +28,8 @@ struct TResourceVector
     TResourceVector& operator+=(const TResourceVector& other);
     TResourceVector operator-(const TResourceVector& other) const;
     TResourceVector& operator-=(const TResourceVector& other);
+
+    bool operator==(const TResourceVector& other) const = default;
 
     TResourceVector operator*(double scale) const;
 

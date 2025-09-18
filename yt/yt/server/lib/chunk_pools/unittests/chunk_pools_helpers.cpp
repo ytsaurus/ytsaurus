@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
+#include <yt/yt/client/table_client/row_buffer.h>
+
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/core/logging/config.h>
@@ -16,6 +18,7 @@ using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
 
 using testing::UnitTest;
 
@@ -99,6 +102,25 @@ TLogger TChunkPoolTestBase::GetTestLogger()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TLegacyKey TSortedChunkPoolTestBase::BuildRow(std::vector<i64> values)
+{
+    auto row = RowBuffer_->AllocateUnversioned(values.size());
+    for (int index = 0; index < std::ssize(values); ++index) {
+        row[index] = MakeUnversionedInt64Value(values[index], index);
+    }
+    return row;
+}
+
+NTableClient::TKeyBound TSortedChunkPoolTestBase::BuildBound(const char* boolOperator, std::vector<i64> values)
+{
+    auto allowedStrings = {"<", "<=", ">", ">="};
+    YT_VERIFY(Find(allowedStrings, boolOperator));
+    return TKeyBound::FromRow(
+        BuildRow(values),
+        /*isInclusive*/ boolOperator[1] == '=',
+        /*isUpper*/ boolOperator[0] == '<');
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

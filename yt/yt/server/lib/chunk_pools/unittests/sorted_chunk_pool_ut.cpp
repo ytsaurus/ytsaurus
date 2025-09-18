@@ -56,7 +56,6 @@ protected:
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
         MaxPrimaryDataWeightPerJob_ = Inf64;
-        MaxCompressedDataSizePerJob_ = Inf64;
         InputSliceDataWeight_ = Inf64;
     }
 
@@ -69,10 +68,12 @@ protected:
             DataSizePerJob_,
             PrimaryDataWeightPerJob_,
             /*compressedDataSizePerJob*/ Inf64,
+            /*primaryCompressedDataSizePerJob*/ Inf64,
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             MaxPrimaryDataWeightPerJob_,
-            MaxCompressedDataSizePerJob_,
+            /*maxCompressedDataSizePerJob*/ Inf64,
+            /*maxPrimaryCompressedDataSizePerJob*/ Inf64,
             InputSliceDataWeight_,
             /*inputSliceRowCount*/ Inf64,
             /*batchRowCount*/ {},
@@ -687,8 +688,6 @@ protected:
     i64 MaxBuildRetryCount_;
 
     i32 MaxDataSlicesPerJob_;
-
-    i64 MaxCompressedDataSizePerJob_;
 
     i64 InputSliceDataWeight_;
 

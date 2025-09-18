@@ -793,6 +793,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("max_compressed_data_size_per_job", &TThis::MaxCompressedDataSizePerJob)
         .Default(200_GB)
         .GreaterThan(0);
+    registrar.Parameter("max_primary_compressed_data_size_per_job", &TThis::MaxPrimaryCompressedDataSizePerJob)
+        .Default(std::numeric_limits<i64>::max())
+        .GreaterThan(0);
 
     registrar.Parameter("max_failed_job_count", &TThis::MaxFailedJobCount)
         .Default(10)

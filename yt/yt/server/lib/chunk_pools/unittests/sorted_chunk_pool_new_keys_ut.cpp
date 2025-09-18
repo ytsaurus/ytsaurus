@@ -68,7 +68,7 @@ public:
     }
 
 private:
-    TRowBufferPtr RowBuffer_;
+    const TRowBufferPtr RowBuffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ bool IsNonEmptyIntersection(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolNewKeysTest
-    : public TChunkPoolTestBase
+    : public TSortedChunkPoolTestBase
 {
 protected:
     void SetUp() override
@@ -99,12 +99,11 @@ protected:
         CreatedUnversionedForeignDataSlices_.clear();
         ActiveChunks_.clear();
         InputCookieToChunkIds_.clear();
-        RowBuffer_ = New<TRowBuffer>();
         InputTables_.clear();
         OutputCookies_.clear();
         UnversionedTableRowCounts_.clear();
         Options_ = TSortedChunkPoolOptions();
-        PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max() / 4;
+        PrimaryDataWeightPerJob_ = Inf64;
         SamplingRate_ = std::nullopt;
         SamplingDataWeightPerJob_ = Inf64;
         ExtractedCookies_.clear();
@@ -115,13 +114,16 @@ protected:
         MockBuilder_.reset();
         Fetchers_.clear();
 
-        // TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool.
+        // MinTeleportChunkSize is only relevant for the legacy sorted chunk pool.
+        // In the new sorted pool, chunk teleportability is determined by size checks
+        // in TSortedController (see TLegacyDataSlice::IsTeleportable).
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.Logger = GetTestLogger();
         Options_.RowBuffer = RowBuffer_;
         DataWeightPerJob_ = Inf64;
+        CompressedDataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
@@ -136,11 +138,13 @@ protected:
             /*jobCount*/ 0,
             DataWeightPerJob_,
             PrimaryDataWeightPerJob_,
-            /*compressedDataSizePerJob*/ Inf64,
+            CompressedDataSizePerJob_,
+            PrimaryCompressedDataSizePerJob_,
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             /*maxPrimaryDataWeightPerJob*/ Inf64,
-            /*maxCompressedDataSizePerJob*/ MaxCompressedDataSizePerJob_,
+            MaxCompressedDataSizePerJob_,
+            MaxPrimaryCompressedDataSizePerJob_,
             InputSliceDataWeight_,
             /*inputSliceRowCount*/ Inf64,
             /*batchRowCount*/ {},
@@ -233,28 +237,6 @@ protected:
         return *MockBuilder_;
     }
 
-    // In this test we will only deal with integral rows as
-    // all the logic inside sorted chunk pool does not depend on
-    // actual type of values in keys.
-    TLegacyKey BuildRow(std::vector<i64> values)
-    {
-        auto row = RowBuffer_->AllocateUnversioned(values.size());
-        for (int index = 0; index < std::ssize(values); ++index) {
-            row[index] = MakeUnversionedInt64Value(values[index], index);
-        }
-        return row;
-    }
-
-    //! Helper for building key bound. #boolOperator must be one of
-    //! {"<", "<=", ">", ">="}.
-    TKeyBound BuildBound(const char* boolOperator, std::vector<i64> values)
-    {
-        return TKeyBound::FromRow(
-            BuildRow(values),
-            /*isInclusive*/ boolOperator[1] == '=',
-            /*isUpper*/ boolOperator[0] == '<');
-    }
-
     TInputChunkPtr CreateChunk(
         const TLegacyKey& minBoundaryKey,
         const TLegacyKey& maxBoundaryKey,
@@ -289,10 +271,10 @@ protected:
         owningMinBoundaryKey = TLegacyOwningKey(minBoundaryKey.FirstNElements(prefixLength));
         owningMaxBoundaryKey = TLegacyOwningKey(maxBoundaryKey.FirstNElements(prefixLength));
 
-        inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
+        inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(
             std::move(owningMinBoundaryKey),
             std::move(owningMaxBoundaryKey)
-        });
+        );
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;
@@ -820,17 +802,12 @@ protected:
     }
 
     //! Check that:
-    //! * All teleport chunks satisfy the Options_.MinTeleportChunkSize constraint;
     //! * All stripe lists have no more than Options_.MaxDataSlicesPerJob + InputTables_.size() - 1 data slices in total.
     //! Unfortunately we cannot check the Options_.MaxPrimaryDataSizePerJob constraint satisfaction as this is not an absolute
     //! restriction, but only a best-effort bound.
     void TryCheckJobConstraintsSatisfaction(
         const std::vector<TChunkStripeListPtr>& stripeLists)
     {
-        for (const auto& teleportChunk : TeleportChunks_) {
-            EXPECT_TRUE(teleportChunk->IsLargeCompleteChunk(Options_.MinTeleportChunkSize));
-        }
-
         for (const auto& stripeList : stripeLists) {
             int dataSlicesTotalNumber = 0;
             for (const auto& stripe : stripeList->Stripes) {
@@ -994,8 +971,6 @@ protected:
 
     THashMap<IChunkPoolInput::TCookie, std::vector<TChunkId>> InputCookieToChunkIds_;
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
-
     std::vector<TInputStreamDescriptor> InputTables_;
 
     THashSet<IChunkPoolOutput::TCookie> OutputCookies_;
@@ -1006,10 +981,13 @@ protected:
 
     bool CanAdjustDataWeightPerJob_ = false;
     i64 DataWeightPerJob_;
-    i64 PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max() / 4;
+    i64 PrimaryDataWeightPerJob_ = Inf64;
+    i64 CompressedDataSizePerJob_;
+    i64 PrimaryCompressedDataSizePerJob_ = Inf64;
 
     i64 MaxDataWeightPerJob_;
     i64 MaxCompressedDataSizePerJob_ = Inf64;
+    i64 MaxPrimaryCompressedDataSizePerJob_ = Inf64;
 
     i64 MaxBuildRetryCount_;
 
@@ -1044,7 +1022,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports1)
         {true, true, true, true} /*isTeleportable*/,
         {false, false, false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1081,7 +1058,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports2)
         {false, true, true, true} /*isTeleportable*/,
         {false, false, false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1119,7 +1095,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
         {true, true, true} /*isTeleportable*/,
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({0}), BuildRow({1}), 0);
@@ -1152,7 +1127,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
         {true, true, true} /*isTeleportable*/,
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1194,7 +1168,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
         {true, true} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(3);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1664,7 +1637,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
         {true, true} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     MaxDataSlicesPerJob_ = 1;
     InitJobConstraints();
     PrepareNewMock();
@@ -1708,7 +1680,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
         {true, true} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1743,7 +1714,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(3);
     InitForeignComparator(3);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2041,7 +2011,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
         {false, false, false, false} /*isVersioned*/);
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2084,7 +2053,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
         {false, false, false, false} /*isVersioned*/);
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3431,7 +3399,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 100_KB;
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3508,7 +3475,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
         {true, true, true} /*isTeleportable*/,
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
@@ -3604,7 +3570,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
         {true, true} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkALeft = CreateChunk(BuildRow({1, 0}), BuildRow({10, 0}), 0);
@@ -3745,7 +3710,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
         {true, false} /*isTeleportable*/,
         {false, false} /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     DataWeightPerJob_ = 10_KB;
     SamplingRate_ = 1.0;
     SamplingDataWeightPerJob_ = 10_KB;
@@ -3898,7 +3862,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
         {false, false, false} /*isVersioned*/);
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -4181,6 +4144,428 @@ TEST_F(TSortedChunkPoolNewKeysTest, AttachForeignSlicesAfterUpperBoundPromotion)
     CheckForeignStripesAreAttachedCorrectly();
 }
 
+TEST_F(TSortedChunkPoolNewKeysTest, BrokenSizeTracking)
+{
+    // Job size tracking is probably broken in new sorted chunk pool.
+    // Consider the following scenario:
+    /**
+     *  KEYS:  -inf | 0 | 1 | 2 | 3 | +inf
+     * ================================================
+     *  S1:           [X]  <- Heavy!        DW = 1000
+     *  S2:               [X]               DW = 30
+     *  S3:                   [X]           DW = 30
+     *  S4:                       [X]       DW = 30
+     * ================================================
+     *  P0:  <---)
+     *  P1:  <--------)
+     *  P2:  <------------)
+     *  P3:  <----------------)
+     *  P4:  <-------------------)
+     * ================================================
+     *  Step 1: Initialization
+     * ================================================
+     *
+     *  P0:  <---)  Initial (empty)
+     *
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: DW      |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [0, 0]       |
+     *  | - Cumulative: [0, 0]       |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [inf][150]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     * ================================================
+     *  Step 2: Promoting to S1
+     * ================================================
+     *
+     *  P1:  <--------)
+     *
+     *  Account slice S1 (DW=1000)
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: DW      |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [1000, 1000] |
+     *  | - Cumulative: [1000, 1000] |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [inf][150]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     *  Overflow detected!
+     *  Flush called!
+     *  BUT S1 IS NOT FLUSHED INTO SEPARATE JOB!
+     *  This is because TSortedStagingArea flushes slices BEFORE P1.
+     *
+     *  Moreover, TJobSizeTracker will be also flushed with dominant resource switch.
+     *  The state after flush will be:
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: PDW     |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [0, 0]       |
+     *  | - Cumulative: [0, 0]       |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [150][inf]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     *  We end up in the situation when heavy slice S1 is not considered
+     *  in job size at all. Its size is invisible for job size tracker now.
+     *
+     * ================================================
+     *  Step 3: Adding S2, S3, S4
+     * ================================================
+     *
+     *  P4:  <-------------------)
+     *
+     *  Account slices S2, S3, S4 (DW=30 each, total=90)
+     *  +----------------------------+
+     *  | JOB SIZE TRACKER STATE     |
+     *  +----------------------------+
+     *  | Dominant Resource: PDW     |
+     *  | Vector format: [DW][PDW]   |
+     *  | Usage:                     |
+     *  | - Local:      [90, 90]     |
+     *  | - Cumulative: [90, 90]     |
+     *  | Limits:                    |
+     *  | - Cumulative: [100][100]   |
+     *  | - HystLocal:  [150][inf]   |
+     *  | - Local:      [100][100]   |
+     *  +----------------------------+
+     *
+     *  No overflow detected!
+     *  Job continues normally despite containing:
+     *  - S1: DW=1000 (unaccounted!)
+     *  - S2: DW=30
+     *  - S3: DW=30
+     *  - S4: DW=30
+     *  Total actual: DW=1090 >> Limit of 100!
+     *
+     *  BUG: Heavy slice S1 remains invisible to the job size tracker,
+     *  allowing the job to exceed resource limits significantly.
+     *
+     * ================================================
+     */
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+
+    DataWeightPerJob_ = 100;
+    PrimaryDataWeightPerJob_ = 100;
+
+    InitJobConstraints();
+    PrepareNewMock();
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({0}), BuildRow({0}), /*tableIndex*/ 0, /*size*/ 1000, /*rowCount*/ 1)));
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({1}), BuildRow({1}), /*tableIndex*/ 0, /*size*/ 30, /*rowCount*/ 1)));
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({2}), BuildRow({2}), /*tableIndex*/ 0, /*size*/ 30, /*rowCount*/ 1)));
+
+    CurrentMock()
+        .RegisterTriviallySliceableUnversionedDataSlice(
+            CreateDataSlice(
+                CreateChunk(BuildRow({3}), BuildRow({3}), /*tableIndex*/ 0, /*size*/ 30, /*rowCount*/ 1)));
+
+    CreateChunkPool();
+
+    for (const auto& dataSlice : CreatedUnversionedDataSlices_) {
+        AddDataSlice(dataSlice);
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJob)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+
+    CompressedDataSizePerJob_ = 100;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({0}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 50));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({1}),
+        BuildRow({1}),
+        /*tableIndex*/ 0,
+        /*size*/ 30,
+        /*rowCount*/ 20,
+        /*compressedDataSize*/ 50));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({2}),
+        BuildRow({2}),
+        /*tableIndex*/ 0,
+        /*size*/ 30,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 50));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({3}),
+        BuildRow({3}),
+        /*tableIndex*/ 0,
+        /*size*/ 30,
+        /*rowCount*/ 10,
+        /*compressedDataSize*/ 50));
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 2);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJobRetryFactor)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    std::vector<bool> inputTables(5, false);
+    InitTables(
+        /*isForeign*/ inputTables,
+        /*isTeleportable*/ inputTables,
+        /*isVersioned*/ inputTables);
+    InitPrimaryComparator(1);
+
+    CompressedDataSizePerJob_ = 1_KB;
+    Options_.SortedJobOptions.MaxTotalSliceCount = 5;
+    MaxBuildRetryCount_ = 5;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 5; ++i) {
+        AddDataSlice(CreateChunk(
+            BuildRow({i}),
+            BuildRow({10}),
+            /*tableIndex*/ i,
+            /*size*/ 1000,
+            /*rowCount*/ 100,
+            /*compressedDataSize*/ 1_KB));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+    EXPECT_EQ(stripeLists.front()->GetAggregateStatistics().CompressedDataSize, 5_KBs);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(TSortedChunkPoolNewKeysTest, MaxCompressedDataSizePerJob, Bool())
+{
+    bool shouldExceed = GetParam();
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    MaxCompressedDataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({10}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 1_KB));
+
+    if (shouldExceed) {
+        // Add foreign chunk.
+        AddDataSlice(CreateChunk(
+            BuildRow({4}),
+            BuildRow({8}),
+            /*tableIndex*/ 1,
+            /*size*/ 1000,
+            /*rowCount*/ 100,
+            /*compressedDataSize*/ 2_KB));
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            ChunkPool_->Finish(),
+            "Maximum allowed compressed data size per sorted job exceeds the limit");
+        return;
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(TSortedChunkPoolNewKeysTest, MaxPrimaryCompressedDataSizePerJob, Bool())
+{
+    bool shouldExceed = GetParam();
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    MaxPrimaryCompressedDataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({10}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ shouldExceed ? 3_KB : 1_KB));
+
+    // Add foreign chunk. Should not be counted for primary compressed data size.
+    AddDataSlice(CreateChunk(
+        BuildRow({4}),
+        BuildRow({8}),
+        /*tableIndex*/ 1,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 8_KB));
+
+    if (shouldExceed) {
+        EXPECT_THROW_WITH_SUBSTRING(
+            ChunkPool_->Finish(),
+            "Maximum allowed primary compressed data size per sorted job exceeds the limit");
+        return;
+    }
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(TSortedChunkPoolNewKeysTest, ConsiderOnlyPrimaryCompressedDataSize, Combine(Bool(), Bool()), std::tuple<bool, bool>)
+{
+    auto [considerOnlyPrimarySize, usePrimaryCompressedDataSizePerJob] = GetParam();
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    Options_.SortedJobOptions.ConsiderOnlyPrimarySize = considerOnlyPrimarySize;
+
+    if (usePrimaryCompressedDataSizePerJob) {
+        PrimaryCompressedDataSizePerJob_ = 2_KB;
+    } else {
+        CompressedDataSizePerJob_ = 2_KB;
+    }
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({10}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 1_KB));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({4}),
+        BuildRow({8}),
+        /*tableIndex*/ 1, // Foreign chunk.
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 8_KB));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({11}),
+        BuildRow({20}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 1_KB));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({13}),
+        BuildRow({18}),
+        /*tableIndex*/ 1, // Foreign chunk.
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 8_KB));
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), considerOnlyPrimarySize || usePrimaryCompressedDataSizePerJob ? 1 : 2);
+    CheckEverything(stripeLists);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolNewKeysTestRandomized
@@ -4210,7 +4595,6 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
         std::vector<bool>(TableCount, false) /*isTeleportable*/,
         std::vector<bool>(TableCount, false) /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = Inf32;
 
     const int ChunkCount = 50;
     const int MaxEndpoint = 50000;

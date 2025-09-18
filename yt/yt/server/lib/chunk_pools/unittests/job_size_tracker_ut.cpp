@@ -20,12 +20,14 @@ protected:
     static TResourceVector CreateVector(
         i64 dataSliceCount = 0,
         i64 dataWeight = 0,
-        i64 primaryDataWeight = 0)
+        i64 primaryDataWeight = 0,
+        i64 compressedDataSize = 0)
     {
         TResourceVector vector;
         vector.Values[EResourceKind::DataSliceCount] = dataSliceCount;
         vector.Values[EResourceKind::DataWeight] = dataWeight;
         vector.Values[EResourceKind::PrimaryDataWeight] = primaryDataWeight;
+        vector.Values[EResourceKind::CompressedDataSize] = compressedDataSize;
         return vector;
     }
 
@@ -98,7 +100,6 @@ TEST_F(TJobSizeTrackerTest, AccountingBySingleComponent)
 
     {
         auto resources = CreateVector(1, 50);
-
         ASSERT_FALSE(tracker->CheckOverflow(resources));
         tracker->AccountSlice(resources);
         ASSERT_FALSE(tracker->CheckOverflow().has_value());
@@ -155,10 +156,10 @@ TEST_F(TJobSizeTrackerTest, AccountingByTwoEqualComponents)
     // |   |   | 2 | [ 20][ 20] | [ 20][ 20] | [120][120] | [inf][150] | [200][200] | [100][100] |
     // +---+---+---+------------+------------+------------+------------+------------+------------+
     // |   |   |   |            | [  0][  0] | [  0][  0] |            |            |            |
-    // |   |   | 3 | [150][150] | [150][150] | [150][150] | [150][inf] | [100][100] | [100][100] |
-    // | P |   +---+------------+------------+------------+------------+------------+------------+
-    // | D | 2 |   |            | [  0][  0] | [150][150] |            |            |            |
-    // | W |   | 4 | [  1][  1] | [  1][  1] | [151][151] | [150][inf] | [200][200] | [100][100] |
+    // | P |   | 3 | [150][150] | [150][150] | [150][150] | [150][inf] | [100][100] | [100][100] |
+    // | D | 2 +---+------------+------------+------------+------------+------------+------------+
+    // | W |   |   |            | [  0][  0] | [150][150] |            |            |            |
+    // |   |   | 4 | [  1][  1] | [  1][  1] | [151][151] | [150][inf] | [200][200] | [100][100] |
     // +---+---+---+------------+------------+------------+------------+------------+------------+
     // | D |   |   |            | [  0][  0] | [  0][  0] |            |            |            |
     // | W | 3 | 5 | [500][500] | [500][500] | [500][500] | [inf][150] | [100][100] | [100][100] |
@@ -653,6 +654,56 @@ TEST_F(TJobSizeTrackerTest, LimitProgressionRatio_0_5)
 
     ASSERT_TRUE(tracker->CheckOverflow(CreateDataWeightVector(201, 0)));
     ASSERT_FALSE(tracker->CheckOverflow(CreateDataWeightVector(200, 0)));
+}
+
+TEST_F(TJobSizeTrackerTest, CompressedDataSizeLimit)
+{
+    auto tracker = CreateJobSizeTracker(
+        /*limitVector*/ CreateVector(
+            /*DSC*/ std::numeric_limits<i64>::max(),
+            /*DW*/ std::numeric_limits<i64>::max(),
+            /*PDW*/ std::numeric_limits<i64>::max(),
+            /*CDS*/ 1000),
+        TJobSizeTrackerOptions(),
+        Logger);
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 500);
+        ASSERT_FALSE(tracker->CheckOverflow(resources));
+        tracker->AccountSlice(resources);
+        ASSERT_FALSE(tracker->CheckOverflow().has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 400);
+        ASSERT_FALSE(tracker->CheckOverflow(resources));
+        tracker->AccountSlice(resources);
+        ASSERT_FALSE(tracker->CheckOverflow().has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 600);
+        auto token = tracker->CheckOverflow(resources);
+        ASSERT_TRUE(token);
+        tracker->Flush(token);
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 800);
+        ASSERT_FALSE(tracker->CheckOverflow(resources));
+        tracker->AccountSlice(resources);
+        ASSERT_FALSE(tracker->CheckOverflow().has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 200);
+        ASSERT_FALSE(tracker->CheckOverflow(resources).has_value());
+    }
+
+    {
+        auto resources = CreateVector(/*DSC*/ 1, /*DW*/ 100, /*PDW*/ 100, /*CDS*/ 201);
+        ASSERT_TRUE(tracker->CheckOverflow(resources).has_value());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -46,6 +46,8 @@ struct IJobSizeConstraints
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxCompressedDataSizePerJob() const = 0;
 
+    virtual i64 GetMaxPrimaryCompressedDataSizePerJob() const = 0;
+
     virtual i64 GetInputSliceDataWeight() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
 
@@ -58,6 +60,9 @@ struct IJobSizeConstraints
 
     //! Approximate primary data size. Has meaning only in context of sorted operation.
     virtual i64 GetPrimaryDataWeightPerJob() const = 0;
+
+    //! Approximate primary compressed data size per job. Has meaning only in context of sorted operation.
+    virtual i64 GetPrimaryCompressedDataSizePerJob() const = 0;
 
     //! A sampling rate if it was specified in a job spec, otherwise null.
     virtual std::optional<double> GetSamplingRate() const = 0;
@@ -81,6 +86,8 @@ struct IJobSizeConstraints
     //! knows only the expected input data weight after the sampling, and actual data weight may be different.
     virtual void UpdateInputDataWeight(i64 inputDataWeight) = 0;
     virtual void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) = 0;
+    virtual void UpdateInputCompressedDataSize(i64 compressedDataSize) = 0;
+    virtual void UpdateInputPrimaryCompressedDataSize(i64 compressedDataSize) = 0;
 
     //! Constraints priority:
     //! Max...PerJob
@@ -101,10 +108,12 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
     i64 compressedDataSizePerJob,
+    i64 primaryCompressedDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,
     i64 maxCompressedDataSizePerJob,
+    i64 maxPrimaryCompressedDataSizePerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
     std::optional<i64> batchRowCount,

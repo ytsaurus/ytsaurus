@@ -1,11 +1,11 @@
 from yt_env_setup import YTEnvSetup
-
+from functools import partial
 
 from yt_commands import (
     authors, create, extract_statistic_v2, get, get_table_columnar_statistics, interrupt_job,
     make_random_string, map, merge, raises_yt_error, read_table, release_breakpoint,
     set_node_banned, set_nodes_banned, sorted_dicts, wait, wait_breakpoint,
-    with_breakpoint, write_table,
+    with_breakpoint, write_table, reduce
 )
 
 from yt_type_helpers import (
@@ -418,30 +418,41 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         assert 1 <= progress["jobs"]["completed"]["total"] <= 2
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("operation", ["map", "unordered_merge", "ordered_merge", "sorted_merge", "reduce"])
     def test_operation_fails_on_max_compressed_data_size_per_job_violation(self, operation):
-        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col", "type": "string", "sort_order": "ascending"},
+            ]),
+            "optimize_for": "scan",
+        })
 
         write_table("<append=%true>//tmp/t_in", {
             "col": make_random_string(4000),
         })
 
-        op_function = merge if operation == "merge" else map
+        run_op = {
+            "map": partial(map, mapper_command="cat > /dev/null"),
+            "reduce": partial(reduce, reducer_command="cat > /dev/null", reduce_by=["col"]),
+            "unordered_merge": partial(merge, mode="unordered", force_transform=True),
+            "ordered_merge": partial(merge, mode="ordered", force_transform=True),
+            "sorted_merge": partial(merge, mode="sorted", force_transform=True),
+        }[operation]
 
-        op = op_function(
+        op = run_op(
             in_="//tmp/t_in",
             out="<create=true>//tmp/t_out",
             spec={
                 "max_compressed_data_size_per_job": 3000,
-            } | ({
-                "force_transform": True,
-            } if operation == "merge" else {}) | ({
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}),
+            },
             track=False,
         )
 
-        with raises_yt_error("Maximum allowed compressed data size per job exceeds the limit"):
+        job_type = ""
+        if "sorted" in operation or operation == "reduce":
+            job_type = " sorted"
+
+        with raises_yt_error(f"Maximum allowed compressed data size per{job_type} job exceeds the limit"):
             op.track()
 
     @authors("apollo1321")
@@ -621,6 +632,266 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
 
         progress = get(op.get_path() + "/@progress")
         assert 2 <= progress["jobs"]["completed"]["total"] <= 3
+
+    @authors("apollo1321")
+    def test_slice_by_compressed_data_size_sorted_reduce(self):
+        """
+         KEYS: | 0 | 1 | 2 | 3 | 4 | 5 |  DW  |  CDS
+        ===============================================
+                             SLICES
+         S1:     [---]                 |  18  | ~10000
+         S2:             [---]         |  18  | ~5000
+         F3:             [---]         |  18  | ~5000
+         S4:                     [---] |  18  | ~10000
+        ===============================================
+        """
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        create("table", "//tmp/t_foreign", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        for i in range(3):
+            write_table("<append=%true>//tmp/t_in", [
+                {
+                    "col1": 2 * i,
+                    "col2": make_random_string(5000 if i != 1 else 2500),
+                },
+                {
+                    "col1": 2 * i + 1,
+                    "col2": make_random_string(5000 if i != 1 else 2500),
+                },
+            ])
+
+        assert 24_800 <= get("//tmp/t_in/@compressed_data_size") <= 26_000
+        assert get("//tmp/t_in/@chunk_count") == 3
+
+        write_table("<append=%true>//tmp/t_foreign", [
+            {
+                "col1": 2,
+                "col2": make_random_string(2500),
+            },
+            {
+                "col1": 3,
+                "col2": make_random_string(2500),
+            },
+        ])
+
+        assert 4900 <= get("//tmp/t_foreign/@compressed_data_size") <= 5500
+        assert get("//tmp/t_foreign/@chunk_count") == 1
+
+        op = reduce(
+            in_=["//tmp/t_in{col1}", "<foreign=%true>//tmp/t_foreign{col1}"],
+            out="<create=true>//tmp/t_out",
+            command="cat > /dev/null",
+            reduce_by=["col1"],
+            join_by=["col1"],
+            spec={
+                "suspend_operation_after_materialization": True,
+                # NB(apollo1321): Lower to ensure correct job slicing due to size accounting bug.
+                "compressed_data_size_per_job": 4000,
+            },
+            track=False,
+        )
+
+        self._check_initial_job_estimation_and_track(op, 3)
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == 3
+
+    @authors("apollo1321")
+    def test_slice_by_compressed_data_size_sorted_merge(self):
+        """
+         KEYS: | 0 | 1 | 2 | 3 | 4 | 5 |  DW  |  CDS
+        ==============================================
+                             SLICES
+         S11:    [---]                 |  18  | ~5000
+         S12:            [---]         |  18  | ~5000
+         S13:                    [---] |  18  | ~5000
+
+         S21     [---]                 |  18  | ~5000
+         S22:            [---]         |  18  | ~5000
+         S23:                    [---] |  18  | ~5000
+        ==============================================
+        """
+
+        for table_path in ["//tmp/t_in1", "//tmp/t_in2"]:
+            create("table", table_path, attributes={
+                "schema": make_schema([
+                    {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                    {"name": "col2", "type": "string", "group": "custom"},
+                ]),
+                "optimize_for": "scan",
+            })
+
+            for i in range(3):
+                write_table(f"<append=%true>{table_path}", [
+                    {
+                        "col1": 2 * i,
+                        "col2": make_random_string(2500),
+                    },
+                    {
+                        "col1": 2 * i + 1,
+                        "col2": make_random_string(2500),
+                    },
+                ])
+
+            assert 14_800 <= get(f"{table_path}/@compressed_data_size") <= 15_500
+            assert get(f"{table_path}/@chunk_count") == 3
+
+        op = merge(
+            in_=["//tmp/t_in1{col1}", "//tmp/t_in2{col1}"],
+            out="<create=true>//tmp/t_out",
+            reduce_by=["col1"],
+            mode="sorted",
+            spec={
+                "suspend_operation_after_materialization": True,
+                # NB(apollo1321): Lower to ensure correct job slicing due to size accounting bug.
+                "compressed_data_size_per_job": 4000,
+            },
+            track=False,
+        )
+
+        self._check_initial_job_estimation_and_track(op, 3)
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == 3
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("should_fail", [False, True])
+    def test_reduce_fails_on_max_primary_compressed_data_size_per_job_violation(self, should_fail):
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        create("table", "//tmp/t_foreign", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        write_table("<append=%true>//tmp/t_in", {"col1": 1, "col2": make_random_string(10_000 if should_fail else 1000)})
+        # Foreign table size should not trigger size validation error.
+        write_table("<append=%true>//tmp/t_foreign", {"col1": 1, "col2": make_random_string(10_000)})
+
+        op = reduce(
+            in_=["//tmp/t_in{col1}", "<foreign=%true>//tmp/t_foreign{col1}"],
+            out="<create=true>//tmp/t_out",
+            command="cat > /dev/null",
+            reduce_by=["col1"],
+            join_by=["col1"],
+            spec={
+                "max_primary_compressed_data_size_per_job": 4000,
+                "job_count": 1,
+            },
+            track=False,
+        )
+
+        if should_fail:
+            with raises_yt_error("Maximum allowed primary compressed data size per sorted job exceeds the limit"):
+                op.track()
+            return
+
+        op.track()
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == 1
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("consider_only_primary_size", [False, True])
+    def test_reduce_consider_only_primary_size(self, consider_only_primary_size):
+        """
+         KEYS: | 0 | 1 | 2 | 3 |  CDS
+        ===============================
+                     SLICES
+         S1:     [---]         | ~1000
+         F2:     [---]         | ~8000
+         S3:             [---] | ~1000
+         F4:             [---] | ~8000
+        ===============================
+        """
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        create("table", "//tmp/t_foreign", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "int64", "group": "custom", "sort_order": "ascending"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        for i in range(2):
+            write_table("<append=%true>//tmp/t_in", [
+                {
+                    "col1": 2 * i,
+                    "col2": make_random_string(500),
+                },
+                {
+                    "col1": 2 * i + 1,
+                    "col2": make_random_string(500),
+                },
+            ])
+            write_table("<append=%true>//tmp/t_foreign", [
+                {
+                    "col1": 2 * i,
+                    "col2": make_random_string(4000),
+                },
+                {
+                    "col1": 2 * i + 1,
+                    "col2": make_random_string(4000),
+                },
+            ])
+
+        assert 1900 <= get("//tmp/t_in/@compressed_data_size") <= 2400
+        assert get("//tmp/t_in/@chunk_count") == 2
+
+        assert 15900 <= get("//tmp/t_foreign/@compressed_data_size") <= 16400
+        assert get("//tmp/t_foreign/@chunk_count") == 2
+
+        op = reduce(
+            in_=["//tmp/t_in{col1}", "<foreign=%true>//tmp/t_foreign{col1}"],
+            out="<create=true>//tmp/t_out",
+            command="cat > /dev/null",
+            reduce_by=["col1"],
+            join_by=["col1"],
+            spec={
+                "compressed_data_size_per_job": 6000,
+                "consider_only_primary_size": consider_only_primary_size,
+                "suspend_operation_after_materialization": True,
+            },
+            track=False,
+        )
+
+        expected_job_count = 1 if consider_only_primary_size else 2
+
+        self._check_initial_job_estimation_and_track(op, expected_job_count)
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == expected_job_count
 
 
 class TestJobSlicing(TestJobSlicingBase):

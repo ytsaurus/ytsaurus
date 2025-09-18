@@ -11,6 +11,7 @@
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NChunkPools {
+namespace {
 
 using namespace NControllerAgent;
 using namespace NLogging;
@@ -21,6 +22,7 @@ using namespace NTableClient;
 static const i64 InfiniteCount = std::numeric_limits<i64>::max() / 4;
 static const int InfinitePartitionCount = std::numeric_limits<int>::max() / 4;
 static const i64 InfiniteWeight = std::numeric_limits<i64>::max() / 4;
+static const i64 InfiniteSize = std::numeric_limits<i64>::max() / 4;
 static const double SliceDataWeightMultiplier = 0.51;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,12 +93,22 @@ public:
 
     i64 GetCompressedDataSizePerJob() const override
     {
-        return InfiniteWeight;
+        return InfiniteSize;
+    }
+
+    i64 GetPrimaryCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
     }
 
     i64 GetMaxCompressedDataSizePerJob() const override
     {
-        return InfiniteWeight;
+        return InfiniteSize;
+    }
+
+    i64 GetMaxPrimaryCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
     }
 
     i64 GetInputSliceDataWeight() const override
@@ -150,7 +162,19 @@ public:
     }
 
     void UpdatePrimaryInputDataWeight(i64 /*inputDataWeight*/) override
-    { }
+    {
+        YT_ABORT();
+    }
+
+    void UpdateInputCompressedDataSize(i64 /*compressedDataSize*/) override
+    {
+        YT_ABORT();
+    }
+
+    void UpdateInputPrimaryCompressedDataSize(i64 /*compressedDataSize*/) override
+    {
+        YT_ABORT();
+    }
 
 private:
     i64 InputDataWeight_ = 0;
@@ -181,6 +205,8 @@ IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition, std:
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 IChunkPoolPtr CreateChunkPool(
     ETablePartitionMode partitionMode,
