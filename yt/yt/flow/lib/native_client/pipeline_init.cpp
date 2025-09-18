@@ -81,27 +81,27 @@ IAttributeDictionaryPtr GetPartitionOutputMessagesTableAttributes()
         /*uniqueKeys*/ true));
 }
 
-IAttributeDictionaryPtr GetCheckpointsTableAttributes()
+IAttributeDictionaryPtr GetStatesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
             TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
             TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("checkpoint", EValueType::Any),
+            TColumnSchema("state", EValueType::Any),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));
 }
 
-IAttributeDictionaryPtr GetPartitionCheckpointsTableAttributes()
+IAttributeDictionaryPtr GetPartitionStatesTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
             TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
             TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("checkpoint", EValueType::Any),
+            TColumnSchema("state", EValueType::Any),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));
@@ -194,8 +194,8 @@ auto GetTables()
         {InputMessagesTableName, GetInputMessagesTableAttributes()},
         {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
         {PartitionOutputMessagesTableName, GetPartitionOutputMessagesTableAttributes()},
-        {CheckpointsTableName, GetCheckpointsTableAttributes()},
-        {PartitionCheckpointsTableName, GetPartitionCheckpointsTableAttributes()},
+        {StatesTableName, GetStatesTableAttributes()},
+        {PartitionStatesTableName, GetPartitionStatesTableAttributes()},
         {TimersTableName, GetTimersTableAttributes()},
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
         {FlowStateTableName, GetFlowStateTableAttributes()},
