@@ -34,6 +34,10 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
+func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
+	return nil, nil
+}
+
 func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (discoveryAddresses string, err error) {
 	var rawAddresses []string
 	err = ytc.ListNode(ctx, ypath.Path("//sys/discovery_servers"), &rawAddresses, nil)
