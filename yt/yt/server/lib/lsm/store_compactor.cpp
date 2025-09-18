@@ -55,19 +55,22 @@ public:
     {
         YT_LOG_DEBUG("Started building store compactor action batch");
 
-        TLsmActionBatch batch;
         for (const auto& tablet : tablets) {
-            batch.MergeWith(ScanTablet(tablet.Get()));
+            OverallCompactionRequests_.MergeWith(ScanTablet(tablet.Get()));
         }
 
         YT_LOG_DEBUG("Finished building store compactor action batch");
 
-        return batch;
+        return {};
     }
 
     TLsmActionBatch BuildOverallLsmActions() override
     {
-        return {};
+        TLsmActionBatch batch;
+        std::swap(batch, OverallCompactionRequests_);
+        std::sort(batch.Compactions.begin(), batch.Compactions.end(), CompareCompactionRequests);
+        std::sort(batch.Partitionings.begin(), batch.Partitionings.end(), CompareCompactionRequests);
+        return batch;
     }
 
 private:
@@ -76,6 +79,7 @@ private:
     TLsmTabletNodeConfigPtr Config_;
     // System time. Used for imprecise activities like periodic compaction.
     TInstant CurrentTime_;
+    TLsmActionBatch OverallCompactionRequests_;
 
     TLsmActionBatch ScanTablet(TTablet* tablet)
     {
@@ -822,6 +826,23 @@ private:
         return std::min(
             config->MaxOverlappingStoreCount,
             config->CriticalOverlappingStoreCount.value_or(config->MaxOverlappingStoreCount));
+    }
+
+    static auto GetOrderingTuple(const TCompactionRequest& request)
+    {
+        return std::tuple(
+            !request.DiscardStores,
+            request.Slack,
+            -request.Effect,
+            -ssize(request.Stores),
+            request.Random);
+    }
+
+    static bool CompareCompactionRequests(
+        const TCompactionRequest& lhs,
+        const TCompactionRequest& rhs)
+    {
+        return GetOrderingTuple(lhs) < GetOrderingTuple(rhs);
     }
 };
 

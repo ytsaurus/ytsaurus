@@ -119,7 +119,6 @@ private:
             lsmTablets.size());
 
         auto actions = Backend_->BuildLsmActions(lsmTablets, slot->GetTabletCellBundleName());
-        StoreCompactor_->ProcessLsmActionBatch(slot, actions);
         PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
         StoreRotator_->ProcessLsmActionBatch(slot, actions);
 
@@ -132,9 +131,8 @@ private:
 
     void OnEndSlotScan()
     {
-        StoreCompactor_->OnEndSlotScan();
-
         auto actions = Backend_->BuildOverallLsmActions();
+        StoreCompactor_->ProcessLsmActionBatch(actions);
         StoreRotator_->ProcessLsmActionBatch(/*slot*/ nullptr, actions);
     }
 
