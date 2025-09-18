@@ -51,7 +51,7 @@ Y_UNIT_TEST_SUITE(TableDataServiceWorkerTests) {
         const ui16 port = pm.GetPort();
         for (size_t i = 0; i < workersNum; ++i) {
             auto tableDataServiceWorkerSettings = TTableDataServiceServerSettings{
-                .WorkerId = i, .WorkersNum = workersNum, .Host = "localhost", .Port = static_cast<ui16>(port + i)
+                .Host = "localhost", .Port = static_cast<ui16>(port + i)
             };
             auto tableDataServiceServer =  MakeTableDataServiceServer(MakeLocalTableDataService(), tableDataServiceWorkerSettings);
             tableDataServiceServer->Start();
