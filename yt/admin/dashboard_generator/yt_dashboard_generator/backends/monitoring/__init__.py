@@ -1,16 +1,16 @@
-from ...serializer import SerializerBase
-from ...sensor import Sensor, MultiSensor, EmptyCell, Text, Title
-from ...specific_tags.tags import BackendTag, SpecificTag, TemplateTag, DuplicateTag
 from ...postprocessors import MustacheTemplateTagPostprocessor
+from ...sensor import Sensor, MultiSensor, EmptyCell, Text, Title
+from ...serializer import SerializerBase
+from ...specific_tags.tags import BackendTag, SpecificTag, TemplateTag, DuplicateTag
 from ...taggable import SystemFields, NotEquals
 
 from .sensors import MonitoringExpr, PlainMonitoringExpr, MonitoringSystemFields
 
-from google.protobuf.json_format import ParseDict, MessageToDict
 import grpc
+from google.protobuf.json_format import ParseDict, MessageToDict
 
-import json
 import copy
+import json
 import sys
 
 ##################################################################

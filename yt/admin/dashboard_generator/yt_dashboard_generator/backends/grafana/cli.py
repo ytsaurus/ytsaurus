@@ -2,10 +2,12 @@ from .. import grafana
 from ... import cli
 from ...diff import diff as diff_dashboards
 
+import tabulate
+
 import json
 import os
 import sys
-import tabulate
+from typing import Any
 
 
 class GrafanaFacade(cli.FacadeBase):
@@ -112,14 +114,21 @@ class GrafanaFacade(cli.FacadeBase):
             with open(f"generated/grafana/{self.uid}.json", "w") as fd:
                 json.dump(result, fd, indent=4)
 
-    def do_submit(self, verbose):
+    def _prepare_serialized_dashboard(self, verbose):
         dashboard = self._generate_dashboard()
         serializer = grafana.GrafanaDictSerializer(self.datasource, self.tag_postprocessor)
         serialized_dashboard = dashboard.serialize(serializer)
         if verbose:
             json.dump(serialized_dashboard, sys.stderr, indent=4)
+        return serialized_dashboard
+
+    def do_submit(self, verbose):
+        serialized_dashboard = self._prepare_serialized_dashboard(verbose)
         proxy = grafana.GrafanaProxy(self.base_url, self.api_key)
         proxy.submit_dashboard(serialized_dashboard, self.dashboard_id, self.folder_uid)
+
+    def generate_serialized_dashboard(self, verbose: bool) -> dict[str, Any]:
+        return self._prepare_serialized_dashboard(verbose)
 
     def _generate_dashboard(self):
         dashboard = self.func()
