@@ -389,17 +389,9 @@ private:
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         tablet->ValidateMountRevision(mountRevision);
 
-        auto transactionId = transaction->GetId();
-        tablet->LockTransaction(transactionId);
-
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
             auto store = tablet->GetStoreOrThrow(storeId);
-
-            // NB: Cannot throw here since store state is transient.
-            YT_VERIFY(store->GetState() == EHunkStoreState::Passive);
-
-            store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
 
             if (!store->GetMarkedSealable()) {
                 THROW_ERROR_EXCEPTION(
@@ -411,7 +403,25 @@ private:
 
         for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
             auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
-            auto store = tablet->GetStoreOrThrow(storeId);
+            Y_UNUSED(tablet->GetStoreOrThrow(storeId));
+        }
+
+        auto transactionId = transaction->GetId();
+        tablet->LockTransaction(transactionId);
+
+        for (const auto& storeToRemove : request->stores_to_remove()) {
+            auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
+            auto store = tablet->GetStore(storeId);
+
+            // NB: Cannot throw here since store state is transient.
+            YT_VERIFY(store->GetState() == EHunkStoreState::Passive);
+
+            store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+        }
+
+        for (const auto& storeToMarkSealable : request->stores_to_mark_sealable()) {
+            auto storeId = FromProto<TStoreId>(storeToMarkSealable.store_id());
+            auto store = tablet->GetStore(storeId);
             store->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
         }
 
@@ -524,7 +534,11 @@ private:
         }
 
         auto transactionId = transaction->GetId();
-        tablet->TryUnlockTransaction(transactionId);
+        if (!tablet->TryUnlockTransaction(transactionId)) {
+            YT_LOG_ALERT("Failed to unlock hunk tablet during abort (TransactionId: %v, HunkTabletLockTransactionId: %v)",
+                transactionId,
+                tablet->GetLockTransactionId());
+        }
 
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
