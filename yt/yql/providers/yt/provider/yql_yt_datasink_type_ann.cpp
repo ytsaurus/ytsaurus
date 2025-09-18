@@ -104,6 +104,7 @@ public:
         AddHandler({TYtWriteTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleWriteTable));
         AddHandler({TYtFill::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleFill));
         AddHandler({TYtTouch::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleTouch));
+        AddHandler({TYtCreateTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCreateTable));
         AddHandler({TYtDropTable::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleDropTable));
         AddHandler({TCoCommit::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandleCommit));
         AddHandler({TYtPublish::CallableName()}, Hndl(&TYtDataSinkTypeAnnotationTransformer::HandlePublish));
@@ -468,7 +469,7 @@ private:
             return TStatus::Error;
         }
 
-        bool replaceMeta = !meta->DoesExist || (mode != EYtWriteMode::Append && mode != EYtWriteMode::RenewKeepMeta);
+        const bool replaceMeta = !meta->DoesExist || (mode != EYtWriteMode::Append && mode != EYtWriteMode::RenewKeepMeta);
         bool checkLayout = meta->DoesExist && (mode == EYtWriteMode::Append || mode == EYtWriteMode::RenewKeepMeta || description.IsReplaced);
 
         if (monotonicKeys && initialWrite && replaceMeta) {
@@ -530,6 +531,7 @@ private:
         if (checkLayout) {
             auto rowSpec = description.RowSpec;
             TString modeStr = EYtWriteMode::RenewKeepMeta == mode ? "truncate with keep meta" : ToString(mode);
+
             if (!rowSpec) {
                 ctx.AddError(TIssue(pos, TStringBuilder()
                     << "Table " << outTableInfo.Name.Quote()
@@ -1614,6 +1616,7 @@ private:
             | EYtSettingType::MutationId
             | EYtSettingType::ColumnGroups
             | EYtSettingType::SecurityTags
+            | EYtSettingType::Columns
             , ctx))
         {
             return TStatus::Error;
@@ -1723,6 +1726,66 @@ private:
         TYtTouch touch = input.Cast<TYtTouch>();
 
         input.Ptr()->SetTypeAnn(MakeOutputOperationType(touch, ctx));
+        return TStatus::Ok;
+    }
+
+
+    TStatus HandleCreateTable(const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+        if (!EnsureArgsCount(*input, 4U, ctx)) {
+            return TStatus::Error;
+        }
+
+        if (!ValidateOpBase(input, ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto table = input->ChildPtr(TYtCreateTable::idx_Table);
+        if (!EnsureCallable(*table, ctx)) {
+            return TStatus::Error;
+        }
+        if (!table->IsCallable(TYtTable::CallableName())) {
+            ctx.AddError(TIssue(ctx.GetPosition(table->Pos()), TStringBuilder() << "Expected " << TYtTable::CallableName()
+                << " callable, but got " << table->Content()));
+            return TStatus::Error;
+        }
+
+        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtWriteTable::idx_DataSink)), TYtTable(table), ctx)) {
+            return TStatus::Error;
+        }
+
+        const auto columns = input->ChildPtr(TYtCreateTable::idx_Columns);
+        if (!EnsureTupleMinSize(*columns, 1U, ctx)) {
+            return TStatus::Error;
+        }
+
+        const TYtCreateTable createTable(input);
+        if (!TYtTableInfo::HasSubstAnonymousLabel(createTable.Table())) {
+            const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
+
+            TExprNode::TPtr newTable;
+            if (const auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx); TStatus::Ok != status.Level) {
+                if (TStatus::Error != status.Level && newTable != table) {
+                    output = ctx.ChangeChild(*input, TYtWriteTable::idx_Table, std::move(newTable));
+                }
+                return status.Combine(TStatus::Repeat);
+            }
+
+            const TYtTableInfo tableInfo(createTable.Table());
+            YQL_ENSURE(tableInfo.Meta);
+            if (tableInfo.Meta->DoesExist) {
+                ctx.AddError(TIssue(ctx.GetPosition(createTable.Table().Pos()), TStringBuilder() <<
+                    "Table " << tableInfo.Name << " is alreasy exists."));
+                return TStatus::Error;
+            }
+
+            if (const auto commitEpoch = tableInfo.CommitEpoch) {
+                auto& nextDescription = State_->TablesData->GetOrAddTable(createTable.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
+                nextDescription.Meta = MakeIntrusive<TYtTableMetaInfo>();
+                nextDescription.Meta->DoesExist = true;
+            }
+        }
+
+        input->SetTypeAnn(createTable.World().Ref().GetTypeAnn());
         return TStatus::Ok;
     }
 
