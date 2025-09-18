@@ -2619,7 +2619,15 @@ private:
             {
                 // COMPAT(aleksandra-zh).
             } else {
-                LastCoordinatorCommitTimestamp_ = commitTimestamp;
+                if (commit->GetStronglyOrdered()) {
+                    if (commitTimestamp < LastCoordinatorCommitTimestamp_) {
+                        YT_LOG_ALERT("Last strongly ordered committed timestamp is greater than current (LastCommitTimestamp: %v, CurrentCommitTimestamp: %v, CurrentTransaction: %v)",
+                            LastCoordinatorCommitTimestamp_,
+                            commitTimestamp,
+                            transactionId);
+                    }
+                    LastCoordinatorCommitTimestamp_ = commitTimestamp;
+                }
             }
 
             TTransactionCommitOptions options{
