@@ -6181,11 +6181,10 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         self._wait_for_component_passes()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
-        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
-        alerts.assert_matching(
+        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
             "queue_agent_queue_controller_static_export_failed",
             text="that contains hunk columns is disabled",
-        )
+        ), timeout=5, ignore_exceptions=True)
 
         assert len(ls(export_dir)) == 0
 
@@ -6368,11 +6367,10 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         self._wait_for_component_passes()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
-        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
-        alerts.assert_matching(
+        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
             "queue_agent_queue_controller_static_export_failed",
             text="Attempted to attach unsealed journal chunk",
-        )
+        ), timeout=5, ignore_exceptions=True)
 
         assert len(ls(export_dir)) == 0
 
