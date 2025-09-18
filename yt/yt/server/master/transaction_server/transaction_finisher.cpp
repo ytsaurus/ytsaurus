@@ -286,7 +286,7 @@ public:
     explicit TTransactionFinisher(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TransactionFinisher)
         , LeasesRevocationQueue_("lease revocation")
-        , FinishQueue_("finish queue")
+        , FinishQueue_("finish")
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
@@ -469,7 +469,16 @@ public:
             activeRequestCount);
 
         if (activeRequestCount == 0) {
-            ScheduleFinish(transaction);
+            // Transaction finish may be already scheduled in this case:
+            // 1. Commit request was failed with retriable Sequoia error,
+            //    tx finish was scheduled;
+            // 2. Commit was retried by client, but error happened in commit
+            //    mutation. After that
+            //    EndRequestAndGetFailedCommitCompletionFuture() was called but
+            //    tx finish from step (1) is still in queue.
+            if (!FinishQueue_.Contains(transaction)) {
+                ScheduleFinish(transaction);
+            }
         }
 
         return it->second.ToFuture().ToUncancelable();
