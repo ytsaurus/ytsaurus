@@ -18,6 +18,11 @@
 #include <Columns/ColumnNullable.h>
 #include <DataTypes/DataTypeFactory.h>
 
+#include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/statistic_path.h>
+
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NApi;
@@ -27,6 +32,8 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NYPath;
 using namespace NTransactionClient;
+using namespace NStatisticPath;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +46,8 @@ public:
         std::vector<DB::DataTypePtr> dataTypes,
         const TCompositeSettingsPtr& compositeSettings,
         std::function<void()> onFinished,
-        const TLogger& logger)
+        const TLogger& logger,
+        TCallback<void(const TStatistics&)> statisticsCallback = {})
         : DB::SinkToStorage(ToHeaderBlock(*schema, New<TCompositeSettings>()))
         , NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
@@ -48,26 +56,52 @@ public:
         , ColumnIndexToId_(GetColumnIndexToId(NameTable_, Schema_->GetColumnNames()))
         , CompositeSettings_(std::move(compositeSettings))
         , OnFinished_(std::move(onFinished))
+        , StatisticsCallback_(std::move(statisticsCallback))
     { }
 
     void consume(DB::Chunk& chunk) override
     {
         YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", chunk.getNumRows(), chunk.getNumColumns(), chunk.bytes());
+        Statistics_.AddSample("/sink_to_storage/chunk_rows"_SP, chunk.getNumRows());
+        Statistics_.AddSample("/sink_to_storage/chunk_bytes"_SP, chunk.bytes());
+        Statistics_.AddSample("/sink_to_storage/chunk_columns"_SP, chunk.getNumColumns());
 
         // TODO(buyval01): refactor ToRowRange to work with chunks to avoid cloning.
+        TWallTimer convertationTimer;
         auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, CompositeSettings_);
+        convertationTimer.Stop();
+        auto convertationTime = convertationTimer.GetElapsedTime();
 
+        TWallTimer writeTimer;
         DoWriteRows(std::move(rowRange));
+        writeTimer.Stop();
+        auto writeTime = writeTimer.GetElapsedTime();
+
+        Statistics_.AddSample("/sink_to_storage/write_time"_SP, writeTime);
+        Statistics_.AddSample("/sink_to_storage/convertation_time"_SP, convertationTime);
+    }
+
+    void WriteStatistics() {
+        if (StatisticsCallback_) {
+            StatisticsCallback_(Statistics_);
+        }
     }
 
     void onFinish() override
     {
         OnFinished_();
+        WriteStatistics();
+    }
+
+    ~TSinkToStorageBase()
+    {
+        WriteStatistics();
     }
 
 protected:
     TNameTablePtr NameTable_;
     TLogger Logger;
+    TStatistics Statistics_;
 
     using THolderPtr = TRefCountedPtr;
     // Holder contains smart pointers to data referred by rows. Rows can be accessed safely as long as holder is alive.
@@ -80,6 +114,7 @@ private:
     DB::Block HeaderBlock_;
     TCompositeSettingsPtr CompositeSettings_;
     std::function<void()> OnFinished_;
+    TCallback<void(const TStatistics&)> StatisticsCallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,13 +132,15 @@ public:
         NNative::IClientPtr client,
         TTransactionId writeTransactionId,
         std::function<void()> onFinished,
-        const TLogger& logger)
+        const TLogger& logger,
+        TCallback<void(const TStatistics&)> statisticsCallback = {})
         : TSinkToStorageBase(
             std::move(schema),
             std::move(dataTypes),
             std::move(compositeSettings),
             std::move(onFinished),
-            logger)
+            logger,
+            std::move(statisticsCallback))
     {
         NApi::ITransactionPtr transaction;
         if (writeTransactionId) {
@@ -170,13 +207,15 @@ public:
         TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
         std::function<void()> onFinished,
-        const TLogger& logger)
+        const TLogger& logger,
+        TCallback<void(const TStatistics&)> statisticsCallback = {})
         : TSinkToStorageBase(
             std::move(schema),
             std::move(dataTypes),
             std::move(compositeSettings),
             std::move(onFinished),
-            logger)
+            logger,
+            std::move(statisticsCallback))
         , Path_(std::move(path))
         , DynamicTableSettings_(std::move(dynamicTableSettings))
         , Client_(std::move(client))
@@ -284,7 +323,8 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
     NNative::IClientPtr client,
     NTransactionClient::TTransactionId writeTransactionId,
     std::function<void()> onFinished,
-    const TLogger& logger)
+    const TLogger& logger,
+    TCallback<void(const TStatistics&)> statisticsCallback = {})
 {
     return std::make_shared<TSinkToStaticTable>(
         std::move(path),
@@ -295,7 +335,8 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
         std::move(client),
         writeTransactionId,
         std::move(onFinished),
-        logger);
+        logger,
+        std::move(statisticsCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,7 +349,8 @@ DB::SinkToStoragePtr CreateSinkToDynamicTable(
     TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
     std::function<void()> onFinished,
-    const TLogger& logger)
+    const TLogger& logger,
+    TCallback<void(const TStatistics&)> statisticsCallback = {})
 {
     return std::make_shared<TSinkToDynamicTable>(
         std::move(path),
@@ -318,7 +360,8 @@ DB::SinkToStoragePtr CreateSinkToDynamicTable(
         std::move(compositeSettings),
         std::move(client),
         std::move(onFinished),
-        logger);
+        logger,
+        std::move(statisticsCallback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

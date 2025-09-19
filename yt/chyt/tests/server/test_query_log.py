@@ -254,3 +254,18 @@ class TestQueryLog(ClickHouseTestBase):
             for key, value in expected_values.items():
                 assert key in secondary_rows[0]['chyt_query_runtime_variables']
                 assert secondary_rows[0]['chyt_query_runtime_variables'][key] == value
+
+    @authors("denmogilevec")
+    def test_insert_statistics(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        with Clique(1, export_query_log=True) as clique:
+            query = "insert into `//tmp/t` (a) values (1), (2), (3), (4), (5);"
+            result = clique.make_query(query, full_response=True)
+            assert result.status_code == 200
+            rows = clique.wait_and_get_query_log_rows(result.headers["X-ClickHouse-Query-Id"])
+            for row in rows:
+                assert len(row["chyt_query_statistics"]["sink_to_storage"]["chunk_columns"]) > 0
+                assert len(row["chyt_query_statistics"]["sink_to_storage"]["chunk_bytes"]) > 0
+                assert len(row["chyt_query_statistics"]["sink_to_storage"]["chunk_rows"]) > 0
+                assert len(row["chyt_query_statistics"]["sink_to_storage"]["write_time"]) > 0
+                assert len(row["chyt_query_statistics"]["sink_to_storage"]["convertation_time"]) > 0
