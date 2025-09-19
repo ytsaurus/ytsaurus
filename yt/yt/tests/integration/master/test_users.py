@@ -807,6 +807,16 @@ class TestRequestThrottling(YTEnvSetup):
         },
     }
 
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "user_directory_synchronizer": {
+            "sync_period": 100,
+            "sync_period_splay": 100,
+        },
+        "dynamic_config_manager": {
+            "update_period": 100,
+        },
+    }
+
     @staticmethod
     def _prepare_user_write_request_throttling_parameters(user):
         return {
@@ -850,9 +860,10 @@ class TestRequestThrottling(YTEnvSetup):
         create("map_node", "//tmp/read_me")
 
         return {
+            # This throttler allows twice the request rate because there're two followers. For this reason, request_count is doubled below.
             "set_limit_function": lambda: set("//sys/@config/object_service/local_read_request_throttler/limit", 1),
             "make_batch_request_function": lambda _: make_batch_request("get", path="//tmp/read_me/@owner"),
-            "request_count": 10,
+            "request_count": 20,
             # Very conservative, this ratio was closer to 100 in local runs.
             "throttled_to_non_throttled_ratio_threshold": 5,
             # The throttled execution time should be close to 10 seconds, but let's be generous.
@@ -880,10 +891,11 @@ class TestRequestThrottling(YTEnvSetup):
         create("map_node", "//tmp/read_me")
 
         def set_limit():
+            # This throttler allows twice the request rate because there're two followers.
             set("//sys/@config/object_service/local_read_request_throttler/limit", 1)
-            set(f"//sys/users/{user}/@read_request_rate_limit", 1)
-            set("//sys/@config/object_service/local_write_request_throttler/limit", 1)
-            set(f"//sys/users/{user}/@write_request_rate_limit", 1)
+            set(f"//sys/users/{user}/@read_request_rate_limit", 2)
+            set("//sys/@config/object_service/local_write_request_throttler/limit", 2)
+            set(f"//sys/users/{user}/@write_request_rate_limit", 2)
 
         return {
             "set_limit_function": set_limit,
@@ -891,7 +903,7 @@ class TestRequestThrottling(YTEnvSetup):
                 lambda i: make_batch_request("get", path="//tmp/read_me/@owner")
             if i % 2 == 0
             else make_batch_request("create", type="map_node", path=f"//tmp/alice-{i:02d}"),
-            "request_count": 20,
+            "request_count": 40,
             # Very conservative, this ratio was closer to 100 in local runs.
             "throttled_to_non_throttled_ratio_threshold": 5,
             # The throttled execution time should be close to 10 seconds, but let's be generous.
@@ -903,13 +915,14 @@ class TestRequestThrottling(YTEnvSetup):
         create("map_node", "//tmp/read_me")
 
         def set_limit():
+            # This throttler allows twice the request rate because there're two followers.
             set("//sys/@config/object_service/local_read_request_throttler/limit", 1)
-            set(f"//sys/users/{user}/@read_request_rate_limit", 1)
+            set(f"//sys/users/{user}/@read_request_rate_limit", 2)
 
         return {
             "set_limit_function": set_limit,
             "make_batch_request_function": lambda _: make_batch_request("get", path="//tmp/read_me/@owner"),
-            "request_count": 10,
+            "request_count": 20,
             # Very conservative, this ratio was closer to 100 in local runs.
             "throttled_to_non_throttled_ratio_threshold": 5,
             # The throttled execution time should be close to 10 seconds, but let's be generous.
