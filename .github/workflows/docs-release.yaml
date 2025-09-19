@@ -31,16 +31,14 @@ jobs:
         shell: bash
 
       - name: Delete search index
-        run: bash .github/scripts/delete_search_index.sh
+        run: bash .github/scripts/delete_search_index.sh ${{ secrets.ALGOLIA_APP_ID }} ${{ secrets.ALGOLIA_API_KEY }}
 
       - name: Build doc md2html
         id: build-md2html
         env:
           index-name: "ytsaurus-docs"
-          api-key: ${{ secrets.ALGOLIA_API_KEY }}  # Это Write Key
-          app-id: ${{ secrets.ALGOLIA_APP_ID }}
         run: |
-          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ env.api-key }} --app-id ${{ env.app-id }}  2>&1 | tee './build-html.log'
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ secrets.ALGOLIA_API_KEY }} --app-id ${{ secrets.ALGOLIA_APP_ID }}  2>&1 | tee './build-html.log'
 
           echo "exitcode=$?" >> $GITHUB_OUTPUT
         shell: bash
