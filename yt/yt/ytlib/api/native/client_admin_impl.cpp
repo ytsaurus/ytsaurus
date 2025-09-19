@@ -514,7 +514,7 @@ TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarr
 
 TString TClient::DoWriteOperationControllerCoreDump(
     TOperationId operationId,
-    const TWriteOperationControllerCoreDumpOptions& /*options*/)
+    const TWriteOperationControllerCoreDumpOptions& options)
 {
     ValidateSuperuserPermissions();
 
@@ -530,8 +530,7 @@ TString TClient::DoWriteOperationControllerCoreDump(
 
     TControllerAgentServiceProxy proxy(channel);
     auto req = proxy.WriteOperationControllerCoreDump();
-    // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultWriteOperationControllerCoreDumpTimeout));
     ToProto(req->mutable_operation_id(), operationId);
 
     auto rsp = WaitFor(req->Invoke())
