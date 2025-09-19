@@ -409,7 +409,6 @@ class TestBulkInsert(DynamicTablesBase):
                     track=False,
                     spec={
                         "partition_count": 2,
-                        "use_new_partitions_heuristic": True
                     } if avoid_simple_sort else {},
                 )
             operations.append(op)
@@ -867,7 +866,6 @@ class TestBulkInsert(DynamicTablesBase):
             sort_by=["key"],
             spec={
                 "partition_count": 2,
-                "use_new_partitions_heuristic": True
             } if avoid_simple_sort else {},
         )
 
@@ -1843,7 +1841,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
                     sort_by=["key"],
                     spec={
                         "partition_count": 2,
-                        "use_new_partitions_heuristic": True
                     },
                 )
         else:
@@ -1892,7 +1889,6 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             sort_by=["key"],
             spec={
                 "partition_count": 2,
-                "use_new_partitions_heuristic": True
             } if avoid_simple_sort else {},
         )
         merge(

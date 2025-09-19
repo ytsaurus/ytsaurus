@@ -30,6 +30,7 @@ protected:
         Spec_ = New<TSortOperationSpec>();
         auto specYson = BuildYsonNodeFluently()
             .BeginMap()
+                .Item("use_new_partitions_heuristic").Value(false)
                 .Item("input_table_paths")
                     .BeginList()
                         .Item().Value("//in")
