@@ -313,13 +313,13 @@ protected:
             YT_VERIFY(IsFinal());
 
             if (AssignedNodeId_ != InvalidNodeId) {
-                YT_VERIFY(Controller->AssignedPartitionsByNodeId_[AssignedNodeId_].erase(Index) == 1);
+                EraseOrCrash(Controller->AssignedPartitionsByNodeId_[AssignedNodeId_], Index);
             }
 
             AssignedNodeId_ = nodeId;
 
             if (AssignedNodeId_ != InvalidNodeId) {
-                YT_VERIFY(Controller->AssignedPartitionsByNodeId_[AssignedNodeId_].emplace(Index).second);
+                EmplaceOrCrash(Controller->AssignedPartitionsByNodeId_[AssignedNodeId_], Index);
             }
         }
 
@@ -337,7 +337,7 @@ protected:
             localityMap[Index] += delta;
             YT_VERIFY(localityMap[Index] >= 0);
             if (localityMap[Index] == 0) {
-                YT_VERIFY(localityMap.erase(Index) == 1);
+                EraseOrCrash(localityMap, Index);
             }
         }
 
@@ -1571,16 +1571,14 @@ protected:
 
             auto partitionIndex = partition->Index;
             auto sortedMergeChunkPool = Controller_->CreateSortedMergeChunkPool(Format("%v(%v)", GetTitle(), partitionIndex));
-            YT_VERIFY(SortedMergeChunkPools_.emplace(partitionIndex, sortedMergeChunkPool).second);
+            EmplaceOrCrash(SortedMergeChunkPools_, partitionIndex, sortedMergeChunkPool);
             MultiChunkPool_->AddPool(std::move(sortedMergeChunkPool), partitionIndex);
 
             Partitions_.push_back(std::move(partition));
 
-            if (partitionIndex >= std::ssize(ActiveJoblets_)) {
-                ActiveJoblets_.resize(partitionIndex + 1);
-                InvalidatedJoblets_.resize(partitionIndex + 1);
-                JobOutputs_.resize(partitionIndex + 1);
-            }
+            EnsureVectorIndex(ActiveJoblets_, partitionIndex);
+            EnsureVectorIndex(InvalidatedJoblets_, partitionIndex);
+            EnsureVectorIndex(JobOutputs_, partitionIndex);
 
             Controller_->UpdateTask(this);
         }
@@ -1699,7 +1697,7 @@ protected:
             TTask::OnJobStarted(joblet);
 
             auto partitionIndex = *joblet->InputStripeList->PartitionTag;
-            YT_VERIFY(ActiveJoblets_[partitionIndex].insert(joblet).second);
+            InsertOrCrash(ActiveJoblets_[partitionIndex], std::move(joblet));
         }
 
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
@@ -1707,7 +1705,7 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             auto partitionIndex = *joblet->InputStripeList->PartitionTag;
-            YT_VERIFY(ActiveJoblets_[partitionIndex].erase(joblet) == 1);
+            EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
             if (!InvalidatedJoblets_[partitionIndex].contains(joblet)) {
                 JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
             }
@@ -1720,7 +1718,7 @@ protected:
             auto result = TTask::OnJobFailed(joblet, jobSummary);
 
             auto partitionIndex = *joblet->InputStripeList->PartitionTag;
-            YT_VERIFY(ActiveJoblets_[partitionIndex].erase(joblet) == 1);
+            EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
 
             return result;
         }
@@ -1730,7 +1728,7 @@ protected:
             auto result = TTask::OnJobAborted(joblet, jobSummary);
 
             auto partitionIndex = *joblet->InputStripeList->PartitionTag;
-            YT_VERIFY(ActiveJoblets_[partitionIndex].erase(joblet) == 1);
+            EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
 
             return result;
         }
@@ -2435,29 +2433,18 @@ protected:
 
     std::optional<TLocalityEntry> GetLocalityEntry(TNodeId nodeId) const
     {
-        {
-            auto it = AssignedPartitionsByNodeId_.find(nodeId);
-            if (it != AssignedPartitionsByNodeId_.end()) {
-                const auto& partitions = it->second;
-                if (!partitions.empty()) {
-                    return TLocalityEntry{
-                        .PartitionIndex = *partitions.begin(),
-                        .Locality = 1
-                    };
-                }
+        if (const auto* partitions = AssignedPartitionsByNodeId_.FindPtr(nodeId)) {
+            if (!partitions->empty()) {
+                return TLocalityEntry{
+                    .PartitionIndex = *partitions->begin(),
+                    .Locality = 1
+                };
             }
         }
-        {
-            auto it = PartitionsLocalityByNodeId_.find(nodeId);
-            if (it != PartitionsLocalityByNodeId_.end()) {
-                const auto& partitionLocalities = it->second;
-                if (!partitionLocalities.empty()) {
-                    const auto& partitionLocality = *partitionLocalities.begin();
-                    return TLocalityEntry{
-                        .PartitionIndex = partitionLocality.first,
-                        .Locality = partitionLocality.second
-                    };
-                }
+
+        if (const auto *partitionLocalities = PartitionsLocalityByNodeId_.FindPtr(nodeId)) {
+            if (!partitionLocalities->empty()) {
+                return std::make_from_tuple<TLocalityEntry>(*partitionLocalities->begin());
             }
         }
 
