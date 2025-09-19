@@ -105,6 +105,7 @@ void TClient::DoAttachTable(
 
     WaitFor(NTableClient::AttachTable(
         path,
+        options,
         this,
         transaction,
         std::move(sourceUris)

@@ -1,8 +1,9 @@
 from yt.common import YtError
+from yt.yson import YsonList
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, make_random_string, sync_create_cells,
+    authors, make_random_string, sync_create_cells, create_user, make_ace,
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
     copy, move, get_singular_chunk_id, wait, get, concatenate,
     get_account_disk_space_limit, set_account_disk_space_limit,
@@ -767,6 +768,28 @@ class TestAttachTable(TestS3MediumBase):
         buffer.seek(0)
         return buffer
 
+    @authors("pavel-bash")
+    def test_attach_empty_sources(self):
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        with pytest.raises(YtError, match="At least one source must be specified"):
+            attach_table("//tmp/imported",
+                         source_uris=[])
+
+    @authors("pavel-bash")
+    def test_attach_non_existing_medium(self):
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        medium_name = "definitely_no_such_medium"
+        with pytest.raises(YtError, match=f'Node has no child with key "{medium_name}"'):
+            attach_table("//tmp/imported",
+                         source_uris=[f"s3://{bucket}/foo.parquet"],
+                         medium=medium_name)
+
     @authors("faucct")
     def test_attach_with_compression_and_read(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
@@ -926,7 +949,8 @@ class TestAttachTable(TestS3MediumBase):
             attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
 
     @authors("faucct")
-    def test_attach_with_different_schemas_and_read(self):
+    @pytest.mark.parametrize("allow_incompatible_source_schemas", [True, False])
+    def test_attach_with_different_schemas_and_read(self, allow_incompatible_source_schemas):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         bucket = self.get_s3_medium_bucket()
         record1 = {"x": 1}
@@ -939,7 +963,16 @@ class TestAttachTable(TestS3MediumBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record2]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"])
+        if not allow_incompatible_source_schemas:
+            with pytest.raises(YtError, match='Column "x" first schema type is incompatible with second schema type'):
+                attach_table("//tmp/imported",
+                             source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
+                             allow_incompatible_source_schemas=allow_incompatible_source_schemas)
+            return
+
+        attach_table("//tmp/imported",
+                     source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
+                     allow_incompatible_source_schemas=allow_incompatible_source_schemas)
 
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
@@ -1050,6 +1083,33 @@ class TestAttachTable(TestS3MediumBase):
             out="//tmp/out",
             spec={"max_failed_job_count": 1})
 
+        assert_items_equal(read_table("//tmp/out"), [record1, record2])
+
+    @authors("faucct")
+    def test_attach_and_map_non_strict_schema(self):
+        create("table", "//tmp/imported", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": make_schema([
+                make_column("x", optional_type("int64"), type="int64", required=False),
+            ], strict=False),
+        })
+        create("table", "//tmp/out", attributes={"primary_medium": self.get_s3_medium_name()})
+        bucket = self.get_s3_medium_bucket()
+        record1 = {"x": 1, "y": "b"}
+        record2 = {"x": 2, "y": "a"}
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([record1, record2]))
+        ))
+
+        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        assert_items_equal(read_table("//tmp/imported"), [record1, record2])
+
+        map(
+            command="cat",
+            in_="//tmp/imported",
+            out="//tmp/out",
+            spec={"max_failed_job_count": 1})
         assert_items_equal(read_table("//tmp/out"), [record1, record2])
 
     @authors("faucct")
@@ -1215,6 +1275,230 @@ class TestAttachTable(TestS3MediumBase):
 
         attach_table("//tmp/imported", source_uris=[f"s3://{bucket1}/foo.jsonl", f"s3://{bucket2}/bar.jsonl"])
         assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}]
+
+    @authors("pavel-bash")
+    @pytest.mark.parametrize("table_should_exist_before", [True, False])
+    def test_no_permission(self, table_should_exist_before):
+        if table_should_exist_before:
+            create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        create_user("u")
+        set(f"//sys/media/{self.get_s3_medium_name()}/@acl", [make_ace("deny", "u", "use")])
+
+        with pytest.raises(YtError, match="User has no access to medium"):
+            attach_table("//tmp/imported",
+                         source_uris=[f"s3://foo/foo.parquet"],
+                         medium=(None if table_should_exist_before else self.get_s3_medium_name()),
+                         authenticated_user="u")
+
+    @authors("pavel-bash")
+    def test_table_exists_specify_same_medium(self):
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        attach_table("//tmp/imported",
+                     source_uris=[f"s3://{bucket}/foo.parquet"],
+                     medium=self.get_s3_medium_name())
+        assert read_table("//tmp/imported") == records
+
+    @authors("pavel-bash")
+    def test_table_exists_specify_another_medium(self):
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        error_match = f'its medium "{self.get_s3_medium_name()}" is not the same as the specified one "{self.get_s3_medium_name(1)}"'
+        with pytest.raises(YtError, match=error_match):
+            attach_table("//tmp/imported",
+                         source_uris=[f"s3://{bucket}/foo.parquet"],
+                         medium=self.get_s3_medium_name(1))
+
+    @authors("pavel-bash")
+    @pytest.mark.parametrize("medium_index", [0, 1])
+    def test_attach_non_existing_table(self, medium_index):
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        attach_table("//tmp/imported",
+                     source_uris=[f"s3://{bucket}/foo.parquet"],
+                     medium=self.get_s3_medium_name(medium_index))
+
+        assert read_table("//tmp/imported") == records
+
+        new_table_media = get("//tmp/imported/@media")
+        assert len(new_table_media) == 1
+        assert self.get_s3_medium_name(medium_index) in new_table_media
+
+        assert get("//tmp/imported/@schema_mode") == "strong"
+
+    @authors("pavel-bash")
+    def test_attach_non_existing_table_no_medium(self):
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        with pytest.raises(YtError, match="check that it exists or specify medium in the parameters"):
+            attach_table("//tmp/imported",
+                         source_uris=[f"s3://{bucket}/foo.parquet"])
+
+    @authors("pavel-bash")
+    def test_attach_non_existing_table_wrong_medium(self):
+        bucket = self.get_s3_medium_bucket()
+        records = [{"x": 1, "y": "b"}, {"x": 2, "y": "a"}]
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(records))
+        ))
+
+        with pytest.raises(YtError, match='Cannot attach external data to table on non-offshore medium "default"'):
+            attach_table("//tmp/imported",
+                         source_uris=[f"s3://{bucket}/foo.parquet"],
+                         medium="default")
+
+    @authors("pavel-bash")
+    @pytest.mark.parametrize("allow_incompatible_source_schemas", [True, False])
+    def test_attach_non_existing_table_incompatible_schemas(self, allow_incompatible_source_schemas):
+        bucket = self.get_s3_medium_bucket()
+        record1 = {"x": 1}
+        record2 = {"x": "2"}
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([record1]))
+        ))
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([record2]))
+        ))
+
+        if not allow_incompatible_source_schemas:
+            with pytest.raises(YtError, match='Column "x" first schema type is incompatible with second schema type'):
+                attach_table("//tmp/imported",
+                             source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
+                             allow_incompatible_source_schemas=allow_incompatible_source_schemas,
+                             medium=self.get_s3_medium_name())
+            return
+
+        attach_table("//tmp/imported",
+                     source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
+                     allow_incompatible_source_schemas=allow_incompatible_source_schemas,
+                     medium=self.get_s3_medium_name())
+
+        assert_items_equal(read_table("//tmp/imported"), [record1, record2])
+
+        assert_items_equal([
+            make_schema([], strict=False, unique_keys=False),
+            make_schema([], strict=False, unique_keys=False),
+        ], [get(f"#{chunk_id}/@schema") for chunk_id in get("//tmp/imported/@chunk_ids")])
+
+    class InferenceTestData(object):
+        def __init__(self, record1, record2, columns):
+            self.record1 = record1
+            self.record2 = record2
+            self.schema = make_schema(columns, strict=True, unique_keys=False)
+
+        record1: list[dict]
+        record2: list[dict]
+        schema: YsonList
+
+    inference_test_parameters = [
+        InferenceTestData(
+            record1=[
+                {"x": 1},
+            ],
+            record2=[
+                {"x": 2},
+            ],
+            columns=[
+                make_column("x", optional_type("int64"), type="int64", required=False),
+            ],
+        ),
+        InferenceTestData(
+            record1=[
+                {"x": 1.0},
+            ],
+            record2=[
+                {"x": 2.0},
+            ],
+            columns=[
+                make_column("x", optional_type("double"), type="double", required=False),
+            ],
+        ),
+        InferenceTestData(
+            record1=[
+                {"x": 1},
+            ],
+            record2=[
+                {"y": "2"},
+            ],
+            columns=[
+                make_column("x", optional_type("int64"), type="int64", required=False),
+                make_column("y", optional_type("string"), type="string", required=False),
+            ],
+        ),
+        InferenceTestData(
+            record1=[
+                {"x": 1, "y": 2},
+            ],
+            record2=[
+                {"y": 3},
+            ],
+            columns=[
+                make_column("x", optional_type("int64"), type="int64", required=False),
+                make_column("y", optional_type("int64"), type="int64", required=False),
+            ],
+        ),
+        InferenceTestData(
+            record1=[
+                {"x": 1, "y": [[{"foo": 1}, {"foo": 3}]]},
+            ],
+            record2=[
+                {"x": 2, "y": [[{"foo": 1}], []]},
+            ],
+            columns=[
+                make_column("x", optional_type("int64"), type="int64", required=False),
+                make_column("y", optional_type(list_type(optional_type(list_type(optional_type(
+                    struct_type([("foo", optional_type("int64"))])
+                ))))), type="any", required=False),
+            ],
+        ),
+    ]
+
+    @authors("pavel-bash")
+    @pytest.mark.parametrize("data", inference_test_parameters)
+    def test_attach_non_existing_table_check_schema_inference(self, data: InferenceTestData):
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(data.record1))
+        ))
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(data.record2))
+        ))
+
+        attach_table("//tmp/imported",
+                     source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
+                     medium=self.get_s3_medium_name())
+
+        assert_items_equal(read_table("//tmp/imported"), [*data.record1, *data.record2])
+        for chunk_id in get("//tmp/imported/@chunk_ids"):
+            assert_items_equal(get(f"#{chunk_id}/@schema"), data.schema)
+        assert_items_equal(get(f"//tmp/imported/@schema"), data.schema)
 
 
 ################################################################################

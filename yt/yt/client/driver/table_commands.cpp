@@ -324,6 +324,10 @@ void TAttachTableCommand::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path);
     registrar.Parameter("source_uris", &TThis::SourceUris)
         .Default();
+    registrar.Parameter("allow_incompatible_source_schemas", &TThis::AllowIncompatibleSourceSchemas)
+        .Default(false);
+    registrar.Parameter("medium", &TThis::Medium)
+        .Default();
 }
 
 void TAttachTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
@@ -332,6 +336,9 @@ void TAttachTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
 
     // XXX(babenko): temporary workaround; this is how it actually works but not how it is intended to be.
     Options.PingAncestors = true;
+
+    Options.AllowIncompatibleSourceSchemas = AllowIncompatibleSourceSchemas;
+    Options.Medium = Medium;
 
     PutMethodInfoInTraceContext("attach_table");
 

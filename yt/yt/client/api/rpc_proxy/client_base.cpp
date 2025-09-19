@@ -800,6 +800,10 @@ TFuture<void> TClientBase::AttachTable(
     for (auto& sourceUri : sourceUris) {
         req->add_source_uris(TString(sourceUri));
     }
+    req->set_allow_incompatible_source_schemas(options.AllowIncompatibleSourceSchemas);
+    if (options.Medium) {
+        req->set_medium(*options.Medium);
+    }
 
     ToProto(req->mutable_transactional_options(), options);
     return req->Invoke().AsVoid();

@@ -1043,6 +1043,8 @@ def is_sorted(table, client=None):
 def attach_table(
     destination_table,  # type: str | TablePath
     source_uris,  # type: list[str]
+    allow_incompatible_source_schemas=False,  # type: bool
+    medium=None,  # type: str | None
     client=None,  # type: YtClient | None
 ):
     """Attaches external sources, e.g. S3 URLs, to table.
@@ -1051,10 +1053,15 @@ def attach_table(
         If the table does not exist, it will be created.
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param source_uris: URIs, e.g. s3://bucket/key.
+    :param allow_incompatible_source_schemas: set this flag to 'true' to allow attaching sources even if their common schema
+        cannot be inferred or is incompatible with the existing table's schema.
+    :param medium: name of the medium where the output table will be created if it doesn't exist.
     """
 
     params = {"path": TablePath(destination_table, client=client)}
     set_param(params, "source_uris", source_uris)
+    set_param(params, "allow_incompatible_source_schemas", allow_incompatible_source_schemas)
+    set_param(params, "medium", medium)
 
     # Attaching external sources may take a long time.
     # Set timeout to 1 year.

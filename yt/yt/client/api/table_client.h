@@ -51,7 +51,10 @@ struct TTableWriterOptions
 struct TAttachTableOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
-{ };
+{
+    bool AllowIncompatibleSourceSchemas = false;
+    std::optional<TString> Medium;
+};
 
 struct TTabletRangeOptions
 {

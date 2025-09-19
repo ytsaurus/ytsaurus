@@ -2421,6 +2421,7 @@ private:
     void DoOpen()
     {
         Uploader_.emplace(Options_, RichPath_, Client_, TransactionId_);
+        Uploader_->BeginUpload();
 
         auto writerConfig = CloneYsonStruct(Config_);
         writerConfig->WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));

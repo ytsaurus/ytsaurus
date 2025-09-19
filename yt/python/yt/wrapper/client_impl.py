@@ -368,6 +368,7 @@ class YtClient(ClientState):
             self,
             destination_table,
             source_uris,
+            allow_incompatible_source_schemas=False, medium=None,
     ):
         """
         Attaches external sources, e.g. S3 URIs, to table.
@@ -375,11 +376,16 @@ class YtClient(ClientState):
         :param destination_table: output table. Specify `TablePath` attributes for append mode or something like `<append=%true>//path/to/table`.
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param source_uris: URIs, e.g. s3://bucket/key.
+        :param allow_incompatible_source_schemas: set this flag to 'true' to allow attaching sources even if their common schema
+            cannot be inferred or is incompatible with the existing table's schema.
+        :param medium: name of the medium where the output table will be created if it doesn't exist.
         """
         return client_api.attach_table(
             destination_table,
             client=self,
-            source_uris=source_uris)
+            source_uris=source_uris,
+            allow_incompatible_source_schemas=allow_incompatible_source_schemas,
+            medium=medium)
 
     def balance_tablet_cells(
             self,

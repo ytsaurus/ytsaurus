@@ -614,6 +614,8 @@ def add_attach_table_parser(add_parser):
     parser = add_parser(
         "attach-table",
         attach_table,
+        help=("Attaches external sources, e.g. S3 URLs, to the table. If the table does not exist, "
+              "it will be created. The schema will be inferred based on the provided sources."),
         epilog="Rewrite table by default. For append mode specify <append=true> before path.")
     add_ypath_argument(
         parser,
@@ -626,6 +628,14 @@ def add_attach_table_parser(add_parser):
         "--src", action="append", dest="source_uris",
         help='URI of source file(s) being attached, e.g. "s3://my-bucket/my-file.parquet"',
     )
+    parser.add_argument(
+        "--allow-incompatible-source-schemas", action="store_true", default=False,
+        help=("Set this flag to 'true' to allow attaching sources even if their schemas are incompatible "
+              "with each other. If the output table doesn't exist, it will be created with a weak schema "
+              "in this case. If it exists, it must have a weak schema."))
+    parser.add_argument(
+        "--medium", type=str,
+        help="Name of the medium where the output table will be created if it doesn't exist.")
 
 
 def add_write_table_parser(add_parser):

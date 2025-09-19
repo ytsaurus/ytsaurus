@@ -140,7 +140,8 @@ TSchemalessTableUploader::TSchemalessTableUploader(
     : Options_(std::move(options))
     , RichPath_(richPath)
     , Client_(std::move(client))
-    , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v", richPath.GetPath(), transactionId))
+    , TransactionId_(transactionId)
+    , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v", richPath.GetPath(), TransactionId_))
 {
     const auto& path = RichPath_.GetPath();
 
@@ -149,7 +150,7 @@ TSchemalessTableUploader::TSchemalessTableUploader(
     GetUserObjectBasicAttributes(
         Client_,
         {&UserObject},
-        transactionId,
+        TransactionId_,
         Logger,
         EPermission::Write);
 
@@ -161,9 +162,9 @@ TSchemalessTableUploader::TSchemalessTableUploader(
     }
 
     ObjectId_ = UserObject.ObjectId;
-    auto nativeCellTag = CellTagFromId(ObjectId_);
-    auto externalCellTag = UserObject.ExternalCellTag;
-    auto objectIdPath = FromObjectId(ObjectId_);
+    ObjectIdPath_ = FromObjectId(ObjectId_);
+    NativeCellTag_ = CellTagFromId(ObjectId_);
+    ExternalCellTag_ = UserObject.ExternalCellTag;
 
     {
         YT_LOG_DEBUG("Requesting extended table attributes");
@@ -171,7 +172,7 @@ TSchemalessTableUploader::TSchemalessTableUploader(
         auto proxy = CreateObjectServiceReadProxy(
             Client_,
             EMasterChannelKind::Follower,
-            externalCellTag);
+            ExternalCellTag_);
 
         static const auto AttributeKeys = [] {
             return ConcatVectors(
@@ -188,7 +189,7 @@ TSchemalessTableUploader::TSchemalessTableUploader(
                 });
         }();
 
-        auto req = TCypressYPathProxy::Get(objectIdPath);
+        auto req = TCypressYPathProxy::Get(ObjectIdPath_);
         AddCellTagToSyncWith(req, ObjectId_);
         NCypressClient::SetTransactionId(req, UserObject.ExternalTransactionId);
         ToProto(req->mutable_attributes()->mutable_keys(), AttributeKeys);
@@ -224,14 +225,19 @@ TSchemalessTableUploader::TSchemalessTableUploader(
             GetSchema(),
             Logger);
     }
+}
+
+void TSchemalessTableUploader::BeginUpload()
+{
+    const auto& path = RichPath_.GetPath();
 
     {
         YT_LOG_DEBUG("Starting table upload");
-        auto proxy = NObjectClient::CreateObjectServiceWriteProxy(Client_, nativeCellTag);
+        auto proxy = NObjectClient::CreateObjectServiceWriteProxy(Client_, NativeCellTag_);
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+            auto req = TTableYPathProxy::BeginUpload(ObjectIdPath_);
             ToProto(req->mutable_table_schema(), TableUploadOptions.TableSchema.Get());
             // Only time this can be true is when RichPath_ has extra chunk sort columns.
             if (ChunkSchema != TableUploadOptions.TableSchema.Get()) {
@@ -255,7 +261,7 @@ TSchemalessTableUploader::TSchemalessTableUploader(
             req->set_lock_mode(static_cast<int>(TableUploadOptions.LockMode));
             req->set_upload_transaction_title(Format("Upload to %v", path));
             req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
-            NCypressClient::SetTransactionId(req, transactionId);
+            NCypressClient::SetTransactionId(req, TransactionId_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "begin_upload");
         }
@@ -287,9 +293,9 @@ TSchemalessTableUploader::TSchemalessTableUploader(
         auto proxy = CreateObjectServiceReadProxy(
             Client_,
             EMasterChannelKind::Follower,
-            externalCellTag);
+            ExternalCellTag_);
 
-        auto req = TTableYPathProxy::GetUploadParams(objectIdPath);
+        auto req = TTableYPathProxy::GetUploadParams(ObjectIdPath_);
         req->set_fetch_last_key(
             TableUploadOptions.UpdateMode == EUpdateMode::Append &&
             TableUploadOptions.TableSchema->IsSorted());

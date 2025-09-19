@@ -5899,6 +5899,11 @@ private:
         NApi::TAttachTableOptions options;
         SetTimeoutOptions(&options, context.Get());
 
+        options.AllowIncompatibleSourceSchemas = FromProto<bool>(request->allow_incompatible_source_schemas());
+        if (request->has_medium()) {
+            options.Medium = FromProto<std::string>(request->medium());
+        }
+
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }

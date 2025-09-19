@@ -2745,6 +2745,10 @@ message TReqAttachTable
 
     repeated string source_uris = 2;
 
+    optional bool allow_incompatible_source_schemas = 3 [default = false];
+
+    optional string medium = 4;
+
     optional TTransactionalOptions transactional_options = 100;
 }
 
