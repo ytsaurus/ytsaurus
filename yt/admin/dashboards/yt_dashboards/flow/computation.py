@@ -28,6 +28,7 @@ class ComputationCellGenerator:
                 FlowWorker("yt.flow.worker.computation.epoch_parts_time.rate")
                     .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "-")
                     .value("part", "!-"))
+                    .query_transformation("{query} * 0.001")
                 .aggr("host")
                 .stack(True),
             description=dedent("""\
