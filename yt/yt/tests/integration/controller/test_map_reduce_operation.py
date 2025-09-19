@@ -4625,7 +4625,6 @@ class TestMaxParititonCount(YTEnvSetup):
     }
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("use_new_partitions_heuristic", [False, True])
     def test_pivot_keys_count_exceeds_limits(self, use_new_partitions_heuristic):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -4640,6 +4639,5 @@ class TestMaxParititonCount(YTEnvSetup):
                 sort_by=["key"],
                 spec={
                     "pivot_keys": [["01"], ["05"], ["10"], ["15"], ["20"]],
-                    "use_new_partitions_heuristic": use_new_partitions_heuristic,
                 },
             )
