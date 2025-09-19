@@ -22,7 +22,7 @@ TString TCoGroupByKeyApplicator::GetName() const
 
 TPCollection<TCoGbkResult> TCoGroupByKeyApplicator::ApplyTo(const TMultiPCollection& multiPCollection) const
 {
-    // 1. Нужно убедиться, что все ключи имеют один тип.
+    // Verify that all keys have the same type.
     TString keyTypeName;
     std::vector<NPrivate::TPCollectionNode*> inputs;
     std::vector<TDynamicTypeTag> tags;
@@ -42,7 +42,7 @@ TPCollection<TCoGbkResult> TCoGroupByKeyApplicator::ApplyTo(const TMultiPCollect
         inputs.emplace_back(node.Get());
     }
 
-    // 2. Добавить в граф трансформ.
+    // Add transform to the graph.
     const auto& rawPipeline = NPrivate::GetRawPipeline(multiPCollection);
     auto transformNode = rawPipeline->AddTransform(NPrivate::MakeRawCoGroupByKey(tags), inputs);
 
