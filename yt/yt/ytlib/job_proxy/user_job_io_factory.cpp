@@ -683,12 +683,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-    std::optional<int> partitionTag;
-    if (jobSpecExt.has_partition_tag()) {
-        partitionTag = jobSpecExt.partition_tag();
-    } else if (reduceJobSpecExt.has_partition_tag()) {
-        partitionTag = reduceJobSpecExt.partition_tag();
-    }
+    auto partitionTag = YT_OPTIONAL_FROM_PROTO(jobSpecExt, partition_tag);
     YT_VERIFY(partitionTag);
 
     auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);

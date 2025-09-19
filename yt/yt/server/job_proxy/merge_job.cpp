@@ -56,15 +56,10 @@ public:
         TSimpleJobBase::Initialize();
 
         TKeyColumns keyColumns;
-        std::optional<int> partitionTag;
+        auto partitionTag = YT_OPTIONAL_FROM_PROTO(JobSpecExt_, partition_tag);
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
-            if (JobSpecExt_.has_partition_tag()) {
-                partitionTag = JobSpecExt_.partition_tag();
-            } else if (mergeJobSpec.has_partition_tag()) {
-                partitionTag = mergeJobSpec.partition_tag();
-            }
             YT_LOG_INFO("Ordered merge produces sorted output");
         }
 

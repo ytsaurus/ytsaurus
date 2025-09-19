@@ -63,13 +63,8 @@ public:
         auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
         auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
 
-        std::optional<int> partitionTag;
-        if (JobSpecExt_.has_partition_tag()) {
-            partitionTag = JobSpecExt_.partition_tag();
-        } else if (SortJobSpecExt_.has_partition_tag()) {
-            partitionTag = SortJobSpecExt_.partition_tag();
-        }
-        YT_VERIFY(partitionTag);
+        YT_VERIFY(JobSpecExt_.has_partition_tag());
+        int partitionTag = JobSpecExt_.partition_tag();
 
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = JobSpecExt_.output_table_specs(0);
@@ -94,7 +89,7 @@ public:
                 std::move(dataSliceDescriptors),
                 TotalRowCount_,
                 JobSpecExt_.is_approximate(),
-                *partitionTag,
+                partitionTag,
                 ChunkReadOptions_,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
