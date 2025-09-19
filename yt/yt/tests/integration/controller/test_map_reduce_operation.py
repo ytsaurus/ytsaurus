@@ -4625,7 +4625,7 @@ class TestMaxParititonCount(YTEnvSetup):
     }
 
     @authors("apollo1321")
-    def test_pivot_keys_count_exceeds_limits(self, use_new_partitions_heuristic):
+    def test_pivot_keys_count_exceeds_limits(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
