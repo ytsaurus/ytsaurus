@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#ALGOLIA_APP_ID="app-id"
-#ALGOLIA_API_KEY="admin-api-key"
+ALGOLIA_APP_ID=$1
+ALGOLIA_API_KEY=$2
 MIN_INDEX_COUNT=10      # Minimum number of indexes to keep.
 COUNT_TO_DELETE=4       # Number of indexes to delete per run.
 
