@@ -200,7 +200,7 @@ public:
             Slot_->GetAutomatonInvoker(),
             BIND(&TTabletManager::OnCheckTabletCellSuspension, MakeWeak(this)),
             Config_->TabletCellSuspensionCheckPeriod))
-        , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
+        , TabletOrchidService_(TTabletOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
         , BackupManager_(CreateBackupManager(
             Slot_,
             Bootstrap_))
@@ -619,9 +619,15 @@ public:
                 .AsyncVia(tablet->GetEpochAutomatonInvoker()));
     }
 
-    IYPathServicePtr GetOrchidService() override
+    IYPathServicePtr GetTabletOrchidService() override
     {
-        return OrchidService_;
+        return TabletOrchidService_;
+    }
+
+    IYPathServicePtr GetTabletReplicationOrchidService() override
+    {
+        return IYPathService::FromMethod(&TTabletManager::BuildTabletReplicationOrchid, MakeWeak(this))
+            ->Via(Slot_->GetAutomatonInvoker());
     }
 
     ETabletCellLifeStage GetTabletCellLifeStage() const final
@@ -687,6 +693,31 @@ public:
         hiveManager->PostMessage(mailbox, message);
     }
 
+    void BuildTabletReplicationOrchid(IYsonConsumer* consumer) const
+    {
+        auto perClusterReplicationStatus = GetPerClusterReplicationStatus();
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+            .DoFor(
+                perClusterReplicationStatus.begin(),
+                perClusterReplicationStatus.end(),
+                [&] (TFluentMap fluent, const auto& replicationStatusEntry) {
+                    auto clusterName = replicationStatusEntry->first;
+                    auto replicationStatus = replicationStatusEntry->second;
+                    bool hasReplicationActivity = replicationStatus.PreparedReplicatorTransactionCount != 0 ||
+                        replicationStatus.ActiveReplicatorIterationCount != 0;
+
+                    fluent.Item(clusterName)
+                        .BeginMap()
+                            .Item("prepared_replicator_transaction_count").Value(replicationStatus.PreparedReplicatorTransactionCount)
+                            .Item("active_replicator_iteration_count").Value(replicationStatus.ActiveReplicatorIterationCount)
+                            .Item("has_replication_activity").Value(hasReplicationActivity)
+                        .EndMap();
+                })
+            .EndMap();
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, TTablet);
 
 private:
@@ -730,13 +761,13 @@ private:
 
     const IStoreContextPtr StoreContext_;
 
-    class TOrchidService
+    class TTabletOrchidService
         : public TVirtualMapBase
     {
     public:
         static IYPathServicePtr Create(TWeakPtr<TTabletManager> impl, IInvokerPtr invoker)
         {
-            return New<TOrchidService>(std::move(impl))
+            return New<TTabletOrchidService>(std::move(impl))
                 ->Via(invoker);
         }
 
@@ -778,7 +809,7 @@ private:
     private:
         const TWeakPtr<TTabletManager> Owner_;
 
-        explicit TOrchidService(TWeakPtr<TTabletManager> impl)
+        explicit TTabletOrchidService(TWeakPtr<TTabletManager> impl)
             : Owner_(std::move(impl))
         { }
 
@@ -925,6 +956,12 @@ private:
         TTabletManager* const Owner_;
     };
 
+    struct TClusterReplicationStatus
+    {
+        int PreparedReplicatorTransactionCount = 0;
+        int ActiveReplicatorIterationCount = 0;
+    };
+
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
     ETabletCellLifeStage CellLifeStage_ = ETabletCellLifeStage::Running;
@@ -938,7 +975,7 @@ private:
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
     const TPeriodicExecutorPtr SuspensionCheckExecutor_;
 
-    const IYPathServicePtr OrchidService_;
+    const IYPathServicePtr TabletOrchidService_;
 
     IBackupManagerPtr BackupManager_;
 
@@ -5590,6 +5627,29 @@ private:
                 transaction->GetId())
                 << TErrorAttribute("tablet_id", tablet->GetId());
         }
+    }
+
+    THashMap<std::string, TClusterReplicationStatus> GetPerClusterReplicationStatus() const
+    {
+        THashMap<std::string, TClusterReplicationStatus> replicationClusters;
+
+        for (const auto& [_, tablet] : Tablets()) {
+            for (auto& [_, replicaInfo] : tablet->Replicas()) {
+                auto replicaClusterName = replicaInfo.GetClusterName();
+                auto& replicaReplicationStatus = replicationClusters[replicaClusterName];
+
+                if (replicaInfo.GetPreparedReplicationTransactionId()) {
+                    replicaReplicationStatus.PreparedReplicatorTransactionCount++;
+                }
+
+                auto replicator = replicaInfo.GetReplicator();
+                if (replicator && replicator->HasActiveReplicationIteration()) {
+                    replicaReplicationStatus.ActiveReplicatorIterationCount++;
+                }
+            }
+        }
+
+        return replicationClusters;
     }
 };
 

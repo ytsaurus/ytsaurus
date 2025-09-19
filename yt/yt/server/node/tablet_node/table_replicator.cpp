@@ -162,6 +162,12 @@ public:
             YT_LOG_INFO("Replicator fiber stopped");
         }
         FiberFuture_.Reset();
+        HasActiveReplicationIteration_.store(false);
+    }
+
+    bool HasActiveReplicationIteration()
+    {
+        return HasActiveReplicationIteration_;
     }
 
 private:
@@ -193,6 +199,8 @@ private:
     TBackoffStrategy SoftErrorBackoff_;
 
     TFuture<void> FiberFuture_;
+
+    std::atomic<bool> HasActiveReplicationIteration_ = false;
 
     void FiberMain()
     {
@@ -232,6 +240,8 @@ private:
             auto& counters = replicaSnapshot->Counters;
 
             auto countError = Finally([&] {
+                HasActiveReplicationIteration_.store(false);
+
                 if (std::uncaught_exceptions() > 0) {
                     counters.ReplicationErrorCount.Increment();
                 }
@@ -314,9 +324,21 @@ private:
                 }
             });
 
-            if (HintManager_->IsReplicaClusterBanned(ClusterName_)) {
-                YT_LOG_DEBUG("Skipping table replication iteration due to ban of replica cluster (ClusterName: %v)",
+            auto isReplicaClusterBanned = [&] {
+                bool isBanned = HintManager_->IsReplicaClusterBanned(ClusterName_);
+                YT_LOG_DEBUG_IF(isBanned, "Skipping table replication iteration due to ban of replica cluster (ClusterName: %v)",
                     ClusterName_);
+                return isBanned;
+            };
+
+            if (isReplicaClusterBanned()) {
+                return;
+            }
+
+            HasActiveReplicationIteration_.store(true);
+
+            // NB: Double-check to avoid short race between checking for the first time and storing in HasActiveReplicationIteration_
+            if (isReplicaClusterBanned()) {
                 return;
             }
 
@@ -786,6 +808,11 @@ void TTableReplicator::Enable()
 void TTableReplicator::Disable()
 {
     Impl_->Disable();
+}
+
+bool TTableReplicator::HasActiveReplicationIteration()
+{
+    return Impl_->HasActiveReplicationIteration();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
