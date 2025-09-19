@@ -68,11 +68,13 @@ webservice:
 
 > Проверьте корректность DNS‑имён сервисов: `http-proxies.default.svc.cluster.local` — пример для сервиса `http-proxies` в namespace `default`. Уточните своё имя сервиса командой `kubectl get svc -A | grep http-proxies`.
 
+По умолчанию, будет запускаться init job, создающая нужные таблицы для хранения состояния. Отключить ее запуск можно указав `config.odin.db.initialize: false`.
+
 ## Установка Helm‑чарта
 
 ```bash
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
-  --version 0.0.1 \
+  --version 0.0.3 \
   -f values.yaml \
   -n <namespace>
 ```
@@ -105,10 +107,10 @@ UI должен быть установлен как helm-chart (см. [инст
 ## Как включать и отключать проверки
 
 Список проверок задаётся в секции `config.checks` в `values.yaml`.
-Каждая проверка описывается структурой с полями:
+Каждая проверка описывается структурой следующего вида:
 
 ```yaml
-- name: sort_result
+sort_result:
   displayName: Sort Result
   enable: true
   config: {...}
@@ -123,7 +125,7 @@ UI должен быть установлен как helm-chart (см. [инст
 #### Пример: отключение проверки
 
 ```yaml
-- name: suspicious_jobs
+suspicious_jobs:
   displayName: Suspicious Jobs
   enable: false
   config:
@@ -136,7 +138,7 @@ UI должен быть установлен как helm-chart (см. [инст
 ### Пример: частичное отключение через `config.enable`
 
 ```yaml
-- name: operations_snapshots
+operations_snapshots:
   displayName: Operations Snapshots
   enable: true
   config:
@@ -153,7 +155,7 @@ UI должен быть установлен как helm-chart (см. [инст
 
 ```bash
 helm upgrade odin oci://ghcr.io/ytsaurus/odin-chart \
-  --version 0.0.1 \
+  --version 0.0.3 \
   -f values.yaml \
   -n <namespace>
 ```
