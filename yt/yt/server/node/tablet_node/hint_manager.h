@@ -16,6 +16,9 @@ struct IHintManager
 
     //! \note Thread affinity: any
     virtual bool IsReplicaClusterBanned(TStringBuf clusterName) const = 0;
+
+    //! \note Thread affinity: any
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHintManager)

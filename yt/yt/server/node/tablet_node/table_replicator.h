@@ -33,6 +33,7 @@ public:
 
     void Enable();
     void Disable();
+    bool HasActiveReplicationIteration();
 
 private:
     class TImpl;

@@ -52,7 +52,8 @@ struct ITabletManager
 
     virtual void ReleaseBackingStore(const IChunkStorePtr& store) = 0;
 
-    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+    virtual NYTree::IYPathServicePtr GetTabletOrchidService() = 0;
+    virtual NYTree::IYPathServicePtr GetTabletReplicationOrchidService() = 0;
 
     virtual NTabletClient::ETabletCellLifeStage GetTabletCellLifeStage() const = 0;
 
