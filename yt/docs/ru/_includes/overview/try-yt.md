@@ -18,7 +18,7 @@
 
 ## Установка и запуск {{product-name}} кластера { #launch-cluster}
 
-В инструкции будет предложено два способа установить {{product-name}} кластер: через [Docker](https://www.docker.com/) и [Minikube](https://minikube.sigs.k8s.io/docs/).
+В инструкции будет предложено три способа установить {{product-name}} кластер: через [Docker](https://www.docker.com/), [Minikube](https://minikube.sigs.k8s.io/docs/) и [Kind](https://kind.sigs.k8s.io/docs/).
 
 Независимо от способа установки, в результате будут подняты необходимые компоненты системы: [мастер-сервер](*about-master), [планировщик](*about-scheduler), [YQL](*about-yql), [Query Tracker](*about-qt) и другие. Все последующие примеры из этого руководства — создание таблиц, загрузка данных и запуск MapReduce — не зависят от способа установки кластера и будут одинаковыми как для Docker, так и в случае Minikube.
 
@@ -296,6 +296,238 @@
 
   Теперь {{product-name}} поднят и готов к использованию — можно переходить к следующему шагу. После того как вы закончите работу с примерами, не забудьте [удалить](#stop-cluster) кластер.
 
+- Kind
+
+  В этом примере вы локально развернёте кластер Kubernetes, состоящий из одного узла, и в нём запустите {{product-name}} кластер. В качестве движка исполнения контейнеров будет использоваться Docker.
+
+  {% note warning "Требования по ресурсам" %}
+
+  Чтобы успешно развернуть {{product-name}} в кластере Kubernetes, на хостовой машине должно быть:
+  - от 4-х ядер CPU;
+  - от 8 ГБ оперативной памяти;
+  - от 30 ГБ дискового пространства.
+
+  {% endnote %}
+
+  Для установки {{product-name}} в Kind выполните шаги:
+
+  1. [Подготовьте окружение](#kind-setup)
+  1. [Поднимите кластер Kubernetes](#kind-k8s-start)
+  1. [Установите cert-manager](#kind-cert-manager-apply)
+  1. [Установите {{product-name}} оператор](#kind-operator-install)
+  1. [Запустите кластер {{product-name}}](#kind-yt-start)
+  1. [Настройте сетевой доступ до кластера](#kind-network-access)
+
+  #### 1. Подготовьте окружение {#kind-setup}
+
+  - Установите Docker:
+      - Если у вас Linux — установите [Docker Engine](https://docs.docker.com/engine/install/ubuntu/);
+      - Если у вас Mac — установите [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) либо [Podman](https://podman.io/docs/installation) в качестве альтернативы. Убедитесь, что у вас установлена и включена Rosetta 2.
+  - Установите [kubectl](https://kubernetes.io/ru/docs/tasks/tools/install-kubectl/#установка-kubectl-в-linux) — утилита для управления кластером Kubernetes.
+  - Установите [Kind](https://kind.sigs.k8s.io/docs/user/quick-start#installation) — утилита, позволяющая запустить простой кластер Kubernetes на локальном компьютере.
+  - Установите [Helm](https://helm.sh/docs/intro/install/) — пакетный менеджер для установки компонент {{product-name}} в Kubernetes.
+
+  #### 2. Поднимите кластер Kubernetes {#kind-k8s-start}
+
+  ```bash
+  kind create cluster --name ytsaurus
+  ```
+
+  Когда кластер Kubernetes будет поднят, переключите контекст k8s на созданный кластер:
+  ```bash
+  kubectl cluster-info --context kind-ytsaurus
+  ```
+
+  Проверьте, что кластер доступен и работает:
+
+  ```bash
+  $ kubectl cluster-info
+  Kubernetes control plane is running at https://127.0.0.1:38797
+  CoreDNS is running at https://127.0.0.1:38797/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+  ```
+
+  {% note warning %}
+
+  В некоторых случаях &mdash; например, с использованием операционной системы Ubuntu 22.04 &mdash; могут быть проблемы со стартом k8s-кластера. В этом случае стоит попробовать воспользоваться Kind версии 0.20.0:
+  ```bash
+  curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+  chmod +x ./kind
+  sudo mv ./kind /usr/local/bin/kind
+  kind create cluster --name ytsaurus
+  ```
+
+  {% endnote %}
+
+  #### 3. Установите cert-manager { #kind-cert-manager-apply }
+
+  ```bash
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
+  ```
+
+  Дождитесь, когда под `cert-manager-webhook` будет находиться в состоянии `Running`:
+
+  ```
+  $ kubectl get pods -A
+  NAMESPACE        NAME                                        READY   STATUS      RESTARTS   AGE
+  cert-manager     cert-manager-7b5cdf866f-5lfth               1/1     Running     0          2m12s
+  cert-manager     cert-manager-cainjector-7c9788477c-xdp8l    1/1     Running     0          2m12s
+  cert-manager     cert-manager-webhook-764949f558-dldzp       1/1     Running     0          2m12s
+  kube-system      coredns-668d6bf9bc-774xg                    1/1     Running     0          2m57s
+  ...
+  ```
+
+  #### 4. Установите {{product-name}} оператор {#kind-operator-install}
+
+  [{{product-name}} оператор](https://github.com/ytsaurus/ytsaurus-k8s-operator) — это программа, которая управляет исполнением {{product-name}} в Kubernetes кластере. Оператор следит за тем, чтобы все компоненты {{product-name}} были запущены и работали корректно.
+
+  Установите чарт:
+  ```bash
+  helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
+  ```
+
+  {% cut "Если возникла ошибка 'Internal error occurred: failed calling webhook "webhook.cert-manager.io"'" %}
+
+  Проверьте, какой статус у пода `cert-manager-webhook`:
+
+  ```
+  $ kubectl get pods -A
+  NAMESPACE       NAME                                      READY   STATUS               RESTARTS   AGE
+  cert-manager    cert-manager-7b5cdf866f-5lfth             1/1     ContainerCreating    0          2m12s
+  cert-manager    cert-manager-cainjector-7c9788477c-xdp8l  1/1     ContainerCreating    0          2m12s
+  cert-manager    cert-manager-webhook-764949f558-dldzp     1/1     ContainerCreating    0          2m12s
+  ...
+  ```
+  Если под находится в состоянии `ContainerCreating`, дождитесь завершения его установки и попробуйте перезапустить команду `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+
+  Если у пода состояние `ImagePullBackOff`, это означает, что система не может скачать необходимые образы. Скорее всего, это связано с сетевыми настройками внутри Kind. Возможные решения проблемы описаны [тут](https://cert-manager.io/docs/troubleshooting/webhook/#error-connect-connection-refused).
+
+  {% endcut %}
+
+  Дождитесь, когда оператор будет находиться в статусе `Running`:
+
+  ```bash
+  $ kubectl get pod
+  NAME                                                      READY   STATUS     RESTARTS   AGE
+  ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
+  ```
+
+  #### 5. Запустите {{product-name}} кластер {#kind-yt-start}
+
+  ```bash
+  curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
+  kubectl apply -f cluster_v1_local.yaml
+  ```
+
+  Обычно запуск {{product-name}} кластера занимает несколько минут. Если всё прошло успешно, список запущенных подов будет выглядеть следующим образом:
+
+  ```bash
+  $ kubectl get pod
+  NAME                                                      READY   STATUS              RESTARTS   AGE
+  ca-0                                                      1/1     Running     0          8m43s
+  dnd-0                                                     1/1     Running     0          8m44s
+  dnd-1                                                     1/1     Running     0          8m44s
+  dnd-2                                                     1/1     Running     0          8m44s
+  ds-0                                                      1/1     Running     0          11m
+  end-0                                                     1/1     Running     0          8m43s
+  hp-0                                                      1/1     Running     0          8m44s
+  hp-control-0                                              1/1     Running     0          8m44s
+  ms-0                                                      1/1     Running     0          11m
+  rp-0                                                      1/1     Running     0          8m43s
+  rp-heavy-0                                                1/1     Running     0          8m43s
+  sch-0                                                     1/1     Running     0          8m39s
+  strawberry-controller-679786577b-4p5kz                    1/1     Running     0          7m17s
+  yt-client-init-job-user-ljfqf                             1/1     Running     0          8m39s
+  yt-master-init-job-default-hdnfm                          1/1     Running     0          9m23s
+  yt-master-init-job-enablerealchunks-575hk                 1/1     Running     0          8m50s
+  yt-strawberry-controller-init-job-cluster-l5gns           1/1     Running     0          8m17s
+  yt-strawberry-controller-init-job-user-nn9lk              1/1     Running     0          8m34s
+  yt-ui-init-job-default-6w5zv                              1/1     Running     0          8m43s
+  ytsaurus-ui-deployment-7b469d5cc8-596sf                   1/1     Running     0          8m35s
+  ytsaurus-ytop-chart-controller-manager-859b7bbddf-jc5sv   2/2     Running     0          14m
+  ```
+
+  #### 6. Настройте сетевой доступ до кластера {#kind-network-access}
+
+  По умолчанию Kind создаёт внутреннюю сеть для k8s кластера и подов в нём. Чтобы получить доступ до этой сети, можно воспользоваться [port-forwarding](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/). Ниже показано, как с помощью этого механизма получить доступ к веб-интерфейсу и API {{product-name}} кластера.
+
+  Для получения доступа к веб-интерфейсу кластера по адресу `localhost:8080` в отдельном терминале выполните команду:
+
+  ```bash
+  kubectl port-forward service/ytsaurus-ui 8080:80
+  ```
+
+  Для входа используйте:
+  ```
+  Login: admin
+  Password: password
+  ```
+
+  Для получения доступа к API кластера по адресу `localhost:8081` в отдельном терминале выполните команду:
+  ```bash
+  kubectl port-forward service/http-proxies-lb 8081:80
+  ```
+
+  Теперь веб-интерфейс будет доступен по адресу `localhost:8080`, а прокси кластера по адресу `localhost:8081`. С помощью адреса прокси можно работать с кластером из командной строки &mdash; про это будет рассказано ниже, в разделе с [примерами](#launch-example).
+
+  {% cut "Как настроить нативный проброс портов с помощью Kind" %}
+
+  Есть альтернативное решение с настройкой {{product-name}} кластера и Kind кластера, когда можно обойтись без явного форвардинга портов командой `kubectl port-forward`. Для этого необходимо сделать следующее:
+
+  1. Настроить проброс портов в Kind.
+
+     Пример конфига:
+     ```yaml
+     kind: Cluster
+     apiVersion: kind.x-k8s.io/v1alpha4
+     nodes:
+     - role: control-plane
+       extraPortMappings:
+       - containerPort: 30080
+         hostPort: 30080
+       - containerPort: 30081
+         hostPort: 30081
+       - containerPort: 30082
+         hostPort: 30082
+     ```
+
+     Запуск Kind кластера с указанием конфига:
+     ```bash
+     kind create cluster --name ytsaurus --config=kind-config.yaml
+     ```
+
+  2. Настроить проброс портов из веб-интерфейса и проксей в {{product-name}} кластере.
+
+     Для этого в конфиге {{product-name}} кластера необходимо указать опцию `httpNodePort` в проксях и веб-интерфейсе:
+     ```bash
+     $ grep httpNodePort -B 5 cluster_v1_local_with_ports.yaml
+       httpProxies:
+         - serviceType: NodePort
+           loggers: *loggers
+           instanceCount: 1
+           role: default
+           httpNodePort: 30080
+         - serviceType: NodePort
+           loggers: *loggers
+           instanceCount: 1
+           role: control
+           httpNodePort: 30081
+     --
+
+       ui:
+         image: ghcr.io/ytsaurus/ui:stable
+         serviceType: NodePort
+         instanceCount: 1
+         httpNodePort: 30082
+     ```
+
+  Теперь веб-интерфейс будет доступен по адресу `localhost:30082`, а прокси кластера по адресу `localhost:30080`.
+
+  {% endcut %}
+
+  #### Готово!
+
+  Теперь {{product-name}} поднят и готов к использованию — можно переходить к следующему шагу. После того как вы закончите работу с примерами, не забудьте [удалить](#stop-cluster) кластер.
+
 {% endlist %}
 
 ## Установка {{product-name}} CLI {#install-cli}
@@ -366,6 +598,21 @@ Version: YT wrapper 0.13.20
 
   ```bash
   export YT_PROXY=`minikube service http-proxies-lb --url`
+  # Отключить автоматическое обнаружение прокси-сервера {{product-name}}
+  export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
+  export YT_TOKEN=password
+  ```
+
+  {% note warning %}
+
+  Здесь токен задаётся в переменной окружения — это сделано намеренно, для простоты и наглядности примера. В реальных задачах так делать не стоит, для работы с токенами в {{product-name}} есть специальные команды. Подробнее читайте в разделе [Аутентификация](../../user-guide/storage/auth.md#upravlenie-tokenami).
+
+  {% endnote %}
+
+- Kind
+
+  ```bash
+  export YT_PROXY='localhost:8081'
   # Отключить автоматическое обнаружение прокси-сервера {{product-name}}
   export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
   export YT_TOKEN=password
@@ -528,13 +775,13 @@ ORDER BY count
 LIMIT 30;
 ```
 
-## Остановка кластера { #stop-cluster }
+## Удаление кластера { #stop-cluster }
 
 {% list tabs dropdown %}
 
 - Docker {selected}
 
-  Чтобы остановить {{product-name}} кластер, необходимо завершить работу контейнеров `yt.frontend` и `yt.backend`. Для этого выполните команду:
+  Чтобы удалить {{product-name}} кластер, необходимо завершить работу контейнеров `yt.frontend` и `yt.backend`. Для этого выполните команду:
     ```bash
   ./run_local_cluster.sh --stop
   ```
@@ -574,6 +821,23 @@ LIMIT 30;
      podman volume rm minikube
      ```
 
+- Kind
+
+  1. Удалите {{product-name}} кластер:
+     ```bash
+     kubectl delete -f cluster_v1_local.yaml
+     ```
+
+  2. Удалите оператор:
+     ```bash
+     helm uninstall ytsaurus
+     ```
+
+  3. Удалите кластер Kubernetes:
+     ```bash
+     kind delete cluster --name ytsaurus
+     ```
+
 {% endlist %}
 
 <!--
@@ -605,7 +869,7 @@ LIMIT 30;
 
 {% cut "Jupyter Notebook" %}
 
-В ноутбуке подготовлено множество примеров для работы c {{product-name}} — создание таблиц, загрузка данных, использование CHYT, SPYT, YQL и примеры SDK. Обзор всех примеров приведён на стартовой странице ноутбука **About YTsaurus demo**.
+В ноутбуке подготовлено множество примеров для работы c {{product-name}} — создание таблиц, загрузка данных, использование CHYT, SPYT, YQL и примеры SDK. Обзор всех примеров приведён на стартовой странице ноутбука **About {{product-name}} demo**.
 
 Ссылка на поднятый Jupyter Notebook будет в письме.
 
