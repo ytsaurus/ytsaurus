@@ -120,17 +120,12 @@ public:
         TOperation* operation)
         : TOperationControllerBase(
             spec,
-            config,
+            std::move(config),
             options,
-            host,
+            std::move(host),
             operation)
-        , Spec_(spec)
-        , Options_(options)
-        , CompletedPartitionCount_(0)
-        , SortStartThresholdReached_(false)
-        , MergeStartThresholdReached_(false)
-        , TotalOutputRowCount_(0)
-        , SimpleSort_(false)
+        , Spec_(std::move(spec))
+        , Options_(std::move(options))
     { }
 
     std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override
@@ -178,7 +173,7 @@ protected:
     TSortOperationOptionsBasePtr Options_;
 
     // Counters.
-    int CompletedPartitionCount_;
+    int CompletedPartitionCount_ = 0;
     TProgressCounterPtr PartitionJobCounter_ = New<TProgressCounter>();
     TProgressCounterPtr SortedMergeJobCounter_ = New<TProgressCounter>();
     TProgressCounterPtr UnorderedMergeJobCounter_ = New<TProgressCounter>();
@@ -189,10 +184,10 @@ protected:
     TProgressCounterPtr SortDataWeightCounter_ = New<TProgressCounter>();
 
     // Start thresholds.
-    bool SortStartThresholdReached_;
-    bool MergeStartThresholdReached_;
+    bool SortStartThresholdReached_ = false;
+    bool MergeStartThresholdReached_ = false;
 
-    i64 TotalOutputRowCount_;
+    i64 TotalOutputRowCount_ = 0;
 
     TTableSchemaPtr IntermediateChunkSchema_ = New<TTableSchema>();
     std::vector<TTableSchemaPtr> IntermediateStreamSchemas_;
@@ -411,7 +406,7 @@ protected:
 
     //! Equivalent to |Partitions.size() == 1| but enables checking
     //! for simple sort when #Partitions is still being constructed.
-    bool SimpleSort_;
+    bool SimpleSort_ = false;
 
     //! PartitionsByLevels[level][index] is a partition with corresponding
     //! level and index.
@@ -1170,7 +1165,7 @@ protected:
         }
 
     protected:
-        TSortControllerBase* Controller_;
+        TSortControllerBase* Controller_ = nullptr;
 
         bool IsFinalSort_ = false;
 
@@ -1451,7 +1446,7 @@ protected:
         }
 
     private:
-        TPartition* Partition_;
+        TPartition* Partition_ = nullptr;
 
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSimpleSortTask, 0xb32d4f02);
     };
@@ -1635,7 +1630,7 @@ protected:
         }
 
     private:
-        TSortControllerBase* Controller_;
+        TSortControllerBase* Controller_ = nullptr;
 
         std::vector<TPartitionPtr> Partitions_;
 
@@ -1823,7 +1818,7 @@ protected:
         }
 
     private:
-        TSortControllerBase* Controller_;
+        TSortControllerBase* Controller_ = nullptr;
 
         IMultiChunkPoolOutputPtr MultiChunkPoolOutput_;
 
@@ -3178,11 +3173,11 @@ public:
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            config,
-            options,
-            host,
+            std::move(config),
+            std::move(options),
+            std::move(host),
             operation)
-        , Spec_(spec)
+        , Spec_(std::move(spec))
     { }
 
 protected:
@@ -3921,11 +3916,11 @@ public:
         TOperation* operation)
         : TSortControllerBase(
             spec,
-            config,
-            options,
-            host,
+            std::move(config),
+            std::move(options),
+            std::move(host),
             operation)
-        , Spec_(spec)
+        , Spec_(std::move(spec))
     { }
 
     void BuildBriefSpec(TFluentMap fluent) const override
