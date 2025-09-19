@@ -311,6 +311,8 @@ items:
                href: user-guide/data-processing/spyt/structured-streaming.md
              - name: Spark SQL
                href: user-guide/data-processing/spyt/spark-sql.md
+             - name: Using the {{product-name}} Shuffle service
+               href: user-guide/data-processing/spyt/shuffle.md
              - name: API
                items:
                  - name: SPYT in Python
@@ -323,6 +325,8 @@ items:
                    href: user-guide/data-processing/spyt/API/spyt-java.md
              - name: Thesaurus
                items:
+                 - name: Configuration parameters
+                   href: user-guide/data-processing/spyt/thesaurus/configuration.md
                  - name: Read options
                    href: user-guide/data-processing/spyt/thesaurus/read-options.md
                  - name: Reading and writing within a transaction
