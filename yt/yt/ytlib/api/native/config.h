@@ -326,6 +326,9 @@ struct TConnectionDynamicConfig
     TDuration DefaultDestroyChunkLocationsTimeout;
     TDuration DefaultResurrectChunkLocationsTimeout;
     TDuration DefaultRequestRestartTimeout;
+    TDuration DefaultWriteOperationControllerCoreDumpTimeout;
+    TDuration DefaultAbandonJobTimeout;
+    TDuration DefaultAbortJobTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
