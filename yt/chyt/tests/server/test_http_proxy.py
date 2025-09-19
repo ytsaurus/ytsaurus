@@ -4,7 +4,7 @@ from helpers import get_scheduling_options
 
 from yt_commands import (get, write_table, authors, raises_yt_error, abort_job, update_op_parameters, print_debug,
                          create, sync_create_cells, create_user, create_group, add_member, ls,
-                         create_access_control_object_namespace, create_access_control_object, make_ace, set as yt_set)
+                         make_ace, set as yt_set)
 
 from yt.common import wait
 
@@ -347,7 +347,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query_via_proxy("select 1 as a", headers=headers)[0] == {"a": 1}
 
-    @authors("max42")
+    @authors("max42", "coteeq")
     def test_operation_acl_validation(self):
         sync_create_cells(1)
         init_operations_archive.create_tables_latest_version(
@@ -361,17 +361,18 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         add_member("u1", "g")
         add_member("u2", "g")
 
-        allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
-        deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["read"]}
+        allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["use"]}
+        deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["use"]}
 
-        with Clique(1, spec={"alias": "*alias", "acl": [allow_g, deny_u2]}) as clique:
+        with Clique(1, alias="alias") as clique:
+            yt_set("//sys/access_control_object_namespaces/chyt/alias/principal/@acl", [allow_g, deny_u2])
             for user in ("u1", "root"):
                 assert clique.make_query_via_proxy("select 1 as a", user=user)[0] == {"a": 1}
             for user in ("u2", "u3"):
                 with raises_yt_error(901):  # AuthorizationError
                     assert clique.make_query_via_proxy("select 1 as a", user=user)
 
-            update_op_parameters(clique.op.id, parameters={"acl": [allow_g]})
+            yt_set("//sys/access_control_object_namespaces/chyt/alias/principal/@acl", [allow_g])
             time.sleep(1)
 
             for user in ("u1", "u2", "root"):
@@ -380,7 +381,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 with raises_yt_error(901):  # AuthorizationError
                     assert clique.make_query_via_proxy("select 1 as a", user=user)
 
-            update_op_parameters(clique.op.id, parameters={"acl": []})
+            yt_set("//sys/access_control_object_namespaces/chyt/alias/principal/@acl", [])
             time.sleep(1)
 
             for user in ("root",):
@@ -399,11 +400,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
         create_user("u1")
-        create_access_control_object_namespace(name="chyt")
-        create_access_control_object(name="ch_alias", namespace="chyt")
-        acl = [make_ace("allow", "u1", "use")]
-        yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
         with Clique(1, config_patch=patch, alias="*ch_alias") as clique:
+            acl = [make_ace("allow", "u1", "use")]
+            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
             # TODO(gudqeit): this attribute should become unused and must be removed after we stop supporting discovery v1 in HTTP proxy.
             yt_set(
                 "//sys/strawberry/chyt/ch_alias/@strawberry_persistent_state",
@@ -448,9 +447,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
         create_user("banned_user")
-        access_control_entry = {"subjects": ["banned_user"], "action": "allow", "permissions": ["read"]}
-
-        with Clique(1, spec={"alias": "*alias", "acl": [access_control_entry]}, config_patch=patch) as clique:
+        with Clique(1, alias="alias", config_patch=patch) as clique:
+            access_control_entry = {"subjects": ["banned_user"], "action": "allow", "permissions": ["use"]}
+            yt_set("//sys/access_control_object_namespaces/chyt/alias/principal/@acl", [access_control_entry])
             response = clique.make_query_via_proxy('select 1', full_response=True, user="banned_user")
             assert response.status_code == 403
             assert "X-ClickHouse-Server-Display-Name" in response.headers
@@ -460,9 +459,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         username = "simple-dimple"
         create_user(username)
 
-        allowance = {"subjects": [username], "action": "allow", "permissions": ["read"]}
-
-        with Clique(1, spec={"acl": [allowance]}) as clique:
+        with Clique(1, alias="ch_alias") as clique:
+            allowance = {"subjects": [username], "action": "allow", "permissions": ["use"]}
+            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", [allowance])
             # We expect token to be used as a username.
 
             correct_auth_response = clique.make_query_via_proxy(
