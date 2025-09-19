@@ -87,6 +87,7 @@ class FacadeBase(ABC):
         serialized_dashboard = self.generate_serialized_dashboard(verbose=verbose)
         yt.create("document", dashboard_path, ignore_existing=True)
         yt.set(dashboard_path, serialized_dashboard)
+        logger.info(f'Dashboard "{self.slug}" with backend "{self.get_backend_name()}" was submitted to cypress')
 
     @staticmethod
     def _confirm(msg):
@@ -233,4 +234,7 @@ class Cli():
         except ImportError:
             return None
 
-        return json.loads(library.python.resource.find("/yt_dashboards/config.json"))
+        config = library.python.resource.find("/yt_dashboards/config.json")
+        if config is None:
+            return None
+        return json.loads(config)
