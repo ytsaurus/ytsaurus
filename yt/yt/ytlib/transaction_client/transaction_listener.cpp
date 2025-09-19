@@ -16,10 +16,15 @@ constinit const auto Logger = TransactionClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionListener::StartListenTransaction(const ITransactionPtr& transaction)
+void TTransactionListener::StartListenTransaction(const ITransactionPtr& transaction, const TError& error)
 {
     YT_LOG_DEBUG("Started listening for transaction (TransactionId: %v)",
         transaction->GetId());
+
+    if (!error.IsOK()) {
+        auto guard = Guard(SpinLock_);
+        InsertOrCrash(TransactionIdToCustomError_, std::pair(transaction->GetId(), error));
+    }
 
     transaction->SubscribeAborted(
         BIND(&TTransactionListener::OnTransactionAborted, MakeWeak(this), transaction->GetId()));
@@ -80,12 +85,17 @@ TError TTransactionListener::GetAbortError() const
     auto guard = Guard(SpinLock_);
     if (AbortedTransactionIds_.empty()) {
         return TError();
-    } else if (AbortedTransactionIds_.size() == 1) {
-        return TError("Transaction %v aborted",
-            AbortedTransactionIds_[0]);
     } else {
-        return TError("Transactions %v aborted",
-            AbortedTransactionIds_);
+        auto error = AbortedTransactionIds_.size() == 1
+            ? TError("Transaction %v aborted", AbortedTransactionIds_[0])
+            : TError("Transactions %v aborted", AbortedTransactionIds_);
+        for (auto transactionId : AbortedTransactionIds_) {
+            auto it = TransactionIdToCustomError_.find(transactionId);
+            if (it != TransactionIdToCustomError_.end()) {
+                error <<= it->second;
+            }
+        }
+        return error;
     }
 }
 
