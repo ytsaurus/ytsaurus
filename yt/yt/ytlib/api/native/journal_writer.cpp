@@ -538,7 +538,9 @@ private:
                     options.AutoAbort = true;
                     options.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod;
                     UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
-                    StartListenTransaction(UploadTransaction_);
+                    StartListenTransaction(
+                        UploadTransaction_,
+                        TError(NYT::EErrorCode::Canceled, "Upload transaction aborted"));
 
                     YT_LOG_DEBUG("Journal upload started (UploadTransactionId: %v)",
                         uploadTransactionId);
