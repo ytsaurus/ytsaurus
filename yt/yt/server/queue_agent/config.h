@@ -81,9 +81,6 @@ DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerDynamicConfig)
 struct TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
-    //! Used to create channels to other queue agents.
-    NBus::TBusConfigPtr BusClient;
-
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
     std::string Stage;
