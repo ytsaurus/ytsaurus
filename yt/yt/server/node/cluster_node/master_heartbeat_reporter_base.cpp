@@ -83,25 +83,33 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCells(const THashSet<TCe
     for (auto cellTag : allowedMasterCellTags) {
         futureGuards.push_back(TAsyncLockWriterGuard::Acquire(&GetOrCrash(ExecutorLockPerMaster_, cellTag)));
     }
-    AllSucceeded(std::move(futureGuards))
-        .Subscribe(BIND([allowedMasterCellTags, this, weakThis = MakeWeak(this)] (const TError& error)  {
+
+    Y_UNUSED(AllSet(std::move(futureGuards))
+        .Apply(BIND([allowedMasterCellTags = std::move(allowedMasterCellTags), this, weakThis = MakeWeak(this)] (std::vector<TErrorOr<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>>> guardsOrError)  {
             auto this_ = weakThis.Lock();
             if (!this_) {
                 YT_LOG_DEBUG("Master heartbeat reporter is destroyed");
                 return;
             }
-            if (!error.IsOK()) {
-                YT_LOG_ALERT(
-                    error,
-                    "Failed to acquire lock writer guards to start heartbeat reports to masters (MasterCellTags: %v)",
-                    allowedMasterCellTags);
-
-                const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-                clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
-                return;
+            std::vector<TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>> guards;
+            for (auto guardOrError: guardsOrError) {
+                if (!guardOrError.IsOK()) {
+                    YT_LOG_ALERT(
+                        guardOrError,
+                        "Failed to acquire lock writer guards to start heartbeat reports to masters (MasterCellTags: %v)",
+                        allowedMasterCellTags);
+                    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+                    clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
+                    return;
+                }
+                guards.push_back(std::move(guardOrError.Value()));
             }
             DoStartNodeHeartbeatsToCells(allowedMasterCellTags);
-        }).Via(Bootstrap_->GetControlInvoker()));
+
+            // These guards are not used directly, but they protect the whole process of starting node heartbeat reports to master
+            // from intersection with another same process.
+            Y_UNUSED(guards);
+        }).Via(Bootstrap_->GetControlInvoker())));
 }
 
 void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOptions& options)
@@ -119,7 +127,8 @@ void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOp
     }
 }
 
-TFuture<void> TMasterHeartbeatReporterBase::AsyncStopNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
+void TMasterHeartbeatReporterBase::DoStopNodeHeartbeatsToCells(
+    const THashSet<TCellTag>& masterCellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -139,23 +148,31 @@ TFuture<void> TMasterHeartbeatReporterBase::AsyncStopNodeHeartbeatsToCells(const
         "Waiting for the previous heartbeat executors to stop (CellTags: %v)",
         masterCellTagsToStop);
 
-    return AllSucceeded(std::move(executorsStopFutures))
-        .Apply(BIND([masterCellTags, masterCellTagsToStop, this, weakThis_ = MakeWeak(this)] (const TError& error) {
-            auto this_ = weakThis_.Lock();
-            if (!this_) {
-                THROW_ERROR_EXCEPTION("Master heartbeat reporter is destroyed");
-            }
-            error.ThrowOnError();
+    auto error = WaitFor(AllSucceeded(std::move(executorsStopFutures)));
 
-            // Reset reporters' states only after stopped heartbeats events were reported.
-            ResetStates(masterCellTags);
+    if (!error.IsOK()) {
+        YT_LOG_ALERT(
+            error,
+            "Unexpected failure while waiting for previous heartbeat executors to shut down");
 
-            YT_LOG_DEBUG("Stopped node heartbeats to cells (CellTags: %v)", masterCellTagsToStop);
-        }).Via(Bootstrap_->GetControlInvoker()));
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
+        return;
+    }
+
+    // Reset reporters' states only after stopped heartbeats events were reported.
+    ResetStates(masterCellTags);
+
+    YT_LOG_DEBUG("Stopped node heartbeats to cells (CellTags: %v)", masterCellTags);
 }
 
-void TMasterHeartbeatReporterBase::EnsureNodeHeartbeatsToCellsStarted(const THashSet<TCellTag>& masterCellTags)
+void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(
+    const THashSet<TCellTag>& masterCellTags)
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    DoStopNodeHeartbeatsToCells(masterCellTags);
+
     // MasterConnectionInvoker changes after every registration
     // and so we have to make a new HeartbeatExecutor.
     // Technically, we could support "UpdateInvoker" method,
@@ -174,31 +191,6 @@ void TMasterHeartbeatReporterBase::EnsureNodeHeartbeatsToCellsStarted(const THas
             cellTag);
         Executors_[cellTag]->Start();
     }
-}
-
-void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCells(const THashSet<TCellTag>& masterCellTags)
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    AsyncStopNodeHeartbeatsToCells(masterCellTags)
-        .Subscribe(BIND_NO_PROPAGATE([masterCellTags, this, weakThis = MakeWeak(this)] (const TError& error) {
-            auto this_ = weakThis.Lock();
-            if (!this_) {
-                YT_LOG_DEBUG("Master heartbeat reporter is destroyed");
-                return;
-            }
-            if (!error.IsOK()) {
-                YT_LOG_ALERT(
-                    error,
-                    "Unexpected failure while waiting for previous heartbeat executors to shut down");
-
-                const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-                clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
-                return;
-            }
-            EnsureNodeHeartbeatsToCellsStarted(masterCellTags);
-        })
-            .Via(Bootstrap_->GetControlInvoker()));
 }
 
 TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
