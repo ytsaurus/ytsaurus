@@ -64,6 +64,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         "clickhouse": {
             "operation_cache": {
                 "refresh_time": 100,
+                "expire_after_successful_update_time": 100,
             },
             "permission_cache": {
                 "refresh_time": 100,
