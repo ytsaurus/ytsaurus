@@ -20,13 +20,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
-{
-    auto config = New<TJobResourcesConfig>();
-    config->UserSlots = 2000;
-    return config;
-}
-
 TJobResourcesConfigPtr GetDefaultMinSpareAllocationResourcesOnNode()
 {
     auto config = New<TJobResourcesConfig>();
@@ -566,13 +559,6 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_aggressive_preemption_for_gang_operations", &TThis::AllowAggressivePreemptionForGangOperations)
         .Default(true);
-
-    registrar.Parameter("fail_remote_copy_on_missing_resource_limits", &TThis::FailRemoteCopyOnMissingResourceLimits)
-        // TODO(egor-gutrov): set default to true
-        .Default(false);
-
-    registrar.Parameter("required_resource_limits_for_remote_copy", &TThis::RequiredResourceLimitsForRemoteCopy)
-        .DefaultCtor(&GetDefaultRequiredResourceLimitsForRemoteCopy);
 
     registrar.Parameter("ssd_priority_preemption", &TThis::SsdPriorityPreemption)
         .DefaultNew();
