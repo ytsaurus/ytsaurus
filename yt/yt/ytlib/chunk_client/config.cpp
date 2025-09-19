@@ -170,6 +170,8 @@ void TS3MediumConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("bucket", &TThis::Bucket)
         .Default();
+    registrar.Parameter("prefix", &TThis::Prefix)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

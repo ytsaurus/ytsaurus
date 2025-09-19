@@ -81,6 +81,14 @@ class TestS3MediumBase(YTEnvSetup):
             "name": "s3_extra2",
             "bucket": uuid.uuid4().hex,
         },
+        {
+            "name": "s3_prefixed",
+            "bucket": uuid.uuid4().hex,
+            "prefix": "prefix/",
+        },
+        {
+            "name": "s3_read_only",
+        },
     ]
 
     EXTRA_BUCKET_COUNT = 2
@@ -109,7 +117,7 @@ class TestS3MediumBase(YTEnvSetup):
 
     @classmethod
     def get_buckets(cls):
-        return {medium["bucket"] for medium in cls.S3_MEDIA} | builtins.set(cls.EXTRA_BUCKETS)
+        return {medium["bucket"] for medium in cls.S3_MEDIA if "bucket" in medium} | builtins.set(cls.EXTRA_BUCKETS)
 
     @classmethod
     def get_s3_medium_name(cls, index=0):
@@ -121,6 +129,8 @@ class TestS3MediumBase(YTEnvSetup):
 
     @classmethod
     def get_s3_medium_config(cls, index=0):
+        media = {**cls.S3_MEDIA[index]}
+        del media["name"]
         return {
             # Standard S3 environment variables.
             "url": os.getenv("AWS_ENDPOINT_URL"),
@@ -128,8 +138,7 @@ class TestS3MediumBase(YTEnvSetup):
             "access_key_id": os.getenv("AWS_ACCESS_KEY_ID"),
             "secret_access_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
             # YT specific configuration.
-            "bucket": cls.S3_MEDIA[index]["bucket"],
-            # TODO(achulkov2): Prefix for placing chunks.
+            **media,
         }
 
     @classmethod
@@ -189,16 +198,12 @@ class TestS3MediumBase(YTEnvSetup):
             raise
 
     @classmethod 
-    def get_chunk_path(cls, chunk_id, s3_medium_index=0):
-        # TODO(achulkov2): Prefix for placing chunks.
-        prefix = "chunk-data"
-        return f"{prefix}/{chunk_id}"
+    def get_chunk_path(cls, chunk_id, s3_medium_index=0, prefix=""):
+        return f"{prefix}chunk-data/{chunk_id[-4:-2]}/{chunk_id[-2:]}/{chunk_id}"
     
     @classmethod
-    def get_chunk_meta_path(cls, chunk_id, s3_medium_index=0):
-        # TODO(achulkov2): Prefix for placing chunks.
-        prefix = "chunk-data"
-        return f"{prefix}/{chunk_id}.meta"
+    def get_chunk_meta_path(cls, chunk_id, s3_medium_index=0, prefix=""):
+        return f"{prefix}chunk-data/{chunk_id[-4:-2]}/{chunk_id[-2:]}/{chunk_id}.meta"
 
     @classmethod
     def assert_chunk_exists_in_s3(cls, chunk_id, s3_medium_index=0, negate=False):
@@ -353,7 +358,7 @@ class TestS3Medium(TestS3MediumBase):
         assert read_file("//tmp/f", offset=7) == b"world!"
 
         chunk_id = get_singular_chunk_id("//tmp/f")
-        object_data = self.get_s3_object(self.S3_MEDIA[0]["bucket"], f"chunk-data/{chunk_id}")
+        object_data = self.get_s3_object(self.S3_MEDIA[0]["bucket"], self.get_chunk_path(chunk_id))
         assert object_data == b"Hello, world!"
 
     @authors("achulkov2")
@@ -720,6 +725,23 @@ class TestS3Medium(TestS3MediumBase):
         merged_chunk_count = get("//tmp/t/@chunk_count")
         assert merged_chunk_count == actual_chunk_count
 
+    @authors("faucct")
+    def test_s3_medium_prefix(self):
+        create("table", "//tmp/f", attributes={"primary_medium": "s3_prefixed"})
+        record1 = {"x": 1, "y": "b"}
+
+        write_table("//tmp/f", [record1])
+
+        chunk_id = get_singular_chunk_id("//tmp/f")
+        self.get_s3_object(self.S3_MEDIA[3]["bucket"], self.get_chunk_path(chunk_id, prefix="prefix/"))
+
+    @authors("faucct")
+    def test_medium_without_bucket(self):
+        create("table", "//tmp/f", attributes={"primary_medium": "s3_read_only"})
+        record1 = {"x": 1, "y": "b"}
+
+        with pytest.raises(YtError, match='Cannot place chunks into S3 medium "s3_read_only" without a configured bucket'):
+            write_table("//tmp/f", [record1])
 
     # TODO(achulkov2): Test chunk attributes: ???.
 

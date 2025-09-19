@@ -280,7 +280,8 @@ public:
 
     //! Name of the bucket to use.
     TString Bucket;
-    // TODO(achulkov2): Add prefix to use for storing chunks.
+    //! The prefix to the S3 object key. A trailing slash will be added, unless present.
+    TString Prefix;
 
     REGISTER_YSON_STRUCT(TS3MediumConfig);
 

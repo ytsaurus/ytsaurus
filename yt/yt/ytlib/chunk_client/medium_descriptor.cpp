@@ -142,9 +142,17 @@ TS3MediumDescriptor::TS3MediumDescriptor(TString name, int index, int priority, 
 NS3::TObjectDescriptor TS3MediumDescriptor::GetChunkPlacement(TChunkId chunkId, const std::string& sourceUri) const
 {
     if (sourceUri.empty()) {
+        TString key = Config_->Prefix;
+        if (!key.empty() && !key.EndsWith("/")) {
+            key.push_back('/');
+        }
+        key += Format("chunk-data/%02x/%02x/%v", chunkId.ReversedParts8[1], chunkId.ReversedParts8[0], chunkId);
+        if (Config_->Bucket.Empty()) {
+            THROW_ERROR_EXCEPTION("Cannot place chunks into S3 medium %Qv without a configured bucket", Name_);
+        }
         return NS3::TObjectDescriptor(
             /*bucket*/ Config_->Bucket,
-            /*key*/ Format("chunk-data/%v", chunkId));
+            /*key*/ key);
     }
 
     return NS3::TObjectDescriptor::FromUri(sourceUri);
