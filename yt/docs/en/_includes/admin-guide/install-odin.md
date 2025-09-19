@@ -67,11 +67,13 @@ webservice:
 
 > Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace. Use `kubectl get svc -A | grep http-proxies` to confirm your actual service name.
 
+By default, an init job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
+
 ## Installing the Helm Chart
 
 ```bash
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
-    --version 0.0.1 \
+    --version 0.0.3 \
     -f values.yaml \
     -n <namespace>
 ```
@@ -104,10 +106,10 @@ Specify the Odin web service address in the `values.yaml` file under `.ui.settin
 ## Enabling and Disabling Checks
 
 The list of checks is configured in the `config.checks` section of `values.yaml`.
-Each check is described with the following fields:
+Each check is described by a structure of the following form:
 
 ```yaml
-- name: sort_result
+sort_result:
   displayName: Sort Result
   enable: true
   config: {...}
@@ -122,7 +124,7 @@ Each check is described with the following fields:
 #### Example: disabling a check
 
 ```yaml
-- name: suspicious_jobs
+suspicious_jobs:
   displayName: Suspicious Jobs
   enable: false
   config:
@@ -135,7 +137,7 @@ In this case, the **Suspicious Jobs** check is completely excluded from the conf
 #### Example: partial disable with `config.enable`
 
 ```yaml
-- name: operations_snapshots
+operations_snapshots:
   displayName: Operations Snapshots
   enable: true
   config:
@@ -152,7 +154,7 @@ Here, the check is included in the configuration, but its execution is disabled 
 
 ```bash
 helm upgrade odin oci://ghcr.io/ytsaurus/odin-chart \
-    --version 0.0.1 \
+    --version 0.0.3 \
     -f values.yaml \
     -n <namespace>
 ```

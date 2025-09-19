@@ -132,12 +132,12 @@ data:
       "port": {{ .Values.config.webservice.port }},
       "services": [
         {{- $first := true }}
-        {{- range .Values.config.checks }}
-          {{- if .enable }}
+        {{- range $k, $v := .Values.config.checks }}
+          {{- if $v.enable }}
             {{- if not $first}},{{ end }}
             {
-              "display_name": "{{ .displayName }}",
-              "name": "{{ .name }}"
+              "display_name": "{{ $v.displayName }}",
+              "name": "{{ $k }}"
             }
             {{- $first = false }}
           {{- end }}
@@ -150,10 +150,10 @@ data:
     {
       "checks": {
         {{- $first := true }}
-        {{- range .Values.config.checks }}
-          {{- if .enable }}
+        {{- range $k, $v := .Values.config.checks }}
+          {{- if $v.enable }}
             {{- if not $first}},{{ end }}
-            "{{ .name }}": {{ toJson .config }}
+            "{{ $k }}": {{ toJson $v.config }}
             {{- $first = false }}
           {{- end }}
         {{- end }}
