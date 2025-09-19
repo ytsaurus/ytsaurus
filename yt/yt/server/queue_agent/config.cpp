@@ -48,8 +48,6 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 
 void TQueueAgentConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("bus_client", &TThis::BusClient)
-        .DefaultNew();
     registrar.Parameter("stage", &TThis::Stage)
         .NonEmpty();
 }
