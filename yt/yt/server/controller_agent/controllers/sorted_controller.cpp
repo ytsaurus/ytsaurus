@@ -341,6 +341,9 @@ protected:
     i64 TotalPrimaryInputDataSliceWeight_ = 0;
     i64 TotalForeignInputDataSliceWeight_ = 0;
 
+    i64 TotalPrimaryInputDataSliceCompressedDataSize_ = 0;
+    i64 TotalForeignInputDataSliceCompressedDataSize_ = 0;
+
     // XXX(max42): this field is effectively transient, do not persist it.
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
@@ -498,6 +501,7 @@ protected:
                 }
 
                 TotalPrimaryInputDataSliceWeight_ += dataSlice->GetDataWeight();
+                TotalPrimaryInputDataSliceCompressedDataSize_ += dataSlice->GetCompressedDataSize();
 
                 SortedTask_->AddInput(CreateChunkStripe(dataSlice));
                 ++primaryUnversionedSlices;
@@ -516,6 +520,7 @@ protected:
                 SortedTask_->AddInput(CreateChunkStripe(slice));
 
                 TotalPrimaryInputDataSliceWeight_ += slice->GetDataWeight();
+                TotalPrimaryInputDataSliceCompressedDataSize_ += slice->GetCompressedDataSize();
 
                 ++primaryVersionedSlices;
                 yielder.TryYield();
@@ -525,6 +530,7 @@ protected:
                     SortedTask_->AddInput(CreateChunkStripe(slice));
 
                     TotalForeignInputDataSliceWeight_ += slice->GetDataWeight();
+                    TotalForeignInputDataSliceCompressedDataSize_ += slice->GetCompressedDataSize();
 
                     ++foreignSlices;
                     yielder.TryYield();
@@ -626,6 +632,8 @@ protected:
         if (ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Spec_))->UseNewSortedPool) {
             JobSizeConstraints_->UpdateInputDataWeight(TotalForeignInputDataSliceWeight_ + TotalPrimaryInputDataSliceWeight_);
             JobSizeConstraints_->UpdatePrimaryInputDataWeight(TotalPrimaryInputDataSliceWeight_);
+            JobSizeConstraints_->UpdateInputCompressedDataSize(TotalForeignInputDataSliceCompressedDataSize_ + TotalPrimaryInputDataSliceCompressedDataSize_);
+            JobSizeConstraints_->UpdateInputPrimaryCompressedDataSize(TotalPrimaryInputDataSliceCompressedDataSize_);
         }
 
         FinishTaskInput(SortedTask_);

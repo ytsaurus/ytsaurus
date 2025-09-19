@@ -15,4 +15,5 @@ END()
 
 RECURSE(
     gotest
+    otelzap
 )

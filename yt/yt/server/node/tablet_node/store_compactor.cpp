@@ -178,8 +178,6 @@ struct TCompactionTaskInfo
     // Guaranteed effect on the slack if this task will be done.
     // This is a conservative estimate.
     const int Effect;
-    // A random number to deterministically break ties.
-    const ui64 Random;
 
     const std::vector<TStoreId> StoreIds;
     const THashSet<TChunkId> HunkChunkIds;
@@ -197,7 +195,6 @@ struct TCompactionTaskInfo
         bool discardStores,
         int slack,
         int effect,
-        ui64 random,
         std::vector<TStoreId> storeIds,
         THashSet<TChunkId> hunkChunkIds,
         TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
@@ -212,7 +209,6 @@ struct TCompactionTaskInfo
         , DiscardStores(discardStores)
         , Slack(slack)
         , Effect(effect)
-        , Random(random)
         , StoreIds(std::move(storeIds))
         , HunkChunkIds(std::move(hunkChunkIds))
     {
@@ -263,7 +259,6 @@ void Serialize(const TCompactionTaskInfo& task, IYsonConsumer* consumer)
                 .Item("discard_stores").Value(task.DiscardStores)
                 .Item("slack").Value(task.Slack)
                 .Item("effect").Value(task.Effect)
-                .Item("random").Value(task.Random)
             .EndMap()
         .Item("store_ids").List(task.StoreIds)
         .Do([&] (auto fluent) {
@@ -341,7 +336,6 @@ struct TCompactionTask
         bool discardStores,
         int slack,
         int effect,
-        ui64 random,
         TCompactionOrchidPtr orchid);
 
     void Prepare(
@@ -1262,7 +1256,6 @@ private:
             request.DiscardStores,
             request.Slack,
             request.Effect,
-            request.Random,
             std::move(orchid));
 
         if (logStructured) {
@@ -2335,7 +2328,6 @@ TCompactionTask::TCompactionTask(
     bool discardStores,
     int slack,
     int effect,
-    ui64 random,
     TCompactionOrchidPtr orchid)
     : TGuardedTaskInfo<TCompactionTaskInfo>(
         New<TCompactionTaskInfo>(
@@ -2349,7 +2341,6 @@ TCompactionTask::TCompactionTask(
             discardStores,
             slack,
             effect,
-            random,
             std::move(storeIds),
             std::move(hunkChunkIds),
             hunkChunkCountByReason),
@@ -2376,7 +2367,6 @@ void TCompactionTask::StoreToStructuredLog(TFluentMap fluent)
         .Item("discard_stores").Value(Info->DiscardStores)
         .Item("slack").Value(Info->Slack)
         .Item("effect").Value(Info->Effect)
-        .Item("random").Value(Info->Random)
         .Item("reason").Value(Info->Reason);
 }
 

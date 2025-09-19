@@ -2532,10 +2532,6 @@ private:
             pool = pool->GetParent();
         }
 
-        if (operation->GetType() == EOperationType::RemoteCopy && Config_->FailRemoteCopyOnMissingResourceLimits) {
-            ValidateSpecifiedResourceLimits(operation, pool, Config_->RequiredResourceLimitsForRemoteCopy);
-        }
-
         if (operation->GetStrategySpec()->IsGang && !pool->AreGangOperationsAllowed()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::GangOperationsAllowedOnlyInFifoPools,

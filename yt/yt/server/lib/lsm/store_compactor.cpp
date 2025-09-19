@@ -834,8 +834,7 @@ private:
             !request.DiscardStores,
             request.Slack,
             -request.Effect,
-            -ssize(request.Stores),
-            request.Random);
+            -ssize(request.Stores));
     }
 
     static bool CompareCompactionRequests(

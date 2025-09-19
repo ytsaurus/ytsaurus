@@ -55,7 +55,7 @@ public:
 
     virtual void SetNodesForGetRequest(
         TNodeId rootId,
-        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren) = 0;
+        const std::vector<TNodeId>& nodesToFetchFromMaster) = 0;
 
     virtual void SetNodesForListRequest(
         TNodeId rootId,
@@ -123,11 +123,9 @@ public:
 
     void SetNodesForGetRequest(
         TNodeId /*rootId*/,
-        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren) override
+        const std::vector<TNodeId>& nodesToFetchFromMaster) override
     {
-        for (const auto& [nodeId, children] : nodeIdToChildren) {
-            NodesToFetchFromMaster_.push_back(nodeId);
-        }
+        NodesToFetchFromMaster_ = nodesToFetchFromMaster;
     }
 
     void SetNodesForListRequest(
@@ -144,10 +142,9 @@ public:
         NodesToFetchFromMaster_.push_back(nodeId);
     }
 
-    void SetScalarOnlyNodesForGetRequest(
-        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren)
+    void SetScalarOnlyNodesForGetRequest(const std::vector<TNodeId>& nodesToFetchFromMaster)
     {
-        for (const auto& [nodeId, children] : nodeIdToChildren) {
+        for (const auto& nodeId : nodesToFetchFromMaster) {
             auto nodeType = TypeFromId(nodeId);
             if (IsScalarType(nodeType)) {
                 NodesToFetchFromMaster_.push_back(nodeId);
@@ -344,10 +341,10 @@ public:
 
     void SetNodesForGetRequest(
         TNodeId rootId,
-        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren) override
+        const std::vector<TNodeId>& nodesToFetchFromMaster) override
     {
         RootId_ = rootId;
-        for (const auto& [nodeId, children] : nodeIdToChildren) {
+        for (const auto& nodeId : nodesToFetchFromMaster) {
             RequestedNodes_.insert(nodeId);
         }
     }
@@ -434,10 +431,10 @@ public:
 
     void SetNodesForGetRequest(
         TNodeId rootId,
-        const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren)
+        const std::vector<TNodeId>& nodesToFetchFromMaster)
     {
         for (auto& fetcher : Fetchers_) {
-            fetcher->SetNodesForGetRequest(rootId, nodeIdToChildren);
+            fetcher->SetNodesForGetRequest(rootId, nodesToFetchFromMaster);
         }
 
         // For get request we will need to fetch values for scalar nodes.
@@ -445,7 +442,7 @@ public:
         // Otherwise, we will need to fetch create simple attribute fetcher and use it to fetch values for scalar nodes.
         if (!IsSimpleAttributeFetcherCreated_) {
             auto simpleAttributesFetcher = New<TSimpleAttributeFetcher>(Client_, SequoiaSession_, TAttributeFilter());
-            simpleAttributesFetcher->SetScalarOnlyNodesForGetRequest(nodeIdToChildren);
+            simpleAttributesFetcher->SetScalarOnlyNodesForGetRequest(nodesToFetchFromMaster);
             Fetchers_.push_back(simpleAttributesFetcher);
         }
     }
@@ -558,14 +555,14 @@ ISequoiaAttributeFetcherPtr CreateAttributeFetcherForGetRequest(
     const TSequoiaSessionPtr sequoiaSession,
     const TAttributeFilter& attributeFilter,
     const TNodeId rootId,
-    const THashMap<TNodeId, std::vector<TCypressChildDescriptor>>& nodeIdToChildren)
+    const std::vector<TNodeId>& nodesToFetchFromMaster)
 {
     auto attributeFetcher = New<TCompositeSequoiaAttributeFetcher>(
         client,
         sequoiaSession,
         attributeFilter,
         /*fetchSimpleAttributes*/ true);
-    attributeFetcher->SetNodesForGetRequest(rootId, nodeIdToChildren);
+    attributeFetcher->SetNodesForGetRequest(rootId, nodesToFetchFromMaster);
     return attributeFetcher;
 }
 

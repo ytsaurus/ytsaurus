@@ -4,6 +4,17 @@ from .taggable import Taggable, SystemFields
 
 from tabulate import tabulate
 
+from typing import Literal
+from dataclasses import dataclass
+
+
+@dataclass
+class Permission:
+    permission: Literal["read", "use"]
+    path: str
+    cluster: str
+    ignore_paths: list[bytes] | None
+
 
 class Cell(Taggable):
     """ A dashboard cell: a title and a sensor.
@@ -188,6 +199,7 @@ class Dashboard(Taggable):
         self.parameters = None
         self.serializer_options = {}
         self.dashboard_tags = []
+        self.permissions: list[Permission] = []
 
     def value(self, key, value):
         self.has_set_values = True
@@ -253,3 +265,6 @@ class Dashboard(Taggable):
 
     def set_monitoring_serializer_options(self, options):
         self.serializer_options["monitoring"] = options
+
+    def add_permission(self, permission: Literal["read", "use"], path: str, cluster: str = "$cluster", ignore_paths: list[bytes] | None = None):
+        self.permissions.append(Permission(permission, path, cluster, ignore_paths))

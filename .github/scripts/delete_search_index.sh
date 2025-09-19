@@ -3,7 +3,7 @@
 #ALGOLIA_APP_ID="app-id"
 #ALGOLIA_API_KEY="admin-api-key"
 MIN_INDEX_COUNT=10      # Minimum number of indexes to keep.
-COUNT_TO_DELETE=1       # Number of indexes to delete per run.
+COUNT_TO_DELETE=4       # Number of indexes to delete per run.
 
 # Get list of indexes.
 response=$(curl -s -H "X-Algolia-API-Key: $ALGOLIA_API_KEY" \

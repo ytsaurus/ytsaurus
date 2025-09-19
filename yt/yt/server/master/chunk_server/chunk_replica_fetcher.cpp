@@ -265,9 +265,11 @@ public:
                     replica.ReplicaState = masterReplica.GetReplicaState();
                     replicas.push_back(replica);
                 }
-                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
                 // Chunks can have duplicates.
                 masterReplicasInSequoiaSkin.emplace(chunk->GetId(), replicas);
+                YT_LOG_TRACE("Fetched master replicas (ChunkId: %v, MasterReplicas: %v)",
+                    chunk->GetId(),
+                    replicas);
             }
         }
 
@@ -285,7 +287,7 @@ public:
         // - there are more master replicas (again we can just take master replicas then)
         // - there are more Sequoia replicas (and this is a bug, so lets alert it, take master replicas and investigate later)
         if (validate) {
-            ValidateSequoiaReplicaFetch(sequoiaChunkIds, masterReplicasInSequoiaSkin, sequoiaReplicasOrError, timestamp);
+            ValidateSequoiaReplicaFetch(sequoiaChunkIds, masterReplicasInSequoiaSkin, sequoiaReplicasOrError, timestamp, includeUnapproved);
 
             TChunkToLocationPtrWithReplicaInfoList result;
             for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
@@ -302,7 +304,8 @@ public:
         const std::vector<TChunkId>& sequoiaChunkIds,
         THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>& masterReplicasInSequoiaSkin,
         TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
-        TTimestamp commitTimestamp) const
+        TTimestamp commitTimestamp,
+        bool includeUnapproved) const
     {
         VerifyPersistentStateRead();
 
@@ -311,10 +314,19 @@ public:
             return;
         }
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+
         auto allowExtraMasterReplicas = GetDynamicConfig()->AllowExtraMasterReplicasDuringValidation;
 
         auto& sequoiaReplicas = sequoiaReplicasOrError.Value();
         for (auto chunkId : sequoiaChunkIds) {
+            if (CellTagFromId(chunkId) != cellTag) {
+                YT_LOG_DEBUG("Skipping foreign chunk during Sequoia replica validation (ChunkId: %v)",
+                    chunkId);
+                continue;
+            }
+
             auto masterIt = masterReplicasInSequoiaSkin.find(chunkId);
             if (masterIt == masterReplicasInSequoiaSkin.end()) {
                 YT_LOG_ALERT("Chunk is not present in master replicas (ChunkId: %v)",
@@ -330,8 +342,22 @@ public:
             }
 
             auto& sequoiaReplicas = sequoiaIt->second;
-            std::sort(sequoiaReplicas.begin(), sequoiaReplicas.end());
+            YT_LOG_TRACE("Fetched Sequoia replicas (ChunkId: %v, SequoiaReplicas: %v, IncludeUnapproved: %v)",
+                chunkId,
+                sequoiaReplicas,
+                includeUnapproved);
+
+            // Can contain same approved and unapproved replicas.
+            SortUniqueBy(sequoiaReplicas, [] (const auto& replica) {
+                return replica;
+            });
             std::sort(masterReplicas.begin(), masterReplicas.end());
+
+            YT_LOG_TRACE("Validating chunk replicas (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
+                chunkId,
+                masterReplicas,
+                sequoiaReplicas,
+                commitTimestamp);
 
             if (masterReplicas != sequoiaReplicas) {
                 if (!allowExtraMasterReplicas) {
@@ -343,8 +369,9 @@ public:
                 } else {
                     for (auto sequoiaReplica : sequoiaReplicas) {
                         if (std::find(masterReplicas.begin(), masterReplicas.end(), sequoiaReplica) == masterReplicas.end()) {
-                            YT_LOG_ALERT("Extra Sequoia replica found (ChunkId: %v, ExtraSequoiaReplicas: %v, CommitTimestamp: %v)",
+                            YT_LOG_ALERT("Extra Sequoia replica found (ChunkId: %v, MasterReplicas: %v, ExtraSequoiaReplicas: %v, CommitTimestamp: %v)",
                                 chunkId,
+                                masterReplicas,
                                 sequoiaReplica,
                                 commitTimestamp);
                         }

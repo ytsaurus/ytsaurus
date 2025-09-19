@@ -12,6 +12,8 @@ DEFINE_ENUM(EResourceKind,
     (DataSliceCount)
     (DataWeight)
     (PrimaryDataWeight)
+    (CompressedDataSize)
+    (PrimaryCompressedDataSize)
 );
 
 //! Helper structure for representing job parameters.

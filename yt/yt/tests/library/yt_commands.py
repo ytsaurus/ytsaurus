@@ -1887,7 +1887,7 @@ def map(**kwargs):
 
 def merge(**kwargs):
     flat(kwargs, "merge_by")
-    for opt in ["combine_chunks", "merge_by", "mode"]:
+    for opt in ["combine_chunks", "merge_by", "mode", "force_transform"]:
         change(kwargs, opt, ["spec", opt])
     return start_op("merge", **kwargs)
 

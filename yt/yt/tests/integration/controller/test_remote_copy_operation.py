@@ -14,7 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table, remount_table,
     multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
     raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
-    create_pool, update_pool_tree_config_option, create_dynamic_table,
+    create_dynamic_table,
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
@@ -879,66 +879,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 in_=["//tmp/t1", "//tmp/t2"],
                 out="//tmp/output",
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-            )
-
-    @authors("egor-gutrov", "eshcherbin")
-    def test_user_slots_validation(self):
-        update_pool_tree_config_option("default", "fail_remote_copy_on_missing_resource_limits", True)
-        update_pool_tree_config_option("default", "required_resource_limits_for_remote_copy", {"user_slots": 10})
-
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
-
-        create("table", "//tmp/t2")
-
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-            )
-
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "resource_limits": {"user_slots": 11},
-                },
-            )
-
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "resource_limits": {"user_slots": 10},
-                },
-            )
-
-        create_pool("cool_pool", attributes={"resource_limits": {"user_slots": 10}})
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "pool": "cool_pool",
-            },
-        )
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-        assert not get("//tmp/t2/@sorted")
-
-        create_pool("limitless_pool")
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "pool": "limitless_pool",
-                },
             )
 
     @authors("egor-gutrov")

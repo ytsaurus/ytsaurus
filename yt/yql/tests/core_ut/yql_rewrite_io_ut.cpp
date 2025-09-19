@@ -91,6 +91,13 @@ Y_UNIT_TEST_SUITE(TYtOptimizeYqlExpr) {
             CreateFunctorTransformer(&ExpandApply),
             "ExpandApply",
             issueCode));
+        transformers.push_back(TTransformStage(CreateFunctorTransformer(
+            [&](const TExprNode::TPtr& input, TExprNode::TPtr& output, TExprContext& ctx) {
+                return ExpandSeq(input, output, ctx, *typeAnnotationContext);
+            }),
+            "ExpandSeq",
+            issueCode));
+
         auto fullTransformer = CreateCompositeGraphTransformer(transformers, true);
         bool success = SyncTransform(*fullTransformer, exprRoot, exprCtx) == IGraphTransformer::TStatus::Ok;
         UNIT_ASSERT(success);

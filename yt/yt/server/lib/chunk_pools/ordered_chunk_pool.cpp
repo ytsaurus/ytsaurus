@@ -335,6 +335,8 @@ private:
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
 
+        // TODO(apollo1321); Is it really a good place to set up job size constraints for partitioning tables?
+        // Probably it should be reworked, it seems like this code is only relevant for partition tables.
         if (JobSizeConstraints_->IsExplicitJobCount() && !SingleJob_ && !JobSizeConstraints_->GetSamplingRate()) {
             i64 totalDataWeight = 0;
             for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
@@ -406,6 +408,7 @@ private:
                 JobSizeConstraints_);
         }
 
+        // TODO(apollo1321): Why do we need to update input data weight here?
         JobSizeConstraints_->UpdateInputDataWeight(JobManager_->DataWeightCounter()->GetTotal());
     }
 

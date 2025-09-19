@@ -9,6 +9,7 @@ import (
 	"hash"
 	"maps"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -111,6 +112,11 @@ func (c *Config) getDefaultMemory() uint64 {
 	return (&InstanceMemory{}).totalMemory()
 }
 
+type chytOpletInfo struct {
+	ChytRunningVersion     string `yson:"chyt_running_version"`
+	ChytRunningVersionPath string `yson:"chyt_running_version_path"`
+}
+
 type Controller struct {
 	ytc                     yt.Client
 	l                       log.Logger
@@ -121,10 +127,6 @@ type Controller struct {
 	config                  Config
 	secrets                 map[string][]byte
 	snapshot                controllerSnapshot
-}
-
-type ChytOpletInfo struct {
-	ChytRunningVersion string `yson:"chyt_running_version"`
 }
 
 func (c *Controller) prepareTvmSecret() {
@@ -273,7 +275,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
 	speclet := oplet.ControllerSpeclet().(Speclet)
 
-	var opletInfo ChytOpletInfo
+	var opletInfo chytOpletInfo
 	var filePaths []ypath.Rich
 
 	// Populate resources.
@@ -289,12 +291,13 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	// Build artifacts if there are no local binaries.
 	if c.config.LocalBinariesDir == nil {
-		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description, &opletInfo.ChytRunningVersion)
+		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description, &opletInfo)
 		if err != nil {
 			return
 		}
 	} else {
 		opletInfo.ChytRunningVersion = "LocalVersion"
+		opletInfo.ChytRunningVersionPath = filepath.Join(*c.config.LocalBinariesDir, "ytserver-clickhouse")
 	}
 	oplet.SetOpletInfo(opletInfo)
 

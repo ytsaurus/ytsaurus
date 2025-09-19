@@ -293,6 +293,8 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(inputChunk)
     , DataWeight_(inputChunk->GetDataWeight())
     , RowCount_(inputChunk->GetRowCount())
+    , CompressedDataSize_(inputChunk->GetCompressedDataSize())
+    , UncompressedDataSize_(inputChunk->GetUncompressedDataSize())
 {
     if (inputChunk->LowerLimit()) {
         LegacyLowerLimit_ = TLegacyInputSliceLimit(*inputChunk->LowerLimit());
@@ -317,6 +319,8 @@ TInputChunkSlice::TInputChunkSlice(const TInputChunkSlice& inputSlice)
     , SizeOverridden_(inputSlice.GetSizeOverridden())
     , DataWeight_(inputSlice.GetDataWeight())
     , RowCount_(inputSlice.GetRowCount())
+    , CompressedDataSize_(inputSlice.GetCompressedDataSize())
+    , UncompressedDataSize_(inputSlice.GetUncompressedDataSize())
 {
     if (inputSlice.IsLegacy) {
         LegacyLowerLimit_ = inputSlice.LegacyLowerLimit_;
@@ -340,6 +344,8 @@ TInputChunkSlice::TInputChunkSlice(
     , SizeOverridden_(inputSlice.GetSizeOverridden())
     , DataWeight_(inputSlice.GetDataWeight())
     , RowCount_(inputSlice.GetRowCount())
+    , CompressedDataSize_(inputSlice.GetCompressedDataSize())
+    , UncompressedDataSize_(inputSlice.GetUncompressedDataSize())
 {
     YT_VERIFY(inputSlice.IsLegacy);
 
@@ -365,6 +371,8 @@ TInputChunkSlice::TInputChunkSlice(
     , SizeOverridden_(inputSlice.GetSizeOverridden())
     , DataWeight_(inputSlice.GetDataWeight())
     , RowCount_(inputSlice.GetRowCount())
+    , CompressedDataSize_(inputSlice.GetCompressedDataSize())
+    , UncompressedDataSize_(inputSlice.GetUncompressedDataSize())
 {
     YT_VERIFY(!inputSlice.IsLegacy);
 
@@ -799,12 +807,15 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkSlicePtr& slice, 
 {
     Format(
         builder,
-        "ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, PartIndex: %v",
+        "ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, "
+        "CompressedDataSize: %v, UncompressedDataSize: %v, PartIndex: %v",
         slice->GetInputChunk()->GetChunkId(),
         slice->IsLegacy ? ToString(slice->LegacyLowerLimit()) : ToString(slice->LowerLimit()),
         slice->IsLegacy ? ToString(slice->LegacyUpperLimit()) : ToString(slice->UpperLimit()),
         slice->GetRowCount(),
         slice->GetDataWeight(),
+        slice->GetCompressedDataSize(),
+        slice->GetUncompressedDataSize(),
         slice->GetPartIndex());
 }
 
