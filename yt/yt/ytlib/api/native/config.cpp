@@ -362,6 +362,18 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_shuffle_service_timeout",
         &TThis::DefaultShuffleServiceTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_disable_chunk_locations_timeout",
+        &TThis::DefaultDisableChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_destroy_chunk_locations_timeout",
+        &TThis::DefaultDestroyChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_resurrect_chunk_locations_timeout",
+        &TThis::DefaultResurrectChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_request_restart_timeout",
+        &TThis::DefaultRequestRestartTimeout)
+        .Default(TDuration::Seconds(15));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
