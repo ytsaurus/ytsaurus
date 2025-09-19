@@ -946,22 +946,13 @@ private:
 
     bool TryAuthorize()
     {
-        TFuture<void> future;
-        if (OperationAcl_) {
-            future = PermissionCache_->Get(TPermissionKey{
-                .Acl = OperationAcl_,
-                .User = User_,
-                .Permission = EPermission::Read,
-            });
-        } else {
-            future = PermissionCache_->Get(TPermissionKey{
-                .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", CliqueAlias_),
+        auto error = WaitFor(
+            PermissionCache_->Get(TPermissionKey{
+                .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", CliqueAlias_),
                 .User = User_,
                 .Permission = EPermission::Use,
-            });
-        }
+            }));
 
-        auto error = WaitFor(future);
         if (!error.IsOK()) {
             if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                 auto replyError = TError("User %Qv has no access to clique %Qv",

@@ -16,21 +16,14 @@ namespace NYT::NSecurityClient {
 
 struct TPermissionKey
 {
-    // Exactly one of the two fields below should be present.
-    //! If set, permission will be validated via `CheckPermission` YPath request for this object.
-    std::optional<NYPath::TYPath> Object;
-    //! If set, permission will by validated via `CheckPermissionByAcl` YPath request against this ACL.
-    std::optional<NYson::TYsonString> Acl;
+    //! Permission will be validated via `CheckPermission` YPath request for this path.
+    NYPath::TYPath Path;
 
     std::string User;
     NYTree::EPermission Permission;
 
-    // Fields below may be specified only when `Object` is set.
-
     std::optional<std::vector<std::string>> Columns;
     std::optional<bool> Vital;
-
-    void AssertValidity() const;
 
     // Hasher.
     operator size_t() const;
@@ -80,9 +73,6 @@ private:
     TError ParseCheckPermissionResponse(
         const TPermissionKey& key,
         const NObjectClient::TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError);
-    TError ParseCheckPermissionByAclResponse(
-        const TPermissionKey& key,
-        const NObjectClient::TMasterYPathProxy::TErrorOrRspCheckPermissionByAclPtr& rspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCache)

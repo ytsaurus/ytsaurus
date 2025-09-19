@@ -1,6 +1,7 @@
 from helpers import get_scheduling_options
 
-from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, create_user,
+from yt_commands import (create, create_access_control_object, create_access_control_object_namespace,
+                         write_file, ls, start_op, get, exists, update_op_parameters, create_user,
                          sync_create_cells, print_debug, get_driver, remove, make_ace, set as yt_set, select_rows)
 
 from yt.clickhouse import get_clique_spec_builder
@@ -223,6 +224,8 @@ class Clique(object):
         self.spec["alias"] = "*" + self.alias
 
         self.instance_count = instance_count
+
+        create_access_control_object(name=self.alias, namespace="chyt")
 
     def get_active_instances_for_discovery_v1(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
@@ -853,3 +856,4 @@ class ClickHouseTestBase(YTEnvSetup):
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))
 
         sync_create_cells(1)
+        create_access_control_object_namespace(name="chyt")

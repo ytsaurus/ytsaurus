@@ -52,7 +52,7 @@ public:
             : Format("%v/%v", Config_->PathPrefix, proxyRole);
         const auto& cache = Bootstrap_->GetNativeConnection()->GetPermissionCache();
         auto error = WaitFor(cache->Get(TPermissionKey{
-            .Object = path,
+            .Path = path,
             .User = user,
             .Permission = EPermission::Use,
         }));
