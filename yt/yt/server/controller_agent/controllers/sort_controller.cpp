@@ -1064,16 +1064,7 @@ protected:
             auto partitionIndex = joblet->InputStripeList->PartitionTag;
             if (partitionIndex) {
                 auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
-                auto jobType = GetJobType();
-                if (jobType == EJobType::PartitionReduce || jobType == EJobType::ReduceCombiner) {
-                    auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                    jobSpecExt->set_partition_tag(partitionTag);
-                    reduceJobSpecExt->set_partition_tag(partitionTag);
-                } else {
-                    auto* sortJobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-                    jobSpecExt->set_partition_tag(partitionTag);
-                    sortJobSpecExt->set_partition_tag(partitionTag);
-                }
+                jobSpecExt->set_partition_tag(partitionTag);
             }
         }
 
@@ -1851,8 +1842,6 @@ protected:
             auto partitionIndex = joblet->InputStripeList->PartitionTag;
             if (partitionIndex) {
                 auto partitionTag = *Controller_->GetFinalPartition(*partitionIndex)->ParentPartitionTag;
-                auto* mergeJobSpecExt = jobSpec->MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-                mergeJobSpecExt->set_partition_tag(partitionTag);
                 auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
                 jobSpecExt->set_partition_tag(partitionTag);
             }
