@@ -52,9 +52,10 @@ protected:
     virtual void ResetStates(const THashSet<NObjectClient::TCellTag>& masterCellTags) = 0;
 
 private:
-    [[nodiscard]] TFuture<void> AsyncStopNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
-    void EnsureNodeHeartbeatsToCellsStarted(const THashSet<NObjectClient::TCellTag>& masterCellTags);
-    void DoStartNodeHeartbeatsToCells(const THashSet<NObjectClient::TCellTag>& masterCellTags);
+    void DoStopNodeHeartbeatsToCells(
+        const THashSet<NObjectClient::TCellTag>& masterCellTags);
+    void DoStartNodeHeartbeatsToCells(
+        const THashSet<NObjectClient::TCellTag>& masterCellTags);
 
     TError ReportHeartbeat(NObjectClient::TCellTag cellTag);
 
