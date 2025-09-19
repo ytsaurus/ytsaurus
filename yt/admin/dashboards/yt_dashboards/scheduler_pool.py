@@ -344,7 +344,7 @@ def build_scheduler_pool(has_porto=True, os_documentation=False):
         "use",
         "//sys/pool_trees/$tree/$pool",
         "$cluster",
-        [r"^\/\/sys\/pool_trees\/[a-zA-Z0-9]+\/<Root>"],
+        ["//sys/pool_trees/$pool/<Root>"],
     )
     d.add_permission(
         "use",
