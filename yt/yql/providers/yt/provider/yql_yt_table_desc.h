@@ -25,7 +25,7 @@ enum class TYtTableIntent: ui32 {
     View        = 1 << 1, // Read via view
     Override    = 1 << 2,
     Append      = 1 << 3,
-    Create      = 1 << 4, // Reserved. Not implemented yet
+    Create      = 1 << 4,
     Drop        = 1 << 5,
     Flush       = 1 << 6, // Untransactional write
 };
