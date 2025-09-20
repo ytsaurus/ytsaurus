@@ -64,6 +64,7 @@ private:
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;
     const NYson::TYsonString SpecString_;
+    const std::optional<NScheduler::TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;
     const NYson::TYsonString TrimmedAnnotations_;
     const std::string AuthenticatedUser_;
     const TInstant StartTime_;

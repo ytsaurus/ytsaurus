@@ -1082,6 +1082,11 @@ bool TPoolTreeCompositeElement::HasHigherPriorityInFifoMode(const NVectorHdrf::T
     return HasHigherPriorityInFifoMode(lhsElement, rhsElement);
 }
 
+bool TPoolTreeCompositeElement::IsStepFunctionForGangOperationsEnabled() const
+{
+    return true;
+}
+
 const std::vector<TPoolTreeElementPtr>& TPoolTreeCompositeElement::EnabledChildren() const
 {
     return EnabledChildren_;
@@ -1522,6 +1527,11 @@ bool TPoolTreePoolElement::IsFairShareTruncationInFifoPoolEnabled() const
 {
     return Config_->EnableFairShareTruncationInFifoPool.value_or(
         TreeConfig_->EnableFairShareTruncationInFifoPool);
+}
+
+bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
+{
+    return Config_->EnableStepFunctionForGangOperations;
 }
 
 bool TPoolTreePoolElement::ShouldComputePromisedGuaranteeFairShare() const
@@ -2142,9 +2152,10 @@ TResourceVector TPoolTreeOperationElement::GetBestAllocationShare() const
     return PersistentAttributes_.BestAllocationShare;
 }
 
-bool TPoolTreeOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
+bool TPoolTreeOperationElement::IsGangLike() const
 {
-    return IsGang() || IsSingleAllocationVanillaOperation();
+    return IsGang() ||
+        (IsSingleAllocationVanillaOperation() && TreeConfig_->ConsiderSingleAllocationVanillaOperationsAsGang);
 }
 
 bool TPoolTreeOperationElement::IsGang() const

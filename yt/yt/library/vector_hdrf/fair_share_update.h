@@ -214,6 +214,7 @@ public:
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
     virtual bool IsFairShareTruncationInFifoPoolEnabled() const = 0;
+    virtual bool IsStepFunctionForGangOperationsEnabled() const = 0;
     virtual bool CanAcceptFreeVolume() const = 0;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
 
@@ -349,9 +350,8 @@ public:
 
     virtual TResourceVector GetBestAllocationShare() const = 0;
 
-    virtual bool IsFairShareTruncationInFifoPoolAllowed() const = 0;
-
-    virtual bool IsGang() const = 0;
+    // TODO(eshcherbin): Choose better name.
+    virtual bool IsGangLike() const = 0;
 
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;

@@ -4533,6 +4533,7 @@ class TestFifoPools(YTEnvSetup):
 
         # COMPAT: Intentilonally test old logic for gang operations.
         update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
+        update_pool_tree_config_option("default", "consider_single_allocation_vanilla_operations_as_gang", True)
 
         blocking_op1 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
         blocking_op1.wait_for_state("running")
@@ -4571,6 +4572,16 @@ class TestFifoPools(YTEnvSetup):
         set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", False)
         wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
+
+    @authors("eshcherbin")
+    def test_disable_step_function_for_gang_operations_in_pool(self):
+        create_pool("fifo", attributes={"mode": "fifo", "enable_step_function_for_gang_operations": False})
+
+        op = run_sleeping_vanilla(job_count=4, task_patch={"cpu_limit": 5.0}, spec={"pool": "fifo", "is_gang": True})
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu", default=None), 1.0))
+
+        set("//sys/pool_trees/default/fifo/@enable_step_function_for_gang_operations", True)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu"), 0.0))
 
     @authors("eshcherbin", "ignat")
     def test_max_schedulable_element_count_in_fifo_pool(self):
