@@ -54,6 +54,7 @@ struct TAttachTableOptions
 {
     bool AllowIncompatibleSourceSchemas = false;
     std::optional<TString> Medium;
+    std::optional<NChunkClient::EExternalSourceFormat> SourceFormat;
 };
 
 struct TTabletRangeOptions

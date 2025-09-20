@@ -28,4 +28,12 @@ void SetObjectId(NProto::TChunkSpec* chunkSpec, NObjectClient::TObjectId objectI
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Deduces external source format from file extension.
+EExternalSourceFormat DeduceExternalSourceFormatOrThrow(TStringBuf fileName);
+
+//! Returns corresponding chunk format for given external source format.
+EChunkFormat GetChunkFormatFromExternalSourceFormat(EExternalSourceFormat externalFormat);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

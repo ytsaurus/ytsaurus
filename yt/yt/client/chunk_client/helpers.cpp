@@ -85,4 +85,35 @@ void SetObjectId(NProto::TChunkSpec* chunkSpec, NObjectClient::TObjectId objectI
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EExternalSourceFormat DeduceExternalSourceFormatOrThrow(TStringBuf fileName)
+{
+    if (fileName.ends_with(".json") || fileName.ends_with(".jsonl")) {
+        return EExternalSourceFormat::Jsonl;
+    } else if (fileName.ends_with(".parquet")) {
+        return EExternalSourceFormat::Parquet;
+    } else if (fileName.ends_with(".csv")) {
+        return EExternalSourceFormat::Csv;
+    } else {
+        THROW_ERROR_EXCEPTION("Cannot deduce external source format from file name %Qv; only .parquet, .json, .jsonl and .csv extensions are supported",
+            fileName);
+    }
+}
+
+EChunkFormat GetChunkFormatFromExternalSourceFormat(EExternalSourceFormat externalFormat)
+{
+    switch (externalFormat) {
+        case EExternalSourceFormat::Parquet:
+            return EChunkFormat::TableUnversionedArrowParquet;
+        case EExternalSourceFormat::Jsonl:
+            return EChunkFormat::TableUnversionedArrowJsonLines;
+        case EExternalSourceFormat::Csv:
+            return EChunkFormat::TableUnversionedArrowCsv;
+        default:
+            THROW_ERROR_EXCEPTION("Unexpected external source format %Qlv",
+                externalFormat);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

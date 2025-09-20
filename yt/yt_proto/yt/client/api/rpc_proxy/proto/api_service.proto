@@ -2749,6 +2749,8 @@ message TReqAttachTable
 
     optional string medium = 4;
 
+    optional int32 source_format = 5; // NChunkClient::EExternalSourceFormat
+
     optional TTransactionalOptions transactional_options = 100;
 }
 

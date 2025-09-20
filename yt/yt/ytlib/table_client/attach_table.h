@@ -10,6 +10,8 @@
 
 namespace NYT::NTableClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<void> AttachTable(
     const NYPath::TRichYPath& richPath,
     const NApi::TAttachTableOptions& options,

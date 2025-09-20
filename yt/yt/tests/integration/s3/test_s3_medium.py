@@ -1,5 +1,5 @@
 from yt.common import YtError
-from yt.yson import YsonList
+from yt.yson import YsonList, YsonEntity
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
@@ -12,7 +12,7 @@ from yt_commands import (
     start_transaction, commit_transaction, abort_transaction)
 
 from yt.test_helpers import assert_items_equal
-from yt_type_helpers import optional_type, make_schema, make_column, struct_type, list_type
+from yt_type_helpers import optional_type, make_schema, make_column, struct_type, list_type, normalize_schema_v3
 
 import time
 import pytest
@@ -42,25 +42,9 @@ MB = 1024 * KB
 
 ################################################################################
 
-def is_s3_configured():
-    s3_client = None
-    try:
-        s3_client = boto3.client('s3')
-        s3_client.list_buckets()
-        return True
-    except (NoCredentialsError, ClientError) as e:
-        print_debug(f"S3 configuration check failed: {e}")
-        return False
-    finally:
-        if s3_client:
-            s3_client.close()
 
-################################################################################
-
-
-# TODO(achulkov2): [PLater] Move the test for manipulating the S3 medium master object from master/test_media.py here?
 class TestS3MediumBase(YTEnvSetup):
-    # TODO(achulkov2): [PLater] Multidaemon?
+    # TODO(achulkov2): Switch to multidaemon?
     NUM_MASTERS = 1
     NUM_NODES = 3
 
@@ -144,7 +128,7 @@ class TestS3MediumBase(YTEnvSetup):
     @classmethod
     def setup_s3_client(cls):
         # Credentials are retrieved from standard S3 environment variables.
-        cls.S3_CLIENT =  boto3.client('s3')
+        cls.S3_CLIENT = boto3.client('s3')
 
     @classmethod
     def teardown_s3_client(cls):
@@ -264,7 +248,9 @@ class TestS3MediumBase(YTEnvSetup):
         time.sleep(1)
 
 
-@pytest.mark.skipif(not is_s3_configured(), reason="S3 is not configured")
+################################################################################
+
+
 class TestS3Medium(TestS3MediumBase):
     @authors("achulkov2")
     def test_tables_simple(self):
@@ -764,7 +750,6 @@ class TestS3Medium(TestS3MediumBase):
 ################################################################################
 
 
-@pytest.mark.skipif(not is_s3_configured(), reason="S3 is not configured")
 class TestS3MediumRpcProxy(TestS3Medium):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -778,8 +763,7 @@ class TestS3MediumRpcProxy(TestS3Medium):
 
 ################################################################################
 
-
-@pytest.mark.skipif(not is_s3_configured(), reason="S3 is not configured")
+# TODO(achulkov2): This suite is getting huge, consider splitting it.
 class TestAttachTable(TestS3MediumBase):
     # Add configuration here.
 
@@ -1213,7 +1197,7 @@ class TestAttachTable(TestS3MediumBase):
         with pytest.raises(YtError, match="unexpected scheme"):
             attach_table("//tmp/imported", source_uris=["ftp://example.com/foo.parquet"])
 
-        with pytest.raises(YtError, match="unsupported extension"):
+        with pytest.raises(YtError, match="Cannot deduce external source format"):
             attach_table("//tmp/imported", source_uris=["s3://my-bucket/foo.brakozyabra"])
 
     @authors("achulkov2")
@@ -1502,6 +1486,79 @@ class TestAttachTable(TestS3MediumBase):
         ),
     ]
 
+    @authors("achulkov2")
+    def test_json_schema_inference(self):
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"x": 1}\n')
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.jsonl", Body=b'{"y": "2"}\n')
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="baz.jsonl", Body=b'{"z": {"a": 3, "b": 4}}\n')
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bat.jsonl", Body=b'{"t": {"a": 3, "b": 4}}\n{"t": {"e": 3, "f": 4}}\n')
+
+        attach_table(
+            "//tmp/imported",
+            source_uris=[f"s3://{bucket}/foo.jsonl", f"s3://{bucket}/bar.jsonl", f"s3://{bucket}/baz.jsonl", f"s3://{bucket}/bat.jsonl"],
+            medium=self.get_s3_medium_name())
+
+        assert read_table("//tmp/imported") == [
+            {"x": 1},
+            {"y": "2"},
+            {"z": {"a": 3, "b": 4}},
+            {"t": {"a": 3, "b": 4, "e": YsonEntity(), "f": YsonEntity()}},
+            {"t": {"a": YsonEntity(), "b": YsonEntity(), "e": 3, "f": 4}}
+        ]
+
+        assert_items_equal(normalize_schema_v3(get(f"//tmp/imported/@schema")), make_schema([
+            make_column("x", optional_type("int64")),
+            make_column("y", optional_type("string")),
+            make_column("z", optional_type(struct_type([
+                ("a", optional_type("int64")),
+                ("b", optional_type("int64")),
+            ]))),
+            make_column("t", optional_type(struct_type([
+                ("a", optional_type("int64")),
+                ("b", optional_type("int64")),
+                ("e", optional_type("int64")),
+                ("f", optional_type("int64")),
+            ]))),
+        ]))
+
+    @authors("achulkov2")
+    def test_json_single_file_incompatible_types(self):
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"x": 1}\n{"x": "2"}\n')
+
+        with pytest.raises(YtError, match="JSON parse error"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"], medium=self.get_s3_medium_name())
+
+    @authors("achulkov2")
+    def test_csv_schema_inference(self):
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b"x\na\n")
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.csv", Body=b"y\n2\n")
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="baz.csv", Body=b"z.a,z.b\n3.0,4\n1,5\n")
+
+        attach_table(
+            "//tmp/imported",
+            source_uris=[f"s3://{bucket}/foo.csv", f"s3://{bucket}/bar.csv", f"s3://{bucket}/baz.csv"],
+            medium=self.get_s3_medium_name())
+
+        assert read_table("//tmp/imported") == [
+            {"x": "a"},
+            {"y": 2},
+            {"z.a": 3.0, "z.b": 4},
+            {"z.a": 1.0, "z.b": 5}
+        ]
+
+        assert_items_equal(normalize_schema_v3(get(f"//tmp/imported/@schema")), make_schema([
+            make_column("x", optional_type("string")),
+            make_column("y", optional_type("int64")),
+            make_column("z.a", optional_type("double")),
+            make_column("z.b", optional_type("int64")),
+        ]))
+
     @authors("pavel-bash")
     @pytest.mark.parametrize("data", inference_test_parameters)
     def test_attach_non_existing_table_check_schema_inference(self, data: InferenceTestData):
@@ -1522,11 +1579,62 @@ class TestAttachTable(TestS3MediumBase):
             assert_items_equal(get(f"#{chunk_id}/@schema"), data.schema)
         assert_items_equal(get(f"//tmp/imported/@schema"), data.schema)
 
+    @authors("achulkov2")
+    def test_format_specification(self):
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.custom", Body=b'{"col":"a"}\n{"col":"b"}\n')
+
+        with pytest.raises(YtError, match="Cannot deduce external source format"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.custom"], medium=self.get_s3_medium_name())
+
+        attach_table("//tmp/imported",
+                     source_uris=[f"s3://{bucket}/foo.custom"],
+                     medium=self.get_s3_medium_name(),
+                     source_format="jsonl")
+
+        assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}]
+
+    @authors("achulkov2")
+    def test_invalid_json(self):
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"col":"a"}\n{"col":"b"\n')
+
+        with pytest.raises(YtError, match="JSON parse error"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"], medium=self.get_s3_medium_name())
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.json", Body=b'{"col":"a"}\n{"col":"b"\n')
+
+        with pytest.raises(YtError, match="JSON parse error"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.json"], medium=self.get_s3_medium_name())
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.bar", Body=b'{"col":"a"}\n{"col":"b"\n')
+
+        with pytest.raises(YtError, match="JSON parse error"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.bar"], medium=self.get_s3_medium_name(), source_format="jsonl")
+
+    @authors("achulkov2")
+    def test_invalid_csv(self):
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b'c1, c2\na,b,c,d\n')
+
+        with pytest.raises(YtError, match="CSV parse error"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.csv"], medium=self.get_s3_medium_name())
+
+    @authors("achulkov2")
+    def test_invalid_parquet(self):
+        bucket = self.get_s3_medium_bucket()
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=b'not a parquet')
+
+        with pytest.raises(YtError, match="not a parquet file"):
+            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"], medium=self.get_s3_medium_name())
+
 
 ################################################################################
 
 
-@pytest.mark.skipif(not is_s3_configured(), reason="S3 is not configured")
 class TestAttachTableRpcProxy(TestAttachTable):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

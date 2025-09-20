@@ -1045,6 +1045,7 @@ def attach_table(
     source_uris,  # type: list[str]
     allow_incompatible_source_schemas=False,  # type: bool
     medium=None,  # type: str | None
+    source_format=None,  # type: str | None
     client=None,  # type: YtClient | None
 ):
     """Attaches external sources, e.g. S3 URLs, to table.
@@ -1056,12 +1057,14 @@ def attach_table(
     :param allow_incompatible_source_schemas: set this flag to 'true' to allow attaching sources even if their common schema
         cannot be inferred or is incompatible with the existing table's schema.
     :param medium: name of the medium where the output table will be created if it doesn't exist.
+    :param source_format: format of source files. If not specified, it is deduced from file extension.
     """
 
     params = {"path": TablePath(destination_table, client=client)}
     set_param(params, "source_uris", source_uris)
     set_param(params, "allow_incompatible_source_schemas", allow_incompatible_source_schemas)
     set_param(params, "medium", medium)
+    set_param(params, "source_format", source_format)
 
     # Attaching external sources may take a long time.
     # Set timeout to 1 year.

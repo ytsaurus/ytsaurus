@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/chunk_client/helpers.h>
+
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/merge_table_schemas.h>
 
@@ -30,12 +32,6 @@ using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 
 using NYT::ToProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto ExtensionParquet = ".parquet";
-static constexpr auto ExtensionJsonLines = ".jsonl";
-static constexpr auto ExtensionCsv = ".csv";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +52,13 @@ public:
         , SourceUris_(std::move(sourceUris))
         , Logger(TableClientLogger())
     {
+        YT_LOG_DEBUG("Attaching external data to table (Path: %v, SourceUris: %v, AllowIncompatibleSourceSchemas: %v, Medium: %v, SourceFormat: %lv)",
+            richPath.GetPath(),
+            SourceUris_,
+            Options_.AllowIncompatibleSourceSchemas,
+            Options_.Medium,
+            Options_.SourceFormat);
+
         THROW_ERROR_EXCEPTION_IF(
             SourceUris_.empty(),
             "At least one source must be specified when attaching to a table %Qv",
@@ -77,6 +80,9 @@ public:
         Logger.AddTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
             TransactionId_);
+
+        YT_LOG_DEBUG("Started nested input transaction for attach table (ParentTransactionId: %v)",
+            transactionOptions.ParentId);
     }
 
     ~TTableAttacher()
@@ -162,14 +168,15 @@ private:
 
     EChunkFormat GetChunkFormat(const NS3::TObjectDescriptor& descriptor)
     {
-        if (descriptor.Key().EndsWith(ExtensionParquet)) {
-            return EChunkFormat::TableUnversionedArrowParquet;
-        } else if (descriptor.Key().EndsWith(ExtensionJsonLines)) {
-            return EChunkFormat::TableUnversionedArrowJsonLines;
-        } else if (descriptor.Key().EndsWith(ExtensionCsv)) {
-            return EChunkFormat::TableUnversionedArrowCsv;
-        }
-        THROW_ERROR_EXCEPTION("Cannot attach file %Qv with unsupported extension; only .parquet, .jsonl and .csv files are supported", descriptor);
+        auto externalFormat = [&] {
+            if (Options_.SourceFormat) {
+                return *Options_.SourceFormat;
+            } else {
+                return DeduceExternalSourceFormatOrThrow(descriptor.Key());
+            }
+        }();
+
+        return GetChunkFormatFromExternalSourceFormat(externalFormat);
     }
 
     void InferCommonSchema()

@@ -5897,11 +5897,15 @@ private:
         auto sourceUris = FromProto<std::vector<std::string>>(request->source_uris());
 
         NApi::TAttachTableOptions options;
+
         SetTimeoutOptions(&options, context.Get());
 
         options.AllowIncompatibleSourceSchemas = FromProto<bool>(request->allow_incompatible_source_schemas());
         if (request->has_medium()) {
             options.Medium = FromProto<std::string>(request->medium());
+        }
+        if (request->has_source_format()) {
+            options.SourceFormat = CheckedEnumCast<NChunkClient::EExternalSourceFormat>(request->source_format());
         }
 
         if (request->has_transactional_options()) {
@@ -5909,9 +5913,12 @@ private:
         }
 
         context->SetRequestInfo(
-            "Path: %v, SourceUris: %v",
+            "Path: %v, SourceUris: %v, AllowIncompatibleSourceSchemas: %v, Medium: %v, SourceFormat: %v",
             path,
-            sourceUris);
+            sourceUris,
+            options.AllowIncompatibleSourceSchemas,
+            options.Medium,
+            options.SourceFormat);
 
         ExecuteCall(
             context,

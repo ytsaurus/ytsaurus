@@ -222,4 +222,14 @@ DEFINE_ENUM(EChunkFormat,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This enum is used to represent human-readable names of allowed formats for external sources.
+//! They are used to specify the format of externally attached chunks in various places.
+DEFINE_ENUM(EExternalSourceFormat,
+    (Parquet)
+    (Jsonl)
+    (Csv)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

@@ -112,8 +112,6 @@ protected:
 private:
     NYPath::TRichYPath Path;
     std::vector<std::string> SourceUris;
-    bool AllowIncompatibleSourceSchemas;
-    std::optional<std::string> Medium;
 
     void DoExecute(ICommandContextPtr context) override;
 };
