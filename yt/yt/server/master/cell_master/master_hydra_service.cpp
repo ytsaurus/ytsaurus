@@ -4,7 +4,6 @@
 #include "hydra_facade.h"
 #include "multicell_manager.h"
 #include "world_initializer.h"
-#include "world_initializer_cache.h"
 
 namespace NYT::NCellMaster {
 
@@ -32,7 +31,6 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
             return options;
         }())
     , Bootstrap_(bootstrap)
-    , ValidateClusterInitialized_(SelectClusterInitializationValidator(defaultInvokerKind))
 {
     YT_VERIFY(Bootstrap_);
 }
@@ -44,7 +42,9 @@ IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThread
 
 void TMasterHydraServiceBase::ValidateClusterInitialized()
 {
-    ValidateClusterInitialized_(Bootstrap_);
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    Bootstrap_->GetWorldInitializer()->ValidateInitialized();
 }
 
 IInvokerPtr TMasterHydraServiceBase::SelectDefaultInvoker(
@@ -57,29 +57,6 @@ IInvokerPtr TMasterHydraServiceBase::SelectDefaultInvoker(
         },
         [&] (TRpcHeavyDefaultInvoker /*rpcHeavy*/) {
             return TDispatcher::Get()->GetHeavyInvoker();
-        });
-}
-
-auto TMasterHydraServiceBase::SelectClusterInitializationValidator(
-    TDefaultInvokerKind invokerKind) -> TValidateClusterInititalizedFunction*
-{
-    static const auto validateViaWorldInitializer = [] (TBootstrap* bootstrap) {
-        const auto& worldInitializer = bootstrap->GetWorldInitializer();
-        worldInitializer->ValidateInitialized();
-    };
-
-    static const auto validateViaWorldInitializerCache = [] (TBootstrap* bootstrap) {
-        const auto& worldInitializerCache = bootstrap->GetWorldInitializerCache();
-        WaitForFast(worldInitializerCache->ValidateWorldInitialized())
-            .ThrowOnError();
-    };
-
-    return Visit(invokerKind,
-        [&] (EAutomatonThreadQueue /*automatonThreadQueue*/) -> TValidateClusterInititalizedFunction* {
-            return validateViaWorldInitializer;
-        },
-        [&] (TRpcHeavyDefaultInvoker /*rpcHeavy*/) -> TValidateClusterInititalizedFunction* {
-            return validateViaWorldInitializerCache;
         });
 }
 

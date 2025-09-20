@@ -220,12 +220,8 @@ dashboards = {
     },
     "master-accounts": {
         "func": build_master_accounts,
-        "monitoring": {
-            "args": ["monitoring"],
-        },
-        "grafana": {
-            "args": ["grafana"],
-        },
+        "monitoring": {},
+        "grafana": {},
     },
     "chyt-monitoring-test": {
         "func": build_chyt_monitoring,

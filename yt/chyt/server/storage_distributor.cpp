@@ -1136,6 +1136,12 @@ public:
 
         DB::SinkToStoragePtr outputSink;
 
+        auto statisticsCallback = BIND([weakQueryContext = MakeWeak(QueryContext_)] (const TStatistics& statistics) {
+            if (auto queryContext = weakQueryContext.Lock()) {
+                queryContext->MergeStatistics(statistics);
+            }
+        });
+
         if (table->Dynamic) {
             outputSink = CreateSinkToDynamicTable(
                 path,
@@ -1145,7 +1151,8 @@ public:
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
                 std::move(finalCallback),
-                QueryContext_->Logger);
+                QueryContext_->Logger,
+                std::move(statisticsCallback));
         } else {
             // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
@@ -1158,7 +1165,8 @@ public:
                 QueryContext_->Client(),
                 queryContext->WriteTransactionId,
                 std::move(finalCallback),
-                QueryContext_->Logger);
+                QueryContext_->Logger,
+                std::move(statisticsCallback));
         }
 
         return outputSink;

@@ -628,6 +628,82 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert_items_equal(get_in_sync_replicas("//tmp/t", [], timestamp=timestamp2),
                            [replica_id1, replica_id2])
 
+    @authors("fomasha")
+    @pytest.mark.parametrize("replication_stop_reason", ["replica_cluster_ban", "replica_disabled"])
+    def test_per_cluster_tablet_replication_status_orchid(self, replication_stop_reason):
+        self._create_cells()
+        self._create_replicated_table(
+            "//tmp/t",
+            replication_throttler={"limit": 500},
+            max_data_weight_per_replication_commit=150,
+        )
+
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1")
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2")
+
+        self._create_replica_table("//tmp/r1", replica_id1)
+        self._create_replica_table("//tmp/r2", replica_id2)
+
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        def has_replication_activity(replica_cluster):
+            return get(f"//sys/cluster_nodes/{cell_node}/orchid/tablet_cells/{cell_id}/per_cluster_tablet_replication_status/{replica_cluster}/has_replication_activity")
+
+        assert not has_replication_activity(self.REPLICA_CLUSTER_NAME)
+
+        timestamp = generate_timestamp()
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+        wait(lambda: are_items_equal(
+            get_in_sync_replicas("//tmp/t", [], timestamp=timestamp),
+            [replica_id1, replica_id2]))
+
+        sync_unmount_table("//tmp/r2", driver=self.replica_driver)
+
+        for i in range(50):
+            insert_rows(
+                "//tmp/t",
+                [{"key": 1, "value1": "1" * 35, "value2": i}],
+                require_sync_replica=False,
+            )
+
+        sync_mount_table("//tmp/r2", driver=self.replica_driver)
+
+        wait(lambda: has_replication_activity(self.REPLICA_CLUSTER_NAME))
+
+        if replication_stop_reason == "replica_cluster_ban":
+            set(
+                "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+                [self.REPLICA_CLUSTER_NAME],
+            )
+        elif replication_stop_reason == "replica_disabled":
+            sync_disable_table_replica(replica_id2)
+        else:
+            assert False
+
+        wait(lambda: not has_replication_activity(self.REPLICA_CLUSTER_NAME))
+
+    @authors("fomasha")
+    def test_banned_replica_clusters_orchid(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        assert get(f"//sys/tablet_nodes/{cell_node}/orchid/replication_hint_manager/banned_replica_clusters") == []
+
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+            [self.REPLICA_CLUSTER_NAME],
+        )
+
+        wait(
+            lambda: get(f"//sys/tablet_nodes/{cell_node}/orchid/replication_hint_manager/banned_replica_clusters")
+            == [self.REPLICA_CLUSTER_NAME]
+        )
+
     @authors("babenko")
     def test_in_sync_replicas_with_sync_last_committed_timestamp(self):
         self._create_cells()

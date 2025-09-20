@@ -467,6 +467,8 @@ NYTree::IMapNodePtr ConvertSpecStringToNode(
     const NYson::TYsonString& specString,
     int treeSizeLimit = std::numeric_limits<int>::max());
 
+TBriefVanillaTaskSpecMap GetBriefVanillaTaskSpecs(const NYTree::IMapNodePtr& specNode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

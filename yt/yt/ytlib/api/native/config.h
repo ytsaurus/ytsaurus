@@ -322,6 +322,13 @@ struct TConnectionDynamicConfig
     TDuration DefaultGetOrderedTabletSafeTrimRowCountTimeout;
     TDuration DefaultChaosReplicatedTableGetTabletCountTimeout;
     TDuration DefaultShuffleServiceTimeout;
+    TDuration DefaultDisableChunkLocationsTimeout;
+    TDuration DefaultDestroyChunkLocationsTimeout;
+    TDuration DefaultResurrectChunkLocationsTimeout;
+    TDuration DefaultRequestRestartTimeout;
+    TDuration DefaultWriteOperationControllerCoreDumpTimeout;
+    TDuration DefaultAbandonJobTimeout;
+    TDuration DefaultAbortJobTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 

@@ -2795,7 +2795,9 @@ private:
         attachOptions.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
         UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, attachOptions);
 
-        StartListenTransaction(UploadTransaction_);
+        StartListenTransaction(
+            UploadTransaction_,
+            TError(NYT::EErrorCode::Canceled, "Upload transaction aborted"));
 
         TLegacyOwningKey writerLastKey;
         TChunkListId chunkListId;

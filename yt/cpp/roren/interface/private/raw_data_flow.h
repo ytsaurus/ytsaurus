@@ -66,29 +66,28 @@ DEFINE_REFCOUNTED_TYPE(IRawInput);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// A set of inputs, grouped together.
 //
-// Набор входов, которые разбиты по группам.
+// Needed for CoGroupByKey, etc.
 //
-// Нужно для CoGroupByKey и т.п.
-//
-// Подразумевается, что реализация класса хранит набор IRawInput.
-// Каждый IRawInput позволяет проитерироваться по какой-то группе значений.
+// It is assumed that the class implementation stores a set of IRawInput.
+// Each IRawInput allows iterating over some group of values.
 class IRawGroupedInput
     : public virtual NYT::TRefCounted
 {
 public:
     //
-    // Возвращает набор IRawInputPtr.
+    // Returns a set of IRawInputPtr.
     //
-    // Список возвращаемых адресов не должен меняться в процессе жизни IRawGroupedInput.
+    // The list of returned pointers must not change during the lifetime of IRawGroupedInput.
     virtual ssize_t GetInputCount() const = 0;
     virtual IRawInputPtr GetInput(ssize_t i) const = 0;
 
     //
-    // Переключает состояние внутренних IRawInput на чтение следующей группы.
+    // Switches the state of internal IRawInput to read the next group.
     //
-    // Сами объекты IRawInput остаются теми же, но их состояние переключается так,
-    // что они теперь итерируются поверх следующей группы.
+    // The IRawInput objects themselves remain the same, but their state is switched
+    // so that they now iterate over the next group.
     virtual const void* NextKey() = 0;
 };
 

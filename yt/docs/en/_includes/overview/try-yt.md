@@ -18,7 +18,7 @@ The fastest way to familiarize yourself with the product's features is by using 
 
 ## Installing and starting a {{product-name}} cluster { #launch-cluster}
 
-This guide offers two methods for installing a {{product-name}} cluster: using [Docker](https://www.docker.com/) and using [Minikube](https://minikube.sigs.k8s.io/docs/).
+This guide offers two methods for installing a {{product-name}} cluster: using [Docker](https://www.docker.com/), [Minikube](https://minikube.sigs.k8s.io/docs/) and using [Kind](https://kind.sigs.k8s.io/docs/user/quick-start#installation).
 
 Regardless of the installation method, the required system components will be deployed in the process, including the [master server](*about-master), [scheduler](*about-scheduler), [YQL](*about-yql), [Query Tracker](*about-qt), and others. All examples in this guide — table creation, data upload, and running MapReduce — apply regardless of your preferred installation method and will be the same for both Docker and Minikube.
 
@@ -93,7 +93,7 @@ Regardless of the installation method, the required system components will be de
 
        {% endcut %}
 
-  5. Done! Now {{product-name}} is deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#stop-cluster) the cluster.
+  5. Done! Now {{product-name}} is deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#delete-cluster) the cluster.
 
 - Minikube
 
@@ -294,7 +294,239 @@ Regardless of the installation method, the required system components will be de
 
   #### Done!
 
-  {{product-name}} is now deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#stop-cluster) the cluster.
+  {{product-name}} is now deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#delete-cluster) the cluster.
+
+- Kind
+
+  In this example, you will locally deploy a Kubernetes cluster consisting of a single node and run a {{product-name}} cluster in it. Docker will be used as the container runtime engine.
+
+  {% note warning "Resource requirements" %}
+
+  To successfully deploy {{product-name}} in a Kubernetes cluster, the host machine must have:
+  - at least 4 CPU cores;
+  - at least 8 GB of RAM;
+  - at least 30 GB of disk space.
+
+  {% endnote %}
+
+  To install {{product-name}} in Kind, follow these steps:
+
+  1. [Prepare the environment](#kind-setup)
+  1. [Start a Kubernetes cluster](#kind-k8s-start)
+  1. [Install cert-manager](#kind-cert-manager-apply)
+  1. [Install the {{product-name}} operator](#kind-operator-install)
+  1. [Launch the {{product-name}} cluster](#kind-yt-start)
+  1. [Configure network access to the cluster](#kind-network-access)
+
+  #### 1. Prepare the environment {#kind-setup}
+
+  - Install Docker:
+      - If you are on Linux — install [Docker Engine](https://docs.docker.com/engine/install/ubuntu/);
+      - If you are on Mac — install [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) or [Podman](https://podman.io/docs/installation) as an alternative. Make sure you have Rosetta 2 installed and enabled.
+  - Install [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) — a utility for managing a Kubernetes cluster.
+  - Install [Kind](https://kind.sigs.k8s.io/docs/user/quick-start#installation) — a tool that allows you to run a simple Kubernetes cluster on your local machine.
+  - Install [Helm](https://helm.sh/docs/intro/install/) — a package manager for installing {{product-name}} components in Kubernetes.
+
+  #### 2. Start a Kubernetes cluster {#kind-k8s-start}
+
+  ```bash
+  kind create cluster --name ytsaurus
+  ```
+
+  When the Kubernetes cluster is up, switch the k8s context to the created cluster:
+  ```bash
+  kubectl cluster-info --context kind-ytsaurus
+  ```
+
+  Check that the cluster is accessible and running:
+
+  ```bash
+  $ kubectl cluster-info
+  Kubernetes control plane is running at https://127.0.0.1:38797
+  CoreDNS is running at https://127.0.0.1:38797/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+  ```
+
+  {% note warning %}
+
+  In some cases — for example, when using Ubuntu 22.04 — there may be issues starting the k8s cluster. In this case, try using Kind version 0.20.0:
+  ```bash
+  curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+  chmod +x ./kind
+  sudo mv ./kind /usr/local/bin/kind
+  kind create cluster --name ytsaurus
+  ```
+
+  {% endnote %}
+
+  #### 3. Install cert-manager { #kind-cert-manager-apply }
+
+  ```bash
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/{{cert-manager-version}}/cert-manager.yaml
+  ```
+
+  Wait until the `cert-manager-webhook` pod is in the `Running` state:
+
+  ```
+  $ kubectl get pods -A
+  NAMESPACE        NAME                                        READY   STATUS      RESTARTS   AGE
+  cert-manager     cert-manager-7b5cdf866f-5lfth               1/1     Running     0          2m12s
+  cert-manager     cert-manager-cainjector-7c9788477c-xdp8l    1/1     Running     0          2m12s
+  cert-manager     cert-manager-webhook-764949f558-dldzp       1/1     Running     0          2m12s
+  kube-system      coredns-668d6bf9bc-774xg                    1/1     Running     0          2m57s
+  ...
+  ```
+
+  #### 4. Install the {{product-name}} operator {#kind-operator-install}
+
+  The [{{product-name}} operator](https://github.com/ytsaurus/ytsaurus-k8s-operator) is a program that manages the execution of {{product-name}} in a Kubernetes cluster. The operator ensures that all {{product-name}} components are launched and running correctly.
+
+  Install the chart:
+  ```bash
+  helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}
+  ```
+
+  {% cut "If you encounter the error 'Internal error occurred: failed calling webhook "webhook.cert-manager.io"'" %}
+
+  Check the status of the `cert-manager-webhook` pod:
+
+  ```
+  $ kubectl get pods -A
+  NAMESPACE       NAME                                      READY   STATUS               RESTARTS   AGE
+  cert-manager    cert-manager-7b5cdf866f-5lfth             1/1     ContainerCreating    0          2m12s
+  cert-manager    cert-manager-cainjector-7c9788477c-xdp8l  1/1     ContainerCreating    0          2m12s
+  cert-manager    cert-manager-webhook-764949f558-dldzp     1/1     ContainerCreating    0          2m12s
+  ...
+  ```
+  If the pod is in `ContainerCreating` state, wait for the installation to finish and try rerunning `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+
+  If the pod is in `ImagePullBackOff` state, it means the system cannot pull the required images. This is most likely related to networking settings inside Kind. Possible solutions are described [here](https://cert-manager.io/docs/troubleshooting/webhook/#error-connect-connection-refused).
+
+  {% endcut %}
+
+  Wait until the operator is in `Running` status:
+
+  ```bash
+  $ kubectl get pod
+  NAME                                                      READY   STATUS     RESTARTS   AGE
+  ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0          7m57s
+  ```
+
+  #### 5. Launch the {{product-name}} cluster {#kind-yt-start}
+
+  ```bash
+  curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/refs/heads/main/yt/docs/code-examples/cluster-config/cluster_v1_local.yaml > cluster_v1_local.yaml
+  kubectl apply -f cluster_v1_local.yaml
+  ```
+
+  Usually, launching the {{product-name}} cluster takes several minutes. If everything is successful, the list of running pods will look like this:
+
+  ```bash
+  $ kubectl get pod
+  NAME                                                      READY   STATUS              RESTARTS   AGE
+  ca-0                                                      1/1     Running     0          8m43s
+  dnd-0                                                     1/1     Running     0          8m44s
+  dnd-1                                                     1/1     Running     0          8m44s
+  dnd-2                                                     1/1     Running     0          8m44s
+  ds-0                                                      1/1     Running     0          11m
+  end-0                                                     1/1     Running     0          8m43s
+  hp-0                                                      1/1     Running     0          8m44s
+  hp-control-0                                              1/1     Running     0          8m44s
+  ms-0                                                      1/1     Running     0          11m
+  rp-0                                                      1/1     Running     0          8m43s
+  rp-heavy-0                                                1/1     Running     0          8m43s
+  sch-0                                                     1/1     Running     0          8m39s
+  strawberry-controller-679786577b-4p5kz                    1/1     Running     0          7m17s
+  yt-client-init-job-user-ljfqf                             1/1     Running     0          8m39s
+  yt-master-init-job-default-hdnfm                          1/1     Running     0          9m23s
+  yt-master-init-job-enablerealchunks-575hk                 1/1     Running     0          8m50s
+  yt-strawberry-controller-init-job-cluster-l5gns           1/1     Running     0          8m17s
+  yt-strawberry-controller-init-job-user-nn9lk              1/1     Running     0          8m34s
+  yt-ui-init-job-default-6w5zv                              1/1     Running     0          8m43s
+  ytsaurus-ui-deployment-7b469d5cc8-596sf                   1/1     Running     0          8m35s
+  ytsaurus-ytop-chart-controller-manager-859b7bbddf-jc5sv   2/2     Running     0          14m
+  ```
+
+  #### 6. Configure network access to the cluster {#kind-network-access}
+
+  By default, Kind creates an internal network for the k8s cluster and the pods inside it. To access this network, you can use [port-forwarding](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/). Below is an example of how to use this mechanism to access the web interface and API of the {{product-name}} cluster.
+
+  To access the cluster web interface at `localhost:8080`, run this command in a separate terminal:
+
+  ```bash
+  kubectl port-forward service/ytsaurus-ui 8080:80
+  ```
+
+  Use the following credentials:
+  ```
+  Login: admin
+  Password: password
+  ```
+
+  To access the cluster API at `localhost:8081`, run this command in a separate terminal:
+  ```bash
+  kubectl port-forward service/http-proxies-lb 8081:80
+  ```
+
+  Now the web interface will be available at `localhost:8080`, and the cluster proxy at `localhost:8081`. You can use the proxy address to work with the cluster from the command line — this will be described below, in the [examples](#launch-example) section.
+
+  {% cut "How to configure native port forwarding with Kind" %}
+
+  There is an alternative solution for configuring the {{product-name}} cluster and the Kind cluster that avoids explicit `kubectl port-forward` commands. To do this:
+
+  1. Configure port forwarding in Kind.
+
+     Example config:
+     ```yaml
+     kind: Cluster
+     apiVersion: kind.x-k8s.io/v1alpha4
+     nodes:
+     - role: control-plane
+       extraPortMappings:
+       - containerPort: 30080
+         hostPort: 30080
+       - containerPort: 30081
+         hostPort: 30081
+       - containerPort: 30082
+         hostPort: 30082
+     ```
+
+     Start the Kind cluster with the config:
+     ```bash
+     kind create cluster --name ytsaurus --config=kind-config.yaml
+     ```
+
+  2. Configure port forwarding for the web interface and proxies in the {{product-name}} cluster.
+
+     In the {{product-name}} cluster config, specify the `httpNodePort` option in the proxies and web interface:
+     ```bash
+     $ grep httpNodePort -B 5 cluster_v1_local_with_ports.yaml
+     httpProxies:
+       - serviceType: NodePort
+         loggers: *loggers
+         instanceCount: 1
+         role: default
+         httpNodePort: 30080
+       - serviceType: NodePort
+         loggers: *loggers
+         instanceCount: 1
+         role: control
+         httpNodePort: 30081
+     --
+
+     ui:
+       image: ghcr.io/ytsaurus/ui:stable
+       serviceType: NodePort
+       instanceCount: 1
+       httpNodePort: 30082
+     ```
+
+  Now the web interface will be available at `localhost:30082`, and the cluster proxy at `localhost:30080`.
+
+  {% endcut %}
+
+  #### Done!
+
+  Now {{product-name}} is up and running — you can move on to the next step. After you finish working with the examples, don’t forget to [delete](#delete-cluster) the cluster.
 
 {% endlist %}
 
@@ -374,6 +606,21 @@ You'll need this to access the cluster via the CLI for the examples that follow.
   {% note warning %}
 
   Here, the token is set in an environment variable. This is done intentionally for the sake of simplicity and clarity of the example. Avoid this practice in real-world scenarios: {{product-name}} provides dedicated commands for managing tokens. For more information, see [Authentication](../../user-guide/storage/auth.md#upravlenie-tokenami).
+
+  {% endnote %}
+
+- Kind
+
+  ```bash
+  export YT_PROXY='localhost:8081'
+  # Disable automatic {{product-name}} proxy discovery
+  export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
+  export YT_TOKEN=password
+  ```
+
+  {% note warning %}
+
+  Here the token is set in an environment variable — this is intentional, for simplicity and clarity of the example. In real scenarios, this approach should not be used; {{product-name}} provides special commands for working with tokens. For more details, see the [Authentication](../../user-guide/storage/auth.md#upravlenie-tokenami) section.
 
   {% endnote %}
 
@@ -528,13 +775,13 @@ ORDER BY count
 LIMIT 30;
 ```
 
-## Stopping a cluster { #stop-cluster }
+## Deleting a cluster { #delete-cluster }
 
 {% list tabs dropdown %}
 
 - Docker {selected}
 
-  To stop a {{product-name}} cluster, shut down the `yt.frontend` and `yt.backend` containers. To do this, run the command:
+  To delete a {{product-name}} cluster, shut down the `yt.frontend` and `yt.backend` containers. To do this, run the command:
     ```bash
   ./run_local_cluster.sh --stop
   ```
@@ -574,6 +821,23 @@ LIMIT 30;
      podman volume rm minikube
      ```
 
+- Kind
+
+  1. Delete the {{product-name}} cluster:
+     ```bash
+     kubectl delete -f cluster_v1_local.yaml
+     ```
+
+  2. Delete the operator:
+     ```bash
+     helm uninstall ytsaurus
+     ```
+
+  3. Delete the Kubernetes cluster:
+     ```bash
+     kind delete cluster --name ytsaurus
+     ```
+
 {% endlist %}
 
 ## Demo Stand { #demo }
@@ -584,7 +848,7 @@ The demo stand features several environments for interacting with {{product-name
 
 {% cut "Jupyter Notebook" %}
 
-The notebook provides numerous examples for working with {{product-name}}, including operations for creating tables, uploading data, and using CHYT, SPYT, and YQL, as well as SDK examples. For an overview of all available examples, see **About YTsaurus demo**, the notebook home page.
+The notebook provides numerous examples for working with {{product-name}}, including operations for creating tables, uploading data, and using CHYT, SPYT, and YQL, as well as SDK examples. For an overview of all available examples, see **About {{product-name}} demo**, the notebook home page.
 
 A link to a deployed Jupyter Notebook will be included in the email.
 

@@ -362,6 +362,29 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_shuffle_service_timeout",
         &TThis::DefaultShuffleServiceTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_disable_chunk_locations_timeout",
+        &TThis::DefaultDisableChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_destroy_chunk_locations_timeout",
+        &TThis::DefaultDestroyChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_resurrect_chunk_locations_timeout",
+        &TThis::DefaultResurrectChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_request_restart_timeout",
+        &TThis::DefaultRequestRestartTimeout)
+        .Default(TDuration::Seconds(15));
+    // NB(apollo1321): write_operation_controller_core_dump is asynchronous: it doesn't wait for the file
+    // to be written. This timeout only covers address-space cloning; 60s is a conservative default.
+    registrar.Parameter("default_write_operation_controller_core_dump_timeout",
+        &TThis::DefaultWriteOperationControllerCoreDumpTimeout)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_abandon_job_timeout",
+        &TThis::DefaultAbandonJobTimeout)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("default_abort_job_timeout",
+        &TThis::DefaultAbortJobTimeout)
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));

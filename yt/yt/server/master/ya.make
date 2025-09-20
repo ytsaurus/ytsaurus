@@ -30,7 +30,6 @@ SRCS(
     cell_master/response_keeper_manager.cpp
     cell_master/serialize.cpp
     cell_master/snapshot_exporter.cpp
-    cell_master/world_initializer_cache.cpp
     cell_master/world_initializer.cpp
 
     cell_server/area_proxy.cpp

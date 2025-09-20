@@ -13,7 +13,7 @@ class Permission:
     permission: Literal["read", "use"]
     path: str
     cluster: str
-    ignore_paths: list[bytes] | None
+    ignore_paths: list[str] | None
 
 
 class Cell(Taggable):
@@ -266,5 +266,5 @@ class Dashboard(Taggable):
     def set_monitoring_serializer_options(self, options):
         self.serializer_options["monitoring"] = options
 
-    def add_permission(self, permission: Literal["read", "use"], path: str, cluster: str = "$cluster", ignore_paths: list[bytes] | None = None):
+    def add_permission(self, permission: Literal["read", "use"], path: str, cluster: str = "$cluster", ignore_paths: list[str] | None = None):
         self.permissions.append(Permission(permission, path, cluster, ignore_paths))

@@ -8,7 +8,6 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
-#include <yt/yt/server/master/cell_master/world_initializer_cache.h>
 
 #include <yt/yt/ytlib/exec_node_tracker_client/exec_node_tracker_service_proxy.h>
 

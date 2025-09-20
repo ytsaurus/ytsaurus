@@ -404,6 +404,10 @@ public:
             GetOrchidRoot(),
             "/tablet_node_thread_pools",
             CreateVirtualNode(CreateThreadPoolsOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/replication_hint_manager",
+            CreateVirtualNode(HintManager_->GetOrchidService()));
         if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
             SetNodeByYPath(
                 GetOrchidRoot(),

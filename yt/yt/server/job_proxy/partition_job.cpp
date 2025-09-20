@@ -71,10 +71,7 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        std::optional<int> partitionTag;
-        if (JobSpecExt_.has_partition_tag()) {
-            partitionTag = JobSpecExt_.partition_tag();
-        }
+        auto partitionTag = YT_OPTIONAL_FROM_PROTO(JobSpecExt_, partition_tag);
 
         ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;

@@ -34,6 +34,11 @@ bool TBaseCompositeElement::IsFairShareTruncationInFifoPoolEnabled() const
     return false;
 }
 
+bool TBaseCompositeElement::IsStepFunctionForGangOperationsEnabled() const
+{
+    return false;
+}
+
 bool TBaseCompositeElement::CanAcceptFreeVolume() const
 {
     return false;
@@ -83,12 +88,7 @@ EIntegralGuaranteeType TBasePool::GetIntegralGuaranteeType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TBaseOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
-{
-    return false;
-}
-
-bool TBaseOperationElement::IsGang() const
+bool TBaseOperationElement::IsGangLike() const
 {
     return false;
 }

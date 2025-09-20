@@ -1193,7 +1193,7 @@ void TCompositeElement::DoTruncateFairShareInFifoPool(EFairShareType fairShareTy
         // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
         // which fair share is less than demand.
         bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::Epsilon(), childAttributes.DemandShare);
-        bool shouldTruncate = !isChildFullySatisfied && childOperation->IsFairShareTruncationInFifoPoolAllowed();
+        bool shouldTruncate = !isChildFullySatisfied && childOperation->IsGangLike();
         if (shouldTruncate) {
             const auto& Logger = GetLogger();
 
@@ -1596,7 +1596,10 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
 
     TVectorPiecewiseLinearFunction::TBuilder builder;
 
-    if (context->Options.EnableStepFunctionForGangOperations && IsGang()) {
+    if (context->Options.EnableStepFunctionForGangOperations &&
+        GetParentElement()->IsStepFunctionForGangOperationsEnabled() &&
+        IsGangLike())
+    {
         builder.PushSegment({0.0, TResourceVector::Zero()}, {1.0, TResourceVector::Zero()});
         builder.PushSegment({1.0, TResourceVector::Zero()}, {1.0, Attributes().DemandShare});
         builder.PushSegment({1.0, Attributes().DemandShare}, {2.0, Attributes().DemandShare});

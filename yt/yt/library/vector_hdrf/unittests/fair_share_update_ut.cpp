@@ -243,6 +243,11 @@ public:
         return FairShareTruncationInFifoPoolEnabled_;
     }
 
+    bool IsStepFunctionForGangOperationsEnabled() const override
+    {
+        return true;
+    }
+
     bool CanAcceptFreeVolume() const override
     {
         return IntegralGuaranteesConfig_->CanAcceptFreeVolume;
@@ -391,7 +396,7 @@ public:
         return TResourceVector::Ones();
     }
 
-    bool IsGang() const override
+    bool IsGangLike() const override
     {
         return IsGang_;
     }
@@ -401,19 +406,8 @@ public:
         IsGang_ = value;
     }
 
-    void SetFairShareTruncationInFifoPoolAllowed(bool allowed)
-    {
-        FairShareTruncationInFifoPoolAllowed_ = allowed;
-    }
-
-    bool IsFairShareTruncationInFifoPoolAllowed() const override
-    {
-        return FairShareTruncationInFifoPoolAllowed_;
-    }
-
 private:
     bool IsGang_ = false;
-    bool FairShareTruncationInFifoPoolAllowed_ = false;
 };
 
 using TOperationElementMockPtr = TIntrusivePtr<TOperationElementMock>;
@@ -1167,7 +1161,7 @@ TEST_P(TFairShareUpdateParametrizedTest, TestTruncateUnsatisfiedChildFairShareIn
     auto operationAFirst = CreateOperation(poolA.Get(), resourceDemand);
 
     auto operationASecond = CreateOperation(poolA.Get(), resourceDemand);
-    operationASecond->SetFairShareTruncationInFifoPoolAllowed(true);
+    operationASecond->SetGangFlag(true);
 
     auto operationBFirst = CreateOperation(poolB.Get(), resourceDemand);
 
