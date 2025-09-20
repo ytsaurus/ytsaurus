@@ -31,6 +31,8 @@ public:
 
     bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
+    bool IsStepFunctionForGangOperationsEnabled() const override;
+
     bool CanAcceptFreeVolume() const override;
 
     bool ShouldDistributeFreeVolumeAmongChildren() const override;
@@ -75,9 +77,7 @@ class TBaseOperationElement
     , public TOperationElement
 {
 public:
-    bool IsFairShareTruncationInFifoPoolAllowed() const override;
-
-    bool IsGang() const override;
+    bool IsGangLike() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

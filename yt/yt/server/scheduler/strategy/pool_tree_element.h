@@ -505,6 +505,8 @@ public:
     ESchedulingMode GetMode() const final;
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;
 
+    bool IsStepFunctionForGangOperationsEnabled() const override;
+
     //! Post fair share update methods.
     void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation) override;
     void MarkImmutable() override;
@@ -682,6 +684,7 @@ public:
     TIntegralResourcesState& IntegralResourcesState() override;
 
     bool IsFairShareTruncationInFifoPoolEnabled() const override;
+    bool IsStepFunctionForGangOperationsEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 
@@ -872,8 +875,7 @@ public:
 
     //! Fair share update methods that implements NVectorHdrf::TOperationElement interface.
     TResourceVector GetBestAllocationShare() const override;
-    bool IsFairShareTruncationInFifoPoolAllowed() const override;
-    bool IsGang() const override;
+    bool IsGangLike() const override;
 
     //! Post fair share update methods.
     TInstant GetLastNonStarvingTime() const;
@@ -937,6 +939,7 @@ public:
 
     bool IsIdleCpuPolicyAllowed() const;
 
+    bool IsGang() const;
     bool IsSingleAllocationVanillaOperation() const;
 
     TDuration GetEffectiveAllocationPreemptionTimeout() const;
