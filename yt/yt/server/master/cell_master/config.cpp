@@ -117,6 +117,8 @@ void TWorldInitializerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("cached_state_update_period", &TThis::CachedStateUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

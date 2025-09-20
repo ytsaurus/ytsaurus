@@ -6,23 +6,27 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- *  Thread affinity: automaton.
- */
 struct IWorldInitializer
     : public TRefCounted
 {
-public:
     //! Returns |true| if the cluster is initialized.
+    /*!
+     *. \note Thread affinity: any
+     */
     virtual bool IsInitialized() = 0;
 
-    virtual void UpdateWorldInitializerCache() = 0;
-
-    //! Checks if the cluster is initialized. Throws if not.
+    //! Checks if the cluster is initialized. Throws if not yet.
+    /*!
+     *. \note Thread affinity: any
+     */
     virtual void ValidateInitialized() = 0;
 
     //! Returns |true| if provision lock is active.
-    //! May only be called on the primary cell.
+    /*!
+     * \note
+    *  May only be called on the primary cell.
+     * Thread affinity: AutomatonThread
+     */
     virtual bool HasProvisionLock() = 0;
 };
 
