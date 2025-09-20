@@ -136,10 +136,9 @@ struct TWorldInitializerConfig
     : public NYTree::TYsonStruct
 {
     TDuration InitRetryPeriod;
-
     TDuration InitTransactionTimeout;
-
     TDuration UpdatePeriod;
+    TDuration CachedStateUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TWorldInitializerConfig);
 

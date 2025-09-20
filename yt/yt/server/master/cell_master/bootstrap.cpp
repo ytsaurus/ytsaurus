@@ -12,7 +12,6 @@
 #include "multicell_statistics_collector.h"
 #include "response_keeper_manager.h"
 #include "world_initializer.h"
-#include "world_initializer_cache.h"
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 #include <yt/yt/server/master/chaos_server/chaos_service.h>
@@ -501,11 +500,6 @@ const IWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
     return WorldInitializer_;
 }
 
-const IWorldInitializerCachePtr& TBootstrap::GetWorldInitializerCache() const
-{
-    return WorldInitializerCache_;
-}
-
 const IObjectManagerPtr& TBootstrap::GetObjectManager() const
 {
     return ObjectManager_;
@@ -883,8 +877,6 @@ void TBootstrap::DoInitialize()
     MulticellManager_ = CreateMulticellManager(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);
-
-    WorldInitializerCache_ = CreateWorldInitializerCache(this);
 
     IncumbentManager_ = CreateIncumbentManager(this);
 

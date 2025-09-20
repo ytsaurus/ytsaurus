@@ -30,11 +30,6 @@ protected:
     void ValidateClusterInitialized();
 
 private:
-    using TValidateClusterInititalizedFunction = void(TBootstrap*);
-    TValidateClusterInititalizedFunction* const ValidateClusterInitialized_;
-
-    static TValidateClusterInititalizedFunction* SelectClusterInitializationValidator(
-        TDefaultInvokerKind invokerKind);
     static IInvokerPtr SelectDefaultInvoker(
         TDefaultInvokerKind invokerKind,
         TBootstrap* bootsrap);
