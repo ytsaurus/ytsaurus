@@ -9,7 +9,7 @@ using namespace NYTree;
 void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
-        .Default(false);
+        .Default(true);
 }
 
 void TChaosResidencyCacheConfig::ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig)
