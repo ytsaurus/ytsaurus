@@ -2988,6 +2988,35 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         def get_replicated_table_mapping():
             return list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
 
+        def get_replicas_from_meta(meta):
+            if rt_meta := meta.get("replicated_table_meta", None):
+                return rt_meta["replicas"].values()
+            if crt_meta := meta.get("chaos_replicated_table_meta", None):
+                return crt_meta["replicas"].values()
+            raise ValueError(f"Invalid meta {meta}")
+
+        @dataclass(order=True)
+        class ReplicaMappingRow:
+            replica_list: str
+            cluster: str
+            path: str
+
+        def get_replica_mapping_from_replicated_table_mapping():
+            replicated_table_mapping = get_replicated_table_mapping()
+            return sorted(
+                ReplicaMappingRow(replica_list=f"{replica['cluster_name']}:{replica['replica_path']}",
+                                  cluster=row["cluster"],
+                                  path=row["path"])
+                for row in replicated_table_mapping
+                for replica in get_replicas_from_meta(row["meta"])
+            )
+
+        def get_replica_mapping():
+            return sorted(
+                ReplicaMappingRow(replica_list=row["replica_list"], cluster=row["cluster"], path=row["path"])
+                for row in select_rows("* from [//sys/queue_agents/replica_mapping]")
+            )
+
         initial_replicated_table_mapping = get_replicated_table_mapping()
         rebuilding_checked = False
 
@@ -3037,6 +3066,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
             actual_meta = {r["path"]: r["meta"] for r in get_replicated_table_mapping()}
 
             assert actual_meta == expected_meta, f"diff is {self._calculate_diff(actual_meta, expected_meta)}"
+            assert get_replica_mapping_from_replicated_table_mapping() == get_replica_mapping()
 
         assert rebuilding_checked
 
@@ -6005,16 +6035,26 @@ class TestMigration(YTEnvSetup):
 
         assert builtins.set(actual_schema_by_column_name.keys()) == builtins.set(expected_schema_by_column_name.keys())
 
-        fields = ["name", "type"]
-        fields_with_default = [("required", False), ("sort_order", None)]
+        # type and type_v3 are checked separately
+        fields = [
+            "name",
+        ]
+        fields_with_default = [
+            ("required", False),
+            ("sort_order", None),
+        ]
 
         for column_name in expected_schema_by_column_name.keys():
             expected_column = expected_schema_by_column_name[column_name]
             actual_column = actual_schema_by_column_name[column_name]
+
             for field in fields:
                 assert actual_column[field] == expected_column[field]
             for field, field_default in fields_with_default:
                 assert actual_column.get(field, field_default) == expected_column.get(field, field_default)
+
+            type_field = "type" if "type" in expected_column else "type_v3"
+            assert actual_column[type_field] == expected_column[type_field]
 
     def _check_table_schemas(self, root, migration):
         for table_name, table_schema in migration.get_schemas().items():
@@ -6033,7 +6073,7 @@ class TestMigration(YTEnvSetup):
     @authors("nadya73")
     def test_run_migration(self):
         client = self.Env.create_native_client()
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
         run_migration(
             client=client,
             root=self.QUEUE_AGENT_STATE_ROOT,
@@ -6042,12 +6082,32 @@ class TestMigration(YTEnvSetup):
 
         self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
 
+        # Check secondary_index existence
+        assert get(f"{self.QUEUE_AGENT_STATE_ROOT}/replica_mapping/@index_to/table_path") == f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping"
+
+    @authors("apachee")
+    def test_version_compatability(self):
+        client = self.Env.create_native_client()
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
+
+        for version in range(QUEUE_AGENT_STATE_INITIAL_VERSION, migration.get_latest_version() + 1):
+            print_debug(f"Migrating to version {version}")
+            run_migration(
+                client=client,
+                root=self.QUEUE_AGENT_STATE_ROOT,
+                migration=migration,
+                target_version=version
+            )
+
+        # Check secondary_index existence
+        assert get(f"{self.QUEUE_AGENT_STATE_ROOT}/replica_mapping/@index_to/table_path") == f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping"
+
     @authors("apachee")
     def test_run_migration_on_existing_directory(self):
         create("map_node", self.QUEUE_AGENT_STATE_ROOT)
 
         client = self.Env.create_native_client()
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
         run_migration(
             client=client,
             root=self.QUEUE_AGENT_STATE_ROOT,
@@ -6057,8 +6117,8 @@ class TestMigration(YTEnvSetup):
         self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
 
     FAKE_REPLICATED_TABLE_MAPPING_SCHEMA = [
-        {"name": "cluster", "type": "string", "sort_order": "ascending", "required": True},
-        {"name": "path", "type": "string", "sort_order": "ascending", "required": True},
+        {"name": "cluster", "type": "string", "sort_order": "ascending"},
+        {"name": "path", "type": "string", "sort_order": "ascending"},
         {"name": "random_value_column", "type": "int64"},
     ]
 
@@ -6091,7 +6151,7 @@ class TestMigration(YTEnvSetup):
         create("map_node", self.QUEUE_AGENT_STATE_ROOT)
 
         client = self.Env.create_native_client()
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
         run_migration(
             client=client,
             root=self.QUEUE_AGENT_STATE_ROOT,

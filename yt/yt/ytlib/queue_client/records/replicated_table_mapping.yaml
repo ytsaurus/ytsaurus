@@ -37,3 +37,12 @@ types:
         cpp_type: std::optional<NYson::TYsonString>
         column_name: synchronization_error
         column_type: Any
+
+      - cpp_name: ReplicaList
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: replica_list
+        column_type_v3:
+          type_name: optional
+          item:
+            type_name: list
+            item: string

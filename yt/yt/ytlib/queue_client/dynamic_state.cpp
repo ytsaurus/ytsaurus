@@ -250,8 +250,17 @@ NRecords::TReplicatedTableMappingKey RecordKeyFromRow(const TReplicatedTableMapp
 NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTableRow& row)
 {
     std::optional<TYsonString> meta;
+    std::optional<TYsonString> replicaListTypeV3;
     if (row.Meta) {
         meta = ConvertToYsonString(row.Meta);
+
+        auto richYPathReplicaList = row.GetReplicas();
+        std::vector<TCrossClusterReference> replicaList;
+        replicaList.reserve(richYPathReplicaList.size());
+        for (const auto& replica : richYPathReplicaList) {
+            replicaList.push_back(TCrossClusterReference::FromRichYPath(replica));
+        }
+        replicaListTypeV3 = ConvertToYsonString(replicaList);
     }
 
     return NRecords::TReplicatedTableMapping{
@@ -260,6 +269,7 @@ NRecords::TReplicatedTableMapping RecordFromRow(const TReplicatedTableMappingTab
         .ObjectType = MapEnumToString(row.ObjectType),
         .Meta = std::move(meta),
         .SynchronizationError = ToOptionalYsonString(row.SynchronizationError),
+        .ReplicaList = replicaListTypeV3,
     };
 }
 

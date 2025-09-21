@@ -1,12 +1,16 @@
 #!/usr/bin/python3
 
-from yt.wrapper import config, YtClient
+from yt.wrapper import config, YtClient, ypath_split, ypath_join
 
-from yt.environment.migrationlib import TableInfo, Migration, Conversion
+from yt.environment.migrationlib import TableInfo, Migration, Conversion, TypeV3
 
 import argparse
 
+from abc import ABC, abstractmethod
+
 from copy import deepcopy
+
+import logging
 
 ################################################################################
 
@@ -25,6 +29,17 @@ def _replicated_table_filter_callback(client, table_path):
 
     upstream_replica_id = client.get("{}/@upstream_replica_id".format(table_path))
     return upstream_replica_id == "0-0-0-0"
+
+
+def _create_replicated_table_index_filter_callback(source_table_name):
+    def replicated_table_index_filter_callback(client, table_path):
+        root, _ = ypath_split(table_path)
+        return (
+            _replicated_table_filter_callback(client=client, table_path=ypath_join(root, source_table_name))
+            and _replicated_table_filter_callback(client=client, table_path=table_path)
+        )
+
+    return replicated_table_index_filter_callback
 
 
 DEFAULT_TABLET_CELL_BUNDLE = "default"
@@ -132,6 +147,58 @@ INITIAL_TABLE_INFOS = {
         attributes=DEFAULT_TABLE_ATTRIBUTES_WITH_OLD_BUNDLE,
     ),
 }
+
+
+class ReconfigurableAction(ABC):
+    @abstractmethod
+    def reconfigure(self, config):
+        pass
+
+    @abstractmethod
+    def __call__(self, client):
+        pass
+
+
+class CreateSecondaryIndexAction(ReconfigurableAction):
+    def __init__(self, table_name, index_table_name, secondary_index_attributes, table_filter_callback=None, index_table_filter_callback=None):
+        super().__init__()
+
+        self.table_name = table_name
+        self.index_table_name = index_table_name
+        self.secondary_index_attributes = secondary_index_attributes
+        self.table_filter_callback = table_filter_callback
+        self.index_table_filter_callback = index_table_filter_callback
+
+    def reconfigure(self, config):
+        root = config["root"]
+        self.table_path = f"{root}/{self.table_name}"
+        self.index_table_path = f"{root}/{self.index_table_name}"
+        self.secondary_index_attributes.update({
+            "table_path": self.table_path,
+            "index_table_path": self.index_table_path,
+        })
+
+    def __call__(self, client):
+        if self.table_filter_callback and not self.table_filter_callback(client=client, table_path=self.table_path):
+            logging.info(f"Secondary index {self.index_table_name} skipped by table filter callback")
+            return
+
+        if self.index_table_filter_callback and not self.index_table_filter_callback(client=client, table_path=self.index_table_path):
+            logging.info(f"Secondary index {self.index_table_name} skipped by index table filter callback")
+            return
+
+        logging.info(f"Secondary index debug info: {self.secondary_index_attributes=}, "
+                     f"{client.get(f'{self.table_path}/@schema')=} "
+                     f"{client.get(f'{self.index_table_path}/@schema')=}")
+
+        client.unmount_table(self.secondary_index_attributes["table_path"], sync=True)
+        client.unmount_table(self.secondary_index_attributes["index_table_path"], sync=True)
+
+        client.create("secondary_index", attributes=self.secondary_index_attributes)
+
+        client.mount_table(self.secondary_index_attributes["table_path"], sync=True)
+        client.mount_table(self.secondary_index_attributes["index_table_path"], sync=True)
+
 
 DEFAULT_ROOT = "//sys/queue_agents"
 
@@ -294,6 +361,67 @@ TRANSFORMS[3] = [
     ),
 ]
 
+# Add replica_mapping index.
+TRANSFORMS[4] = [
+    Conversion(
+        "replicated_table_mapping",
+        table_info=TableInfo(
+            [
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("revision", "uint64"),
+                ("object_type", "string"),
+                ("meta", "any"),
+                ("synchronization_error", "any"),
+                ("replica_list", TypeV3({
+                    "type_name": "optional",
+                    "item": {
+                        "type_name": "list",
+                        "item": "string",
+                    },
+                })),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_replicated_table_filter_callback,
+    ),
+    Conversion(
+        "replica_mapping",
+        table_info=TableInfo(
+            [
+                ("replica_list", "string", None, {"required": True}),
+                ("cluster", "string"),
+                ("path", "string"),
+            ],
+            [
+                ("$empty", "int64"),
+            ],
+            optimize_for="lookup",
+            attributes=DEFAULT_TABLE_ATTRIBUTES,
+        ),
+        filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    ),
+]
+
+# Add secondary_index between replica_mapping and replicated_table_mapping.
+# Actual paths are set in prepare_migration.
+ACTIONS[5] = [
+    CreateSecondaryIndexAction(
+        table_name="replicated_table_mapping",
+        index_table_name="replica_mapping",
+        secondary_index_attributes={
+            "kind": "unfolding",
+            "unfolded_column": "replica_list",
+            "table_to_index_correspondence": "bijective",
+        },
+        table_filter_callback=_replicated_table_filter_callback,
+        index_table_filter_callback=_create_replicated_table_index_filter_callback("replicated_table_mapping"),
+    )
+]
+
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,
     initial_version=INITIAL_VERSION,
@@ -339,7 +467,10 @@ PRODUCER_OBJECT_TABLE_SCHEMA = [
 ]
 
 
-def _select_tablet_cell_bundle(client, desired_tablet_cell_bundle):
+def _select_tablet_cell_bundle(client, desired_tablet_cell_bundle, override_tablet_cell_bundle=None):
+    if override_tablet_cell_bundle:
+        return override_tablet_cell_bundle
+
     # NB(apachee): Iterate over all choices and fallback to the next one, if desired does not exist.
     for index, tablet_cell_bundle in enumerate(QUEUE_AGENT_STATE_TABLET_CELL_BUNDLE_PRIORITY_LIST):
         if desired_tablet_cell_bundle == tablet_cell_bundle and not client.exists("//sys/tablet_cell_bundles/{}".format(tablet_cell_bundle)):
@@ -349,13 +480,14 @@ def _select_tablet_cell_bundle(client, desired_tablet_cell_bundle):
     return desired_tablet_cell_bundle
 
 
-def prepare_migration(client):
+def prepare_migration(client, root, override_tablet_cell_bundle=None):
     def update_tablet_cell_bundle(table_info):
         tablet_cell_bundle = table_info.attributes.get("tablet_cell_bundle", QUEUE_AGENT_STATE_DEFAULT_TABLET_CELL_BUNDLE)
-        table_info.attributes["tablet_cell_bundle"] = _select_tablet_cell_bundle(client, tablet_cell_bundle)
+        table_info.attributes["tablet_cell_bundle"] = _select_tablet_cell_bundle(client, tablet_cell_bundle, override_tablet_cell_bundle=override_tablet_cell_bundle)
 
     initial_table_infos = deepcopy(INITIAL_TABLE_INFOS)
     transforms = deepcopy(TRANSFORMS)
+    actions = deepcopy(ACTIONS)
 
     for table_info in initial_table_infos.values():
         update_tablet_cell_bundle(table_info)
@@ -365,11 +497,20 @@ def prepare_migration(client):
             if conversion.table_info:
                 update_tablet_cell_bundle(conversion.table_info)
 
+    reconfigureable_action_config = {
+        "root": root,
+    }
+
+    for _, version_actions in actions.items():
+        for action in version_actions:
+            if isinstance(action, ReconfigurableAction):
+                action.reconfigure(config=reconfigureable_action_config)
+
     return Migration(
         initial_table_infos=initial_table_infos,
         initial_version=INITIAL_VERSION,
         transforms=transforms,
-        actions=ACTIONS,
+        actions=actions,
     )
 
 
@@ -382,19 +523,18 @@ def get_latest_version():
 def create_tables_latest_version(client, root=DEFAULT_ROOT, shard_count=DEFAULT_SHARD_COUNT, override_tablet_cell_bundle="default"):
     """ Creates queue agent state tables of latest version """
 
-    if override_tablet_cell_bundle is None:
-        migration = prepare_migration(client)
-    else:
-        # NB(apachee): No reason to prepare migration if override_tablet_cell_bundle is not None
-        migration = MIGRATION
+    migration = prepare_migration(client, root=root, override_tablet_cell_bundle=override_tablet_cell_bundle)
 
-    migration.create_tables(
+    delete_all_tables(client, root)
+
+    migration.run(
         client=client,
-        target_version=MIGRATION.get_latest_version(),
+        target_version=migration.get_latest_version(),
         tables_path=root,
         shard_count=shard_count,
-        override_tablet_cell_bundle=override_tablet_cell_bundle,
-        force_initialize=True,
+        force=False,
+        retransform=False,
+        pool=None,
     )
 
 
@@ -434,7 +574,7 @@ def build_arguments_parser():
 
 def run_migration(client, root, target_version=None, shard_count=1, force=False, migration=None):
     if migration is None:
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=root)
 
     if target_version is None:
         target_version = migration.get_latest_version()
