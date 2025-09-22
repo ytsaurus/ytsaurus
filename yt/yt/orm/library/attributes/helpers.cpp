@@ -112,12 +112,13 @@ NYTree::INodePtr ConvertProtobufToNode(
 // Returns [index of the item, its content].
 TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
     UnknownFieldSet* unknownFields,
-    TStringBuf key)
+    TStringBuf key,
+    int unknownFieldNumber)
 {
     int count = unknownFields->field_count();
     for (int index = 0; index < count; ++index) {
         auto* field = unknownFields->mutable_field(index);
-        if (field->number() == UnknownYsonFieldNumber) {
+        if (field->number() == unknownFieldNumber) {
             if (field->type() != UnknownField::TYPE_LENGTH_DELIMITED) {
                 return TError(NAttributes::EErrorCode::InvalidData,
                     "Unexpected type %v of item within yson unknown field set",
