@@ -991,7 +991,7 @@ class TestGangOperations(YTEnvSetup):
             "user_job_monitoring": {
                 "extended_max_monitored_user_jobs_per_operation": 5,
                 "max_monitored_user_jobs_per_agent": 10,
-                "max_monitored_user_gangs_jobs_per_agent": 2,
+                "max_monitored_user_gangs_jobs_per_agent": 3,
             },
         },
     }
@@ -1640,7 +1640,7 @@ class TestGangOperations(YTEnvSetup):
         def check_gang_monitoring_descriptor(op, running_jobs, job_to_monitoring_descriptors):
             job_id_to_rank = self._get_job_id_to_rank_map(running_jobs)
             for job_id, descriptor in job_to_monitoring_descriptors.items():
-                expected_job_descriptor = "{}/{}".format(op.id, job_id_to_rank[job_id])
+                expected_job_descriptor = "{}/{}".format(op.id, job_id_to_rank[job_id] << 1)
                 assert descriptor == expected_job_descriptor
 
         first_job_ids = wait_breakpoint(job_count=3)
@@ -2104,8 +2104,108 @@ class TestGangOperations(YTEnvSetup):
 
         second_job_ids = wait_breakpoint(job_count=3)
         assert len(set(first_job_ids) & set(second_job_ids)) == 0
-
         release_breakpoint()
+
+        op.track()
+
+    @authors("krasovav")
+    @pytest.mark.parametrize("use_operation_id_based_descriptors_for_first_task", [True, False])
+    @pytest.mark.parametrize("use_operation_id_based_descriptors_for_second_task", [True, False])
+    def test_different_monitoing_descriptors_in_operation(self, use_operation_id_based_descriptors_for_first_task, use_operation_id_based_descriptors_for_second_task):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "first": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="first"),
+                        "gang_options": {},
+                        "monitoring": {
+                            "use_operation_id_based_descriptors_for_gangs_jobs": use_operation_id_based_descriptors_for_first_task,
+                            "enable": True
+                        },
+                    },
+                    "second": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="second"),
+                        "gang_options": {},
+                        "monitoring": {
+                            "enable": True,
+                            "use_operation_id_based_descriptors_for_gangs_jobs": use_operation_id_based_descriptors_for_second_task,
+                        }
+                    }
+                }
+            }
+        )
+
+        def check_gang_monitoring_descriptor_has_operation_id(op, job_ids, task_index):
+            running_jobs = self._get_running_jobs(op, 3)
+            job_id_to_rank = self._get_job_id_to_rank_map(running_jobs)
+            for job_id in job_ids:
+                monitoring_descriptor = op.get_job_node_orchid(job_id)["monitoring_descriptor"]
+                expected_job_descriptor = "{}/{}".format(op.id, (job_id_to_rank[job_id] << 2) + task_index)
+                assert monitoring_descriptor == expected_job_descriptor
+
+        def check_monitoring_descriptor_hasnt_operation_id(op, job_ids):
+            controller_agent_address = get(op.get_path() + "/@controller_agent_address")
+            controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+                controller_agent_address
+            )
+            incarnation_id = get("{}/incarnation_id".format(controller_agent_orchid))
+
+            expected_monitoring_descriptors = set()
+            for i in range(0, 3):
+                expected_monitoring_descriptors.add("{}/{}".format(incarnation_id, i))
+
+            for job_id in job_ids:
+                monitoring_descriptor = op.get_job_node_orchid(job_id)["monitoring_descriptor"]
+                assert monitoring_descriptor in expected_monitoring_descriptors
+                expected_monitoring_descriptors.remove(monitoring_descriptor)
+
+        def check_monitoring_descriptor(op, first_task_job_ids, second_task_job_ids):
+            if use_operation_id_based_descriptors_for_first_task:
+                check_gang_monitoring_descriptor_has_operation_id(op, first_task_job_ids, 0)
+            else:
+                check_monitoring_descriptor_hasnt_operation_id(op, first_task_job_ids)
+
+            if use_operation_id_based_descriptors_for_second_task:
+                check_gang_monitoring_descriptor_has_operation_id(op, second_task_job_ids, 1)
+            else:
+                check_monitoring_descriptor_hasnt_operation_id(op, second_task_job_ids)
+
+        def check_not_equal_monitoring_descriptor(op, job_ids):
+            all_descriptors = set()
+            for job_id in job_ids:
+                monitoring_descriptor = op.get_job_node_orchid(job_id)["monitoring_descriptor"]
+                assert monitoring_descriptor not in all_descriptors
+                all_descriptors.add(monitoring_descriptor)
+
+        first_task_job_ids = wait_breakpoint(breakpoint_name="first", job_count=1)
+        second_task_job_ids = wait_breakpoint(breakpoint_name="second", job_count=2)
+        first_job_ids = first_task_job_ids + second_task_job_ids
+        assert len(first_job_ids) == 3
+
+        check_monitoring_descriptor(op, first_task_job_ids, second_task_job_ids)
+        check_not_equal_monitoring_descriptor(op, first_job_ids)
+
+        abort_job(first_task_job_ids[0])
+
+        release_breakpoint(job_id=first_task_job_ids[0], breakpoint_name="first")
+        release_breakpoint(job_id=second_task_job_ids[0], breakpoint_name="second")
+        release_breakpoint(job_id=second_task_job_ids[1], breakpoint_name="second")
+
+        first_task_job_ids = wait_breakpoint(breakpoint_name="first", job_count=1)
+        second_task_job_ids = wait_breakpoint(breakpoint_name="second", job_count=2)
+        second_job_ids = first_task_job_ids + second_task_job_ids
+        assert len(second_job_ids) == 3
+
+        assert second_job_ids != first_job_ids
+
+        check_monitoring_descriptor(op, first_task_job_ids, second_task_job_ids)
+        check_not_equal_monitoring_descriptor(op, second_job_ids)
+
+        release_breakpoint(breakpoint_name="first")
+        release_breakpoint(breakpoint_name="second")
 
         op.track()
 

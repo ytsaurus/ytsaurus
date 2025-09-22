@@ -883,7 +883,6 @@ public:
 
 private:
     TGangRankPool RankPool_;
-
     IChunkPoolOutput::TCookie ExtractCookieForAllocation(
         const TAllocation& allocation) final;
 
@@ -998,6 +997,10 @@ private:
     void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) final;
 
     void CustomMaterialize() final;
+
+    int MakeGangMonitoringIndex(const TGangJoblet& joblet) const;
+
+    int GetTaskIndex(const TTask* task) const;
 
     NProfiling::TCounter UsedGangsMonitoringDescriptorCount_;
 
@@ -1776,6 +1779,26 @@ std::optional<TJobMonitoringDescriptor> TGangOperationController::AcquireMonitor
     return lastGangJobInfo->MonitoringDescriptor;
 }
 
+int TGangOperationController::GetTaskIndex(const TTask* task) const
+{
+    auto it = std::find(Tasks_.begin(), Tasks_.end(), task);
+    YT_VERIFY(it != Tasks_.end());
+    return std::distance(Tasks_.begin(), it);
+}
+
+int TGangOperationController::MakeGangMonitoringIndex(const TGangJoblet& joblet) const
+{
+    YT_VERIFY(joblet.Rank);
+    YT_VERIFY(Tasks_.size() > 0);
+
+    int taskIndex = GetTaskIndex(joblet.Task);
+
+    // It is necessary to ensure the uniqueness of the monitoring descriptor index.
+    // Within a single task, it is ensured by GangRank, but each task has its own set of GangRank.
+    // Therefore, we embed GangRank and TaskIndex in the index.
+    return taskIndex + (*joblet.Rank << std::bit_floor(Tasks_.size()));
+}
+
 std::optional<TJobMonitoringDescriptor> TGangOperationController::DoRegisterNewMonitoringDescriptor(const TJobletPtr& joblet)
 {
     YT_VERIFY(joblet);
@@ -1787,7 +1810,7 @@ std::optional<TJobMonitoringDescriptor> TGangOperationController::DoRegisterNewM
 
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
     if (gangJoblet.Rank) {
-        auto descriptor = Host_->TryAcquireGangJobMonitoringDescriptor(OperationId_, *gangJoblet.Rank);
+        auto descriptor = Host_->TryAcquireGangJobMonitoringDescriptor(OperationId_, MakeGangMonitoringIndex(gangJoblet));
         if (descriptor) {
             UsedGangsMonitoringDescriptorCount_.Increment();
             return descriptor;
@@ -1818,7 +1841,7 @@ std::optional<TJobMonitoringDescriptor> TGangOperationController::TryAcquireMoni
     auto it = MonitoringDescriptorPool_.find(
         TJobMonitoringDescriptor(
             OperationId_.Underlying(),
-            *gangJoblet.Rank));
+            MakeGangMonitoringIndex(gangJoblet)));
     if (it == MonitoringDescriptorPool_.end()) {
         return std::nullopt;
     }
