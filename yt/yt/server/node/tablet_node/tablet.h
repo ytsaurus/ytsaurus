@@ -4,6 +4,7 @@
 #include "chaos_agent.h"
 #include "object_detail.h"
 #include "partition.h"
+#include "puller_replica_cache.h"
 #include "store.h"
 #include "sorted_dynamic_comparer.h"
 #include "tablet_profiling.h"
@@ -101,6 +102,7 @@ struct TChaosTabletData
     NThreading::TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
     NThreading::TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
     std::atomic<bool> IsTrimInProgress = false;
+    TAtomicIntrusivePtr<IPullerReplicaCache> PullerReplicaCache{GetDisabledPullerReplicaCache()};
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosTabletData)

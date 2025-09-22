@@ -23,6 +23,8 @@ from yt_commands import (
     sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link,
     execute_batch, make_batch_request, ping_chaos_lease, get_safe_trim_row_count)
 
+from yt_helpers import profiler_factory
+
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal, are_items_equal
@@ -434,6 +436,64 @@ class TestChaos(ChaosTestBase):
         assert row["key"] == 0
         assert len(row.attributes["write_timestamps"]) == 0
         assert len(row.attributes["delete_timestamps"]) == 1
+
+    @authors("tea-mur")
+    def test_puller_replica_cache(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/ts"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qs"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/tae"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/ta"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
+        })
+
+        sync_queue_tablet_id = get("//tmp/qs/@tablets/0/tablet_id")
+        sync_queue_cell_id = get(f"//sys/tablets/{sync_queue_tablet_id}/@cell_id")
+        sync_queue_node = get(f"#{sync_queue_cell_id}/@peers/0/address")
+
+        set("//tmp/qs/@mount_config/puller_replica_cache_export_size_threshold", 1)
+        remount_table("//tmp/qs")
+
+        # Async replicas expected to pull from sync queue
+        puller_replica_cache_size = (
+            profiler_factory()
+            .at_node(sync_queue_node)
+            .gauge(
+                name="tablet_node/tablet/puller_replica_cache/size",
+                fixed_tags={
+                    'tablet_cell_bundle': 'default',
+                    'table_path': '//tmp/qs'
+                })
+        )
+
+        insert_rows("//tmp/ts", [{"key": 0, "value": "0"}])
+
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[2]}/replication_lag_timestamp") > timestamp)
+
+        # Only enabled async replicas expected to pull rows
+        assert puller_replica_cache_size.get() == 1
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, enabled=True)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[3]}/replication_lag_timestamp") > timestamp)
+
+        assert puller_replica_cache_size.get() == 2
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, enabled=False)
+
+        remount_table("//tmp/qs")
+
+        # The cache is recreated during remount, so it should be empty
+        # NB: The same effect will occur when the cache values expire, but the expiration timeout is much higher (5m)
+        wait(lambda: puller_replica_cache_size.get() == 0)
 
     @authors("savrus")
     def test_serialized_pull_rows(self):

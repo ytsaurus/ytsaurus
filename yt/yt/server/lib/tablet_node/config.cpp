@@ -298,6 +298,15 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("replication_progress_update_tick_period", &TThis::ReplicationProgressUpdateTickPeriod)
         .Default(TDuration::Seconds(10));
 
+    registrar.Parameter("puller_replica_cache_timeout", &TThis::PullerReplicaCacheTimeout)
+        .Default()
+        .DontSerializeDefault();
+
+    registrar.Parameter("puller_replica_cache_export_size_threshold", &TThis::PullerReplicaCacheExportSizeThreshold)
+        .GreaterThan(0)
+        .Default(5)
+        .DontSerializeDefault();
+
     registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
 

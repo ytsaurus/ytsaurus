@@ -4590,6 +4590,7 @@ private:
         AddChaosAgent(tablet, replicationCardId);
         tablet->GetChaosAgent()->Enable();
         tablet->GetTablePuller()->Enable();
+        tablet->ChaosData()->PullerReplicaCache.Store(CreatePullerReplicaCache(tablet, replicationCardId));
     }
 
     void StopChaosReplicaEpoch(TTablet* tablet)
@@ -4605,6 +4606,8 @@ private:
         if (tablet->GetTablePuller()) {
             tablet->GetTablePuller()->Disable();
         }
+
+        tablet->ChaosData()->PullerReplicaCache.Store(GetDisabledPullerReplicaCache());
     }
 
     void SetBackingStore(TTablet* tablet, const IChunkStorePtr& store, const IDynamicStorePtr& backingStore)
