@@ -814,6 +814,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
         .Default(false);
+
+    registrar.Parameter("environment_variables", &TThis::EnvironmentVariables)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
