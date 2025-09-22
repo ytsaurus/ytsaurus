@@ -107,6 +107,7 @@
 #include <util/stream/tee.h>
 
 #include <util/system/compiler.h>
+#include <util/system/env.h>
 #include <util/system/execpath.h>
 #include <util/system/fs.h>
 #include <util/system/shellcommand.h>
@@ -1371,6 +1372,16 @@ private:
             auto env = GetEnviron();
             for (const auto& variable : env) {
                 SetEnvironment(variable);
+            }
+        }
+
+        for (const auto& variable : Config_->EnvironmentVariables) {
+            if (variable->ForwardToUserJob.value_or(false) && !Config_->ForwardAllEnvironmentVariables) {
+                // Set environment variable if it is not forwarded yet.
+                SetEnvironment(Format("%v=%v", variable->Name, GetEnv(variable->Name)));
+            } else if (!variable->ForwardToUserJob.value_or(true) && Config_->ForwardAllEnvironmentVariables) {
+                // Unset environment variable if it should not be forwarded with all variables.
+                SetEnvironment(variable->Name);
             }
         }
 
