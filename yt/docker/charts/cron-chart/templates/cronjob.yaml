@@ -1,8 +1,8 @@
-{{ range $idx, $cronJob := (concat .Values.jobs .Values.additionalJobs)}}
+{{- range $jobName, $cronJob := (merge .Values.jobs .Values.additionalJobs) }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ printf "%s-%s" (include ".fullname" $) (include ".cronJobSlug" $cronJob) | trunc 63 | trimSuffix "-" }}
+  name: {{ printf "%s-%s" (include ".fullname" $) (include ".cronJobSlug" (dict "name" $jobName)) | trunc 63 | trimSuffix "-" }}
   labels:
     {{- include ".labels" $ | nindent 4 }}
 spec:
@@ -23,7 +23,7 @@ spec:
           securityContext:
             {{- toYaml $.Values.podSecurityContext | nindent 12 }}
           containers:
-          - name: {{ include ".cronJobSlug" $cronJob }}
+          - name: {{ include ".cronJobSlug" (dict "name" $jobName) }}
             securityContext:
               {{- toYaml $.Values.securityContext | nindent 14 }}
             image: {{ $.Values.image.repository }}:{{ $.Values.image.tag | default (printf "v%s" $.Chart.AppVersion) }}

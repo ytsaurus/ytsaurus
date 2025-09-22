@@ -84,10 +84,10 @@ concurrencyPolicy: "Forbid"
 
 # additionalJobs makes it possible to add more cron jobs to the
 # default list of jobs in chart's values.
-additionalJobs: []
+additionalJobs: {}
 
 jobs:
-  - name: clear_tmp_location
+  clear_tmp_location:
     enabled: true
     args:
       - clear_tmp
@@ -103,7 +103,7 @@ jobs:
     schedule: "*/15 * * * *"
     restartPolicy: Never
 
-  - name: clear_tmp_files
+  clear_tmp_files:
     enabled: false
     args:
       - clear_tmp
@@ -119,7 +119,7 @@ jobs:
     schedule: "*/15 * * * *"
     restartPolicy: Never
 
-  - name: clear_tmp_trash
+  clear_tmp_trash:
     enabled: true
     args:
       - clear_tmp
@@ -130,7 +130,7 @@ jobs:
     schedule: "*/15 * * * *"
     restartPolicy: Never
 
-  - name: prune_offline_cluster_nodes
+  prune_offline_cluster_nodes:
     enabled: false
     args:
       - prune_offline_cluster_nodes
@@ -138,4 +138,18 @@ jobs:
       - --node-ttl 1d
       - --no-dry-run
     schedule: "*/15 * * * *"
+    restartPolicy: Never
+
+  validate_master_snapshot:
+    enabled: false
+    args:
+      - validate_master_snapshot
+    schedule: "0 * * * *"
+    restartPolicy: Never
+
+  export_master_snapshot:
+    enabled: false
+    args:
+      - export_master_snapshot
+    schedule: "30 * * * *"
     restartPolicy: Never
