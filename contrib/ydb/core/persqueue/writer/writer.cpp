@@ -12,7 +12,7 @@
 #include <contrib/ydb/core/kqp/common/events/events.h>
 #include <contrib/ydb/core/kqp/common/simple/services.h>
 #include <contrib/ydb/core/persqueue/events/global.h>
-#include <contrib/ydb/core/persqueue/pq_rl_helpers.h>
+#include <contrib/ydb/core/persqueue/public/pq_rl_helpers.h>
 #include <contrib/ydb/library/wilson_ids/wilson.h>
 #include <contrib/ydb/public/lib/base/msgbus_status.h>
 

@@ -4,7 +4,7 @@
 #include "persqueue_utils.h"
 
 #include <contrib/ydb/core/base/tablet_pipe.h>
-#include <contrib/ydb/core/persqueue/utils.h>
+#include <contrib/ydb/core/persqueue/public/utils.h>
 
 
 namespace NKikimr::NGRpcProxy::V1 {

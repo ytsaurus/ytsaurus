@@ -3,7 +3,7 @@
 #include "schemeshard_info_types.h"
 
 #include <contrib/ydb/core/base/table_index.h>
-#include <contrib/ydb/core/persqueue/utils.h>
+#include <contrib/ydb/core/persqueue/public/utils.h>
 
 namespace NKikimr {
 namespace NSchemeShard {

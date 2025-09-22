@@ -7,7 +7,7 @@
 #include <contrib/ydb/core/grpc_services/grpc_request_proxy.h>
 #include <contrib/ydb/core/persqueue/events/global.h>
 
-#include <contrib/ydb/core/persqueue/pq_rl_helpers.h>
+#include <contrib/ydb/core/persqueue/public/pq_rl_helpers.h>
 
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 

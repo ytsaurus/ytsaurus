@@ -1,6 +1,5 @@
 LIBRARY()
 
-
 PEERDIR(
     contrib/libs/apache/arrow
     yql/essentials/types/binary_json

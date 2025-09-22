@@ -8,8 +8,8 @@
 #include <contrib/ydb/library/persqueue/topic_parser/counters.h>
 #include <contrib/ydb/library/wilson_ids/wilson.h>
 #include <contrib/ydb/core/base/wilson_tracing_control.h>
-#include <contrib/ydb/core/persqueue/pq_database.h>
-#include <contrib/ydb/core/persqueue/write_meta.h>
+#include <contrib/ydb/core/persqueue/public/pq_database.h>
+#include <contrib/ydb/core/persqueue/public/write_meta/write_meta.h>
 #include <contrib/ydb/core/base/feature_flags.h>
 #include <contrib/ydb/library/services/services.pb.h>
 #include <contrib/ydb/public/lib/deprecated/kicli/kicli.h>

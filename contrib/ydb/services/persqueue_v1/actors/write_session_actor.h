@@ -14,7 +14,7 @@
 #include <contrib/ydb/core/jaeger_tracing/request_discriminator.h>
 #include <contrib/ydb/core/kqp/common/kqp.h>
 #include <contrib/ydb/core/persqueue/events/global.h>
-#include <contrib/ydb/core/persqueue/pq_rl_helpers.h>
+#include <contrib/ydb/core/persqueue/public/pq_rl_helpers.h>
 #include <contrib/ydb/core/persqueue/writer/partition_chooser.h>
 #include <contrib/ydb/core/persqueue/writer/source_id_encoding.h>
 #include <contrib/ydb/core/persqueue/writer/writer.h>

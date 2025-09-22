@@ -10,9 +10,9 @@ GENERATE_ENUM_SERIALIZATION(contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/clien
 
 PEERDIR(
     contrib/ydb/public/api/protos
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/make_request
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/kqp_session_common
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/retry
+    contrib/ydb/public/sdk/cpp/src/client/impl/internal/make_request
+    contrib/ydb/public/sdk/cpp/src/client/impl/internal/retry
+    contrib/ydb/public/sdk/cpp/src/client/impl/session
     contrib/ydb/public/sdk/cpp/src/client/driver
     contrib/ydb/public/sdk/cpp/src/client/params
     contrib/ydb/public/sdk/cpp/src/client/proto

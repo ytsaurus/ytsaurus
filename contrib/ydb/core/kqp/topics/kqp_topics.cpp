@@ -2,7 +2,7 @@
 
 #include <contrib/ydb/core/base/path.h>
 #include <contrib/ydb/core/protos/kqp.pb.h>
-#include <contrib/ydb/core/persqueue/utils.h>
+#include <contrib/ydb/core/persqueue/public/utils.h>
 #include <contrib/ydb/core/kafka_proxy/kafka_producer_instance_id.h>
 #include <contrib/ydb/library/actors/core/log.h>
 

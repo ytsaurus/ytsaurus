@@ -5,8 +5,8 @@
 #include <contrib/ydb/core/grpc_services/local_rate_limiter.h>
 #include <contrib/ydb/core/protos/msgbus.pb.h>
 #include <contrib/ydb/core/protos/msgbus_pq.pb.h>
-#include <contrib/ydb/core/persqueue/pq_rl_helpers.h>
-#include <contrib/ydb/core/persqueue/write_id.h>
+#include <contrib/ydb/core/persqueue/public/pq_rl_helpers.h>
+#include <contrib/ydb/core/persqueue/public/write_id.h>
 #include <contrib/ydb/core/kafka_proxy/kafka_producer_instance_id.h>
 
 #include <variant>

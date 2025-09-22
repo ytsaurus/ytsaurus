@@ -8,10 +8,9 @@ SRCS(
 )
 
 PEERDIR(
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/make_request
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/kqp_session_common
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/session_pool
-    contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/retry
+    contrib/ydb/public/sdk/cpp/src/client/impl/internal/make_request
+    contrib/ydb/public/sdk/cpp/src/client/impl/session
+    contrib/ydb/public/sdk/cpp/src/client/impl/internal/retry
     contrib/ydb/public/sdk/cpp/src/client/common_client
     contrib/ydb/public/sdk/cpp/src/client/driver
     contrib/ydb/public/sdk/cpp/src/client/query/impl
