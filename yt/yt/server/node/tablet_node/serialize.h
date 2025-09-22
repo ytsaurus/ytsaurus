@@ -56,6 +56,7 @@ DEFINE_ENUM(ETabletReign,
     ((BoggleLatePrepare)                           (101303)) // akozhikhov
     ((DoNotAccountPureLocksAsWritesWithData)       (101304)) // ponasenko-rs
     ((AddLastCoordinatorCommitTimestamp)           (101305)) // aleksandra-zh
+    ((UpdateHunkTabletStoresFix)                   (101306)) // akozhikhov
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
