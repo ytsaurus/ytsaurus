@@ -128,6 +128,8 @@ const TProgramMap& GetProgramMap()
             .Add(NTimestampProvider::RunTimestampProviderProgram, "timestamp-provider")
             .Add(NMasterCache::RunMasterCacheProgram, "master-cache")
             .Add(NCellBalancer::RunCellBalancerProgram, "cell-balancer")
+            // For historical reasons bundle controller resides in cell-balancer binary.
+            .Add(NCellBalancer::RunCellBalancerProgram, "bundle-controller")
             .Add(NQueueAgent::RunQueueAgentProgram, "queue-agent")
             .Add(NTabletBalancer::RunTabletBalancerProgram, "tablet-balancer")
             .Add(NCypressProxy::RunCypressProxyProgram, "cypress-proxy")
