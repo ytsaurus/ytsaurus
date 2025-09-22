@@ -1779,7 +1779,7 @@ private:
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist) {
                 ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
-                    "Table " << tableInfo.Name << " is alreasy exists."));
+                    "Table " << tableInfo.Name << " is already exists."));
                 return TStatus::Error;
             }
 
