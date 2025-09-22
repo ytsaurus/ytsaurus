@@ -11,7 +11,7 @@ from yt_helpers import profiler_factory
 
 from yt_queries import get_query_tracker_info
 
-from yt.wrapper import yson
+from yt.wrapper import yson, YtError
 
 import yt_error_codes
 
@@ -43,6 +43,14 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
             return
 
         assert_items_equal(result, expected)
+
+    def _test_simple_query_error(self, query, expected, **kwargs):
+        try:
+            result = self._run_simple_query(query, **kwargs)
+        except YtError as err:
+            assert err.contains_text(expected)
+            return
+        assert False
 
     def _exists_pending_stage_in_progress(self, query):
         queryInfo = query.get()
@@ -1614,3 +1622,46 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTracke
 
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True
+
+
+@authors("a-romanov")
+class TestsDDL(TestQueriesYqlSimpleBase):
+    NUM_TEST_PARTITIONS = 3
+
+    def test_simple_create_table(self, query_tracker, yql_agent):
+        self._test_simple_query("create table `//tmp/t1` (xyz Text);", None)
+        self._test_simple_query("select * from `//tmp/t1`;", [])
+
+    def test_error_already_exists(self, query_tracker, yql_agent):
+        self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
+        self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
+
+    def test_error_create_and_drop(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            create table `//tmp/ttt` (xyz Text);
+            drop table `//tmp/ttt`;
+        """, "is modified and dropped in the same transaction")
+
+    def test_create_commit_drop(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t3` (xyz Text);
+            commit;
+            drop table `//tmp/t3`;
+        """, None)
+
+    def test_create_commit_read(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t4` (xyz Text);
+            commit;
+            select * from `//tmp/t4`;
+        """, [])
+
+    def test_create_table_with_pk(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t5` (
+                key Text null,
+                subkey Int32 not null,
+                value Uint64,
+                primary key(key, subkey)
+            );
+        """, None)
