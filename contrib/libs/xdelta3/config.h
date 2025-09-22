@@ -79,3 +79,9 @@
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
+
+#ifdef WIN32
+    #define _WIN32 1
+    #define XD3_WIN32 1
+    #define EXTERNAL_COMPRESSION 0
+#endif
