@@ -10,6 +10,8 @@ config:
   mountPath: /opt/odin
 
   odin:
+    useIPv4: false
+    useIPv6: false
     db:
       proxy: "ytsaurus.http.proxy.tech"
       tokenEnvVariable: "YT_TOKEN"
@@ -32,7 +34,7 @@ config:
       filename: "/dev/stderr"
 
   checks:
-    - name: sort_result
+    sort_result:
       displayName: Sort Result
       enable: true
       config:
@@ -40,7 +42,7 @@ config:
           soft_sort_timeout: 70
           temp_tables_path: "//sys/admin/odin/sort_result"
         check_timeout: 120
-    - name: map_result
+    map_result:
       displayName: Map Result
       enable: true
       config:
@@ -48,69 +50,70 @@ config:
           soft_map_timeout: 105
           temp_tables_path: "//sys/admin/odin/map_result"
         check_timeout: 180
-    - name: dynamic_table_commands
+    dynamic_table_commands:
       displayName: Dynamic Table Commands
-      enable: false
+      enable: true
       config:
         options:
           temp_tables_path: "//sys/admin/odin/dynamic_table_commands"
           tablet_cell_bundle: sys
-    - name: suspicious_jobs
+    suspicious_jobs:
       displayName: Suspicious Jobs
       enable: true
       config:
         options:
           critical_suspicious_job_inactivity_timeout: 420
-    - name: lost_vital_chunks
+    lost_vital_chunks:
       displayName: Lost Vital Chunks
       enable: true
       config:
         options:
           max_size: 10
-    - name: clock_quorum_health
+    clock_quorum_health:
       displayName: Clock Quorum Health
-      enable: true
+      # Separate clock servers are not configured in cluster by default.
+      enable: false
       config:
         enable: false
         options:
           monitoring_port: 10016
-    - name: quorum_health
+    quorum_health:
       displayName: Quorum Health
       enable: true
       config:
         options:
           monitoring_port: 10010
-    - name: tablet_cells
+    tablet_cells:
       displayName: Tablet Cells
       enable: true
       config:
         check_timeout: 120
-    - name: tablet_cell_gossip
+    tablet_cell_gossip:
       displayName: Tablet Cell Gossip
       enable: true
       config:
         check_timeout: 120
-    - name: tablet_cell_snapshots
+    tablet_cell_snapshots:
       displayName: Tablet Cell Snapshots
       enable: true
       config:
         check_timeout: 120
-    - name: scheduler_uptime
+    scheduler_uptime:
       displayName: Scheduler Uptime
       enable: true
       config:
         check_timeout: 120
-    - name: controller_agent_count
+    controller_agent_count:
       displayName: Controller Agent Count
       enable: true
       config:
         check_timeout: 120
-    - name: controller_agent_uptime
+    controller_agent_uptime:
       displayName: Controller Agent Uptime
       enable: true
       config:
         check_timeout: 120
-    - name: operations_satisfaction
+    operations_satisfaction:
       displayName: Operations Satisfaction
       enable: true
       config:
@@ -118,14 +121,14 @@ config:
           state_path: "//sys/admin/odin/operations_satisfaction_state"
           min_satisfaction_ratio: 0.9
           critical_unsatisfied_minute_count: 10
-    - name: operations_snapshots
+    operations_snapshots:
       displayName: Operations Snapshots
       enable: true
       config:
-        enable: false
+        enable: true
         options:
           critical_time_without_snapshot_threshold: 3600
-    - name: operations_count
+    operations_count:
       displayName: Operations Count
       enable: true
       config:
@@ -133,147 +136,165 @@ config:
           operations_count_threshold: 5000
           recoursive_node_count_warn: 40000
           recoursive_node_count_crit: 60000
-    - name: dynamic_table_replication
+    dynamic_table_replication:
       displayName: Dynamic Table Replication
-      enable: true
+      # This check applicable for group of clusters with dynamic table replication.
+      enable: false
       config:
         enable: false
-    - name: register_watcher
+    register_watcher:
       displayName: Register Watcher
-      enable: false
+      enable: true
       config:
         options:
           crit_threshold: 7
           warn_threshold: 5
-    - name: tmp_node_count
+    tmp_node_count:
       displayName: Tmp Node Count
-      enable: false
+      enable: true
       config:
         options:
-          files_count_threshold: 40000
+          file_count_threshold: 40000
           table_count_threshold: 40000
           root_count_threshold: 40000
-    - name: destroyed_replicas_size
+    destroyed_replicas_size:
       displayName: Destroyed Replicas Size
       enable: true
       config:
         options:
           node_threshold: 100000
           total_threshold: 1000000
-    - name: query_tracker_yql_liveness
+    query_tracker_yql_liveness:
       displayName: Query Tracker Yql Liveness
-      enable: false
+      enable: true
       config:
         check_timeout: 240
         options:
           soft_query_timeout: 165
-    - name: query_tracker_chyt_liveness
+          cluster_name_to_query_tracker_stage: {}
+    query_tracker_chyt_liveness:
       displayName: Query Tracker Chyt Liveness
+      # This check applicable only if default CHYT clique is configured.
       enable: false
       config:
         check_timeout: 60
         options:
           soft_query_timeout: 30
-    - name: query_tracker_ql_liveness
+    query_tracker_ql_liveness:
       displayName: Query Tracker Ql Liveness
       enable: false
       config:
         check_timeout: 60
         options:
           soft_query_timeout: 30
-    - name: query_tracker_dq_liveness
+    query_tracker_dq_liveness:
       displayName: Query Tracker Dq Liveness
+      # This check applicable only if DQ is configured.
       enable: false
       config:
         check_timeout: 60
         options:
           soft_query_timeout: 30
-    - name: bundle_hotfix
+    bundle_hotfix:
       displayName: Bundle Hotfix
       enable: true
       config: {}
-    - name: controller_agent_alerts
+    controller_agent_alerts:
       displayName: Controller Agent Alerts
       enable: true
       config: {}
-    - name: controller_agent_operation_memory_consumption
+    controller_agent_operation_memory_consumption:
       displayName: Controller Agent Operation Memory Consumption
       enable: true
       config: {}
-    - name: discovery
+    discovery:
       displayName: Discovery
+      # This check applicable only for cluster with discovery servers.
       enable: false
       config: {}
-    - name: master
+    master:
       displayName: Master
       enable: true
       config: {}
-    - name: master_alerts
+    master_alerts:
       displayName: Master Alerts
       enable: true
       config: {}
-    - name: master_chunk_management
+    master_chunk_management:
       displayName: Master Chunk Management
-      enable: false
+      enable: true
       config: {}
-    - name: medium_balancer_alerts
+    medium_balancer_alerts:
       displayName: Medium Balancer Alerts
       enable: true
       config: {}
-    - name: missing_part_chunks
+    missing_part_chunks:
       displayName: Missing Part Chunks
       enable: true
       config: {}
-    - name: oauth_health
+    oauth_health:
       displayName: Oauth Health
-      enable: false
+      enable: true
       config: {}
-    - name: operations_archive_tablet_store_preload
+    operations_archive_tablet_store_preload:
       displayName: Operations Archive Tablet Store Preload
       enable: true
       config: {}
-    - name: proxy
+    proxy:
       displayName: Proxy
       enable: true
       config: {}
-    - name: queue_api
+    queue_api:
       displayName: Queue Api
+      # Queue agents are not configured in cluster by default.
       enable: false
-      config: {}
-    - name: queue_agent_alerts
+      config:
+        options:
+          temp_tables_path: "//sys/admin/odin/queue_api"
+          tablet_cell_bundle: "sys"
+          wait_timeout: 15
+    queue_agent_alerts:
       displayName: Queue Agent Alerts
+      # Queue agents are not configured in cluster by default.
       enable: false
-      config: {}
-    - name: query_tracker_alerts
+
+      config:
+        options:
+          cluster_name_to_query_tracker_count: {}
+          queue_agent_stage_clusters: {}
+    query_tracker_alerts:
       displayName: Query Tracker Alerts
-      enable: false
-      config: {}
-    - name: scheduler
+      enable: true
+      config:
+        options:
+          cluster_name_to_query_tracker_count: {}
+    scheduler:
       displayName: Scheduler
       enable: true
       config: {}
-    - name: scheduler_alerts
+    scheduler_alerts:
       displayName: Scheduler Alerts
       enable: true
       config: {}
-    - name: scheduler_alerts_jobs_archivation
+    scheduler_alerts_jobs_archivation:
       displayName: Scheduler Alerts Jobs Archivation
       enable: true
       config: {}
-    - name: scheduler_alerts_update_fair_share
+    scheduler_alerts_update_fair_share:
       displayName: Scheduler Alerts Update Fair Share
       enable: true
       config: {}
-    - name: stuck_missing_part_chunks
+    stuck_missing_part_chunks:
       displayName: Stuck Missing Part Chunks
       enable: true
       config: {}
-    - name: chaos_cells
+    chaos_cells:
       displayName: Chaos Cells
       enable: true
       config: {}
-    - name: unaware_nodes
+    unaware_nodes:
       displayName: Unaware Nodes
+      # This check applicable only for large cluster with nodes distributed by racks.
       enable: false
       config: {}
 

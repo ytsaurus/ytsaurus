@@ -65,7 +65,7 @@ target_sources(yt-ytlib-distributed_throttler PRIVATE
 
 target_proto_outs(yt-ytlib-distributed_throttler
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-ytlib-distributed_throttler

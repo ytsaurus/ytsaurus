@@ -26,6 +26,9 @@ using namespace NSecurityClient;
 using namespace NSequoiaClient;
 using namespace NYPath;
 
+using NYTree::IAttributeDictionary;
+using NYTree::IConstAttributeDictionaryPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -115,6 +118,7 @@ TNodeId CreateIntermediateMapNodes(
     TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const TSuppressableAccessTrackingOptions& options,
+    const IAttributeDictionary* inheritedAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -132,6 +136,7 @@ TNodeId CreateIntermediateMapNodes(
             currentNodeId,
             currentNodePath,
             /*explicitAttributes*/ nullptr,
+            inheritedAttributes,
             progenitorTransactionCache,
             sequoiaTransaction);
         AttachChild(
@@ -150,8 +155,10 @@ TNodeId CreateIntermediateMapNodes(
 TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const TAbsolutePath& sourceRootPath,
+    const TNodeIdToAttributes& sourceInheritableAttributes,
     const TAbsolutePath& destinationRootPath,
     TNodeId destinationSubtreeParentId,
+    const IAttributeDictionary* destinationInheritedAttributes,
     TTransactionId cypressTransactionId,
     const TCopyOptions& options,
     const THashMap<TNodeId, TYPath>& subtreeLinks,
@@ -168,12 +175,19 @@ TNodeId CopySubtree(
     THashMap<TAbsolutePath, TNodeId> createdNodePathToId;
     createdNodePathToId.reserve(sourceNodes.size());
 
+    TInheritedAttributesCalculator attributeCalculator;
+    attributeCalculator.ChangeNode(destinationRootPath.GetDirPath(), destinationInheritedAttributes);
+
     for (const auto& sourceNode : sourceNodes) {
         TAbsolutePath destinationPath(sourceNode.Path);
         destinationPath.UnsafeMutableUnderlying()->replace(
             0,
             sourceRootPath.Underlying().size(),
             destinationRootPath.Underlying());
+
+        attributeCalculator.ChangeNode(
+            destinationPath,
+            GetOrCrash(sourceInheritableAttributes, sourceNode.Id).Get());
 
         NRecords::TNodeIdToPath sourceRecord{
             .Key = {.NodeId = sourceNode.Id},
@@ -194,6 +208,7 @@ TNodeId CopySubtree(
             destinationParentId,
             cypressTransactionId,
             options,
+            attributeCalculator.GetParentInheritedAttributes().Get(),
             progenitorTransactionCache,
             transaction);
         createdNodePathToId.emplace(destinationPath, clonedNodeId);

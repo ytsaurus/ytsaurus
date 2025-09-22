@@ -71,6 +71,39 @@ func emit(f file, out io.Writer) error {
 
 		write("}")
 		write("")
+
+		write("func log%s(o *%s%s) []log.Field {", opt.name, packagePrefix, opt.name)
+		write("if o == nil {")
+		write("return nil")
+		write("}")
+		write("fields := []log.Field{}")
+		for _, field := range opt.fields {
+			cond := ""
+			if strings.HasPrefix(field.typ, "*") || field.typ == "any" || strings.HasPrefix(field.typ, "[]") || strings.HasPrefix(field.typ, "map[") {
+				cond = fmt.Sprintf("o.%s != nil", field.fieldName)
+			} else if field.typ == "string" {
+				cond = fmt.Sprintf("o.%s != \"\"", field.fieldName)
+			} else if field.typ == "bool" {
+				cond = fmt.Sprintf("o.%s", field.fieldName)
+			} else if strings.HasPrefix(field.typ, "int") || strings.HasPrefix(field.typ, "uint") || strings.HasPrefix(field.typ, "float") {
+				cond = fmt.Sprintf("o.%s != 0", field.fieldName)
+			} else {
+				if strings.Contains(field.typ, ".") {
+					write("var zero %s", field.typ)
+				} else {
+					write("var zero %s%s", packagePrefix, field.typ)
+				}
+				cond = fmt.Sprintf("o.%s != zero", field.fieldName)
+			}
+			write("if %s { fields = append(fields, log.Any(%q, o.%s)) }", cond, field.httpName, field.fieldName)
+		}
+		for _, fullName := range opt.embedded {
+			name := fullName[strings.LastIndex(fullName, ".")+1:]
+			write("fields = append(fields, log%s(o.%s)...)", name, name)
+		}
+		write("return fields")
+		write("}")
+		write("")
 	}
 
 	for _, iface := range f.clients {
@@ -137,11 +170,7 @@ func emit(f file, out io.Writer) error {
 				write("log.Any(%q, p.%s),", m.params[i].name, m.params[i].name)
 			}
 			write("}")
-			write("if v, ok := any(p.options).(interface{")
-			write("Log() []log.Field")
-			write("	}); ok {")
-			write("fields = append(fields, v.Log()...)")
-			write("}")
+			write("fields = append(fields, log%s(p.options)...)", m.optionsName)
 			write("return fields")
 			write("}")
 			write("")

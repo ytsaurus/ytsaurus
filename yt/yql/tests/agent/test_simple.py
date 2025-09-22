@@ -1388,7 +1388,7 @@ class TestAssignedEngine(TestQueriesYqlSimpleBase):
 class TestAstReturns(TestQueriesYqlSimpleBase):
     @authors("kirsiv40")
     @pytest.mark.timeout(90)
-    def test_ast_attr_in_progress(self, query_tracker, yql_agent):
+    def test_ast_attribute_in_progress(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
         })

@@ -51,7 +51,7 @@ target_sources(public-issue-protos PRIVATE
 
 target_proto_outs(public-issue-protos
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(public-issue-protos

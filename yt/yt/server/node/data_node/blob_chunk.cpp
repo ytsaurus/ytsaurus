@@ -119,7 +119,6 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
     return
         asyncMeta.Apply(BIND([=, this, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
-            session->SessionAliveCheckFuture.Cancel(TError("Read meta session completed"));
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
@@ -545,17 +544,17 @@ void TBlobChunkBase::DoReadSession(
     DoReadBlockSet(session);
 }
 
-int TBlobChunkBase::FindLastEntryWithinReadGap(
+std::pair<int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>> TBlobChunkBase::FindLastEntryWithinReadGap(
     const TReadBlockSetSessionPtr& session,
     int beginEntryIndex)
 {
     int endEntryIndex = beginEntryIndex + 1;
-    int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
-    const auto* previousEntry = &session->Entries[beginEntryIndex];
+    const TReadBlockSetSession::TBlockEntry* previousEntry = &session->Entries[beginEntryIndex];
 
-    YT_LOG_TRACE("Starting run at block (EntryIndex: %v, Block: %v)",
-        beginEntryIndex,
-        firstBlockIndex);
+    const auto& blocksExt = session->BlocksExt;
+    const auto& blockCache = session->Options.BlockCache;
+
+    THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry;
 
     while (endEntryIndex < session->EntryCount) {
         const auto& entry = session->Entries[endEntryIndex];
@@ -578,13 +577,36 @@ int TBlobChunkBase::FindLastEntryWithinReadGap(
                 entry.BlockIndex - previousEntry->BlockIndex - 1,
                 readGapSize);
             break;
+        } else if (readGapSize > 0) {
+            YT_LOG_TRACE("Coalesced read gap ("
+                "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
+                "GapBlockCount: %v, GapSize: %v)",
+                FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex),
+                previousEntry->EndOffset,
+                entry.BeginOffset,
+                entry.BlockIndex - previousEntry->BlockIndex - 1,
+                readGapSize);
+            for (int index = previousEntry->BlockIndex + 1; index < entry.BlockIndex; index++) {
+                const auto& info = blocksExt->Blocks[index];
+
+                auto blockId = TBlockId(Id_, index);
+                auto cookie = blockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
+
+                EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
+                    .BlockIndex = index,
+                    .Cached = !cookie->IsActive(),
+                    .Cookie = std::move(cookie),
+                    .BeginOffset = info.Offset,
+                    .EndOffset = info.Offset + info.Size,
+                });
+            }
         }
 
         previousEntry = &entry;
         ++endEntryIndex;
     }
 
-    return endEntryIndex;
+    return {endEntryIndex, std::move(blockIndexToEntry)};
 }
 
 void TBlobChunkBase::DoReadBlockSet(
@@ -741,42 +763,8 @@ std::optional<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::NextReadBlocks
 
     // Extract the maximum run of block. Blocks should be contiguous or at least have pretty small gap between them
     // (if gap is small enough, coalesced read including gap blocks is more efficient than making two separate runs).
-    const int endEntryIndex = FindLastEntryWithinReadGap(session, beginEntryIndex);
+    auto [endEntryIndex, blockIndexToEntry] = FindLastEntryWithinReadGap(session, beginEntryIndex);
     YT_VERIFY(endEntryIndex <= session->EntryCount && endEntryIndex > beginEntryIndex);
-    const auto lastBlockIndex = session->Entries[endEntryIndex - 1].BlockIndex;
-    YT_VERIFY(lastBlockIndex >= firstBlockIndex);
-
-    THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry;
-
-    for (int entryIndex = beginEntryIndex; entryIndex < endEntryIndex - 1; ++entryIndex) {
-        auto& entry = session->Entries[entryIndex];
-        auto& nextEntry = session->Entries[entryIndex + 1];
-        auto readGapSize = nextEntry.BeginOffset - entry.EndOffset;
-        // Non-cached blocks are following in ascending order of block index.
-        YT_VERIFY(readGapSize >= 0);
-        YT_LOG_TRACE("Coalesced read gap ("
-            "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
-            "GapBlockCount: %v, GapSize: %v)",
-            FormatBlocks(entry.BlockIndex + 1, nextEntry.BlockIndex),
-            entry.EndOffset,
-            nextEntry.BeginOffset,
-            nextEntry.BlockIndex - entry.BlockIndex - 1,
-            readGapSize);
-        for (int index = session->Entries[entryIndex].BlockIndex + 1; index < session->Entries[entryIndex + 1].BlockIndex; index++) {
-            const auto& info = session->BlocksExt->Blocks[index];
-
-            auto blockId = TBlockId(Id_, index);
-            auto cookie = session->Options.BlockCache->GetBlockCookie(blockId, EBlockType::CompressedData);
-
-            EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
-                .BlockIndex = index,
-                .Cached = !cookie->IsActive(),
-                .Cookie = std::move(cookie),
-                .BeginOffset = info.Offset,
-                .EndOffset = info.Offset + info.Size,
-            });
-        }
-    }
 
     i64 additionalMemory = 0;
 
@@ -789,6 +777,9 @@ std::optional<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::NextReadBlocks
             guard.IncreaseSize(additionalMemory);
         }
     });
+
+    const auto lastBlockIndex = session->Entries[endEntryIndex - 1].BlockIndex;
+    YT_VERIFY(lastBlockIndex >= firstBlockIndex);
 
     const int blocksToRead = lastBlockIndex - firstBlockIndex + 1;
     return TReadBlocksRequest{
@@ -966,6 +957,44 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         }
         session->Options.MemoryUsageTracker = options.MemoryUsageTracker;
         session->Options.UseDedicatedAllocations = true;
+
+        auto dynamicLongLiveReadSessionThreshold = Context_->DynamicConfigManager->GetConfig()->DataNode->LongLiveReadSessionThreshold;
+        auto longLiveReadSessionThreshold = dynamicLongLiveReadSessionThreshold.value_or(Context_->DataNodeConfig->LongLiveReadSessionThreshold);
+
+        session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(longLiveReadSessionThreshold)
+            .Apply(BIND([sessionWptr = MakeWeak(session), chunkId = GetId()] (const TError& error) {
+                if (error.IsOK()) {
+                    if (auto session = sessionWptr.Lock()) {
+                        YT_LOG_ALERT_IF(
+                            !sessionWptr.IsExpired(),
+                            "Long live read session ("
+                            "ChunkId: %v, FutureCount: %v, "
+                            "DiskPromiseIsSet: %v, DiskPromiseCanceled: %v, "
+                            "EntryCount: %v, BlocksExtLoaded: %v, "
+                            "SessionPromiseCanceled: %v, Finished: %v, "
+                            "ReadLockCounter: %v)",
+                            chunkId,
+                            session->Futures.size(),
+                            session->DiskFetchPromise.IsSet(),
+                            session->DiskFetchPromise.IsCanceled(),
+                            session->EntryCount,
+                            session->BlocksExt != nullptr,
+                            session->SessionPromise.IsCanceled(),
+                            session->Finished,
+                            session->ChunkReadGuard->GetChunk()->GetReadLockCounter());
+                    } else {
+                        YT_LOG_ALERT_IF(
+                            !sessionWptr.IsExpired(),
+                            "Long live read session (ChunkId: %v)",
+                            chunkId);
+                    }
+                } else {
+                    YT_LOG_DEBUG(
+                        "Session completed before timeout (ChunkId: %v): %v",
+                        chunkId,
+                        error);
+                }
+            }));
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }

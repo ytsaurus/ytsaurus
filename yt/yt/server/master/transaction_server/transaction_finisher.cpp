@@ -286,7 +286,7 @@ public:
     explicit TTransactionFinisher(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TransactionFinisher)
         , LeasesRevocationQueue_("lease revocation")
-        , FinishQueue_("finish queue")
+        , FinishQueue_("finish")
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
@@ -368,7 +368,7 @@ public:
 
         auto leasesState = transaction->GetTransactionLeasesState();
         if (leasesState == ETransactionLeasesState::Active) {
-            YT_LOG_ALERT("Attempted to persist finish request for foreign Cypress transaction before lease revocation (TransactionId: %v, LeasesState: %v, %v)",
+            YT_LOG_ALERT("Attempted to persist finish request for foreign Cypress transaction before lease revocation (TransactionId: %v, LeasesState: %v%v)",
                 transaction->GetId(),
                 leasesState,
                 MakeFinishRequestFormatter(request));
@@ -378,7 +378,7 @@ public:
         auto [it, inserted] = Requests_.emplace(TWeakTransactionPtr(transaction), request);
         if (!inserted) {
             if (!update) {
-                YT_LOG_DEBUG("Transaction finish request was already persisted (TransactionId: %v, LeasesState: %v, %v)",
+                YT_LOG_DEBUG("Transaction finish request was already persisted (TransactionId: %v, LeasesState: %v%v)",
                     transaction->GetId(),
                     leasesState,
                     MakeFinishRequestFormatter(it->second));
@@ -447,11 +447,13 @@ public:
         // NB: active request has to be unregistered to allow transaction to be
         // aborted by transaction finisher.
         if (auto it = ActiveRequests_.find(transaction); it != ActiveRequests_.end()) {
-            if (it->second.erase(requestId) != 1) {
-                YT_LOG_ALERT("Active transaction finish request is not registered for alive transaction (RequestId: %v, TransactionId: %v)",
+            // NB: request may be not registered if lease revocation was already
+            // started by someone else.
+            if (it->second.erase(requestId) == 1) {
+                YT_LOG_DEBUG("Active transaction finish request unregistered due to commit failure (RequestId: %v, TransactionId: %v, ActiveRequestCount: %v)",
                     requestId,
-                    transactionId);
-                return VoidFuture;
+                    transactionId,
+                    it->second.size());
             }
         }
 
@@ -467,7 +469,16 @@ public:
             activeRequestCount);
 
         if (activeRequestCount == 0) {
-            ScheduleFinish(transaction);
+            // Transaction finish may be already scheduled in this case:
+            // 1. Commit request was failed with retriable Sequoia error,
+            //    tx finish was scheduled;
+            // 2. Commit was retried by client, but error happened in commit
+            //    mutation. After that
+            //    EndRequestAndGetFailedCommitCompletionFuture() was called but
+            //    tx finish from step (1) is still in queue.
+            if (!FinishQueue_.Contains(transaction)) {
+                ScheduleFinish(transaction);
+            }
         }
 
         return it->second.ToFuture().ToUncancelable();
@@ -949,13 +960,13 @@ private:
 
         for (const auto& [transaction, request] : Requests_) {
             if (!IsObjectAlive(transaction)) {
-                YT_LOG_ALERT("Found persisted finish request for non-alive transaction (TransactionId: %v, %v)",
+                YT_LOG_ALERT("Found persisted finish request for non-alive transaction (TransactionId: %v%v)",
                     transaction->GetId(),
                     MakeFinishRequestFormatter(request));
                 continue;
             }
 
-            YT_LOG_DEBUG("Found persisted finish request for alive transation (TransactionId: %v, %v)",
+            YT_LOG_DEBUG("Found persisted finish request for alive transation (TransactionId: %v%v)",
                 transaction->GetId(),
                 MakeFinishRequestFormatter(request));
 
@@ -963,7 +974,7 @@ private:
                 case ETransactionLeasesState::Active:
                     YT_LOG_ALERT(
                         "Unexpected transaction leases state after persisting transaction finish request "
-                        "(TransactionId: %v, LeasesState: %v, %v)",
+                        "(TransactionId: %v, LeasesState: %v%v)",
                         transaction->GetId(),
                         transaction->GetTransactionLeasesState(),
                         MakeFinishRequestFormatter(request));
@@ -1008,6 +1019,7 @@ private:
         LeasesRevocationQueue_.Clear();
         FinishQueue_.Clear();
         Requests_.clear();
+        FailedCommitCompletionPromises_.clear();
     }
 
     void CheckInvariants() override
@@ -1017,7 +1029,7 @@ private:
         for (const auto& [transaction, request] : Requests_) {
             YT_LOG_FATAL_UNLESS(
                 IsObjectAlive(transaction),
-                "Transaction finisher contains request for non-alive transaction (TransactionId: %v, %v)",
+                "Transaction finisher contains request for non-alive transaction (TransactionId: %v%v)",
                 transaction->GetId(),
                 MakeFinishRequestFormatter(request));
 

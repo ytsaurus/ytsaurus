@@ -126,8 +126,6 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     meta->set_format(ToProto(EChunkFormat::JournalDefault));
     SetProtoExtension(meta->mutable_extensions(), miscExt);
 
-    session->SessionAliveCheckFuture.Cancel(TError("Read meta in journal session completed"));
-
     ProfileReadMetaLatency(session);
 
     return MakeFuture(FilterMeta(meta, extensionTags));
@@ -190,13 +188,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 
     Context_->StorageHeavyInvoker->Invoke(std::move(callback), options.WorkloadDescriptor.GetPriority());
 
-    return session->Promise.ToFuture()
-        .Apply(BIND([weakSession = MakeWeak(session)] (const std::vector<TBlock>& blocks) {
-            if (auto session = weakSession.Lock()) {
-                session->SessionAliveCheckFuture.Cancel(TError("Read block range in journal session completed"));
-            }
-            return blocks;
-        }));
+    return session->Promise.ToFuture();
 }
 
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)

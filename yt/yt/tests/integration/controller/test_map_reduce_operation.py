@@ -639,7 +639,7 @@ print("x={0}\ty={1}".format(x, y))
         create("table", "//tmp/t2")
 
         create_user("admin")
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         set(
             "//sys/operations&/@acl/end",
             make_ace("allow", "admin", ["read", "write", "manage"]),
@@ -701,7 +701,7 @@ print("x={0}\ty={1}".format(x, y))
         partition_map_vertex = "partition_map(0)"
 
         create_user("admin")
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         set(
             "//sys/operations&/@acl/end",
             make_ace("allow", "admin", ["read", "write", "manage"]),
@@ -4625,8 +4625,7 @@ class TestMaxParititonCount(YTEnvSetup):
     }
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("use_new_partitions_heuristic", [False, True])
-    def test_pivot_keys_count_exceeds_limits(self, use_new_partitions_heuristic):
+    def test_pivot_keys_count_exceeds_limits(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
@@ -4640,6 +4639,5 @@ class TestMaxParititonCount(YTEnvSetup):
                 sort_by=["key"],
                 spec={
                     "pivot_keys": [["01"], ["05"], ["10"], ["15"], ["20"]],
-                    "use_new_partitions_heuristic": use_new_partitions_heuristic,
                 },
             )

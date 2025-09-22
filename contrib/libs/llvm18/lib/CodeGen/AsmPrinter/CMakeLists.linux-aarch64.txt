@@ -32,7 +32,6 @@ target_link_libraries(lib-CodeGen-AsmPrinter PUBLIC
   llvm18-lib-Analysis
   llvm18-lib-BinaryFormat
   llvm18-lib-CodeGen
-  lib-CodeGen-LowLevelType
   lib-DebugInfo-CodeView
   lib-DebugInfo-DWARF
   llvm18-lib-IR

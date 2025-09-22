@@ -87,7 +87,7 @@ class TestRpcProxy(YTEnvSetup):
 
         wait(config_updated, ignore_exceptions=True)
 
-        wait(lambda: get("//sys/rpc_proxies/" + proxy_name + "/orchid/bus_server/encryption_mode") == "optional")
+        wait(lambda: get("//sys/rpc_proxies/" + proxy_name + "/orchid/bus_server/encryption_mode") == "disabled")
         wait(lambda: get("//sys/rpc_proxies/" + proxy_name + "/orchid/bus_server/verification_mode") == "none")
 
 
@@ -1105,6 +1105,12 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         events_on_fs().release_breakpoint()
         op.track()
+
+    @authors("theevilbird")
+    def test_transaction_pinger_ip(self):
+        tx = start_transaction()
+        ping_transaction(tx)
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") != yson.YsonEntity
 
 
 ##################################################################

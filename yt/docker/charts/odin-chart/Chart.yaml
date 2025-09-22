@@ -1,7 +1,7 @@
 apiVersion: v2
 name: odin-chart
 description: Helm chart to run YTsaurus Odin
-version: 0.0.1
+version: 0.0.0-alpha
 type: application
 keywords:
 - ytsaurus

@@ -9,10 +9,10 @@ namespace NYT::NQueryTrackerClient {
 using namespace NQueryTrackerClient::NRecords;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 TString FormatAcoList(const std::optional<TYsonString>& accessControlObjects)
 {
@@ -28,7 +28,18 @@ TString FormatAcoList(const std::optional<TYsonString>& accessControlObjects)
     return ConvertToYsonString(accessControlObjectsList, EYsonFormat::Text).ToString();
 }
 
-} // namespace
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsFinishingState(EQueryState state)
+{
+    return state == EQueryState::Aborting || state == EQueryState::Failing || state == EQueryState::Completing;
+}
+
+bool IsFinishedState(EQueryState state)
+{
+    return state == EQueryState::Aborted || state == EQueryState::Failed ||
+        state == EQueryState::Completed || state == EQueryState::Draft;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,17 +69,12 @@ std::string GetFilterFactors(const TFinishedQuery& record)
         FormatAcoList(record.AccessControlObjects));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsPreFinishedState(EQueryState state)
+std::string GetFilterFactors(const TQuery& record)
 {
-    return state == EQueryState::Aborting || state == EQueryState::Failing || state == EQueryState::Completing;
-}
-
-bool IsFinishedState(EQueryState state)
-{
-    return state == EQueryState::Aborted || state == EQueryState::Failed ||
-        state == EQueryState::Completed || state == EQueryState::Draft;
+    return Format("%v %v acos:%v",
+        record.Query,
+        record.Annotations ? ConvertToYsonString(record.Annotations, EYsonFormat::Text).ToString() : "",
+        FormatAcoList(record.AccessControlObjects));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

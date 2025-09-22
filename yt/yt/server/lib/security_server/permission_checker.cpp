@@ -30,7 +30,8 @@ namespace NDetail {
 
 //! "Extend" permission in such way that when any read is requested (read or full_read),
 //! we pretend that user requested `EPermission::Read | EPermission::FullRead`.
-EPermissionSet ExtendReadPermission(EPermissionSet original) {
+EPermissionSet ExtendReadPermission(EPermissionSet original)
+{
     auto anyhowRead = EPermission::Read | EPermission::FullRead;
     if (Any(original & anyhowRead)) {
         original = original | anyhowRead;

@@ -18,7 +18,7 @@ class TTransactionListener
 {
 protected:
     //! Starts listening for transaction abort.
-    void StartListenTransaction(const NApi::ITransactionPtr& transaction);
+    void StartListenTransaction(const NApi::ITransactionPtr& transaction, const TError& error = TError());
 
     //! Stops listening for transaction abort.
     void StopListenTransaction(const NApi::ITransactionPtr& transaction);
@@ -45,6 +45,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TTransactionId> IgnoredTransactionIds_;
     std::vector<TTransactionId> AbortedTransactionIds_;
+    THashMap<TTransactionId, TError> TransactionIdToCustomError_;
     THashMap<TTransactionId, NConcurrency::TPeriodicExecutorPtr> TransactionIdToProbeExecutor_;
 
     void ProbeTransaction(const NApi::ITransactionPtr& transaction);

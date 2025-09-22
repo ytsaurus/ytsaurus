@@ -338,6 +338,9 @@ struct TDynamicTabletManagerConfig
 
     bool EnableClockCellTagValidationOnChaosReplicaMount;
 
+    // COMPAT(akozhikhov)
+    bool EnableAlterToStaticWithHunks;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);

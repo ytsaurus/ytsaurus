@@ -741,7 +741,8 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
 
     @authors("coteeq")
     @pytest.mark.parametrize("operation_type", ["map", "merge", "map_reduce"])
-    def test_per_cluster_chunk_reader_statistics(self, operation_type):
+    @pytest.mark.parametrize("dump_local", [True, False])
+    def test_per_cluster_chunk_reader_statistics(self, operation_type, dump_local):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", [{"a": "b"}], driver=self.remote_driver)
         create("table", "//tmp/t1_local")
@@ -769,10 +770,10 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
             "map_reduce": "partition_map(0)",
         }[operation_type]
 
-        def run_and_get_statistics():
+        def run_and_get_statistics(remote_input=True):
             op = run_operation(
                 in_=[
-                    self.to_remote_path("//tmp/t1"),
+                    *([self.to_remote_path("//tmp/t1")] if remote_input else []),
                     "//tmp/t1_local",
                 ],
                 out="//tmp/t2",
@@ -788,6 +789,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
                 "job_controller": {
                     "job_proxy": {
                         "enable_per_cluster_chunk_reader_statistics": True,
+                        "dump_single_local_cluster_statistics": dump_local,
                     }
                 },
             },
@@ -798,6 +800,11 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert extract_statistic_v2(statistics, "chunk_reader_statistics.block_count", job_type=job_type) == 2
         assert extract_statistic_v2(statistics, "chunk_reader_statistics.remote_0.block_count", job_type=job_type) == 1
         assert extract_statistic_v2(statistics, "chunk_reader_statistics.<local>.block_count", job_type=job_type) == 1
+
+        statistics = run_and_get_statistics(remote_input=False)
+
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.block_count", job_type=job_type) == 1
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.<local>.block_count", job_type=job_type) == (1 if dump_local else None)
 
 
 @pytest.mark.enabled_multidaemon

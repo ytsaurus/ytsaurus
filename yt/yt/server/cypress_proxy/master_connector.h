@@ -20,6 +20,9 @@ struct IMasterConnector
     // Throws iff proxy is not registered.
     virtual NHydra::TReign GetMasterReign() const = 0;
     virtual int GetMaxCopiableSubtreeSize() const = 0;
+
+    virtual std::shared_ptr<const std::vector<std::string>> GetSupportedInheritableAttributeKeys() const = 0;
+    virtual std::shared_ptr<const std::vector<std::string>> GetSupportedInheritableDuringCopyAttributeKeys() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

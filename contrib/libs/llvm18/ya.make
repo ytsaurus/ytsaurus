@@ -31,7 +31,6 @@ RECURSE(
     lib/CodeGen
     lib/CodeGen/AsmPrinter
     lib/CodeGen/GlobalISel
-    lib/CodeGen/LowLevelType
     lib/CodeGen/MIRParser
     lib/CodeGen/SelectionDAG
     lib/DWARFLinker
@@ -62,7 +61,6 @@ RECURSE(
     lib/Frontend/Offloading
     lib/Frontend/OpenACC
     lib/Frontend/OpenMP
-    lib/FuzzMutate
     lib/IR
     lib/IRPrinter
     lib/IRReader
@@ -208,8 +206,6 @@ RECURSE(
     tools/lto
     tools/obj2yaml
     tools/opt
-    tools/polly/lib
-    tools/polly/lib/External/isl
     tools/remarks-shlib
     tools/sancov
     tools/sanstats

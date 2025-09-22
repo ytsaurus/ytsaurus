@@ -288,6 +288,43 @@ class TestClickHousePrewhere(ClickHouseTestBase):
             assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 2
             assert self._extract_step_summary(query_log_rows, 1, "block_bytes") < heavy_value_size
 
+    @authors("buyval01")
+    @pytest.mark.skipif(True, reason="CHYT-1344")
+    def test_filter_push_down(self):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "heavy", "type": "string"},
+                       {"name": "light", "type": "int64"}],
+        })
+
+        heavy_value_size = 1000
+
+        write_table("//tmp/t", [{"heavy": "abc", "light": 1}, {"heavy": "b" * heavy_value_size, "light": 2}])
+
+        config_patch = self.get_config_patch(optimize_move_to_prewhere=False)
+        with Clique(1, export_query_log=True, config_patch=config_patch) as clique:
+            query = '''
+                select * from (
+                    select * from `//tmp/t`
+                ) t
+                where t.light = 1
+            '''
+            result = clique.make_query(query, full_response=True)
+
+            assert result.json()["data"] == [{"heavy": "abc", "light": 1}]
+
+            query_log_rows = clique.wait_and_get_query_log_rows(result.headers["X-ClickHouse-Query-Id"])
+            secondary_queries = list(filter(lambda row: row['is_initial_query'] == 0, query_log_rows))
+            assert len(secondary_queries) > 0
+
+            for row in secondary_queries:
+                step_stats = row["chyt_query_statistics"]["secondary_query_source"]["step_count"]
+                assert step_stats['min'] == 2
+                assert step_stats['max'] == 2
+
+            assert self._extract_step_summary(query_log_rows, 0, "block_rows") == 2
+            assert self._extract_step_summary(query_log_rows, 1, "block_rows") == 2
+            assert self._extract_step_summary(query_log_rows, 1, "block_bytes") < heavy_value_size
+
     @authors("dakovalkov")
     def test_filter_by_const_and_low_cardinality_column(self):
         create("table", "//tmp/t", attributes={

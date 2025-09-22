@@ -15,8 +15,6 @@ volatile sig_atomic_t isInterrupted = 0;
 struct TTableDataServiceWorkerRunOptions {
     ui16 Port;
     TString Host;
-    ui64 WorkerId;
-    ui64 WorkersNum;
     int Verbosity;
 
     void InitLogger() {
@@ -40,8 +38,6 @@ int main(int argc, const char *argv[]) {
         opts.AddHelpOption();
         opts.AddLongOption('p', "port", "Fast map reduce table data service worker port").StoreResult(&options.Port).DefaultValue(7000);
         opts.AddLongOption('h', "host", "Fast map reduce table data service worker host").StoreResult(&options.Host).DefaultValue("localhost");
-        opts.AddLongOption('w', "worker-id", "Fast map reduce table data service worker id").Required().StoreResult(&options.WorkerId);
-        opts.AddLongOption('n', "workers-num", "Fast map reduce table data service workers number").Required().StoreResult(&options.WorkersNum);
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.SetFreeArgsMax(0);
@@ -51,8 +47,6 @@ int main(int argc, const char *argv[]) {
         options.InitLogger();
 
         TTableDataServiceServerSettings tableDataServiceSettings{
-            .WorkerId = options.WorkerId,
-            .WorkersNum = options.WorkersNum,
             .Host = options.Host,
             .Port = options.Port
         };

@@ -12,7 +12,7 @@ PY_SRCS(
     yt_dashboard_generator/serializer.py
     yt_dashboard_generator/taggable.py
     yt_dashboard_generator/postprocessors.py
-    
+
     yt_dashboard_generator/backends/__init__.py
 
     yt_dashboard_generator/backends/grafana/__init__.py
@@ -37,6 +37,8 @@ PEERDIR(
 
     contrib/python/grpcio/py3
     contrib/python/protobuf/py3
+
+    yt/python/client
 )
 
 END()

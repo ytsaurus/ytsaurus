@@ -11,6 +11,7 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/file/yql_yt_file_yt_job_service.h>
+#include <yt/yql/providers/yt/fmr/worker/server/yql_yt_fmr_worker_server.h>
 #include <yt/yql/providers/yt/fmr/yt_job_service/impl/yql_yt_job_service_impl.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
@@ -77,14 +78,17 @@ int main(int argc, const char *argv[]) {
         TFmrCoordinatorClientSettings coordinatorClientSettings;
         THttpURL parsedUrl;
         if (parsedUrl.Parse(options.CoordinatorUrl) != THttpURL::ParsedOK) {
-            ythrow yexception() << "Invalid fast map reduce coordinator server url passed in parameters";
+            ythrow yexception() << "Invalid fast map reduce coordinator server url passed in parameters " << options.CoordinatorUrl;
         }
         coordinatorClientSettings.Port = parsedUrl.GetPort();
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
         auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobSerivce();
-        auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(true, options.FmrJobBinaryPath);
+        auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
+            .RunInSeparateProcess = true,
+            .FmrJobBinaryPath = options.FmrJobBinaryPath
+        });
         // TODO - add different job Settings here
         auto func = [options, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
             return RunJob(task, options.TableDataServiceDiscoveryFilePath, fmrYtJobSerivce, jobLauncher , cancelFlag);
@@ -94,12 +98,16 @@ int main(int argc, const char *argv[]) {
         auto jobFactory = MakeFmrJobFactory(settings);
         auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
         worker->Start();
-        Cerr << "Fast map reduce worker has started\n";
-
+        TFmrWorkerServerSettings workerServerSettings{.Port=options.Port};
+        auto workerServer = MakeFmrWorkerServer(workerServerSettings, worker);
+        YQL_CLOG(TRACE, FastMapReduce) << "Fast map reduce worker has started";
+        workerServer->Start();
         while (!isInterrupted) {
             Sleep(TDuration::Seconds(1));
         }
         worker->Stop();
+        workerServer->Stop();
+        YQL_CLOG(TRACE, FastMapReduce) << "Fast map reduce worker has stopped";
     } catch (...) {
         Cerr << CurrentExceptionMessage() << Endl;
         return 1;

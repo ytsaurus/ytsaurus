@@ -32,12 +32,11 @@ target_link_libraries(llvm-tblgen PUBLIC
   contrib-libs-cxxsupp
   build-cow-on
   contrib-libs-llvm18
-  lib-CodeGen-LowLevelType
+  llvm18-lib-CodeGen
   llvm18-lib-Demangle
   llvm18-lib-Support
   llvm18-lib-TableGen
   utils-TableGen-GlobalISel
-  cpp-sanitizer-include
 )
 
 target_allocator(llvm-tblgen

@@ -1,0 +1,13 @@
+#pragma once
+
+#include "private.h"
+
+namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsAssignmentPreliminary(const TAssignmentPtr& assignment);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

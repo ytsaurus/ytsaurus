@@ -57,7 +57,6 @@ public:
     bool UsesHeapInTest() const;
 
 private:
-    const TPoolTreeCompositeElement* OwningElement_;
     TDynamicAttributesList* const DynamicAttributesList_;
     const bool UseHeap_;
 
@@ -293,9 +292,6 @@ public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(SchedulingInfoLoggingEnabled);
     DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationsStatistics, SchedulingStatistics);
 
-    // NB(eshcherbin): The following properties are public for testing purposes.
-    DEFINE_BYREF_RW_PROPERTY(TAllocationWithPreemptionInfoSetMap, ConditionallyPreemptibleAllocationSetMap);
-
 public:
     TScheduleAllocationsContext(
         ISchedulingHeartbeatContextPtr schedulingHeartbeatContext,
@@ -329,7 +325,7 @@ public:
     void AnalyzePreemptibleAllocations(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
         EAllocationPreemptionLevel minAllocationPreemptionLevel,
-        std::vector<TAllocationWithPreemptionInfo>* unconditionallyPreemptibleAllocations,
+        std::vector<TAllocationWithPreemptionInfo>* preemptibleAllocations,
         TNonOwningAllocationSet* forcefullyPreemptibleAllocations);
     void PreemptAllocationsAfterScheduling(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
@@ -347,6 +343,7 @@ public:
     void StartStage(
         EAllocationSchedulingStage stage,
         TSchedulingStageProfilingCounters* profilingCounters,
+        bool preemptive = false,
         int stageAttemptIndex = 0);
     void FinishStage();
     int GetStageMaxSchedulingIndex() const;
@@ -355,19 +352,7 @@ public:
     // NB(eshcherbin): The following methods are public for testing purposes.
     const TPoolTreeElement* FindPreemptionBlockingAncestor(
         const TPoolTreeOperationElement* element,
-        EAllocationPreemptionLevel allocationPreemptionLevel,
         EOperationPreemptionPriority operationPreemptionPriority) const;
-
-    struct TPrepareConditionalUsageDiscountsContext
-    {
-        const EOperationPreemptionPriority TargetOperationPreemptionPriority;
-        TJobResourcesWithQuota CurrentConditionalDiscount;
-    };
-    void PrepareConditionalUsageDiscounts(
-        const TPoolTreeElement* element,
-        TPrepareConditionalUsageDiscountsContext* context);
-    const TAllocationWithPreemptionInfoSet& GetConditionallyPreemptibleAllocationsInPool(
-        const TPoolTreeCompositeElement* element) const;
 
     const TDynamicAttributes& DynamicAttributesOf(const TPoolTreeElement* element) const;
 
@@ -392,6 +377,7 @@ private:
     struct TStageState
     {
         const EAllocationSchedulingStage Stage;
+        const bool Preemptive;
         TSchedulingStageProfilingCounters* const ProfilingCounters;
         const int StageAttemptIndex;
 
@@ -425,9 +411,6 @@ private:
 
     std::vector<bool> CanSchedule_;
 
-    //! Populated only for pools.
-    TJobResourcesMap LocalUnconditionalUsageDiscountMap_;
-
     // Indexed with tree index like static/dynamic attributes list.
     std::optional<std::vector<TNonOwningElementList>> ConsideredSchedulableChildrenPerPool_;
 
@@ -439,9 +422,8 @@ private:
     // Returns resource usage observed in current heartbeat.
     TJobResources GetCurrentResourceUsage(const TPoolTreeElement* element) const;
 
-    TJobResources GetHierarchicalAvailableResources(const TPoolTreeElement* element) const;
-    TJobResources GetLocalAvailableResourceLimits(const TPoolTreeElement* element) const;
-    TJobResources GetLocalUnconditionalUsageDiscount(const TPoolTreeElement* element) const;
+    TJobResources GetHierarchicalAvailableResources(const TPoolTreeElement* element, bool allowLimitsOvercommit) const;
+    TJobResources GetLocalAvailableResourceLimits(const TPoolTreeElement* element, bool allowLimitsOvercommit) const;
 
     void CollectConsideredSchedulableChildrenPerPool(
         const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations);
@@ -457,13 +439,6 @@ private:
     TPoolTreeOperationElement* FindBestOperationForScheduling();
     //! Returns whether scheduling attempt was successful.
     bool ScheduleAllocation(TPoolTreeOperationElement* element, bool ignorePacking);
-
-    void PrepareConditionalUsageDiscountsAtCompositeElement(
-        const TPoolTreeCompositeElement* element,
-        TPrepareConditionalUsageDiscountsContext* context);
-    void PrepareConditionalUsageDiscountsAtOperation(
-        const TPoolTreeOperationElement* element,
-        TPrepareConditionalUsageDiscountsContext* context);
 
     //! Pool methods.
     // Empty for now, save space for later.

@@ -1,4 +1,3 @@
-# coding=utf-8
 from datetime import datetime
 
 from yt_odin_checks.lib.check_runner import main
@@ -14,7 +13,6 @@ def run_check(yt_client, logger, options, states):
     configure_timeout_and_retries(yt_client)
     configure_loggers()
 
-    # Если не получилось получить схема мастеров - возвращаем CRIT
     clock = discover_clock(yt_client, options, logger)
     health = check_cell_health(clock, datetime.now(), logger)
     if health == CRIT:

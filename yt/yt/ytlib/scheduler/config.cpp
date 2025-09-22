@@ -562,9 +562,10 @@ void TDiskRequestConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([&] (TDiskRequestConfig* config) {
-        if (config->NbdDisk && static_cast<i64>(20_GB) < config->DiskSpace) {
+        static constexpr i64 MaxNbdDiskSize = 60_GB;
+        if (config->NbdDisk && static_cast<i64>(MaxNbdDiskSize) < config->DiskSpace) {
             THROW_ERROR_EXCEPTION("\"disk_space\" exceeds maximum limit for NBD disk.")
-                << TErrorAttribute("max_disk_space", 20_GB)
+                << TErrorAttribute("max_disk_space", MaxNbdDiskSize)
                 << TErrorAttribute("disk_space", config->DiskSpace);
         }
         if (config->Account && !config->MediumName) {
@@ -792,6 +793,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("max_compressed_data_size_per_job", &TThis::MaxCompressedDataSizePerJob)
         .Default(200_GB)
+        .GreaterThan(0);
+    registrar.Parameter("max_primary_compressed_data_size_per_job", &TThis::MaxPrimaryCompressedDataSizePerJob)
+        .Default(std::numeric_limits<i64>::max())
         .GreaterThan(0);
 
     registrar.Parameter("max_failed_job_count", &TThis::MaxFailedJobCount)
@@ -2490,6 +2494,9 @@ void TPoolPresetConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_lightweight_operations", &TThis::EnableLightweightOperations)
         .Default(false);
+
+    registrar.Parameter("resource_limits_overcommit_tolerance", &TThis::ResourceLimitsOvercommitTolerance)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2626,6 +2633,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_fair_share_truncation_in_fifo_pool", &TThis::EnableFairShareTruncationInFifoPool)
         .Alias("truncate_fifo_pool_unsatisfied_child_fair_share")
         .Default();
+
+    registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
+        .Default(true);
 
     registrar.Parameter("metering_tags", &TThis::MeteringTags)
         .Default();

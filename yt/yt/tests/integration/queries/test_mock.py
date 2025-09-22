@@ -155,7 +155,7 @@ class TestQueriesMock(YTEnvSetup):
             b"""bar=abc\tfoo=42\nbar=def\tfoo=-17\nbar=ghi\tfoo=123\n"""
 
     @authors("kirsiv40")
-    def test_assigned_tracker_attr_saves_after_query_finishes(self, query_tracker):
+    def test_assigned_tracker_attribute_saves_after_query_finishes(self, query_tracker):
         error = {"code": 42, "message": "Mock query execution error", "attributes": {"some_attr": "some_value"}}
         schema = [{"name": "foo", "type": "int64"}, {"name": "bar", "type": "string"}]
         rows = [{"foo": 42, "bar": "abc"}, {"foo": -17, "bar": "def"}, {"foo": 123, "bar": "ghi"}]
@@ -211,8 +211,6 @@ class TestQueriesMock(YTEnvSetup):
             expect_queries([q6, q5, q2, q0], list_queries(user="u1"))
             expect_queries([q4, q3, q1], list_queries(user="u2"))
 
-            expect_queries([q4, q2, q0], list_queries(filter="fail"))
-
             expect_queries([q5, q4],
                            list_queries(from_time=q_times[1], to_time=q_times[5], limit=2),
                            incomplete=True)
@@ -252,18 +250,24 @@ class TestQueriesMock(YTEnvSetup):
     def test_annotations(self, query_tracker):
         q = start_query("mock", "complete_after", settings={"duration": 5000}, annotations={"foo": "bar"})
         wait(lambda: q.get_state() == "running")
-        assert len(list_queries(filter="bar")["queries"]) == 1
+        assert len(list_queries(filter="bar", use_full_text_search=False)["queries"]) == 1
+        assert len(list_queries(filter="bar", use_full_text_search=True)["queries"]) == 1
 
         q.alter(annotations={"qux": "quux"})
-        q_info = list_queries(filter="qux", attributes=["annotations", "state"])["queries"][0]
+        q_info = list_queries(filter="qux", attributes=["annotations", "state"], use_full_text_search=True)["queries"][0]
+        assert q_info["annotations"] == {"qux": "quux"}
+        assert q_info["state"] == "running"
+        q_info = list_queries(filter="qux", attributes=["annotations", "state"], use_full_text_search=False)["queries"][0]
         assert q_info["annotations"] == {"qux": "quux"}
         assert q_info["state"] == "running"
         wait(lambda: q.get_state() == "completed")
 
-        assert len(list_queries(filter="qux")["queries"]) > 0
+        assert len(list_queries(filter="qux", use_full_text_search=False)["queries"]) > 0
+        assert len(list_queries(filter="qux", use_full_text_search=True)["queries"]) > 0
 
         q.alter(annotations={"qwe": "asd"})
-        assert len(list_queries(filter="asd")["queries"]) > 0
+        assert len(list_queries(filter="asd", use_full_text_search=False)["queries"]) > 0
+        assert len(list_queries(filter="asd", use_full_text_search=True)["queries"]) > 0
 
     @authors("mpereskokova")
     def test_rows_limit(self, query_tracker):
@@ -348,7 +352,7 @@ class TestQueryTrackerResults(YTEnvSetup):
             "access_control_objects": None,
             "start_time": 0,
             "state": "completed",
-            "progress": None,
+            "progress": "",
             "error": {"attributes": {}, "code": 100, "message": ""},
             "result_count": 1,
             "finish_time": 0,
@@ -381,7 +385,7 @@ class TestQueryTrackerResults(YTEnvSetup):
             "access_control_objects": None,
             "start_time": 0,
             "state": "completed",
-            "progress": None,
+            "progress": "",
             "error": {"attributes": {}, "code": 100, "message": ""},
             "result_count": 1,
             "finish_time": 0,
@@ -418,7 +422,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
             "incarnation": 0,
             "start_time": 0,
             "execution_start_time": 0,
-            "progress": {},
+            "progress": "",
             "annotations": {},
             "state": state,
             "settings": settings,
@@ -733,92 +737,103 @@ class TestAccessControl(YTEnvSetup):
 
     @authors("aleksandr.gaev", "kirsiv40")
     def test_get_query_tracker_info(self, query_tracker):
+        def check_qt_info(expected=None, **kwargs):
+            info = get_query_tracker_info(**kwargs)
+            assert isinstance(info.pop("expected_tables_version"), int)
+            assert info == expected
+
         supported_features = {'access_control': True, 'multiple_aco': True}
-        assert get_query_tracker_info() == \
-            {
+
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': 'primary',
                 'supported_features': supported_features,
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(attributes=[]) == \
-            {
+            })
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["cluster_name"]) == \
-            {
+            },
+            attributes=[])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': 'primary',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["supported_features"]) == \
-            {
+            },
+            attributes=["cluster_name"])
+
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': supported_features,
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["access_control_objects"]) == \
-            {
+            },
+            attributes=["supported_features"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': [],
                 'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["clusters"]) == \
-            {
+            },
+            attributes=["access_control_objects"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(attributes=["engines_info"]) == \
-            {
+            },
+            attributes=["clusters"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': '',
                 'supported_features': {},
                 'access_control_objects': [],
                 'clusters': [],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(yql_agent_stage="some-invalid-stage") == \
-            {
+            },
+            attributes=["engines_info"])
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'production',
                 'cluster_name': 'primary',
                 'supported_features': supported_features,
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(stage='testing') == \
-            {
+            },
+            yql_agent_stage="some-invalid-stage")
+        check_qt_info(
+            expected={
                 'query_tracker_stage': 'testing',
                 'cluster_name': 'primary',
                 'supported_features': supported_features,
                 'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
                 'clusters': ['primary'],
                 'engines_info' : {},
-            }
+            },
+            stage='testing')
 
 
 @pytest.mark.enabled_multidaemon
@@ -1002,17 +1017,19 @@ class TestAccessControlList(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
     @pytest.mark.parametrize(
-        "query_type",
+        "query_type,filter",
         [
-            ["mock", "fail", {}],
-            ["mock", "complete_after", {"settings": {"duration": 1000}}],
-            ["mock", "fail_by_exception", {}],
-            ["mock", "blahblah", {}],
-            ["mock", "fail_after", {"settings": {"duration": 1000}}],
-            ["mock", "run_forever", {}]
+            (["mock", "fail", {}], None),
+            (["mock", "complete_after", {"settings": {"duration": 1000}}], None),
+            (["mock", "fail_by_exception", {}], None),
+            (["mock", "blahblah", {}], None),
+            (["mock", "fail_after", {"settings": {"duration": 1000}}], None),
+            (["mock", "run_forever", {}], None),
+            (["mock", "fail", {}], "fail"),
+            (["mock", "run_forever", {}], "run_forever"),
         ])
     @authors("krock21")
-    def test_list(self, query_tracker, query_type):
+    def test_list(self, query_tracker, query_type, filter):
         create_user("u1")
         create_user("u2")
         create_user("u3")
@@ -1107,14 +1124,27 @@ class TestAccessControlList(YTEnvSetup):
             q_u5.track(raise_on_unsuccess=False)
             q_u6.track(raise_on_unsuccess=False)
 
-        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(cursor_direction="future"))  # Root user sees everything.
-        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(cursor_direction="future", authenticated_user="superuser_u7"))  # Superuser sees everything.
+        # Root user sees everything.
+        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(cursor_direction="future"))
+        # Superuser sees everything.
+        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(cursor_direction="future", authenticated_user="superuser_u7"))
         expect_queries([q_u1, q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u1"))
         expect_queries([q_u1, q_u2, q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u2"))
         expect_queries([q_u2, q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u3"))
         expect_queries([q_u3, q_u4], list_queries(cursor_direction="future", authenticated_user="u4"))
         expect_queries([q_u3, q_u5], list_queries(cursor_direction="future", authenticated_user="u5"))
         expect_queries([q_u6], list_queries(cursor_direction="future", authenticated_user="u6"))
+
+        # Root user sees everything.
+        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(filter=filter, cursor_direction="future", use_full_text_search=True))
+        # Superuser sees everything.
+        expect_queries([q_u1, q_u2, q_u3, q_u4, q_u5, q_u6], list_queries(filter=filter, cursor_direction="future", authenticated_user="superuser_u7", use_full_text_search=True))
+        expect_queries([q_u1, q_u3, q_u4], list_queries(filter=filter, cursor_direction="future", authenticated_user="u1", use_full_text_search=True))
+        expect_queries([q_u1, q_u2, q_u3, q_u4], list_queries(filter=filter, cursor_direction="future", authenticated_user="u2", use_full_text_search=True))
+        expect_queries([q_u2, q_u3, q_u4], list_queries(filter=filter, cursor_direction="future", authenticated_user="u3", use_full_text_search=True))
+        expect_queries([q_u3, q_u4], list_queries(filter=filter, cursor_direction="future", authenticated_user="u4", use_full_text_search=True))
+        expect_queries([q_u3, q_u5], list_queries(filter=filter, cursor_direction="future", authenticated_user="u5", use_full_text_search=True))
+        expect_queries([q_u6], list_queries(filter=filter, cursor_direction="future", authenticated_user="u6", use_full_text_search=True))
 
     @authors("krock21")
     def test_list_by_aco(self, query_tracker):
@@ -1149,13 +1179,16 @@ class TestAccessControlList(YTEnvSetup):
         q_u2 = start_query("mock", "run_forever", authenticated_user="u2", access_control_object="aco_list_by_aco2")
         q_u3 = start_query("mock", "run_forever", authenticated_user="u3", access_control_object="aco_list_by_aco3")
 
-        expect_queries([q_u1, q_u2, q_u3], list_queries(filter="aco:"))
-        expect_queries([q_u1], list_queries(filter="aco_list_by_aco1"))
-        expect_queries([q_u1], list_queries(filter="aco:aco_list_by_aco1"))
-        expect_queries([q_u2], list_queries(filter="aco_list_by_aco2"))
-        expect_queries([q_u2], list_queries(filter="aco:aco_list_by_aco2"))
-        expect_queries([q_u3], list_queries(filter="aco_list_by_aco3"))
-        expect_queries([q_u3], list_queries(filter="aco:aco_list_by_aco3"))
+        def check_filter_by_aco(query, num):
+            expect_queries([], list_queries(filter="aco:", use_full_text_search=True))
+            expect_queries([], list_queries(filter="\"aco:\"", use_full_text_search=True))
+            expect_queries([], list_queries(filter=f"aco_list_by_aco{num}", use_full_text_search=True))
+            expect_queries([query], list_queries(filter=f"\"aco:aco_list_by_aco{num}\"", use_full_text_search=True))
+            expect_queries([query], list_queries(filter=f"'aco:aco_list_by_aco{num}'", use_full_text_search=True))
+
+        check_filter_by_aco(q_u1, 1)
+        check_filter_by_aco(q_u2, 2)
+        check_filter_by_aco(q_u3, 3)
 
     @authors("mpereskokova")
     def test_list_sql_injection(self, query_tracker):
@@ -1167,6 +1200,102 @@ class TestAccessControlList(YTEnvSetup):
         expect_queries([q0], list_queries(cursor_direction="future", attributes=["id"], user="u1"))
         expect_queries([q1], list_queries(cursor_direction="future", attributes=["id"], user="u2"))
         expect_queries([], list_queries(cursor_direction="future", attributes=["id"], user="u1\") OR ([user]=\"u2"))
+
+
+@pytest.mark.enabled_multidaemon
+class TestSearch(YTEnvSetup):
+    @authors("kirsiv40")
+    @pytest.mark.timeout(900)
+    def test_list_search_filters(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+        create_user("superuser_u3")
+        add_member("superuser_u3", "superusers")
+
+        create_access_control_object(
+            "some-aco'$%^'",
+            "queries",
+            attributes={
+                "principal_acl": [
+                    make_ace("allow", "u2", "use"),
+                ]
+            })
+        q0 = start_query("mock", "select * from `//some/query/with/tables/first`", authenticated_user="u1")
+        q1 = start_query("mock", "select * from [//some/other/query/with/tables]", authenticated_user="u2", access_control_object="everyone")
+        q2 = start_query("mock", "select * from [//some/OTHER/query/with/tables]", authenticated_user="u2", access_control_objects=["nobody", "some-aco'$%^'"])
+        q3 = start_query("mock", "select * from //some--broken--query/with/comments and select prefix 'sel'", authenticated_user="superuser_u3")
+
+        def collect_batch(attribute):
+            queries = list_queries(cursor_direction="future", attributes=["id", attribute])
+            result = []
+            for q, expected_q in zip(queries["queries"], (q0, q1, q2, q3)):
+                assert q["id"] == expected_q.id
+                result.append(q[attribute])
+            return result
+
+        q_times = collect_batch("start_time")
+
+        exclude_by_visibility_map = {
+            None: {},
+            "u1": {q2, q3},
+            "u2": {q0, q3},
+            "superuser_u3": {},
+        }
+
+        exclude_by_user_filter_map = {
+            None: {},
+            "u1": {q1, q2, q3},
+            "u2": {q0, q3},
+            "superuser_u3": {q0, q1, q2},
+        }
+
+        exclude_by_engine_filter_map = {
+            None: {},
+            "mock": {},
+            "yql": {q0, q1, q2, q3},
+        }
+
+        exclude_by_cursor_time_map = {
+            None: {},
+            q_times[1]: {q0, q1},
+        }
+
+        def expect_with_filters(queries_list, authenticated_user=None, user=None, engine=None, cursor_time=None, **kwargs):
+            kwargs["authenticated_user"] = authenticated_user
+            kwargs["user"] = user
+            kwargs["engine"] = engine
+            kwargs["cursor_time"] = cursor_time
+            expect_queries([query for query in queries_list if
+                            query not in exclude_by_user_filter_map[user] and
+                            query not in exclude_by_visibility_map[authenticated_user] and
+                            query not in exclude_by_engine_filter_map[engine] and
+                            query not in exclude_by_cursor_time_map[cursor_time]], list_queries(**kwargs))
+
+        params_map = {"use_full_text_search": True}
+        for authenticated_user in exclude_by_visibility_map:
+            params_map["authenticated_user"] = authenticated_user
+            for user in exclude_by_user_filter_map:
+                params_map["user"] = user
+                for engine in exclude_by_engine_filter_map:
+                    params_map["engine"] = engine
+                    for cursor_time in exclude_by_cursor_time_map:
+                        params_map["cursor_time"] = cursor_time
+                        print_debug(f"AuthenticatedUser: {authenticated_user}, UserFilter: {user}, Engine: {engine}")
+                        expect_with_filters([q0, q1, q2, q3], cursor_direction="future", attributes=["id"], filter="some some some", **params_map)
+                        expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="other", **params_map)
+                        expect_with_filters([], cursor_direction="future", attributes=["id"], filter="select", **params_map)
+
+                        expect_with_filters([q0, q1, q2, q3], cursor_direction="future", attributes=["id"], filter="so", search_by_token_prefix=True, **params_map)
+                        expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="oth", search_by_token_prefix=True, **params_map)
+                        expect_with_filters([q3], cursor_direction="future", attributes=["id"], filter="se", search_by_token_prefix=True, **params_map)
+
+                        expect_with_filters([q0, q1, q2, q3], cursor_direction="future", attributes=["id"], filter="other first broken", **params_map)
+                        expect_with_filters([q0, q1, q2, q3], cursor_direction="future", attributes=["id"], filter="ot fir broke", search_by_token_prefix=True, **params_map)
+
+                        expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="'aco:'", search_by_token_prefix=True, **params_map)
+                        expect_with_filters([q2], cursor_direction="future", attributes=["id"], filter="`aco:some-aco'$%^'`", search_by_token_prefix=True, **params_map)
+                        expect_with_filters([], cursor_direction="future", attributes=["id"], filter="'aco:random-aco'", search_by_token_prefix=True, **params_map)
+                        expect_with_filters([q1, q2], cursor_direction="future", attributes=["id"], filter="\"aco:some-aco'$%^'\" 'aco:everyone'", search_by_token_prefix=True, **params_map)
 
 
 ##################################################################
@@ -1238,6 +1367,15 @@ class TestAccessControlListRpcProxy(TestAccessControlList):
 @authors("mpereskokova")
 @pytest.mark.enabled_multidaemon
 class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestSearchRpcProxy(TestSearch):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1

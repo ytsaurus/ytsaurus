@@ -385,7 +385,7 @@ struct TStrategyTreeConfig
 
     bool AllowPreemptionFromStarvingOperations;
 
-    // TODO(eshcherbin): Remove these old options if checking pools' starvation proves to be pointless.
+    // COMPAT(eshcherbin): Remove after 25.4 is created.
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
 
@@ -420,6 +420,7 @@ struct TStrategyTreeConfig
 
     bool EnableFairShareTruncationInFifoPool;
 
+    // COMPAT(eshcherbin): Remove after 25.4 is created.
     bool EnableConditionalPreemption;
 
     TDuration AllowedResourceUsageStaleness;
@@ -437,11 +438,6 @@ struct TStrategyTreeConfig
     TDuration AccumulatedResourceDistributionUpdatePeriod;
 
     bool AllowAggressivePreemptionForGangOperations;
-
-    //! If set, remote copy operation will fail to start if it can acquire
-    //! more than RequiredResourceLimitsForRemoteCopy resources in any pool tree.
-    bool FailRemoteCopyOnMissingResourceLimits;
-    TJobResourcesConfigPtr RequiredResourceLimitsForRemoteCopy;
 
     TStrategySsdPriorityPreemptionConfigPtr SsdPriorityPreemption;
 
@@ -484,6 +480,10 @@ struct TStrategyTreeConfig
     bool AllowSingleJobLargeGpuOperationsInMultipleTrees;
 
     TJobResourcesConfigPtr MinSpareAllocationResourcesOnNode;
+
+    bool EnableDetailedLogsForStarvingOperations;
+
+    bool ConsiderSingleAllocationVanillaOperationsAsGang;
 
     REGISTER_YSON_STRUCT(TStrategyTreeConfig);
 

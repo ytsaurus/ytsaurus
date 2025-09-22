@@ -257,30 +257,6 @@ EAllocationSchedulingStage GetRegularSchedulingStageByPriority(EOperationSchedul
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSsdAllocationPreemptionLevel(EAllocationPreemptionLevel allocationPreemptionLevel)
-{
-    switch (allocationPreemptionLevel) {
-        case EAllocationPreemptionLevel::SsdNonPreemptible:
-        case EAllocationPreemptionLevel::SsdAggressivelyPreemptible:
-            return true;
-        default:
-            return false;
-    }
-}
-
-bool IsSsdOperationPreemptionPriority(EOperationPreemptionPriority operationPreemptionPriority)
-{
-    switch (operationPreemptionPriority) {
-        case EOperationPreemptionPriority::SsdNormal:
-        case EOperationPreemptionPriority::SsdAggressive:
-            return true;
-        default:
-            return false;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Builds the subtree induced by |operationSubset| and returns the list of children in this subtree for each pool.
 //! Children lists are returned in a vector indexed by elements' tree indexes, like dynamic attributes list (for performance reasons).
 // TODO(eshcherbin): Add a class which would represent a subtree.
@@ -335,12 +311,11 @@ const EOperationSchedulingPriorityList& GetDescendingSchedulingPriorities()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulableChildSet::TSchedulableChildSet(
-    const TPoolTreeCompositeElement* owningElement,
+    const TPoolTreeCompositeElement* /*owningElement*/,
     TNonOwningElementList children,
     TDynamicAttributesList* dynamicAttributesList,
     bool useHeap)
-    : OwningElement_(owningElement)
-    , DynamicAttributesList_(dynamicAttributesList)
+    : DynamicAttributesList_(dynamicAttributesList)
     , UseHeap_(useHeap)
     , Children_(std::move(children))
 {
@@ -1016,15 +991,10 @@ int TScheduleAllocationsContext::GetOperationWithPreemptionPriorityCount(EOperat
 void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
     EOperationPreemptionPriority targetOperationPreemptionPriority,
     EAllocationPreemptionLevel minAllocationPreemptionLevel,
-    std::vector<TAllocationWithPreemptionInfo>* unconditionallyPreemptibleAllocations,
+    std::vector<TAllocationWithPreemptionInfo>* preemptibleAllocations,
     TNonOwningAllocationSet* forcefullyPreemptibleAllocations)
 {
-    const auto& treeConfig = TreeSnapshot_->TreeConfig();
-
     YT_LOG_TRACE("Looking for preemptible allocations (MinAllocationPreemptionLevel: %v)", minAllocationPreemptionLevel);
-
-    int totalConditionallyPreemptibleAllocationCount = 0;
-    int maxConditionallyPreemptibleAllocationCountInPool = 0;
 
     NProfiling::TWallTimer timer;
 
@@ -1032,8 +1002,8 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
     for (const auto& allocationInfo : allocationInfos) {
         const auto& [allocation, preemptionStatus, operationElement] = allocationInfo;
 
-        bool isAllocationForcefullyPreemptible = !IsSchedulingSegmentCompatibleWithNode(operationElement);
-        if (isAllocationForcefullyPreemptible) {
+        bool allocationForcefullyPreemptible = !IsSchedulingSegmentCompatibleWithNode(operationElement);
+        if (allocationForcefullyPreemptible) {
             const auto& operationState = TreeSnapshot_->SchedulingPolicyState()->GetEnabledOperationState(operationElement);
 
             YT_ELEMENT_LOG_DETAILED(
@@ -1051,50 +1021,22 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
         }
 
         auto allocationPreemptionLevel = GetAllocationPreemptionLevel(allocationInfo);
-        bool isAllocationPreemptible = isAllocationForcefullyPreemptible || (allocationPreemptionLevel >= minAllocationPreemptionLevel);
-        if (!isAllocationPreemptible) {
+        bool allocationPreemptible = allocationForcefullyPreemptible || (allocationPreemptionLevel >= minAllocationPreemptionLevel);
+        if (!allocationPreemptible) {
             continue;
         }
 
-        auto preemptionBlockingAncestor = FindPreemptionBlockingAncestor(operationElement, allocationPreemptionLevel, targetOperationPreemptionPriority);
-        bool isUnconditionalPreemptionAllowed = isAllocationForcefullyPreemptible || preemptionBlockingAncestor == nullptr;
-        bool isConditionalPreemptionAllowed = treeConfig->EnableConditionalPreemption &&
-            !isUnconditionalPreemptionAllowed &&
-            preemptionStatus == EAllocationPreemptionStatus::Preemptible &&
-            preemptionBlockingAncestor != operationElement;
-
-        if (isUnconditionalPreemptionAllowed) {
-            const auto* parent = operationElement->GetParent();
-            while (parent) {
-                LocalUnconditionalUsageDiscountMap_[parent->GetTreeIndex()] += allocation->ResourceUsage();
-                parent = parent->GetParent();
-            }
-            SchedulingHeartbeatContext_->IncreaseUnconditionalDiscount(TJobResourcesWithQuota(allocation->ResourceUsage(), allocation->DiskQuota()));
-            unconditionallyPreemptibleAllocations->push_back(allocationInfo);
-        } else if (isConditionalPreemptionAllowed) {
-            ConditionallyPreemptibleAllocationSetMap_[preemptionBlockingAncestor->GetTreeIndex()].insert(allocationInfo);
-            ++totalConditionallyPreemptibleAllocationCount;
+        bool preemptionAllowed = allocationForcefullyPreemptible || !FindPreemptionBlockingAncestor(operationElement, targetOperationPreemptionPriority);
+        if (preemptionAllowed) {
+            SchedulingHeartbeatContext_->IncreaseDiscount(TJobResourcesWithQuota(allocation->ResourceUsage(), allocation->DiskQuota()));
+            preemptibleAllocations->push_back(allocationInfo);
         }
-    }
-
-    SchedulingHeartbeatContext_->InitializeConditionalDiscounts(TreeSnapshot_->RootElement()->SchedulableElementCount());
-
-    TPrepareConditionalUsageDiscountsContext context{.TargetOperationPreemptionPriority = targetOperationPreemptionPriority};
-    PrepareConditionalUsageDiscounts(TreeSnapshot_->RootElement().Get(), &context);
-
-    for (const auto& [_, allocationSet] : ConditionallyPreemptibleAllocationSetMap_) {
-        maxConditionallyPreemptibleAllocationCountInPool = std::max<int>(
-            maxConditionallyPreemptibleAllocationCountInPool,
-            std::ssize(allocationSet));
     }
 
     StageState_->AnalyzeAllocationsDuration += timer.GetElapsedTime();
 
-    SchedulingStatistics_.UnconditionallyPreemptibleAllocationCount = unconditionallyPreemptibleAllocations->size();
-    SchedulingStatistics_.UnconditionalResourceUsageDiscount = SchedulingHeartbeatContext_->GetUnconditionalDiscount().ToJobResources();
-    SchedulingStatistics_.MaxConditionalResourceUsageDiscount = SchedulingHeartbeatContext_->GetMaxConditionalDiscount().ToJobResources();
-    SchedulingStatistics_.TotalConditionallyPreemptibleAllocationCount = totalConditionallyPreemptibleAllocationCount;
-    SchedulingStatistics_.MaxConditionallyPreemptibleAllocationCountInPool = maxConditionallyPreemptibleAllocationCountInPool;
+    SchedulingStatistics_.PreemptibleAllocationCount = preemptibleAllocations->size();
+    SchedulingStatistics_.ResourceUsageDiscount = SchedulingHeartbeatContext_->GetDiscount().ToJobResources();
 }
 
 void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
@@ -1103,34 +1045,19 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
     const TNonOwningAllocationSet& forcefullyPreemptibleAllocations,
     const TAllocationPtr& allocationStartedUsingPreemption)
 {
-    // Collect conditionally preemptible allocations.
     EOperationPreemptionPriority preemptorOperationLocalPreemptionPriority;
-    TAllocationWithPreemptionInfoSet conditionallyPreemptibleAllocations;
     if (allocationStartedUsingPreemption) {
         auto* operationElement = TreeSnapshot_->FindEnabledOperationElement(allocationStartedUsingPreemption->GetOperationId());
         YT_VERIFY(operationElement);
 
         preemptorOperationLocalPreemptionPriority = GetOperationPreemptionPriority(operationElement, EOperationPreemptionPriorityScope::OperationOnly);
-
-        auto* parent = operationElement->GetParent();
-        while (parent) {
-            const auto& parentConditionallyPreemptibleAllocations = GetConditionallyPreemptibleAllocationsInPool(parent);
-            conditionallyPreemptibleAllocations.insert(
-                parentConditionallyPreemptibleAllocations.begin(),
-                parentConditionallyPreemptibleAllocations.end());
-
-            parent = parent->GetParent();
-        }
     }
 
-    preemptibleAllocations.insert(preemptibleAllocations.end(), conditionallyPreemptibleAllocations.begin(), conditionallyPreemptibleAllocations.end());
     SortAllocationsWithPreemptionInfo(&preemptibleAllocations);
     std::reverse(preemptibleAllocations.begin(), preemptibleAllocations.end());
 
-    // Reset discounts.
-    SchedulingHeartbeatContext_->ResetDiscounts();
-    LocalUnconditionalUsageDiscountMap_.clear();
-    ConditionallyPreemptibleAllocationSetMap_.clear();
+    // Reset discount.
+    SchedulingHeartbeatContext_->ResetDiscount();
 
     auto findPoolWithViolatedLimitsForAllocation = [&] (const TAllocationPtr& allocation) -> const TPoolTreeCompositeElement* {
         auto* operationElement = TreeSnapshot_->FindEnabledOperationElement(allocation->GetOperationId());
@@ -1203,9 +1130,6 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                     "; this allocation was forcefully preemptible, because its node was "
                     "moved to another scheduling segment or the operation was preempted from module");
             }
-            if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
-                preemptionReasonBuilder.AppendString("; this allocation was conditionally preemptible");
-            }
 
             allocation->SetPreemptionReason(preemptionReasonBuilder.Flush());
 
@@ -1246,11 +1170,6 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
             allocation->SetPreemptionReason(
                 "Preempted because node was moved to another scheduling segment or the operation was preempted from module");
             PreemptAllocation(allocation, operationElement, EAllocationPreemptionReason::IncompatibleSchedulingSegment);
-            continue;
-        }
-
-        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
-            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
             continue;
         }
 
@@ -1342,6 +1261,7 @@ TNonOwningOperationElementList TScheduleAllocationsContext::ExtractBadPackingOpe
 void TScheduleAllocationsContext::StartStage(
     EAllocationSchedulingStage stage,
     TSchedulingStageProfilingCounters* profilingCounters,
+    bool preemptive,
     int stageAttemptIndex)
 {
     YT_VERIFY(!StageState_);
@@ -1353,6 +1273,7 @@ void TScheduleAllocationsContext::StartStage(
 
     StageState_.emplace(TStageState{
         .Stage = stage,
+        .Preemptive = preemptive,
         .ProfilingCounters = profilingCounters,
         .StageAttemptIndex = stageAttemptIndex,
     });
@@ -1379,10 +1300,8 @@ bool TScheduleAllocationsContext::GetStagePrescheduleExecuted() const
     return StageState_->PrescheduleExecuted;
 }
 
-// TODO(eshcherbin): Reconsider this logic.
 const TPoolTreeElement* TScheduleAllocationsContext::FindPreemptionBlockingAncestor(
     const TPoolTreeOperationElement* element,
-    EAllocationPreemptionLevel allocationPreemptionLevel,
     EOperationPreemptionPriority targetOperationPreemptionPriority) const
 {
     const auto& treeConfig = TreeSnapshot_->TreeConfig();
@@ -1390,11 +1309,6 @@ const TPoolTreeElement* TScheduleAllocationsContext::FindPreemptionBlockingAnces
 
     if (spec->PreemptionMode == EPreemptionMode::Graceful) {
         return element;
-    }
-
-    // NB(eshcherbin): We ignore preemption blocking ancestors for allocations with SSD priority preemption.
-    if (IsSsdOperationPreemptionPriority(targetOperationPreemptionPriority) && !IsSsdAllocationPreemptionLevel(allocationPreemptionLevel)) {
-        return {};
     }
 
     if (targetOperationPreemptionPriority == EOperationPreemptionPriority::Normal) {
@@ -1415,67 +1329,9 @@ const TPoolTreeElement* TScheduleAllocationsContext::FindPreemptionBlockingAnces
         return element;
     }
 
-    // TODO(eshcherbin): Remove this and conditional preemption logic if it proves to be pointless.
-    const TPoolTreeElement* current = element->GetParent();
-    while (current && !current->IsRoot()) {
-        // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.
-        // Maybe just satisfaction is enough?
-        if (treeConfig->PreemptionCheckStarvation && current->GetStarvationStatus() != EStarvationStatus::NonStarving) {
-            UpdateOperationPreemptionStatusStatistics(
-                element,
-                current == element
-                    ? EOperationPreemptionStatus::ForbiddenSinceStarving
-                    : EOperationPreemptionStatus::AllowedConditionally);
-            return current;
-        }
+    UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::Allowed);
 
-        bool useAggressiveThreshold = StaticAttributesOf(current).EffectiveAggressivePreemptionAllowed &&
-            targetOperationPreemptionPriority >= EOperationPreemptionPriority::Aggressive;
-        auto threshold = useAggressiveThreshold
-            ? treeConfig->AggressivePreemptionSatisfactionThreshold
-            : treeConfig->PreemptionSatisfactionThreshold;
-
-        // NB: We want to use *local* satisfaction ratio here.
-        double localSatisfactionRatio = current->ComputeLocalSatisfactionRatio(GetCurrentResourceUsage(current));
-        if (treeConfig->PreemptionCheckSatisfaction && localSatisfactionRatio < threshold + NVectorHdrf::RatioComparisonPrecision) {
-            UpdateOperationPreemptionStatusStatistics(
-                element,
-                current == element
-                    ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied
-                    : EOperationPreemptionStatus::AllowedConditionally);
-            return current;
-        }
-
-        current = current->GetParent();
-    }
-
-
-    UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::AllowedUnconditionally);
     return {};
-}
-
-void TScheduleAllocationsContext::PrepareConditionalUsageDiscounts(
-    const TPoolTreeElement* element,
-    TPrepareConditionalUsageDiscountsContext* context)
-{
-    switch (element->GetType()) {
-        case ESchedulerElementType::Pool:
-        case ESchedulerElementType::Root:
-            PrepareConditionalUsageDiscountsAtCompositeElement(static_cast<const TPoolTreeCompositeElement*>(element), context);
-            break;
-        case ESchedulerElementType::Operation:
-            PrepareConditionalUsageDiscountsAtOperation(static_cast<const TPoolTreeOperationElement*>(element), context);
-            break;
-        default:
-            YT_ABORT();
-    }
-}
-
-const TAllocationWithPreemptionInfoSet& TScheduleAllocationsContext::GetConditionallyPreemptibleAllocationsInPool(
-    const TPoolTreeCompositeElement* element) const
-{
-    auto it = ConditionallyPreemptibleAllocationSetMap_.find(element->GetTreeIndex());
-    return it != ConditionallyPreemptibleAllocationSetMap_.end() ? it->second : EmptyAllocationWithPreemptionInfoSet;
 }
 
 const TDynamicAttributes& TScheduleAllocationsContext::DynamicAttributesOf(const TPoolTreeElement* element) const
@@ -1518,35 +1374,34 @@ TJobResources TScheduleAllocationsContext::GetCurrentResourceUsage(const TPoolTr
     }
 }
 
-TJobResources TScheduleAllocationsContext::GetHierarchicalAvailableResources(const TPoolTreeElement* element) const
+TJobResources TScheduleAllocationsContext::GetHierarchicalAvailableResources(
+    const TPoolTreeElement* element,
+    bool allowLimitsOvercommit) const
 {
     auto availableResources = TJobResources::Infinite();
     while (element) {
-        availableResources = Min(availableResources, GetLocalAvailableResourceLimits(element));
+        availableResources = Min(availableResources, GetLocalAvailableResourceLimits(element, allowLimitsOvercommit));
         element = element->GetParent();
     }
 
     return availableResources;
 }
 
-TJobResources TScheduleAllocationsContext::GetLocalAvailableResourceLimits(const TPoolTreeElement* element) const
+TJobResources TScheduleAllocationsContext::GetLocalAvailableResourceLimits(
+    const TPoolTreeElement* element,
+    bool allowLimitsOvercommit) const
 {
     if (element->MaybeSpecifiedResourceLimits()) {
+        auto resourceDiscount = allowLimitsOvercommit
+            ? element->SpecifiedResourceLimitsOvercommitTolerance()
+            : TJobResources();
         return ComputeAvailableResources(
             element->ResourceLimits(),
             element->GetResourceUsageWithPrecommit(),
-            GetLocalUnconditionalUsageDiscount(element));
+            resourceDiscount);
     }
+
     return TJobResources::Infinite();
-}
-
-TJobResources TScheduleAllocationsContext::GetLocalUnconditionalUsageDiscount(const TPoolTreeElement* element) const
-{
-    int index = element->GetTreeIndex();
-    YT_VERIFY(index != UnassignedTreeIndex);
-
-    auto it = LocalUnconditionalUsageDiscountMap_.find(index);
-    return it != LocalUnconditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
 }
 
 void TScheduleAllocationsContext::CollectConsideredSchedulableChildrenPerPool(
@@ -1676,14 +1531,11 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
         element,
         "Trying to schedule allocation "
         "(SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, "
-        "UsageDiscount: {Total: %v, Unconditional: %v, Conditional: %v}, StageType: %v)",
+        "UsageDiscount: %v, StageType: %v)",
         DynamicAttributesOf(element).SatisfactionRatio,
         SchedulingHeartbeatContext_->GetNodeDescriptor()->Id,
         FormatResourceUsage(SchedulingHeartbeatContext_->ResourceUsage(), SchedulingHeartbeatContext_->ResourceLimits()),
-        FormatResources(SchedulingHeartbeatContext_->GetUnconditionalDiscount() +
-            SchedulingHeartbeatContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
-        FormatResources(SchedulingHeartbeatContext_->GetUnconditionalDiscount()),
-        FormatResources(SchedulingHeartbeatContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
+        FormatResources(SchedulingHeartbeatContext_->GetDiscount()),
         GetStageType());
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
@@ -1730,14 +1582,12 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
         YT_ELEMENT_LOG_DETAILED(
             element,
             "No pending allocations can satisfy available resources on node ("
-            "FreeAllocationResources: %v, DiskResources: %v, DiscountResources: {Total: %v, Unconditional: %v, Conditional: %v}, "
+            "FreeAllocationResources: %v, DiskResources: %v, DiscountResources: %v, "
             "MinNeededResources: %v, GroupedNeededResources: %v, "
             "Address: %v)",
             FormatResources(SchedulingHeartbeatContext_->GetNodeFreeResourcesWithoutDiscount()),
             SchedulingHeartbeatContext_->DiskResources(),
-            FormatResources(SchedulingHeartbeatContext_->GetUnconditionalDiscount() + SchedulingHeartbeatContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
-            FormatResources(SchedulingHeartbeatContext_->GetUnconditionalDiscount()),
-            FormatResources(SchedulingHeartbeatContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
+            FormatResources(SchedulingHeartbeatContext_->GetDiscount()),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
             element->GroupedNeededResources(),
             NNodeTrackerClient::GetDefaultAddress(SchedulingHeartbeatContext_->GetNodeDescriptor()->Addresses));
@@ -1876,32 +1726,6 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
     return true;
 }
 
-void TScheduleAllocationsContext::PrepareConditionalUsageDiscountsAtCompositeElement(
-    const TPoolTreeCompositeElement* element,
-    TPrepareConditionalUsageDiscountsContext* context)
-{
-    TJobResourcesWithQuota deltaConditionalDiscount;
-    for (const auto& allocationInfo : GetConditionallyPreemptibleAllocationsInPool(element)) {
-        deltaConditionalDiscount += TJobResourcesWithQuota(allocationInfo.Allocation->ResourceUsage(), allocationInfo.Allocation->DiskQuota());
-    }
-
-    context->CurrentConditionalDiscount += deltaConditionalDiscount;
-    for (auto* child : element->SchedulableChildren()) {
-        PrepareConditionalUsageDiscounts(child, context);
-    }
-    context->CurrentConditionalDiscount -= deltaConditionalDiscount;
-}
-
-void TScheduleAllocationsContext::PrepareConditionalUsageDiscountsAtOperation(
-    const TPoolTreeOperationElement* element,
-    TPrepareConditionalUsageDiscountsContext* context)
-{
-    if (GetOperationPreemptionPriority(element) != context->TargetOperationPreemptionPriority) {
-        return;
-    }
-    SchedulingHeartbeatContext_->SetConditionalDiscountForOperation(element->GetTreeIndex(), context->CurrentConditionalDiscount);
-}
-
 std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartScheduleAllocation(
     TPoolTreeOperationElement* element,
     TJobResources* precommittedResourcesOutput,
@@ -1911,7 +1735,8 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     const auto& minNeededResources = element->AggregatedMinNeededAllocationResources();
 
     // Do preliminary checks to avoid the overhead of updating and reverting precommit usage.
-    if (!Dominates(GetHierarchicalAvailableResources(element), minNeededResources)) {
+    bool allowLimitsOvercommit = StageState_->Preemptive;
+    if (!Dominates(GetHierarchicalAvailableResources(element, allowLimitsOvercommit), minNeededResources)) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
     if (!element->CheckAvailableDemand(minNeededResources)) {
@@ -1921,6 +1746,7 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     TJobResources availableResourceLimits;
     auto increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(
         minNeededResources,
+        allowLimitsOvercommit,
         &availableResourceLimits);
 
     if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
@@ -1935,8 +1761,8 @@ std::optional<EDeactivationReason> TScheduleAllocationsContext::TryStartSchedule
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(
         availableResourceLimits,
-        SchedulingHeartbeatContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetTreeIndex()));
-    *availableDiskResourcesOutput = SchedulingHeartbeatContext_->GetDiskResourcesWithDiscountForOperation(element->GetTreeIndex(), minNeededResources);
+        SchedulingHeartbeatContext_->GetNodeFreeResourcesWithDiscount());
+    *availableDiskResourcesOutput = SchedulingHeartbeatContext_->GetNodeFreeDiskResourcesWithDiscount(minNeededResources);
     return {};
 }
 
@@ -1971,10 +1797,12 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
         // Discard the allocation in case of resource overcommit.
         // Note: |resourceDelta| might be negative.
         const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
+
         // NB: If the element is disabled, we still choose the success branch. This is kind of a hotfix. See: YT-16070.
         auto increaseResult = EResourceTreeIncreaseResult::Success;
+        bool allowLimitsOvercommit = StageState_->Preemptive;
         if (IsOperationEnabled(element)) {
-            increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
+            increaseResult = element->TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta, allowLimitsOvercommit);
         }
         switch (increaseResult) {
             case EResourceTreeIncreaseResult::Success: {
@@ -1984,9 +1812,9 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
             case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
                 // NB(eshcherbin): GetHierarchicalAvailableResource will never return infinite resources here,
                 // because ResourceLimitExceeded could only be triggered if there's an ancestor with specified limits.
-                auto availableDelta = GetHierarchicalAvailableResources(element);
+                auto availableDelta = GetHierarchicalAvailableResources(element, allowLimitsOvercommit);
                 YT_LOG_DEBUG(
-                    "Aborting allocation with resource overcommit (AllocationId: %v, ResourceLimits: %v, AllocationResources: %v)",
+                    "Aborting allocation with resource overcommit (AllocationId: %v, AvailableResources: %v, AllocationResources: %v)",
                     allocationId,
                     FormatResources(*precommittedResources + availableDelta),
                     FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
@@ -2224,9 +2052,8 @@ bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
     for (const auto& [_, allocationGroupResources] : element->GroupedNeededResources()) {
-        bool canStartAllocation = SchedulingHeartbeatContext_->CanStartAllocationForOperation(
+        bool canStartAllocation = SchedulingHeartbeatContext_->CanStartAllocation(
             allocationGroupResources.MinNeededResources,
-            element->GetTreeIndex(),
             unsatisfiedResources);
         if (canStartAllocation) {
             return true;
@@ -3381,7 +3208,11 @@ void TSchedulingPolicy::DoRegularAllocationScheduling(TScheduleAllocationsContex
         const TRegularSchedulingParameters& parameters = {},
         int stageAttemptIndex = 0)
     {
-        context->StartStage(stageType, SchedulingStageProfilingCounters_[stageType].get(), stageAttemptIndex);
+        context->StartStage(
+            stageType,
+            SchedulingStageProfilingCounters_[stageType].get(),
+            /*preemptive*/ false,
+            stageAttemptIndex);
         RunRegularSchedulingStage(parameters, context);
         context->FinishStage();
     };
@@ -3493,7 +3324,10 @@ void TSchedulingPolicy::DoPreemptiveAllocationScheduling(TScheduleAllocationsCon
             break;
         }
 
-        context->StartStage(stage, SchedulingStageProfilingCounters_[stage].get());
+        context->StartStage(
+            stage,
+            SchedulingStageProfilingCounters_[stage].get(),
+            /*preemptive*/ true);
         RunPreemptiveSchedulingStage(parameters, context);
         context->FinishStage();
     }
@@ -3544,7 +3378,7 @@ void TSchedulingPolicy::RunRegularSchedulingStage(
         "(NodeAddress: %v, ConsideredOperationCount: %v, CustomMinSpareAllocationResources: %v, "
         "OneAllocationOnly: %v, IgnorePacking: %v)",
         context->SchedulingHeartbeatContext()->GetNodeDescriptor()->GetDefaultAddress(),
-        parameters.ConsideredOperations ? static_cast<int>(std::ssize(*parameters.ConsideredOperations)) : 0,
+        parameters.ConsideredOperations.transform([] (const auto& operations) { return operations.size(); }),
         parameters.CustomMinSpareAllocationResources,
         parameters.OneAllocationOnly,
         parameters.IgnorePacking);
@@ -3585,14 +3419,14 @@ void TSchedulingPolicy::RunPreemptiveSchedulingStage(
     // 2. Initialize dynamic attributes and calculate local resource usages if scheduling without preemption was skipped.
     context->PrepareForScheduling();
 
-    std::vector<TAllocationWithPreemptionInfo> unconditionallyPreemptibleAllocations;
-    // TODO(eshcherbin): Refactor so that attributes like conditionality or forcefulness are placed in a single struct.
-    // Or, even better, remove both conditional and forceful preemption altogether.
+    std::vector<TAllocationWithPreemptionInfo> preemptibleAllocations;
+    // TODO(eshcherbin): Refactor so that attributes like forcefulness are placed in a single struct.
+    // Or even better, remove forceful preemption :)
     TNonOwningAllocationSet forcefullyPreemptibleAllocations;
     context->AnalyzePreemptibleAllocations(
         parameters.TargetOperationPreemptionPriority,
         parameters.MinAllocationPreemptionLevel,
-        &unconditionallyPreemptibleAllocations,
+        &preemptibleAllocations,
         &forcefullyPreemptibleAllocations);
 
     int startedBeforePreemption = context->SchedulingHeartbeatContext()->StartedAllocations().size();
@@ -3600,15 +3434,15 @@ void TSchedulingPolicy::RunPreemptiveSchedulingStage(
     YT_LOG_DEBUG_IF(context->IsSchedulingInfoLoggingEnabled(),
         "Running preemptive scheduling stage "
         "(NodeAddress: %v, TargetOperationPreemptionPriority: %v, MinAllocationPreemptionLevel: %v, ForcePreemptionAttempt: %v, "
-        "OperationWithPreemptionPriorityCount: %v, UnconditionalResourceUsageDiscount: %v, "
-        "UnconditionallyPreemptibleAllocationCount: %v, ForcefullyPreemptibleAllocationCount: %v)",
+        "OperationWithPreemptionPriorityCount: %v, ResourceUsageDiscount: %v, "
+        "PreemptibleAllocationCount: %v, ForcefullyPreemptibleAllocationCount: %v)",
         context->SchedulingHeartbeatContext()->GetNodeDescriptor()->GetDefaultAddress(),
         parameters.TargetOperationPreemptionPriority,
         parameters.MinAllocationPreemptionLevel,
         parameters.ForcePreemptionAttempt,
         operationWithPreemptionPriorityCount,
-        FormatResources(context->SchedulingHeartbeatContext()->GetUnconditionalDiscount()),
-        unconditionallyPreemptibleAllocations.size(),
+        FormatResources(context->SchedulingHeartbeatContext()->GetDiscount()),
+        preemptibleAllocations.size(),
         forcefullyPreemptibleAllocations.size());
 
     // NB: Schedule at most one allocation with preemption.
@@ -3637,7 +3471,7 @@ void TSchedulingPolicy::RunPreemptiveSchedulingStage(
 
     context->PreemptAllocationsAfterScheduling(
         parameters.TargetOperationPreemptionPriority,
-        std::move(unconditionallyPreemptibleAllocations),
+        std::move(preemptibleAllocations),
         forcefullyPreemptibleAllocations,
         allocationStartedUsingPreemption);
 }

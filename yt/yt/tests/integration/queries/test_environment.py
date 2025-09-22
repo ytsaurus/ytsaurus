@@ -9,7 +9,9 @@ from yt.common import YtError
 from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
                          create_tablet_cell_bundle, sync_create_cells)
 
-from yt.yson import YsonEntity
+from yt_queries import get_query, get_query_tracker_info
+
+from yt.yson import YsonEntity, YsonMap
 
 import yt_error_codes
 
@@ -235,3 +237,355 @@ class TestMigration(YTEnvSetup):
         assert len(rows_after_migration) == 1
         assert len(rows_after_migration[0]) == 16
         assert "assigned_tracker" in rows_after_migration[0]
+
+    @authors("kirsiv40")
+    def test_progress_compression_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 16)
+
+        assert get_query_tracker_info(attributes=["cluster_name"])['expected_tables_version'] >= 17
+        assert client.get_query_tracker_info(attributes=["cluster_name"]) is not None
+
+        progress_before_migration = YsonMap({"abc": "def", "qwe": 123, "zxc": [1, "abc", 2, ',:="\'\'"', ",:=\"\'''\'\""]})
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "12345678-12345678-12345678-12345678", "progress": progress_before_migration, "user": "some-user"}])
+
+        run_migration(client, 17)
+
+        rows_after_migration = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        raw_progress_after_migration = rows_after_migration[0]["progress"]
+        assert not isinstance(raw_progress_after_migration, dict)
+
+        progress_after_migration = get_query("12345678-12345678-12345678-12345678")["progress"]
+        assert progress_after_migration == progress_before_migration
+
+    @authors("kirsiv40")
+    def test_search_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 17)
+        assert not exists("//sys/query_tracker/search_inverted_index")
+        assert not exists("//sys/query_tracker/search_meta")
+
+        insert_rows("//sys/query_tracker/finished_queries", [
+            {
+                "query_id": "test_query_id",
+                "query": "((some_token 23 some_token 1))",
+                "access_control_objects": ["aco-1", "aco-2", "nobody"],
+                "user": "kirsiv40",
+                "start_time": 1,
+                "engine": "yql",
+            },
+        ])
+
+        insert_rows("//sys/query_tracker/active_queries", [
+            {
+                "query_id": "test_query_id_2",
+                "query": "some_token 23 select from",
+                "access_control_objects": ["aco-1"],
+                "user": "kirsiv40",
+                "start_time": 2,
+                "engine": "spyt",
+            },
+            {
+                "query_id": "test_query_id",
+                "query": "((some_token 23 some_token 1))",
+                "access_control_objects": ["aco-1", "aco-2", "nobody"],
+                "user": "kirsiv40",
+                "start_time": 1,
+                "engine": "yql",
+            },
+        ])
+
+        run_migration(client, 18)
+
+        assert not exists("//sys/query_tracker/search_inverted_index/@auto_compaction_period")
+        assert not exists("//sys/query_tracker/search_meta/@auto_compaction_period")
+
+        inverted_index_records = list(select_rows("* from [//sys/query_tracker/search_inverted_index] order by (access_scope, token, engine, user, minus_start_time) limit 1000"))
+        # 'nobody' aco doesn't go to inverted indices tables
+        assert inverted_index_records == [
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "spyt", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "spyt", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "spyt", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "spyt", "user": "kirsiv40", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "yql", "user": "kirsiv40", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+
+            {"access_scope": "su", "token": "23", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "23", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "su", "token": "23", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "23", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "su", "token": "aco", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "aco", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "su", "token": "aco", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "aco", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "su", "token": "aco:aco-2", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "su", "token": "aco:aco-2", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "su", "token": "some_token", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "some_token", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+            {"access_scope": "su", "token": "some_token", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "su", "token": "some_token", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-2", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-2", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 1},
+
+
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "spyt", "user": "", "minus_start_time": -2, "query_id": "test_query_id_2", "occurrences": 1},
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "yql", "user": "", "minus_start_time": -1, "query_id": "test_query_id", "occurrences": 2},
+        ]
+
+        meta_records = list(select_rows("* from [//sys/query_tracker/search_meta] order by (access_scope, token, engine, user) limit 100"))
+        assert meta_records == [
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "", "user": "kirsiv40", "total_occurrences": 2, "unique_queries": 2},
+
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "spyt", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "23", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "", "user": "kirsiv40", "total_occurrences": 2, "unique_queries": 2},
+
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "spyt", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "aco", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "", "user": "kirsiv40", "total_occurrences": 2, "unique_queries": 2},
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "spyt", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-1", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "aco:aco-2", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "", "user": "", "total_occurrences": 3, "unique_queries": 2},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "", "user": "kirsiv40", "total_occurrences": 3, "unique_queries": 2},
+
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "spyt", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "yql", "user": "", "total_occurrences": 2, "unique_queries": 1},
+            {"access_scope": "aco:aco-1", "token": "some_token", "engine": "yql", "user": "kirsiv40", "total_occurrences": 2, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "23", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "aco", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-1", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "aco:aco-2", "engine": "yql", "user": "kirsiv40", "total_occurrences": 1, "unique_queries": 1},
+
+
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "", "user": "kirsiv40", "total_occurrences": 2, "unique_queries": 1},
+
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "yql", "user": "", "total_occurrences": 2, "unique_queries": 1},
+            {"access_scope": "aco:aco-2", "token": "some_token", "engine": "yql", "user": "kirsiv40", "total_occurrences": 2, "unique_queries": 1},
+
+
+            {"access_scope": "su", "token": "23", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "su", "token": "23", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "su", "token": "23", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "su", "token": "aco", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "su", "token": "aco", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "su", "token": "aco", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "su", "token": "aco:aco-1", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "su", "token": "aco:aco-2", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "su", "token": "aco:aco-2", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "su", "token": "some_token", "engine": "", "user": "", "total_occurrences": 3, "unique_queries": 2},
+            {"access_scope": "su", "token": "some_token", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "su", "token": "some_token", "engine": "yql", "user": "", "total_occurrences": 2, "unique_queries": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "user:kirsiv40", "token": "23", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "", "user": "", "total_occurrences": 2, "unique_queries": 2},
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-1", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-2", "engine": "", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "user:kirsiv40", "token": "aco:aco-2", "engine": "yql", "user": "", "total_occurrences": 1, "unique_queries": 1},
+
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "", "user": "", "total_occurrences": 3, "unique_queries": 2},
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
+            {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "yql", "user": "", "total_occurrences": 2, "unique_queries": 1},
+        ]

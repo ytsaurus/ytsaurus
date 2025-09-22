@@ -478,6 +478,8 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         if (!GetConfig()->EnableFairThrottler) {
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
                 if (DataNodeCompatThrottlers.contains(kind)) {
@@ -508,6 +510,8 @@ private:
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
         JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
     }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

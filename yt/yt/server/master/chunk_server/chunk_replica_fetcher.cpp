@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
@@ -222,15 +224,161 @@ public:
         auto result = GetChunkReplicas(chunks, includeUnapproved);
         return GetOrCrash(result, chunk->GetId());
     }
+
     TChunkToLocationPtrWithReplicaInfoList GetChunkReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved) const override
     {
         YT_VERIFY(!HasMutationContext());
+        VerifyPersistentStateRead();
 
         auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
-        auto sequoiaReplicasOrError = WaitForFast(DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved));
-        return GetReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
+
+        auto validate = GetDynamicConfig()->ValidateSequoiaReplicasFetch;
+        auto fetchReplicasFromSequoia = GetDynamicConfig()->FetchReplicasFromSequoia;
+
+        // Fastpath.
+        if (!fetchReplicasFromSequoia) {
+            TChunkToLocationPtrWithReplicaInfoList result;
+            for (const auto& chunk : chunks) {
+                auto masterReplicas = chunk->StoredReplicas();
+                TChunkLocationPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+                result.emplace(chunk->GetId(), replicaList);
+            }
+            return result;
+        }
+
+        THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> masterReplicasInSequoiaSkin;
+        // We only need these for validation.
+        // If validation is disabled master replicas will be fetched below (in CombineReplicas).
+        if (validate) {
+            for (const auto& chunk : chunks) {
+                auto masterReplicas = chunk->StoredReplicas();
+                std::vector<TSequoiaChunkReplica> replicas;
+                for (const auto& masterReplica : masterReplicas) {
+                    auto location = masterReplica.GetPtr();
+                    TSequoiaChunkReplica replica;
+                    replica.ChunkId = chunk->GetId();
+                    replica.ReplicaIndex = masterReplica.GetReplicaIndex();
+                    replica.NodeId = location->GetNode()->GetId();
+                    replica.LocationIndex = location->GetIndex();
+                    replica.ReplicaState = masterReplica.GetReplicaState();
+                    replicas.push_back(replica);
+                }
+                // Chunks can have duplicates.
+                masterReplicasInSequoiaSkin.emplace(chunk->GetId(), replicas);
+                YT_LOG_TRACE("Fetched master replicas (ChunkId: %v, MasterReplicas: %v)",
+                    chunk->GetId(),
+                    replicas);
+            }
+        }
+
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        auto timestamp = transactionSupervisor->GetLastCoordinatorCommitTimestamp();
+        if (!validate || !timestamp) {
+            timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+        }
+
+        auto sequoiaReplicasOrError = WaitForFast(DoGetOnlySequoiaChunkReplicas(sequoiaChunkIds, includeUnapproved, validate, timestamp));
+
+        // We can only validate replicas when they are stored on master, so do not bother merging and take master replicas,
+        // as there are three possible cases:
+        // - the two lists are the same (and then there is no need to merge)
+        // - there are more master replicas (again we can just take master replicas then)
+        // - there are more Sequoia replicas (and this is a bug, so lets alert it, take master replicas and investigate later)
+        if (validate) {
+            ValidateSequoiaReplicaFetch(sequoiaChunkIds, masterReplicasInSequoiaSkin, sequoiaReplicasOrError, timestamp, includeUnapproved);
+
+            TChunkToLocationPtrWithReplicaInfoList result;
+            for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
+                EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
+            }
+            return result;
+        }
+
+        // This will fetch stored master replicas again.
+        return CombineReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
+    }
+
+    void ValidateSequoiaReplicaFetch(
+        const std::vector<TChunkId>& sequoiaChunkIds,
+        THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>& masterReplicasInSequoiaSkin,
+        TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
+        TTimestamp commitTimestamp,
+        bool includeUnapproved) const
+    {
+        VerifyPersistentStateRead();
+
+        if (!sequoiaReplicasOrError.IsOK()) {
+            YT_LOG_DEBUG(sequoiaReplicasOrError, "Cannot validate Sequoia replicas correspondence");
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+
+        auto allowExtraMasterReplicas = GetDynamicConfig()->AllowExtraMasterReplicasDuringValidation;
+
+        auto& sequoiaReplicas = sequoiaReplicasOrError.Value();
+        for (auto chunkId : sequoiaChunkIds) {
+            if (CellTagFromId(chunkId) != cellTag) {
+                YT_LOG_DEBUG("Skipping foreign chunk during Sequoia replica validation (ChunkId: %v)",
+                    chunkId);
+                continue;
+            }
+
+            auto masterIt = masterReplicasInSequoiaSkin.find(chunkId);
+            if (masterIt == masterReplicasInSequoiaSkin.end()) {
+                YT_LOG_ALERT("Chunk is not present in master replicas (ChunkId: %v)",
+                chunkId);
+                continue;
+            }
+            auto& masterReplicas = masterIt->second;
+            auto sequoiaIt = sequoiaReplicas.find(chunkId);
+            if (sequoiaIt == sequoiaReplicas.end()) {
+                YT_LOG_ALERT("Chunk is not present in Sequoia replicas (ChunkId: %v)",
+                chunkId);
+                continue;
+            }
+
+            auto& sequoiaReplicas = sequoiaIt->second;
+            YT_LOG_TRACE("Fetched Sequoia replicas (ChunkId: %v, SequoiaReplicas: %v, IncludeUnapproved: %v)",
+                chunkId,
+                sequoiaReplicas,
+                includeUnapproved);
+
+            // Can contain same approved and unapproved replicas.
+            SortUniqueBy(sequoiaReplicas, [] (const auto& replica) {
+                return replica;
+            });
+            std::sort(masterReplicas.begin(), masterReplicas.end());
+
+            YT_LOG_TRACE("Validating chunk replicas (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
+                chunkId,
+                masterReplicas,
+                sequoiaReplicas,
+                commitTimestamp);
+
+            if (masterReplicas != sequoiaReplicas) {
+                if (!allowExtraMasterReplicas) {
+                    YT_LOG_ALERT("Master and Sequoia replicas differ (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
+                        chunkId,
+                        masterReplicas,
+                        sequoiaReplicas,
+                        commitTimestamp);
+                } else {
+                    for (auto sequoiaReplica : sequoiaReplicas) {
+                        if (std::find(masterReplicas.begin(), masterReplicas.end(), sequoiaReplica) == masterReplicas.end()) {
+                            YT_LOG_ALERT("Extra Sequoia replica found (ChunkId: %v, MasterReplicas: %v, ExtraSequoiaReplicas: %v, CommitTimestamp: %v)",
+                                chunkId,
+                                masterReplicas,
+                                sequoiaReplica,
+                                commitTimestamp);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetChunkReplicasAsync(
@@ -303,18 +451,22 @@ public:
             }));
     }
 
-    TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const override
+    TFuture<std::vector<TSequoiaChunkReplica>> GetApprovedSequoiaChunkReplicas(
+        const std::vector<TChunkId>& chunkIds,
+        TTimestamp timestamp) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         TColumnFilter columnFilter{idMapping.ChunkId, idMapping.StoredReplicas};
-        return DoGetSequoiaReplicas(chunkIds, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
+        return DoGetSequoiaReplicas(chunkIds, columnFilter, timestamp, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.StoredReplicas;
         });
     }
 
-    TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const override
+    TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(
+        const std::vector<TChunkId>& chunkIds,
+        TTimestamp timestamp) const override
     {
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
@@ -342,7 +494,7 @@ public:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(recordKeys, columnFilter)
+            ->LookupRows<NRecords::TUnapprovedChunkReplicasKey>(recordKeys, columnFilter, timestamp)
             .Apply(BIND([retriableErrorCodes, lastOKConfirmationTime] (const TErrorOr<std::vector<std::optional<NRecords::TUnapprovedChunkReplicas>>>& replicaRecordsOrError) {
                 ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
                 const auto& replicaRecords = replicaRecordsOrError.ValueOrThrow();
@@ -418,7 +570,8 @@ private:
     TFuture<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>> DoGetOnlySequoiaChunkReplicas(
         const std::vector<TChunkId>& sequoiaChunkIds,
         bool includeUnapproved,
-        bool force = false) const
+        bool force = false,
+        TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) const
     {
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
@@ -434,9 +587,9 @@ private:
         }
 
         auto unapprovedReplicasFuture = includeUnapproved
-            ? GetUnapprovedSequoiaChunkReplicas(sequoiaChunkIds)
+            ? GetUnapprovedSequoiaChunkReplicas(sequoiaChunkIds, timestamp)
             : MakeFuture<std::vector<TSequoiaChunkReplica>>({});
-        auto replicasFuture = GetApprovedSequoiaChunkReplicas(sequoiaChunkIds);
+        auto replicasFuture = GetApprovedSequoiaChunkReplicas(sequoiaChunkIds, timestamp);
         std::vector futures({replicasFuture, unapprovedReplicasFuture});
         return AllSucceeded(futures)
             .Apply(BIND([result = std::move(result)] (const std::vector<std::vector<TSequoiaChunkReplica>>& sequoiaReplicas) mutable {
@@ -492,7 +645,7 @@ private:
         return aliveReplicas;
     }
 
-    TChunkToLocationPtrWithReplicaInfoList GetReplicas(
+    TChunkToLocationPtrWithReplicaInfoList CombineReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
         const std::vector<TChunkId>& sequoiaChunkIds) const
@@ -542,6 +695,7 @@ private:
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaReplicas(
         const std::vector<TChunkId>& chunkIds,
         const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
         const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -559,7 +713,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter)
+            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter, timestamp)
             .Apply(BIND([extractReplicas, retriableErrorCodes] (const TErrorOr<std::vector<std::optional<NRecords::TChunkReplicas>>>& replicaRecordsOrError) {
                 ThrowOnSequoiaReplicasError(replicaRecordsOrError, retriableErrorCodes);
                 const auto& replicas = replicaRecordsOrError.ValueOrThrow();
@@ -574,7 +728,7 @@ private:
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         TColumnFilter columnFilter{idMapping.ChunkId, idMapping.LastSeenReplicas};
-        return DoGetSequoiaReplicas({chunkId}, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
+        return DoGetSequoiaReplicas({chunkId}, columnFilter, NTransactionClient::SyncLastCommittedTimestamp, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.LastSeenReplicas;
         });
     }

@@ -85,6 +85,15 @@ void TClockServersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDistributedWriteDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_children_per_attach_request", &TThis::MaxChildrenPerAttachRequest)
+        .Default(10'000)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
@@ -353,6 +362,29 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("default_shuffle_service_timeout",
         &TThis::DefaultShuffleServiceTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_disable_chunk_locations_timeout",
+        &TThis::DefaultDisableChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_destroy_chunk_locations_timeout",
+        &TThis::DefaultDestroyChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_resurrect_chunk_locations_timeout",
+        &TThis::DefaultResurrectChunkLocationsTimeout)
+        .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_request_restart_timeout",
+        &TThis::DefaultRequestRestartTimeout)
+        .Default(TDuration::Seconds(15));
+    // NB(apollo1321): write_operation_controller_core_dump is asynchronous: it doesn't wait for the file
+    // to be written. This timeout only covers address-space cloning; 60s is a conservative default.
+    registrar.Parameter("default_write_operation_controller_core_dump_timeout",
+        &TThis::DefaultWriteOperationControllerCoreDumpTimeout)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_abandon_job_timeout",
+        &TThis::DefaultAbandonJobTimeout)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("default_abort_job_timeout",
+        &TThis::DefaultAbortJobTimeout)
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("default_fetch_table_rows_timeout", &TThis::DefaultFetchTableRowsTimeout)
         .Default(TDuration::Seconds(15));
@@ -382,8 +414,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(65'536);
 
     registrar.Parameter("upload_transaction_timeout", &TThis::UploadTransactionTimeout)
-        .Default(TDuration::Seconds(15));
-    // NB: its default value is |UploadTransactionTimeout| / 2. See postprocessor.
+        .Default(TDuration::Seconds(60));
+    // NB: its default value is |UploadTransactionTimeout| / 4.
+    // So we have full 3 attempts to ping transaction.
+    // See postprocessor.
     registrar.Parameter("upload_transaction_ping_period", &TThis::UploadTransactionPingPeriod)
         .Optional();
     registrar.Parameter("hive_sync_rpc_timeout", &TThis::HiveSyncRpcTimeout)
@@ -405,6 +439,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .Default(10'000)
         .GreaterThan(0);
+
+    registrar.Parameter("distributed_write_dynamic_config", &TThis::DistributedWriteDynamicConfig)
+        .DefaultNew();
 
     registrar.Parameter("nested_input_transaction_timeout", &TThis::NestedInputTransactionTimeout)
         .Default(TDuration::Minutes(10));
@@ -516,7 +553,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
-            config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 2;
+            config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 4;
         }
     });
 }

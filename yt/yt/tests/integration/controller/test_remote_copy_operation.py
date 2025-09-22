@@ -14,7 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table, remount_table,
     multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
     raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
-    create_pool, update_pool_tree_config_option, create_dynamic_table,
+    create_dynamic_table,
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
@@ -881,66 +881,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
-    @authors("egor-gutrov", "eshcherbin")
-    def test_user_slots_validation(self):
-        update_pool_tree_config_option("default", "fail_remote_copy_on_missing_resource_limits", True)
-        update_pool_tree_config_option("default", "required_resource_limits_for_remote_copy", {"user_slots": 10})
-
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
-
-        create("table", "//tmp/t2")
-
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-            )
-
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "resource_limits": {"user_slots": 11},
-                },
-            )
-
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "resource_limits": {"user_slots": 10},
-                },
-            )
-
-        create_pool("cool_pool", attributes={"resource_limits": {"user_slots": 10}})
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "pool": "cool_pool",
-            },
-        )
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-        assert not get("//tmp/t2/@sorted")
-
-        create_pool("limitless_pool")
-        with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "pool": "limitless_pool",
-                },
-            )
-
     @authors("egor-gutrov")
     def test_auto_create(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -1345,6 +1285,32 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             do_copy("has_only_public_read")
 
         do_copy("has_full_read")
+
+    @authors("coteeq")
+    def test_chunk_reader_statistics(self):
+        skip_if_component_old(self.Env, (25, 3), "controller-agent")
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a": "b"}], driver=self.remote_driver)
+
+        op = remote_copy(
+            in_=[
+                "//tmp/t1",
+            ],
+            out="<create=%true>//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            }
+        )
+
+        assert_statistic = partial(
+            assert_statistics_v2,
+            op,
+            job_type="remote_copy"
+        )
+
+        assert assert_statistic("chunk_reader_statistics.data_bytes_transmitted", lambda actual: actual is not None and actual > 0)
+        # NB: remote_copy jobs do not operate on rows, so row count should be zero.
+        assert assert_statistic("chunk_reader_statistics.row_count", lambda actual: actual is None)
 
 
 ##################################################################
@@ -2064,28 +2030,17 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         assert hunk_job_count == get_job_count("hunk_remote_copy")
         assert regular_job_count == get_job_count("remote_copy")
 
-    @authors("alexelexa")
+    @authors("alexelexa", "akozhikhov")
     def test_no_hunks_in_static_table(self):
         self._create_sorted_table("//tmp/t1", max_inline_hunk_size=1, dynamic=False, driver=self.remote_driver)
         self._create_sorted_table("//tmp/t2", max_inline_hunk_size=1, dynamic=False)
-        self._create_sorted_table("//tmp/t3", max_inline_hunk_size=1, dynamic=False)
 
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-        )
-
-        rows = [{"key": 1, "value": "foo"}]
-        write_table("//tmp/t1", rows, driver=self.remote_driver)
-
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t3",
-            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-        )
-
-        assert read_table("//tmp/t3") == [{"key": 1, "value": "foo"}]
+        with raises_yt_error("Remote copy for static tables with hunks is not supported"):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+            )
 
     @authors("alexelexa")
     @pytest.mark.parametrize("max_inline_hunk_size", [1, 5, 10])

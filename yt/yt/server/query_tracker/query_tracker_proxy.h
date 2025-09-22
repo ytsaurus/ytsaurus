@@ -4,8 +4,6 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/server/query_tracker/engine.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -21,7 +19,8 @@ public:
     TQueryTrackerProxy(
         NApi::IClientPtr stateClient,
         NYPath::TYPath stateRoot,
-        TQueryTrackerProxyConfigPtr config);
+        TQueryTrackerProxyConfigPtr config,
+        int expectedTablesVersion);
 
     void Reconfigure(const TQueryTrackerProxyConfigPtr& config);
 
@@ -70,6 +69,9 @@ private:
     const NYPath::TYPath StateRoot_;
     TQueryTrackerProxyConfigPtr ProxyConfig_;
     std::unordered_map<EQueryEngine, IQueryEngineInfoProviderPtr> EngineInfoProviders_;
+    const int ExpectedTablesVersion_;
+    ISearchIndexPtr TimeBasedIndex_;
+    ISearchIndexPtr TokenBasedIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
@@ -79,7 +81,8 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
     NApi::IClientPtr stateClient,
     NYPath::TYPath stateRoot,
-    TQueryTrackerProxyConfigPtr config);
+    TQueryTrackerProxyConfigPtr config,
+    int expectedTablesVersion);
 
 ////////////////////////////////////////////////////////////////////////////////
 

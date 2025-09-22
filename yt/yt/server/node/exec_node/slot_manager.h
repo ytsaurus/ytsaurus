@@ -352,7 +352,6 @@ private:
     bool GuardedHasArmedPersistentAlerts() const;
     bool GuardedHasArmedTransientAlerts() const;
 
-    bool FixableByResurrect() const;
     bool CanResurrect() const;
 
     void SetDisabledState();

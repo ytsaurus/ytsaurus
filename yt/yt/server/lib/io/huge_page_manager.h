@@ -16,7 +16,8 @@ struct IHugePageManager
     virtual TErrorOr<TSharedMutableRef> ReserveHugePageBlob() = 0;
 
     virtual int GetUsedHugePageCount() const = 0;
-    virtual int GetHugePageSize() const = 0;
+    virtual i64 GetHugePageMemoryLimit() const = 0;
+    virtual i64 GetHugePageSize() const = 0;
     virtual bool IsEnabled() const = 0;
 
     virtual void Reconfigure(const THugePageManagerDynamicConfigPtr& config) = 0;

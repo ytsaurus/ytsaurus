@@ -161,10 +161,12 @@ static void DoDeserializeAclOrThrow(
     TAccessControlList& acl,
     const INodePtr& node,
     const ISecurityManagerPtr& securityManager,
-    std::vector<std::string>* missingSubjects)
+    std::vector<std::string>* missingSubjects,
+    std::vector<std::string>* pendingRemovalSubjects)
 {
     auto serializableAcl = ConvertTo<TSerializableAccessControlList>(node);
-    std::vector<std::string> tmpMissingSubjects;
+    std::vector<std::string> gatheredMissingSubjects;
+    std::vector<std::string> gatheredPendingRemovalSubjects;
     for (const auto& serializableAce : serializableAcl.Entries) {
         TAccessControlEntry ace;
 
@@ -175,14 +177,11 @@ static void DoDeserializeAclOrThrow(
         for (const auto& name : serializableAce.Subjects) {
             auto* subject = securityManager->FindSubjectByNameOrAlias(name, true /*activeLifeStageOnly*/);
             if (!IsObjectAlive(subject)) {
-                tmpMissingSubjects.emplace_back(name);
+                gatheredMissingSubjects.emplace_back(name);
                 continue;
             }
-            if (subject->IsUser()) {
-                YT_LOG_ALERT_IF(
-                    subject->AsUser()->GetPendingRemoval(),
-                    "User pending for removal was mentioned in ACL (User: %v)",
-                    subject->GetName());
+            if (subject->IsUser() && subject->AsUser()->GetPendingRemoval()) {
+                gatheredPendingRemovalSubjects.emplace_back(name);
             }
 
             ace.Subjects.push_back(subject);
@@ -209,17 +208,29 @@ static void DoDeserializeAclOrThrow(
         acl.Entries.push_back(ace);
     }
 
-    if (!tmpMissingSubjects.empty()) {
-        SortUnique(tmpMissingSubjects);
+    if (!gatheredMissingSubjects.empty()) {
+        SortUnique(gatheredMissingSubjects);
 
         if (missingSubjects) {
-            *missingSubjects = std::move(tmpMissingSubjects);
+            *missingSubjects = std::move(gatheredMissingSubjects);
         } else {
             // NB: Missing subjects should be listed inside the error message
             // (not attributes) lest the scheduler conflates distinct errors.
             // See TError::GetSkeleton.
             THROW_ERROR_EXCEPTION("Some subjects mentioned in ACL are missing: %v",
-                tmpMissingSubjects);
+                gatheredMissingSubjects);
+        }
+    }
+
+    if (!gatheredPendingRemovalSubjects.empty()) {
+        SortUnique(gatheredPendingRemovalSubjects);
+
+        if (pendingRemovalSubjects) {
+            *pendingRemovalSubjects = std::move(gatheredPendingRemovalSubjects);
+        } else {
+            YT_LOG_ALERT(
+                "Some subjects mentioned in ACL are pending removal (PendingRemovalSubjects: %v)",
+                gatheredPendingRemovalSubjects);
         }
     }
 
@@ -231,17 +242,28 @@ TAccessControlList DeserializeAclOrThrow(
     const ISecurityManagerPtr& securityManager)
 {
     TAccessControlList result;
-    DoDeserializeAclOrThrow(result, node, securityManager, nullptr);
+    DoDeserializeAclOrThrow(
+        result,
+        node,
+        securityManager,
+        /*missingSubjects*/ nullptr,
+        /*pendingRemovalSubjects*/ nullptr);
     return result;
 }
 
-std::pair<TAccessControlList, std::vector<std::string>>
-DeserializeAclGatherMissingSubjectsOrThrow(
+TValidatedAccessControlList DeserializeAclGatherMissingAndPendingRemovalSubjectsOrThrow(
     const INodePtr& node,
-    const ISecurityManagerPtr& securityManager)
+    const ISecurityManagerPtr& securityManager,
+    bool ignoreMissingSubjects,
+    bool ignorePendingRemovalSubjects)
 {
-    std::pair<TAccessControlList, std::vector<std::string>> result;
-    DoDeserializeAclOrThrow(result.first, node, securityManager, &result.second);
+    TValidatedAccessControlList result;
+    DoDeserializeAclOrThrow(
+        result.Acl,
+        node,
+        securityManager,
+        ignoreMissingSubjects ? &result.MissingSubjects : nullptr,
+        ignorePendingRemovalSubjects ? &result.PendingRemovalSubjects : nullptr);
     return result;
 }
 
@@ -254,7 +276,12 @@ TAccessControlList DeserializeAclOrAlert(
     // being thrown: at the very least, ConvertTo may throw any number of them.
     // This is how yson deserialization framework is designed.
     try {
-        DoDeserializeAclOrThrow(result, node, securityManager, nullptr);
+        DoDeserializeAclOrThrow(
+            result,
+            node,
+            securityManager,
+            /*missingSubjects*/ nullptr,
+            /*pendingRemovalSubjects*/ nullptr);
     } catch (const std::exception& error) {
         YT_LOG_ALERT(error, "Error deserializing ACL");
     }

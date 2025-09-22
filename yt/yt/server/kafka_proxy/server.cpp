@@ -750,7 +750,7 @@ private:
             bool hasPermission = false;
             if (userName) {
                 NSecurityClient::TPermissionKey permissionKey{
-                    .Object = FromObjectId(tableInfo->TableId),
+                    .Path = FromObjectId(tableInfo->TableId),
                     .User = *userName,
                     .Permission = EPermission::Read,
                 };

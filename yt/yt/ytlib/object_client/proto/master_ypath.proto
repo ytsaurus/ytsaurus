@@ -61,6 +61,7 @@ message TReqCheckPermissionByAcl
     required int32 permission = 2;
     required string acl = 3;
     optional bool ignore_missing_subjects = 4 [default = false];
+    optional bool ignore_pending_removal_subjects = 5 [default = false];
 }
 
 message TRspCheckPermissionByAcl
@@ -69,6 +70,7 @@ message TRspCheckPermissionByAcl
     optional NYT.NProto.TGuid subject_id = 2;
     optional string subject_name = 3;
     repeated string missing_subjects = 4;
+    repeated string pending_removal_subjects = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

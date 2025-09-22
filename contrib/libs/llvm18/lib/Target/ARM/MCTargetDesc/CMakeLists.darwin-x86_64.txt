@@ -30,7 +30,7 @@ target_link_libraries(Target-ARM-MCTargetDesc PUBLIC
   contrib-libs-llvm18
   libs-llvm18-include
   llvm18-lib-BinaryFormat
-  lib-CodeGen-LowLevelType
+  llvm18-lib-CodeGen
   llvm18-lib-MC
   lib-MC-MCDisassembler
   llvm18-lib-Support

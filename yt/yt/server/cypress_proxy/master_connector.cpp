@@ -89,6 +89,16 @@ public:
         return MaxCopiableSubtreeSize_.Load();
     }
 
+    std::shared_ptr<const std::vector<std::string>> GetSupportedInheritableAttributeKeys() const override
+    {
+        return SupportedInheritableAttributeKeys_.Load();
+    }
+
+    std::shared_ptr<const std::vector<std::string>> GetSupportedInheritableDuringCopyAttributeKeys() const override
+    {
+        return SupportedInheritableDuringCopyAttributeKeys_.Load();
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const std::string SelfAddress_;
@@ -97,6 +107,8 @@ private:
     TAtomicObject<TError> RegistrationError_;
     TAtomicObject<TReign> MasterReign_;
     TAtomicObject<int> MaxCopiableSubtreeSize_;
+    TAtomicObject<std::shared_ptr<const std::vector<std::string>>> SupportedInheritableAttributeKeys_;
+    TAtomicObject<std::shared_ptr<const std::vector<std::string>>> SupportedInheritableDuringCopyAttributeKeys_;
 
     void Heartbeat()
     {
@@ -115,21 +127,22 @@ private:
 
         auto rspOrError = WaitFor(request->Invoke());
         if (!rspOrError.IsOK()) {
-            if (rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
-                YT_LOG_ALERT(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
-                    GetCurrentSequoiaReign(),
-                    GetVersion());
-            } else {
-                YT_LOG_ERROR(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
-                    GetCurrentSequoiaReign(),
-                    GetVersion());
-            }
+            YT_LOG_EVENT(
+                Logger,
+                Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
+                    ? NLogging::ELogLevel::Alert
+                    : NLogging::ELogLevel::Error,
+                "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
+                GetCurrentSequoiaReign(),
+                GetVersion());
 
             auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
 
             RegistrationError_.Store(std::move(error));
             MasterReign_.Store(0);
             MaxCopiableSubtreeSize_.Store(0);
+            SupportedInheritableAttributeKeys_.Store(std::make_shared<std::vector<std::string>>());
+            SupportedInheritableDuringCopyAttributeKeys_.Store(std::make_shared<std::vector<std::string>>());
 
             return;
         }
@@ -138,6 +151,13 @@ private:
         auto reign = rsp->master_reign();
         MasterReign_.Store(reign);
         MaxCopiableSubtreeSize_.Store(rsp->limits().max_copiable_subtree_size());
+        if (rsp->has_supported_inheritable_attributes()) {
+            const auto& supportedInheritableAttributes = rsp->supported_inheritable_attributes();
+            SupportedInheritableAttributeKeys_.Store(std::make_shared<const std::vector<std::string>>(
+                NYT::FromProto<std::vector<std::string>>(supportedInheritableAttributes.inheritable_attribute_keys())));
+            SupportedInheritableDuringCopyAttributeKeys_.Store(std::make_shared<const std::vector<std::string>>(
+                NYT::FromProto<std::vector<std::string>>(supportedInheritableAttributes.inheritable_during_copy_attribute_keys())));
+        }
 
         if (!RegistrationError_.Exchange(TError{}).IsOK()) {
             YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);

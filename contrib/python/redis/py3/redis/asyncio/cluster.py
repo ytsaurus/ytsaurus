@@ -814,7 +814,13 @@ class RedisCluster(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterCommand
                     moved = False
 
                 return await target_node.execute_command(*args, **kwargs)
-            except (BusyLoadingError, MaxConnectionsError):
+            except BusyLoadingError:
+                raise
+            except MaxConnectionsError:
+                # MaxConnectionsError indicates client-side resource exhaustion
+                # (too many connections in the pool), not a node failure.
+                # Don't treat this as a node failure - just re-raise the error
+                # without reinitializing the cluster.
                 raise
             except (ConnectionError, TimeoutError):
                 # Connection retries are being handled in the node's
@@ -1581,15 +1587,6 @@ class ClusterPipeline(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterComm
     def __await__(self) -> Generator[Any, None, "ClusterPipeline"]:
         return self.initialize().__await__()
 
-    def __enter__(self) -> "ClusterPipeline":
-        # TODO: Remove this method before 7.0.0
-        self._execution_strategy._command_queue = []
-        return self
-
-    def __exit__(self, exc_type: None, exc_value: None, traceback: None) -> None:
-        # TODO: Remove this method before 7.0.0
-        self._execution_strategy._command_queue = []
-
     def __bool__(self) -> bool:
         "Pipeline instances should  always evaluate to True on Python 3+"
         return True
@@ -2350,10 +2347,11 @@ class TransactionStrategy(AbstractStrategy):
         # watching something
         if self._transaction_connection:
             try:
-                # call this manually since our unwatch or
-                # immediate_execute_command methods can call reset()
-                await self._transaction_connection.send_command("UNWATCH")
-                await self._transaction_connection.read_response()
+                if self._watching:
+                    # call this manually since our unwatch or
+                    # immediate_execute_command methods can call reset()
+                    await self._transaction_connection.send_command("UNWATCH")
+                    await self._transaction_connection.read_response()
                 # we can safely return the connection to the pool here since we're
                 # sure we're no longer WATCHing anything
                 self._transaction_node.release(self._transaction_connection)

@@ -514,7 +514,7 @@ TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarr
 
 TString TClient::DoWriteOperationControllerCoreDump(
     TOperationId operationId,
-    const TWriteOperationControllerCoreDumpOptions& /*options*/)
+    const TWriteOperationControllerCoreDumpOptions& options)
 {
     ValidateSuperuserPermissions();
 
@@ -530,8 +530,7 @@ TString TClient::DoWriteOperationControllerCoreDump(
 
     TControllerAgentServiceProxy proxy(channel);
     auto req = proxy.WriteOperationControllerCoreDump();
-    // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultWriteOperationControllerCoreDumpTimeout));
     ToProto(req->mutable_operation_id(), operationId);
 
     auto rsp = WaitFor(req->Invoke())
@@ -928,8 +927,7 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
 
     auto req = proxy.DisableChunkLocations();
     ToProto(req->mutable_location_uuids(), locationUuids);
-    // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultDisableChunkLocationsTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -953,8 +951,7 @@ TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
     auto req = proxy.DestroyChunkLocations();
     req->set_recover_unlinked_disks(recoverUnlinkedDisks);
     ToProto(req->mutable_location_uuids(), locationUuids);
-    // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultDestroyChunkLocationsTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -976,8 +973,7 @@ TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
 
     auto req = proxy.ResurrectChunkLocations();
     ToProto(req->mutable_location_uuids(), locationUuids);
-    // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultResurrectChunkLocationsTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -997,8 +993,7 @@ TRequestRestartResult TClient::DoRequestRestart(
     TRestartServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
     auto req = proxy.RequestRestart();
-    // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultRequestRestartTimeout));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

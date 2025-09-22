@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 SRCS(
     query_tracker_proxy_ut.cpp
+    tokenizer_ut.cpp
 )
 
 PEERDIR(

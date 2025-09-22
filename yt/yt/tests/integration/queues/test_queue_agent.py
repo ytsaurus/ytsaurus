@@ -11,7 +11,7 @@ from yt_commands import (alter_table_replica, authors, commit_transaction, gener
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
-                         execute_batch, make_batch_request, abort_transaction)
+                         execute_batch, make_batch_request, abort_transaction, read_table)
 
 from yt.common import YtError, update, update_inplace
 
@@ -2988,6 +2988,35 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         def get_replicated_table_mapping():
             return list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
 
+        def get_replicas_from_meta(meta):
+            if rt_meta := meta.get("replicated_table_meta", None):
+                return rt_meta["replicas"].values()
+            if crt_meta := meta.get("chaos_replicated_table_meta", None):
+                return crt_meta["replicas"].values()
+            raise ValueError(f"Invalid meta {meta}")
+
+        @dataclass(order=True)
+        class ReplicaMappingRow:
+            replica_list: str
+            cluster: str
+            path: str
+
+        def get_replica_mapping_from_replicated_table_mapping():
+            replicated_table_mapping = get_replicated_table_mapping()
+            return sorted(
+                ReplicaMappingRow(replica_list=f"{replica['cluster_name']}:{replica['replica_path']}",
+                                  cluster=row["cluster"],
+                                  path=row["path"])
+                for row in replicated_table_mapping
+                for replica in get_replicas_from_meta(row["meta"])
+            )
+
+        def get_replica_mapping():
+            return sorted(
+                ReplicaMappingRow(replica_list=row["replica_list"], cluster=row["cluster"], path=row["path"])
+                for row in select_rows("* from [//sys/queue_agents/replica_mapping]")
+            )
+
         initial_replicated_table_mapping = get_replicated_table_mapping()
         rebuilding_checked = False
 
@@ -3037,6 +3066,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
             actual_meta = {r["path"]: r["meta"] for r in get_replicated_table_mapping()}
 
             assert actual_meta == expected_meta, f"diff is {self._calculate_diff(actual_meta, expected_meta)}"
+            assert get_replica_mapping_from_replicated_table_mapping() == get_replica_mapping()
 
         assert rebuilding_checked
 
@@ -6005,16 +6035,26 @@ class TestMigration(YTEnvSetup):
 
         assert builtins.set(actual_schema_by_column_name.keys()) == builtins.set(expected_schema_by_column_name.keys())
 
-        fields = ["name", "type"]
-        fields_with_default = [("required", False), ("sort_order", None)]
+        # type and type_v3 are checked separately
+        fields = [
+            "name",
+        ]
+        fields_with_default = [
+            ("required", False),
+            ("sort_order", None),
+        ]
 
         for column_name in expected_schema_by_column_name.keys():
             expected_column = expected_schema_by_column_name[column_name]
             actual_column = actual_schema_by_column_name[column_name]
+
             for field in fields:
                 assert actual_column[field] == expected_column[field]
             for field, field_default in fields_with_default:
                 assert actual_column.get(field, field_default) == expected_column.get(field, field_default)
+
+            type_field = "type" if "type" in expected_column else "type_v3"
+            assert actual_column[type_field] == expected_column[type_field]
 
     def _check_table_schemas(self, root, migration):
         for table_name, table_schema in migration.get_schemas().items():
@@ -6033,7 +6073,7 @@ class TestMigration(YTEnvSetup):
     @authors("nadya73")
     def test_run_migration(self):
         client = self.Env.create_native_client()
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
         run_migration(
             client=client,
             root=self.QUEUE_AGENT_STATE_ROOT,
@@ -6042,12 +6082,32 @@ class TestMigration(YTEnvSetup):
 
         self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
 
+        # Check secondary_index existence
+        assert get(f"{self.QUEUE_AGENT_STATE_ROOT}/replica_mapping/@index_to/table_path") == f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping"
+
+    @authors("apachee")
+    def test_version_compatability(self):
+        client = self.Env.create_native_client()
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
+
+        for version in range(QUEUE_AGENT_STATE_INITIAL_VERSION, migration.get_latest_version() + 1):
+            print_debug(f"Migrating to version {version}")
+            run_migration(
+                client=client,
+                root=self.QUEUE_AGENT_STATE_ROOT,
+                migration=migration,
+                target_version=version
+            )
+
+        # Check secondary_index existence
+        assert get(f"{self.QUEUE_AGENT_STATE_ROOT}/replica_mapping/@index_to/table_path") == f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping"
+
     @authors("apachee")
     def test_run_migration_on_existing_directory(self):
         create("map_node", self.QUEUE_AGENT_STATE_ROOT)
 
         client = self.Env.create_native_client()
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
         run_migration(
             client=client,
             root=self.QUEUE_AGENT_STATE_ROOT,
@@ -6057,8 +6117,8 @@ class TestMigration(YTEnvSetup):
         self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
 
     FAKE_REPLICATED_TABLE_MAPPING_SCHEMA = [
-        {"name": "cluster", "type": "string", "sort_order": "ascending", "required": True},
-        {"name": "path", "type": "string", "sort_order": "ascending", "required": True},
+        {"name": "cluster", "type": "string", "sort_order": "ascending"},
+        {"name": "path", "type": "string", "sort_order": "ascending"},
         {"name": "random_value_column", "type": "int64"},
     ]
 
@@ -6091,7 +6151,7 @@ class TestMigration(YTEnvSetup):
         create("map_node", self.QUEUE_AGENT_STATE_ROOT)
 
         client = self.Env.create_native_client()
-        migration = prepare_migration(client)
+        migration = prepare_migration(client, root=self.QUEUE_AGENT_STATE_ROOT)
         run_migration(
             client=client,
             root=self.QUEUE_AGENT_STATE_ROOT,
@@ -6109,3 +6169,275 @@ class TestMigration(YTEnvSetup):
         )
 
         self._check_table_schema(f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", self.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA)
+
+
+@pytest.mark.enabled_multidaemon
+class TestExportWithHunkStorage(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = update(TestQueueStaticExportBase.DELTA_QUEUE_AGENT_DYNAMIC_CONFIG, {
+        "queue_agent": {
+            "controller": {
+                "queue_exporter": {
+                    "max_exported_table_count_per_task": 1,
+                },
+            },
+        },
+    })
+
+    EXPORT_PERIOD_SECONDS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "hunk_store_extra_lifetime": 100,
+                    "unlock_check_period": 100
+                }
+            }
+        }
+    }
+
+    def _generate_table_with_hunks(self, queue_path, export_dir, hunk_storage_attrs={}):
+        _, queue_id = self._create_queue(queue_path, max_inline_hunk_size=10, mount=False)
+
+        queue_external_cell_tag = get("//tmp/q/@external_cell_tag")
+        hunk_storage_attrs["external_cell_tag"] = queue_external_cell_tag
+        if "store_rotation_period" not in hunk_storage_attrs:
+            hunk_storage_attrs["store_rotation_period"] = 2000
+            hunk_storage_attrs["store_removal_grace_period"] = 4000
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes=hunk_storage_attrs)
+        set("//tmp/q/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/q")
+
+        self._create_export_destination(export_dir, queue_id)
+
+        rows = [{"data": "x" * 30}]
+        insert_rows(queue_path, rows)
+        sync_flush_table(queue_path)
+
+        assert len(ls(export_dir)) == 0
+
+        return rows
+
+    @authors("akozhikhov")
+    def test_export_table_with_hunks_disabled(self):
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/exports"
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        self._generate_table_with_hunks(queue_path, export_dir)
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+            },
+        })
+
+        self._wait_for_component_passes()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text="that contains hunk columns is disabled",
+        ), timeout=5, ignore_exceptions=True)
+
+        assert len(ls(export_dir)) == 0
+
+        self.remove_export_destinations([export_dir])
+
+    @authors("akozhikhov")
+    def test_export_table_with_hunks_schema_stability(self):
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/exports"
+
+        self._generate_table_with_hunks(queue_path, export_dir)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+                "enable_export_from_queue_with_hunks": True,
+            },
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        export_table = "{}/{}".format(export_dir, ls(export_dir)[0])
+
+        assert not get(f"{export_table}/@dynamic")
+        schema = get(f"{export_table}/@schema")
+        assert schema[0]["name"] == "data"
+        assert schema[0]["max_inline_hunk_size"] == 10
+
+        self.remove_export_destinations([export_dir])
+
+    @authors("akozhikhov")
+    def test_export_table_with_hunks_common(self):
+        def _get_hunk_storage_store_ids():
+            tablet_id = get("//tmp/h/@tablets")[0]["tablet_id"]
+            wait(lambda: exists("//sys/tablets/{}/orchid/active_store_id".format(tablet_id)))
+            return get("//sys/tablets/{}/orchid/stores".format(tablet_id)).keys()
+
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/exports"
+
+        rows = self._generate_table_with_hunks(queue_path, export_dir)
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+                "enable_export_from_queue_with_hunks": True,
+            },
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        export_table = "{}/{}".format(export_dir, ls(export_dir)[0])
+
+        queue_external_cell_tag = get(f"{queue_path}/@external_cell_tag")
+        assert get(f"{export_table}/@external_cell_tag") == queue_external_cell_tag
+
+        def _check_data():
+            data = read_table(export_table)
+            if len(data) != 1:
+                return False
+            return data[0]["data"] == rows[0]["data"]
+
+        def _check_chunks():
+            chunk_ids = get(f"{export_table}/@chunk_ids")
+            if len(chunk_ids) != 2:
+                return False
+            chunk_types = [get(f"#{chunk_id}/@chunk_type") for chunk_id in chunk_ids]
+            return "table" in chunk_types and "journal" in chunk_types
+
+        assert _check_data()
+        self._check_export(export_dir, [[rows[0]["data"]]])
+        assert _check_chunks()
+
+        sync_unmount_table(queue_path)
+        remove(queue_path)
+
+        assert _check_data()
+        assert _check_chunks()
+
+        # Wait until hunk storage stores will be fully rotated (including being sealed and unlinked).
+        store_ids = builtins.set(_get_hunk_storage_store_ids())
+        wait(lambda: len(store_ids.intersection(builtins.set(_get_hunk_storage_store_ids()))) == 0)
+
+        assert _check_data()
+        assert _check_chunks()
+
+        self.remove_export_destinations([export_dir])
+
+    @authors("akozhikhov")
+    def test_export_table_with_hunks_remove_hunk_storage(self):
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/exports"
+
+        rows = self._generate_table_with_hunks(queue_path, export_dir)
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+                "enable_export_from_queue_with_hunks": True,
+            },
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        export_table = "{}/{}".format(export_dir, ls(export_dir)[0])
+
+        chunk_ids = get(f"{export_table}/@chunk_ids")
+        assert len(chunk_ids) == 2
+        self._check_export(export_dir, [[rows[0]["data"]]])
+        assert not exists(f"{export_table}/@hunk_storage_id")
+
+        sync_unmount_table(queue_path)
+        remove(f"{queue_path}/@hunk_storage_id")
+        remove(f"{queue_path}/@static_export_config")
+        self._wait_for_global_sync()
+        assert get(f"{queue_path}/@locks") == []
+        remove("//tmp/h")
+        assert not exists("//tmp/h")
+
+        for chunk_id in chunk_ids:
+            assert exists(f"#{chunk_id}")
+        self._check_export(export_dir, [[rows[0]["data"]]])
+
+        remove(queue_path)
+        for chunk_id in chunk_ids:
+            assert exists(f"#{chunk_id}")
+        assert read_table(export_table)[0]["data"] == rows[0]["data"]
+
+        remove(export_table)
+        assert len(ls(export_dir)) == 0
+        for chunk_id in chunk_ids:
+            wait(lambda: not exists(f"#{chunk_id}"))
+
+    @authors("akozhikhov")
+    def test_export_table_with_hunks_statistics(self):
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/exports"
+
+        self._generate_table_with_hunks(queue_path, export_dir)
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+                "enable_export_from_queue_with_hunks": True,
+            },
+        })
+
+        wait(lambda: len(ls(export_dir)) == 1)
+        export_table = "{}/{}".format(export_dir, ls(export_dir)[0])
+
+        assert get(f"{export_table}/@data_weight") == 38
+        assert get(f"{export_table}/@chunk_count") == 2
+
+        chunk_format_statistics = get(f"{export_table}/@chunk_format_statistics")
+        assert chunk_format_statistics["journal_default"]["chunk_count"] == 1
+        assert chunk_format_statistics["table_unversioned_columnar"]["chunk_count"] == 1
+
+        self.remove_export_destinations([export_dir])
+
+    @authors("akozhikhov")
+    def test_export_table_with_hunks_unsealed_journal_chunk(self):
+        queue_path = "//tmp/q"
+        export_dir = "//tmp/exports"
+
+        queue_agent_orchid = QueueAgentOrchid()
+
+        self._generate_table_with_hunks(queue_path, export_dir, hunk_storage_attrs={
+            "store_rotation_period": 1000000
+        })
+
+        set(f"{queue_path}/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1000,
+                "enable_export_from_queue_with_hunks": True,
+            },
+        })
+
+        self._wait_for_component_passes()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text="Attempted to attach unsealed journal chunk",
+        ), timeout=5, ignore_exceptions=True)
+
+        assert len(ls(export_dir)) == 0
+
+        self.remove_export_destinations([export_dir])
+
+
+@pytest.mark.enabled_multidaemon
+class TestExportWithHunkStoragePortals(TestExportWithHunkStorage):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_TMP_PORTAL = True

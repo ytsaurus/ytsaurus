@@ -1,6 +1,7 @@
 package strawberry
 
 import (
+	"bytes"
 	"context"
 	"reflect"
 	"time"
@@ -66,6 +67,14 @@ func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
 					DefaultValue: "normal",
 					Choices:      []any{"normal", "graceful"},
 					Description:  "Preemption mode for a corresponding YT operation.",
+				},
+				{
+					Title:        "Restart on controller change",
+					Name:         "restart_on_controller_change",
+					Type:         TypeBool,
+					CurrentValue: speclet.RestartOnControllerChange,
+					DefaultValue: DefaultRestartOnControllerChange,
+					Description:  "If true, automatically restart a corresponding YT operation on every controller change.",
 				},
 				{
 					Title:        "Restart on speclet change",
@@ -148,13 +157,6 @@ type Oplet struct {
 	// (e.g. from RevisionTracker) and we need to reload it from a cypress during the next pass.
 	pendingUpdateFromCypressNode bool
 
-	// pendingRestart is set when an external event triggers operation restart
-	// (e.g. changing cluster_connection).
-	//
-	// TODO(dakovalkov): We should not rely on non-persistent fields,
-	// because it is not fault-tolerant. Eliminate this.
-	pendingRestart bool
-
 	// brokenError is an error that led the oplet to broken state.
 	// Flush persistent state is not allowed for a broken oplet because the state may be unparsed yet.
 	// So this error cannot be a part of persistent or info state and cannot be flushed.
@@ -194,12 +196,6 @@ func NewOplet(options OpletOptions) *Oplet {
 		passTimeout:                  options.PassTimeout,
 	}
 	return oplet
-}
-
-// TODO(dakovalkov): eliminate this.
-func (oplet *Oplet) SetPendingRestart(reason string) {
-	oplet.l.Debug("setting pending restart", log.String("reason", reason))
-	oplet.pendingRestart = true
 }
 
 func (oplet *Oplet) Alias() string {
@@ -274,6 +270,15 @@ func (oplet *Oplet) SetSecret(secret string, value any) {
 		oplet.secrets = make(map[string]any)
 	}
 	oplet.secrets[secret] = value
+}
+
+func (oplet *Oplet) SetOpletInfo(info any) {
+	parsedInfo, err := yson.Marshal(info)
+	if err != nil {
+		oplet.l.Error("Failed to marshal oplet info", log.Error(err))
+		return
+	}
+	oplet.persistentState.OpletInfo = parsedInfo
 }
 
 type OpletState string
@@ -516,9 +521,11 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 	if oplet.secretsRevision != oplet.persistentState.YTOpSecretsRevision {
 		return true, "secrets changed"
 	}
-	// TODO(dakovalkov): eliminate this.
-	if oplet.pendingRestart {
-		return true, "pendingRestart is set"
+	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() {
+		snapshot, err := oplet.c.GetControllerSnapshot()
+		if err == nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
+			return true, "controller snapshot changed"
+		}
 	}
 	return false, "up to date"
 }
@@ -904,8 +911,13 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		defer cancel()
 	}
 
-	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
+	controllerSnapshot, err := oplet.c.GetControllerSnapshot()
+	if err != nil {
+		oplet.setError(err)
+		return err
+	}
 
+	spec, description, annotations, runAsUser, err := oplet.c.Prepare(ctx, oplet)
 	if err != nil {
 		oplet.setError(err)
 		return err
@@ -1031,6 +1043,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.persistentState.YTOpSpeclet = oplet.specletYson
 	oplet.persistentState.YTOpSpecletRevision = oplet.persistentState.SpecletRevision
+	oplet.persistentState.YTOpControllerSnapshot = controllerSnapshot
 
 	oplet.ytOpStrawberrySpeclet = oplet.strawberrySpeclet
 	oplet.ytOpControllerSpeclet = oplet.controllerSpeclet
@@ -1042,9 +1055,6 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	oplet.persistentState.YTOpPoolTrees = oplet.strawberrySpeclet.PoolTrees
 
 	oplet.persistentState.IncarnationIndex++
-
-	// TODO(dakovalkov): eliminate this.
-	oplet.pendingRestart = false
 
 	oplet.l.Info("operation started",
 		log.String("alias", oplet.alias),
@@ -1236,6 +1246,7 @@ type OpletBriefInfo struct {
 	SpecletModificationTime         *yson.Time           `yson:"speclet_modification_time,omitempty" json:"speclet_modification_time,omitempty"`
 	IncarnationIndex                int                  `yson:"incarnation_index" json:"incarnation_index"`
 	CtlAttributes                   map[string]any       `yson:"ctl_attributes" json:"ctl_attributes"`
+	OpletInfo                       yson.RawValue        `yson:"oplet_info,omitempty" json:"oplet_info,omitempty"`
 	Error                           string               `yson:"error,omitempty" json:"error,omitempty"`
 }
 
@@ -1249,6 +1260,7 @@ func (oplet *Oplet) GetBriefInfo() (briefInfo OpletBriefInfo) {
 	briefInfo.StrawberryStateModificationTime = getYSONTimePointerOrNil(oplet.strawberryStateModificationTime)
 	briefInfo.SpecletModificationTime = getYSONTimePointerOrNil(oplet.specletModificationTime)
 	briefInfo.IncarnationIndex = oplet.persistentState.IncarnationIndex
+	briefInfo.OpletInfo = oplet.persistentState.OpletInfo
 	if oplet.strawberrySpeclet.Pool != nil {
 		briefInfo.Pool = *oplet.strawberrySpeclet.Pool
 	}

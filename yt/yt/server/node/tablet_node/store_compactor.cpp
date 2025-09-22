@@ -8,6 +8,7 @@
 #include "in_memory_manager.h"
 #include "partition.h"
 #include "public.h"
+#include "slot_manager.h"
 #include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
@@ -84,6 +85,9 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
+
+#include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
 
@@ -174,12 +178,6 @@ struct TCompactionTaskInfo
     // Guaranteed effect on the slack if this task will be done.
     // This is a conservative estimate.
     const int Effect;
-    // Future effect on the slack due to concurrent tasks.
-    // This quantity is memoized to provide a valid comparison operator.
-    // Can be modified only before adding task to orchid.
-    int FutureEffect;
-    // A random number to deterministically break ties.
-    const ui64 Random = RandomNumber<size_t>();
 
     const std::vector<TStoreId> StoreIds;
     const THashSet<TChunkId> HunkChunkIds;
@@ -197,7 +195,6 @@ struct TCompactionTaskInfo
         bool discardStores,
         int slack,
         int effect,
-        int futureEffect,
         std::vector<TStoreId> storeIds,
         THashSet<TChunkId> hunkChunkIds,
         TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
@@ -212,7 +209,6 @@ struct TCompactionTaskInfo
         , DiscardStores(discardStores)
         , Slack(slack)
         , Effect(effect)
-        , FutureEffect(futureEffect)
         , StoreIds(std::move(storeIds))
         , HunkChunkIds(std::move(hunkChunkIds))
     {
@@ -220,19 +216,9 @@ struct TCompactionTaskInfo
         RuntimeData.HunkChunkCountByReason = hunkChunkCountByReason;
     }
 
-    auto GetOrderingTuple() const
+    bool ComparePendingTasks(const TCompactionTaskInfo&) const
     {
-        return std::tuple(
-            !DiscardStores,
-            Slack + FutureEffect,
-            -Effect,
-            -ssize(StoreIds),
-            Random);
-    }
-
-    bool ComparePendingTasks(const TCompactionTaskInfo& other) const
-    {
-        return GetOrderingTuple() < other.GetOrderingTuple();
+        return false;
     }
 };
 
@@ -273,8 +259,6 @@ void Serialize(const TCompactionTaskInfo& task, IYsonConsumer* consumer)
                 .Item("discard_stores").Value(task.DiscardStores)
                 .Item("slack").Value(task.Slack)
                 .Item("effect").Value(task.Effect)
-                .Item("future_effect").Value(task.FutureEffect)
-                .Item("random").Value(task.Random)
             .EndMap()
         .Item("store_ids").List(task.StoreIds)
         .Do([&] (auto fluent) {
@@ -352,10 +336,7 @@ struct TCompactionTask
         bool discardStores,
         int slack,
         int effect,
-        int futureEffect,
         TCompactionOrchidPtr orchid);
-
-    ~TCompactionTask();
 
     void Prepare(
         TStoreCompactor* owner,
@@ -968,10 +949,6 @@ public:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));
-
-        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->TabletNode->StoreCompactor;
-        IgnoreFutureEffect_.store(dynamicConfig->IgnoreFutureEffect);
-        ScheduleNewTasksAfterTaskCompletion_.store(dynamicConfig->ScheduleNewTasksAfterTaskCompletion);
     }
 
     void OnBeginSlotScan() override
@@ -986,9 +963,7 @@ public:
         CompactionCandidates_.clear(); // Though must be clear already.
     }
 
-    void ProcessLsmActionBatch(
-        const ITabletSlotPtr& slot,
-        const NLsm::TLsmActionBatch& batch) override
+    void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) override
     {
         TEventTimerGuard timerGuard(ScanTimer_);
 
@@ -998,15 +973,42 @@ public:
             return;
         }
 
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
-        }
-
         const auto& Logger = TabletNodeLogger;
 
-        YT_LOG_DEBUG("Store compactor started processing action batch (CellId: %v)",
-            slot->GetCellId());
+        YT_LOG_DEBUG("Store compactor started processing action batch");
 
+        auto scheduleTasks = [this, this_ = MakeStrong(this)] (
+            const ITabletSlotPtr& slot,
+            const std::vector<TCompactionRequest>& requests,
+            TStringBuf taskKind,
+            int maxStructuredLogEvents,
+            std::function<const char*(bool)> getEventType,
+            const TCompactionOrchidPtr& orchid)
+        {
+            if (slot->GetAutomatonState() != EPeerState::Leading) {
+                return std::vector<std::unique_ptr<TCompactionTask>>();
+            }
+
+            auto Logger = TabletNodeLogger().WithTag("CellId: %v, TaskKind: %v",
+                slot->GetCellId(),
+                taskKind);
+
+            std::vector<std::unique_ptr<TCompactionTask>> tasks;
+            tasks.reserve(requests.size());
+            for (const auto& request : requests) {
+                tasks.push_back(
+                    MakeTask(
+                        slot.Get(),
+                        request,
+                        getEventType(request.DiscardStores),
+                        ssize(tasks) < maxStructuredLogEvents,
+                        orchid,
+                        Logger
+                    ));
+            }
+
+            return tasks;
+        };
 
         auto scanForCandidates = [&] (
             const std::vector<TCompactionRequest>& requests,
@@ -1016,24 +1018,71 @@ public:
             std::vector<std::unique_ptr<TCompactionTask>>* candidates,
             const TCompactionOrchidPtr& orchid)
         {
-            auto Logger = TabletNodeLogger().WithTag("CellId: %v, TaskKind: %v",
-                slot->GetCellId(),
-                taskKind);
+            struct TCellInfo
+            {
+                std::vector<TCompactionRequest> Requests;
+                std::vector<int> RequestIndexes;
+                TFuture<std::vector<std::unique_ptr<TCompactionTask>>> AsyncTasks;
+            };
 
-            std::vector<std::unique_ptr<TCompactionTask>> tasks;
-            std::vector<TCompactionTaskInfoPtr> pendingTaskInfos;
-            for (const auto& request : requests) {
-                if (auto task = MakeTask(
-                    slot.Get(),
-                    request,
-                    getEventType(request.DiscardStores),
-                    ssize(tasks) < maxStructuredLogEvents,
-                    orchid,
-                    Logger))
-                {
-                    pendingTaskInfos.push_back(task->Info);
-                    tasks.push_back(std::move(task));
+            THashMap<TCellId, TCellInfo> cellRequests;
+
+            for (auto [index, request] : Enumerate(requests)) {
+                auto& cellRequest = cellRequests[request.Tablet->GetCellId()];
+                cellRequest.Requests.push_back(std::move(request));
+                cellRequest.RequestIndexes.push_back(index);
+            }
+
+            std::vector<TFuture<void>> voidFutures;
+            voidFutures.reserve(cellRequests.size());
+
+            const auto& slotManager = Bootstrap_->GetSlotManager();
+            for (auto& [cellId, cellInfo] : cellRequests) {
+                auto slot = slotManager->FindSlot(cellId);
+                if (!slot) {
+                    YT_LOG_DEBUG("Tablet cell is missing, will not schedule background tasks (CellId: %v, TaskKind: %v)",
+                        cellId,
+                        taskKind);
+                    continue;
                 }
+
+                cellInfo.AsyncTasks = BIND(
+                    scheduleTasks,
+                    slot,
+                    std::move(cellInfo.Requests),
+                    taskKind,
+                    maxStructuredLogEvents,
+                    getEventType,
+                    orchid)
+                    .AsyncVia(slot->GetGuardedAutomatonInvoker())
+                    .Run();
+                voidFutures.push_back(cellInfo.AsyncTasks.AsVoid());
+            }
+
+            auto allSetResult = WaitFor(AllSet(voidFutures));
+            YT_VERIFY(allSetResult.IsOK());
+
+            std::vector<std::unique_ptr<TCompactionTask>> tasks(requests.size());
+            for (auto& [cellId, cellInfo] : cellRequests) {
+                if (!cellInfo.AsyncTasks) {
+                    continue;
+                }
+
+                auto futureResult = cellInfo.AsyncTasks.GetUnique();
+                if (!futureResult.IsOK()) {
+                    continue;
+                }
+
+                for (auto&& [index, task] : Zip(cellInfo.RequestIndexes, std::move(futureResult.Value()))) {
+                    tasks[index] = std::move(task);
+                }
+            }
+
+            std::erase_if(tasks, [] (const auto& task) { return task == nullptr; });
+
+            std::vector<TCompactionTaskInfoPtr> pendingTaskInfos;
+            for (const auto& task : tasks) {
+                pendingTaskInfos.push_back(task->Info);
             }
 
             auto guard = Guard(ScanSpinLock_);
@@ -1065,12 +1114,8 @@ public:
                 PartitioningOrchid_);
         }
 
-        YT_LOG_DEBUG("Store compactor finished processing action batch (CellId: %v)",
-            slot->GetCellId());
-    }
+        YT_LOG_DEBUG("Store compactor finished processing action batch");
 
-    void OnEndSlotScan() override
-    {
         // NB: Strictly speaking, redundant.
         auto guard = Guard(ScanSpinLock_);
 
@@ -1084,7 +1129,6 @@ public:
             ScheduleMoreCompactions();
         }
     }
-
 
     IYPathServicePtr GetOrchidService() override
     {
@@ -1102,7 +1146,6 @@ private:
     const TGauge FeasibleCompactionsCounter_ = Profiler_.Gauge("/feasible_compactions");
     const TCounter ScheduledPartitioningsCounter_ = Profiler_.Counter("/scheduled_partitionings");
     const TCounter ScheduledCompactionsCounter_ = Profiler_.Counter("/scheduled_compactions");
-    const TCounter FutureEffectMismatchesCounter_ = Profiler_.Counter("/future_effect_mismatches");
     const TEventTimer ScanTimer_ = Profiler_.Timer("/scan_time");
 
     const IThreadPoolPtr ThreadPool_;
@@ -1118,18 +1161,10 @@ private:
 
     // Variables below are actually used during the scheduling.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TaskSpinLock_);
-    std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_; // Min-heap.
-    size_t PartitioningTaskIndex_ = 0; // Heap end boundary.
-    std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_; // Min-heap.
-    size_t CompactionTaskIndex_ = 0; // Heap end boundary.
-
-    // These are for the future accounting.
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, FutureEffectLock_);
-    THashMap<TTabletId, int> FutureEffect_;
-
-    // Mirrored flags from dynamic config for faster access.
-    std::atomic<bool> IgnoreFutureEffect_;
-    std::atomic<bool> ScheduleNewTasksAfterTaskCompletion_;
+    std::vector<std::unique_ptr<TCompactionTask>> PartitioningTasks_; // Queue.
+    size_t PartitioningTaskIndex_ = 0; // Queue begin boundary.
+    std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_; // Queue.
+    size_t CompactionTaskIndex_ = 0; // Queue begin boundary.
 
     const TCompactionOrchidPtr CompactionOrchid_;
     const TCompactionOrchidPtr PartitioningOrchid_;
@@ -1169,9 +1204,6 @@ private:
             CompactionFairSharePool_ = config->CompactionFairSharePool;
             PartitioningFairSharePool_ = config->PartitioningFairSharePool;
         }
-
-        IgnoreFutureEffect_.store(config->IgnoreFutureEffect);
-        ScheduleNewTasksAfterTaskCompletion_.store(config->ScheduleNewTasksAfterTaskCompletion);
     }
 
     std::unique_ptr<TCompactionTask> MakeTask(
@@ -1224,7 +1256,6 @@ private:
             request.DiscardStores,
             request.Slack,
             request.Effect,
-            GetFutureEffect(tablet->GetId()),
             std::move(orchid));
 
         if (logStructured) {
@@ -1283,12 +1314,10 @@ private:
     {
         counter.Update(candidates->size());
 
-        MakeHeap(candidates->begin(), candidates->end(), CompactionTaskComparer);
-
         {
             auto guard = Guard(TaskSpinLock_);
             tasks->swap(*candidates);
-            *index = tasks->size();
+            *index = 0;
         }
 
         candidates->clear();
@@ -1319,14 +1348,12 @@ private:
         const TCounter& counter,
         void (TStoreCompactor::*action)(TCompactionTask*))
     {
-        const auto& Logger = TabletNodeLogger;
-
         auto taskGuard = Guard(TaskSpinLock_);
 
         size_t scheduled = 0;
 
         while (true) {
-            if (*index == 0) {
+            if (*index == tasks->size()) {
                 break;
             }
 
@@ -1335,32 +1362,9 @@ private:
                 break;
             }
 
-            // Check if we have to fix the heap. If the smallest element is okay, we just keep going.
-            // Hopefully, we will rarely decide to operate on the same tablet.
-            {
-                auto guard = ReaderGuard(FutureEffectLock_);
-                auto&& firstTask = tasks->at(0);
-                if (firstTask->Info->FutureEffect != LockedGetFutureEffect(guard, firstTask->Info->TabletId)) {
-                    FutureEffectMismatchesCounter_.Increment();
-                    YT_LOG_DEBUG("Remaking compaction task heap due to future effect mismatch "
-                        "(TabletId: %v, TaskFutureEffect: %v, TabletFutureEffect: %v)",
-                        firstTask->Info->TabletId,
-                        firstTask->Info->FutureEffect,
-                        LockedGetFutureEffect(guard, firstTask->Info->TabletId));
-
-                    for (size_t i = 0; i < *index; ++i) {
-                        auto&& task = (*tasks)[i];
-                        task->Info->FutureEffect = LockedGetFutureEffect(guard, task->Info->TabletId);
-                    }
-                    guard.Release();
-                    MakeHeap(tasks->begin(), tasks->begin() + *index, CompactionTaskComparer);
-                }
-            }
-
             // Extract the next task.
-            ExtractHeap(tasks->begin(), tasks->begin() + *index, CompactionTaskComparer);
-            --(*index);
             auto&& task = tasks->at(*index);
+            ++*index;
             task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
 
@@ -1398,43 +1402,6 @@ private:
             CompactionSemaphore_,
             ScheduledCompactionsCounter_,
             &TStoreCompactor::CompactPartition);
-    }
-
-    int LockedGetFutureEffect(NThreading::TReaderGuard<TReaderWriterSpinLock>&, TTabletId tabletId)
-    {
-        if (IgnoreFutureEffect_) {
-            return 0;
-        }
-
-        auto it = FutureEffect_.find(tabletId);
-        return it != FutureEffect_.end() ? it->second : 0;
-    }
-
-    int GetFutureEffect(TTabletId tabletId)
-    {
-        auto guard = ReaderGuard(FutureEffectLock_);
-        return LockedGetFutureEffect(guard, tabletId);
-    }
-
-    void ChangeFutureEffect(TTabletId tabletId, int delta)
-    {
-        if (delta == 0) {
-            return;
-        }
-        auto guard = WriterGuard(FutureEffectLock_);
-        auto pair = FutureEffect_.emplace(tabletId, delta);
-        if (!pair.second) {
-            pair.first->second += delta;
-        }
-        const auto& Logger = TabletNodeLogger;
-        YT_LOG_DEBUG("Accounting for the future effect of the compaction/partitioning "
-            "(TabletId: %v, FutureEffect: %v -> %v)",
-            tabletId,
-            pair.first->second - delta,
-            pair.first->second);
-        if (pair.first->second == 0) {
-            FutureEffect_.erase(pair.first);
-        }
     }
 
     NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const TString& title)
@@ -1529,7 +1496,7 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            if (ScheduleNewTasksAfterTaskCompletion_) {
+            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
                 ScheduleMorePartitionings();
             }
         });
@@ -1667,11 +1634,10 @@ private:
                 .Item("current_timestamp").Value(currentTimestamp)
                 .Item("trace_id").Value(traceId);
 
-            YT_LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
+            YT_LOG_INFO("Eden partitioning started (Slack: %v, Effect: %v, "
                 "PartitionCount: %v, CompressedDataSize: %v, "
                 "ChunkCount: %v, CurrentTimestamp: %v, RetentionConfig: %v)",
                 task->Info->Slack,
-                task->Info->FutureEffect,
                 task->Info->Effect,
                 pivotKeys.size(),
                 dataSize,
@@ -1931,7 +1897,7 @@ private:
                 chunkReadOptions.ReadSessionId);
 
         auto doneGuard = Finally([&] {
-            if (ScheduleNewTasksAfterTaskCompletion_) {
+            if (Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
                 ScheduleMoreCompactions();
             }
         });
@@ -2079,12 +2045,11 @@ private:
                 .Item("major_timestamp").Value(majorTimestamp)
                 .Item("retained_timestamp").Value(retainedTimestamp);
 
-            YT_LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
+            YT_LOG_INFO("Partition compaction started (Slack: %v, Effect: %v, "
                 "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
                 "CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v, RetentionConfig: %v, "
                 "Reason: %v)",
                 task->Info->Slack,
-                task->Info->FutureEffect,
                 task->Info->Effect,
                 inputRowCount,
                 inputDataSize,
@@ -2346,13 +2311,6 @@ private:
             descriptor->mutable_chunk_meta()->mutable_extensions(),
             GetMasterChunkMetaExtensionTagsFilter());
     }
-
-    static bool CompactionTaskComparer(
-        const std::unique_ptr<TCompactionTask>& lhs,
-        const std::unique_ptr<TCompactionTask>& rhs)
-    {
-        return lhs->Info->GetOrderingTuple() < rhs->Info->GetOrderingTuple();
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
@@ -2370,7 +2328,6 @@ TCompactionTask::TCompactionTask(
     bool discardStores,
     int slack,
     int effect,
-    int futureEffect,
     TCompactionOrchidPtr orchid)
     : TGuardedTaskInfo<TCompactionTaskInfo>(
         New<TCompactionTaskInfo>(
@@ -2384,7 +2341,6 @@ TCompactionTask::TCompactionTask(
             discardStores,
             slack,
             effect,
-            futureEffect,
             std::move(storeIds),
             std::move(hunkChunkIds),
             hunkChunkCountByReason),
@@ -2395,20 +2351,12 @@ TCompactionTask::TCompactionTask(
     , TabletLoggingTag(tablet->GetLoggingTag())
 { }
 
-TCompactionTask::~TCompactionTask() {
-    if (auto owner = Owner.Lock()) {
-        owner->ChangeFutureEffect(Info->TabletId, -Info->Effect);
-    }
-}
-
 void TCompactionTask::Prepare(
     TStoreCompactor* owner,
     TAsyncSemaphoreGuard&& semaphoreGuard)
 {
     Owner = MakeWeak(owner);
     SemaphoreGuard = std::move(semaphoreGuard);
-
-    owner->ChangeFutureEffect(Info->TabletId, Info->Effect);
 }
 
 void TCompactionTask::StoreToStructuredLog(TFluentMap fluent)
@@ -2419,8 +2367,6 @@ void TCompactionTask::StoreToStructuredLog(TFluentMap fluent)
         .Item("discard_stores").Value(Info->DiscardStores)
         .Item("slack").Value(Info->Slack)
         .Item("effect").Value(Info->Effect)
-        .Item("future_effect").Value(Info->FutureEffect)
-        .Item("random").Value(Info->Random)
         .Item("reason").Value(Info->Reason);
 }
 

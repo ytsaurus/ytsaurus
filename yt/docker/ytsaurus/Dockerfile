@@ -54,6 +54,9 @@ RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
 
 FROM ubuntu-base AS base
 
+ARG NVIDIA_CONTAINER_TOOLKIT_VERSION="1.17.8-1"
+ARG INSTALL_NVIDIA_PACKAGES="false"
+
 USER root
 
 WORKDIR /tmp
@@ -107,6 +110,21 @@ packages=(
 )
 
 apt-get install -y "${packages[@]}"
+
+nvidia_packages=(
+  nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+  libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+)
+
+if [[ "$INSTALL_NVIDIA_PACKAGES" = "true" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list \
+  && apt update \
+  && apt install -y "${nvidia_packages[@]}"; fi
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -264,7 +282,9 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-queue-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy && \
-    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-bundle-controller && \
+    true
 
 # GPU agent.
 COPY ./gpuagent /usr/bin/gpuagent
@@ -276,6 +296,10 @@ COPY ./credits/*.CREDITS /usr/bin/
 COPY ./init_queue_agent_state /usr/bin/init_queue_agent_state
 COPY ./init-operations-archive /usr/bin/init_operations_archive
 RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
+
+# GpuAgent runner script.
+COPY ./gpuagent_runner.sh /usr/bin/gpuagent_runner.sh
+
 
 FROM scratch AS ytsaurus
 COPY --from=ytsaurus-bloated / /

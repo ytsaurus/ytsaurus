@@ -38,7 +38,6 @@ target_link_libraries(lib-Target-WebAssembly PUBLIC
   llvm18-lib-BinaryFormat
   llvm18-lib-CodeGen
   lib-CodeGen-AsmPrinter
-  lib-CodeGen-LowLevelType
   lib-CodeGen-SelectionDAG
   llvm18-lib-IR
   llvm18-lib-MC

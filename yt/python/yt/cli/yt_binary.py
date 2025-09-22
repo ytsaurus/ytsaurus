@@ -1472,6 +1472,20 @@ def add_get_query_result_parser(add_parser):
     add_structured_format_argument(parser)
 
 
+@copy_docstring_from(yt.get_query_tracker_info)
+def get_query_tracker_info(**kwargs):
+    result = yt.get_query_tracker_info(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_get_query_tracker_info_parser(add_parser):
+    parser = add_parser("get-query-tracker-info", get_query_tracker_info)
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    add_structured_format_argument(parser)
+
+
 @copy_docstring_from(yt.list_queries)
 def list_queries(**kwargs):
     result = yt.list_queries(**kwargs)
@@ -1496,6 +1510,11 @@ def add_list_queries_parser(add_parser):
     parser.add_argument("--limit", type=int, help="maximum number of operations in output")
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--use-full-scan-search", action="store_false", dest="use_full_text_search", help='forces the use of full-scan search for exact substring match')
+    group.add_argument("--search-by-token-prefix", action="store_true", help='can\'t be used with "--use-full-scan-search". '
+                                                                             'If set, search will be performed not by exact token '
+                                                                             'match but by prefix match')
     add_structured_format_argument(parser)
 
 
@@ -3005,6 +3024,7 @@ def _prepare_parser():
     add_read_query_result_parser(add_parser)
     add_get_query_parser(add_parser)
     add_get_query_result_parser(add_parser)
+    add_get_query_tracker_info_parser(add_parser)
     add_list_queries_parser(add_parser)
     add_alter_query_parser(add_parser)
 

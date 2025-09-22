@@ -46,7 +46,7 @@ target_sources(cpp-xdelta3-proto PRIVATE
 
 target_proto_outs(cpp-xdelta3-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(cpp-xdelta3-proto

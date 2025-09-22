@@ -1,14 +1,15 @@
-#include "private.h"
 #include "proxy_service.h"
+
+#include "private.h"
 #include "query_tracker_proxy.h"
 
 #include <yt/yt/server/lib/component_state_checker/state_checker.h>
 
-#include <yt/yt/client/api/rpc_proxy/helpers.h>
-
 #include <yt/yt/ytlib/query_tracker_client/proto/query_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/query_tracker_client/query_tracker_service_proxy.h>
+
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -251,7 +252,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, ListQueries)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqListQueries::GetDescriptor()->field_count() == 11);
+        YT_VERIFY(NRpcProxy::NProto::TReqListQueries::GetDescriptor()->field_count() == 13);
         YT_VERIFY(NRpcProxy::NProto::TRspListQueries::GetDescriptor()->field_count() == 3);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -296,6 +297,9 @@ private:
         options.Attributes = rpcRequest.has_attributes()
             ? FromProto<TAttributeFilter>(rpcRequest.attributes())
             : TAttributeFilter();
+
+        options.SearchByTokenPrefix = rpcRequest.search_by_token_prefix();
+        options.UseFullTextSearch = rpcRequest.use_full_text_search();
 
         auto user = context->GetAuthenticationIdentity().User;
 
@@ -348,7 +352,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
     {
         YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 6);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 7);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
@@ -377,6 +381,9 @@ private:
             *rpcResponse->add_clusters() = cluster;
         }
         rpcResponse->set_engines_info(ToProto(result.EnginesInfo.value_or(TYsonString(TString("{}")))));
+        if (result.ExpectedTablesVersion) {
+            rpcResponse->set_expected_tables_version(result.ExpectedTablesVersion.value());
+        }
 
         context->Reply();
     }

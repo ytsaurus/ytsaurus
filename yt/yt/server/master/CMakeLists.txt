@@ -99,7 +99,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/snapshot_exporter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/world_initializer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/area_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_server/area_type_handler.cpp
@@ -521,7 +520,7 @@ target_proto_messages(yt-server-master PRIVATE
 
 target_proto_outs(yt-server-master
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-server-master

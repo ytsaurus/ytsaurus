@@ -33,7 +33,7 @@ target_link_libraries(Target-AArch64-MCTargetDesc PUBLIC
   contrib-libs-llvm18
   libs-llvm18-include
   llvm18-lib-BinaryFormat
-  lib-CodeGen-LowLevelType
+  llvm18-lib-CodeGen
   llvm18-lib-MC
   llvm18-lib-Support
   Target-AArch64-TargetInfo

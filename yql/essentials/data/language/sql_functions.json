@@ -132,6 +132,10 @@
     "kind": "Agg"
   },
   {
+    "name": "Block",
+    "kind": "Normal"
+  },
+  {
     "name": "BlockWardHistogram",
     "kind": "Agg"
   },
@@ -384,6 +388,10 @@
     "kind": "Normal"
   },
   {
+    "name": "DynamicLinearTypeHandle",
+    "kind": "Normal"
+  },
+  {
     "name": "DynamicVariant",
     "kind": "Normal"
   },
@@ -512,6 +520,14 @@
     "kind": "Normal"
   },
   {
+    "name": "FromDynamicLinear",
+    "kind": "Normal"
+  },
+  {
+    "name": "FromMutDict",
+    "kind": "Normal"
+  },
+  {
     "name": "FromPg",
     "kind": "Normal"
   },
@@ -626,6 +642,18 @@
   {
     "name": "LinearHistogramCDF",
     "kind": "Agg"
+  },
+  {
+    "name": "LinearItemType",
+    "kind": "Normal"
+  },
+  {
+    "name": "LinearType",
+    "kind": "Normal"
+  },
+  {
+    "name": "LinearTypeHandle",
+    "kind": "Normal"
   },
   {
     "name": "ListAggregate",
@@ -914,6 +942,58 @@
   {
     "name": "Mode",
     "kind": "Agg"
+  },
+  {
+    "name": "MutDictContains",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictCreate",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictHasItems",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictInsert",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictItems",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictKeys",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictLength",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictLookup",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictPayloads",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictPop",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictRemove",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictUpdate",
+    "kind": "Normal"
+  },
+  {
+    "name": "MutDictUpsert",
+    "kind": "Normal"
   },
   {
     "name": "NTile",
@@ -1344,6 +1424,10 @@
     "kind": "Normal"
   },
   {
+    "name": "ToDynamicLinear",
+    "kind": "Normal"
+  },
+  {
     "name": "ToHashedDict",
     "kind": "Normal"
   },
@@ -1353,6 +1437,10 @@
   },
   {
     "name": "ToMultiDict",
+    "kind": "Normal"
+  },
+  {
+    "name": "ToMutDict",
     "kind": "Normal"
   },
   {

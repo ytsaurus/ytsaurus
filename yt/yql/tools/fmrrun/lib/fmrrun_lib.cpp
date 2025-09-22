@@ -23,6 +23,9 @@ TFmrRunTool::TFmrRunTool()
             .Optional()
             .NoArgument()
             .SetFlag(&DisableLocalFmrWorker_);
+        opts.AddLongOption( "fmrjob-bin", "Path to fmrjob binary")
+            .Optional()
+            .StoreResult(&FmrJobBin_);
     });
 }
 
@@ -34,7 +37,10 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     auto fileGateway = TYqlRunTool::CreateYtGateway();
     auto fmrServices = MakeIntrusive<NFmr::TFmrServices>();
     fmrServices->FunctionRegistry = GetFuncRegistry().Get();
-    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(false);
+    fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{
+        .RunInSeparateProcess = true,
+        .FmrJobBinaryPath = FmrJobBin_
+    });
     fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
     fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();

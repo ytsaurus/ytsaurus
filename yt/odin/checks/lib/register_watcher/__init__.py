@@ -33,7 +33,7 @@ def run_check_impl(yt_client, logger, options, states, node_tag_filter=["interna
             "schema": STATE_TABLE_SCHEMA,
             "dynamic": True,
         })
-        yt_client.mount_table(STATE_TABLE_PATH, sync=True)
+    yt_client.mount_table(STATE_TABLE_PATH, sync=True)
     tablet_state = yt_client.get("{}/@tablet_state".format(STATE_TABLE_PATH))
     if tablet_state != "mounted":
         message = "{}/@tablet_state is {} but should be mounted".format(STATE_TABLE_PATH, tablet_state)

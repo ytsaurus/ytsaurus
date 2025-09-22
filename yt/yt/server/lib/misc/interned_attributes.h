@@ -181,6 +181,7 @@
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSequoiaReplicas, enable_sequoia_replicas) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
+    XX(EnableStepFunctionForGangOperations, enable_step_function_for_gang_operations) \
     XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EndorsementRequired, endorsement_required) \
@@ -282,6 +283,7 @@
     XX(LastHeartbeatTime, last_heartbeat_time) \
     XX(LastMountTransactionId, last_mount_transaction_id) \
     XX(LastPersistentHeartbeatTime, last_persistent_heartbeat_time) \
+    XX(LastPingAddress, last_ping_address) \
     XX(LastPingTime, last_ping_time) \
     XX(LastSeenReplicas, last_seen_replicas) \
     XX(LastSeenTime, last_seen_time) \
@@ -469,6 +471,7 @@
     XX(Requisition, requisition) \
     XX(ResolveCached, resolve_cached) \
     XX(ResourceLimits, resource_limits) \
+    XX(ResourceLimitsOvercommitTolerance, resource_limits_overcommit_tolerance) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
     XX(ResourceQuota, resource_quota) \
     XX(ResourceUsage, resource_usage) \

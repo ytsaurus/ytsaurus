@@ -1,3 +1,5 @@
+import logging
+
 from yt_dashboards.common.runner import run
 
 from yt_dashboards.master import (
@@ -31,6 +33,15 @@ from yt_dashboards import flow
 from yt_dashboards import queue_and_consumer_metrics
 
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+
+logger = logging.getLogger(__name__)
+
+
 dashboards = {
     "cache": {
         "func": build_cache_with_ghosts,
@@ -54,12 +65,12 @@ dashboards = {
         "monitoring": {},
     },
     "scheduler-internal": {
-        "func": lambda has_porto=True: build_scheduler_internal(has_porto),
+        "func": build_scheduler_internal,
         "monitoring": {
-            "args": [True],
+            "args": [True, "monitoring"],
         },
         "grafana": {
-            "args": [False],
+            "args": [False, "grafana"],
         },
     },
     "scheduler-pool": {
@@ -69,7 +80,12 @@ dashboards = {
     },
     "scheduler-operation": {
         "func": build_scheduler_operation,
-        "monitoring": {},
+        "monitoring": {
+            "args": [True],
+        },
+        "grafana": {
+            "args": [False],
+        },
     },
     "jobs-monitor": {
         "func": build_jobs_monitor,
@@ -80,10 +96,18 @@ dashboards = {
         "monitoring": {
             "args": [True],
         },
+        "grafana": {
+            "args": [False]
+        }
     },
     "cluster-resources": {
         "func": build_cluster_resources,
-        "monitoring": {},
+        "monitoring": {
+            "args": [True],
+        },
+        "grafana": {
+            "args": [False],
+        },
     },
     "per-table-compaction": {
         "func": lsm.build_per_table_compaction,
@@ -92,14 +116,21 @@ dashboards = {
     "bundle-ui-user-load": {
         "func": build_bundle_ui_user_load,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-ui-lsm": {
         "func": build_bundle_ui_lsm,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-ui-cpu": {
         "func": build_bundle_ui_cpu,
-        "monitoring": {},
+        "monitoring": {
+            "args": [True],
+        },
+        "grafana": {
+            "args": [False],
+        },
     },
     "bundle-ui-downtime": {
         "func": build_bundle_ui_downtime,
@@ -108,22 +139,31 @@ dashboards = {
     "bundle-ui-memory": {
         "func": build_bundle_ui_memory,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-ui-network": {
         "func": build_bundle_ui_network,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-ui-disk": {
         "func": build_bundle_ui_disk,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-ui-resource": {
-        "func": build_bundle_ui_resource_overview,
-        "monitoring": {},
+        "func": lambda has_porto=True: build_bundle_ui_resource_overview(has_porto),
+        "monitoring": {
+            "args": [True],
+        },
+        "grafana": {
+            "args": [False],
+        },
     },
     "bundle-ui-efficiency": {
         "func": build_bundle_ui_efficiency,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-capacity-planning": {
         "func": build_bundle_capacity_planning,
@@ -132,10 +172,16 @@ dashboards = {
     "bundle-ui-rpc-proxy-overview": {
         "func": build_bundle_ui_rpc_resource_overview,
         "monitoring": {},
+        "grafana": {},
     },
     "bundle-ui-rpc-proxy": {
         "func": build_bundle_rpc_proxy_dashboard,
-        "monitoring": {},
+        "monitoring": {
+            "args": [True],
+        },
+        "grafana": {
+            "args": [False]
+        },
     },
     "bundle-ui-key-filter": {
         "func": build_bundle_ui_key_filter,
@@ -147,7 +193,12 @@ dashboards = {
     },
     "master-global": {
         "func": build_master_global,
-        "monitoring": {},
+        "monitoring": {
+            "args": [True, True],
+        },
+        "grafana": {
+            "args": [False, False],
+        },
     },
     "master-local": {
         "func": build_master_local,
@@ -165,10 +216,12 @@ dashboards = {
     "master-merge-jobs": {
         "func": build_master_merge_jobs,
         "monitoring": {},
+        "grafana": {},
     },
     "master-accounts": {
         "func": build_master_accounts,
         "monitoring": {},
+        "grafana": {},
     },
     "chyt-monitoring-test": {
         "func": build_chyt_monitoring,
@@ -190,6 +243,7 @@ dashboards = {
     "flow-general": {
         "func": flow.build_flow_general,
         "monitoring": {},
+        "grafana": {},
     },
     "flow-diagnostics": {
         "func": flow.build_flow_diagnostics,

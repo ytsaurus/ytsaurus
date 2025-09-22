@@ -3,7 +3,6 @@
 #include "private.h"
 #include "config.h"
 #include "hydra_facade.h"
-#include "world_initializer_cache.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -49,6 +48,7 @@
 #include <yt/yt/client/security_client/access_control.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -92,39 +92,35 @@ class TWorldInitializer
     : public IWorldInitializer
 {
 public:
-    TWorldInitializer(TBootstrap* bootstrap)
+    explicit TWorldInitializer(TBootstrap* bootstrap)
         : Config_(bootstrap->GetConfig())
         , Bootstrap_(bootstrap)
+        , CachedStateUpdateExecutor_(New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TWorldInitializer::UpdateCachedInitialized, MakeWeak(this)),
+            Config_->WorldInitializer->CachedStateUpdatePeriod))
     {
+
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
-        hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopLeading, MakeWeak(this)));
-        hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStartFollowing, MakeWeak(this)));
-        hydraManager->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopFollowing, MakeWeak(this)));
+        hydraManager->SubscribeStartLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeAutomatonLeaderRecoveryComplete(BIND_NO_PROPAGATE(&TWorldInitializer::OnRecoveryComplete, MakeWeak(this)));
+        hydraManager->SubscribeAutomatonFollowerRecoveryComplete(BIND_NO_PROPAGATE(&TWorldInitializer::OnRecoveryComplete, MakeWeak(this)));
     }
 
     bool IsInitialized() override
     {
-        VerifyPersistentStateRead();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* rootNode = cypressManager->GetRootNode();
-        auto isInitialized = !rootNode->KeyToChild().empty();
-
-        const auto& observer = Bootstrap_->GetWorldInitializerCache();
-        observer->UpdateWorldInitializationStatus(isInitialized);
-
-        return isInitialized;
-    }
-
-    void UpdateWorldInitializerCache() override
-    {
-        Y_UNUSED(IsInitialized());
+        return Initialized_.load();
     }
 
     void ValidateInitialized() override
     {
-        VerifyPersistentStateRead();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!IsInitialized()) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
@@ -133,6 +129,8 @@ public:
 
     bool HasProvisionLock() override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
@@ -144,15 +142,37 @@ public:
 private:
     const TCellMasterBootstrapConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+    const TPeriodicExecutorPtr CachedStateUpdateExecutor_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    std::atomic<bool> Initialized_;
 
     std::vector<TFuture<void>> ScheduledMutations_;
 
     NThreading::TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
     NThreading::TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
 
+
+    bool IsInitializedUncached()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* rootNode = cypressManager->GetRootNode();
+        return !rootNode->KeyToChild().empty();
+    }
+
+    void UpdateCachedInitialized()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        Initialized_.store(IsInitializedUncached());
+    }
+
     void OnLeaderActive()
     {
-        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
@@ -162,23 +182,38 @@ private:
         ScheduleUpdateAnnotations();
     }
 
-    void OnStopLeading()
+    void OnRecoveryComplete()
     {
-        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        UpdateCachedInitialized();
     }
 
-    void OnStartFollowing()
+    void OnStartEpoch()
     {
-        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        CachedStateUpdateExecutor_->Start();
     }
 
-    void OnStopFollowing()
+    void OnStopEpoch()
     {
-        Bootstrap_->GetWorldInitializerCache()->UpdateWorldInitializationStatus(false);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        Y_UNUSED(CachedStateUpdateExecutor_->Stop());
+    }
+
+    void OnTransactionCommitted(NTransactionServer::TTransaction* /*transaction*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        UpdateCachedInitialized();
     }
 
     void ScheduleInitialize(TDuration delay = TDuration::Zero())
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader()) {
             YT_LOG_INFO("Master is not leading anymore, ignore world initialization schedule request");
             return;
@@ -194,6 +229,8 @@ private:
 
     void ScheduleUpdateAnnotations(TDuration delay = TDuration::Zero())
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader()) {
             YT_LOG_INFO("Master is not leading anymore, ignore annotations update schedule request");
             return;
@@ -209,11 +246,13 @@ private:
 
     void Initialize()
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         auto traceContext = NTracing::TTraceContext::NewRoot("WorldInitializer");
         traceContext->SetSampled();
         NTracing::TTraceContextGuard contextGuard(traceContext);
 
-        if (IsInitialized()) {
+        if (IsInitializedUncached()) {
             YT_LOG_INFO("World update started");
         } else {
             YT_LOG_INFO("World initialization started");
@@ -243,7 +282,7 @@ private:
 
             // "//tmp" directory is frequently created and removed in tests.
             // Let's not touch it during update to prevent transactions conflicts.
-            if (!IsInitialized()) {
+            if (!IsInitializedUncached()) {
                 ScheduleCreateNode(
                     "//tmp",
                     transactionId,
@@ -397,7 +436,7 @@ private:
             // unavailable (when tearing down testing envs, for example), which
             // will lead to long stalls while we're waiting for timeout to happen.
             // TODO(shakurov): fix this. Redirection suppression?
-            if (!IsInitialized()) {
+            if (!IsInitializedUncached()) {
                 ScheduleCreateNode(
                     "//sys/operations",
                     transactionId,
@@ -1132,7 +1171,10 @@ private:
             }
         }
 
-        ScheduleInitialize(IsInitialized()
+        // Don't wait for background update.
+        UpdateCachedInitialized();
+
+        ScheduleInitialize(IsInitializedUncached()
             ? Config_->WorldInitializer->UpdatePeriod
             : Config_->WorldInitializer->InitRetryPeriod);
     }
@@ -1162,6 +1204,8 @@ private:
 
     TTransactionId StartTransaction()
     {
+        YT_LOG_INFO("Starting world initialization transaction");
+
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
         req->set_timeout(ToProto(Config_->WorldInitializer->InitTransactionTimeout));
@@ -1169,25 +1213,40 @@ private:
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        return FromProto<TTransactionId>(rsp->id());
+        auto transactionId = FromProto<TTransactionId>(rsp->id());
+
+        YT_LOG_INFO("World initialization transaction started (TransactionId: %v)",
+            transactionId);
+
+        return transactionId;
     }
 
     void AbortTransaction(TTransactionId transactionId)
     {
+        YT_LOG_INFO("Aborting world initialization transaction (TransactionId: %v)",
+            transactionId);
+
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.AbortTransaction();
         ToProto(req->mutable_transaction_id(), transactionId);
         WaitFor(req->Invoke())
             .ThrowOnError();
+
+        YT_LOG_INFO("World initialization transaction aborted");
     }
 
     void CommitTransaction(TTransactionId transactionId)
     {
+        YT_LOG_INFO("Committing world initialization transaction (TransactionId: %v)",
+            transactionId);
+
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.CommitTransaction();
         ToProto(req->mutable_transaction_id(), transactionId);
         WaitFor(req->Invoke())
             .ThrowOnError();
+
+        YT_LOG_INFO("World initialization transaction committed");
     }
 
     template <class TTypedRequest>
@@ -1209,6 +1268,9 @@ private:
         const TYsonString& attributes = TYsonString(TStringBuf("{}")),
         bool force = false)
     {
+        YT_LOG_DEBUG("Scheduling node creation (Path: %v)",
+            path);
+
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
@@ -1229,6 +1291,9 @@ private:
         TTransactionId transactionId,
         bool force = false)
     {
+        YT_LOG_DEBUG("Scheduling node removal (Path: %v)",
+            path);
+
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Remove(path);
         SetTransactionId(req, transactionId);
@@ -1241,8 +1306,11 @@ private:
 
     void ScheduleCreateObject(
         EObjectType type,
-        const IAttributeDictionaryPtr attributesPtr)
+        const IAttributeDictionaryPtr& attributesPtr)
     {
+        YT_LOG_DEBUG("Scheduling object creation (Type: %v)",
+            type);
+
         auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
         // For some reasons TObjectServiceProxy::FromDirectMasterChannel cannot
         // be used here.
@@ -1256,10 +1324,11 @@ private:
         ToProto(req->mutable_object_attributes(), *attributes);
         batchReq->AddRequest(req);
 
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
-        batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
-            .ThrowOnError();
+        ScheduledMutations_.push_back(
+            batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                GetCumulativeError(batchRspOrError)
+                    .ThrowOnError();
+            })));
     }
 
     void ScheduleSetNode(
@@ -1267,6 +1336,9 @@ private:
         TTransactionId transactionId,
         const TYsonString& value)
     {
+        YT_LOG_DEBUG("Scheduling node set (Path: %v)",
+            path);
+
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Set(path);
         SetTransactionId(req, transactionId);
@@ -1297,10 +1369,14 @@ private:
 
     void FlushScheduled()
     {
-        std::vector<TFuture<void>> scheduledMutations;
-        ScheduledMutations_.swap(scheduledMutations);
+        YT_LOG_INFO("Flushing scheduled mutations (Count: %v)",
+            ScheduledMutations_.size());
+
+        auto scheduledMutations = std::exchange(ScheduledMutations_, {});
         WaitFor(AllSucceeded(scheduledMutations))
             .ThrowOnError();
+
+        YT_LOG_INFO("Scheduled mutations flushed");
     }
 
     void AbandonScheduled()

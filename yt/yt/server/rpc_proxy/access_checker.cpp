@@ -59,7 +59,7 @@ public:
             : Format("%v/%v", Config_->PathPrefix, *proxyRole);
         const auto& cache = Connection_->GetPermissionCache();
         auto error = WaitForFast(cache->Get(TPermissionKey{
-            .Object = path,
+            .Path = path,
             .User = user,
             .Permission = EPermission::Use,
         }));

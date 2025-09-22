@@ -223,6 +223,179 @@ class TestHttpProxy(HttpProxyTestBase):
 
         wait(lambda: api_error_count_counter.get_delta() > 0)
 
+    def _execute_with_ip_and_port(self, http_method, command_name, params, user="root", data=None,
+                                  api_version="v4", fake_ip="", fake_port=""):
+        headers = {
+            "X-YT-Parameters": yson.dumps(object=params, yson_type="node"),
+            "X-YT-Header-Format": yson.dumps(object="yson", yson_type="node"),
+            "X-YT-Output-Format": yson.dumps(object="yson", yson_type="node"),
+            "X-YT-Input-Format":  yson.dumps(object="yson", yson_type="node"),
+            "X-YT-User-Name": user,
+            "X-Forwarded-For-Y": fake_ip,
+            "X-Source-Port-Y": fake_port,
+        }
+        rsp = requests.request(
+            http_method,
+            f"{self._get_proxy_address()}/api/{api_version}/{command_name}",
+            headers=headers,
+            data=data
+        )
+        try_parse_yt_error_headers(rsp)
+        return rsp
+
+    @authors("theevilbird")
+    @pytest.mark.parametrize("api_queries", [
+        {
+            "version": "v3",
+            "start_tx": "start_tx",
+            "ping_tx": "ping_tx"
+        },
+        {
+            "version": "v4",
+            "start_tx": "start_transaction",
+            "ping_tx": "ping_transaction"
+        }
+    ])
+    def test_transaction_pinger_ip(self, api_queries):
+        fake_pinger_ip = "my_fake_ip"
+        fake_ports = ["1337", "1338", "1339"]
+
+        def get_expected_fake_ip(index):
+            return f"[{fake_pinger_ip}]:{fake_ports[index]}"
+
+        def get_tx_id(rsp):
+            if api_queries["version"] == "v3":
+                return yson.loads(rsp.content)
+            elif api_queries["version"] == "v4":
+                return yson.loads(rsp.content)["transaction_id"]
+
+        rsp = self._execute_with_ip_and_port(
+            "POST",
+            api_queries["start_tx"],
+            {},
+            user="root",
+            api_version=api_queries["version"],
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[0]
+        )
+        tx = get_tx_id(rsp)
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") == get_expected_fake_ip(0)
+
+        self._execute_with_ip_and_port(
+            "POST",
+            api_queries["ping_tx"],
+            {"transaction_id": tx},
+            user="root",
+            api_version=api_queries["version"],
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[0]
+        )
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") == get_expected_fake_ip(0)
+
+        rsp = self._execute_with_ip_and_port(
+            "POST",
+            api_queries["start_tx"],
+            {"transaction_id": tx, "ping_ancestor_transactions": "false"},
+            user="root",
+            api_version=api_queries["version"],
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[1]
+        )
+        tx1 = get_tx_id(rsp)
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") == get_expected_fake_ip(0)
+        assert get(f"//sys/transactions/{tx1}/@last_ping_address") == get_expected_fake_ip(1)
+
+        self._execute_with_ip_and_port(
+            "POST",
+            api_queries["ping_tx"],
+            {"transaction_id": tx1, "ping_ancestor_transactions": "false"},
+            user="root",
+            api_version=api_queries["version"],
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[1]
+        )
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") == get_expected_fake_ip(0)
+        assert get(f"//sys/transactions/{tx1}/@last_ping_address") == get_expected_fake_ip(1)
+
+        self._execute_with_ip_and_port(
+            "POST",
+            api_queries["ping_tx"],
+            {"transaction_id": tx1, "ping_ancestor_transactions": "true"},
+            user="root",
+            api_version=api_queries["version"],
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[2]
+        )
+
+        # Expect any of two ips because start_tx repinging transaction
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") in [get_expected_fake_ip(0), get_expected_fake_ip(2)]
+        assert get(f"//sys/transactions/{tx1}/@last_ping_address") == get_expected_fake_ip(2)
+
+        rsp = self._execute_with_ip_and_port(
+            "POST",
+            api_queries["start_tx"],
+            {},
+            user="root",
+            api_version=api_queries["version"],
+        )
+        tx2 = get_tx_id(rsp)
+        assert get(f"//sys/transactions/{tx2}/@last_ping_address") != yson.YsonEntity()
+
+    @authors("theevilbird")
+    @pytest.mark.parametrize("api_queries", [
+        {
+            "version": "v4",
+            "start_tx": "start_transaction",
+            "ping_tx": "ping_transaction"
+        }
+    ])
+    def test_pinger_ip_table_commands(self, api_queries):
+        fake_pinger_ip = "my_fake_ip"
+        fake_ports = ["1337", "1338", "1339"]
+
+        def get_expected_fake_ip(index):
+            return f"[{fake_pinger_ip}]:{fake_ports[index]}"
+
+        def get_tx_id(rsp):
+            if api_queries["version"] == "v3":
+                return yson.loads(rsp.content)
+            elif api_queries["version"] == "v4":
+                return yson.loads(rsp.content)["transaction_id"]
+
+        self._execute_with_ip_and_port(
+            "POST",
+            "create",
+            {"path": "//tmp/table", "type": "table"},
+            user="root",
+        )
+
+        rsp = self._execute_with_ip_and_port(
+            "POST",
+            "start_transaction",
+            {},
+            user="root",
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[1]
+        )
+
+        tx = get_tx_id(rsp)
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") == get_expected_fake_ip(1)
+
+        content = [
+            {"a": "1", "b": "2"},
+            {"a": "3", "b": "4"},
+        ]
+        self._execute_with_ip_and_port(
+            "put",
+            "write_table",
+            {"path": "//tmp/table"},
+            user="root",
+            data=yson.dumps(object=content, yson_type="list_fragment"),
+            fake_ip=fake_pinger_ip,
+            fake_port=fake_ports[2]
+        )
+        assert get(f"//sys/transactions/{tx}/@last_ping_address") in [get_expected_fake_ip(1), get_expected_fake_ip(2)]
+
     @authors("aleksandr.gaev")
     def test_cluster_connection(self):
         def get_cluster_connection(path):

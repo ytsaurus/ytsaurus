@@ -88,7 +88,7 @@ set_property(
 
 target_proto_outs(yt-cpp-mapreduce-io-ut
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(yt-cpp-mapreduce-io-ut

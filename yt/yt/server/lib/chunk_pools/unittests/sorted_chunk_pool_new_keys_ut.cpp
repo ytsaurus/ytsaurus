@@ -103,7 +103,7 @@ protected:
         OutputCookies_.clear();
         UnversionedTableRowCounts_.clear();
         Options_ = TSortedChunkPoolOptions();
-        PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max() / 4;
+        PrimaryDataWeightPerJob_ = Inf64;
         SamplingRate_ = std::nullopt;
         SamplingDataWeightPerJob_ = Inf64;
         ExtractedCookies_.clear();
@@ -114,13 +114,16 @@ protected:
         MockBuilder_.reset();
         Fetchers_.clear();
 
-        // TODO(apollo1321): Support MinTeleportChunkSize for new sorted pool.
+        // MinTeleportChunkSize is only relevant for the legacy sorted chunk pool.
+        // In the new sorted pool, chunk teleportability is determined by size checks
+        // in TSortedController (see TLegacyDataSlice::IsTeleportable).
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.Logger = GetTestLogger();
         Options_.RowBuffer = RowBuffer_;
         DataWeightPerJob_ = Inf64;
+        CompressedDataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;
         MaxDataWeightPerJob_ = Inf64;
@@ -135,11 +138,13 @@ protected:
             /*jobCount*/ 0,
             DataWeightPerJob_,
             PrimaryDataWeightPerJob_,
-            /*compressedDataSizePerJob*/ Inf64,
+            CompressedDataSizePerJob_,
+            PrimaryCompressedDataSizePerJob_,
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             /*maxPrimaryDataWeightPerJob*/ Inf64,
-            /*maxCompressedDataSizePerJob*/ MaxCompressedDataSizePerJob_,
+            MaxCompressedDataSizePerJob_,
+            MaxPrimaryCompressedDataSizePerJob_,
             InputSliceDataWeight_,
             /*inputSliceRowCount*/ Inf64,
             /*batchRowCount*/ {},
@@ -797,17 +802,12 @@ protected:
     }
 
     //! Check that:
-    //! * All teleport chunks satisfy the Options_.MinTeleportChunkSize constraint;
     //! * All stripe lists have no more than Options_.MaxDataSlicesPerJob + InputTables_.size() - 1 data slices in total.
     //! Unfortunately we cannot check the Options_.MaxPrimaryDataSizePerJob constraint satisfaction as this is not an absolute
     //! restriction, but only a best-effort bound.
     void TryCheckJobConstraintsSatisfaction(
         const std::vector<TChunkStripeListPtr>& stripeLists)
     {
-        for (const auto& teleportChunk : TeleportChunks_) {
-            EXPECT_TRUE(teleportChunk->IsLargeCompleteChunk(Options_.MinTeleportChunkSize));
-        }
-
         for (const auto& stripeList : stripeLists) {
             int dataSlicesTotalNumber = 0;
             for (const auto& stripe : stripeList->Stripes) {
@@ -981,10 +981,13 @@ protected:
 
     bool CanAdjustDataWeightPerJob_ = false;
     i64 DataWeightPerJob_;
-    i64 PrimaryDataWeightPerJob_ = std::numeric_limits<i64>::max() / 4;
+    i64 PrimaryDataWeightPerJob_ = Inf64;
+    i64 CompressedDataSizePerJob_;
+    i64 PrimaryCompressedDataSizePerJob_ = Inf64;
 
     i64 MaxDataWeightPerJob_;
     i64 MaxCompressedDataSizePerJob_ = Inf64;
+    i64 MaxPrimaryCompressedDataSizePerJob_ = Inf64;
 
     i64 MaxBuildRetryCount_;
 
@@ -1019,7 +1022,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports1)
         /*isTeleportable*/ {true, true, true, true},
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1056,7 +1058,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports2)
         /*isTeleportable*/ {false, true, true, true},
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1094,7 +1095,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({0}), BuildRow({1}), 0);
@@ -1127,7 +1127,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1169,7 +1168,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(3);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1639,7 +1637,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     MaxDataSlicesPerJob_ = 1;
     InitJobConstraints();
     PrepareNewMock();
@@ -1683,7 +1680,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1718,7 +1714,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(3);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2016,7 +2011,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -2059,7 +2053,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
         /*isVersioned*/ {false, false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3406,7 +3399,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
     DataWeightPerJob_ = 100_KB;
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -3483,7 +3475,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkA = CreateChunk(BuildRow({3}), BuildRow({3}), 0);
@@ -3579,7 +3570,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
         /*isTeleportable*/ {true, true},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
 
     auto chunkALeft = CreateChunk(BuildRow({1, 0}), BuildRow({10, 0}), 0);
@@ -3720,7 +3710,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
         /*isTeleportable*/ {true, false},
         /*isVersioned*/ {false, false});
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = 0;
     DataWeightPerJob_ = 10_KB;
     SamplingRate_ = 1.0;
     SamplingDataWeightPerJob_ = 10_KB;
@@ -3873,7 +3862,6 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
         /*isVersioned*/ {false, false, false});
     InitPrimaryComparator(3);
     InitForeignComparator(2);
-    Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -4316,8 +4304,265 @@ TEST_F(TSortedChunkPoolNewKeysTest, BrokenSizeTracking)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    EXPECT_EQ(std::ssize(stripeLists), 1u);
+    EXPECT_EQ(std::ssize(stripeLists), 1);
 
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJob)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+
+    CompressedDataSizePerJob_ = 100;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({0}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 50));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({1}),
+        BuildRow({1}),
+        /*tableIndex*/ 0,
+        /*size*/ 30,
+        /*rowCount*/ 20,
+        /*compressedDataSize*/ 50));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({2}),
+        BuildRow({2}),
+        /*tableIndex*/ 0,
+        /*size*/ 30,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 50));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({3}),
+        BuildRow({3}),
+        /*tableIndex*/ 0,
+        /*size*/ 30,
+        /*rowCount*/ 10,
+        /*compressedDataSize*/ 50));
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 2);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJobRetryFactor)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    std::vector<bool> inputTables(5, false);
+    InitTables(
+        /*isForeign*/ inputTables,
+        /*isTeleportable*/ inputTables,
+        /*isVersioned*/ inputTables);
+    InitPrimaryComparator(1);
+
+    CompressedDataSizePerJob_ = 1_KB;
+    Options_.SortedJobOptions.MaxTotalSliceCount = 5;
+    MaxBuildRetryCount_ = 5;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    for (int i = 0; i < 5; ++i) {
+        AddDataSlice(CreateChunk(
+            BuildRow({i}),
+            BuildRow({10}),
+            /*tableIndex*/ i,
+            /*size*/ 1000,
+            /*rowCount*/ 100,
+            /*compressedDataSize*/ 1_KB));
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+    EXPECT_EQ(stripeLists.front()->GetAggregateStatistics().CompressedDataSize, 5_KBs);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(TSortedChunkPoolNewKeysTest, MaxCompressedDataSizePerJob, Bool())
+{
+    bool shouldExceed = GetParam();
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    MaxCompressedDataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({10}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 1_KB));
+
+    if (shouldExceed) {
+        // Add foreign chunk.
+        AddDataSlice(CreateChunk(
+            BuildRow({4}),
+            BuildRow({8}),
+            /*tableIndex*/ 1,
+            /*size*/ 1000,
+            /*rowCount*/ 100,
+            /*compressedDataSize*/ 2_KB));
+
+        EXPECT_THROW_WITH_SUBSTRING(
+            ChunkPool_->Finish(),
+            "Maximum allowed compressed data size per sorted job exceeds the limit");
+        return;
+    }
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(TSortedChunkPoolNewKeysTest, MaxPrimaryCompressedDataSizePerJob, Bool())
+{
+    bool shouldExceed = GetParam();
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    MaxPrimaryCompressedDataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({10}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ shouldExceed ? 3_KB : 1_KB));
+
+    // Add foreign chunk. Should not be counted for primary compressed data size.
+    AddDataSlice(CreateChunk(
+        BuildRow({4}),
+        BuildRow({8}),
+        /*tableIndex*/ 1,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 8_KB));
+
+    if (shouldExceed) {
+        EXPECT_THROW_WITH_SUBSTRING(
+            ChunkPool_->Finish(),
+            "Maximum allowed primary compressed data size per sorted job exceeds the limit");
+        return;
+    }
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 1);
+    CheckEverything(stripeLists);
+}
+
+TEST_PI(TSortedChunkPoolNewKeysTest, ConsiderOnlyPrimaryCompressedDataSize, Combine(Bool(), Bool()), std::tuple<bool, bool>)
+{
+    auto [considerOnlyPrimarySize, usePrimaryCompressedDataSizePerJob] = GetParam();
+
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        /*isForeign*/ {false, true},
+        /*isTeleportable*/ {false, false},
+        /*isVersioned*/ {false, false});
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    Options_.SortedJobOptions.ConsiderOnlyPrimarySize = considerOnlyPrimarySize;
+
+    if (usePrimaryCompressedDataSizePerJob) {
+        PrimaryCompressedDataSizePerJob_ = 2_KB;
+    } else {
+        CompressedDataSizePerJob_ = 2_KB;
+    }
+
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddDataSlice(CreateChunk(
+        BuildRow({0}),
+        BuildRow({10}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 1_KB));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({4}),
+        BuildRow({8}),
+        /*tableIndex*/ 1, // Foreign chunk.
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 8_KB));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({11}),
+        BuildRow({20}),
+        /*tableIndex*/ 0,
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 1_KB));
+
+    AddDataSlice(CreateChunk(
+        BuildRow({13}),
+        BuildRow({18}),
+        /*tableIndex*/ 1, // Foreign chunk.
+        /*size*/ 1000,
+        /*rowCount*/ 100,
+        /*compressedDataSize*/ 8_KB));
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), considerOnlyPrimarySize || usePrimaryCompressedDataSizePerJob ? 1 : 2);
     CheckEverything(stripeLists);
 }
 
@@ -4350,7 +4595,6 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
         std::vector<bool>(TableCount, false) /*isTeleportable*/,
         std::vector<bool>(TableCount, false) /*isVersioned*/);
     InitPrimaryComparator(1);
-    Options_.MinTeleportChunkSize = Inf32;
 
     const int ChunkCount = 50;
     const int MaxEndpoint = 50000;

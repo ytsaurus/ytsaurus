@@ -68,7 +68,7 @@ target_proto_messages(server-lib-sequoia PRIVATE
 
 target_proto_outs(server-lib-sequoia
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-sequoia

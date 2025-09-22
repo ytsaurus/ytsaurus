@@ -767,12 +767,14 @@ TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
     // TODO(danilalexeev): Initialize once for class instance.
     THashMap<TChunkLocationUuid, TStoreLocationPtr> locations;
     locations.reserve(Locations_.size());
+
+    TPerLocationChunkMap result;
     for (auto location : Locations_) {
         EmplaceOrCrash(locations, location->GetUuid(), location);
+        EmplaceOrCrash(result, location, std::vector<IChunkPtr>());
     }
 
     auto guard = ReaderGuard(ChunkMapLock_);
-    TPerLocationChunkMap result;
     for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
         const auto& chunk = chunkEntry.Chunk;
         const auto& location = GetOrCrash(locations, chunk->GetLocation()->GetUuid());

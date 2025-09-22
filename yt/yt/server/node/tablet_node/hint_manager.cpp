@@ -22,6 +22,7 @@ using namespace NConcurrency;
 using namespace NDynamicConfig;
 using namespace NNet;
 using namespace NNodeTrackerClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +71,7 @@ public:
         , ReplicatorHintConfigFetcher_(New<TReplicatorHintConfigFetcher>(
             Config_->ReplicatorHintConfigFetcher,
             Bootstrap_))
+        , OrchidService_(CreateOrchidService())
     {
         ReplicatorHintConfigFetcher_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -168,12 +170,18 @@ public:
         return IsSuspiciousNodeError(error);
     }
 
+    IYPathServicePtr GetOrchidService() override
+    {
+        return OrchidService_;
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     IBootstrap* const Bootstrap_;
     const THintManagerConfigPtr Config_;
     const TReplicatorHintConfigFetcherPtr ReplicatorHintConfigFetcher_;
+    const IYPathServicePtr OrchidService_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BannedReplicaClustersSpinLock_);
     THashSet<std::string, THash<TStringBuf>, TEqualTo<TStringBuf>> BannedReplicaClusters_;
@@ -195,6 +203,29 @@ private:
 
         YT_LOG_DEBUG("Updated list of banned replica clusters (BannedReplicaClusters: %v)",
             newConfig->BannedReplicaClusters);
+    }
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        return IYPathService::FromProducer(BIND(&THintManager::BuildOrchid, MakeStrong(this)))
+            ->Via(Bootstrap_->GetControlInvoker());
+    }
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("banned_replica_clusters")
+                .BeginList()
+                    .DoFor(
+                        BannedReplicaClusters_,
+                        [=] (TFluentList fluent, const std::string& clusterName) {
+                            fluent.Item().Value(clusterName);
+                        })
+                .EndList()
+            .EndMap();
     }
 };
 

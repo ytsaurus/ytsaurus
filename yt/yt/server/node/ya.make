@@ -151,6 +151,7 @@ SRCS(
     tablet_node/ordered_store_manager.cpp
     tablet_node/partition.cpp
     tablet_node/partition_balancer.cpp
+    tablet_node/puller_replica_cache.cpp
     tablet_node/relative_replication_throttler.cpp
     tablet_node/replicated_store_manager.cpp
     tablet_node/replication_log.cpp

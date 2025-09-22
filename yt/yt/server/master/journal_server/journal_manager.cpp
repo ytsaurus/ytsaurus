@@ -67,6 +67,7 @@ public:
         const TChunkOwnerDataStatistics& statistics) override
     {
         YT_VERIFY(trunkNode->IsTrunk());
+        YT_VERIFY(!trunkNode->GetHunkChunkList());
 
         auto* chunkList = trunkNode->GetChunkList();
 
@@ -143,6 +144,8 @@ private:
     {
         auto* chunkList = trunkNode->GetChunkList();
         YT_VERIFY(chunkList);
+
+        YT_VERIFY(!trunkNode->GetHunkChunkList());
 
         auto totalRowCount = chunkList->Statistics().RowCount;
         if (totalRowCount < desiredRowCount) {

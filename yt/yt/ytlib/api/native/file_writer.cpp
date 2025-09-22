@@ -263,7 +263,9 @@ private:
                 attachOptions.PingAncestors = Options_.PingAncestors;
                 attachOptions.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod;
                 UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, attachOptions);
-                StartListenTransaction(UploadTransaction_);
+                StartListenTransaction(
+                    UploadTransaction_,
+                    TError(NYT::EErrorCode::Canceled, "Upload transaction aborted"));
 
                 YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
                     uploadTransactionId);

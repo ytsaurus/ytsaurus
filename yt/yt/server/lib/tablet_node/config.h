@@ -248,6 +248,9 @@ struct TCustomTableMountConfig
 
     TDuration ReplicationProgressUpdateTickPeriod;
 
+    std::optional<TDuration> PullerReplicaCacheTimeout;
+    int PullerReplicaCacheExportSizeThreshold;
+
     bool EnableProfiling;
 
     bool EnableStructuredLogger;

@@ -74,32 +74,15 @@ const TJobResources& TSchedulingHeartbeatContextBase::ResourceLimits() const
     return ResourceLimits_;
 }
 
-TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetUnconditionalDiscount() const
+TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetDiscount() const
 {
-    return ToJobResourcesWithQuota(UnconditionalDiscount_);
+    return ToJobResourcesWithQuota(Discount_);
 }
 
-const TSchedulingHeartbeatContextBase::TJobResourcesWithQuotaDiscount& TSchedulingHeartbeatContextBase::ConditionalDiscountForOperation(TOperationIndex operationIndex) const
+void TSchedulingHeartbeatContextBase::IncreaseDiscount(const TJobResourcesWithQuota& allocationResources)
 {
-    // NB(eshcherbin): |VectorAtOr| returns |const T&|, so we must provide an explicit default value not to shoot ourself.
-    static constexpr TJobResourcesWithQuotaDiscount ZeroDiscount;
-    return VectorAtOr(ConditionalDiscounts_, operationIndex, ZeroDiscount);
-}
-
-TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetConditionalDiscountForOperation(TOperationIndex operationIndex) const
-{
-    return ToJobResourcesWithQuota(ConditionalDiscountForOperation(operationIndex));
-}
-
-TJobResourcesWithQuota TSchedulingHeartbeatContextBase::GetMaxConditionalDiscount() const
-{
-    return ToJobResourcesWithQuota(MaxConditionalDiscount_);
-}
-
-void TSchedulingHeartbeatContextBase::IncreaseUnconditionalDiscount(const TJobResourcesWithQuota& allocationResources)
-{
-    UnconditionalDiscount_.JobResources += allocationResources.ToJobResources();
-    UnconditionalDiscount_.DiscountMediumDiskQuota += GetDiscountMediumQuota(allocationResources.DiskQuota());
+    Discount_.JobResources += allocationResources.ToJobResources();
+    Discount_.DiscountMediumDiskQuota += GetDiscountMediumQuota(allocationResources.DiskQuota());
 }
 
 const TDiskResources& TSchedulingHeartbeatContextBase::DiskResources() const
@@ -124,10 +107,9 @@ const TExecNodeDescriptorPtr& TSchedulingHeartbeatContextBase::GetNodeDescriptor
 
 bool TSchedulingHeartbeatContextBase::CanSatisfyResourceRequest(
     const TJobResources& allocationResources,
-    const TJobResources& conditionalDiscount,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
-    auto resourceRequest = ResourceUsage_ + allocationResources - (UnconditionalDiscount_.JobResources + conditionalDiscount);
+    auto resourceRequest = ResourceUsage_ + allocationResources - Discount_.JobResources;
     bool canSatisfyResourceRequest = true;
 
     #define XX(name, Name) \
@@ -143,9 +125,8 @@ bool TSchedulingHeartbeatContextBase::CanSatisfyResourceRequest(
     return canSatisfyResourceRequest;
 }
 
-bool TSchedulingHeartbeatContextBase::CanStartAllocationForOperation(
+bool TSchedulingHeartbeatContextBase::CanStartAllocation(
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
-    TOperationIndex operationIndex,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
     // TODO(eshcherbin): Remove |IsFullHostGpuAllocation| and make this decision in scheduling policy.
@@ -159,7 +140,7 @@ bool TSchedulingHeartbeatContextBase::CanStartAllocationForOperation(
             diskRequest.DiskSpaceWithoutMedium.reset();
         }
 
-        i64 totalDiskQuotaDiscount = UnconditionalDiscount_.DiscountMediumDiskQuota + ConditionalDiscountForOperation(operationIndex).DiscountMediumDiskQuota;
+        i64 totalDiskQuotaDiscount = Discount_.DiscountMediumDiskQuota;
         diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] = std::max(diskRequest.DiskSpacePerMedium[*DiscountMediumIndex_] - totalDiskQuotaDiscount, 0l);
     }
 
@@ -168,7 +149,6 @@ bool TSchedulingHeartbeatContextBase::CanStartAllocationForOperation(
 
     bool canSatisfyResourceRequest = CanSatisfyResourceRequest(
         allocationResourcesWithQuota.ToJobResources(),
-        ConditionalDiscountForOperation(operationIndex).JobResources,
         unsatisfiedResources);
 
     bool canSatisfyDiskQuotaRequests = CanSatisfyDiskQuotaRequests(
@@ -185,7 +165,7 @@ bool TSchedulingHeartbeatContextBase::CanStartMoreAllocations(
     const std::optional<TJobResources>& customMinSpareAllocationResources) const
 {
     auto minSpareAllocationResources = customMinSpareAllocationResources.value_or(DefaultMinSpareAllocationResources_);
-    if (!CanSatisfyResourceRequest(minSpareAllocationResources, MaxConditionalDiscount_.JobResources)) {
+    if (!CanSatisfyResourceRequest(minSpareAllocationResources)) {
         return false;
     }
 
@@ -278,15 +258,10 @@ TJobResources TSchedulingHeartbeatContextBase::GetNodeFreeResourcesWithoutDiscou
 
 TJobResources TSchedulingHeartbeatContextBase::GetNodeFreeResourcesWithDiscount() const
 {
-    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources;
+    return ResourceLimits_ - ResourceUsage_ + Discount_.JobResources;
 }
 
-TJobResources TSchedulingHeartbeatContextBase::GetNodeFreeResourcesWithDiscountForOperation(TOperationIndex operationIndex) const
-{
-    return ResourceLimits_ - ResourceUsage_ + UnconditionalDiscount_.JobResources + ConditionalDiscountForOperation(operationIndex).JobResources;
-}
-
-TDiskResources TSchedulingHeartbeatContextBase::GetDiskResourcesWithDiscountForOperation(TOperationIndex operationIndex, const TJobResources& allocationResources) const
+TDiskResources TSchedulingHeartbeatContextBase::GetNodeFreeDiskResourcesWithDiscount(const TJobResources& allocationResources) const
 {
     auto diskResources = DiskResources_;
 
@@ -295,10 +270,8 @@ TDiskResources TSchedulingHeartbeatContextBase::GetDiskResourcesWithDiscountForO
             diskLocation.Usage = 0;
         }
     } else if (DiscountMediumIndex_) {
-        auto discountForOperation = UnconditionalDiscount_.DiscountMediumDiskQuota + ConditionalDiscountForOperation(operationIndex).DiscountMediumDiskQuota;
-
         auto& diskLocation = diskResources.DiskLocationResources.front();
-        diskLocation.Usage = std::max(0l, diskLocation.Usage - discountForOperation);
+        diskLocation.Usage = std::max(0l, diskLocation.Usage - Discount_.DiscountMediumDiskQuota);
     }
 
     return diskResources;
@@ -338,25 +311,9 @@ void TSchedulingHeartbeatContextBase::SetHeartbeatTimeoutExpired()
     HeartbeatTimeoutExpired_ = true;
 }
 
-void TSchedulingHeartbeatContextBase::InitializeConditionalDiscounts(int capacity)
+void TSchedulingHeartbeatContextBase::ResetDiscount()
 {
-    ConditionalDiscounts_.reserve(capacity);
-}
-
-void TSchedulingHeartbeatContextBase::ResetDiscounts()
-{
-    UnconditionalDiscount_ = {};
-    ConditionalDiscounts_.clear();
-    MaxConditionalDiscount_ = {};
-}
-
-void TSchedulingHeartbeatContextBase::SetConditionalDiscountForOperation(TOperationIndex operationIndex, const TJobResourcesWithQuota& discountForOperation)
-{
-    TJobResourcesWithQuotaDiscount conditionalDiscount(discountForOperation.ToJobResources(), GetDiscountMediumQuota(discountForOperation.DiskQuota()));
-    AssignVectorAt(ConditionalDiscounts_, operationIndex, conditionalDiscount);
-
-    MaxConditionalDiscount_.JobResources = Max(MaxConditionalDiscount_.JobResources, conditionalDiscount.JobResources);
-    MaxConditionalDiscount_.DiscountMediumDiskQuota = std::max(MaxConditionalDiscount_.DiscountMediumDiskQuota, conditionalDiscount.DiscountMediumDiskQuota);
+    Discount_ = {};
 }
 
 TJobResourcesWithQuota TSchedulingHeartbeatContextBase::ToJobResourcesWithQuota(const TJobResourcesWithQuotaDiscount& resources) const

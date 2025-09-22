@@ -296,7 +296,8 @@ func (c *httpClient) requestCredentials(ctx context.Context) (yt.Credentials, er
 
 func (c *httpClient) logRequest(ctx context.Context, req *http.Request) {
 	ctxlog.Debug(ctx, c.log.Logger(), "sending HTTP request",
-		log.String("proxy", req.URL.Host))
+		log.String("proxy", req.URL.Host),
+		log.String("correlation_id", req.Header.Get("X-YT-Correlation-ID")))
 }
 
 func (c *httpClient) logResponse(ctx context.Context, rsp *http.Response) {

@@ -85,7 +85,7 @@ TYsonString CreatePoolTreesConfig()
     // Intentionally disables profiling since simulator is not ready for profiling.
     physicalTreeConfig->EnableScheduledAndPreemptedResourcesProfiling = false;
 
-    return ConvertToYsonString(NYTree::BuildYsonNodeFluently()
+    return NYTree::BuildYsonStringFluently()
         .BeginAttributes()
             .Item("default_tree").Value("physical")
         .EndAttributes()
@@ -129,7 +129,7 @@ TYsonString CreatePoolTreesConfig()
                     .BeginMap()
                     .EndMap()
             .EndMap()
-        .EndMap());
+        .EndMap();
 }
 
 class TStatisticsOutputMock
@@ -206,9 +206,16 @@ protected:
         operation.State = "completed";
         operation.InTimeframe = true;
 
-        auto spec = New<TOperationSpecBase>();
-        spec->Pool = std::move(pool);
-        operation.Spec = ConvertToYsonString(spec);
+        operation.Spec = NYTree::BuildYsonStringFluently()
+            .BeginMap()
+                .Item("tasks").BeginMap()
+                    .Item("task").BeginMap()
+                        .Item("job_count").Value(1)
+                        .Item("command").Value("sleep 1")
+                    .EndMap()
+                .EndMap()
+                .OptionalItem("pool", pool)
+            .EndMap();
 
         NextOperationId_ += 1;
         return operation;

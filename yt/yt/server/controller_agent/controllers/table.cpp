@@ -127,6 +127,9 @@ void TInputTable::RegisterMetadata(auto&& registrar)
     // COMPAT(coteeq)
     PHOENIX_REGISTER_FIELD(6, ClusterName,
         .SinceVersion(ESnapshotVersion::RemoteInputForOperations));
+    // COMPAT(coteeq)
+    PHOENIX_REGISTER_FIELD(7, RlsReadSpec,
+        .SinceVersion(ESnapshotVersion::FixRlsSnapshots));
 }
 
 PHOENIX_DEFINE_TYPE(TInputTable);
@@ -189,7 +192,11 @@ void TOutputTable::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
     PHOENIX_REGISTER_FIELD(17, TableIndex);
     // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(18, RlAcl,
+    PHOENIX_REGISTER_DELETED_FIELD(
+        18,
+        std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>,
+        "RlAcl",
+        ESnapshotVersion::FixRlsSnapshots,
         .SinceVersion(ESnapshotVersion::RlsInOperations));
 }
 

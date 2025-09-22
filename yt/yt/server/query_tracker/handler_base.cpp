@@ -1,6 +1,7 @@
 #include "handler_base.h"
 
 #include "config.h"
+#include "helpers.h"
 #include "profiler.h"
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
@@ -357,7 +358,7 @@ void TQueryHandlerBase::TryWriteProgress()
         {
             TActiveQueryPartial newRecord{
                 .Key = {.QueryId = QueryId_},
-                .Progress = progress,
+                .Progress = Compress(progress.ToString(), MaxDyntableStringSize),
             };
             std::vector newRows{
                 newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
@@ -398,7 +399,7 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
             TActiveQueryPartial newRecord{
                 .Key = {.QueryId = QueryId_},
                 .State = state,
-                .Progress = Progress_,
+                .Progress = Compress(Progress_.ToString(), MaxDyntableStringSize),
                 .Error = error,
             };
             if (state == EQueryState::Completing || state == EQueryState::Failing) {

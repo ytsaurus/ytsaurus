@@ -117,6 +117,8 @@ void TWorldInitializerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("cached_state_update_period", &TThis::CachedStateUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,6 +355,9 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("alert_update_period", &TThis::AlertUpdatePeriod)
         .Default(TDuration::Seconds(30));
+
+    registrar.Parameter("suppressed_messages", &TThis::SuppressedAlerts)
+        .Optional();
 
     registrar.Parameter("hive_profiling_period", &TThis::HiveProfilingPeriod)
         .Default(DefaultHiveProfilingPeriod);

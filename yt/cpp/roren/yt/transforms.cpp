@@ -1,5 +1,54 @@
 #include "transforms.h"
 
+namespace NRoren {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYtWriteApplicator::TYtWriteApplicator(const NYT::TRichYPath& path, const NYT::TTableSchema& schema)
+    : Path_(path)
+    , Schema_(schema)
+{ }
+
+TString TYtWriteApplicator::GetName() const
+{
+    return "Write";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYtSortedWriteApplicator::TYtSortedWriteApplicator(NYT::TRichYPath path, NYT::TTableSchema schema)
+    : Path_(std::move(path))
+    , Schema_(std::move(schema))
+{ }
+
+TString TYtSortedWriteApplicator::GetName() const
+{
+    return "SortedWrite";
+}
+
+TYtAutoSchemaWriteApplicator::TYtAutoSchemaWriteApplicator(NYT::TRichYPath path)
+    : Path_(path)
+{ }
+
+TString TYtAutoSchemaWriteApplicator::GetName() const
+{
+    return "AutoSchemaSortedWrite";
+}
+
+TYtAutoSchemaSortedWriteApplicator::TYtAutoSchemaSortedWriteApplicator(NYT::TRichYPath path, NYT::TSortColumns sortColumns)
+    : Path_(std::move(path))
+    , SortColumns_(std::move(sortColumns))
+{ }
+
+TString TYtAutoSchemaSortedWriteApplicator::GetName() const
+{
+    return "AutoSchemaSortedWrite";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren
+
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,11 +132,13 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NPrivate::IRawParDoPtr CreateAddTableIndexProtoParDo(ssize_t index) {
+NPrivate::IRawParDoPtr CreateAddTableIndexProtoParDo(ssize_t index)
+{
     return NPrivate::MakeRawParDo(NYT::New<NPrivate::TAddTableIndexToProtoDoFn>(index));
 }
 
-NPrivate::IRawParDoPtr CreateAddTableIndexParDo(ssize_t index) {
+NPrivate::IRawParDoPtr CreateAddTableIndexParDo(ssize_t index)
+{
     return NPrivate::MakeRawParDo(NYT::New<NPrivate::TAddTableIndexDoFn>(index));
 }
 

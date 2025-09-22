@@ -163,7 +163,7 @@ set_property(
 
 target_proto_outs(unittester-core-misc
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(unittester-core-misc

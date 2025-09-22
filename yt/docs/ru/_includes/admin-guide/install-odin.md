@@ -23,7 +23,8 @@ Odin - сервис, осуществляющий качественный мо�
 ```bash
 yt set //sys/@acl/end '{action=allow; subjects=[robot-odin]; permissions=[read; write; create; remove; mount]}'
 yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-odin]; permissions=[use]}'
-yt set //sys/tablet_cell_bundles/sys/@acl/end '[{subjects=[robot-odin];permissions=[use];action=allow}]'
+yt set //sys/tablet_cell_bundles/@acl/end '{subjects=[robot-odin];permissions=[use];action=allow}'
+yt set //sys/operations/@acl/end '{subjects=[robot-odin];permissions=[read];action=allow}'
 ```
 
 #### Создание Kubernetes Secret с токенами
@@ -67,16 +68,18 @@ webservice:
 
 > Проверьте корректность DNS‑имён сервисов: `http-proxies.default.svc.cluster.local` — пример для сервиса `http-proxies` в namespace `default`. Уточните своё имя сервиса командой `kubectl get svc -A | grep http-proxies`.
 
+По умолчанию, будет запускаться init job, создающая нужные таблицы для хранения состояния. Отключить ее запуск можно указав `config.odin.db.initialize: false`.
+
 ## Установка Helm‑чарта
 
 ```bash
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
-  --version 0.0.1 \
+  --version 0.0.3 \
   -f values.yaml \
   -n <namespace>
 ```
 
-Helm-chart сначала запустит init job, которая создаст на кластере необходимую таблице для хранения там состояния Odin. Затем поднимет два deployment - с самим Ddin и с web-сервисом для него.
+Helm-chart сначала запустит init job, которая создаст на кластере необходимую таблице для хранения там состояния Odin. Затем поднимет два deployment - с самим Odin и с web-сервисом для него.
 
 ## Проверки после установки
 
@@ -96,7 +99,7 @@ kubectl logs deploy/odin-odin-chart -n <namespace> --tail=200
 
 В интерфейсе {{product-name}} есть страница, на которой можно смотреть результаты выполнения проверок Odin. Чтобы она появилась, необходимо указать адрес веб-сервиса Odin в конфиге UI.
 
-UI должен быть установлен как helm-chart (см. [инструкцию по установке](../install-ytsaurus#ui)).
+UI должен быть установлен как helm-chart (см. [инструкцию по установке](install-ytsaurus#ui)).
 
 Адрес веб-сервиса нужно указать в values.yaml в поле `.ui.settings.odinBaseUrl`. Пример адреса, когда odin установлен в неймспейсе `default` и поднять на порту 9002 (это порт по-умолчанию): `"http://odin-odin-chart-web.default.svc.cluster.local:9002"`.
 
@@ -104,10 +107,10 @@ UI должен быть установлен как helm-chart (см. [инст
 ## Как включать и отключать проверки
 
 Список проверок задаётся в секции `config.checks` в `values.yaml`.
-Каждая проверка описывается структурой с полями:
+Каждая проверка описывается структурой следующего вида:
 
 ```yaml
-- name: sort_result
+sort_result:
   displayName: Sort Result
   enable: true
   config: {...}
@@ -122,7 +125,7 @@ UI должен быть установлен как helm-chart (см. [инст
 #### Пример: отключение проверки
 
 ```yaml
-- name: suspicious_jobs
+suspicious_jobs:
   displayName: Suspicious Jobs
   enable: false
   config:
@@ -135,7 +138,7 @@ UI должен быть установлен как helm-chart (см. [инст
 ### Пример: частичное отключение через `config.enable`
 
 ```yaml
-- name: operations_snapshots
+operations_snapshots:
   displayName: Operations Snapshots
   enable: true
   config:
@@ -152,7 +155,7 @@ UI должен быть установлен как helm-chart (см. [инст
 
 ```bash
 helm upgrade odin oci://ghcr.io/ytsaurus/odin-chart \
-  --version 0.0.1 \
+  --version 0.0.3 \
   -f values.yaml \
   -n <namespace>
 ```

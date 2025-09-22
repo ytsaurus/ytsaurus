@@ -640,6 +640,84 @@ class TestSequoiaInternals(YTEnvSetup):
         remove("//tmp/t")
         wait(lambda: len(self.lookup_acls(node_id)) == 0)
 
+    @authors("grphil")
+    def test_attributes(self):
+        create("table", "//tmp/a/b/c", recursive=True)
+        write_table("//tmp/a/b/c", [{"x": "hello"}])
+        create("table", "//tmp/a/b/d")
+        write_table("//tmp/a/b/d", [{"x": "hello2"}])
+        for i in range(5):
+            set(f"//tmp/a/{i}", i)
+
+        def test_attributes_list(path):
+            attributes_list = ls(path + "/@")
+
+            assert "id" in attributes_list
+            assert "creation_time" in attributes_list
+            assert "resource_usage" in attributes_list
+            assert "recursive_resource_usage" in attributes_list
+
+            attributes_get = get(path + "/@")
+            assert "resource_usage" in attributes_get
+            assert "recursive_resource_usage" in attributes_get
+            assert type(attributes_get["resource_usage"]) is yson.YsonMap
+            assert type(attributes_get["recursive_resource_usage"]) is yson.YsonEntity
+
+            recursive_resource_usage = get(path + "/@", attributes=["recursive_resource_usage"])["recursive_resource_usage"]
+            resource_usage = get(path + "/@", attributes=["resource_usage"])["resource_usage"]
+            assert recursive_resource_usage["node_count"] >= resource_usage["node_count"]
+
+            both_usages = get(path + "/@", attributes=["resource_usage", "recursive_resource_usage"])
+            assert both_usages["resource_usage"]["node_count"] == resource_usage["node_count"]
+            assert both_usages["recursive_resource_usage"]["node_count"] == recursive_resource_usage["node_count"]
+
+            multiple_attributes = get(path + "/@", attributes=["resource_usage", "recursive_resource_usage", "id", "creation_time"])
+            assert multiple_attributes["resource_usage"]["node_count"] == resource_usage["node_count"]
+            assert multiple_attributes["recursive_resource_usage"]["node_count"] == recursive_resource_usage["node_count"]
+
+        test_attributes_list("//tmp/a")
+        test_attributes_list("//tmp/a/b")
+        test_attributes_list("//tmp/a/b/c")
+        test_attributes_list("//tmp/a/1")
+
+        def test_attribute_access(path):
+            resource_usage = get(f"{path}/@resource_usage")
+            recursive_resource_usage = get(f"{path}/@recursive_resource_usage")
+            assert recursive_resource_usage["node_count"] >= resource_usage["node_count"]
+            assert get(f"{path}/@resource_usage/node_count") == resource_usage["node_count"]
+            assert get(f"{path}/@recursive_resource_usage/node_count") == recursive_resource_usage["node_count"]
+
+        test_attribute_access("//tmp/a")
+        test_attribute_access("//tmp/a/b")
+        test_attribute_access("//tmp/a/b/c")
+        test_attribute_access("//tmp/a/1")
+
+        get_result = get("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage"])
+        a_attr = get_result.attributes
+        b_attr = get_result["b"].attributes
+        c_attr = get_result["b"]["c"].attributes
+        d_attr = get_result["b"]["d"].attributes
+        assert a_attr["recursive_resource_usage"]["node_count"] == 9
+        assert b_attr["recursive_resource_usage"]["node_count"] == 3
+        assert c_attr["recursive_resource_usage"]["node_count"] == 1
+        assert d_attr["recursive_resource_usage"]["node_count"] == 1
+
+        assert a_attr["resource_usage"]["node_count"] == 1
+
+        assert a_attr["recursive_resource_usage"]["disk_space"] == c_attr["resource_usage"]["disk_space"] + d_attr["resource_usage"]["disk_space"]
+
+        list_result = ls("//tmp/a", attributes=["recursive_resource_usage", "creation_time", "resource_usage"])
+        for child in list_result:
+            if str(child) == "b":
+                assert child.attributes["recursive_resource_usage"]["node_count"] == 3
+                assert child.attributes["resource_usage"]["node_count"] == 1
+
+        # TODO(grphil): Implement ls in attributes
+        # assert "node_count" in ls("//tmp/a/@recursive_resource_usage")
+
+        # TODO(grphil): Implement attributes in get for non map node
+        # get("//tmp/a/b/c", attributes=["recursive_resource_usage"])
+
 
 @pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):

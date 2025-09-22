@@ -1147,7 +1147,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_remove_portal_not_permitted_by_acl(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         create_user("u")
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
@@ -1243,7 +1243,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_inheritable_attributes_synchronization(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
         create("map_node", "//tmp/dir_with_attrs")
         create("portal_entrance", "//tmp/dir_with_attrs/p", attributes={"exit_cell_tag": 11})
@@ -1261,7 +1261,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_smart_pointer_in_inheritable_attributes(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         set("//sys/@config/cypress_manager/enable_portal_exit_effective_inherited_attributes", True)
         create("map_node", "//tmp/d")
         create("portal_entrance", "//tmp/d/p", attributes={"exit_cell_tag": 11})
@@ -1278,7 +1278,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_effective_acl_synchronization(self):
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         create_user("dog")
         create_user("cat")
         create_user("rat")
@@ -1336,7 +1336,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_empty_annotation(self):
-        remove("//sys/@config/cypress_manager/portal_synchronization_period")
+        remove("//sys/@config/cypress_manager/graft_synchronization_period")
         create("portal_entrance", "//tmp/p", attributes={
             "exit_cell_tag": 11,
         })
@@ -1345,12 +1345,12 @@ class TestPortals(YTEnvSetup):
 
     @authors("kvk1920")
     def test_annotation_synchronization(self):
-        remove("//sys/@config/cypress_manager/portal_synchronization_period")
+        remove("//sys/@config/cypress_manager/graft_synchronization_period")
         create("map_node", "//tmp/d", attributes={"annotation": "qwerty"})
         create("portal_entrance", "//tmp/d/p", attributes={"annotation": None, "exit_cell_tag": 11})
         assert "qwerty" == get("//tmp/d/p/@annotation")
         assert "//tmp/d" == get("//tmp/d/p/@annotation_path")
-        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        set("//sys/@config/cypress_manager/graft_synchronization_period", 500)
         remove("//tmp/d/@annotation")
         wait(lambda: yson.YsonEntity() == get("//tmp/d/@annotation"))
         wait(lambda: yson.YsonEntity() == get("//tmp/d/p/@annotation_path"))
@@ -1615,13 +1615,7 @@ class TestCrossCellCopy(YTEnvSetup):
         elif self.COPY_TO_SEQUOIA:
             # Cypress -> Sequoia.
             create("map_node", self.SRC)
-            create(
-                "rootstock",
-                self.DST,
-                # TODO(danilalexeev): YT-24575. Remove once attribute sync is implemented.
-                attributes={
-                    "acl": [make_ace("allow", "users", "administer")],
-                })
+            create("rootstock", self.DST)
         else:
             # Sequoia -> Cypress.
             create("rootstock", self.SRC)
@@ -2013,7 +2007,7 @@ class TestCrossCellCopy(YTEnvSetup):
         if should_preserve:
             # In order to preserve ACL user has to have "administer" permission for the parent node.
             administer_permission = make_ace("allow", user, "administer")
-            set("//sys/@config/cypress_manager/portal_synchronization_period", 100)
+            set("//sys/@config/cypress_manager/graft_synchronization_period", 100)
             set(f"{self.DST}&/@acl", [
                 administer_permission,
             ])
@@ -2189,10 +2183,17 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(dst_path)
 
     @authors("h0pless")
-    @not_implemented_in_sequoia
-    @pytest.mark.parametrize("enable_inheritance", [True, False])
-    @pytest.mark.parametrize("use_tx", [True, False])
+    @pytest.mark.parametrize("enable_inheritance,use_tx", [
+        (False, False),
+        (True, False),
+        (True, True),
+        # The permutation (False, True) does not test anything meaningful, it's
+        # fine to just skip it.
+    ])
     def test_inheritable_attributes(self, enable_inheritance, use_tx):
+        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA and not enable_inheritance:
+            pytest.skip()
+
         #                                                 portal_exit               attribute = A
         # starting_node         attribute = NONE          `-- starting_node         attribute = NONE
         # |-- map_node          attribute = B                 |-- map_node          attribute = B
@@ -2200,10 +2201,6 @@ class TestCrossCellCopy(YTEnvSetup):
         # |   `-- table_c_to_b  attribute = C       ->        |   `-- table_c_to_b  attribute = B
         # |-- table_c_to_a      attribute = C                 |-- table_c_to_a      attribute = A
         # `-- table_none_to_a   attribute = NONE              `-- table_none_to_a   attribute = A
-
-        # This permutation does not test anything meaningful, it's fine to just skip it.
-        if use_tx and not enable_inheritance:
-            pytest.skip()
 
         # For the sake of simplicity I used "chunk_merger_mode". Later this test can be expanded.
         attribute_not_found = "Attribute \"chunk_merger_mode\" is not found"

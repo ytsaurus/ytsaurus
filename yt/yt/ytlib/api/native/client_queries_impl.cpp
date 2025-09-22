@@ -242,6 +242,9 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
 
+    rpcRequest->set_search_by_token_prefix(options.SearchByTokenPrefix);
+    rpcRequest->set_use_full_text_search(options.UseFullTextSearch);
+
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
 
@@ -318,6 +321,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
         .EnginesInfo = rpcResponse.has_engines_info() ? std::optional(TYsonString(rpcResponse.engines_info())) : std::nullopt,
+        .ExpectedTablesVersion = rpcResponse.has_expected_tables_version() ? std::optional(rpcResponse.expected_tables_version()) : std::nullopt,
     };
 }
 

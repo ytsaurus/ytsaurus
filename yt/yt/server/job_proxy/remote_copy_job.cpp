@@ -309,6 +309,7 @@ public:
             .OutputStatistics = {{
                 .DataStatistics = DataStatistics_,
             }},
+            .RemoteCopyChunkReaderStatistics = ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics,
         };
     }
 

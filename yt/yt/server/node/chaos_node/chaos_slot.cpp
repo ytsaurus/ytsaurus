@@ -278,7 +278,7 @@ public:
         ReplicatedTableTracker_ = CreateReplicatedTableTracker(
             CreateReplicatedTableTrackerHost(this),
             Bootstrap_->GetReplicatedTableTrackerConfig(),
-            /*profiler*/ {});
+            GetProfiler().WithPrefix("/rtt"));
     }
 
     void Initialize() override

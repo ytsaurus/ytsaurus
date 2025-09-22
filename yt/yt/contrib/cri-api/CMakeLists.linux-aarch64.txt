@@ -74,7 +74,7 @@ target_sources(yt-contrib-cri-api PRIVATE
 
 target_proto_outs(yt-contrib-cri-api
   --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
 )
 
 target_proto_addincls(yt-contrib-cri-api

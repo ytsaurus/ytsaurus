@@ -59,9 +59,9 @@ protected:
         Store_->DeleteRow(transaction, dynamicRow);
     }
 
-    void CommitRow(TTransaction* transaction, TSortedDynamicRowWithLock row)
+    void CommitRow(TTransaction* transaction, TSortedDynamicRowWithLock row, bool commandIsPureLock = false)
     {
-        Store_->CommitRow(transaction, row, row.LockMask);
+        Store_->CommitRow(transaction, row, row.LockMask, commandIsPureLock);
     }
 
     void AbortRow(TTransaction* transaction, TSortedDynamicRowWithLock row)
@@ -2045,23 +2045,30 @@ protected:
             cellValue, cellValue, cellValue, cellValue, cellValue, cellValue, cellValue);
 
         TLockMask lockMask;
-        auto row1 = WriteRow(tx1.get(), BuildRow(rowString, false), false, lockMask);
-        auto row2 = WriteRow(tx2.get(), BuildRow("key=1;x=1;", false), false, lockMask);
-        auto row3 = WriteRow(tx3.get(), BuildRow("key=1;y=2;", false), false, lockMask);
-        auto row4 = WriteRow(tx4.get(), BuildRow("key=1;z=3;", false), false, lockMask);
+        auto row1 = BuildRow(rowString, false);
+        auto dynamicRow1 = WriteRow(tx1.get(), row1, false, lockMask);
+
+        auto row2 = BuildRow("key=1;x=1;", false);
+        auto dynamicRow2 = WriteRow(tx2.get(), row2, false, lockMask);
+
+        auto row3 = BuildRow("key=1;y=2;", false);
+        auto dynamicRow3 = WriteRow(tx3.get(), row3, false, lockMask);
+
+        auto row4 = BuildRow("key=1;z=3;", false);
+        auto dynamicRow4 = WriteRow(tx4.get(), row4, false, lockMask);
 
 
         PrepareTransaction(tx1.get());
-        PrepareRow(tx1.get(), row1);
+        PrepareRow(tx1.get(), dynamicRow1);
 
         PrepareTransaction(tx2.get());
-        PrepareRow(tx2.get(), row2);
+        PrepareRow(tx2.get(), dynamicRow2);
 
         PrepareTransaction(tx3.get());
-        PrepareRow(tx3.get(), row3);
+        PrepareRow(tx3.get(), dynamicRow3);
 
         PrepareTransaction(tx4.get());
-        PrepareRow(tx4.get(), row4);
+        PrepareRow(tx4.get(), dynamicRow4);
 
         // Generate timestamps.
         CommitTransaction(tx1.get());
@@ -2069,10 +2076,14 @@ protected:
         CommitTransaction(tx3.get());
         CommitTransaction(tx4.get());
 
-        CommitRow(tx4.get(), row4);
-        CommitRow(tx3.get(), row3);
-        CommitRow(tx2.get(), row2);
-        CommitRow(tx1.get(), row1);
+        WriteRow(tx4.get(), dynamicRow4, row4);
+        CommitRow(tx4.get(), dynamicRow4);
+        WriteRow(tx3.get(), dynamicRow3, row3);
+        CommitRow(tx3.get(), dynamicRow3);
+        WriteRow(tx2.get(), dynamicRow2, row2);
+        CommitRow(tx2.get(), dynamicRow2);
+        WriteRow(tx1.get(), dynamicRow1, row1);
+        CommitRow(tx1.get(), dynamicRow1);
     }
 
     TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key)

@@ -1285,6 +1285,13 @@ public:
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }
 
+    TFuture<std::optional<std::string>> GetLastPingAddress(const TTransaction* transaction) override
+    {
+        VerifyPersistentStateRead();
+
+        return LeaseTracker_->GetLastPingAddress(transaction->GetId());
+    }
+
     void SetTransactionTimeout(
         TTransaction* transaction,
         TDuration timeout) override
@@ -1687,11 +1694,12 @@ public:
 
     TFuture<void> PingTransaction(
         TTransactionId transactionId,
-        bool pingAncestors) override
+        bool pingAncestors,
+        std::optional<std::string> pingerAddress) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+        return LeaseTracker_->PingTransaction(transactionId, pingAncestors, pingerAddress);
     }
 
     TTransactionId FindUsedNonMirroredTransaction(const TCtxStartCypressTransactionPtr& context)
@@ -2085,7 +2093,7 @@ public:
                         authenticationIdentity,
                         context->GetMutationId(),
                         context->IsRetry());
-                })));
+                }).AsyncVia(EpochAutomatonInvoker_)));
             return;
         }
 
@@ -2918,12 +2926,20 @@ private:
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto cellType = TypeFromId(cellId);
 
-        auto* cellLeaseTransactionIds = GetCellLeaseTransactionIds(cellId);
-        if (!cellId){
-            YT_LOG_ALERT(
-                "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
-                transactionIds,
-                cellType);
+        auto alerted = AlertOnInvalidLeaseCellType(
+            cellId,
+            "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
+            transactionIds,
+            cellType);
+        if (alerted) {
+            return;
+        }
+        auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
+        if (!cellLeaseTransactionIds){
+            THROW_ERROR_EXCEPTION("Requested to issue leases for missing cell")
+                << TErrorAttribute("transaction_ids", transactionIds)
+                << TErrorAttribute("cell_id", cellId)
+                << TErrorAttribute("cell_type", cellType);
             return;
         }
 
@@ -3081,12 +3097,20 @@ private:
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {
-                    auto* cellLeaseTransactionIds = GetCellLeaseTransactionIds(cellId);
+                    auto alerted = AlertOnInvalidLeaseCellType(
+                        cellId,
+                        "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
+                        transaction->GetId(),
+                        cellType);
+                    if (alerted) {
+                        return;
+                    }
+                    auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
                     if (!cellLeaseTransactionIds) {
-                        YT_LOG_ALERT(
-                            "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-                            transaction->GetId(),
-                            cellType);
+                        THROW_ERROR_EXCEPTION("Requested to revoke leases from missing cell")
+                            << TErrorAttribute("transaction_id", transaction->GetId())
+                            << TErrorAttribute("cell_id", cellId)
+                            << TErrorAttribute("cell_type", cellType);
                         return;
                     }
                     UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds);
@@ -3096,21 +3120,48 @@ private:
         IterateSuccessorTransactions(transaction, BIND(revokeTransaction));
     }
 
-    THashSet<TTransactionId>* GetCellLeaseTransactionIds(TCellId cellId)
+    bool IsValidCellTypeForLeaseIssue(EObjectType cellType)
     {
+        return cellType == EObjectType::TabletCell || cellType == EObjectType::MasterCell;
+    }
+
+    template <class... TArgs>
+    bool AlertOnInvalidLeaseCellType(TCellId cellId, TFormatString<TArgs...> format, TArgs&&... args)
+    {
+        if (IsValidCellTypeForLeaseIssue(TypeFromId(cellId))) {
+            return false;
+        }
+
+        YT_LOG_ALERT(format, std::forward<TArgs>(args)...);
+        return true;
+    }
+
+    THashSet<TTransactionId>* FindCellLeaseTransactionIds(TCellId cellId)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         auto cellType = TypeFromId(cellId);
+
         switch (cellType) {
             case EObjectType::TabletCell: {
-                auto* cell = cellManager->GetCellOrThrow(cellId);
-                return &cell->LeaseTransactionIds();
+                auto* cell = cellManager->FindCell(cellId);
+                if (IsObjectAlive(cell)) {
+                    return &cell->LeaseTransactionIds();
+                }
+                return nullptr;
             }
             case EObjectType::MasterCell: {
-                return multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
+                return multicellManager->FindLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
             }
             default: {
+                YT_LOG_ALERT(
+                    "Cell of unknown type requested to handle transaction leases (CellId: %v, CellType: %v)",
+                    cellId,
+                    cellType);
                 return nullptr;
             }
         }
@@ -3811,34 +3862,21 @@ private:
         }
 
         auto cellType = TypeFromId(cellId);
-        THashSet<TTransactionId>* cellLeaseTransactionIds;
-
-        switch (cellType) {
-            case EObjectType::TabletCell: {
-                const auto& cellManager = Bootstrap_->GetTamedCellManager();
-                auto* cell = cellManager->FindCell(cellId);
-                if (!cell) {
-                    YT_LOG_DEBUG(
-                        "Lease was revoked on unknown cell, ignored (LeaseId: %v, CellId: %v)",
-                        leaseId,
-                        cellId);
-                    return;
-                }
-                cellLeaseTransactionIds = &cell->LeaseTransactionIds();
-                break;
-            }
-            case EObjectType::MasterCell: {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                cellLeaseTransactionIds = multicellManager->GetLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
-                break;
-            }
-            default: {
-                YT_LOG_ALERT(
-                    "Lease revoked for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-                    transaction->GetId(),
-                    cellType);
-                return;
-            }
+        auto alerted = AlertOnInvalidLeaseCellType(
+            cellId,
+            "Lease revoked for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
+            transaction->GetId(),
+            cellType);
+        if (alerted) {
+            return;
+        }
+        auto cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
+        if (!cellLeaseTransactionIds) {
+            YT_LOG_DEBUG(
+                "Lease was revoked on missing cell, ignored (LeaseId: %v, CellId: %v)",
+                leaseId,
+                cellId);
+            return;
         }
 
         if (!UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds)) {

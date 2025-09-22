@@ -62,7 +62,7 @@ target_sources(server-lib-incumbent_client PRIVATE
 
 target_proto_outs(server-lib-incumbent_client
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(server-lib-incumbent_client

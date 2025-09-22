@@ -116,9 +116,9 @@ class YtTagPostprocessor(TagPostprocessorBase):
     def postprocess(self, tags, sensor_name=None):
         tags = dict(tags)
 
+        tags.setdefault("cluster", TemplateTag("cluster"))
         if self.backend in ("monitoring",):
             tags.setdefault("project", "yt")
-            tags.setdefault("cluster", TemplateTag("cluster"))
 
             if sensors.YtSystemTags.HostContainer in tags:
                 value = tags.pop(sensors.YtSystemTags.HostContainer)

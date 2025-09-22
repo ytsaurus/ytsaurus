@@ -95,20 +95,33 @@ void TPoolTreeElement::InitializeUpdate(TInstant /*now*/)
     YT_VERIFY(Mutable_);
 
     MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
+    SpecifiedResourceLimitsOvercommitTolerance_ = ComputeSpecifiedResourceLimitsOvercommitTolerance();
 
-    if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
+    if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_ ||
+        SpecifiedResourceLimitsOvercommitTolerance_ != PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance)
+    {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && !PersistentAttributes_.AppliedSpecifiedResourceLimits && MaybeSpecifiedResourceLimits_) {
             // NB: This code executed in control thread, therefore tree structure is actual and agreed with tree structure of resource tree.
             CollectResourceTreeOperationElements(&descendantOperationElements);
         }
 
-        YT_LOG_INFO("Updating applied specified resource limits (NewSpecifiedResourceLimits: %v, CurrentSpecifiedResourceLimits: %v)",
+        YT_LOG_INFO(
+            "Updating applied specified resource limits "
+            "(NewSpecifiedResourceLimits: %v, CurrentSpecifiedResourceLimits: %v, "
+            "NewOvercommitTolerance: %v, CurrentOvercommitTolerance: %v)",
             MaybeSpecifiedResourceLimits_,
-            PersistentAttributes_.AppliedSpecifiedResourceLimits);
+            PersistentAttributes_.AppliedSpecifiedResourceLimits,
+            SpecifiedResourceLimitsOvercommitTolerance_,
+            PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance);
 
-        ResourceTreeElement_->SetSpecifiedResourceLimits(MaybeSpecifiedResourceLimits_, descendantOperationElements);
+        ResourceTreeElement_->SetSpecifiedResourceLimits(
+            MaybeSpecifiedResourceLimits_,
+            SpecifiedResourceLimitsOvercommitTolerance_,
+            descendantOperationElements);
+
         PersistentAttributes_.AppliedSpecifiedResourceLimits = MaybeSpecifiedResourceLimits_;
+        PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance = SpecifiedResourceLimitsOvercommitTolerance_;
     }
 }
 
@@ -314,6 +327,11 @@ std::optional<TJobResources> TPoolTreeElement::ComputeMaybeSpecifiedResourceLimi
     }
 
     return {};
+}
+
+TJobResources TPoolTreeElement::ComputeSpecifiedResourceLimitsOvercommitTolerance() const
+{
+    return ToJobResources(GetSpecifiedResourceLimitsOvercommitToleranceConfig(), TJobResources());
 }
 
 bool TPoolTreeElement::AreSpecifiedResourceLimitsViolated() const
@@ -576,6 +594,12 @@ TJobResources TPoolTreeElement::GetTotalResourceLimits() const
 TJobResources TPoolTreeElement::GetMaxShareResourceLimits() const
 {
     return GetTotalResourceLimits() * GetMaxShare();
+}
+
+TJobResourcesConfigPtr TPoolTreeElement::GetSpecifiedResourceLimitsOvercommitToleranceConfig() const
+{
+    static const TJobResourcesConfigPtr EmptyConfig = New<TJobResourcesConfig>();
+    return EmptyConfig;
 }
 
 void TPoolTreeElement::BuildResourceMetering(
@@ -1058,6 +1082,11 @@ bool TPoolTreeCompositeElement::HasHigherPriorityInFifoMode(const NVectorHdrf::T
     return HasHigherPriorityInFifoMode(lhsElement, rhsElement);
 }
 
+bool TPoolTreeCompositeElement::IsStepFunctionForGangOperationsEnabled() const
+{
+    return true;
+}
+
 const std::vector<TPoolTreeElementPtr>& TPoolTreeCompositeElement::EnabledChildren() const
 {
     return EnabledChildren_;
@@ -1500,6 +1529,11 @@ bool TPoolTreePoolElement::IsFairShareTruncationInFifoPoolEnabled() const
         TreeConfig_->EnableFairShareTruncationInFifoPool);
 }
 
+bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
+{
+    return Config_->EnableStepFunctionForGangOperations;
+}
+
 bool TPoolTreePoolElement::ShouldComputePromisedGuaranteeFairShare() const
 {
     return Config_->ComputePromisedGuaranteeFairShare;
@@ -1676,6 +1710,11 @@ void TPoolTreePoolElement::DoSetConfig(TPoolConfigPtr newConfig)
 TJobResourcesConfigPtr TPoolTreePoolElement::GetSpecifiedResourceLimitsConfig() const
 {
     return Config_->ResourceLimits;
+}
+
+TJobResourcesConfigPtr TPoolTreePoolElement::GetSpecifiedResourceLimitsOvercommitToleranceConfig() const
+{
+    return Config_->ResourceLimitsOvercommitTolerance;
 }
 
 void TPoolTreePoolElement::BuildElementMapping(TFairSharePostUpdateContext* context)
@@ -1956,7 +1995,9 @@ void TPoolTreeOperationElement::BuildLoggingStringAttributes(TDelimitedStringBui
 
 bool TPoolTreeOperationElement::AreDetailedLogsEnabled() const
 {
-    return RuntimeParameters_->EnableDetailedLogs;
+    bool enabledDueToStarvation = TreeConfig_->EnableDetailedLogsForStarvingOperations &&
+        PersistentAttributes_.StarvationStatus != EStarvationStatus::NonStarving;
+    return RuntimeParameters_->EnableDetailedLogs || enabledDueToStarvation;
 }
 
 TString TPoolTreeOperationElement::GetId() const
@@ -2111,9 +2152,10 @@ TResourceVector TPoolTreeOperationElement::GetBestAllocationShare() const
     return PersistentAttributes_.BestAllocationShare;
 }
 
-bool TPoolTreeOperationElement::IsFairShareTruncationInFifoPoolAllowed() const
+bool TPoolTreeOperationElement::IsGangLike() const
 {
-    return IsGang() || IsSingleAllocationVanillaOperation();
+    return IsGang() ||
+        (IsSingleAllocationVanillaOperation() && TreeConfig_->ConsiderSingleAllocationVanillaOperationsAsGang);
 }
 
 bool TPoolTreeOperationElement::IsGang() const
@@ -2246,11 +2288,13 @@ TJobResources TPoolTreeOperationElement::GetAggregatedInitialMinNeededResources(
 
 EResourceTreeIncreaseResult TPoolTreeOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
+    bool allowLimitsOvercommit,
     TJobResources* availableResourceLimitsOutput)
 {
     return TreeElementHost_->GetResourceTree()->TryIncreaseHierarchicalResourceUsagePrecommit(
         ResourceTreeElement_,
         delta,
+        allowLimitsOvercommit,
         availableResourceLimitsOutput);
 }
 

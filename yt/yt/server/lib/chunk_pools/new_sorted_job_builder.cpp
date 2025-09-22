@@ -80,6 +80,15 @@ std::optional<TResourceVector> BuildLimitVector(
             ? jobSizeConstraints->GetSamplingPrimaryDataWeightPerJob()
             : jobSizeConstraints->GetPrimaryDataWeightPerJob();
 
+    // NB(apollo1321): Initial blocked sampling by compressed data size per job is not currently supported.
+    i64 compressedDataSizePerJob = jobSizeConstraints->GetSamplingRate()
+            ? std::numeric_limits<i64>::max()
+            : jobSizeConstraints->GetCompressedDataSizePerJob();
+
+    i64 primaryCompressedDataSizePerJob = jobSizeConstraints->GetSamplingRate()
+            ? std::numeric_limits<i64>::max()
+            : jobSizeConstraints->GetPrimaryCompressedDataSizePerJob();
+
     TResourceVector limitVector;
 
     limitVector.Values[EResourceKind::DataWeight] = static_cast<i64>(std::min<double>(
@@ -90,8 +99,17 @@ std::optional<TResourceVector> BuildLimitVector(
         std::numeric_limits<i64>::max() / 2,
         primaryDataWeightPerJob * retryFactor));
 
+    limitVector.Values[EResourceKind::CompressedDataSize] = static_cast<i64>(std::min<double>(
+        std::numeric_limits<i64>::max() / 2,
+        compressedDataSizePerJob * retryFactor));
+
+    limitVector.Values[EResourceKind::PrimaryCompressedDataSize] = static_cast<i64>(std::min<double>(
+        std::numeric_limits<i64>::max() / 2,
+        primaryCompressedDataSizePerJob * retryFactor));
+
     if (options.ConsiderOnlyPrimarySize) {
         limitVector.Values[EResourceKind::DataWeight] = std::numeric_limits<i64>::max() / 2;
+        limitVector.Values[EResourceKind::CompressedDataSize] = std::numeric_limits<i64>::max() / 2;
     }
 
     limitVector.Values[EResourceKind::DataSliceCount] = jobSizeConstraints->GetMaxDataSlicesPerJob();
@@ -314,6 +332,18 @@ public:
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             EErrorCode::MaxPrimaryDataWeightPerJobExceeded,
             "Maximum allowed primary data weight per sorted job exceeds the limit");
+
+        validateConstraint(
+            job->GetCompressedDataSize(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
+            EErrorCode::MaxCompressedDataSizePerJobExceeded,
+            "Maximum allowed compressed data size per sorted job exceeds the limit");
+
+        validateConstraint(
+            job->GetPrimaryCompressedDataSize(),
+            JobSizeConstraints_->GetMaxPrimaryCompressedDataSizePerJob(),
+            EErrorCode::MaxCompressedDataSizePerJobExceeded,
+            "Maximum allowed primary compressed data size per sorted job exceeds the limit");
 
         // These are internal assertions.
         if (Options_.ValidateOrder) {

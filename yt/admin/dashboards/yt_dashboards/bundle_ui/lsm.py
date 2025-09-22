@@ -57,11 +57,11 @@ an additional factor of 1 to write amplification). Normal values are around 2-5.
             .cell("Running flushes", NodeTablet("yt.tablet_node.store_flusher.running_store_flushes"))
             .cell(
                 "LSM write amplification", (
-                    (lsm_dw.value("activity", "compaction") + lsm_dw.value("activity", "partitioning"))
+                    (lsm_dw.value("activity", "compaction|partitioning").series_sum("cluster"))
                         .moving_avg("10m") /
-                    write_dw.moving_avg("10m"))
+                    write_dw.moving_avg("10m").series_sum("cluster"))
                         .aggr(MonitoringTag("host"), "table_tag", "table_path"),
-                description=wa_hint
+                description=wa_hint,
             )
         .row()
             .cell(

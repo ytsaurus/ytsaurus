@@ -29,7 +29,6 @@ target_link_libraries(lib-CodeGen-MIRParser PUBLIC
   llvm18-lib-AsmParser
   llvm18-lib-BinaryFormat
   llvm18-lib-CodeGen
-  lib-CodeGen-LowLevelType
   llvm18-lib-IR
   llvm18-lib-MC
   llvm18-lib-Support

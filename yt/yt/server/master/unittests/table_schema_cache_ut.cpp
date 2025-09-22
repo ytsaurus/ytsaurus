@@ -23,7 +23,8 @@ public:
     TAsyncExpiringCacheConfigPtr CreateNeverExpiringAsyncExpiringCacheConfig()
     {
         auto config = New<TAsyncExpiringCacheConfig>();
-        config->RefreshTime = TDuration::MilliSeconds(10);
+        config->RefreshTime = std::nullopt;
+        config->ExpirationPeriod = TDuration::MilliSeconds(10);
         config->ExpireAfterAccessTime = TDuration::Days(128);
         config->ExpireAfterFailedUpdateTime = TDuration::Days(128);
         config->ExpireAfterSuccessfulUpdateTime = TDuration::Days(128);

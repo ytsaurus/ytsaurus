@@ -1724,7 +1724,7 @@ add_custom_command(
 
 target_proto_outs(yt-yt-ytlib
   --cpp_out=${PROJECT_BINARY_DIR}/yt
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt
 )
 
 target_proto_addincls(yt-yt-ytlib

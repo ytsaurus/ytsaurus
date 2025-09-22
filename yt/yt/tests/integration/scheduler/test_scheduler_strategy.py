@@ -80,14 +80,17 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
                 "type": "static",
                 "value": 10 ** 9,
             },
-        }
+        },
+        "job_resource_manager": {"resource_limits": {"user_slots": 2, "cpu": 2}},
     }
 
     def setup_method(self, method):
         super(TestResourceUsage, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/non_preemptible_resource_usage_threshold", {"user_slots": 0})
-        time.sleep(0.5)
+        update_pool_tree_config("default", {
+            "preemptive_scheduling_backoff": 0,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+            "fair_share_starvation_timeout": 500,
+        })
 
     def _check_running_jobs(self, op, desired_running_jobs):
         success_iter = 0
@@ -268,9 +271,41 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         })
         self._check_running_jobs(op, 2)
 
+    @authors("eshcherbin")
+    def test_resource_limits_overcommit_during_preemption(self):
+        create_pool("pool")
+
+        set("//sys/pool_trees/default/pool/@resource_limits", {"cpu": 4.0})
+
+        big_op = run_sleeping_vanilla(job_count=2, task_patch={"cpu_limit": 2.0}, spec={"pool": "pool"})
+
+        wait(lambda: get(scheduler_orchid_operation_path(big_op.id) + "/resource_usage/cpu", default=None) == 4.0)
+
+        small_op = run_sleeping_vanilla(job_count=2, task_patch={"cpu_limit": 1.0}, spec={"pool": "pool"})
+
+        update_op_parameters(small_op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "enable_detailed_logs": True,
+                },
+            }
+        })
+
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/starvation_status", default=None) == "starving")
+
+        time.sleep(1.0)
+
+        wait(lambda: get(scheduler_orchid_operation_path(big_op.id) + "/resource_usage/cpu") == 4.0)
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/resource_usage/cpu") == 0.0)
+
+        set("//sys/pool_trees/default/pool/@resource_limits_overcommit_tolerance", {"cpu": 1.0})
+
+        wait(lambda: get(scheduler_orchid_operation_path(big_op.id) + "/resource_usage/cpu") == 2.0)
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/resource_usage/cpu") == 2.0)
+
     @authors("ignat")
     def test_max_possible_resource_usage(self):
-        create_pool("low_cpu_pool", attributes={"resource_limits": {"cpu": 1}})
+        create_pool("low_cpu_pool", attributes={"resource_limits": {"cpu": 2}})
         create_pool("subpool_1", parent_name="low_cpu_pool")
         create_pool(
             "subpool_2",
@@ -283,7 +318,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/t_out_1")
         self._create_table("//tmp/t_out_2")
         self._create_table("//tmp/t_out_3")
-        data = [{"foo": i} for i in range(3)]
+        data = [{"foo": i} for i in range(6)]
         write_table("//tmp/t_in", data)
 
         def get_pool_fair_share(pool, resource):
@@ -295,7 +330,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             command=command_with_breakpoint,
             in_="//tmp/t_in",
             out="//tmp/t_out_1",
-            spec={"job_count": 1, "pool": "subpool_1"},
+            spec={"job_count": 2, "pool": "subpool_1"},
         )
 
         op2 = map(
@@ -303,7 +338,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             command=command_with_breakpoint,
             in_="//tmp/t_in",
             out="//tmp/t_out_2",
-            spec={"job_count": 2, "pool": "high_cpu_pool"},
+            spec={"job_count": 4, "pool": "high_cpu_pool"},
         )
 
         wait_breakpoint()
@@ -319,7 +354,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out_3",
-            spec={"job_count": 1, "pool": "subpool_2", "mapper": {"cpu_limit": 0}},
+            spec={"job_count": 2, "pool": "subpool_2", "mapper": {"cpu_limit": 0}},
         )
 
         time.sleep(1)
@@ -4498,6 +4533,7 @@ class TestFifoPools(YTEnvSetup):
 
         # COMPAT: Intentilonally test old logic for gang operations.
         update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", False)
+        update_pool_tree_config_option("default", "consider_single_allocation_vanilla_operations_as_gang", True)
 
         blocking_op1 = run_sleeping_vanilla(task_patch={"cpu_limit": 3.0}, spec={"pool": "fifo"})
         blocking_op1.wait_for_state("running")
@@ -4536,6 +4572,16 @@ class TestFifoPools(YTEnvSetup):
         set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", False)
         wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
+
+    @authors("eshcherbin")
+    def test_disable_step_function_for_gang_operations_in_pool(self):
+        create_pool("fifo", attributes={"mode": "fifo", "enable_step_function_for_gang_operations": False})
+
+        op = run_sleeping_vanilla(job_count=4, task_patch={"cpu_limit": 5.0}, spec={"pool": "fifo", "is_gang": True})
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu", default=None), 1.0))
+
+        set("//sys/pool_trees/default/fifo/@enable_step_function_for_gang_operations", True)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu"), 0.0))
 
     @authors("eshcherbin", "ignat")
     def test_max_schedulable_element_count_in_fifo_pool(self):

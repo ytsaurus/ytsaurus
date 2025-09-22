@@ -41,6 +41,13 @@ type Config struct {
 	//
 	// Default value is 30s.
 	ListActiveTasksPeriod *time.Duration `yaml:"list_acive_tasks_period"`
+
+	// DeprecatedStreams lists stream names that are explicitly deprecated.
+	// On start Timbertruck will:
+	//  - Complete active tasks for these streams if found in the datastore and not configured.
+	//  - Remove their working directories under WorkDir (only if a "staging" subdirectory exists).
+	// If a stream listed here is also present in the current configuration, Timbertruck will panic.
+	DeprecatedStreams []string `yaml:"deprecated_streams"`
 }
 
 type TimberTruck struct {
@@ -150,11 +157,21 @@ func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFun
 }
 
 func (tt *TimberTruck) Serve(ctx context.Context) error {
+	deprecatedStreams := tt.deprecatedStreams()
+
 	activeTasks, err := tt.datastore.ListActiveTasks()
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error ListActiveTasks(): %v", err))
 	}
 	for _, task := range activeTasks {
+		if _, isDeprecated := deprecatedStreams[task.StreamName]; isDeprecated {
+			completeErr := tt.datastore.CompleteTask(task.StagedPath, time.Now(), fmt.Errorf("stream is deprecated: %s", task.StreamName))
+			if completeErr != nil {
+				panic(fmt.Sprintf("unexpected error CompleteTask(%s): %v", task.StagedPath, completeErr))
+			}
+			tt.logger.Info("Task completed for a deprecated stream", "stagedpath", task.StagedPath, "stream", task.StreamName)
+		}
+
 		_, err := os.Stat(task.StagedPath)
 		if err != nil {
 			tt.logger.Warn("Unavailable file for active task, task is completed with error", "error", err, "stagedpath", task.StagedPath)
@@ -164,6 +181,8 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 			}
 		}
 	}
+
+	tt.cleanupDeprecatedStreamDirs()
 
 	for i := range tt.handlers {
 		curHandler := &tt.handlers[i]
@@ -202,6 +221,45 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 	tt.logger.Info("Serving")
 
 	return tt.fsWatcher.Run(ctx)
+}
+
+// deprecatedStreams returns a set of deprecated stream names.
+// Panics if any deprecated stream is present in the current configuration.
+func (tt *TimberTruck) deprecatedStreams() map[string]struct{} {
+	result := make(map[string]struct{})
+	configured := make(map[string]struct{})
+	for i := range tt.handlers {
+		configured[tt.handlers[i].config.Name] = struct{}{}
+	}
+	for _, name := range tt.config.DeprecatedStreams {
+		if _, ok := configured[name]; ok {
+			panic(fmt.Sprintf("stream %q is marked as deprecated but present in config", name))
+		}
+		result[name] = struct{}{}
+	}
+	return result
+}
+
+// cleanupDeprecatedStreamDirs removes per-stream working directories for streams explicitly listed as deprecated.
+// It only touches directories that look like stream directories (i.e., contain a "staging" subdirectory).
+func (tt *TimberTruck) cleanupDeprecatedStreamDirs() {
+	deprecatedStreams := tt.deprecatedStreams()
+	for name := range deprecatedStreams {
+		fi, err := os.Stat(stagingDir(tt.config.WorkDir, name))
+		if err != nil {
+			tt.logger.Warn("Failed to stat deprecated stream staging directory", "stream", name, "error", err)
+			continue
+		}
+		if !fi.IsDir() {
+			continue
+		}
+		dirPath := path.Join(tt.config.WorkDir, name)
+		if err := os.RemoveAll(dirPath); err != nil {
+			tt.logger.Warn("Failed to remove deprecated stream directory", "stream", name, "error", err)
+		} else {
+			tt.logger.Info("Removed deprecated stream directory", "stream", name, "stagingdir", stagingDir(tt.config.WorkDir, name))
+		}
+	}
 }
 
 func (tt *TimberTruck) launchMetricsProc(ctx context.Context) {
@@ -250,7 +308,11 @@ func (h *streamHandler) getExtensions() string {
 }
 
 func (h *streamHandler) stagingDir() string {
-	return path.Join(h.timberTruck.config.WorkDir, h.config.Name, "staging")
+	return stagingDir(h.timberTruck.config.WorkDir, h.config.Name)
+}
+
+func stagingDir(workDir string, streamName string) string {
+	return path.Join(workDir, streamName, "staging")
 }
 
 var dateRegexp = regexp.MustCompile(`^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}T[[:digit:]]{2}:[[:digit:]]{2}:[[:digit:]]{2}_`)

@@ -1,0 +1,116 @@
+name: Docs manual Upload [to testing only]
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: write-all
+    env:
+      src-root: "./yt/docs"
+      build-root: "./_docs-build"
+      lint-root: "./_docs-lint"
+      revision: "${{ github.sha }}"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install diplodoc
+        run: |
+          npm install -g @diplodoc/cli
+          npm install -g @diplodoc/algolia-extension
+        shell: bash
+
+      - name: Delete search index
+        run: bash .github/scripts/delete_search_index.sh ${{ secrets.ALGOLIA_APP_ID }} ${{ secrets.ALGOLIA_API_KEY }}
+
+      - name: Build doc md2html
+        id: build-md2html
+        env:
+          index-name: "ytsaurus-docs"
+        run: |
+          yfm -i ${{ env.src-root }} -o ${{ env.lint-root }} --extensions "$(npm root -g)/@diplodoc/algolia-extension" --index-name ${{ env.index-name }}-${{ env.revision }} --api-key ${{ secrets.ALGOLIA_API_KEY }} --app-id ${{ secrets.ALGOLIA_APP_ID }}  2>&1 | tee './build-html.log'
+
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        shell: bash
+
+
+      - name: Build md2md
+        id: build-md2md
+        run: |
+          yfm -i ${{ env.src-root }} -o ${{ env.build-root }} --output-format md --add-map-file --allow-custom-resources 2>&1 | tee './build-md.log'
+
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Save inputs
+        run: |
+          mkdir -p ./inputs
+          echo ${{ env.revision }} > ./inputs/revision
+          echo ${{ github.event.number }} > ./inputs/pr-number
+        shell: bash
+
+      - name: Upload inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: inputs
+          path: inputs/
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-md
+          include-hidden-files: true
+          path: ${{ env.build-root }}
+          retention-days: 1
+
+      - name: Upload build html doc
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-html
+          path: ${{ env.lint-root }}
+          retention-days: 1
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-html
+          path: ./build-html.log
+          retention-days: 1
+
+      - name: Exit
+        run: |
+          exitcode=${{ steps.build-md2html.outputs.exitcode }}
+
+          if [ "$exitcode" -eq 0 ]; then
+              echo "Build exited successfully."
+          else
+            echo "Build exited with an error. Exit code: $exitcode"
+            exit $exitcode
+          fi
+        shell: bash
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Show docs revision
+        run: |
+          echo "Revision: "${{ github.sha }}
+      - name: Upload to testing
+        uses: diplodoc-platform/docs-upload-action@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          storage-endpoint: ${{ vars.DIPLODOC_STORAGE_ENDPOINT }}
+          storage-region: ${{ vars.DIPLODOC_STORAGE_REGION }}
+          storage-bucket: ${{ vars.DIPLODOC_STORAGE_BUCKET }}
+          storage-access-key-id: ${{ secrets.DIPLODOC_ACCESS_KEY_ID }}
+          storage-secret-access-key: ${{ secrets.DIPLODOC_SECRET_ACCESS_KEY }}

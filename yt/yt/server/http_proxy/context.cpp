@@ -224,6 +224,7 @@ bool TContext::TryParseUser()
 
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
         DriverRequest_.AuthenticatedUser = authenticatedUser;
+        DriverRequest_.UserRemoteAddress = GetBalancerRealIPOrRemoteAddress();
         return true;
     }
 
@@ -244,7 +245,7 @@ bool TContext::TryParseUser()
     }
 
     DriverRequest_.AuthenticatedUser = authenticatedUser;
-    DriverRequest_.UserRemoteAddress = Request_->GetRemoteAddress();
+    DriverRequest_.UserRemoteAddress = GetBalancerRealIPOrRemoteAddress();
     return true;
 }
 
@@ -311,18 +312,18 @@ bool TContext::TryGetHeaderFormat()
 
 bool TContext::TryGetInputFormat()
 {
-    static const std::string YtHeaderName = "X-YT-Input-Format";
+    static const std::string YTHeaderName = "X-YT-Input-Format";
     std::optional<TString> ytHeader;
     try {
-        ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
+        ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse %v header", YtHeaderName)
+        THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
             << ex;
     }
     auto contentTypeHeader = Request_->GetHeaders()->Find("Content-Type");
     InputFormat_ = InferFormat(
         *FormatManager_,
-        YtHeaderName,
+        YTHeaderName,
         *HeadersFormat_,
         ytHeader,
         "Content-Type",
@@ -353,18 +354,18 @@ bool TContext::TryGetInputCompression()
 
 bool TContext::TryGetOutputFormat()
 {
-    static const TString YtHeaderName = "X-YT-Output-Format";
+    static const TString YTHeaderName = "X-YT-Output-Format";
     std::optional<TString> ytHeader;
     try {
-        ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
+        ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse %v header", YtHeaderName)
+        THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
             << ex;
     }
     auto acceptHeader = Request_->GetHeaders()->Find("Accept");
     OutputFormat_ = InferFormat(
         *FormatManager_,
-        YtHeaderName,
+        YTHeaderName,
         *HeadersFormat_,
         ytHeader,
         "Accept",
@@ -396,17 +397,17 @@ bool TContext::TryGetOutputCompression()
 
 bool TContext::TryGetErrorFormat()
 {
-    static const TString YtHeaderName = "X-YT-Error-Format";
+    static const TString YTHeaderName = "X-YT-Error-Format";
     std::optional<TString> ytHeader;
     try {
-        ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
+        ytHeader = GatherHeader(Request_->GetHeaders(), YTHeaderName);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Unable to parse %v header", YtHeaderName)
+        THROW_ERROR_EXCEPTION("Unable to parse %Qv header", YTHeaderName)
             << ex;
     }
     ErrorFormat_ = InferFormat(
         *FormatManager_,
-        YtHeaderName,
+        YTHeaderName,
         *HeadersFormat_,
         ytHeader,
         /*mimeHeaderName*/ "",
@@ -1111,6 +1112,14 @@ void TContext::Finalize()
             Y_UNUSED(WaitFor(Response_->Close()));
         }
     }
+}
+
+std::optional<std::string> TContext::GetBalancerRealIPOrRemoteAddress() const
+{
+    if (auto pingerAddress = FindBalancerRealIP(Request_)) {
+        return pingerAddress;
+    }
+    return ToString(Request_->GetRemoteAddress());
 }
 
 template <class TJsonProducer>

@@ -258,6 +258,8 @@ struct TPoolPresetConfig
 
     bool EnableLightweightOperations;
 
+    TJobResourcesConfigPtr ResourceLimitsOvercommitTolerance;
+
     REGISTER_YSON_STRUCT(TPoolPresetConfig);
 
     static void Register(TRegistrar registrar);
@@ -302,6 +304,8 @@ struct TPoolConfig
 
     // Overrides the same option in tree config.
     std::optional<bool> EnableFairShareTruncationInFifoPool;
+
+    bool EnableStepFunctionForGangOperations;
 
     THashMap<TString, TString> MeteringTags;
 
@@ -1060,6 +1064,8 @@ struct TOperationSpecBase
     //! Strict limit for job input compressed data size. May not affect input
     //! slicing.
     i64 MaxCompressedDataSizePerJob;
+
+    i64 MaxPrimaryCompressedDataSizePerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;

@@ -32,6 +32,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
+  cpp-streams-zstd
   library-cpp-getopt
   yt-chyt-client
   yt-library-dynamic_config
@@ -57,6 +58,7 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/handler_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/proxy_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
@@ -64,8 +66,10 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/mock_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/search_index.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/yql_engine.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/tokenizer.cpp
 )
 

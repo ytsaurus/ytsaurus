@@ -16,11 +16,12 @@ setup(
         "for Grafana and Monitoring backends.",
 
     install_requires=[
+        "colorama>=0.4.6, ~=0.4",
+        "grpcio>=1.54.2, ~=1.54",
+        "lark-parser>=0.11.2, ~=0.11",
+        "protobuf>=3.18.1, ~=3.18",
         "requests>=2.31.0, ~=2.31",
         "tabulate>=0.9.0, ~=0.9",
-        "colorama>=0.4.6, ~=0.4",
-        "lark-parser>=0.11.2, ~=0.11",
-        "grpcio>=1.54.2, ~=1.54",
-        "protobuf>=3.18.1, ~=3.18",
+        "ytsaurus-client>=0.13",
     ],
 )

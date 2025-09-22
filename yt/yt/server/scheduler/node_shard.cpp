@@ -703,12 +703,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // only when preemptive scheduling has been attempted.
         context->SetIncrementalResponseInfo(
             "StartedAllocations: {All: %v, ByPreemption: %v}, PreemptedAllocations: %v, "
-            "PreemptibleInfo: %v, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
+            "PreemptibleInfo: {AllocationCount: %v, UsageDiscount: %v}, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
             "ScheduleAllocationAttempts: %v, OperationCountByPreemptionPriority: %v",
             schedulingHeartbeatContext->StartedAllocations().size(),
             statistics.ScheduledDuringPreemption,
             schedulingHeartbeatContext->PreemptedAllocations().size(),
-            FormatPreemptibleInfoCompact(statistics),
+            statistics.PreemptibleAllocationCount,
+            statistics.ResourceUsageDiscount,
             statistics.SsdPriorityPreemptionEnabled,
             statistics.SsdPriorityPreemptionMedia,
             FormatScheduleAllocationAttemptsCompact(statistics),

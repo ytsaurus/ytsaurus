@@ -1451,7 +1451,7 @@ private:
             const auto& client = transaction->Client_;
             const auto& permissionCache = client->GetNativeConnection()->GetPermissionCache();
             NSecurityClient::TPermissionKey permissionKey{
-                .Object = FromObjectId(TableInfo_->TableId),
+                .Path = FromObjectId(TableInfo_->TableId),
                 .User = client->GetOptions().GetAuthenticatedUser(),
                 .Permission = NYTree::EPermission::Write,
             };

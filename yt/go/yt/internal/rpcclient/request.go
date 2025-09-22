@@ -3,10 +3,189 @@ package rpcclient
 import (
 	"strings"
 
+	"google.golang.org/protobuf/proto"
+
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/yt"
 )
+
+func logTransactionalOptions(o *rpc_proxy.TTransactionalOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if txID := o.GetTransactionId(); txID != nil {
+		fields = append(fields, log.Any("transaction_id", makeGUID(txID)))
+	}
+	if o.GetPing() {
+		fields = append(fields, log.Bool("ping", true))
+	}
+	if o.GetPingAncestors() {
+		fields = append(fields, log.Bool("ping_ancestor_transactions", true))
+	}
+	if o.GetSuppressTransactionCoordinatorSync() {
+		fields = append(fields, log.Bool("suppress_transaction_coordinator_sync", true))
+	}
+	if o.GetSuppressUpstreamSync() {
+		fields = append(fields, log.Bool("suppress_upstream_sync", true))
+	}
+	return fields
+}
+
+func logMutatingOptions(o *rpc_proxy.TMutatingOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if mutationID := o.GetMutationId(); mutationID != nil {
+		fields = append(fields, log.Any("mutation_id", makeGUID(mutationID)))
+	}
+	if o.GetRetry() {
+		fields = append(fields, log.Bool("retry", true))
+	}
+	return fields
+}
+
+func logPrerequisiteOptions(o *rpc_proxy.TPrerequisiteOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if txs := o.GetTransactions(); txs != nil {
+		var ids []guid.GUID
+		for _, t := range txs {
+			if txID := t.GetTransactionId(); txID != nil {
+				ids = append(ids, makeGUID(txID))
+			}
+		}
+		if len(ids) > 0 {
+			fields = append(fields, log.Any("prerequisite_transaction_ids", ids))
+		}
+	}
+	if revs := o.GetRevisions(); revs != nil {
+		fields = append(fields, log.Any("prerequisite_revisions", revs))
+	}
+	return fields
+}
+
+func logMasterReadOptions(o *rpc_proxy.TMasterReadOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.ReadFrom != nil {
+		if rk, err := makeReadKind(o.ReadFrom); err == nil {
+			fields = append(fields, log.Any("read_from", rk))
+		}
+	}
+	if o.GetDisablePerUserCache() {
+		fields = append(fields, log.Bool("disable_per_user_cache", true))
+	}
+	if o.ExpireAfterSuccessfulUpdateTime != nil {
+		fields = append(fields, log.Int64("expire_after_successful_update_time", o.GetExpireAfterSuccessfulUpdateTime()))
+	}
+	if o.ExpireAfterFailedUpdateTime != nil {
+		fields = append(fields, log.Int64("expire_after_failed_update_time", o.GetExpireAfterFailedUpdateTime()))
+	}
+	if o.CacheStickyGroupSize != nil {
+		fields = append(fields, log.Int32("cache_sticky_group_size", o.GetCacheStickyGroupSize()))
+	}
+	if o.SuccessStalenessBound != nil {
+		fields = append(fields, log.Int64("success_staleness_bound", o.GetSuccessStalenessBound()))
+	}
+	return fields
+}
+
+func logAccessTrackingOptions(o *rpc_proxy.TSuppressableAccessTrackingOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.GetSuppressAccessTracking() {
+		fields = append(fields, log.Bool("suppress_access_tracking", true))
+	}
+	if o.GetSuppressModificationTracking() {
+		fields = append(fields, log.Bool("suppress_modification_tracking", true))
+	}
+	if o.GetSuppressExpirationTimeoutRenewal() {
+		fields = append(fields, log.Bool("suppress_expiration_timeout_renewal", true))
+	}
+	return fields
+}
+
+func logTabletReadOptions(o *rpc_proxy.TTabletReadOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if o.ReadFrom != nil {
+		if rk, err := makeTabletReadKind(o.ReadFrom); err == nil {
+			fields = append(fields, log.Any("tablet_read_from", rk))
+		}
+	}
+	if v := o.CachedSyncReplicasTimeout; v != nil {
+		fields = append(fields, log.UInt64("cached_sync_replicas_timeout", o.GetCachedSyncReplicasTimeout()))
+	}
+	return fields
+}
+
+func logRowBatchReadOptions(o *rpc_proxy.TRowBatchReadOptions) []log.Field {
+	if o == nil {
+		return nil
+	}
+	fields := []log.Field{}
+	if v := o.MaxRowCount; v != nil && *v > 0 {
+		fields = append(fields, log.Int64("max_row_count", *v))
+	}
+	if v := o.MaxDataWeight; v != nil && *v > 0 {
+		fields = append(fields, log.Int64("max_data_weight", *v))
+	}
+	if v := o.DataWeightPerRowHint; v != nil && *v > 0 {
+		fields = append(fields, log.Int64("data_weight_per_row_hint", *v))
+	}
+	return fields
+}
+
+func appendEmbeddedOptions(fields []log.Field, opts proto.Message) []log.Field {
+	if v, ok := opts.(interface {
+		GetTransactionalOptions() *rpc_proxy.TTransactionalOptions
+	}); ok {
+		fields = append(fields, logTransactionalOptions(v.GetTransactionalOptions())...)
+	}
+	if v, ok := opts.(interface {
+		GetPrerequisiteOptions() *rpc_proxy.TPrerequisiteOptions
+	}); ok {
+		fields = append(fields, logPrerequisiteOptions(v.GetPrerequisiteOptions())...)
+	}
+	if v, ok := opts.(interface {
+		GetMutatingOptions() *rpc_proxy.TMutatingOptions
+	}); ok {
+		fields = append(fields, logMutatingOptions(v.GetMutatingOptions())...)
+	}
+	if v, ok := opts.(interface {
+		GetMasterReadOptions() *rpc_proxy.TMasterReadOptions
+	}); ok {
+		fields = append(fields, logMasterReadOptions(v.GetMasterReadOptions())...)
+	}
+	if v, ok := opts.(interface {
+		GetSuppressableAccessTrackingOptions() *rpc_proxy.TSuppressableAccessTrackingOptions
+	}); ok {
+		fields = append(fields, logAccessTrackingOptions(v.GetSuppressableAccessTrackingOptions())...)
+	}
+	if v, ok := opts.(interface {
+		GetTabletReadOptions() *rpc_proxy.TTabletReadOptions
+	}); ok {
+		fields = append(fields, logTabletReadOptions(v.GetTabletReadOptions())...)
+	}
+	if v, ok := opts.(interface {
+		GetRowBatchReadOptions() *rpc_proxy.TRowBatchReadOptions
+	}); ok {
+		fields = append(fields, logRowBatchReadOptions(v.GetRowBatchReadOptions())...)
+	}
+	return fields
+}
 
 var _ TransactionalRequest = (*CreateNodeRequest)(nil)
 var _ MutatingRequest = (*CreateNodeRequest)(nil)
@@ -20,10 +199,30 @@ func NewCreateNodeRequest(r *rpc_proxy.TReqCreateNode) *CreateNodeRequest {
 }
 
 func (r CreateNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
-		log.Int32("typ", r.GetType()),
 	}
+	if nt, err := makeNodeType(r.GetType()); err == nil {
+		fields = append(fields, log.Any("typ", nt))
+	} else {
+		fields = append(fields, log.Int32("typ", r.GetType()))
+	}
+	if r.GetRecursive() {
+		fields = append(fields, log.Bool("recursive", true))
+	}
+	if r.GetIgnoreExisting() {
+		fields = append(fields, log.Bool("ignore_existing", true))
+	}
+	if r.GetForce() {
+		fields = append(fields, log.Bool("force", true))
+	}
+	if r.GetAttributes() != nil {
+		if attrs, err := makeAttributes(r.GetAttributes()); err == nil {
+			fields = append(fields, log.Any("attributes", attrs))
+		}
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqCreateNode)
+	return fields
 }
 
 func (r CreateNodeRequest) Path() (string, bool) {
@@ -55,9 +254,22 @@ func NewCreateObjectRequest(r *rpc_proxy.TReqCreateObject) *CreateObjectRequest 
 }
 
 func (r CreateObjectRequest) Log() []log.Field {
-	return []log.Field{
-		log.Int32("typ", r.GetType()),
+	fields := []log.Field{}
+	if nt, err := makeNodeType(r.GetType()); err == nil {
+		fields = append(fields, log.Any("typ", nt))
+	} else {
+		fields = append(fields, log.Int32("typ", r.GetType()))
 	}
+	if r.Attributes != nil {
+		if attrs, err := makeAttributes(r.GetAttributes()); err == nil {
+			fields = append(fields, log.Any("attributes", attrs))
+		}
+	}
+	if r.GetIgnoreExisting() {
+		fields = append(fields, log.Bool("ignore_existing", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqCreateObject)
+	return fields
 }
 
 func (r CreateObjectRequest) Path() (string, bool) {
@@ -76,9 +288,11 @@ func NewNodeExistsRequest(r *rpc_proxy.TReqExistsNode) *NodeExistsRequest {
 }
 
 func (r NodeExistsRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqExistsNode)
+	return fields
 }
 
 func (r NodeExistsRequest) Path() (string, bool) {
@@ -103,9 +317,17 @@ func NewRemoveNodeRequest(r *rpc_proxy.TReqRemoveNode) *RemoveNodeRequest {
 }
 
 func (r RemoveNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	if r.GetRecursive() {
+		fields = append(fields, log.Bool("recursive", true))
+	}
+	if r.GetForce() {
+		fields = append(fields, log.Bool("force", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqRemoveNode)
+	return fields
 }
 
 func (r RemoveNodeRequest) Path() (string, bool) {
@@ -140,9 +362,17 @@ func NewGetNodeRequest(r *rpc_proxy.TReqGetNode) *GetNodeRequest {
 }
 
 func (r GetNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	if attrs := r.GetAttributes(); attrs != nil && len(attrs.GetKeys()) > 0 {
+		fields = append(fields, log.Any("attributes", attrs.GetKeys()))
+	}
+	if r.MaxSize != nil {
+		fields = append(fields, log.Int64("max_size", r.GetMaxSize()))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqGetNode)
+	return fields
 }
 
 func (r GetNodeRequest) Path() (string, bool) {
@@ -167,9 +397,11 @@ func NewSetNodeRequest(r *rpc_proxy.TReqSetNode) *SetNodeRequest {
 }
 
 func (r SetNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqSetNode)
+	return fields
 }
 
 func (r SetNodeRequest) Path() (string, bool) {
@@ -203,9 +435,11 @@ func NewMultisetAttributesRequest(r *rpc_proxy.TReqMultisetAttributesNode) *Mult
 }
 
 func (r MultisetAttributesRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqMultisetAttributesNode)
+	return fields
 }
 
 func (r MultisetAttributesRequest) Path() (string, bool) {
@@ -240,9 +474,17 @@ func NewListNodeRequest(r *rpc_proxy.TReqListNode) *ListNodeRequest {
 }
 
 func (r ListNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	if attrs := r.GetAttributes(); attrs != nil && len(attrs.GetKeys()) > 0 {
+		fields = append(fields, log.Any("attributes", attrs.GetKeys()))
+	}
+	if r.MaxSize != nil {
+		fields = append(fields, log.Int64("max_size", r.GetMaxSize()))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqListNode)
+	return fields
 }
 
 func (r ListNodeRequest) Path() (string, bool) {
@@ -267,10 +509,39 @@ func NewCopyNodeRequest(r *rpc_proxy.TReqCopyNode) *CopyNodeRequest {
 }
 
 func (r CopyNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("src", string(r.GetSrcPath())),
 		log.String("dst", string(r.GetDstPath())),
 	}
+	if r.GetRecursive() {
+		fields = append(fields, log.Bool("recursive", true))
+	}
+	if r.GetForce() {
+		fields = append(fields, log.Bool("force", true))
+	}
+	if r.GetIgnoreExisting() {
+		fields = append(fields, log.Bool("ignore_existing", true))
+	}
+	if r.GetPreserveAccount() {
+		fields = append(fields, log.Bool("preserve_account", true))
+	}
+	if r.GetPreserveExpirationTime() {
+		fields = append(fields, log.Bool("preserve_expiration_time", true))
+	}
+	if r.GetPreserveExpirationTimeout() {
+		fields = append(fields, log.Bool("preserve_expiration_timeout", true))
+	}
+	if r.GetPreserveCreationTime() {
+		fields = append(fields, log.Bool("preserve_creation_time", true))
+	}
+	if r.GetPessimisticQuotaCheck() {
+		fields = append(fields, log.Bool("pessimistic_quota_check", true))
+	}
+	if r.GetEnableCrossCellCopying() {
+		fields = append(fields, log.Bool("enable_cross_cell_copying", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqCopyNode)
+	return fields
 }
 
 func (r CopyNodeRequest) Path() (string, bool) {
@@ -305,10 +576,33 @@ func NewMoveNodeRequest(r *rpc_proxy.TReqMoveNode) *MoveNodeRequest {
 }
 
 func (r MoveNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("src", string(r.GetSrcPath())),
 		log.String("dst", string(r.GetDstPath())),
 	}
+	if r.GetRecursive() {
+		fields = append(fields, log.Bool("recursive", true))
+	}
+	if r.GetForce() {
+		fields = append(fields, log.Bool("force", true))
+	}
+	if r.GetPreserveAccount() {
+		fields = append(fields, log.Bool("preserve_account", true))
+	}
+	if r.GetPreserveExpirationTime() {
+		fields = append(fields, log.Bool("preserve_expiration_time", true))
+	}
+	if r.GetPreserveExpirationTimeout() {
+		fields = append(fields, log.Bool("preserve_expiration_timeout", true))
+	}
+	if r.GetPessimisticQuotaCheck() {
+		fields = append(fields, log.Bool("pessimistic_quota_check", true))
+	}
+	if r.GetEnableCrossCellCopying() {
+		fields = append(fields, log.Bool("enable_cross_cell_copying", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqMoveNode)
+	return fields
 }
 
 func (r MoveNodeRequest) Path() (string, bool) {
@@ -343,10 +637,26 @@ func NewLinkNodeRequest(r *rpc_proxy.TReqLinkNode) *LinkNodeRequest {
 }
 
 func (r LinkNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("target", string(r.GetSrcPath())),
 		log.String("link", string(r.GetDstPath())),
 	}
+	if r.GetRecursive() {
+		fields = append(fields, log.Bool("recursive", true))
+	}
+	if r.GetIgnoreExisting() {
+		fields = append(fields, log.Bool("ignore_existing", true))
+	}
+	if r.GetForce() {
+		fields = append(fields, log.Bool("force", true))
+	}
+	if r.Attributes != nil {
+		if attrs, err := makeAttributes(r.GetAttributes()); err == nil {
+			fields = append(fields, log.Any("attributes", attrs))
+		}
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqLinkNode)
+	return fields
 }
 
 func (r LinkNodeRequest) Path() (string, bool) {
@@ -381,7 +691,9 @@ func NewStartTxRequest(r *rpc_proxy.TReqStartTransaction) *StartTxRequest {
 }
 
 func (r StartTxRequest) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	fields = appendEmbeddedOptions(fields, r.TReqStartTransaction)
+	return fields
 }
 
 func (r StartTxRequest) Path() (string, bool) {
@@ -406,7 +718,9 @@ func NewStartTabletTxRequest(r *rpc_proxy.TReqStartTransaction) *StartTabletTxRe
 }
 
 func (r StartTabletTxRequest) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	fields = appendEmbeddedOptions(fields, r.TReqStartTransaction)
+	return fields
 }
 
 func (r StartTabletTxRequest) Path() (string, bool) {
@@ -422,9 +736,9 @@ func NewPingTxRequest(r *rpc_proxy.TReqPingTransaction) *PingTxRequest {
 }
 
 func (r PingTxRequest) Log() []log.Field {
-	return []log.Field{
-		log.Any("id", r.GetTransactionId()),
-	}
+	fields := []log.Field{log.Any("id", r.GetTransactionId())}
+	fields = appendEmbeddedOptions(fields, r.TReqPingTransaction)
+	return fields
 }
 
 func (r PingTxRequest) Path() (string, bool) {
@@ -440,9 +754,9 @@ func NewAbortTxRequest(r *rpc_proxy.TReqAbortTransaction) *AbortTxRequest {
 }
 
 func (r AbortTxRequest) Log() []log.Field {
-	return []log.Field{
-		log.Any("id", r.GetTransactionId()),
-	}
+	fields := []log.Field{log.Any("id", r.GetTransactionId())}
+	fields = appendEmbeddedOptions(fields, r.TReqAbortTransaction)
+	return fields
 }
 
 func (r AbortTxRequest) Path() (string, bool) {
@@ -458,9 +772,9 @@ func NewCommitTxRequest(r *rpc_proxy.TReqCommitTransaction) *CommitTxRequest {
 }
 
 func (r CommitTxRequest) Log() []log.Field {
-	return []log.Field{
-		log.Any("id", r.GetTransactionId()),
-	}
+	fields := []log.Field{log.Any("id", r.GetTransactionId())}
+	fields = appendEmbeddedOptions(fields, r.TReqCommitTransaction)
+	return fields
 }
 
 func (r CommitTxRequest) Path() (string, bool) {
@@ -478,9 +792,15 @@ func NewWriteFileRequest(r *rpc_proxy.TReqWriteFile) *WriteFileRequest {
 }
 
 func (r WriteFileRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	if r.GetComputeMd5() {
+		fields = append(fields, log.Bool("compute_md5", true))
 	}
+	if cfg := r.GetConfig(); cfg != nil {
+		fields = append(fields, log.ByteString("file_writer", cfg))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqWriteFile)
+	return fields
 }
 
 func (r WriteFileRequest) Path() (string, bool) {
@@ -502,9 +822,20 @@ func NewReadFileRequest(r *rpc_proxy.TReqReadFile) *ReadFileRequest {
 }
 
 func (r ReadFileRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	if r.Offset != nil {
+		fields = append(fields, log.Int64("offset", r.GetOffset()))
+	}
+	if r.Length != nil {
+		fields = append(fields, log.Int64("length", r.GetLength()))
+	}
+	if cfg := r.GetConfig(); cfg != nil {
+		fields = append(fields, log.ByteString("file_reader", cfg))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqReadFile)
+	return fields
 }
 
 func (r ReadFileRequest) Path() (string, bool) {
@@ -526,10 +857,18 @@ func NewPutFileToCacheRequest(r *rpc_proxy.TReqPutFileToCache) *PutFileToCacheRe
 }
 
 func (r PutFileToCacheRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 		log.String("md5", r.GetMd5()),
 	}
+	if cp := r.GetCachePath(); cp != nil {
+		fields = append(fields, log.String("cache_path", string(cp)))
+	}
+	if r.GetPreserveExpirationTimeout() {
+		fields = append(fields, log.Bool("preserve_expiration_timeout", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqPutFileToCache)
+	return fields
 }
 
 func (r PutFileToCacheRequest) Path() (string, bool) {
@@ -559,9 +898,9 @@ func NewGetFileFromCacheRequest(r *rpc_proxy.TReqGetFileFromCache) *GetFileFromC
 }
 
 func (r GetFileFromCacheRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("md5", r.GetMd5()),
-	}
+	fields := []log.Field{log.String("md5", r.GetMd5())}
+	fields = appendEmbeddedOptions(fields, r.TReqGetFileFromCache)
+	return fields
 }
 
 func (r GetFileFromCacheRequest) Path() (string, bool) {
@@ -581,9 +920,9 @@ func NewWriteTableRequest(r *rpc_proxy.TReqWriteTable) *WriteTableRequest {
 }
 
 func (r WriteTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqWriteTable)
+	return fields
 }
 
 func (r WriteTableRequest) Path() (string, bool) {
@@ -605,9 +944,9 @@ func NewReadTableRequest(r *rpc_proxy.TReqReadTable) *ReadTableRequest {
 }
 
 func (r ReadTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqReadTable)
+	return fields
 }
 
 func (r ReadTableRequest) Path() (string, bool) {
@@ -630,9 +969,9 @@ func NewStartOperationRequest(r *rpc_proxy.TReqStartOperation) *StartOperationRe
 }
 
 func (r StartOperationRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("opType", r.GetType().String()),
-	}
+	fields := []log.Field{log.String("opType", r.GetType().String())}
+	fields = appendEmbeddedOptions(fields, r.TReqStartOperation)
+	return fields
 }
 
 func (r StartOperationRequest) Path() (string, bool) {
@@ -664,10 +1003,12 @@ func NewAbortOperationRequest(r *rpc_proxy.TReqAbortOperation) *AbortOperationRe
 }
 
 func (r AbortOperationRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqAbortOperation)
+	return fields
 }
 
 func (r AbortOperationRequest) Path() (string, bool) {
@@ -683,10 +1024,12 @@ func NewSuspendOperationRequest(r *rpc_proxy.TReqSuspendOperation) *SuspendOpera
 }
 
 func (r SuspendOperationRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqSuspendOperation)
+	return fields
 }
 
 func (r SuspendOperationRequest) Path() (string, bool) {
@@ -702,10 +1045,12 @@ func NewResumeOperationRequest(r *rpc_proxy.TReqResumeOperation) *ResumeOperatio
 }
 
 func (r ResumeOperationRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqResumeOperation)
+	return fields
 }
 
 func (r ResumeOperationRequest) Path() (string, bool) {
@@ -721,10 +1066,12 @@ func NewCompleteOperationRequest(r *rpc_proxy.TReqCompleteOperation) *CompleteOp
 }
 
 func (r CompleteOperationRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqCompleteOperation)
+	return fields
 }
 
 func (r CompleteOperationRequest) Path() (string, bool) {
@@ -740,11 +1087,13 @@ func NewUpdateOperationParametersRequest(r *rpc_proxy.TReqUpdateOperationParamet
 }
 
 func (r UpdateOperationParametersRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 		log.ByteString("params", r.GetParameters()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqUpdateOperationParameters)
+	return fields
 }
 
 func (r UpdateOperationParametersRequest) Path() (string, bool) {
@@ -762,10 +1111,18 @@ func NewGetOperationRequest(r *rpc_proxy.TReqGetOperation) *GetOperationRequest 
 }
 
 func (r GetOperationRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 	}
+	if r.Attributes != nil {
+		fields = append(fields, log.Any("attributes", makeAttributeFilter(r.GetAttributes())))
+	}
+	if r.GetIncludeRuntime() {
+		fields = append(fields, log.Bool("include_runtime", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqGetOperation)
+	return fields
 }
 
 func (r GetOperationRequest) Path() (string, bool) {
@@ -785,7 +1142,42 @@ func NewListOperationsRequest(r *rpc_proxy.TReqListOperations) *ListOperationsRe
 }
 
 func (r ListOperationsRequest) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	if v := r.GetFromTime(); v != 0 {
+		fields = append(fields, log.UInt64("from_time", v))
+	}
+	if v := r.GetToTime(); v != 0 {
+		fields = append(fields, log.UInt64("to_time", v))
+	}
+	if v := r.GetCursorTime(); v != 0 {
+		fields = append(fields, log.UInt64("cursor_time", v))
+	}
+	if u := r.GetUserFilter(); u != "" {
+		fields = append(fields, log.String("user", u))
+	}
+	if s := r.GetStateFilter(); s != 0 {
+		fields = append(fields, log.Any("state", s))
+	}
+	if t := r.GetTypeFilter(); t != 0 {
+		fields = append(fields, log.Any("type", t))
+	}
+	if f := r.GetSubstrFilter(); f != "" {
+		fields = append(fields, log.String("filter", f))
+	}
+	if p := r.GetPool(); p != "" {
+		fields = append(fields, log.String("pool", p))
+	}
+	if pt := r.GetPoolTree(); pt != "" {
+		fields = append(fields, log.String("pool_tree", pt))
+	}
+	if r.GetIncludeArchive() {
+		fields = append(fields, log.Bool("include_archive", true))
+	}
+	if l := r.GetLimit(); l != 0 {
+		fields = append(fields, log.UInt64("limit", l))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqListOperations)
+	return fields
 }
 
 func (r ListOperationsRequest) Path() (string, bool) {
@@ -803,10 +1195,62 @@ func NewListJobsRequest(r *rpc_proxy.TReqListJobs) *ListJobsRequest {
 }
 
 func (r ListJobsRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 	}
+	if r.Type != nil {
+		if jt, err := makeJobType(r.Type); err == nil {
+			fields = append(fields, log.Any("job_type", jt))
+		} else {
+			fields = append(fields, log.Any("job_type", r.GetType()))
+		}
+	}
+	if r.State != nil {
+		if js, err := makeJobState(r.State); err == nil {
+			fields = append(fields, log.Any("job_state", js))
+		} else {
+			fields = append(fields, log.Any("job_state", r.GetState()))
+		}
+	}
+	if r.Address != nil {
+		fields = append(fields, log.String("address", r.GetAddress()))
+	}
+	if r.GetWithStderr() {
+		fields = append(fields, log.Bool("with_stderr", true))
+	}
+	if r.GetWithFailContext() {
+		fields = append(fields, log.Bool("with_fail_context", true))
+	}
+	if r.GetWithMonitoringDescriptor() {
+		fields = append(fields, log.Bool("with_monitoring_descriptor", true))
+	}
+	if r.GetWithInterruptionInfo() {
+		fields = append(fields, log.Bool("with_interruption_info", true))
+	}
+	if r.TaskName != nil {
+		fields = append(fields, log.String("task_name", r.GetTaskName()))
+	}
+	if r.Attributes != nil {
+		fields = append(fields, log.Any("attributes", makeAttributeFilter(r.GetAttributes())))
+	}
+	if r.SortField != nil {
+		fields = append(fields, log.Any("sort_field", r.GetSortField()))
+	}
+	if r.SortOrder != nil {
+		fields = append(fields, log.Any("sort_order", r.GetSortOrder()))
+	}
+	if r.Limit != nil {
+		fields = append(fields, log.Int64("limit", r.GetLimit()))
+	}
+	if r.Offset != nil {
+		fields = append(fields, log.Int64("offset", r.GetOffset()))
+	}
+	if r.DataSource != nil {
+		fields = append(fields, log.Any("data_source", r.GetDataSource()))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqListJobs)
+	return fields
 }
 
 func (r ListJobsRequest) Path() (string, bool) {
@@ -822,11 +1266,16 @@ func NewGetJobRequest(r *rpc_proxy.TReqGetJob) *GetJobRequest {
 }
 
 func (r GetJobRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 		log.Any("jobID", r.GetJobId()),
 	}
+	if r.Attributes != nil {
+		fields = append(fields, log.Any("attributes", makeAttributeFilter(r.GetAttributes())))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqGetJob)
+	return fields
 }
 
 func (r GetJobRequest) Path() (string, bool) {
@@ -842,11 +1291,13 @@ func NewGetJobStderrRequest(r *rpc_proxy.TReqGetJobStderr) *GetJobStderrRequest 
 }
 
 func (r GetJobStderrRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("opID", r.GetOperationId()),
 		log.String("alias", r.GetOperationAlias()),
 		log.Any("jobID", r.GetJobId()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqGetJobStderr)
+	return fields
 }
 
 func (r GetJobStderrRequest) Path() (string, bool) {
@@ -864,10 +1315,12 @@ func NewAddMemberRequest(r *rpc_proxy.TReqAddMember) *AddMemberRequest {
 }
 
 func (r AddMemberRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("group", r.GetGroup()),
 		log.String("member", r.GetMember()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqAddMember)
+	return fields
 }
 
 func (r AddMemberRequest) Path() (string, bool) {
@@ -897,10 +1350,12 @@ func NewRemoveMemberRequest(r *rpc_proxy.TReqRemoveMember) *RemoveMemberRequest 
 }
 
 func (r RemoveMemberRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("group", r.GetGroup()),
 		log.String("member", r.GetMember()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqRemoveMember)
+	return fields
 }
 
 func (r RemoveMemberRequest) Path() (string, bool) {
@@ -928,12 +1383,14 @@ func NewAddMaintenanceRequest(r *rpc_proxy.TReqAddMaintenance) *AddMaintenanceRe
 }
 
 func (r AddMaintenanceRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("component", r.GetComponent()),
 		log.String("address", r.GetAddress()),
 		log.Any("type", r.GetType()),
 		log.String("comment", r.GetComment()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqAddMaintenance)
+	return fields
 }
 
 func (r AddMaintenanceRequest) Path() (string, bool) {
@@ -949,14 +1406,18 @@ func NewRemoveMaintenanceRequest(r *rpc_proxy.TReqRemoveMaintenance) *RemoveMain
 }
 
 func (r RemoveMaintenanceRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.Any("component", r.GetComponent()),
 		log.String("address", r.GetAddress()),
 		log.Any("ids", r.GetIds()),
 		log.Any("type", r.GetType()),
 		log.String("user", r.GetUser()),
-		log.Bool("mine", r.GetMine()),
 	}
+	if r.GetMine() {
+		fields = append(fields, log.Bool("mine", true))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqRemoveMaintenance)
+	return fields
 }
 
 func (r RemoveMaintenanceRequest) Path() (string, bool) {
@@ -974,11 +1435,13 @@ func NewTransferAccountResourcesRequest(r *rpc_proxy.TReqTransferAccountResource
 }
 
 func (r TransferAccountResourcesRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("src_account", r.GetSrcAccount()),
 		log.String("dst_account", r.GetDstAccount()),
 		log.Any("resource_delta", r.GetResourceDelta()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqTransferAccountResources)
+	return fields
 }
 
 func (r TransferAccountResourcesRequest) Path() (string, bool) {
@@ -1008,12 +1471,14 @@ func NewTransferPoolResourcesRequest(r *rpc_proxy.TReqTransferPoolResources) *Tr
 }
 
 func (r TransferPoolResourcesRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("src_pool", r.GetSrcPool()),
 		log.String("dst_pool", r.GetDstPool()),
 		log.String("pool_tree", r.GetPoolTree()),
 		log.Any("resource_delta", r.GetResourceDelta()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqTransferPoolResources)
+	return fields
 }
 
 func (r TransferPoolResourcesRequest) Path() (string, bool) {
@@ -1044,11 +1509,13 @@ func NewCheckPermissionRequest(r *rpc_proxy.TReqCheckPermission) *CheckPermissio
 }
 
 func (r *CheckPermissionRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 		log.String("user", r.GetUser()),
 		log.Int32("permission", r.GetPermission()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqCheckPermission)
+	return fields
 }
 
 func (r *CheckPermissionRequest) Path() (string, bool) {
@@ -1070,11 +1537,13 @@ func NewCheckPermissionByACLRequest(r *rpc_proxy.TReqCheckPermissionByAcl) *Chec
 }
 
 func (r *CheckPermissionByACLRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("user", r.GetUser()),
 		log.Int32("permission", r.GetPermission()),
 		log.String("acl", r.GetAcl()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqCheckPermissionByAcl)
+	return fields
 }
 
 func (r *CheckPermissionByACLRequest) Path() (string, bool) {
@@ -1092,10 +1561,12 @@ func NewDisableChunkLocationsRequest(r *rpc_proxy.TReqDisableChunkLocations) *Di
 }
 
 func (r DisableChunkLocationsRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("node_address", r.GetNodeAddress()),
 		log.Any("location_uuids", r.GetLocationUuids()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqDisableChunkLocations)
+	return fields
 }
 
 func (r DisableChunkLocationsRequest) Path() (string, bool) {
@@ -1111,11 +1582,12 @@ func NewDestroyChunkLocationsRequest(r *rpc_proxy.TReqDestroyChunkLocations) *De
 }
 
 func (r DestroyChunkLocationsRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("node_address", r.GetNodeAddress()),
-		log.Bool("recover_unlinked_disks", r.GetRecoverUnlinkedDisks()),
 		log.Any("location_uuids", r.GetLocationUuids()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqDestroyChunkLocations)
+	return fields
 }
 
 func (r DestroyChunkLocationsRequest) Path() (string, bool) {
@@ -1131,10 +1603,12 @@ func NewResurrectChunkLocationsRequest(r *rpc_proxy.TReqResurrectChunkLocations)
 }
 
 func (r ResurrectChunkLocationsRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("node_address", r.GetNodeAddress()),
 		log.Any("location_uuids", r.GetLocationUuids()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqResurrectChunkLocations)
+	return fields
 }
 
 func (r ResurrectChunkLocationsRequest) Path() (string, bool) {
@@ -1150,9 +1624,9 @@ func NewRequestRestartRequest(r *rpc_proxy.TReqRequestRestart) *RequestRestartRe
 }
 
 func (r RequestRestartRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("node_address", r.GetNodeAddress()),
-	}
+	fields := []log.Field{log.String("node_address", r.GetNodeAddress())}
+	fields = appendEmbeddedOptions(fields, r.TReqRequestRestart)
+	return fields
 }
 
 func (r RequestRestartRequest) Path() (string, bool) {
@@ -1171,10 +1645,12 @@ func NewLockNodeRequest(r *rpc_proxy.TReqLockNode) *LockNodeRequest {
 }
 
 func (r LockNodeRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 		log.Int32("mode", r.GetMode()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqLockNode)
+	return fields
 }
 
 func (r LockNodeRequest) Path() (string, bool) {
@@ -1209,9 +1685,9 @@ func NewUnlockNodeRequest(r *rpc_proxy.TReqUnlockNode) *UnlockNodeRequest {
 }
 
 func (r UnlockNodeRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqUnlockNode)
+	return fields
 }
 
 func (r UnlockNodeRequest) Path() (string, bool) {
@@ -1245,9 +1721,9 @@ func NewSelectRowsRequest(r *rpc_proxy.TReqSelectRows) *SelectRowsRequest {
 }
 
 func (r SelectRowsRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("query", r.GetQuery()),
-	}
+	fields := []log.Field{log.String("query", r.GetQuery())}
+	fields = appendEmbeddedOptions(fields, r.TReqSelectRows)
+	return fields
 }
 
 func (r SelectRowsRequest) Path() (string, bool) {
@@ -1269,9 +1745,9 @@ func NewLookupRowsRequest(r *rpc_proxy.TReqLookupRows) *LookupRowsRequest {
 }
 
 func (r LookupRowsRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqLookupRows)
+	return fields
 }
 
 func (r LookupRowsRequest) Path() (string, bool) {
@@ -1294,9 +1770,9 @@ func NewMultiLookupRequest(r *rpc_proxy.TReqMultiLookup) *MultiLookupRequest {
 
 func (r MultiLookupRequest) Log() []log.Field {
 	path, _ := r.Path()
-	return []log.Field{
-		log.String("path", path),
-	}
+	fields := []log.Field{log.String("path", path)}
+	fields = appendEmbeddedOptions(fields, r.TReqMultiLookup)
+	return fields
 }
 
 func (r MultiLookupRequest) Path() (string, bool) {
@@ -1322,11 +1798,13 @@ func NewLockRowsRequest(r *rpc_proxy.TReqModifyRows) *LockRowsRequest {
 }
 
 func (r LockRowsRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 		log.Any("locks", r.GetRowLocks()),
 		// log.Any("lockType", r.LockType), // todo
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqModifyRows)
+	return fields
 }
 
 func (r LockRowsRequest) Path() (string, bool) {
@@ -1351,9 +1829,9 @@ func NewInsertRowsRequest(r *rpc_proxy.TReqModifyRows) *InsertRowsRequest {
 }
 
 func (r InsertRowsRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqModifyRows)
+	return fields
 }
 
 func (r InsertRowsRequest) Path() (string, bool) {
@@ -1378,12 +1856,14 @@ func NewPushQueueProducerRequest(r *rpc_proxy.TReqPushQueueProducer) *PushQueueP
 }
 
 func (r PushQueueProducerRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("producer_path", string(r.GetProducerPath())),
 		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", string(r.GetSessionId())),
 		log.Int64("epoch", r.GetEpoch()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqPushQueueProducer)
+	return fields
 }
 
 func (r PushQueueProducerRequest) Path() (string, bool) {
@@ -1406,12 +1886,14 @@ func NewCreateQueueProducerSessionRequest(r *rpc_proxy.TReqCreateQueueProducerSe
 }
 
 func (r CreateQueueProducerSessionRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("producer_path", string(r.GetProducerPath())),
 		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
 		log.String("mutation_id", r.GetMutatingOptions().GetMutationId().String()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqCreateQueueProducerSession)
+	return fields
 }
 
 func (r CreateQueueProducerSessionRequest) HasMutatingOptions() bool {
@@ -1439,11 +1921,13 @@ func NewRemoveQueueProducerSessionRequest(r *rpc_proxy.TReqRemoveQueueProducerSe
 }
 
 func (r RemoveQueueProducerSessionRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("producer_path", string(r.GetProducerPath())),
 		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqRemoveQueueProducerSession)
+	return fields
 }
 
 func (r RemoveQueueProducerSessionRequest) Path() (string, bool) {
@@ -1461,9 +1945,9 @@ func NewDeleteRowsRequest(r *rpc_proxy.TReqModifyRows) *DeleteRowsRequest {
 }
 
 func (r DeleteRowsRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqModifyRows)
+	return fields
 }
 
 func (r DeleteRowsRequest) Path() (string, bool) {
@@ -1488,9 +1972,17 @@ func NewMountTableRequest(r *rpc_proxy.TReqMountTable) *MountTableRequest {
 }
 
 func (r MountTableRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 	}
+	if r.GetFreeze() {
+		fields = append(fields, log.Bool("freeze", true))
+	}
+	if v := r.GetCellId(); v != nil {
+		fields = append(fields, log.Any("cell_id", makeGUID(v)))
+	}
+	fields = appendEmbeddedOptions(fields, r.TReqMountTable)
+	return fields
 }
 
 func (r MountTableRequest) Path() (string, bool) {
@@ -1520,9 +2012,9 @@ func NewUnmountTableRequest(r *rpc_proxy.TReqUnmountTable) *UnmountTableRequest 
 }
 
 func (r UnmountTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqUnmountTable)
+	return fields
 }
 
 func (r UnmountTableRequest) Path() (string, bool) {
@@ -1552,9 +2044,9 @@ func NewRemountTableRequest(r *rpc_proxy.TReqRemountTable) *RemountTableRequest 
 }
 
 func (r RemountTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqRemountTable)
+	return fields
 }
 
 func (r RemountTableRequest) Path() (string, bool) {
@@ -1584,9 +2076,9 @@ func NewReshardTableRequest(r *rpc_proxy.TReqReshardTable) *ReshardTableRequest 
 }
 
 func (r ReshardTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqReshardTable)
+	return fields
 }
 
 func (r ReshardTableRequest) Path() (string, bool) {
@@ -1616,9 +2108,9 @@ func NewAlterTableRequest(r *rpc_proxy.TReqAlterTable) *AlterTableRequest {
 }
 
 func (r AlterTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqAlterTable)
+	return fields
 }
 
 func (r AlterTableRequest) Path() (string, bool) {
@@ -1648,9 +2140,9 @@ func NewFreezeTableRequest(r *rpc_proxy.TReqFreezeTable) *FreezeTableRequest {
 }
 
 func (r FreezeTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqFreezeTable)
+	return fields
 }
 
 func (r FreezeTableRequest) Path() (string, bool) {
@@ -1680,9 +2172,9 @@ func NewUnfreezeTableRequest(r *rpc_proxy.TReqUnfreezeTable) *UnfreezeTableReque
 }
 
 func (r UnfreezeTableRequest) Log() []log.Field {
-	return []log.Field{
-		log.String("path", string(r.GetPath())),
-	}
+	fields := []log.Field{log.String("path", string(r.GetPath()))}
+	fields = appendEmbeddedOptions(fields, r.TReqUnfreezeTable)
+	return fields
 }
 
 func (r UnfreezeTableRequest) Path() (string, bool) {
@@ -1710,9 +2202,9 @@ func NewAlterTableReplicaRequest(r *rpc_proxy.TReqAlterTableReplica) *AlterTable
 }
 
 func (r AlterTableReplicaRequest) Log() []log.Field {
-	return []log.Field{
-		log.Any("id", r.GetReplicaId()),
-	}
+	fields := []log.Field{log.Any("id", r.GetReplicaId())}
+	fields = appendEmbeddedOptions(fields, r.TReqAlterTableReplica)
+	return fields
 }
 
 func (r AlterTableReplicaRequest) Path() (string, bool) {
@@ -1728,7 +2220,9 @@ func NewGenerateTimestampRequest(r *rpc_proxy.TReqGenerateTimestamps) *GenerateT
 }
 
 func (r GenerateTimestampRequest) Log() []log.Field {
-	return []log.Field{}
+	fields := []log.Field{}
+	fields = appendEmbeddedOptions(fields, r.TReqGenerateTimestamps)
+	return fields
 }
 
 func (r GenerateTimestampRequest) Path() (string, bool) {
@@ -1744,9 +2238,11 @@ func NewLocateSkynetShareRequest() *LocateSkynetShareRequest {
 }
 
 func (r LocateSkynetShareRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		// log.String("path", r.GetPath()), // todo
 	}
+	// no embedded options for placeholder yet
+	return fields
 }
 
 func (r LocateSkynetShareRequest) Path() (string, bool) {
@@ -1762,10 +2258,12 @@ func NewGetInSyncReplicasRequest(r *rpc_proxy.TReqGetInSyncReplicas) *GetInSyncR
 }
 
 func (r GetInSyncReplicasRequest) Log() []log.Field {
-	return []log.Field{
+	fields := []log.Field{
 		log.String("path", string(r.GetPath())),
 		log.UInt64("ts", r.GetTimestamp()),
 	}
+	fields = appendEmbeddedOptions(fields, r.TReqGetInSyncReplicas)
+	return fields
 }
 
 func (r GetInSyncReplicasRequest) Path() (string, bool) {

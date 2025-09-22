@@ -1,7 +1,19 @@
-from .taggable import Taggable, SystemFields
+from .sensor import EmptyCell
 from .serializer import DebugSerializer
+from .taggable import Taggable, SystemFields
 
 from tabulate import tabulate
+
+from typing import Literal
+from dataclasses import dataclass
+
+
+@dataclass
+class Permission:
+    permission: Literal["read", "use"]
+    path: str
+    cluster: str
+    ignore_paths: list[str] | None
 
 
 class Cell(Taggable):
@@ -79,7 +91,10 @@ class Row(Taggable):
         cells = [cell.serialize(begin_values, end_values, serializer) for cell in self.cells]
         return serializer.on_row(self, cells)
 
-    def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None):
+    def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None, skip_cell=False):
+        if skip_cell:
+            self.cells.append(Cell(title="", sensor=EmptyCell()))
+            return self
         self.cells.append(Cell(
             title, sensor, yaxis_label=yaxis_label, display_legend=display_legend,
             description=description, colors=colors))
@@ -184,6 +199,7 @@ class Dashboard(Taggable):
         self.parameters = None
         self.serializer_options = {}
         self.dashboard_tags = []
+        self.permissions: list[Permission] = []
 
     def value(self, key, value):
         self.has_set_values = True
@@ -249,3 +265,6 @@ class Dashboard(Taggable):
 
     def set_monitoring_serializer_options(self, options):
         self.serializer_options["monitoring"] = options
+
+    def add_permission(self, permission: Literal["read", "use"], path: str, cluster: str = "$cluster", ignore_paths: list[str] | None = None):
+        self.permissions.append(Permission(permission, path, cluster, ignore_paths))

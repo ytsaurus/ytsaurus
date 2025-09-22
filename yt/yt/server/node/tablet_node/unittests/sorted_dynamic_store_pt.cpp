@@ -77,7 +77,7 @@ public:
             Store_->PrepareRow(transaction.get(), dynamicRow);
 
             CommitTransaction(transaction.get());
-            Store_->CommitRow(transaction.get(), dynamicRow, lockMask);
+            Store_->CommitRow(transaction.get(), dynamicRow, lockMask, /*commandIsPureLock*/ false);
         };
 
         Cerr << "Warming up..." << Endl;

@@ -14,6 +14,9 @@ TOperation::TOperation(
     : Id_(description.Id)
     , Type_(description.Type)
     , SpecString_(description.Spec)
+    , BriefVanillaTaskSpecs_(Type_ == NScheduler::EOperationType::Vanilla
+        ? std::optional(NScheduler::GetBriefVanillaTaskSpecs(NScheduler::ConvertSpecStringToNode(SpecString_)))
+        : std::nullopt)
     , AuthenticatedUser_(description.AuthenticatedUser)
     , StartTime_(description.StartTime)
     , RuntimeParameters_(runtimeParameters)
@@ -128,7 +131,7 @@ const NYson::TYsonString& TOperation::GetTrimmedAnnotations() const
 
 const std::optional<NScheduler::TBriefVanillaTaskSpecMap>& TOperation::GetMaybeBriefVanillaTaskSpecs() const
 {
-    YT_UNIMPLEMENTED();
+    return BriefVanillaTaskSpecs_;
 }
 
 NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const

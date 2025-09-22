@@ -39,8 +39,34 @@ resources:
   csp:
     - script-src-elem:
         - https://mc.yandex.ru
+    - connect-src:
+        - https://*.algolia.net
+        - https://*.algolianet.com
 
 # This configuration parameter is used to directly control the Edit button behaviour.
 vcs:
   remoteBase: https://github.com/ytsaurus/ytsaurus/tree/main/yt/docs
   enabled: true
+
+search:
+  provider: algolia
+  appId: WW7EWG7Y6T
+  indexName: ytsaurus-docs
+  index: true
+  searchApiKey: f039bc42de5c29003db67eb703353c1d
+  indexSettings:
+    searchableAttributes:
+      - title
+      - content
+      - headings
+      - keywords
+    attributesToHighlight:
+      - title
+      - content
+  querySettings:
+    hitsPerPage: 10
+    attributesToRetrieve:
+      - title
+      - content
+      - url
+      - section

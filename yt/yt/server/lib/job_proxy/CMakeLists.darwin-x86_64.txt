@@ -63,7 +63,7 @@ target_proto_messages(server-lib-job_proxy PRIVATE
 
 target_proto_outs(server-lib-job_proxy
   --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
 )
 
 target_proto_addincls(server-lib-job_proxy

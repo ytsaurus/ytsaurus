@@ -1,12 +1,15 @@
-from argparse import ArgumentParser
-from abc import ABC, abstractmethod
-import json
-import sys
+import yt.wrapper as yt
+
 import tabulate
+
+import json
 import logging
+import sys
+from abc import ABC, abstractmethod
+from argparse import ArgumentParser
 
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 TEST_DASHBOARD_KEY = "test-dashboard"
 
@@ -51,19 +54,40 @@ class FacadeBase(ABC):
         pass
 
     @abstractmethod
+    def generate_serialized_dashboard(self, verbose):
+        pass
+
+    @abstractmethod
     def json(self, file):
         pass
 
-    def submit(self, need_confirmation, verbose):
+    def try_diff(self):
         try:
             self.diff()
         except Exception:
             logger.exception(f"Failed to show diff for dashboard '{self.dashboard_name}' with backend '{self.get_backend_name()}'")
 
+    def submit(self, need_confirmation, verbose):
+        self.try_diff()
         if need_confirmation:
-            self._confirm('You are about to submit dashboard "{}" to {} ({}), continue?'.format(
+            self._confirm('You are about to submit dashboard "{}" to {} (dashboard_id: {}), continue?'.format(
                 self.slug, self.get_backend_name(), self.dashboard_name))
         self.do_submit(verbose=verbose)
+
+    def submit_cypress(self, need_confirmation, verbose, cypress_path, cypress_document_name):
+        self.try_diff()
+
+        if cypress_document_name is None:
+            cypress_document_name = self.slug
+        dashboard_path = f"{cypress_path}/{cypress_document_name}"
+
+        if need_confirmation:
+            self._confirm('You are about to submit dashboard "{}" to cypress (backend_type: {}, dashboard_id: {}, cluster_proxy: {}, dashboard_path: {}), continue?'.format(
+                self.slug, self.get_backend_name(), self.dashboard_name, yt.config["proxy"]["url"], dashboard_path))
+        serialized_dashboard = self.generate_serialized_dashboard(verbose=verbose)
+        yt.create("document", dashboard_path, ignore_existing=True)
+        yt.set(dashboard_path, serialized_dashboard)
+        logger.info(f'Dashboard "{self.slug}" with backend "{self.get_backend_name()}" was submitted to cypress')
 
     @staticmethod
     def _confirm(msg):
@@ -92,14 +116,22 @@ class Cli():
 
         sp = parser.add_subparsers(dest="command", required=True)
         sp.add_parser("list")
-        for command in ("diff", "show", "preview", "submit", "json"):
+        for command in ("diff", "show", "preview", "submit", "submit-cypress", "json"):
             p = sp.add_parser(command)
             p.add_argument("dashboards", choices=self.db_choices, nargs="*", default="")
             p.add_argument("--backend", choices=self.backend_choices, nargs="+")
-            if command == "submit":
+            if command in ("submit", "submit-cypress"):
                 p.add_argument("-y", action="store_true", help="skip confirmation")
                 p.add_argument("--verbose", action="store_true", help="print raw dashboard representation before submit")
-            elif command == "json":
+            if command == "submit-cypress":
+                p.add_argument("--proxy", type=yt.config.set_proxy, help="[YT] Cluster proxy to which you need to upload the dashboard")
+                p.add_argument("--cypress-path", default="//sys/interface-monitoring", help="[YT] Path to the node where the dashboard will be saved")
+                p.add_argument(
+                    "--cypress-document-name",
+                    default=None,
+                    help="[YT] The name of the document the dashboard will be saved with. If not specified, it will be equal to slug",
+                )
+            if command == "json":
                 p.add_argument("-f", action="store_true", help="output to file")
 
     def add_dashboard(self, slug: str, backend: FacadeBase):
@@ -181,6 +213,14 @@ class Cli():
         if args.command == "submit":
             for d in selected_dashboards:
                 d.submit(need_confirmation=not args.y, verbose=args.verbose)
+        if args.command == "submit-cypress":
+            for d in selected_dashboards:
+                d.submit_cypress(
+                    need_confirmation=not args.y,
+                    verbose=args.verbose,
+                    cypress_path=args.cypress_path,
+                    cypress_document_name=args.cypress_document_name,
+                )
         if args.command == "show":
             for d in selected_dashboards:
                 d.show()
@@ -194,4 +234,7 @@ class Cli():
         except ImportError:
             return None
 
-        return json.loads(library.python.resource.find("/yt_dashboards/config.json"))
+        config = library.python.resource.find("/yt_dashboards/config.json")
+        if config is None:
+            return None
+        return json.loads(config)

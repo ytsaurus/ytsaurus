@@ -64,6 +64,7 @@ bool TResourceTreeElement::CheckAvailableDemand(
 
 void TResourceTreeElement::SetSpecifiedResourceLimits(
     const std::optional<TJobResources>& specifiedResourceLimits,
+    const TJobResources& overcommitTolerance,
     const std::vector<TResourceTreeElementPtr>& descendantOperations)
 {
     // NB: This method is called from Control thread, tree structure supposed to have no changes.
@@ -80,6 +81,8 @@ void TResourceTreeElement::SetSpecifiedResourceLimits(
         ResourceTree_->IncrementUsageLockWriteCount();
 
         SpecifiedResourceLimits_ = specifiedResourceLimits;
+        SpecifiedResourceLimitsOvercommitTolerance_ = overcommitTolerance;
+
         if (!SpecifiedResourceLimits_ && Kind_ != EResourceTreeElementKind::Operation) {
             ResourceUsagePrecommit_ = TJobResources();
             ResourceUsage_ = TJobResources();
@@ -217,10 +220,13 @@ TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
 
 bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     const TJobResources& delta,
+    bool allowLimitsOvercommit,
     TJobResources* availableResourceLimitsOutput)
 {
+    YT_ASSERT(availableResourceLimitsOutput);
+    *availableResourceLimitsOutput = TJobResources::Infinite();
+
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
-        *availableResourceLimitsOutput = TJobResources::Infinite();
         return true;
     }
 
@@ -230,16 +236,14 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
         return false;
     }
 
-    // NB: Actually tree elements has resource usage discounts (used for scheduling with preemption)
-    // that should be considered in this check. But concurrent nature of this shared tree makes hard to consider
-    // these discounts here. The only consequence of discounts ignorance is possibly redundant allocations that would
-    // be aborted just after being scheduled.
-    *availableResourceLimitsOutput = TJobResources::Infinite();
     if (SpecifiedResourceLimits_) {
+        auto resourceDiscount = allowLimitsOvercommit
+            ? SpecifiedResourceLimitsOvercommitTolerance_
+            : TJobResources();
         auto availableResourceLimits = ComputeAvailableResources(
             *SpecifiedResourceLimits_,
             ResourceUsage_ + ResourceUsagePrecommit_,
-            {});
+            resourceDiscount);
         if (!Dominates(availableResourceLimits, delta)) {
             return false;
         }

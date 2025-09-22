@@ -30,9 +30,6 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/yt/core/rpc/bus/channel.h>
-#include <yt/yt/core/rpc/caching_channel_factory.h>
-
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -402,10 +399,7 @@ TQueueAgent::TQueueAgent(
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
     , AgentId_(std::move(agentId))
-    , QueueAgentChannelFactory_(
-        NAuth::CreateNativeAuthenticationInjectingChannelFactory(
-            CreateCachingChannelFactory(CreateTcpBusChannelFactory(Config_->BusClient)),
-            nativeConnection->GetConfig()->TvmId))
+    , QueueAgentChannelFactory_(nativeConnection->GetChannelFactory())
     , QueueExportManager_(CreateQueueExportManager(
         DynamicConfig_->QueueExportManager))
 {

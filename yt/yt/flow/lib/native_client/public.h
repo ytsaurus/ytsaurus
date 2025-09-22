@@ -9,8 +9,8 @@ namespace NYT::NFlow {
 inline constexpr TStringBuf InputMessagesTableName = "input_messages";
 inline constexpr TStringBuf OutputMessagesTableName = "output_messages";
 inline constexpr TStringBuf PartitionOutputMessagesTableName = "partition_output_messages";
-inline constexpr TStringBuf CheckpointsTableName = "checkpoints";
-inline constexpr TStringBuf PartitionCheckpointsTableName = "partition_checkpoints";
+inline constexpr TStringBuf StatesTableName = "states";
+inline constexpr TStringBuf PartitionStatesTableName = "partition_states";
 inline constexpr TStringBuf TimersTableName = "timers";
 inline constexpr TStringBuf ControllerLogsTableName = "controller_logs";
 inline constexpr TStringBuf FlowStateTableName = "flow_state";
@@ -21,8 +21,8 @@ inline const std::vector InternalFlowTables{
     InputMessagesTableName,
     OutputMessagesTableName,
     PartitionOutputMessagesTableName,
-    CheckpointsTableName,
-    PartitionCheckpointsTableName,
+    StatesTableName,
+    PartitionStatesTableName,
     TimersTableName,
     ControllerLogsTableName,
     FlowStateTableName,

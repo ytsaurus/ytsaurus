@@ -1470,7 +1470,7 @@ private:
         SetNodeLocalState(node, FromProto<ENodeState>(request->node_state()));
         if (node->GetLocalState() == ENodeState::Registered) {
             if (isDataNode) {
-                dataNodeTracker->MakeLocationsOnline(node);
+                dataNodeTracker->MakeLocationsRegistered(node);
             }
 
             NodeRegistered_.Fire(node);
@@ -3083,7 +3083,7 @@ private:
             transactionManager->SetTransactionTimeout(transaction, timeout);
 
             if (node->IsPendingRestart() && IsLeader()) {
-                transactionManager->PingTransaction(transaction->GetId(), /*pingAncestors*/ false)
+                transactionManager->PingTransaction(transaction->GetId(), /*pingAncestors*/ false, /*pingerAddress*/ std::nullopt)
                     .Subscribe(BIND([nodeId = node->GetId(), address = node->GetDefaultAddress()] (const TError& error) {
                         if (!error.IsOK()) {
                             YT_LOG_WARNING(

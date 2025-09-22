@@ -1,11 +1,18 @@
-from github import Github
-
 import argparse
+import typing
 import requests
+
+from datetime import datetime
+from urllib.parse import quote
+
+from github import Github
+from github import Workflow
+from github import WorkflowRun
 
 CONCLUSION_SUCCESS = "success"
 CONCLUSION_FAILURE = "failure"
 CONCLUSION_CANCELLED = "cancelled"
+STATUS_COMPLETED = "completed"
 
 
 def _parse_args():
@@ -73,7 +80,7 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _get_prev_conclusion(repo, workflow_name, ref):
+def _get_workflow(repo, workflow_name: str) -> typing.Optional[Workflow.Workflow]:
     current_workflow = None
     for workflow in repo.get_workflows():
         if workflow.name == workflow_name and workflow.state == "active":
@@ -81,9 +88,12 @@ def _get_prev_conclusion(repo, workflow_name, ref):
 
     if not current_workflow:
         print("Not found workflow with name", workflow_name)
-        return
 
-    runs = current_workflow.get_runs(branch=ref, status="completed")
+    return current_workflow
+
+
+def _get_prev_conclusion(workflow: Workflow.Workflow, ref: str, time: str) -> typing.Optional[str]:
+    runs = workflow.get_runs(branch=ref, status=STATUS_COMPLETED, created=f"<{time}")
     if not runs or runs.totalCount == 0:
         print("No one runs with such filter")
         return
@@ -91,7 +101,20 @@ def _get_prev_conclusion(repo, workflow_name, ref):
     return runs[0].conclusion
 
 
-def _get_workflow_state(prev_conclusion, current_conclusion):
+def _get_last_success_run(workflow: Workflow.Workflow, ref: str, time: str) -> typing.Optional[WorkflowRun.WorkflowRun]:
+    runs = workflow.get_runs(branch=ref, status=STATUS_COMPLETED, created=f"<{time}")
+    if not runs or runs.totalCount == 0:
+        print("No one runs with such filter")
+        return
+
+    for run in runs:
+        if run.conclusion == CONCLUSION_SUCCESS:
+            return run
+
+    return None
+
+
+def _get_new_workflow_state(prev_conclusion, current_conclusion):
     state_to_alert = {
         (CONCLUSION_SUCCESS, CONCLUSION_CANCELLED): "cancelled ❗️",
         (CONCLUSION_SUCCESS, CONCLUSION_FAILURE): "failed ❌",
@@ -102,22 +125,39 @@ def _get_workflow_state(prev_conclusion, current_conclusion):
     return state_to_alert.get((prev_conclusion, current_conclusion))
 
 
-def _send_notify(args, workflow_state, commit_message):
-    human_readable_url = args.git_server_url.replace("api.", "")
-    message = "\n".join((
-        workflow_state,
-        f"Workflow *{args.workflow}*: {human_readable_url}/{args.repo}/actions/runs/{args.current_job_id}",
-        f"Git ref: *{args.ref}*.",
+def _make_new_fail_message(
+    new_workflow_state, workflow_name: str, ref: str, server_url: str, repo: str,
+    current_job_id: int, commit_message: str,
+) -> str:
+    human_readable_url = server_url.replace("api.", "")
+
+    return "\n".join((
+        new_workflow_state,
+        f"Workflow *{workflow_name}*: {human_readable_url}/{repo}/actions/runs/{current_job_id}",
+        f"Git ref: *{ref}*.",
         "Commit: ```",
         commit_message,
         "```"
     ))
 
-    url = "https://api.telegram.org/bot{}/sendMessage".format(args.tg_token)
+
+def _make_still_broken_message(repo: str, git_url: str, ref: str, wf_name: str, wf_file: str) -> str:
+    human_readable_url = git_url.replace("api.", "")
+    query_param = quote(f"branch:{ref}")
+
+    return "\n".join((
+        "⚠️",
+        f"The workflow *{wf_name}* still broken in branch *{ref}* more than 24 hours.",
+        f"Link: {human_readable_url}/{repo}/actions/workflows/{wf_file}?query={query_param}",
+    ))
+
+
+def _send_message(tg_token: str, tg_chat_id: int, message: str, parse_mode="Markdown"):
+    url = "https://api.telegram.org/bot{}/sendMessage".format(tg_token)
     data = {
-        "chat_id": args.tg_chat_id,
+        "chat_id": tg_chat_id,
         "disable_web_page_preview": True,
-        "parse_mode": "Markdown",
+        "parse_mode": parse_mode,
         "text": message,
     }
     response = requests.post(url, data=data)
@@ -131,15 +171,48 @@ def main():
     args = _parse_args()
 
     gh = Github(login_or_token=args.git_token, base_url=args.git_server_url)
-
     repo = gh.get_repo(args.repo)
-    prev_conclusion = _get_prev_conclusion(repo, args.workflow, args.ref)
 
-    workflow_state = _get_workflow_state(prev_conclusion, args.current_job_conclusion)
-    if workflow_state:
+    workflow = _get_workflow(repo, args.workflow)
+    if not workflow:
+        return
+
+    created_time_current_job = repo.get_workflow_run(args.current_job_id).created_at
+    created_time_current_job = created_time_current_job.strftime("%Y-%m-%dT%H:%M:%SZ")
+    prev_conclusion = _get_prev_conclusion(workflow, args.ref, created_time_current_job)
+    if CONCLUSION_SUCCESS not in (prev_conclusion, args.current_job_conclusion):
+        last_run = _get_last_success_run(workflow, args.ref, created_time_current_job)
+        if last_run:
+            current_datetime = datetime.now(last_run.created_at.tzinfo)
+            if (current_datetime - last_run.created_at).days >= 1:
+                wf_file = workflow.path.split('/')[-1]
+                msg = _make_still_broken_message(
+                    repo=args.repo,
+                    git_url=args.git_server_url,
+                    ref=args.ref,
+                    wf_name=workflow.name,
+                    wf_file=wf_file,
+                )
+                _send_message(
+                    tg_token=args.tg_token,
+                    tg_chat_id=args.tg_chat_id,
+                    message=msg,
+                )
+
+    new_workflow_state = _get_new_workflow_state(prev_conclusion, args.current_job_conclusion)
+    if new_workflow_state:
         current_job = repo.get_workflow_run(args.current_job_id)
-        _send_notify(args, workflow_state, current_job.head_commit.message)
-        print("Workflow's was changed: ", workflow_state)
+        msg = _make_new_fail_message(
+            new_workflow_state,
+            workflow_name=workflow.name,
+            ref=args.ref,
+            server_url=args.git_server_url,
+            repo=args.repo,
+            current_job_id=args.current_job_id,
+            commit_message=current_job.head_commit.message,
+        )
+        _send_message(tg_token=args.tg_token, tg_chat_id=args.tg_chat_id, message=msg)
+        print("Workflow's was changed: ", new_workflow_state)
     else:
         print("The workflow state hasn't changed.")
 

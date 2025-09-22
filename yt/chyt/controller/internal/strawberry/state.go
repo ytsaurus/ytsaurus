@@ -32,8 +32,10 @@ type PersistentState struct {
 	YTOpPoolTrees []string `yson:"yt_op_pool_trees,omitempty"`
 	// YTOpPool is the last set pool of the current yt operation.
 	YTOpPool *string `yson:"yt_op_pool,omitempty"`
-	// SecretsRevision is a content_revision of the secrets with which current yt operation is started.
+	// YTOpSecretsRevision is a content_revision of the secrets with which current yt operation is started.
 	YTOpSecretsRevision yt.Revision `yson:"yt_op_secrets_revision"`
+	// YTOpControllerSnapshot is a snapshot of controller state when current yt operation was started.
+	YTOpControllerSnapshot yson.RawValue `yson:"yt_op_controller_snapshot,omitempty"`
 
 	// SpecletRevision is a revision of the last seen speclet node.
 	SpecletRevision yt.Revision `yson:"speclet_revision"`
@@ -47,6 +49,9 @@ type PersistentState struct {
 	// Creator is a user who created the strawberry operation.
 	// Creator will automatically gain access to the strawberry operation when the access control object is created.
 	Creator string `yson:"creator"`
+
+	// OpletInfo is some runtime specific info about current oplet. For example it can be current version of CHYT.
+	OpletInfo yson.RawValue `yson:"oplet_info,omitempty"`
 }
 
 const (

@@ -290,6 +290,11 @@ public:
         return it->second.Promise.ToFuture().ToUncancelable();
     }
 
+    TTimestamp GetLastCoordinatorCommitTimestamp() override
+    {
+        return LastCoordinatorCommitTimestamp_;
+    }
+
     // COMPAT(aleksandra-zh): remove that after Sequencer is more stable.
     void RecomputeStronglyOrderedTransactionRefsOnCoordinator() override
     {
@@ -358,6 +363,8 @@ private:
     THashMap<TTransactionId, i64> ParticipantStronglyOrderedTransactionsToPrepareTimestamp_;
     THashMap<TTransactionId, i64> ExternalReadyToCommitTransactionToCommitTimestamp_;
     std::map<TTimestamp, TTransactionInfo> ExternalReadyToCommitTransactions_;
+
+    TTimestamp LastCoordinatorCommitTimestamp_ = NullTimestamp;
 
     template <class T>
     struct TPromiseWithCreationTime
@@ -1033,7 +1040,7 @@ private:
                 pingAncestors);
 
             auto owner = GetOwnerOrThrow();
-            context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
+            context->ReplyFrom(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors, /*pingerAddress*/ std::nullopt));
         }
 
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, PingTransactions)
@@ -1048,7 +1055,7 @@ private:
             for (const auto& subrequest : request->subrequests()) {
                 auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
                 bool pingAncestors = subrequest.ping_ancestors();
-                resultFutures.push_back(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors));
+                resultFutures.push_back(owner->TransactionManager_->PingTransaction(transactionId, pingAncestors, /*pingerAddress*/ std::nullopt));
             }
 
             auto handlePingResults = [=, this, this_ = MakeStrong(this)] (const std::vector<TErrorOr<void>>& results) {
@@ -2600,6 +2607,29 @@ private:
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
+
+            constexpr int TabletReignBase = 100000;
+            constexpr int TabletAddLastCoordinatorCommitTimestamp = 101305;
+            constexpr int ChaosReignBase = 300000;
+            constexpr int ChaosAddLastCoordinatorCommitTimestamp = 300201;
+
+            auto reign = GetCurrentMutationContext()->Request().Reign;
+            if ((reign > TabletReignBase && reign < TabletAddLastCoordinatorCommitTimestamp) ||
+                (reign > ChaosReignBase && reign < ChaosAddLastCoordinatorCommitTimestamp))
+            {
+                // COMPAT(aleksandra-zh).
+            } else {
+                if (commit->GetStronglyOrdered()) {
+                    if (commitTimestamp < LastCoordinatorCommitTimestamp_) {
+                        YT_LOG_ALERT("Last strongly ordered committed timestamp is greater than current (LastCommitTimestamp: %v, CurrentCommitTimestamp: %v, CurrentTransaction: %v)",
+                            LastCoordinatorCommitTimestamp_,
+                            commitTimestamp,
+                            transactionId);
+                    }
+                    LastCoordinatorCommitTimestamp_ = commitTimestamp;
+                }
+            }
+
             TTransactionCommitOptions options{
                 .CommitTimestamp = commitTimestamp,
                 .CommitTimestampClusterTag = SelfClockClusterTag_
@@ -3419,6 +3449,8 @@ private:
             StronglyOrderedTransactionToState_.clear();
         }
 
+        LastCoordinatorCommitTimestamp_ = NullTimestamp;
+
         ClearBarriers();
     }
 
@@ -3444,6 +3476,7 @@ private:
             Save(context, ExternalReadyToCommitTransactions_);
             Save(context, ExternalReadyToCommitTransactionToCommitTimestamp_);
             Save(context, StronglyOrderedTransactionToState_);
+            Save(context, LastCoordinatorCommitTimestamp_);
         }
     }
 
@@ -3473,6 +3506,11 @@ private:
             Load(context, ExternalReadyToCommitTransactions_);
             Load(context, ExternalReadyToCommitTransactionToCommitTimestamp_);
             Load(context, StronglyOrderedTransactionToState_);
+        }
+
+        // COMPAT(aleksandra-zh).
+        if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::SaveLastCoordinatorCommitTimestamp) {
+            Load(context, LastCoordinatorCommitTimestamp_);
         }
     }
 };

@@ -132,6 +132,25 @@ func convertAttributes(attrs map[string]any) (*ytree.TAttributeDictionary, error
 	return ret, nil
 }
 
+func makeAttributes(attrs *ytree.TAttributeDictionary) (map[string]any, error) {
+	if attrs == nil {
+		return nil, nil
+	}
+
+	result := make(map[string]any, len(attrs.Attributes))
+	for _, a := range attrs.Attributes {
+		if a == nil || a.Key == nil {
+			continue
+		}
+		var v any
+		if err := yson.Unmarshal(a.Value, &v); err != nil {
+			return nil, err
+		}
+		result[*a.Key] = v
+	}
+	return result, nil
+}
+
 func convertLegacyAttributeKeys(keys []string) *rpc_proxy.TLegacyAttributeKeys {
 	if keys == nil {
 		return &rpc_proxy.TLegacyAttributeKeys{All: ptr.Bool(true)}
@@ -146,6 +165,13 @@ func convertAttributeFilter(keys []string) *ytree.TAttributeFilter {
 	}
 
 	return &ytree.TAttributeFilter{Keys: keys}
+}
+
+func makeAttributeFilter(f *ytree.TAttributeFilter) []string {
+	if f == nil {
+		return nil
+	}
+	return f.GetKeys()
 }
 
 func convertTransactionOptions(opts *yt.TransactionOptions) *rpc_proxy.TTransactionalOptions {
@@ -231,6 +257,38 @@ func convertReadKind(k yt.ReadKind) *rpc_proxy.EMasterReadKind {
 	}
 
 	return &ret
+}
+
+func makeReadKind(k *rpc_proxy.EMasterReadKind) (yt.ReadKind, error) {
+	if k == nil {
+		return "", xerrors.Errorf("nil read kind")
+	}
+	switch *k {
+	case rpc_proxy.EMasterReadKind_MRK_LEADER:
+		return yt.ReadFromLeader, nil
+	case rpc_proxy.EMasterReadKind_MRK_FOLLOWER:
+		return yt.ReadFromFollower, nil
+	case rpc_proxy.EMasterReadKind_MRK_CACHE:
+		return yt.ReadFromCache, nil
+	default:
+		return "", xerrors.Errorf("unexpected read kind %v", *k)
+	}
+}
+
+func makeTabletReadKind(k *rpc_proxy.ETabletReadKind) (yt.TabletReadKind, error) {
+	if k == nil {
+		return 0, xerrors.Errorf("nil tablet read kind")
+	}
+	switch *k {
+	case rpc_proxy.ETabletReadKind_TRK_LEADER:
+		return yt.TabletReadKindLeader, nil
+	case rpc_proxy.ETabletReadKind_TRK_FOLLOWER:
+		return yt.TabletReadKindFollower, nil
+	case rpc_proxy.ETabletReadKind_TRK_LEADER_OR_FOLLOWER:
+		return yt.TabletReadKindLeaderOrFollower, nil
+	default:
+		return 0, xerrors.Errorf("unexpected tablet read kind %v", *k)
+	}
 }
 
 func convertAccessTrackingOptions(opts *yt.AccessTrackingOptions) *rpc_proxy.TSuppressableAccessTrackingOptions {
@@ -1213,6 +1271,59 @@ func convertReplicaConsistency(consistency *yt.ReplicaConsistency) *rpc_proxy.ER
 	}
 
 	return &result
+}
+
+func makeNodeType(code int32) (yt.NodeType, error) {
+	switch ObjectType(code) {
+	case ObjectTypeMapNode:
+		return yt.NodeMap, nil
+	case ObjectTypeLink:
+		return yt.NodeLink, nil
+	case ObjectTypeFile:
+		return yt.NodeFile, nil
+	case ObjectTypeTable:
+		return yt.NodeTable, nil
+	case ObjectTypeStringNode:
+		return yt.NodeString, nil
+	case ObjectTypeBooleanNode:
+		return yt.NodeBoolean, nil
+	case ObjectTypeDocument:
+		return yt.NodeDocument, nil
+	case ObjectTypeTableReplica:
+		return yt.NodeTableReplica, nil
+	case ObjectTypeReplicatedTable:
+		return yt.NodeReplicatedTable, nil
+	case ObjectTypeUser:
+		return yt.NodeUser, nil
+	case ObjectTypeGroup:
+		return yt.NodeGroup, nil
+	case ObjectTypeAccount:
+		return yt.NodeAccount, nil
+	case ObjectTypeDomesticMedium:
+		return yt.NodeDomesticMedium, nil
+	case ObjectTypeTabletCellBundle:
+		return yt.NodeTabletCellBundle, nil
+	case ObjectTypeChaosCellBundle:
+		return yt.NodeChaosCellBundle, nil
+	case ObjectTypeSysNode:
+		return yt.NodeSys, nil
+	case ObjectTypePortalEntrance:
+		return yt.NodePortalEntrance, nil
+	case ObjectTypePortalExit:
+		return yt.NodePortalExit, nil
+	case ObjectTypeSchedulerPool:
+		return yt.NodeSchedulerPool, nil
+	case ObjectTypeSchedulerPoolTree:
+		return yt.NodeSchedulerPoolTree, nil
+	case ObjectTypeNetworkProject:
+		return yt.NodeNetworkProject, nil
+	case ObjectTypeQueueProducer:
+		return yt.NodeQueueProducer, nil
+	case ObjectTypeQueueConsumer:
+		return yt.NodeQueueConsumer, nil
+	default:
+		return "", xerrors.Errorf("unexpected object type code %d", code)
+	}
 }
 
 func convertTabletReadOptions(opts *yt.TabletReadOptions) *rpc_proxy.TTabletReadOptions {

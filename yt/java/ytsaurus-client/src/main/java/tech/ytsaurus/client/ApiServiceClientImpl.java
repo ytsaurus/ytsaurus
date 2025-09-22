@@ -54,7 +54,10 @@ import tech.ytsaurus.client.request.CreateObject;
 import tech.ytsaurus.client.request.CreateShuffleReader;
 import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.CreateTablePartitionReader;
+import tech.ytsaurus.client.request.DistributedWriteCookie;
+import tech.ytsaurus.client.request.DistributedWriteSession;
 import tech.ytsaurus.client.request.ExistsNode;
+import tech.ytsaurus.client.request.FinishDistributedWriteSession;
 import tech.ytsaurus.client.request.FlowExecute;
 import tech.ytsaurus.client.request.FlowExecuteResult;
 import tech.ytsaurus.client.request.FreezeTable;
@@ -103,6 +106,7 @@ import tech.ytsaurus.client.request.MutatingOptions;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PatchOperationSpec;
 import tech.ytsaurus.client.request.PausePipeline;
+import tech.ytsaurus.client.request.PingDistributedWriteSession;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PullQueue;
@@ -129,6 +133,7 @@ import tech.ytsaurus.client.request.SetPipelineSpec;
 import tech.ytsaurus.client.request.SetPipelineSpecResult;
 import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.SortOperation;
+import tech.ytsaurus.client.request.StartDistributedWriteSession;
 import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.StartPipeline;
 import tech.ytsaurus.client.request.StartQuery;
@@ -136,6 +141,7 @@ import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.StopPipeline;
 import tech.ytsaurus.client.request.SuspendOperation;
+import tech.ytsaurus.client.request.TablePartitionCookie;
 import tech.ytsaurus.client.request.TableReplicaMode;
 import tech.ytsaurus.client.request.TableReq;
 import tech.ytsaurus.client.request.TabletInfo;
@@ -149,6 +155,7 @@ import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.request.WriteTableFragment;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
@@ -1047,6 +1054,59 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, shuffleDataReader);
         CompletableFuture<AsyncReader<UnversionedRow>> result =
                 streamControlFuture.thenCompose(control -> shuffleDataReader.startRead());
+        RpcUtil.relayCancel(result, streamControlFuture);
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<DistributedWriteHandle> startDistributedWriteSession(StartDistributedWriteSession req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req,
+                        ApiServiceMethodTable.START_DISTRIBUTED_WRITE_SESSION.createRequestBuilder(rpcOptions)),
+                response -> {
+                    ScheduledExecutorService executor = response.sender().executor();
+                    var body = response.body();
+
+                    return new DistributedWriteHandle(
+                            new DistributedWriteSession(body.getSignedSession()),
+                            body.getSignedCookiesList()
+                                    .stream()
+                                    .map(DistributedWriteCookie::new)
+                                    .collect(Collectors.toList()),
+                            this,
+                            req.getPingPeriod(),
+                            req.getFailedPingRetryPeriod(),
+                            req.getOnPingFailed(),
+                            executor
+                    );
+                }));
+    }
+
+    @Override
+    public CompletableFuture<Void> pingDistributedWriteSession(PingDistributedWriteSession req) {
+        return onStarted(req, RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.PING_DISTRIBUTED_WRITE_SESSION.createRequestBuilder(rpcOptions)),
+                response -> null));
+    }
+
+    @Override
+    public CompletableFuture<Void> finishDistributedWriteSession(FinishDistributedWriteSession req) {
+        return onStarted(req, RpcUtil.apply(sendRequest(req,
+                        ApiServiceMethodTable.FINISH_DISTRIBUTED_WRITE_SESSION.createRequestBuilder(rpcOptions)),
+                response -> null));
+    }
+
+    @Override
+    public <T> CompletableFuture<AsyncFragmentWriter<T>> writeTableFragment(WriteTableFragment<T> req) {
+        var builder = ApiServiceMethodTable.WRITE_TABLE_FRAGMENT.createRequestBuilder(rpcOptions);
+        req.writeHeaderTo(builder.header());
+        req.writeTo(builder.body());
+
+        var tableFragmentWriter = new AsyncTableFragmentWriterImpl<T>(req, serializationResolver);
+
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableFragmentWriter);
+        CompletableFuture<AsyncFragmentWriter<T>> result = streamControlFuture
+                .thenCompose(control -> tableFragmentWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }

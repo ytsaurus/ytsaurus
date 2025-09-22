@@ -484,7 +484,7 @@ public:
         }
 
         ReplicateChunkLocations(node, chunkLocationUuids);
-        MakeLocationsOnline(node);
+        MakeLocationsRegistered(node);
 
         if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
@@ -545,13 +545,13 @@ public:
         node->ChunkLocations().shrink_to_fit();
     }
 
-    void MakeLocationsOnline(TNode* node) override
+    void MakeLocationsRegistered(TNode* node) override
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         for (auto location : node->ChunkLocations()) {
             YT_VERIFY(location->GetState() == EChunkLocationState::Offline);
-            location->SetState(EChunkLocationState::Online);
+            location->SetState(EChunkLocationState::Registered);
         }
     }
 
@@ -1179,6 +1179,32 @@ private:
         nodeTracker->UpdateLastDataHeartbeatTime(node);
 
         auto& statistics = *request->mutable_statistics();
+        std::vector<TChunkLocationUuid> reportedLocations(statistics.chunk_locations_size());
+        std::ranges::transform(
+            statistics.chunk_locations(),
+            reportedLocations.begin(),
+            [] (const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics) {
+                return FromProto<TChunkLocationUuid>(statistics.location_uuid());
+            });
+        std::ranges::sort(reportedLocations);
+        for (const auto& location : node->ChunkLocations()) {
+            if (!std::ranges::binary_search(reportedLocations, location->GetUuid())) {
+                // Some locations may send no location heartbeats.
+                // These locations have no location statistics, so we need to manually set them online.
+                // Online location states will be checked in TChunkManager::FinalizeDataNodeFullHeartbeatSession.
+                location->SetState(EChunkLocationState::Online);
+            } else if (location->GetState() != EChunkLocationState::Online) {
+                // COMPAT(grphil)
+                if (GetDynamicConfig()->VerifyAllLocationsAreReportedInFullHeartbeats) {
+                    THROW_ERROR_EXCEPTION("Node did not report all locations with heartbeats: location %v is not online", location->GetUuid());
+                } else {
+                    location->SetState(EChunkLocationState::Online);
+                }
+            }
+        }
+
+        PopulateChunkLocationStatistics(node, statistics.chunk_locations());
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 

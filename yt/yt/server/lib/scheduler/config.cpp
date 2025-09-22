@@ -20,13 +20,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
-{
-    auto config = New<TJobResourcesConfig>();
-    config->UserSlots = 2000;
-    return config;
-}
-
 TJobResourcesConfigPtr GetDefaultMinSpareAllocationResourcesOnNode()
 {
     auto config = New<TJobResourcesConfig>();
@@ -469,10 +462,10 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("preemption_check_starvation", &TThis::PreemptionCheckStarvation)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("preemption_check_satisfaction", &TThis::PreemptionCheckSatisfaction)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
         .Alias("job_interrupt_timeout")
@@ -538,7 +531,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_conditional_preemption", &TThis::EnableConditionalPreemption)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("allowed_resource_usage_staleness", &TThis::AllowedResourceUsageStaleness)
         .Default(TDuration::MilliSeconds(100));
@@ -566,13 +559,6 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_aggressive_preemption_for_gang_operations", &TThis::AllowAggressivePreemptionForGangOperations)
         .Default(true);
-
-    registrar.Parameter("fail_remote_copy_on_missing_resource_limits", &TThis::FailRemoteCopyOnMissingResourceLimits)
-        // TODO(egor-gutrov): set default to true
-        .Default(false);
-
-    registrar.Parameter("required_resource_limits_for_remote_copy", &TThis::RequiredResourceLimitsForRemoteCopy)
-        .DefaultCtor(&GetDefaultRequiredResourceLimitsForRemoteCopy);
 
     registrar.Parameter("ssd_priority_preemption", &TThis::SsdPriorityPreemption)
         .DefaultNew();
@@ -639,6 +625,12 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
         .Default();
+
+    registrar.Parameter("enable_detailed_logs_for_starving_operations", &TThis::EnableDetailedLogsForStarvingOperations)
+        .Default(false);
+
+    registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
+        .Default(true);
 
     registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

@@ -7,6 +7,7 @@
 #include "master_connector.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
+#include "sequoia_attribute_fetcher.h"
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 
@@ -506,6 +507,7 @@ protected:
      */
     TSubtreeReplacementResult ReplaceSubtreeWithMapNodeChain(
         TRange<std::string> unresolvedSuffixTokens,
+        const IAttributeDictionary* targetInheritedAttributes,
         bool force,
         std::vector<TCypressNodeDescriptor>* removedNodes = nullptr)
     {
@@ -546,6 +548,7 @@ protected:
             .TargetParentId = SequoiaSession_->CreateMapNodeChain(
                 Path_,
                 Id_,
+                targetInheritedAttributes,
                 unresolvedSuffixTokens.Slice(0, unresolvedSuffixTokens.Size() - 1),
                 /*options*/ {}),
             .AttachmentPointNodeId = Id_,
@@ -657,16 +660,104 @@ protected:
     }
 
     void GetAttribute(
-        const TYPath& /*path*/,
-        TReqGet* /*request*/,
-        TRspGet* /*response*/,
+        const TYPath& path,
+        TReqGet* request,
+        TRspGet* response,
         const TCtxGetPtr& context) override
     {
-        context->SetRequestInfo("TargetObjectId: %v", Id_);
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        context->SetRequestInfo("AttributeFilter: %v", attributeFilter);
 
         ValidatePermissionForThis(EPermission::Read);
 
-        AbortSequoiaSessionForLaterForwardingToMaster();
+        NYPath::TTokenizer tokenizer(path);
+        std::optional<TString> key;
+        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Expect(NYPath::ETokenType::Literal);
+            key = tokenizer.GetLiteralValue();
+            tokenizer.Advance();
+
+            // We ignore attribute filter if the attribute is defined in path.
+            attributeFilter = TAttributeFilter({key.value()});
+        }
+
+        auto [attributeFetcher, leftAttributes] = CreateSpecialAttributeFetcherAndLeftAttributesForNode(
+            GetNativeAuthenticatedClient(),
+            SequoiaSession_,
+            attributeFilter,
+            Id_);
+
+        if (key && !leftAttributes.Keys().empty()) {
+            // Key is not a special attribute, so it can be requested by master.
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+
+        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
+        if (!nodesWithAttributes.contains(Id_)) {
+            // No special attributes are fetched, so we can forward request to master.
+            AbortSequoiaSessionForLaterForwardingToMaster();
+            return;
+        }
+        auto node = GetOrCrash(nodesWithAttributes, Id_);
+
+        TYsonString result;
+        if (key) {
+            // The key is requested by path, and we haven't forwarded request to master.
+            // This means that key is special attribute which we have fetched, so we can return it.
+            if (!node->Attributes().Contains(key.value())) {
+                THROW_ERROR_EXCEPTION("Attribute %v not found", key.value());
+            }
+
+            auto attributeFragmentPath = TYPath(tokenizer.GetInput());
+            auto attributeYson = node->Attributes().GetYson(key.value());
+            if (attributeFragmentPath.empty()) {
+                result = attributeYson;
+            } else {
+                auto attributeNode = ConvertToNode(attributeYson);
+                result = SyncYPathGet(attributeNode, attributeFragmentPath, TAttributeFilter());
+            }
+        } else {
+            if (!leftAttributes.IsEmpty()) {
+                // We will fetch all basic attributes from master to preserve logic implemented in cypress server.
+                // After that, basic attributes will be combined with special attributes.
+                auto reqGet = TYPathProxy::Get(FromObjectId(Id_) + "/@");
+                ToProto(reqGet->mutable_attributes(), leftAttributes);
+                SetAllowResolveFromSequoiaObject(reqGet, true);
+
+                auto rspGet = WaitFor(CreateReadProxyForObject(Id_).Execute(reqGet))
+                    .ValueOrThrow();
+
+                auto masterResponseNode = ConvertToNode(TYsonString(rspGet->value()));
+                if (masterResponseNode->GetType() != ENodeType::Map) {
+                    THROW_ERROR_EXCEPTION("Error while getting attributes");
+                }
+
+                auto masterResponseAttributes = masterResponseNode->AsMap();
+                for (const auto& [key, value] : masterResponseAttributes->GetChildren()) {
+                    if (!node->Attributes().Contains(key)) {
+                        node->MutableAttributes()->Set(key, value);
+                    }
+                }
+
+            }
+
+            TAsyncYsonWriter writer;
+            writer.OnBeginMap();
+            node->WriteAttributesFragment(&writer, attributeFilter, /*stable*/ true);;
+            writer.OnEndMap();
+            result = WaitForFast(writer.Finish()).ValueOrThrow();
+        }
+
+        MaybeTouchCurrentNode(TYPathProxy::Get, context);
+        // Should not throw after this point.
+
+        response->set_value(ToProto(result));
+
+        context->Reply();
     }
 
     void SetAttribute(
@@ -935,8 +1026,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         replace,
         NObjectServer::IsAdministerValidationNeeded(explicitAttributes.Get()));
 
+    auto inheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
+        ResolveResult_.NodeAncestry,
+        SequoiaSession_->FetchInheritableAttributes(
+            ResolveResult_.NodeAncestry,
+            /*duringCopy*/ false,
+            GetNativeAuthenticatedClient()));
     auto [targetParentNodeId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         unresolvedSuffixTokens,
+        inheritedAttributes.Get(),
         force);
     auto targetNodePath = JoinNestedNodesToPath(Path_, unresolvedSuffixTokens);
 
@@ -944,6 +1042,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         type,
         targetNodePath,
         explicitAttributes.Get(),
+        inheritedAttributes.Get(),
         targetParentNodeId,
         /*options*/ {});
 
@@ -1094,15 +1193,24 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     ValidateAddChildPermissions(replace, options.PreserveAcl);
 
+    auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
+
+    auto inheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
+        {ResolveResult_.NodeAncestry, nodesToCopy.Nodes},
+        /*duringCopy*/ true,
+        GetNativeAuthenticatedClient());
+
+    auto destinationInheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
+        ResolveResult_.NodeAncestry,
+        inheritableAttributes);
+
     std::vector<TCypressNodeDescriptor> removedNodes;
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         destinationSuffixDirectoryTokens,
+        destinationInheritedAttributes.Get(),
         force,
         &removedNodes);
 
-    auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
-
-    // TODO(danilalexeev): YT-24780. Support permission validation on copy with columnar ACLs.
     ValidateCopyFromSourcePermissions(
         resolvedSource->NodeAncestry,
         nodesToCopy,
@@ -1130,8 +1238,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     auto destinationRootPath = JoinNestedNodesToPath(Path_, destinationSuffixDirectoryTokens);
     auto destinationId = SequoiaSession_->CopySubtree(
         nodesToCopy,
+        inheritableAttributes,
         destinationRootPath,
         destinationParentId,
+        destinationInheritedAttributes.Get(),
         ResolvedPrerequisiteRevisions_,
         options);
 
@@ -1382,13 +1492,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
     // TODO(h0pless): Fetch accounts and inheritable attributes from Sequoia tables once those are replicated.
     // For now Get request to master is good enough. Please note, that it's technically racy.
 
+    auto inheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
+        ResolveResult_.NodeAncestry,
+        SequoiaSession_->FetchInheritableAttributes(
+            ResolveResult_.NodeAncestry,
+            /*duringCopy*/ true,
+            GetNativeAuthenticatedClient()));
+
     auto client = GetNativeAuthenticatedClient();
     const auto& accountIdAttribute = EInternedAttributeKey::AccountId.Unintern();
-    const auto& effectiveInheritableAttributes = EInternedAttributeKey::EffectiveInheritableAttributes.Unintern();
     auto asyncNode = FetchSingleObject(
         client,
         MakeVersionedNodeId(parentNodeId),
-        TAttributeFilter({accountIdAttribute, effectiveInheritableAttributes}));
+        TAttributeFilter({accountIdAttribute}));
 
     auto node = WaitFor(asyncNode)
         .ValueOrThrow();
@@ -1396,10 +1512,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
     auto accountId = node
         ->Attributes()
         .Get<TAccountId>(accountIdAttribute);
-    auto effectiveInheritableAttributesYson = node
-        ->Attributes()
-        .GetYson(effectiveInheritableAttributes);
-    auto effectiveInheritableAttributesDictionary = ConvertToAttributes(effectiveInheritableAttributesYson);
 
     // TODO(h0pless): Maybe create all nodes all the way up to PARENT node? See LockCopyDestination in master.
     // I think both should be done simultaneously to facilitate the transition.
@@ -1408,12 +1520,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
     context->SetResponseInfo("NativeCellTag: %v, AccountId: %v, EffectiveInheritedAttributes: %v",
         nativeCellTag,
         accountId,
-        effectiveInheritableAttributesDictionary->ListPairs());
+        inheritedAttributes->ListPairs());
 
     response->set_sequoia_destination(true);
     response->set_native_cell_tag(nativeCellTag.Underlying());
     ToProto(response->mutable_account_id(), accountId);
-    ToProto(response->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributesDictionary);
+    ToProto(response->mutable_effective_inheritable_attributes(), *inheritedAttributes);
 
     FinishSequoiaSessionAndReply(context, CellIdFromObjectId(parentNodeId), !inplace);
 }
@@ -1498,14 +1610,57 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CalculateInheritedAttributes)
     SequoiaSession_->ValidateTransactionPresence();
 
     auto dstInheritedAttributes = NYTree::FromProto(request->dst_attributes());
-    auto shouldCalculateInheritedAttributes = false;
 
-    context->SetRequestInfo("DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
+
+    context->SetRequestInfo("Path: %v, TargetObjectId: %v, DestinationInheritedAttributes: %v, ShouldCalculateInheritedAttributes: %v",
+        Path_,
+        MakeVersionedNodeId(Id_),
         dstInheritedAttributes->ListPairs(),
-        shouldCalculateInheritedAttributes);
+        true);
 
-    // TODO(h0pless): Actually implement this functionality once inheritable attributes are replicated to Sequoia tables.
-    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ shouldCalculateInheritedAttributes);
+    auto sourceSubtree = SequoiaSession_->FetchSubtree(Path_);
+    auto sourceInheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
+        sourceSubtree.Nodes,
+        /*duringCopy*/ true,
+        GetNativeAuthenticatedClient());
+
+    auto inheritableAttributes = masterConnector->GetSupportedInheritableDuringCopyAttributeKeys();
+
+    TInheritedAttributesCalculator attributeCalculator;
+    attributeCalculator.ChangeNode(sourceSubtree.Nodes.front().Path.GetDirPath(), dstInheritedAttributes.Get());
+
+    for (auto node : sourceSubtree.Nodes) {
+        auto sourceAttributes = GetOrCrash(sourceInheritableAttributes, node.Id);
+        attributeCalculator.ChangeNode(node.Path, sourceAttributes.Get());
+
+        if (IsSequoiaCompositeNodeType(TypeFromId(node.Id))) {
+            continue;
+        }
+
+        decltype(response->add_node_to_attribute_deltas()) delta = nullptr;
+        for (const auto& [key, inheritedValue] : attributeCalculator.GetParentInheritedAttributes()->ListPairs()) {
+            auto currentValue = sourceAttributes->FindYson(key);
+            if (!currentValue || currentValue == inheritedValue) {
+                continue;
+            }
+
+            if (!delta) {
+                delta = response->add_node_to_attribute_deltas();
+                ToProto(delta->mutable_node_id(), node.Id);
+            }
+
+            auto* attributeOverrideDictionary = delta->mutable_attributes();
+            auto* attributeOverride = attributeOverrideDictionary->add_attributes();
+            attributeOverride->set_key(key);
+            attributeOverride->set_value(ToProto(inheritedValue));
+        }
+    }
+
+    context->SetResponseInfo("NodeToAttributeDeltasSize: %v",
+        response->node_to_attribute_deltas_size());
+
+    FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
@@ -1536,6 +1691,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
     // NB: Check for recursive creation was done during LockCopyDestination.
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         destinationSuffixDirectoryTokens,
+        NCypressProxy::CalculateInheritedAttributes(
+            ResolveResult_.NodeAncestry,
+            SequoiaSession_->FetchInheritableAttributes(
+                ResolveResult_.NodeAncestry,
+                /*duringCopy*/ false,
+                GetNativeAuthenticatedClient()))
+            .Get(),
         force);
 
     // Sanity checks.
@@ -1673,9 +1835,11 @@ private:
             TSequoiaSession* session,
             TAbsolutePath subtreePath,
             TNodeId parentId,
+            const IAttributeDictionary* inheritedAttributes,
             TSuppressableAccessTrackingOptions options)
             : UncaughtExceptions_(std::uncaught_exceptions())
             , Session_(session)
+            , InheritedAttributes_(inheritedAttributes)
             , AccessTrackingOptions_(std::move(options))
             , CurrentPath_(std::move(subtreePath))
         {
@@ -1762,6 +1926,7 @@ private:
     private:
         const int UncaughtExceptions_;
         TSequoiaSession* const Session_;
+        const IAttributeDictionary* const InheritedAttributes_;
         const TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
         std::stack<TNodeId, std::vector<TNodeId>> CurrentAncestors_;
@@ -1787,6 +1952,7 @@ private:
                 type,
                 CurrentPath_,
                 Attributes_.Get(),
+                InheritedAttributes_,
                 CurrentAncestors_.top(),
                 AccessTrackingOptions_);
             Attributes_.Reset();
@@ -1803,10 +1969,12 @@ private:
             TSequoiaSession* session,
             TAbsolutePath path,
             TNodeId nodeId,
+            const IAttributeDictionary* inheritedAttributes,
             TSuppressableAccessTrackingOptions options)
             : Session_(session)
             , Path_(std::move(path))
             , Id_(nodeId)
+            , InheritedAttributes_(inheritedAttributes)
             , AccessTrackingOptions_(std::move(options))
         {
             YT_VERIFY(Session_);
@@ -1847,6 +2015,7 @@ private:
         TSequoiaSession* const Session_;
         const TAbsolutePath Path_;
         const TNodeId Id_;
+        const IAttributeDictionary* const InheritedAttributes_;
         const TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
         std::optional<TTreeBuilder> SubtreeBuilderHolder_;
@@ -1865,6 +2034,7 @@ private:
                 Session_,
                 std::move(subtreeRootPath),
                 Id_,
+                InheritedAttributes_,
                 AccessTrackingOptions_);
             Forward(&builder, [this] {
                 SubtreeBuilderHolder_.reset();
@@ -1909,7 +2079,13 @@ private:
         // NB: locks |Id_|.
         SequoiaSession_->ClearSubtree(subtree, AccessTrackingOptions_);
 
-        auto setter = TMapNodeSetter(SequoiaSession_.Get(), Path_, Id_, AccessTrackingOptions_);
+        auto inheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
+            ResolveResult_.NodeAncestry,
+            SequoiaSession_->FetchInheritableAttributes(
+                ResolveResult_.NodeAncestry,
+                /*duringCopy*/ false,
+                GetNativeAuthenticatedClient()));
+        auto setter = TMapNodeSetter(SequoiaSession_.Get(), Path_, Id_, inheritedAttributes.Get(), AccessTrackingOptions_);
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&setter);
 
@@ -2005,36 +2181,14 @@ private:
             populateNodesToFetchFromMaster();
         }
 
-        // Form a template.
-        auto requestTemplate = TYPathProxy::Get();
-        if (attributeFilter) {
-            ToProto(requestTemplate->mutable_attributes(), attributeFilter);
-        }
-        SetSuppressAccessTracking(requestTemplate, true);
-        SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
-
-        auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
+        auto attributeFetcher = CreateAttributeFetcherForGetRequest(
             GetNativeAuthenticatedClient(),
-            requestTemplate,
-            nodesToFetchFromMaster,
-            SequoiaSession_->GetCurrentCypressTransactionId());
-        auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
-            .ValueOrThrow();
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            nodesToFetchFromMaster);
 
-        THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
-        for (auto [nodeId, rspOrError] : nodeIdToRspOrError) {
-            if (!rspOrError.IsOK()) {
-                // TODO(kvk1920): in case of race between Get(path) and
-                // Create(path, force=true) for the same path we can get an
-                // error "no such node". Retry is needed if a given path still
-                // exists. Since retry mechanism is not implemented yet, this
-                // will do for now.
-                THROW_ERROR_EXCEPTION("Error getting requested information from master")
-                    << rspOrError;
-            }
-            nodeIdToMasterResponse[nodeId] = rspOrError.Value();
-        }
-
+        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
         // Build a DFS over this mess.
         TStringStream stream;
         TYsonWriter writer(&stream);
@@ -2045,7 +2199,7 @@ private:
             &writer,
             attributeFilter,
             std::move(nodeIdToChildren),
-            std::move(nodeIdToMasterResponse));
+            std::move(nodesWithAttributes));
 
         writer.Flush();
 
@@ -2123,14 +2277,22 @@ private:
             ThrowNoSuchChild(Path_, unresolvedSuffixTokens[0]);
         }
 
+        auto inheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
+            ResolveResult_.NodeAncestry,
+            SequoiaSession_->FetchInheritableAttributes(
+                ResolveResult_.NodeAncestry,
+                /*duringCopy*/ false,
+                GetNativeAuthenticatedClient()));
+
         // NB: locks |Id_|.
         auto targetParentId = SequoiaSession_->CreateMapNodeChain(
             Path_,
             Id_,
+            inheritedAttributes.Get(),
             unresolvedSuffixTokens,
             AccessTrackingOptions_);
 
-        auto builder = TTreeBuilder(SequoiaSession_.Get(), destinationPath, targetParentId, AccessTrackingOptions_);
+        auto builder = TTreeBuilder(SequoiaSession_.Get(), destinationPath, targetParentId, inheritedAttributes.Get(), AccessTrackingOptions_);
         auto producer = ConvertToProducer(NYson::TYsonString(request->value()));
         producer.Run(&builder);
 
@@ -2219,45 +2381,25 @@ private:
             writer.OnEndAttributes();
         }
 
-        THashMap<TNodeId, IAttributeDictionaryPtr> nodeIdToAttributes;
-        if (attributeFilter) {
-            // Form a template.
-            auto requestTemplate = TYPathProxy::Get("/@");
-            ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+        auto attributeFetcher = CreateAttributeFetcherForListRequest(
+            GetNativeAuthenticatedClient(),
+            SequoiaSession_,
+            attributeFilter,
+            Id_,
+            children);
 
-            std::vector<TNodeId> childNodeIds;
-            for (const auto& child : children) {
-                childNodeIds.push_back(child.ChildId);
-            }
-
-            auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
-                GetNativeAuthenticatedClient(),
-                requestTemplate,
-                childNodeIds,
-                SequoiaSession_->GetCurrentCypressTransactionId());
-
-            auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
-                .ValueOrThrow();
-
-            for (auto [nodeId, rspOrError] : nodeIdToRspOrError) {
-                if (!rspOrError.IsOK()) {
-                    // TODO(kvk1920): See the similar |TMapLikeNodeProxy::GetSelf| comment.
-                    THROW_ERROR_EXCEPTION("Error getting requested information from master")
-                        << rspOrError;
-                }
-                EmplaceOrCrash(
-                    nodeIdToAttributes,
-                    nodeId,
-                    ConvertToAttributes(TYsonStringBuf(rspOrError.Value()->value())));
-            }
-        }
+        auto nodesWithAttributes = WaitFor(attributeFetcher->FetchNodesWithAttributes()).ValueOrThrow();
 
         writer.OnBeginList();
         for (const auto& child : children) {
             writer.OnListItem();
-            if (attributeFilter) {
-                const auto& attributes = GetOrCrash(nodeIdToAttributes, child.ChildId);
-                ConsumeAttributes(&writer, attributes);
+            if (attributeFilter && !attributeFilter.IsEmpty()) {
+                auto nodeIter = nodesWithAttributes.find(child.ChildId);
+                if (nodeIter != nodesWithAttributes.end()) {
+                    nodeIter->second->WriteAttributes(&writer, attributeFilter, /*stable*/ true);
+                } else {
+                    THROW_ERROR_EXCEPTION("Can not fetch attributes for nodes");
+                }
             }
             writer.OnStringScalar(child.ChildKey);
         }

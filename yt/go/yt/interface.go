@@ -36,7 +36,6 @@ import (
 	"context"
 	"io"
 
-	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/schema"
@@ -899,16 +898,6 @@ func (opts *RemoveMaintenanceOptions) ValidateFields() error {
 		return xerrors.New("\"all\" cannot be used with other options")
 	}
 	return nil
-}
-
-func (opts *RemoveMaintenanceOptions) Log() []log.Field {
-	return []log.Field{
-		log.Any("mine", opts.Mine),
-		log.Any("all", opts.All),
-		log.Any("user", opts.User),
-		log.Any("ids", opts.IDs),
-		log.Any("typ", opts.Type),
-	}
 }
 
 type CheckPermissionOptions struct {

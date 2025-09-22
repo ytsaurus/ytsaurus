@@ -404,6 +404,10 @@ public:
             GetOrchidRoot(),
             "/tablet_node_thread_pools",
             CreateVirtualNode(CreateThreadPoolsOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/replication_hint_manager",
+            CreateVirtualNode(HintManager_->GetOrchidService()));
         if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
             SetNodeByYPath(
                 GetOrchidRoot(),
@@ -679,6 +683,8 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
         const auto& tabletNodeConfig = newConfig->TabletNode;
 
         if (!GetConfig()->EnableFairThrottler) {
@@ -757,6 +763,8 @@ private:
     {
         return OverloadController_;
     }
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

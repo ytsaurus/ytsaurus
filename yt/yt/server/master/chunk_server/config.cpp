@@ -317,6 +317,8 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_location_indexes_in_data_node_heartbeats", &TThis::EnableLocationIndexesInDataNodeHeartbeats)
         .Default(false);
+    registrar.Parameter("verify_all_locations_are_reported_in_full_heartbeats", &TThis::VerifyAllLocationsAreReportedInFullHeartbeats)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -433,10 +435,22 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
         .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
+
+    registrar.Parameter("validate_sequoia_replicas_fetch", &TThis::ValidateSequoiaReplicasFetch)
+        .Default(false);
+
+    registrar.Parameter("allow_extra_master_replicas_during_validation", &TThis::AllowExtraMasterReplicasDuringValidation)
+        .Default(true);
+
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
                 "new Sequoia replicas");
+        }
+
+        if (!config->StoreSequoiaReplicasOnMaster && config->ValidateSequoiaReplicasFetch) {
+            THROW_ERROR_EXCEPTION("Cannot validate Sequoia replicas fetch as they are not stored on master");
         }
     });
 }
@@ -774,9 +788,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
-        .Default(false);
-
-    registrar.Parameter("use_proper_replica_addition_reason", &TThis::UseProperReplicaAdditionReason)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {

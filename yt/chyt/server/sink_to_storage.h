@@ -24,7 +24,8 @@ DB::SinkToStoragePtr CreateSinkToStaticTable(
     NApi::NNative::IClientPtr client,
     NTransactionClient::TTransactionId transactionId,
     std::function<void()> onFinished,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    TCallback<void(const TStatistics&)> statisticsCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +38,8 @@ DB::SinkToStoragePtr CreateSinkToDynamicTable(
     TCompositeSettingsPtr compositeSettings,
     NApi::NNative::IClientPtr client,
     std::function<void()> onFinished,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    TCallback<void(const TStatistics&)> statisticsCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 

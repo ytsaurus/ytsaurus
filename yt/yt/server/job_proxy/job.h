@@ -156,7 +156,7 @@ struct IJob
     //! variadic-size statistics kinds (namely, #OutputStatistics and #ChunkWriterStatistics).
     struct TStatistics
     {
-        NYT::TStatistics Statstics;
+        NYT::TStatistics Statistics;
         //! Per-output chunk writer statistics; this field is truncated when producing final job statistics,
         //! but the original statistics is sent as a separate protobuf field.
         std::vector<NChunkClient::TChunkWriterStatisticsPtr> ChunkWriterStatistics;
@@ -196,6 +196,8 @@ struct IJob
         };
 
         TLatencyStatistics LatencyStatistics = {};
+
+        NChunkClient::TChunkReaderStatisticsPtr RemoteCopyChunkReaderStatistics;
     };
 
     virtual TStatistics GetStatistics() const = 0;

@@ -16,7 +16,6 @@ items:
 - { name: Re2,                    href: re2.md                                 }
 - { name: Streaming,              href: streaming.md                           }
 - { name: String,                 href: string.md                              }
-- { name: TensorFlow,             href: tensorflow.md,                         }
 - { name: Unicode,                href: unicode.md                             }
 - { name: Url,                    href: url.md                                 }
 - { name: Yson,                   href: yson.md                                }

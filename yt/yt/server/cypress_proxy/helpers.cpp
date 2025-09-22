@@ -576,4 +576,69 @@ std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> trans
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const IConstAttributeDictionaryPtr& TInheritedAttributesCalculator::GetCurrentInheritedAttributes() const
+{
+    YT_VERIFY(!Ancestry_.empty());
+    return Ancestry_.back().InheritedAttributes;
+}
+
+const IConstAttributeDictionaryPtr& TInheritedAttributesCalculator::GetParentInheritedAttributes() const
+{
+    YT_VERIFY(std::ssize(Ancestry_) > 1);
+    return Ancestry_[std::ssize(Ancestry_) - 2].InheritedAttributes;
+}
+
+void TInheritedAttributesCalculator::ChangeNode(TAbsolutePath path, const IAttributeDictionary* inheritableAttributes)
+{
+    for (auto parentPath = path.GetDirPath(); !Ancestry_.empty() && Ancestry_.back().Path != parentPath; )
+    {
+        Ancestry_.pop_back();
+    }
+
+    if (!Ancestry_.empty()) {
+        bool trivial = true;
+        auto parentInheritedAttributes = GetCurrentInheritedAttributes();
+        for (const auto& [key, value] : inheritableAttributes->ListPairs()) {
+            auto parentValue = parentInheritedAttributes->FindYson(key);
+            if (!parentValue || parentValue != value) {
+                trivial = false;
+                break;
+            }
+        }
+
+        // Fast path.
+        if (trivial) {
+            Ancestry_.push_back({
+                .Path = std::move(path),
+                .InheritedAttributes = parentInheritedAttributes,
+            });
+            return;
+        }
+    }
+
+    auto inheritedAttributes = Ancestry_.empty() ? EmptyAttributes().Clone() : GetCurrentInheritedAttributes()->Clone();
+    inheritedAttributes->MergeFrom(*inheritableAttributes);
+
+    Ancestry_.push_back({
+        .Path = std::move(path),
+        .InheritedAttributes = std::move(inheritedAttributes),
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IConstAttributeDictionaryPtr CalculateInheritedAttributes(
+    TRange<TCypressNodeDescriptor> ancestry,
+    const TNodeIdToAttributes& inheritableAttributes)
+{
+    YT_VERIFY(!ancestry.Empty());
+    TInheritedAttributesCalculator calculator;
+    for (const auto& node : ancestry) {
+        calculator.ChangeNode(node.Path, GetOrCrash(inheritableAttributes, node.Id).Get());
+    }
+    return calculator.GetCurrentInheritedAttributes();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

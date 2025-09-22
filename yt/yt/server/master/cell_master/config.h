@@ -136,10 +136,9 @@ struct TWorldInitializerConfig
     : public NYTree::TYsonStruct
 {
     TDuration InitRetryPeriod;
-
     TDuration InitTransactionTimeout;
-
     TDuration UpdatePeriod;
+    TDuration CachedStateUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TWorldInitializerConfig);
 
@@ -356,6 +355,9 @@ struct TDynamicCellMasterConfig
     TDuration AlertUpdatePeriod;
 
     TDuration HiveProfilingPeriod;
+
+    //! Messages with these prefixes will will not be included into master alerts.
+    std::vector<std::string> SuppressedAlerts;
 
     THashMap<TString, double> AutomatonThreadBucketWeights;
 

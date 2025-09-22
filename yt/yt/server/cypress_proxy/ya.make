@@ -23,6 +23,7 @@ SRCS(
     program.cpp
     rootstock_proxy.cpp
     response_keeper.cpp
+    sequoia_attribute_fetcher.cpp
     sequoia_service.cpp
     sequoia_session.cpp
     sequoia_tree_visitor.cpp

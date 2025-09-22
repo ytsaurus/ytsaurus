@@ -140,7 +140,6 @@ public:
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
-    const IWorldInitializerCachePtr& GetWorldInitializerCache() const;
     const NObjectServer::IObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IObjectServicePtr& GetObjectService() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
@@ -243,7 +242,6 @@ protected:
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
     IWorldInitializerPtr WorldInitializer_;
-    IWorldInitializerCachePtr WorldInitializerCache_;
     IResponseKeeperManagerPtr ResponseKeeperManager_;
     NObjectServer::IObjectManagerPtr ObjectManager_;
     NObjectServer::IObjectServicePtr ObjectService_;

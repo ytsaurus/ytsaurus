@@ -63,6 +63,22 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.ytsaurus.client.rpc.timeout` | - | Timeout used in an RPC client to start {{product-name}} operations. | 2.6.0 |
 | `spark.ytsaurus.rpc.job.proxy.enabled` | true | Flag of using an RPC proxy embedded in a job proxy. | 2.6.0 |
 | `spark.ytsaurus.java.home` | `/opt/jdk[11,17]` | Path to the JDK home directory used in cluster containers. Depends on the JDK used on the client side. Allowed versions: JDK11 and JDK17. | 2.6.0 |
+| `spark.ytsaurus.shuffle.enabled` | false | Use the [{{product-name}} Shuffle service](../../../../../user-guide/data-processing/spyt/shuffle.md) | 2.7.2 |
+
+
+## Configuration options for the {{product-name}} Shuffle service { #shuffle }
+
+| **Parameter** | **Default value** | **Description** | **Starting with version** |
+| ------------ | ------------------------- | ------------ | ------------------ |
+| `spark.ytsaurus.shuffle.transaction.timeout` | 5m | Timeout for the transaction processing shuffle chunk writes. In regular operation mode, the transaction is periodically pinged by the driver, and the timeout sets the time between the last ping and transaction rollback with chunk deletion. | 2.7.0 |
+| `spark.ytsaurus.shuffle.account` | intermediate | [Account](../../../../../user-guide/storage/accounts.md) used for writing shuffle chunks. | 2.7.0 |
+| `spark.ytsaurus.shuffle.medium` | - | [Medium](../../../../../user-guide/storage/media.md) used for writing shuffle chunks. Defaults to the system-wide setting. | 2.7.0 |
+| `spark.ytsaurus.shuffle.replication.factor` | - | Shuffle chunk replication factor. Defaults to the system-wide setting. | 2.7.0 |
+| `spark.ytsaurus.shuffle.partition.column` | partition | The name of the chunk column used to store the target partition index. | 2.7.0 |
+| `spark.ytsaurus.shuffle.write.row.size` | 8m | The maximum size of a single row in a chunk containing shuffle data. This value is not directly related to the size of shuffle data rows but serves to partition serialized shuffle data into chunk rows. Reducing this value increases the number of rows in the chunk, while raising the value may result in exceeding the maximum allowed chunk row size. | 2.7.0 |
+| `spark.ytsaurus.shuffle.write.buffer.size` | 10 | Shuffle data write buffer size (in rows) in {{product-name}}. Set this parameter together with `spark.ytsaurus.shuffle.write.row.size` to avoid RAM overflow. | 2.7.0 |
+| `spark.ytsaurus.shuffle.write.config` | - | Additional parameters for writing shuffle data in {{product-name}} in [YSON](../../../../../user-guide/storage/yson.md) format. Matches the [TableWriter](../../../../../user-guide/storage/io-configuration.md#table_writer) configuration. | 2.7.0 |
+| `spark.ytsaurus.shuffle.read.config` | - | Additional parameters for reading shuffle data in {{product-name}} in [YSON](../../../../../user-guide/storage/yson.md) format. Matches the [TableReader](../../../../../user-guide/storage/io-configuration.md#table_reader) configuration. | 2.7.0 |
 
 
 ## Options for running tasks in an internal cluster { #spark-submit-yt-conf }

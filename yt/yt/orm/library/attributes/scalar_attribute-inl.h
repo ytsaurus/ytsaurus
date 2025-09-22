@@ -335,8 +335,10 @@ protected:
         EVisitReason reason)
     {
         auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
+        auto unknownFieldNumber = message->GetDescriptor()->options().GetExtension(
+            NYson::NProto::unknown_yson_field_number);
 
-        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name);
+        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name, unknownFieldNumber);
 
         if (errorOrItem.IsOK()) {
             auto [index, value] = std::move(errorOrItem).Value();

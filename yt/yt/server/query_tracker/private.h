@@ -66,6 +66,10 @@ DECLARE_REFCOUNTED_STRUCT(TSpytEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TQLEngineConfig)
 DECLARE_REFCOUNTED_STRUCT(TEngineConfigBase)
 
+DECLARE_REFCOUNTED_STRUCT(ISearchIndex)
+DECLARE_REFCOUNTED_STRUCT(IQueryTokenizer)
+DECLARE_REFCOUNTED_STRUCT(TTokenizeSettings)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TTrackerId = TString;

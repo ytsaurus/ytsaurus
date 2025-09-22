@@ -75,10 +75,11 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
         .Default(true);
 
-    registrar.Parameter("portal_synchronization_period", &TThis::PortalSynchronizationPeriod)
+    registrar.Parameter("graft_synchronization_period", &TThis::GraftSynchronizationPeriod)
+        .Alias("portal_synchronization_period")
         .Default(TDuration::Minutes(1));
 
-    registrar.Parameter("enable_portal_synchronization", &TThis::EnablePortalSynchronization)
+    registrar.Parameter("enable_scion_synchronization", &TThis::EnableScionSynchronization)
         .Default(true);
 
     registrar.Parameter("allow_cross_shard_dynamic_table_copying", &TThis::AllowCrossShardDynamicTableCopying)

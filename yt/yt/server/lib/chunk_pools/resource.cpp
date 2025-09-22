@@ -14,6 +14,8 @@ TResourceVector TResourceVector::FromDataSlice(const TLegacyDataSlicePtr& dataSl
     result.Values[EResourceKind::DataSliceCount] = 1;
     result.Values[EResourceKind::DataWeight] = dataSlice->GetDataWeight();
     result.Values[EResourceKind::PrimaryDataWeight] = isPrimary ? dataSlice->GetDataWeight() : 0;
+    result.Values[EResourceKind::CompressedDataSize] = dataSlice->GetCompressedDataSize();
+    result.Values[EResourceKind::PrimaryCompressedDataSize] = isPrimary ? dataSlice->GetCompressedDataSize() : 0;
     return result;
 }
 
@@ -135,10 +137,12 @@ void FormatValue(TStringBuilderBase* builder, const TResourceVector& vector, TSt
 {
     Format(
         builder,
-        "{DSC: %v, DW: %v, PDW: %v}",
+        "{DSC: %v, DW: %v, PDW: %v, CDS: %v, PCDS: %v}",
         vector.Values[EResourceKind::DataSliceCount],
         vector.Values[EResourceKind::DataWeight],
-        vector.Values[EResourceKind::PrimaryDataWeight]);
+        vector.Values[EResourceKind::PrimaryDataWeight],
+        vector.Values[EResourceKind::CompressedDataSize],
+        vector.Values[EResourceKind::PrimaryCompressedDataSize]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

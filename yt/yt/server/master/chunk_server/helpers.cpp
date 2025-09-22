@@ -116,14 +116,53 @@ TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList)
     return index < children.size() ? children[index] : nullptr;
 }
 
-i64 GetJournalChunkStartRowIndex(const TChunk* chunk)
+std::optional<i64> GetJournalChunkStartRowIndex(const TChunk* chunk)
 {
     if (!chunk->IsJournal()) {
         THROW_ERROR_EXCEPTION("%v is not a journal chunk",
             chunk->GetId());
     }
 
-    auto* chunkList = GetUniqueParentOrThrow(chunk)->AsChunkList();
+    auto isHunkChunkList = [] (TChunkList* chunkList) {
+        return
+            chunkList->GetKind() == EChunkListKind::HunkTablet ||
+            chunkList->GetKind() == EChunkListKind::Hunk;
+    };
+
+    auto parentCount = GetParentCount(chunk);
+    if (parentCount == 0) {
+        THROW_ERROR_EXCEPTION("Journal chunk %v has zero parents",
+            chunk->GetId());
+    }
+
+    TChunkList* chunkList;
+    if (parentCount == 1) {
+        chunkList = GetUniqueParent(chunk)->AsChunkList();
+
+        if (isHunkChunkList(chunkList)) {
+            chunkList = nullptr;
+        }
+    } else {
+        YT_VERIFY(parentCount > 1);
+
+        for (auto [parent, cardinality] : chunk->Parents()) {
+            YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+
+            auto* parentChunkList = parent->AsChunkList();
+            if (!isHunkChunkList(parentChunkList)) {
+                THROW_ERROR_EXCEPTION("Journal chunk %v with %v parents has a parent chunk list of unexpected (not-hunk) kind %Qlv",
+                    chunk->GetId(),
+                    parentCount,
+                    parentChunkList->GetKind());
+            }
+        }
+
+        chunkList = nullptr;
+    }
+
+    if (!chunkList) {
+        return std::nullopt;
+    }
 
     auto chunkIndex = GetChildIndex(chunkList, chunk);
     if (chunkIndex == 0) {
@@ -189,16 +228,6 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
         default:
             YT_ABORT();
     }
-}
-
-TChunkList* GetUniqueParentOrThrow(const TChunkTree* chunkTree)
-{
-    if (auto parentCount = GetParentCount(chunkTree); parentCount != 1) {
-        THROW_ERROR_EXCEPTION("Improper number of parents of chunk tree %v: expected 1, actual %v",
-            chunkTree->GetId(),
-            parentCount);
-    }
-    return GetUniqueParent(chunkTree);
 }
 
 int GetParentCount(const TChunkTree* chunkTree)
