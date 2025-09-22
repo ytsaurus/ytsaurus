@@ -123,6 +123,17 @@ public:
 
         ValidateEnabled();
 
+        std::vector<std::string> environmentVariables;
+        environmentVariables.reserve(config->EnvironmentVariables.size());
+        for (const auto& variable: config->EnvironmentVariables) {
+            try {
+                environmentVariables.push_back(Format("%v=%v", variable->Name, variable->LoadValue()));
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", variable->Name)
+                    << ex;
+            }
+        }
+
         try {
             const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
             auto dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
@@ -152,6 +163,10 @@ public:
             process->SetWorkingDirectory(workingDirectory);
 
             AddArguments(process, slotIndex);
+
+            for (const auto& variable: environmentVariables) {
+                process->AddEnvVar(variable);
+            }
 
             YT_LOG_INFO("Spawn job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
                 slotType,
