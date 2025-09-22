@@ -1763,8 +1763,8 @@ private:
             return TStatus::Error;
         }
 
-        const TYtCreateTable createTable(input);
-        if (!TYtTableInfo::HasSubstAnonymousLabel(createTable.Table())) {
+        const TYtCreateTable create(input);
+        if (!TYtTableInfo::HasSubstAnonymousLabel(create.Table())) {
             const bool useNativeYtDefaultColumnOrder = State_->Configuration->UseNativeYtDefaultColumnOrder.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_DEFAULT_COLUMN_ORDER);
 
             TExprNode::TPtr newTable;
@@ -1775,22 +1775,48 @@ private:
                 return status.Combine(TStatus::Repeat);
             }
 
-            const TYtTableInfo tableInfo(createTable.Table());
+            const TYtTableInfo tableInfo(create.Table());
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist) {
-                ctx.AddError(TIssue(ctx.GetPosition(createTable.Table().Pos()), TStringBuilder() <<
+                ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
                     "Table " << tableInfo.Name << " is alreasy exists."));
                 return TStatus::Error;
             }
 
             if (const auto commitEpoch = tableInfo.CommitEpoch) {
-                auto& nextDescription = State_->TablesData->GetOrAddTable(createTable.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
-                nextDescription.Meta = MakeIntrusive<TYtTableMetaInfo>();
-                nextDescription.Meta->DoesExist = true;
+                auto& next = State_->TablesData->GetOrAddTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
+                next.Meta = MakeIntrusive<TYtTableMetaInfo>();
+                next.Meta->DoesExist = true;
+
+                TVector<const TItemExprType*> items(create.Columns().Size());
+                auto it = items.begin();
+                create.Columns().Ref().ForEachChild([&](const TExprNode& node) {
+                    (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType());
+                });
+
+                TVector<TString> keys(create.Keys().Size());
+                auto ik = keys.begin();
+                create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
+                    (*ik++) = node.Content();
+                });
+
+                const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
+                next.RowType = rowType;
+                next.IsReplaced = true;
+
+                const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
+                next.RowSpec = outTable.RowSpec;
+                if (!keys.empty()) {
+                    next.RowSpec->SortedBy = std::move(keys);
+                    next.RowSpec->SortDirections.resize(next.RowSpec->SortedBy.size(), true);
+                    next.RowSpec->SortedByTypes.resize(next.RowSpec->SortedBy.size());
+                    std::transform(next.RowSpec->SortedBy.cbegin(), next.RowSpec->SortedBy.cend(), next.RowSpec->SortedByTypes.begin(),
+                        std::bind(&TStructExprType::FindItemType, rowType, std::placeholders::_1));
+                }
             }
         }
 
-        input->SetTypeAnn(createTable.World().Ref().GetTypeAnn());
+        input->SetTypeAnn(create.World().Ref().GetTypeAnn());
         return TStatus::Ok;
     }
 
