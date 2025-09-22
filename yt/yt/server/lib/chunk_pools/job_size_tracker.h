@@ -44,7 +44,7 @@ struct IJobSizeTracker
 std::unique_ptr<IJobSizeTracker> CreateJobSizeTracker(
     TResourceVector limitVector,
     TJobSizeTrackerOptions options,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

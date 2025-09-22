@@ -67,7 +67,7 @@ std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
     NTableClient::TComparator primaryComparator,
     NTableClient::TComparator foreignComparator,
     NTableClient::TRowBufferPtr rowBuffer,
-    const NLogging::TLogger& logger);
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
