@@ -377,6 +377,10 @@ struct TPrepareNbdRootVolumeOptions
     TString ExportId;
     IChannelPtr DataNodeChannel;
     TSessionId SessionId;
+
+    //! Params for NBD requests to data nodes.
+    TDuration DataNodeNbdServiceRpcTimeout;
+    TDuration DataNodeNbdServiceMakeTimeout;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3029,6 +3033,8 @@ public:
                             .ExportId = data.ExportId,
                             .DataNodeChannel = channel,
                             .SessionId = sessionId,
+                            .DataNodeNbdServiceRpcTimeout = data.DataNodeNbdServiceRpcTimeout,
+                            .DataNodeNbdServiceMakeTimeout = data.DataNodeNbdServiceMakeTimeout,
                         });
             }));
 
@@ -3198,6 +3204,8 @@ private:
             config->Size = options.Size;
             config->MediumIndex = options.MediumIndex;
             config->FsType = options.Filesystem;
+            config->DataNodeNbdServiceRpcTimeout = options.DataNodeNbdServiceRpcTimeout;
+            config->DataNodeNbdServiceMakeTimeout = options.DataNodeNbdServiceMakeTimeout;
 
             auto device = CreateChunkBlockDevice(
                 options.ExportId,

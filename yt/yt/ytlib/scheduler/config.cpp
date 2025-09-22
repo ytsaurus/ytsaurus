@@ -527,6 +527,10 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("data_node_rpc_timeout", &TThis::DataNodeRpcTimeout)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("data_node_nbd_service_rpc_timeout", &TThis::DataNodeNbdServiceRpcTimeout)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("data_node_nbd_service_make_timeout", &TThis::DataNodeNbdServiceMakeTimeout)
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
         .Default();
     registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
@@ -595,6 +599,8 @@ void ToProto(
         nbd_disk->set_master_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->MasterRpcTimeout));
         nbd_disk->set_min_data_node_count(diskRequestConfig.NbdDisk->MinDataNodeCount);
         nbd_disk->set_max_data_node_count(diskRequestConfig.NbdDisk->MaxDataNodeCount);
+        nbd_disk->set_data_node_nbd_service_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeNbdServiceRpcTimeout));
+        nbd_disk->set_data_node_nbd_service_make_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeNbdServiceMakeTimeout));
     }
 }
 
