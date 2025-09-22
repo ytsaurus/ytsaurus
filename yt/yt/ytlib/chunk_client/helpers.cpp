@@ -213,9 +213,9 @@ void GetUserObjectBasicAttributes(
             ? FromProto<TTransactionId>(rsp->external_transaction_id())
             : userObject->TransactionId.value_or(defaultTransactionId);
 
-        if (rsp->has_rl_acl()) {
-            userObject->RlAcl.emplace();
-            FromProto(&*userObject->RlAcl, rsp->rl_acl().items());
+        if (rsp->has_row_level_acl()) {
+            userObject->RowLevelAcl.emplace();
+            FromProto(&*userObject->RowLevelAcl, rsp->row_level_acl().items());
         }
     }
 
@@ -895,7 +895,7 @@ void TUserObject::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, ChunkCount);
     PHOENIX_REGISTER_FIELD(10, Account);
     // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(11, RlAcl,
+    PHOENIX_REGISTER_FIELD(11, RowLevelAcl,
         .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RlsInOperations)));
 }
 

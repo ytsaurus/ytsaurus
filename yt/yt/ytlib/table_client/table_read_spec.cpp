@@ -173,11 +173,11 @@ TTableReadSpec FetchRegularTableReadSpec(
             dataSliceDescriptors.emplace_back(std::move(chunkSpec));
         }
     }
-    if (userObject->RlAcl) {
+    if (userObject->RowLevelAcl) {
         dataSource->SetRlsReadSpec(
-            TRlsReadSpec::BuildFromRlAclAndTableSchema(
+            TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
                 schema,
-                *userObject->RlAcl,
+                *userObject->RowLevelAcl,
                 Logger));
     }
 
