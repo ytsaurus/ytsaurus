@@ -700,23 +700,7 @@ void ParseSpec(
     }
 
     if (operationType == EOperationType::Vanilla) {
-        TVanillaOperationSpecPtr vanillaOperationSpec;
-        try {
-            vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(specNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing vanilla operation spec")
-                << ex;
-        }
-
-        preprocessedSpec->BriefVanillaTaskSpecs.emplace();
-        preprocessedSpec->BriefVanillaTaskSpecs->reserve(size(vanillaOperationSpec->Tasks));
-        for (const auto& [taskName, taskSpec] : vanillaOperationSpec->Tasks) {
-            preprocessedSpec->BriefVanillaTaskSpecs->emplace(
-                taskName,
-                TBriefVanillaTaskSpec{
-                    .JobCount = taskSpec->JobCount,
-                });
-        }
+        preprocessedSpec->BriefVanillaTaskSpecs = GetBriefVanillaTaskSpecs(specNode);
     }
 
     specNode->RemoveChild("secure_vault");
@@ -761,6 +745,31 @@ IMapNodePtr ConvertSpecStringToNode(
     }
 
     return specNode;
+}
+
+TBriefVanillaTaskSpecMap GetBriefVanillaTaskSpecs(const IMapNodePtr& specNode)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TVanillaOperationSpecPtr vanillaOperationSpec;
+    try {
+        vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(specNode);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing vanilla operation spec")
+            << ex;
+    }
+
+    THashMap<std::string, TBriefVanillaTaskSpec> briefVanillaTaskSpecs;
+    briefVanillaTaskSpecs.reserve(size(vanillaOperationSpec->Tasks));
+    for (const auto& [taskName, taskSpec] : vanillaOperationSpec->Tasks) {
+        briefVanillaTaskSpecs.emplace(
+            taskName,
+            TBriefVanillaTaskSpec{
+                .JobCount = taskSpec->JobCount,
+            });
+    }
+
+    return briefVanillaTaskSpecs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

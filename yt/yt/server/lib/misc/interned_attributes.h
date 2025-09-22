@@ -181,6 +181,7 @@
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSequoiaReplicas, enable_sequoia_replicas) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
+    XX(EnableStepFunctionForGangOperations, enable_step_function_for_gang_operations) \
     XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EndorsementRequired, endorsement_required) \

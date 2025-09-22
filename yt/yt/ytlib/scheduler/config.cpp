@@ -2636,6 +2636,9 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Alias("truncate_fifo_pool_unsatisfied_child_fair_share")
         .Default();
 
+    registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
+        .Default(true);
+
     registrar.Parameter("metering_tags", &TThis::MeteringTags)
         .Default();
 

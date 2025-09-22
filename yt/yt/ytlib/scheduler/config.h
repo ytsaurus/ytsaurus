@@ -305,6 +305,8 @@ struct TPoolConfig
     // Overrides the same option in tree config.
     std::optional<bool> EnableFairShareTruncationInFifoPool;
 
+    bool EnableStepFunctionForGangOperations;
+
     THashMap<TString, TString> MeteringTags;
 
     TOffloadingSettings OffloadingSettings;
