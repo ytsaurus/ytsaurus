@@ -167,9 +167,11 @@ protected:
         Y_UNUSED(descriptor);
 
         const auto* reflection = message->GetReflection();
+        auto unknownFieldNumber = message->GetDescriptor()->options().GetExtension(
+            NYson::NProto::unknown_yson_field_number);
 
         auto* unknownFields = reflection->MutableUnknownFields(message);
-        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name);
+        auto errorOrItem = LookupUnknownYsonFieldsItem(unknownFields, name, unknownFieldNumber);
 
         TYsonString value;
         TString* item = nullptr;
@@ -179,7 +181,7 @@ protected:
             item = unknownFields->mutable_field(index)->mutable_length_delimited();
         } else if (errorOrItem.GetCode() == NAttributes::EErrorCode::MissingKey) {
             if (PathComplete() || GetMissingFieldPolicy() == EMissingFieldPolicy::Force) {
-                item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
+                item = unknownFields->AddLengthDelimited(unknownFieldNumber);
             } else {
                 THROW_ERROR_EXCEPTION(errorOrItem);
             }

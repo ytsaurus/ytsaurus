@@ -38,7 +38,8 @@ NYTree::INodePtr ConvertProtobufToNode(
 
 TErrorOr<std::pair<int, NYson::TYsonString>> LookupUnknownYsonFieldsItem(
     NProtoBuf::UnknownFieldSet* unknownFields,
-    TStringBuf key);
+    TStringBuf key,
+    int unknownFieldNumber);
 
 TString SerializeUnknownYsonFieldsItem(TStringBuf key, TStringBuf value);
 
