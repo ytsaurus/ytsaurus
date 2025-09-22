@@ -531,7 +531,6 @@ private:
         if (checkLayout) {
             auto rowSpec = description.RowSpec;
             TString modeStr = EYtWriteMode::RenewKeepMeta == mode ? "truncate with keep meta" : ToString(mode);
-
             if (!rowSpec) {
                 ctx.AddError(TIssue(pos, TStringBuilder()
                     << "Table " << outTableInfo.Name.Quote()
