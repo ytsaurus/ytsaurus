@@ -164,9 +164,21 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             set("//sys/@config/node_tracker/forbid_maintenance_attribute_writes", False, driver=driver)
 
     def teardown_method(self, method):
+        self._remove_banned_replica_clusters_and_wait()
         self.replica_driver = None
         self.primary_driver = None
         super(TestReplicatedDynamicTablesBase, self).teardown_method(method)
+
+    def _remove_banned_replica_clusters_and_wait(self):
+        set(
+            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+            [],
+        )
+
+        tablet_nodes = ls("//sys/tablet_nodes")
+        wait(
+            lambda: all([get(f"//sys/tablet_nodes/{tablet_node}/orchid/replication_hint_manager/banned_replica_clusters") == [] for tablet_node in tablet_nodes])
+        )
 
     def _get_table_attributes(self, schema):
         return {"dynamic": True, "schema": schema}
@@ -692,17 +704,18 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         cell_id = get("//tmp/t/@tablets/0/cell_id")
         cell_node = get(f"#{cell_id}/@peers/0/address")
 
-        assert get(f"//sys/tablet_nodes/{cell_node}/orchid/replication_hint_manager/banned_replica_clusters") == []
+        def set_banned_replica_clusters_and_wait(banned_replica_clusters):
+            set(
+                "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+                banned_replica_clusters,
+            )
+            wait(
+                lambda: get(f"//sys/tablet_nodes/{cell_node}/orchid/replication_hint_manager/banned_replica_clusters")
+                == banned_replica_clusters
+            )
 
-        set(
-            "//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
-            [self.REPLICA_CLUSTER_NAME],
-        )
-
-        wait(
-            lambda: get(f"//sys/tablet_nodes/{cell_node}/orchid/replication_hint_manager/banned_replica_clusters")
-            == [self.REPLICA_CLUSTER_NAME]
-        )
+        set_banned_replica_clusters_and_wait([])
+        set_banned_replica_clusters_and_wait([self.REPLICA_CLUSTER_NAME])
 
     @authors("babenko")
     def test_in_sync_replicas_with_sync_last_committed_timestamp(self):
