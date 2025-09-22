@@ -33,7 +33,7 @@ public:
         , LocalLimitVector_(SafeClamp(limitVector))
         , HysteresizedLocalLimitVector_(SafeClamp(limitVector * HysteresisFactor))
         , CumulativeLimitVector_(LocalLimitVector_)
-        , Logger(logger)
+        , Logger(std::move(logger))
     {
         SwitchDominantResource(EResourceKind::DataWeight);
         YT_LOG_DEBUG(
@@ -78,11 +78,6 @@ public:
         bool IsLocal;
         i64 FlushIndex;
     };
-
-    static TString FormatToken(const TJobSizeTracker::TOverflowToken& token)
-    {
-        return Format("{R: %v, L: %v, I: %v}", token.OverflownResource, token.IsLocal, token.FlushIndex);
-    }
 
     std::optional<std::any> CheckOverflow(TResourceVector extraVector) const override
     {
@@ -206,6 +201,11 @@ private:
 
     TLogger Logger;
 
+    static TString FormatToken(const TJobSizeTracker::TOverflowToken& token)
+    {
+        return Format("{R: %v, L: %v, I: %v}", token.OverflownResource, token.IsLocal, token.FlushIndex);
+    }
+
     void StartNewRun(EResourceKind dominantResource)
     {
         CumulativeLimitVector_ = LocalLimitVector_;
@@ -216,7 +216,10 @@ private:
             SwitchDominantResource(dominantResource);
         }
 
-        YT_LOG_TRACE("New run started (DominantResource: %v, CumulativeLimitVector: %v)", DominantResource_, CumulativeLimitVector_);
+        YT_LOG_TRACE(
+            "New run started (DominantResource: %v, CumulativeLimitVector: %v)",
+            DominantResource_,
+            CumulativeLimitVector_);
     }
 
     void SwitchDominantResource(EResourceKind dominantResource)
@@ -262,9 +265,9 @@ private:
 std::unique_ptr<IJobSizeTracker> CreateJobSizeTracker(
     TResourceVector limitVector,
     TJobSizeTrackerOptions options,
-    const TLogger& logger)
+    TLogger logger)
 {
-    return std::make_unique<TJobSizeTracker>(limitVector, std::move(options), logger);
+    return std::make_unique<TJobSizeTracker>(limitVector, std::move(options), std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
