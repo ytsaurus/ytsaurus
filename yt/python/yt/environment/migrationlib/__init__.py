@@ -72,6 +72,10 @@ def _make_dynamic_table_attributes(schema, key_columns, optimize_for):
     return attributes
 
 
+class TypeV3(dict):
+    pass
+
+
 class TableInfo(object):
     """
     Contains all information about the table structure
@@ -96,13 +100,21 @@ class TableInfo(object):
         if attributes is None:
             attributes = dict()
 
-        def make_column(name, type_name, attributes=None, key=False):
+        # XXX(apachee): I feel like eventually we should add ColumnSchema class rather than
+        # have this mess with tuples, but this requires re-writing all existing migrations.
+        def make_column(name, column_type, attributes=None, key=False):
             if attributes is None:
                 attributes = dict()
+
             result = {
                 "name": name,
-                "type": type_name,
             }
+
+            if isinstance(column_type, TypeV3):
+                result["type_v3"] = dict(column_type)
+            else:
+                result["type"] = column_type
+
             lock = attributes.get("lock", default_lock)
             if not key and lock is not None:
                 result["lock"] = lock
@@ -110,10 +122,12 @@ class TableInfo(object):
                 result["max_inline_hunk_size"] = attributes["max_inline_hunk_size"]
             if "aggregate" in attributes:
                 result["aggregate"] = attributes["aggregate"]
+            if "required" in attributes:
+                result["required"] = attributes["required"]
             return result
 
-        def make_key_column(name, type_name, expression=None):
-            result = make_column(name, type_name, key=True)
+        def make_key_column(name, column_type, expression=None, attributes=None):
+            result = make_column(name, column_type, attributes=attributes, key=True)
             result["sort_order"] = "ascending"
             if expression:
                 result["expression"] = expression
@@ -411,6 +425,11 @@ class Migration(object):
             for table_name in table_infos.keys():
                 self.table_init_callback(client, ypath_join(tables_path, table_name))
 
+        for version in range(self.initial_version + 1, version + 1):
+            if version in self.actions:
+                for action in self.actions[version]:
+                    action(client)
+
         client.set(tables_path + "/@version", version)
 
         if mount:
@@ -461,6 +480,7 @@ class Migration(object):
 
                     # Filters out conversions according to their filter_callback, if present.
                     if conversion.filter_callback and not conversion.filter_callback(client=client, table_path=table_path):
+                        logging.info(f"Transform for table {table_path} is skipped by its filter_callback")
                         continue
 
                     table_exists = client.exists(table_path)
@@ -584,7 +604,7 @@ class Migration(object):
 
     def run(self, client, tables_path, target_version, shard_count, force, retransform, pool):
         """Migrate tables to the given version"""
-        assert target_version == self.initial_version or target_version in self.transforms
+        assert target_version == self.initial_version or target_version in self.transforms or target_version in self.actions
         assert target_version >= self.initial_version
 
         current_version = None

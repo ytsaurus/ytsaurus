@@ -16,17 +16,9 @@ class TYtWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtWriteApplicator(
-        const NYT::TRichYPath& path,
-        const NYT::TTableSchema& schema)
-        : Path_(path)
-        , Schema_(schema)
-    { }
+    TYtWriteApplicator(const NYT::TRichYPath& path, const NYT::TTableSchema& schema);
 
-    TString GetName() const
-    {
-        return "Write";
-    }
+    TString GetName() const;
 
     template <typename TInputRow>
     void ApplyTo(const TPCollection<TInputRow>& pCollection) const
@@ -61,15 +53,9 @@ class TYtSortedWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtSortedWriteApplicator(NYT::TRichYPath path, NYT::TTableSchema schema)
-        : Path_(std::move(path))
-        , Schema_(std::move(schema))
-    { }
+    TYtSortedWriteApplicator(NYT::TRichYPath path, NYT::TTableSchema schema);
 
-    TString GetName() const
-    {
-        return "Write";
-    }
+    TString GetName() const;
 
     template <typename TInputRow>
     void ApplyTo(const TPCollection<TInputRow>& pCollection) const
@@ -104,14 +90,9 @@ class TYtAutoSchemaWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtAutoSchemaWriteApplicator(NYT::TRichYPath path)
-        : Path_(path)
-    { }
+    explicit TYtAutoSchemaWriteApplicator(NYT::TRichYPath path);
 
-    TString GetName() const
-    {
-        return "AutoSchemaWrite";
-    }
+    TString GetName() const;
 
     template <typename TInputRow>
         requires std::is_base_of_v<::google::protobuf::Message, TInputRow>
@@ -131,15 +112,9 @@ class TYtAutoSchemaSortedWriteApplicator
     : public NPrivate::TAttributes
 {
 public:
-    TYtAutoSchemaSortedWriteApplicator(NYT::TRichYPath path, NYT::TSortColumns sortColumns)
-        : Path_(std::move(path))
-        , SortColumns_(std::move(sortColumns))
-    { }
+    TYtAutoSchemaSortedWriteApplicator(NYT::TRichYPath path, NYT::TSortColumns sortColumns);
 
-    TString GetName() const
-    {
-        return "AutoSchemaWrite";
-    }
+    TString GetName() const;
 
     template <typename TInputRow>
         requires std::is_base_of_v<::google::protobuf::Message, TInputRow>

@@ -282,7 +282,9 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-queue-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy && \
-    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tablet-balancer && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-bundle-controller && \
+    true
 
 # GPU agent.
 COPY ./gpuagent /usr/bin/gpuagent
