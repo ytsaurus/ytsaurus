@@ -3453,6 +3453,8 @@ void TJob::InitializeSandboxNbdRootVolumeData()
 
     SandboxNbdRootVolumeData_->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
     SandboxNbdRootVolumeData_->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    SandboxNbdRootVolumeData_->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
+    SandboxNbdRootVolumeData_->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
     SandboxNbdRootVolumeData_->MinDataNodeCount = nbdDisk.min_data_node_count();
     SandboxNbdRootVolumeData_->MaxDataNodeCount = nbdDisk.max_data_node_count();
 }

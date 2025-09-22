@@ -63,6 +63,10 @@ struct TSandboxNbdRootVolumeData
     TDuration DataNodeRpcTimeout;
     std::optional<std::string> DataNodeAddress;
 
+    //! Params for NBD requests to data nodes.
+    TDuration DataNodeNbdServiceRpcTimeout;
+    TDuration DataNodeNbdServiceMakeTimeout;
+
     //! Params to get suitable data nodes from master.
     TDuration MasterRpcTimeout;
     int MinDataNodeCount;

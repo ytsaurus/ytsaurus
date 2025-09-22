@@ -33,6 +33,10 @@ message TNbdDisk
     optional int64 master_rpc_timeout = 3 [default = 2000];
     optional int32 min_data_node_count = 4 [default = 0];
     optional int32 max_data_node_count = 5 [default = 3];
+
+    //! Params for NBD requests to data nodes.
+    optional int64 data_node_nbd_service_rpc_timeout = 6 [default = 10000];
+    optional int64 data_node_nbd_service_make_timeout = 7 [default = 10000];
 }
 
 message TDiskRequest
