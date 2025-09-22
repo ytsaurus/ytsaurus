@@ -476,6 +476,8 @@ items:
          href: admin-guide/problems.md
        - name: Cell addition
          href: admin-guide/cell-addition.md
+       - name: GPU support
+         href: admin-guide/gpu.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
    - name: Release notes
