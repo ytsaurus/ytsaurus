@@ -30,10 +30,12 @@ func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (targe
 	return
 }
 
-func (c *Controller) resolveChytVersion(ctx context.Context, path ypath.Path, chytVersion *chytOpletInfo) error {
+func (c *Controller) resolveChytVersion(ctx context.Context, path ypath.Path, chytVersion *chytOpletInfo) {
 	chytVersion.ChytRunningVersionPath = path.String()
 	err := c.ytc.GetNode(ctx, path.Attr("version"), &chytVersion.ChytRunningVersion, nil)
-	return err
+	if err != nil {
+		chytVersion.ChytRunningVersion = "unknown"
+	}
 }
 
 type artifact struct {
@@ -66,10 +68,7 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 			return
 		}
 		if artifact.name == "ytserver-clickhouse" {
-			err = c.resolveChytVersion(ctx, path.Path, chytVersion)
-			if err != nil {
-				return
-			}
+			c.resolveChytVersion(ctx, path.Path, chytVersion)
 		}
 		*filePaths = append(*filePaths, path)
 		err = appendArtifactDescription(ctx, &artifactDescription, c.ytc, artifact.name, path.Path)
