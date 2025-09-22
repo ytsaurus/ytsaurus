@@ -1000,7 +1000,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlSimpleBase):
         rows = [{"value": ''.join(['d' for _ in range(value_size)])} for i in range(22)]
         write_table("//tmp/t", rows)
 
-        expected = [{"value": ''.join(['d' for _ in range(value_size)]), "check":""}]
+        expected = [{"value": ''.join(['d' for _ in range(value_size)]), "check": ""}]
         q = self.start_query("yql", "select value, ('[\"\"]'y).0 as `check` from `//tmp/t`")
         q.track()
         assert q.get()["result_count"] == 1
