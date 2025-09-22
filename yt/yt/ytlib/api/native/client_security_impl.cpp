@@ -177,8 +177,8 @@ TCheckPermissionResponse TClient::DoCheckPermission(
         }
     }
 
-    if (rsp->has_rl_acl()) {
-        response.RlAcl = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->rl_acl().items());
+    if (rsp->has_row_level_acl()) {
+        response.RowLevelAcl = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->row_level_acl().items());
     }
 
     return response;

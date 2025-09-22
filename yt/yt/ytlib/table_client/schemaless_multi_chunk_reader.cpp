@@ -533,7 +533,7 @@ IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOpt
         return CreateEmptyUnversionedRowBatch();
     }
 
-    // NB(coteeq): CurrentReader_ may be null if none of data slices were allowed by RLACEs
+    // NB(coteeq): CurrentReader_ may be null if none of data slices were allowed by Row-Level ACEs
     // and reader manager is left in semi-open state.
     // TODO(coteeq): This is hacky.
     if (Finished_ || !CurrentReader_) {

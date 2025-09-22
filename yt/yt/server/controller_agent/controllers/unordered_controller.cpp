@@ -888,7 +888,7 @@ private:
         return !Spec_->InputQuery &&
             !Spec_->Sampling->SamplingRate &&
             !Spec_->JobIO->TableReader->SamplingRate &&
-            !InputManager_->HasRlAcl();
+            !InputManager_->HasRowLevelAcl();
     }
 
     i64 GetMinTeleportChunkSize() const override
