@@ -109,7 +109,7 @@ def start(
     for cluster in clusters.values():
         fill_queue_agent_state(cluster)
 
-    # Update //sys/clusters to union all cluster.
+    # Update //sys/clusters to unite all clusters.
     cluster_connections = {
         cluster.yt_id : get_cluster_connection(cluster) for cluster in clusters.values()
     }
