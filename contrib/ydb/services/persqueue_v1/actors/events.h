@@ -5,8 +5,8 @@
 #include <contrib/ydb/core/base/events.h>
 #include <contrib/ydb/core/grpc_services/rpc_calls_topic.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
-#include <contrib/ydb/core/persqueue/key.h>
-#include <contrib/ydb/core/persqueue/percentile_counter.h>
+#include <contrib/ydb/core/persqueue/public/key.h>
+#include <contrib/ydb/core/persqueue/public/counters/percentile_counter.h>
 #include <contrib/ydb/core/tx/scheme_board/events.h>
 
 #include <contrib/ydb/public/api/protos/persqueue_error_codes_v1.pb.h>

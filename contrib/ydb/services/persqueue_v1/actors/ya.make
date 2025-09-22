@@ -8,8 +8,9 @@ PEERDIR(
     contrib/ydb/core/util
     contrib/ydb/core/base
     contrib/ydb/core/grpc_services
-    contrib/ydb/core/persqueue
     contrib/ydb/core/persqueue/events
+    contrib/ydb/core/persqueue/public/counters
+    contrib/ydb/core/persqueue/public/cluster_tracker
     contrib/ydb/core/protos
     contrib/ydb/core/scheme
     contrib/ydb/core/tx/scheme_cache

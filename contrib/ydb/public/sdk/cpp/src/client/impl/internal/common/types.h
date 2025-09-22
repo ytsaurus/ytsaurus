@@ -1,0 +1,19 @@
+#pragma once
+
+#include <contrib/ydb/public/sdk/cpp/src/client/impl/internal/internal_header.h>
+
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/status_codes.h>
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/types/ydb.h>
+
+#include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/issue/yql_issue.h>
+
+#include <contrib/ydb/public/sdk/cpp/src/library/grpc/client/grpc_client_low.h>
+
+
+namespace NYdb::inline Dev {
+
+// Other callbacks
+using TSimpleCb = std::function<void()>;
+using TErrorCb = std::function<void(NYdbGrpc::TGrpcStatus&)>;
+
+} // namespace NYdb

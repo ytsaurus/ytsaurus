@@ -15,19 +15,13 @@ GENERATE_ENUM_SERIALIZATION(read_balancer__balancing.h)
 
 PEERDIR(
     contrib/libs/fmt
-    contrib/ydb/library/actors/core
-    contrib/ydb/core/base
     contrib/ydb/core/engine/minikql
     contrib/ydb/core/persqueue/events
+    contrib/ydb/core/persqueue/common
     contrib/ydb/core/persqueue/partition_key_range
-    contrib/ydb/library/logger
 )
 
 END()
 
 RECURSE_FOR_TESTS(
-#    ut
-#    dread_cache_service/ut
-#    ut/slow
-#    ut/ut_with_sdk
 )

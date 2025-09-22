@@ -4,14 +4,13 @@
 
 #include <contrib/ydb/core/base/row_version.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
-#include <contrib/ydb/core/persqueue/blob.h>
-#include <contrib/ydb/core/persqueue/blob_refcounter.h>
-#include <contrib/ydb/core/persqueue/key.h>
-#include <contrib/ydb/core/persqueue/metering_sink.h>
+#include <contrib/ydb/core/persqueue/common/blob_refcounter.h>
+#include <contrib/ydb/core/persqueue/common/key.h>
+#include <contrib/ydb/core/persqueue/common/metering.h>
 #include <contrib/ydb/core/persqueue/partition_key_range/partition_key_range.h>
-#include <contrib/ydb/core/persqueue/percentile_counter.h>
-#include <contrib/ydb/core/persqueue/sourceid_info.h>
-#include <contrib/ydb/core/persqueue/write_id.h>
+#include <contrib/ydb/core/persqueue/public/counters/percentile_counter.h>
+#include <contrib/ydb/core/persqueue/common/sourceid_info.h>
+#include <contrib/ydb/core/persqueue/public/write_id.h>
 #include <contrib/ydb/core/tablet/tablet_counters.h>
 #include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 
@@ -880,11 +879,15 @@ struct TEvPQ {
     };
 
     struct TEvTxCalcPredicateResult : public TEventLocal<TEvTxCalcPredicateResult, EvTxCalcPredicateResult> {
-        TEvTxCalcPredicateResult(ui64 step, ui64 txId, const NPQ::TPartitionId& partition, TMaybe<bool> predicate) :
+        TEvTxCalcPredicateResult(ui64 step, ui64 txId,
+                                 const NPQ::TPartitionId& partition,
+                                 TMaybe<bool> predicate,
+                                 const TString& issueMsg) :
             Step(step),
             TxId(txId),
             Partition(partition),
-            Predicate(predicate)
+            Predicate(predicate),
+            IssueMsg(issueMsg)
         {
         }
 
@@ -892,6 +895,7 @@ struct TEvPQ {
         ui64 TxId;
         NPQ::TPartitionId Partition;
         TMaybe<bool> Predicate;
+        TString IssueMsg;
     };
 
     struct TEvProposePartitionConfig : public TEventLocal<TEvProposePartitionConfig, EvProposePartitionConfig> {

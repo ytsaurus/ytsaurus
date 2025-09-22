@@ -2,7 +2,7 @@
 
 #include <contrib/ydb/public/api/grpc/draft/ydb_dynamic_config_v1.grpc.pb.h>
 #include <contrib/ydb/public/sdk/cpp/src/client/common_client/impl/client.h>
-#include <contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/make_request/make.h>
+#include <contrib/ydb/public/sdk/cpp/src/client/impl/internal/make_request/make.h>
 
 namespace NYdb::inline Dev::NDynamicConfig {
 

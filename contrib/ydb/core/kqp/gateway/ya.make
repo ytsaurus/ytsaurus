@@ -14,6 +14,7 @@ PEERDIR(
     contrib/ydb/core/kqp/gateway/behaviour/external_data_source
     contrib/ydb/core/kqp/gateway/behaviour/resource_pool
     contrib/ydb/core/kqp/gateway/behaviour/resource_pool_classifier
+    contrib/ydb/core/kqp/gateway/behaviour/streaming_query
     contrib/ydb/core/kqp/gateway/behaviour/table
     contrib/ydb/core/kqp/gateway/behaviour/tablestore
     contrib/ydb/core/kqp/gateway/behaviour/view

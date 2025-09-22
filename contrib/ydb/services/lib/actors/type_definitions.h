@@ -1,6 +1,6 @@
 #pragma once
 
-#include "contrib/ydb/core/persqueue/utils.h"
+#include "contrib/ydb/core/persqueue/public/utils.h"
 #include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 
 #include <contrib/ydb/library/actors/core/actor.h>

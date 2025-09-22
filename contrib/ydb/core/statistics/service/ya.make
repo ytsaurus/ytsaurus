@@ -9,6 +9,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/json
     contrib/ydb/core/base
     contrib/ydb/core/engine/minikql
     contrib/ydb/core/protos
