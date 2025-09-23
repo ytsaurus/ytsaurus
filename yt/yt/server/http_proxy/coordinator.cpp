@@ -169,6 +169,16 @@ TCoordinator::TCoordinator(
             }
         }
 
+        if (proxyConfig->ChytHttpServer) {
+            auto addresses = NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->ChytHttpServer->Port);
+            proxyAddressMap.emplace(EAddressType::ChytHttp, std::move(addresses));
+        }
+
+        if (proxyConfig->ChytHttpsServer) {
+            auto addresses = NRpcProxy::GetLocalAddresses(proxyConfig->Addresses, proxyConfig->ChytHttpsServer->Port);
+            proxyAddressMap.emplace(EAddressType::ChytHttps, std::move(addresses));
+        }
+
         options.AttributesOnStart = BuildAttributeDictionaryFluently()
             .Item("version").Value(NYT::GetVersion())
             .Item("start_time").Value(TInstant::Now().ToString())
