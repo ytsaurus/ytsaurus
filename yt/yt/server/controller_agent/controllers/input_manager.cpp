@@ -903,9 +903,9 @@ void TInputManager::FetchInputTablesAttributes()
     }
 
     for (const auto& [index, table] : SEnumerate(InputTables_)) {
-        table->RlsReadSpec = TRlsReadSpec::BuildFromRlAclAndTableSchema(
+        table->RlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
             table->Schema,
-            table->RlAcl,
+            table->RowLevelAcl,
             Logger().WithTag("TableIndex: %v", index));
     }
 
@@ -1067,9 +1067,9 @@ bool TInputManager::CanInterruptJobs() const
     return !InputHasOrderedDynamicStores_ && !InputHasStaticTableWithHunks_;
 }
 
-bool TInputManager::HasRlAcl() const
+bool TInputManager::HasRowLevelAcl() const
 {
-    return AnyOf(InputTables_, [] (const auto& table) { return table->RlAcl.has_value(); });
+    return AnyOf(InputTables_, [] (const auto& table) { return table->RowLevelAcl.has_value(); });
 }
 
 const std::vector<TInputTablePtr>& TInputManager::GetInputTables() const

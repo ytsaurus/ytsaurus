@@ -62,7 +62,7 @@ struct TPermissionCheckResponse
     //! results for individual columns.
     std::optional<std::vector<TPermissionCheckResult>> Columns;
     //! If there are RL ACEs for the object, this array contains descriptors for reader.
-    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RlAcl;
+    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RowLevelAcl;
 };
 
 TPermissionCheckResponse MakeFastCheckPermissionResponse(

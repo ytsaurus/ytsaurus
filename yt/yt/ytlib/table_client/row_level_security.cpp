@@ -36,23 +36,23 @@ bool IsTypeBoolean(const TLogicalType& logicalType)
     return false;
 }
 
-bool ValidateRlAceApplicability(
-    TRowLevelAccessControlEntry rlAce,
+bool ValidateRowLevelAceApplicability(
+    TRowLevelAccessControlEntry rowLevelAce,
     const TTableSchemaPtr& schema,
     const TLogger& Logger)
 {
     try {
         THashSet<std::string> references;
-        auto preparedExpression = PrepareExpression(rlAce.Expression, *schema, GetBuiltinTypeInferrers(), &references);
+        auto preparedExpression = PrepareExpression(rowLevelAce.Expression, *schema, GetBuiltinTypeInferrers(), &references);
         THROW_ERROR_EXCEPTION_IF(
             !IsTypeBoolean(*preparedExpression->LogicalType),
             "Expected expression's result type to be boolean, got %Qlv",
             *preparedExpression->LogicalType);
         return true;
     } catch (const std::exception& ex) {
-        switch (rlAce.InapplicableExpressionMode) {
+        switch (rowLevelAce.InapplicableExpressionMode) {
             case EInapplicableExpressionMode::Ignore: {
-                YT_LOG_INFO(ex, "Ignored expression (Expression: %v)", rlAce.Expression);
+                YT_LOG_INFO(ex, "Ignored expression (Expression: %v)", rowLevelAce.Expression);
                 return false;
             }
             case EInapplicableExpressionMode::Fail: {
@@ -68,25 +68,25 @@ bool ValidateRlAceApplicability(
     }
 }
 
-//! Builds a single expression, which is a disjunction of all RLACE's expressions.
+//! Builds a single expression, which is a disjunction of all Row-Level ACE's expressions.
 //!
 //! When all rl aces are inapplicable and inapplicable_expression_mode=ignore,
 //! return nullopt.
 std::optional<std::string> ValidateAndBuildExpression(
     const TTableSchemaPtr& schema,
-    const std::vector<TRowLevelAccessControlEntry>& rlAcl,
+    const std::vector<TRowLevelAccessControlEntry>& rowLevelAcl,
     const TLogger& Logger)
 {
     TStringBuilder builder;
     bool first = true;
-    for (const auto& rlAce : rlAcl) {
-        YT_VERIFY(!rlAce.Expression.empty());
+    for (const auto& rowLevelAce : rowLevelAcl) {
+        YT_VERIFY(!rowLevelAce.Expression.empty());
 
-        if (!ValidateRlAceApplicability(rlAce, schema, Logger)) {
+        if (!ValidateRowLevelAceApplicability(rowLevelAce, schema, Logger)) {
             continue;
         }
 
-        // NB(coteeq): |ValidateRlAceApplicability| checks that the |rlAce.Expression| is a valid expression.
+        // NB(coteeq): |ValidateRowLevelAceApplicability| checks that the |rowLevelAce.Expression| is a valid expression.
         // That means that we can just copy-paste the expression into the builder and not care about
         // SQL-injection-like things (e.g. it is not possible to have one of expressions be like
         // `) || true || (` and break the logic of disjunction†). And since we enclose expressions
@@ -101,13 +101,13 @@ std::optional<std::string> ValidateAndBuildExpression(
         }
         first = false;
         builder.AppendChar('(');
-        builder.AppendString(rlAce.Expression);
+        builder.AppendString(rowLevelAce.Expression);
         builder.AppendChar(')');
     }
 
     auto expression = builder.Flush();
     if (expression.empty()) {
-        if (rlAcl.empty()) {
+        if (rowLevelAcl.empty()) {
             YT_LOG_INFO("RL ACL is empty; denying to read any rows");
         } else {
             YT_LOG_INFO("All RL ACEs for a data source were ignored; no rows will be read");
@@ -289,15 +289,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRlAclAndTableSchema(
+std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
     const TTableSchemaPtr& tableSchema,
-    const std::optional<std::vector<TRowLevelAccessControlEntry>>& rlAcl,
+    const std::optional<std::vector<TRowLevelAccessControlEntry>>& rowLevelAcl,
     const TLogger& logger)
 {
-    if (!rlAcl) {
+    if (!rowLevelAcl) {
         return std::nullopt;
     }
-    auto expression = ValidateAndBuildExpression(tableSchema, *rlAcl, logger);
+    auto expression = ValidateAndBuildExpression(tableSchema, *rowLevelAcl, logger);
     YT_VERIFY(!expression || !expression->empty());
 
     TRlsReadSpec rlsReadSpec;

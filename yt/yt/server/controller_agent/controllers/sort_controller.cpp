@@ -3789,7 +3789,7 @@ private:
 
     bool IsRowCountPreserved() const override
     {
-        return !InputManager_->HasRlAcl();
+        return !InputManager_->HasRowLevelAcl();
     }
 
     i64 GetUnavailableInputChunkCount() const override

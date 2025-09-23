@@ -196,7 +196,7 @@ void TOutputTable::RegisterMetadata(auto&& registrar)
     // PHOENIX_REGISTER_DELETED_FIELD(
     //     18,
     //     std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>,
-    //     "RlAcl",
+    //     "RowLevelAcl",
     //     ESnapshotVersion::FixRlsSnapshots,
     //     .SinceVersion(ESnapshotVersion::RlsInOperations));
 }
