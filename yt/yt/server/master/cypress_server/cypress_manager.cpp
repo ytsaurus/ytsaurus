@@ -4181,7 +4181,11 @@ private:
             originatingNode->IsSequoia() &&
             originatingNode->IsNative())
         {
-            if (branchedNode->MutableSequoiaProperties()->Tombstone) {
+            // NB: if Sequoia transaction was aborted node stucks in unreachable
+            // and "being created" state.
+            if (branchedNode->MutableSequoiaProperties()->Tombstone ||
+                branchedNode->MutableSequoiaProperties()->BeingCreated)
+            {
                 originatingNode->MutableSequoiaProperties()->Tombstone = true;
 
                 if (originatingNode->GetReachable()) {
