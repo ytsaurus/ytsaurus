@@ -145,7 +145,7 @@ def build_cluster_resources(has_node_monitor):
     )
     d.add_parameter(
         "cluster",
-        "Сluster",
+        "Cluster",
         GrafanaTextboxDashboardParameter(CLUSTER_RESOURCES_DASHBOARD_DEFAULT_CLUSTER),
         backends=["grafana"],
     )

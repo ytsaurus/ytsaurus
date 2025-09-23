@@ -270,7 +270,7 @@ def build_master_global(has_portal_cells, has_chunk_cells):
     )
     d.add_parameter(
         "cluster",
-        "Сluster",
+        "Cluster",
         GrafanaTextboxDashboardParameter(MASTER_GLOBAL_DASHBOARD_DEFAULT_CLUSTER),
         backends=["grafana"],
     )
