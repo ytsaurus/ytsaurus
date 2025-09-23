@@ -2246,6 +2246,11 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != expectedPhase) {
+        // COMPAT(krasovav)
+        if (expectedPhase == EJobPhase::CachingArtifacts && JobPhase_ == EJobPhase::DownloadingArtifacts) {
+            return;
+        }
+
         YT_LOG_DEBUG(
             "Unexpected job phase (Actual: %v, Expected: %v)",
             JobPhase_,
@@ -2287,7 +2292,10 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             }
 
             SetJobPhase(EJobPhase::DownloadingArtifacts);
-            SetJobPhase(EJobPhase::CachingArtifacts);
+            // COMPAT(krasovav)
+            if (UserJobSpec_ && UserJobSpec_->enable_caching_artifacts_phase()) {
+                SetJobPhase(EJobPhase::CachingArtifacts);
+            }
 
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(

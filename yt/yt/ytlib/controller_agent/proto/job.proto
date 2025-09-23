@@ -349,6 +349,10 @@ message TUserJobSpec
     map<string, TSidecarJobSpec> sidecars = 84;
 
     optional bool enable_debug_command_line_arguments = 85 [default = false];
+
+    // COMPAT(krasovav)
+    // Enable EJobPhase::CachingArtifacts in job
+    optional bool enable_caching_artifacts_phase = 86 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

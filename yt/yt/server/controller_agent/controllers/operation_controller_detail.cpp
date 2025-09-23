@@ -10356,6 +10356,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
+    // COMPAT(krasovav)
+    jobSpec->set_enable_caching_artifacts_phase(true);
+
     auto normalizeDockerImage = [this] (const std::string& dockerImage, bool& needDockerAuth) {
         std::optional<TString> normalizedImage;
 

@@ -111,6 +111,11 @@ void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
 
     auto jobPhase = Context_.Job->GetPhase();
     if (jobPhase != expectedPhase) {
+        // COMPAT(krasovav)
+        if (expectedPhase == EJobPhase::CachingArtifacts && jobPhase == EJobPhase::DownloadingArtifacts) {
+            return;
+        }
+
         YT_LOG_DEBUG(
             "Unexpected job phase during workspace preparation (Actual: %v, Expected: %v)",
             jobPhase,
