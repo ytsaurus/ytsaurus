@@ -8,7 +8,7 @@ from yt_commands import (
     sort, list_jobs, get_job_input,
     get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
     clean_operations, sync_create_cells, update_op_parameters, raises_yt_error,
-    gc_collect, run_test_vanilla, wait_no_assert)
+    gc_collect, run_test_vanilla, wait_no_assert, update_controller_agent_config)
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
@@ -1119,6 +1119,39 @@ class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
         job_error = get_job_stderr(op.id, job_id)
         assert job_error == b"AAA\n"
 
+    @authors("bystrovserg")
+    @pytest.mark.timeout(180)
+    def test_gpu_check_stderr_on_gpu_check_success(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+
+        update_controller_agent_config(
+            "vanilla_operation_options/gpu_check",
+            {
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/gpu_check/gpu_check_args",
+                "binary_args": ["-Y"],
+            }
+        )
+
+        op = run_test_vanilla(
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+            },
+            task_patch={
+                "gpu_limit": 1,
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "enable_gpu_check": True,
+            },
+            track=True,
+        )
+
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+
+        wait(lambda: len(get_job_stderr(op.id, job_id)) > 0)
+        wait(lambda: len(get_job_stderr(op.id, job_id, type="gpu_check_stderr")) > 0)
 
 ##################################################################
 

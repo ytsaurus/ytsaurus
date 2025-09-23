@@ -179,7 +179,9 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
             YT_LOG_INFO("GPU check command failed (Stdout: %Qv, Stderr: %Qv)",
                 gpuCheckResult.Stdout,
                 gpuCheckResult.Stderr);
+        }
 
+        if (gpuCheckResult.Stderr) {
             auto job = checker->Context_.Job;
             job->HandleJobReport(
                 TNodeJobReport()
