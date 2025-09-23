@@ -318,6 +318,10 @@ COPY ./credits/clickhouse-trampoline.CREDITS /usr/bin/clickhouse-trampoline.CRED
 RUN python3.8 -m pip install ytsaurus-client
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
+# python3-cryptography breaks ytsaurus-client in the image: https://github.com/pyca/cryptography/issues/9060#issuecomment-1983130684.
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get remove -y \
+  python3-cryptography
+
 # Setup script.
 COPY ./setup_cluster_for_chyt.sh /setup_cluster_for_chyt.sh
 RUN chmod 755 /setup_cluster_for_chyt.sh
