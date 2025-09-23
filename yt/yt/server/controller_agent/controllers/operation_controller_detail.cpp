@@ -10380,6 +10380,8 @@ void TOperationControllerBase::InitUserJobSpec(
         joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value());
 
     if (Options_->SetSlotContainerMemoryLimit) {
+        // Slot container reserve covers everything that lives in the container: user job memory,
+        // the additional job proxy buffers, the static footprint, and the configurable overhead.
         jobSpec->set_slot_container_memory_limit(
             jobSpec->memory_limit() +
             joblet->EstimatedResourceUsage.GetJobProxyMemory() +
