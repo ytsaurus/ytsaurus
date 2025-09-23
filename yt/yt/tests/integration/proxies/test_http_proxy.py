@@ -2414,6 +2414,7 @@ class TestHttpsProxy(HttpProxyTestBase):
 class TestHttpProxyDiscovery(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
+    ENABLE_CHYT_HTTP_PROXIES = True
 
     NUM_HTTP_PROXIES = 2
     NUM_RPC_PROXIES = 1
@@ -2435,9 +2436,10 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         proxy = ls("//sys/http_proxies")[0]
 
         addresses = get("//sys/http_proxies/" + proxy + "/@addresses")
-        assert "http" in addresses
-        assert "default" in addresses["http"]
-        assert "fastbone" in addresses["http"]
+        for listener in ("http", "chyt_http"):
+            assert listener in addresses
+            assert "default" in addresses[listener]
+            assert "fastbone" in addresses[listener]
         assert proxy == addresses["http"]["default"]
 
     @authors("nadya73")
@@ -2483,6 +2485,11 @@ class TestHttpProxyDiscovery(YTEnvSetup):
     def test_invalid_network_name(self):
         proxies = discover_proxies(type_="http", driver=self.driver, network_name="invalid")
         assert len(proxies) == 0
+
+    @authors("epsilond1")
+    def test_chyt_http_address(self):
+        proxies = discover_proxies(type_="http", driver=self.driver, address_type="chyt_http")
+        assert len(proxies) != 0
 
 
 @pytest.mark.enabled_multidaemon
