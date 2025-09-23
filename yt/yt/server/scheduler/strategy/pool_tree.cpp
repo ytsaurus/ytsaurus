@@ -3461,6 +3461,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limits_share", attributes.LimitsShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "scheduling_tag_filter_resource_limits", element->GetSchedulingTagFilterResourceLimits())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_limits", element->GetSpecifiedResourceLimitsConfig())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_limits_overcommit_tolerance", element->SpecifiedResourceLimitsOvercommitTolerance())
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limited_resource_demand", element->GetTotalResourceLimits() * element->LimitedDemandShare())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limited_demand_share", element->LimitedDemandShare())
