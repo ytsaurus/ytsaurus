@@ -46,7 +46,7 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
 
     def _test_simple_query_error(self, query, expected, **kwargs):
         try:
-            result = self._run_simple_query(query, **kwargs)
+            self._run_simple_query(query, **kwargs)
         except YtError as err:
             assert err.contains_text(expected)
             return
@@ -1629,8 +1629,8 @@ class TestsDDL(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 3
 
     def test_simple_create_table(self, query_tracker, yql_agent):
-        self._test_simple_query("create table `//tmp/t1` (xyz Text);", None)
-        self._test_simple_query("select * from `//tmp/t1`;", [])
+        self._test_simple_query("create table `//tmp/t1` (xyz Text, abc Int32 not null, uvw Date null);", None)
+        self._test_simple_query("$p = process `//tmp/t1`; select FormatType(TypeOf($p)) as type;", [{'type': "List<Struct<'abc':Int32,'uvw':Date?,'xyz':Utf8?>>"}])
 
     def test_error_already_exists(self, query_tracker, yql_agent):
         self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
