@@ -14,6 +14,8 @@ CONCLUSION_FAILURE = "failure"
 CONCLUSION_CANCELLED = "cancelled"
 STATUS_COMPLETED = "completed"
 
+DISTANCE_BETWEEN_FAILED_JOBS = 10
+
 
 def _parse_args():
     parser = argparse.ArgumentParser(
@@ -101,17 +103,21 @@ def _get_prev_conclusion(workflow: Workflow.Workflow, ref: str, time: str) -> ty
     return runs[0].conclusion
 
 
-def _get_last_success_run(workflow: Workflow.Workflow, ref: str, time: str) -> typing.Optional[WorkflowRun.WorkflowRun]:
+def _get_last_success_run(
+    workflow: Workflow.Workflow, ref: str, time: str
+) -> typing.Tuple[typing.Optional[WorkflowRun.WorkflowRun], int]:
     runs = workflow.get_runs(branch=ref, status=STATUS_COMPLETED, created=f"<{time}")
     if not runs or runs.totalCount == 0:
         print("No one runs with such filter")
-        return
+        return None, 0
 
+    counter = 0
     for run in runs:
+        counter += 1
         if run.conclusion == CONCLUSION_SUCCESS:
-            return run
+            return run, counter
 
-    return None
+    return None, counter
 
 
 def _get_new_workflow_state(prev_conclusion, current_conclusion):
@@ -181,8 +187,8 @@ def main():
     created_time_current_job = created_time_current_job.strftime("%Y-%m-%dT%H:%M:%SZ")
     prev_conclusion = _get_prev_conclusion(workflow, args.ref, created_time_current_job)
     if CONCLUSION_SUCCESS not in (prev_conclusion, args.current_job_conclusion):
-        last_run = _get_last_success_run(workflow, args.ref, created_time_current_job)
-        if last_run:
+        last_run, dist_to_job = _get_last_success_run(workflow, args.ref, created_time_current_job)
+        if last_run and dist_to_job % DISTANCE_BETWEEN_FAILED_JOBS == 0:
             current_datetime = datetime.now(last_run.created_at.tzinfo)
             if (current_datetime - last_run.created_at).days >= 1:
                 wf_file = workflow.path.split('/')[-1]
