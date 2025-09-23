@@ -55,6 +55,9 @@ type Controller interface {
 	// Returns `nil` if scaling is not required.
 	// May be called concurrently since it is accessed from `runScaler`, not from `background` goroutine.
 	GetScalerTarget(ctx context.Context, opletInfo OpletInfoForScaler) (*ScalerTarget, error)
+
+	// COMPAT(buyval01): Temporary auxiliary method that is only needed to modify persistent state.
+	GetOpletInfo(ctx context.Context, oplet *Oplet) (any, error)
 }
 
 type ControllerFactory struct {

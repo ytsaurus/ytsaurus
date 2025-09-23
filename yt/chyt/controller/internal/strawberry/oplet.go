@@ -14,6 +14,19 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
+// This enum is used to indicate changes in persistent state.
+// Adding new fields and structures to state is usually a one-time action necessary for subsequent logic.
+// When new changes are introduced, add the enum variable to the top of the list,
+// add a verification to the needsModifyState method, and a configuration to the modifyState method.
+// When subsequent versions of strawberry are released, the end of this enum will be cut off.
+type persistentStateModification int
+
+const (
+	beginPersistentStateModification persistentStateModification = iota
+	addOpletInfo
+	addYTOpControllerSnapshot
+)
+
 // AgentInfo contains information about the Agent which is needed in Oplet.
 type AgentInfo struct {
 	StrawberryRoot     ypath.Path
@@ -454,6 +467,11 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 			return err
 		}
 	}
+	if mod := oplet.needsModifyState(); mod != beginPersistentStateModification {
+		if err := oplet.modifyPersistentState(ctx, mod); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -523,7 +541,9 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 	}
 	if oplet.strawberrySpeclet.RestartOnControllerChangeOrDefault() {
 		snapshot, err := oplet.c.GetControllerSnapshot()
-		if err == nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
+		if err != nil {
+			oplet.l.Error("failed to get controller snapshot", log.Error(err))
+		} else if oplet.persistentState.YTOpControllerSnapshot != nil && !bytes.Equal(oplet.persistentState.YTOpControllerSnapshot, snapshot) {
 			return true, "controller snapshot changed"
 		}
 	}
@@ -586,6 +606,39 @@ func (oplet *Oplet) needsResume() (needsResume bool, reason string) {
 		return true, "resume marker changed"
 	}
 	return false, "up to date"
+}
+
+func (oplet *Oplet) needsModifyState() persistentStateModification {
+	if oplet.persistentState.YTOpControllerSnapshot == nil {
+		return addYTOpControllerSnapshot
+	}
+	if oplet.persistentState.OpletInfo == nil {
+		return addOpletInfo
+	}
+
+	return beginPersistentStateModification
+}
+
+func (oplet *Oplet) modifyPersistentState(ctx context.Context, mod persistentStateModification) error {
+	if mod >= addYTOpControllerSnapshot {
+		snapshot, err := oplet.c.GetControllerSnapshot()
+		if err != nil {
+			oplet.l.Error("failed to get controller snapshot", log.Error(err))
+			return err
+		}
+		oplet.persistentState.YTOpControllerSnapshot = snapshot
+	}
+
+	if mod >= addOpletInfo {
+		info, err := oplet.c.GetOpletInfo(ctx, oplet)
+		if err != nil {
+			oplet.l.Error("failet to get oplet info", log.Error(err))
+			return err
+		}
+		oplet.SetOpletInfo(info)
+	}
+
+	return nil
 }
 
 func (oplet *Oplet) needsBackoff() bool {
