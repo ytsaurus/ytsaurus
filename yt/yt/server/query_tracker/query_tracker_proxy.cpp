@@ -824,20 +824,20 @@ void TQueryTrackerProxy::AlterQuery(
                 TFinishedQueryDescriptor::Get()->GetNameTable(),
                 MakeSharedRange(std::move(rows), rowBuffer));
 
-            TUpdateQueryOptions indexUpdateQueryOptions{
+            TUpdateQueryOptions indexUpdateOptions{
                 .NewAnnotations = options.Annotations,
                 .NewAccessControlObjects = accessControlObjects
             };
 
             TimeBasedIndex_->UpdateQuery(
                 query,
-                indexUpdateQueryOptions,
+                indexUpdateOptions,
                 transaction
             );
 
             TokenBasedIndex_->UpdateQuery(
                 query,
-                indexUpdateQueryOptions,
+                indexUpdateOptions,
                 transaction
             );
         }
@@ -865,20 +865,20 @@ void TQueryTrackerProxy::AlterQuery(
                 TActiveQueryDescriptor::Get()->GetNameTable(),
                 MakeSharedRange(std::move(rows), rowBuffer));
 
-            TUpdateQueryOptions indexUpdateQueryOptions{
+            TUpdateQueryOptions indexUpdateOptions{
                 .NewAnnotations = options.Annotations,
                 .NewAccessControlObjects = accessControlObjects
             };
 
             TimeBasedIndex_->UpdateQuery(
                 query,
-                indexUpdateQueryOptions,
+                indexUpdateOptions,
                 transaction
             );
 
             TokenBasedIndex_->UpdateQuery(
                 query,
-                indexUpdateQueryOptions,
+                indexUpdateOptions,
                 transaction
             );
         }
