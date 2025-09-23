@@ -1,10 +1,15 @@
 import functools
 import hashlib
 import itertools
+import math
 import multiprocessing as mp
 import os
 import re
+import sys
 import time
+
+from typing import List, Dict, Tuple
+from copy import deepcopy
 
 from .client import YtClient
 from .config import get_config
@@ -16,7 +21,19 @@ from .run_operation_commands import run_merge
 from .table_commands import read_table
 from .transaction import Transaction
 
+import yt.logger as logger
 import yt.yson as yson
+
+
+PART_SIZE_DEFAULT = 4 * 1024 * 1024
+META_TABLE_SUFFIX = ".dirtable.meta"
+
+
+def _print_message(message):
+    if sys.stdout.isatty():
+        print(message)
+    else:
+        logger.info(message)
 
 
 def get_chunk_table_attributes():
@@ -103,14 +120,14 @@ def get_chunks(full_path, yt_name, part_size):
         part_index += 1
 
 
-def get_chunks_to_upload(files_to_upload, part_size):
+def get_chunks_to_upload(files_to_upload, part_size) -> List[ChunkToUpload]:
     res = []
     for full_path, yt_name in files_to_upload:
         res.extend(get_chunks(full_path, yt_name, part_size))
     return res
 
 
-def split_range(begin, end, parts_count):
+def split_range(begin: int, end: int, parts_count: int) -> List[Tuple]:
     count = end - begin
     parts_count = max(parts_count, 1)
     d, r = divmod(count, parts_count)
@@ -124,11 +141,11 @@ def split_range(begin, end, parts_count):
     return res
 
 
-def split_chunks(chunks, parts_count):
+def split_chunks(chunks: List[ChunkToUpload], parts_count) -> List[List[ChunkToUpload]]:
     return [chunks[begin:end] for begin, end in split_range(0, len(chunks), parts_count)]
 
 
-def write_chunks(chunks, folder, client_config, transaction_id, for_sky_share):
+def write_chunks(chunks: List[ChunkToUpload], folder, client_config, transaction_id, for_sky_share):
     client = YtClient(config=client_config)
     with client.Transaction(transaction_id=transaction_id):
         table_path = client.find_free_subpath(folder)
@@ -156,20 +173,20 @@ def get_file_sizes_from_table(client, yt_table):
 
 
 def write_meta_file(client, yt_table, file_sizes, force):
-    meta_file_path = yt_table + ".dirtable.meta"
+    meta_file_path = yt_table + META_TABLE_SUFFIX
     meta = yson.to_yson_type({
-        "file_sizes": file_sizes
+        "file_sizes": file_sizes,
     })
     write_file(meta_file_path, yson.dumps(meta), force_create=True, client=client)
 
 
-def get_file_sizes(client, yt_table):
-    meta_file_path = yt_table + ".dirtable.meta"
+def get_file_sizes(client, yt_table) -> Dict[str, int]:
+    meta_file_path = yt_table + META_TABLE_SUFFIX
     try:
         meta = yson.loads(read_file(meta_file_path, client=client).read())
         return meta["file_sizes"]
     except YtError:
-        print("Warning: {} not found, try to get file sizes from table".format(meta_file_path))
+        logger.warning("Warning: {} not found, try to get file sizes from table".format(meta_file_path))
         return get_file_sizes_from_table(client, yt_table)
 
 
@@ -200,7 +217,7 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
 
     files_to_upload = get_files_to_upload(directory, recursive, store_full_path, exact_filenames, filter_by_regexp, exclude_by_regexp)
     if not files_to_upload:
-        print("Warning: there is no matching files to upload")
+        logger.warning("Warning: there is no matching files to upload")
         return
 
     chunks = get_chunks_to_upload(files_to_upload, part_size)
@@ -248,7 +265,7 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
 
     data_size_mb = sum(file_sizes.values()) / 2 ** 20
     speed_mb_s = data_size_mb / (time.time() - start_time)
-    print(f"Uploaded {data_size_mb:.1f} MB in {len(files_to_upload)} files to `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
+    _print_message(f"Uploaded {data_size_mb:.1f} MB in {len(files_to_upload)} files to `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
 
 
 def check_file_name(file_name, exact_filenames, filter_by_regexp, exclude_by_regexp):
@@ -268,26 +285,71 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
         os.makedirs(directory)
 
     with Transaction(attributes={"title": "dirtable download"}, ping=True, client=client) as tx:
-        file_sizes = get_file_sizes(client, yt_table)
-        filtered = False
+        part_size = get_attribute(yt_table, "part_size", client=client)
+        all_files_sizes = get_file_sizes(client, yt_table)
+        all_files_rows = {}
+        cur_row = 0
+        for name in sorted(all_files_sizes.keys()):
+            file_rows = math.ceil(all_files_sizes[name] / part_size)
+            if file_rows == 0:
+                file_rows = 1
+            all_files_rows[name] = {
+                "start_row": cur_row,
+                "end_row": cur_row + file_rows - 1,
+            }
+            cur_row += file_rows
+
         if exact_filenames or filter_by_regexp or exclude_by_regexp:
-            filtered = True
-            file_sizes = {key: value for key, value in file_sizes.items() if check_file_name(key, exact_filenames, filter_by_regexp, exclude_by_regexp)}
-            if not file_sizes:
-                print("Warning: there is no appropriate files")
+            filtered_files_sizes = {key: value for key, value in all_files_sizes.items() if check_file_name(key, exact_filenames, filter_by_regexp, exclude_by_regexp)}
+            if not filtered_files_sizes:
+                logger.warning("Warning: there is no appropriate files")
+        else:
+            filtered_files_sizes = all_files_sizes
+
         try:
-            for filename, size in file_sizes.items():
+            for filename, size in filtered_files_sizes.items():
                 full_path = os.path.join(directory, filename)
                 if not os.path.exists(os.path.dirname(full_path)):
                     os.makedirs(os.path.dirname(full_path))
                 with open(full_path, "wb") as f:
                     f.write(b"\0" * size)
-            row_count = get_attribute(yt_table, "row_count", client=client)
+
             tables = []
-            if filtered:
-                tables = [TablePath(yt_table, exact_key=name, client=client) for name in file_sizes]
+            if filtered_files_sizes == all_files_sizes:
+                row_count = get_attribute(yt_table, "row_count", client=client)
+                tables = [
+                    TablePath(
+                        yt_table,
+                        start_index=begin,
+                        end_index=end,
+                        client=client
+                    ) for begin, end in split_range(0, row_count, process_count)
+                ]
+                logger.debug(f"Total tables: {len(tables)} - split by process count")
             else:
-                tables = [TablePath(yt_table, start_index=begin, end_index=end, client=client) for begin, end in split_range(0, row_count, process_count)]
+                tables = [
+                    TablePath(
+                        yt_table,
+                        start_index=all_files_rows[name]["start_row"],
+                        end_index=all_files_rows[name]["end_row"] + 1,
+                        client=client
+                    ) for name in filtered_files_sizes
+                ]
+                while len(tables) < process_count:
+                    max_table = max(tables, key=lambda i: i.ranges[0]["upper_limit"]["row_index"] - i.ranges[0]["lower_limit"]["row_index"])
+                    max_table_range = max_table.ranges[0]["upper_limit"]["row_index"] - max_table.ranges[0]["lower_limit"]["row_index"]
+                    if max_table_range < 10:
+                        break
+                    tables.remove(max_table)
+                    table1 = deepcopy(max_table)
+                    table1.ranges[0]["upper_limit"]["row_index"] -= max_table_range // 2
+                    tables.append(table1)
+                    table2 = deepcopy(max_table)
+                    table2.ranges[0]["lower_limit"]["row_index"] = table1.ranges[0]["upper_limit"]["row_index"]
+                    tables.append(table2)
+                    logger.debug(f"Split table {max_table!r} to {table1!r} + {table2!r}")
+                logger.debug(f"Total tables: {len(tables)} - split by filtered table")
+
             worker = functools.partial(download_table, directory=directory, client_config=get_config(client), transaction_id=tx.transaction_id)
             pool = process_pool_class(process_count)
             try:
@@ -300,16 +362,16 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                 pool.join()
 
         except Exception:
-            for filename in file_sizes:
+            for filename in filtered_files_sizes:
                 try:
                     os.remove(os.path.join(directory, filename))
                 except OSError:
                     pass
             raise
 
-    data_size_mb = sum(file_sizes.values()) / 2 ** 20
+    data_size_mb = sum(filtered_files_sizes.values()) / 2 ** 20
     speed_mb_s = data_size_mb / (time.time() - start_time)
-    print(f"Downloaded {data_size_mb:.1f} MB in {len(file_sizes)} files from `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
+    _print_message(f"Downloaded {data_size_mb:.1f} MB in {len(filtered_files_sizes)} files from `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
 
 
 def list_files_from_yt(yt_table, raw=False, client=None):
@@ -319,12 +381,14 @@ def list_files_from_yt(yt_table, raw=False, client=None):
 
     if raw:
         for filename, _ in file_sizes.items():
-            print(filename)
+            _print_message(filename)
     else:
         print(f"{'Filename'.ljust(max_filename_length)} | {'File Size'.rjust(max_size_length)}")
         print('-' * (max_filename_length + max_size_length + 3))  # Adjust the line length for better formatting
         for filename, size in file_sizes.items():
             print(f"{filename:<{max_filename_length}} | {size:>{max_size_length},}")
+
+    return file_sizes
 
 
 def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_class=mp.Pool, store_full_path=False, client=None):
@@ -378,7 +442,7 @@ def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_c
 
     data_size_mb = file_sizes[yt_name] / 2 ** 20
     speed_mb_s = data_size_mb / (time.time() - start_time)
-    print(f"Uploaded {data_size_mb:.1f} MB in 1 file to `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
+    _print_message(f"Uploaded {data_size_mb:.1f} MB in 1 file to `{yt_table}`. Speed={speed_mb_s:.2f} MB/s")
 
 
 def add_upload_parser(parsers):
@@ -386,7 +450,7 @@ def add_upload_parser(parsers):
     parser.set_defaults(func=upload_directory_to_yt)
     parser.add_argument("--directory", required=True)
     parser.add_argument("--store-full-path", action="store_true", help="Store full path to the uploaded file. Makes --yt-name equal to the --fs-path value")
-    parser.add_argument("--part-size", type=int, default=4 * 1024 * 1024)
+    parser.add_argument("--part-size", type=int, default=PART_SIZE_DEFAULT)
 
     parser.set_defaults(recursive=True)
     parser.add_argument("--recursive", action="store_true")
