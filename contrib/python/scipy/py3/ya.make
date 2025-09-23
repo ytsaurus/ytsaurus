@@ -129,9 +129,6 @@ IF (HAVE_MKL)
         -ECTE_HAVE_MKL=1
     )
 ELSE()
-    CFLAGS(
-        -Dchla_transtype_=chla_transtype__
-    )
     CYTHON_FLAGS(
         -ECTE_HAVE_MKL=0
     )
