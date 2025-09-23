@@ -1,4 +1,3 @@
-from py import builtin
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
@@ -1155,7 +1154,7 @@ class TestManyMedia(TestMediaBase):
         set("//tmp/t/@media", tbl_media)
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        expected_chunk_media = builtin.set(media_sample) | {"default"}
+        expected_chunk_media = builtins.set(media_sample) | {"default"}
 
         # This takes around 15 seconds on a local machine, so should be fine.
         wait(
@@ -1200,7 +1199,7 @@ class TestManyMedia(TestMediaBase):
         set("//tmp/t/@media", tbl_media)
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        expected_chunk_media = builtin.set(media_sample) | {"default"}
+        expected_chunk_media = builtins.set(media_sample) | {"default"}
 
         # NB: This large wait is impossible to avoid with such number of replicas.
         # It takes around 130 seconds on local machine, so we give some margin.
@@ -1229,7 +1228,7 @@ class TestManyMedia(TestMediaBase):
         wait(
             lambda:
                 self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
-                and self._get_chunk_replica_media(chunk_id) == builtin.set(media_sample))
+                and self._get_chunk_replica_media(chunk_id) == builtins.set(media_sample))
 
         assert self._get_chunk_locations(chunk_id) == self._get_locations_for_nondefault_media(media_sample)
 
@@ -1256,7 +1255,7 @@ class TestManyMedia(TestMediaBase):
         wait(
             lambda:
                 self._check_chunk_ok(True, chunk_id, media_sample, print_progress=True)
-                and self._get_chunk_replica_media(chunk_id) == builtin.set(media_sample)
+                and self._get_chunk_replica_media(chunk_id) == builtins.set(media_sample)
                 and self._get_chunk_locations(chunk_id) == self._get_locations_for_nondefault_media(media_sample))
 
 
