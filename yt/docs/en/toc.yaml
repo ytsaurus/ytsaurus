@@ -480,6 +480,10 @@ items:
          href: admin-guide/gpu.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
+       - name: Misc
+         items:
+           - name: Reading from remote clusters via RPC proxy
+             href: admin-guide/multiproxy.md
    - name: Release notes
      href: admin-guide/releases.md
    - name: FAQ

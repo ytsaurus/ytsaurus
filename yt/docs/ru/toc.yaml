@@ -499,6 +499,10 @@ items:
         href: admin-guide/problems.md
       - name: Синхронизация пользователей и групп с внешней системой
         href: admin-guide/identity-sync.md
+      - name: Прочее
+        items:
+          - name: Чтение с удаленных кластеров через RPC Proxy
+            href: admin-guide/multiproxy.md
   - name: Release notes
     href: admin-guide/releases.md
   - name: FAQ
