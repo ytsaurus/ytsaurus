@@ -742,6 +742,7 @@ TFuture<ITableReaderPtr> TClientBase::CreateTableReader(
     req->set_enable_table_index(options.EnableTableIndex);
     req->set_enable_row_index(options.EnableRowIndex);
     req->set_enable_range_index(options.EnableRangeIndex);
+    req->set_enable_any_unpacking(options.EnableAnyUnpacking);
     if (options.Config) {
         req->set_config(ConvertToYsonString(*options.Config).ToString());
     }
