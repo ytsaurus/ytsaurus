@@ -37,8 +37,6 @@ using TSslPtr = std::unique_ptr<SSL, TSslDeleter>;
 
 DECLARE_REFCOUNTED_STRUCT(TSslContextImpl)
 
-using TCertificatePathResolver = std::function<TString(const TString&)>;
-
 class TSslContext
     : public TRefCounted
 {

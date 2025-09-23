@@ -34,6 +34,10 @@ RESOURCE(
     ${TEST_DATA_DIR}/key_with_ip_in_san.pem /testdata/key_with_ip_in_san.pem
 )
 
+EXPLICIT_DATA()
+
+DATA(arcadia/yt/yt/core/bus/unittests/testdata)
+
 REQUIREMENTS(
     cpu:4
     ram:4

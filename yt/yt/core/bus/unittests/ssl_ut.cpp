@@ -85,6 +85,7 @@ public:
         AddressWithIpV4 = Format("127.0.0.1:%v", Port);
         AddressWithIpV6 = Format("[::1]:%v", Port);
 
+<<<<<<< cherry-pick-tls-support: yt/core/bus: always send TLS handshake response for incompatible modes
         CACert = TPemBlobConfig::CreateFileReference(CreatePemFile("ca.pem"));
         PrivateKey = TPemBlobConfig::CreateFileReference(CreatePemFile("key.pem"));
         CertificateChain = TPemBlobConfig::CreateFileReference(CreatePemFile("cert.pem"));
@@ -95,6 +96,18 @@ public:
         CACertEC = TPemBlobConfig::CreateFileReference(CreatePemFile("ca_ec.pem"));
         PrivateKeyEC = TPemBlobConfig::CreateFileReference(CreatePemFile("key_ec.pem"));
         CertificateChainEC = TPemBlobConfig::CreateFileReference(CreatePemFile("cert_ec.pem"));
+=======
+        CACert = TPemBlobConfig::CreateFileReference(SRC_("testdata/ca.pem"));
+        PrivateKey = TPemBlobConfig::CreateFileReference(SRC_("testdata/key.pem"));
+        CertificateChain = TPemBlobConfig::CreateFileReference(SRC_("testdata/cert.pem"));
+        CACertWithIPInSAN = TPemBlobConfig::CreateFileReference(SRC_("testdata/ca_with_ip_in_san.pem"));
+        PrivateKeyWithIpInSAN = TPemBlobConfig::CreateFileReference(SRC_("testdata/key_with_ip_in_san.pem"));
+        CertificateChainWithIpInSAN = TPemBlobConfig::CreateFileReference(SRC_("testdata/cert_with_ip_in_san.pem"));
+
+        CACertEC = TPemBlobConfig::CreateFileReference(SRC_("testdata/ca_ec.pem"));
+        PrivateKeyEC = TPemBlobConfig::CreateFileReference(SRC_("testdata/key_ec.pem"));
+        CertificateChainEC = TPemBlobConfig::CreateFileReference(SRC_("testdata/cert_ec.pem"));
+>>>>>>> cherry-pick: YTSAURUSSUP-1564: Use yt/core/crypto SSL context for BUS TLS
     }
 };
 
