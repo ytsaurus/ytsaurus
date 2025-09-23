@@ -71,13 +71,13 @@ public:
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
-        YT_LOG_DEBUG("Start read from chunk (Offset: %v, Length: %v, Cookie: %x)",
+        YT_LOG_DEBUG("Started reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             length,
             options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read from chunk (Offset: %v, Length: %v, Cookie: %x)",
+            YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 length,
                 options.Cookie);
@@ -86,14 +86,48 @@ public:
         }
 
         // NB. For now causal dependancy (i.e. read after write, write after write)
-        // is resolved by making reads and writes synchronous.
-        WaitFor(ReadThrottler_->Throttle(length)).ThrowOnError();
-        auto response = WaitFor(ChunkHandler_->Read(offset, length, options)).ValueOrThrow();
+        // is resolved by making reads and writes serialized (by using WaitFor).
+        YT_LOG_DEBUG("Started throttling read from chunk (Offset: %v, Length: %v, Cookie: %x)",
+            offset,
+            length,
+            options.Cookie);
 
-        YT_LOG_DEBUG("Finish read from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %x)",
+        auto throttleRspOrError = WaitFor(ReadThrottler_->Throttle(length));
+        if (!throttleRspOrError.IsOK()) {
+            YT_LOG_WARNING(throttleRspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, Cookie: %x)",
+                offset,
+                length,
+                options.Cookie);
+
+            return MakeFuture<TReadResponse>(throttleRspOrError);
+        }
+
+        YT_LOG_DEBUG("Finished throttling read from chunk (Offset: %v, Length: %v, Cookie: %x)",
+            offset,
+            length,
+            options.Cookie);
+
+        auto future = BIND(&IChunkHandler::Read, ChunkHandler_, offset, length, options)
+            .AsyncVia(Invoker_)
+            .Run();
+
+        auto rspOrError = WaitFor(future);
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING(rspOrError, "Failed to read from chunk (Offset: %v, ExpectedLength: %v, Cookie: %x)",
+                offset,
+                length,
+                options.Cookie);
+
+            return MakeFuture<TReadResponse>(rspOrError);
+        }
+
+        auto& response = rspOrError.Value();
+
+        YT_LOG_DEBUG("Finished reading from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, ShouldStopUsingDevice: %v, Cookie: %x)",
             offset,
             length,
             response.Data.Size(),
+            response.ShouldStopUsingDevice,
             options.Cookie);
 
         return MakeFuture<TReadResponse>(std::move(response));
@@ -101,13 +135,13 @@ public:
 
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
-        YT_LOG_DEBUG("Start write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+        YT_LOG_DEBUG("Started writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
             options.Cookie);
 
         if (data.size() == 0) {
-            YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+            YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, Cookie: %x)",
                 offset,
                 data.size(),
                 options.Cookie);
@@ -116,13 +150,48 @@ public:
         }
 
         // NB. For now causal dependancy (i.e. read after write, write after write)
-        // is resolved by making reads and writes synchronous.
-        WaitFor(WriteThrottler_->Throttle(data.size())).ThrowOnError();
-        auto response = WaitFor(ChunkHandler_->Write(offset, data, options)).ValueOrThrow();
+        // is resolved by making reads and writes serialized (by using WaitFor).
 
-        YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+        YT_LOG_DEBUG("Started throttling write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
+            options.Cookie);
+
+        auto throttleRspOrError = WaitFor(WriteThrottler_->Throttle(data.size()));
+        if (!throttleRspOrError.IsOK()) {
+            YT_LOG_WARNING(throttleRspOrError, "Failed to write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+                offset,
+                data.size(),
+                options.Cookie);
+
+            return MakeFuture<TWriteResponse>(throttleRspOrError);
+        }
+
+        YT_LOG_DEBUG("Finished throttling write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+            offset,
+            data.size(),
+            options.Cookie);
+
+        auto future = BIND(&IChunkHandler::Write, ChunkHandler_, offset, data, options)
+            .AsyncVia(Invoker_)
+            .Run();
+
+        auto rspOrError = WaitFor(future);
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING(rspOrError, "Failed to write to chunk (Offset: %v, Length: %v, Cookie: %x)",
+                offset,
+                data.size(),
+                options.Cookie);
+
+            return MakeFuture<TWriteResponse>(rspOrError);
+        }
+
+        auto& response = rspOrError.Value();
+
+        YT_LOG_DEBUG("Finished writing to chunk (Offset: %v, Length: %v, ShouldStopUsingDevice: %v, Cookie: %x)",
+            offset,
+            data.size(),
+            response.ShouldStopUsingDevice,
             options.Cookie);
 
         return MakeFuture<TWriteResponse>(std::move(response));
