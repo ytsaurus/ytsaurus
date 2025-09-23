@@ -531,6 +531,55 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	return nil, nil
 }
 
+func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
+	opID := oplet.GetBriefInfo().YTOperation.ID
+	if opID == yt.NullOperationID {
+		return chytOpletInfo{}, nil
+	}
+
+	opInfo, err := c.ytc.GetOperation(
+		ctx,
+		opID,
+		&yt.GetOperationOptions{
+			Attributes: []string{"full_spec"},
+			MasterReadOptions: &yt.MasterReadOptions{
+				ReadFrom: yt.ReadFromFollower,
+			},
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	var s struct {
+		Description struct {
+			Artifacts struct {
+				CH struct {
+					Version string `yson:"version"`
+				} `yson:"ytserver-clickhouse"`
+			} `yson:"artifacts"`
+		} `yson:"description"`
+
+		Tasks struct {
+			Instances struct {
+				FilePaths []ypath.Rich `yson:"file_paths"`
+			} `yson:"instances"`
+		} `yson:"tasks"`
+	}
+	err = yson.Unmarshal(opInfo.FullSpec, &s)
+	if err != nil {
+		return nil, err
+	}
+
+	opletInfo := chytOpletInfo{ChytRunningVersion: s.Description.Artifacts.CH.Version}
+	for _, fp := range s.Tasks.Instances.FilePaths {
+		if fp.FileName == "ytserver-clickhouse" {
+			opletInfo.ChytRunningVersionPath = fp.Path.String()
+			break
+		}
+	}
+	return opletInfo, nil
+}
+
 func (c *Controller) RunAsUser() bool {
 	return false
 }
