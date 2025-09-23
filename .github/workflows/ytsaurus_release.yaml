@@ -120,6 +120,10 @@ jobs:
     if: ${{ needs.tag.outputs.release-type == 'prod' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
+      - name: Docker login
+        run:|
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
       - name: Docker Pull And Push
         run: |
           docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}
