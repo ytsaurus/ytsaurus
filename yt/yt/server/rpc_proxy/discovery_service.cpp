@@ -214,6 +214,10 @@ private:
             {EAddressType::MonitoringHttp, GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort)}
         };
 
+        if (Config_->PublicRpcPort) {
+            proxyAddressMap.emplace(EAddressType::PublicRpc, GetLocalAddresses(Config_->Addresses, Config_->PublicRpcPort));
+        }
+
         if (Config_->TvmOnlyAuth && Config_->TvmOnlyRpcPort) {
             auto addresses = GetLocalAddresses(Config_->Addresses, Config_->TvmOnlyRpcPort);
             proxyAddressMap.emplace(EAddressType::TvmOnlyInternalRpc, addresses);

@@ -57,6 +57,9 @@ struct TSslContextConfig
     //! Commands for SSL context configuration handled by SSL_CONF_cmd.
     std::vector<TSslContextCommandPtr> SslConfigurationCommands;
 
+    //! Trust everybody, never verify certificate, issue warning - for testing purpose.
+    bool InsecureSkipVerify;
+
     REGISTER_YSON_STRUCT(TSslContextConfig);
 
     static void Register(TRegistrar registrar);

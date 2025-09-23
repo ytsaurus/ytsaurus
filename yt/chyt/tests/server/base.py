@@ -828,6 +828,8 @@ class ClickHouseTestBase(YTEnvSetup):
         Clique.base_config["clickhouse"] = Clique.base_config["engine"]
         del Clique.base_config["engine"]
         Clique.base_config["cluster_connection"] = copy.deepcopy(cls.Env.configs["driver"])
+        if "bus_server" in cls.Env.configs["node"][0]:
+            Clique.base_config["bus_server"] = copy.deepcopy(cls.Env.configs["node"][0]["bus_server"])
         if "tvm_service" in Clique.base_config["cluster_connection"]:
             Clique.base_config["native_authentication_manager"] = {
                 "tvm_service": Clique.base_config["cluster_connection"].pop("tvm_service"),
