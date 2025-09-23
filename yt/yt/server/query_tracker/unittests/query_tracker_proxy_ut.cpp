@@ -128,12 +128,14 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TQueryTrackerProxyTest, DISABLED_StartDraftQuery)
+TEST_F(TQueryTrackerProxyTest, StartDraftQuery)
 {
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_meta"), _, _, _, _));
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
 
     ExpectAcosExist({"aco1", "aco2"});
@@ -152,7 +154,7 @@ TEST_F(TQueryTrackerProxyTest, DISABLED_StartDraftQuery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAnnotationAndAcoInFinishedQuery)
+TEST_F(TQueryTrackerProxyTest, AlterAnnotationAndAcoInFinishedQuery)
 {
     auto queryId = TQueryId::Create();
     std::vector<TFinishedQuery> records{
@@ -164,11 +166,14 @@ TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAnnotationAndAcoInFinishedQuery)
     EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _))
         .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
 
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _));
-    // One DeleteRows and ModifyRows call is expected each. But in mockTransaction, DeleteRows is implemented through ModifyRows
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _)).Times(2);
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, DeleteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, DeleteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _)).Times(2);
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _, _)).Times(2);
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_meta"), _, _, _, _));
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
 
     ExpectAcosExist({"aco2", "aco3"});
@@ -182,7 +187,7 @@ TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAnnotationAndAcoInFinishedQuery)
         "user");
 }
 
-TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAnnotationInFinishedQuery)
+TEST_F(TQueryTrackerProxyTest, AlterAnnotationInEmptyFinishedQuery)
 {
     auto queryId = TQueryId::Create();
     std::vector<TFinishedQuery> records{
@@ -194,10 +199,12 @@ TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAnnotationInFinishedQuery)
     EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _))
         .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
 
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_meta"), _, _, _, _));
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
 
     Proxy->AlterQuery(
@@ -208,11 +215,11 @@ TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAnnotationInFinishedQuery)
         "user");
 }
 
-TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAcoInFinishedQuery)
+TEST_F(TQueryTrackerProxyTest, AlterAnnotationInFinishedQueryWithSameText)
 {
     auto queryId = TQueryId::Create();
     std::vector<TFinishedQuery> records{
-        CreateSimpleQuery<TFinishedQuery>(queryId, 0, {"aco1", "aco2"}),
+        CreateSimpleQuery<TFinishedQuery>(queryId, 0, {"aco"}, "qwe asd"),
     };
 
     EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/active_queries"), _, _, _))
@@ -220,10 +227,42 @@ TEST_F(TQueryTrackerProxyTest, DISABLED_AlterAcoInFinishedQuery)
     EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _))
         .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
 
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _));
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _));
-    // One DeleteRows and ModifyRows call is expected each. But in mockTransaction, DeleteRows is implemented through ModifyRows
-    EXPECT_CALL(*MockTransaction, ModifyRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _)).Times(2);
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_user_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, DeleteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_meta"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
+
+    Proxy->AlterQuery(
+        queryId,
+        TAlterQueryOptions {
+            .Annotations = ConvertToNode(ConvertToYsonString(std::map<TString, TString>{{"qwe", "asd"}}))->AsMap(),
+        },
+        "user");
+}
+
+TEST_F(TQueryTrackerProxyTest, AlterAcoInFinishedQuery)
+{
+    auto queryId = TQueryId::Create();
+    std::vector<TFinishedQuery> records{
+        CreateSimpleQuery<TFinishedQuery>(queryId, 0, {"aco1", "aco2"}, "qwe asd"),
+    };
+
+    EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/active_queries"), _, _, _))
+        .WillRepeatedly(Return(MakeFuture(MakeEmptyLookupActiveRowsResult(1))));
+    EXPECT_CALL(*MockClient, LookupRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _))
+        .WillRepeatedly(Return(MakeQueryResult<TUnversionedLookupRowsResult, TFinishedQueryDescriptor>(records)));
+
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, DeleteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _));
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/finished_queries_by_aco_and_start_time"), _, _, _, _));
+    EXPECT_CALL(*MockTransaction, DeleteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _)).Times(2);
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_inverted_index"), _, _, _, _)).Times(2);
+    EXPECT_CALL(*MockTransaction, WriteRows(TYPath("//sys/query_tracker/search_meta"), _, _, _, _));
     EXPECT_CALL(*MockTransaction, Commit(_)).WillOnce(Return(MakeFuture(TTransactionCommitResult{})));
 
     ExpectAcosExist({"aco2", "aco3"});
