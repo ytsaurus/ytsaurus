@@ -19,6 +19,17 @@ inline constexpr TStringBuf StateFormatColumn = "format";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEraseMutation
+{ };
+
+struct TEmptyMutation
+{ };
+
+using TUpdateMutation = NTableClient::TUnversionedOwningRow;
+using TStateMutation = std::variant<TEraseMutation, TUpdateMutation, TEmptyMutation>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TFormat);
 DECLARE_REFCOUNTED_STRUCT(TStateSchema);
 DECLARE_REFCOUNTED_CLASS(TState);

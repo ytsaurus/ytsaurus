@@ -219,7 +219,7 @@ public:
     void OnRaw(TStringBuf yson, EYsonType type) override
     {
         if (StructLevel()) {
-            THROW_ERROR_EXCEPTION("OnRaw is not supported");
+            AddValue(MakeUnversionedAnyValue(yson, *FieldId_));
         } else {
             FieldSerializer_->OnRaw(yson, type);
         }
