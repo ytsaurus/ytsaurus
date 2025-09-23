@@ -114,10 +114,12 @@ void TSessionManager::Initialize()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    if (auto* clusterNodeBootstrap = Bootstrap_->GetClusterNodeBootstrap()) {
+        const auto& clusterNodeMasterConnector = clusterNodeBootstrap->GetMasterConnector();
 
-    clusterNodeMasterConnector->SubscribeMasterDisconnected(
-        BIND_NO_PROPAGATE(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
+        clusterNodeMasterConnector->SubscribeMasterDisconnected(
+            BIND_NO_PROPAGATE(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
+    }
 
     Bootstrap_->GetChunkStore()->SubscribeChunkRemovalScheduled(
         BIND_NO_PROPAGATE(&TSessionManager::OnChunkRemovalScheduled, MakeWeak(this)));
