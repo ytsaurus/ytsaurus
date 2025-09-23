@@ -294,7 +294,7 @@ class TestLayers(TestPortoLayersBase):
                 "mapper": {
                     "layer_paths": ["//tmp/layer1"],
                     "environment": {
-                        "CUSTOM_ROOT_FS": "$(RootFs)",
+                        "CUSTOM_ROOT_FS": "$(RootFS)",
                     },
                 },
             },

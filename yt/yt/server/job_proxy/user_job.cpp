@@ -1363,7 +1363,7 @@ private:
             CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
         if (Config_->TestRootFS && Config_->RootPath) {
-            formatter.AddProperty("RootFs", *Config_->RootPath);
+            formatter.AddProperty("RootFS", *Config_->RootPath);
             SetEnvironment(Format("YT_ROOT_FS=%v", *Config_->RootPath));
         }
 
