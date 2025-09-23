@@ -153,10 +153,8 @@ jobs:
 
   send-alert:
     needs:
-      - build-cmake
       - build-ya-make
       - docker-ya-make
-      - docker-cmake
       - build-strawberry
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
