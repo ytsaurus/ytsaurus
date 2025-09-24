@@ -275,6 +275,17 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        auto Logger = S3Logger();
+
+        YT_LOG_DEBUG("Performing request (Method: %v, Protocol: %v, Host: %v, Port: %v, Path: %v, Region: %v, Service: %v)",
+            request.Method,
+            request.Protocol,
+            request.Host,
+            request.Port,
+            request.Path,
+            request.Region,
+            request.Service);
+
         auto connection = WaitFor(Dialer_->Dial(Address_))
             .ValueOrThrow();
 
