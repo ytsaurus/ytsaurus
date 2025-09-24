@@ -304,6 +304,9 @@ TTableSchemaPtr GetYsonSchema(const TYsonStructPtr& ysonStruct)
 
     const auto* meta = ysonStruct->GetMeta();
     for (const auto& [key, parameter] : meta->GetParameterMap()) {
+        if (parameter->FindOption<TSkipSerializationTag>()) {
+            continue;
+        }
         TStringStream parameterSchema;
         TYsonWriter consumer(&parameterSchema);
         parameter->WriteTypeSchema(ysonStruct.Get(), &consumer, {});
