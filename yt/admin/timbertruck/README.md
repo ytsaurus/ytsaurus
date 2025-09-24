@@ -122,7 +122,14 @@ json_logs:
     - cluster: hahn
       queue_path: //path/to/queue_table
       producer_path: //path/to/producer_table
-      # rpc_proxy_role: default
+
+      # OPTIONAL
+      # Compression codec for payload. Supported values: zstd_1..zstd_6.
+      # For zstd, the first 8 bytes of the value are the uncompressed size
+      # encoded as little-endian uint64, followed by the zstd-compressed payload.
+      compression_codec: zstd_6
+      
+      rpc_proxy_role: default
 
 # List of text YT logs to send.
 text_logs:
