@@ -74,7 +74,7 @@ webservice:
 
 ```bash
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
-  --version 0.0.3 \
+  --version {{odin-version}} \
   -f values.yaml \
   -n <namespace>
 ```
@@ -155,7 +155,7 @@ operations_snapshots:
 
 ```bash
 helm upgrade odin oci://ghcr.io/ytsaurus/odin-chart \
-  --version 0.0.3 \
+  --version {{odin-version}} \
   -f values.yaml \
   -n <namespace>
 ```

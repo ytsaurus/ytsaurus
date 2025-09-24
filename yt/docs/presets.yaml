@@ -1,16 +1,18 @@
 # Common presets for both ru and en languages.
 default:
-    yt-server-version: 25.1.0
-    k8s-operator-version: 0.26.0
-    chyt-version: 2.17.3
+    yt-server-version: 25.2.0
+    k8s-operator-version: 0.27.0
+    chyt-version: 2.17.4
     spyt-version: 2.7.3
-    strawberry-version: 0.0.12
-    qt-version: 0.0.9
-    yt-stable-branch: 25.1
-    python-sdk-version: 0.13.18
-    java-sdk-version: 1.2.5
+    strawberry-version: 0.0.15
+    qt-version: 0.0.11
+    yt-stable-branch: 25.2
+    python-sdk-version: 0.13.37
+    java-sdk-version: 1.2.10
     python-yson-version: 0.4.9
     cert-manager-version: v1.17.1
+    cron-version: 0.0.3
+    odin-version: 0.0.3
 
 public:
   example_cluster: 'cluster_name'
