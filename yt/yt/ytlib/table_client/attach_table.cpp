@@ -85,20 +85,6 @@ public:
             transactionOptions.ParentId);
     }
 
-    ~TTableAttacher()
-    {
-        // It is possible for a transaction with AutoAbort = true to survive beyond the lifetime
-        // of this object via the strong ref in a Ping request. Thus it is best to abort the
-        // transaction in case of errors.
-        // It is fine to abort the transaction unconditionally, since if we are done with it,
-        // it would be in Committed/Detached state and abort is no-op and just returns an error.
-        // This will also abort the transaction we may have started in Uploader as it's a child
-        // of this one.
-        if (Transaction_) {
-            Y_UNUSED(WaitFor(Transaction_->Abort()));
-        }
-    }
-
     TFuture<void> Run()
     {
         return BIND(&TTableAttacher::DoRun, MakeStrong(this))
@@ -275,7 +261,7 @@ private:
         YT_LOG_DEBUG("Created table (TablePath: %v)", tablePath);
     }
 
-    void DoOpen()
+    void DoBeginUpload()
     {
         YT_VERIFY(Uploader_);
 
@@ -364,7 +350,7 @@ private:
             sessionId.ChunkId);
     }
 
-    void DoClose()
+    void DoEndUpload()
     {
         YT_VERIFY(Uploader_);
 
@@ -393,7 +379,7 @@ private:
         YT_LOG_DEBUG("Attached data statistics (DataStatistics: %v)", dataStatistics);
     }
 
-    void DoRun()
+    void GuardedRun()
     {
         if (Options_.Medium) {
             RetrieveS3MediumDescriptor(*Options_.Medium);
@@ -440,14 +426,64 @@ private:
                 << schemaCompatibilityError;
         }
 
-        DoOpen();
+        DoBeginUpload();
 
         YT_VERIFY(SourceUris_.size() == ChunkInfos_.size());
         for (ssize_t sourceIndex = 0; sourceIndex < std::ssize(SourceUris_); ++sourceIndex) {
             AttachChunk(SourceUris_[sourceIndex], ChunkInfos_[sourceIndex]);
         }
 
-        DoClose();
+        DoEndUpload();
+    }
+
+    // NB(achulkov2): This method can be called upon fiber cancellation, so we are being extra
+    // safe and providing a clean up mode in which we do not call WaitFor.
+    void DoCleanUp(bool wait)
+    {
+        // It is possible for a transaction with AutoAbort = true to survive beyond the lifetime
+        // of this object via the strong ref in a Ping request. Thus it is best to abort the
+        // transaction in case of errors.
+        // It is fine to abort the transaction unconditionally, since if we are done with it,
+        // it would be in Committed/Detached state and abort is no-op and just returns an error.
+        // This will also abort the transaction we may have started in Uploader as it's a child
+        // of this one.
+        if (Transaction_) {
+            auto abortFuture = Transaction_->Abort();
+            if (wait) {
+                auto error = WaitFor(abortFuture);
+                if (!error.IsOK() && !error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState)) {
+                    YT_LOG_WARNING(
+                        error,
+                        "Failed to abort attach table nested transaction during cleanup (TransactionId: %v)",
+                        TransactionId_);
+                }
+            } else {
+                YT_UNUSED_FUTURE(abortFuture);
+            }
+        }
+    }
+
+    void DoRun()
+    {
+        try {
+            GuardedRun();
+        } catch (const TFiberCanceledException&) {
+            bool waitForCleanUp = false;
+            YT_LOG_DEBUG("Attach table operation was canceled, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
+            DoCleanUp(waitForCleanUp);
+            throw;
+        } catch (const std::exception& ex) {
+            bool waitForCleanUp = true;
+            YT_LOG_DEBUG("Attach table operation failed, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
+            DoCleanUp(waitForCleanUp);
+            THROW_ERROR_EXCEPTION("Failed to attach external data to table %Qv", RichPath_.GetPath())
+                << ex;
+        } catch (...) {
+            bool waitForCleanUp = false;
+            YT_LOG_DEBUG("Attach table operation failed with unknown error, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
+            DoCleanUp(waitForCleanUp);
+            throw;
+        }
     }
 };
 
