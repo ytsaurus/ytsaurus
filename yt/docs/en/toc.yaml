@@ -480,6 +480,8 @@ items:
          href: admin-guide/gpu.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
+       - name: Tablet cell bundle management
+         href: admin-guide/bundle-controller.md
        - name: Misc
          items:
            - name: Reading from remote clusters via RPC proxy

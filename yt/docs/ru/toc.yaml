@@ -499,6 +499,8 @@ items:
         href: admin-guide/problems.md
       - name: Синхронизация пользователей и групп с внешней системой
         href: admin-guide/identity-sync.md
+      - name: Управление бандлами динамических таблиц
+        href: admin-guide/bundle-controller.md
       - name: Прочее
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
