@@ -37,3 +37,11 @@ target_sources(libs-libevent-event_openssl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/bufferevent_openssl.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/bufferevent_openssl.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

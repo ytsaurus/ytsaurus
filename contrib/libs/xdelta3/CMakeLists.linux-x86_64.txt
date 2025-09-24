@@ -38,3 +38,11 @@ target_sources(contrib-libs-xdelta3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3/xdelta3.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/xdelta3/xdelta3.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

@@ -43,3 +43,19 @@ target_sources(ngtcp2-crypto-quictls PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/shared.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/quictls/quictls.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/shared.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

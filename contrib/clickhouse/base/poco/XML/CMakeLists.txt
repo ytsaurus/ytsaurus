@@ -122,3 +122,35 @@ target_sources(base-poco-XML PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/src/xmltok_ns.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/src/xmlrole.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/src/xmltok.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/src/xmltok_impl.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/src/xmltok_ns.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

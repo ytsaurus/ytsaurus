@@ -51,3 +51,107 @@ target_sources(restricted-aws-aws-c-cal PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/opensslcrypto_hmac.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/cal.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/der.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/ecc.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/hash.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/hmac.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/rsa.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/symmetric_cipher.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/openssl_aes.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/openssl_platform_init.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/openssl_rsa.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/opensslcrypto_ecc.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/opensslcrypto_hash.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/opensslcrypto_hmac.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

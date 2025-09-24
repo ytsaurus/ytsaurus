@@ -36,3 +36,11 @@ target_sources(libs-libevent-event_thread PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/evthread_pthread.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/evthread_pthread.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

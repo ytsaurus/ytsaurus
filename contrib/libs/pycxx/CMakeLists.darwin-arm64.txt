@@ -44,3 +44,11 @@ target_sources(contrib-libs-pycxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxsupport.cxx
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxextensions.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

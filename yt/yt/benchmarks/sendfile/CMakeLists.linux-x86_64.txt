@@ -53,4 +53,12 @@ target_sources(sendfile PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/sendfile/main.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 vcs_info(sendfile)

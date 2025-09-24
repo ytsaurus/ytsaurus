@@ -40,4 +40,12 @@ target_sources(cuda_core_dump_injection PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/cuda_core_dump_injection/cuda_core_dump_injection.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 vcs_info(cuda_core_dump_injection)

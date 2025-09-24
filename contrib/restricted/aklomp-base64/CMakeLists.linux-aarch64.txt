@@ -47,6 +47,86 @@ target_sources(contrib-restricted-aklomp-base64 PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/avx/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/generic/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/neon32/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/neon64/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/sse41/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/sse42/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/arch/ssse3/codec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/codec_choose.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/lib.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aklomp-base64/lib/tables/tables.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 target_sources_custom(contrib-restricted-aklomp-base64
   .avx512
   SRCS

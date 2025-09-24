@@ -39,3 +39,35 @@ target_sources(libs-libevent-event_extra PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/http.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/evdns.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/event_tagging.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/evrpc.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libevent/http.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

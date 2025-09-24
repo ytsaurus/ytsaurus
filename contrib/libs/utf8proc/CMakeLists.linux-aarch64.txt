@@ -29,3 +29,11 @@ target_sources(contrib-libs-utf8proc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/utf8proc/utf8proc.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/utf8proc/utf8proc.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

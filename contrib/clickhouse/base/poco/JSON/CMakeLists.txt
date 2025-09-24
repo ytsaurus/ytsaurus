@@ -59,3 +59,11 @@ target_sources(base-poco-JSON PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/pdjson.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/src/pdjson.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
