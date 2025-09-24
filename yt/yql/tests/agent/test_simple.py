@@ -1679,9 +1679,13 @@ class TestsDDL(TestQueriesYqlSimpleBase):
     def test_create_table_with_pk(self, query_tracker, yql_agent):
         self._test_simple_query("""
             create table `//tmp/t5` (
-                key Text null,
-                subkey Int32 not null,
+                key Text,
+                subkey Int32,
                 value Uint64,
                 primary key(key, subkey)
             );
         """, None)
+        self._test_simple_query("""
+            $p = process `//tmp/t5`;
+            select FormatType(ListItemType(TypeOf($p))) as type;
+        """, [{'type': "Struct<'key':Utf8,'subkey':Int32,'value':Uint64?>"}])
