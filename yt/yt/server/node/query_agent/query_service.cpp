@@ -492,7 +492,9 @@ private:
                     requestFeatureFlags,
                     profilerGuard);
 
-                statistics.MemoryUsage = memoryChunkProvider->GetMaxAllocated();
+                statistics.MemoryUsage.Set(
+                    memoryChunkProvider->GetMaxAllocated(),
+                    queryOptions.StatisticsAggregation);
 
                 YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
                     statistics.MemoryUsage.GetTotal());
