@@ -42,6 +42,8 @@ using NChunkClient::IChunkReaderPtr;
 
 using NTableClient::TChunkReaderConfigPtr;
 
+using namespace NTracing;
+
 constinit const auto Logger = NTableClient::TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +235,7 @@ public:
     TAsyncBlockWindowManager(
         std::vector<TGroupBlockHolder> blockHolders,
         NChunkClient::TBlockFetcherPtr blockFetcher,
-        NTracing::TTraceContextPtr traceContext)
+        TTraceContextPtr traceContext)
         : BlockHolders_(std::move(blockHolders))
         , BlockFetcher_(std::move(blockFetcher))
         , TraceContext_(std::move(traceContext))
@@ -294,7 +296,7 @@ public:
         std::vector<TFuture<TBlock>> pendingBlocks;
         pendingBlocks.reserve(BlockHolders_.size());
 
-        NTracing::TCurrentTraceContextGuard guard(TraceContext_);
+        TCurrentTraceContextGuard guard(TraceContext_);
 
         readerStatistics->SkipToBlockCallCount += BlockHolders_.size();
         for (auto& blockHolder : BlockHolders_) {
@@ -359,8 +361,8 @@ private:
     TFuture<void> ReadyEvent_ = VoidFuture;
 
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
-    NTracing::TTraceContextPtr TraceContext_;
-    NTracing::TTraceContextFinishGuard FinishGuard_;
+    TTraceContextPtr TraceContext_;
+    TTraceContextFinishGuard FinishGuard_;
 
     std::vector<ui32> BlockCountStatistics_;
     std::vector<ui64> BlockSizeStatistics_;
@@ -376,9 +378,10 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
     const std::optional<NChunkClient::TDataSourcePtr>& dataSource)
 {
     return [=] (std::vector<TGroupBlockHolder> blockHolders, TRange<TSpanMatching> windowsList) -> std::unique_ptr<IBlockManager> {
-        auto traceContext = NTracing::CreateTraceContextFromCurrent("ChunkReader");
+        TTraceContextPtr traceContext{};
 
         if (dataSource) {
+            traceContext = CreateTraceContextFromCurrent("ChunkReader");
             PackBaggageForChunkReader(traceContext, *dataSource, NTableClient::MakeExtraChunkTags(chunkMeta->Misc()));
         }
 
@@ -405,7 +408,7 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
 
         TBlockFetcherPtr blockFetcher;
         if (!blockInfos.empty()) {
-            NTracing::TCurrentTraceContextGuard guard(traceContext);
+            TCurrentTraceContextGuard guard(traceContext);
 
             auto createBlockFetcherStartInstant = GetCpuInstant();
             auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(config->WindowSize));
