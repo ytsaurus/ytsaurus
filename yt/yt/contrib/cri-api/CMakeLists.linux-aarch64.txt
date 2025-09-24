@@ -21,8 +21,32 @@ get_built_tool_path(
   grpc_cpp
 )
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_library(yt-contrib-cri-api)
 
+
+set_property(TARGET yt-contrib-cri-api PROPERTY PROTO_NAMESPACE
+  yt/yt/contrib/cri-api
+)
+
+set_property(TARGET yt-contrib-cri-api PROPERTY PROTOC_EXTRA_OUTS
+  .deps.pb.h
+  .grpc.pb.cc
+  .grpc.pb.h
+)
 
 target_include_directories(yt-contrib-cri-api PUBLIC
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
@@ -34,8 +58,36 @@ target_link_libraries(yt-contrib-cri-api PUBLIC
   yutil
   contrib-libs-grpc
   yt-contrib-gogoproto
+  contrib-libs-protobuf
 )
 
+target_proto_messages(yt-contrib-cri-api PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.proto
+)
+
+target_sources(yt-contrib-cri-api PRIVATE
+  ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.deps.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.grpc.pb.h
+)
+
+
+target_proto_outs(yt-contrib-cri-api
+  --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
+  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
+)
+
+target_proto_addincls(yt-contrib-cri-api
+  ./yt/yt/contrib/cri-api
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+)
 
 target_proto_plugin(yt-contrib-cri-api
   grpc_cpp
