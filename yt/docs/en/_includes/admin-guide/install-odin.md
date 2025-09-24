@@ -73,7 +73,7 @@ By default, an init job will run to create the necessary tables for storing stat
 
 ```bash
 helm install odin oci://ghcr.io/ytsaurus/odin-chart \
-    --version 0.0.3 \
+    --version {{odin-version}} \
     -f values.yaml \
     -n <namespace>
 ```
@@ -154,7 +154,7 @@ Here, the check is included in the configuration, but its execution is disabled 
 
 ```bash
 helm upgrade odin oci://ghcr.io/ytsaurus/odin-chart \
-    --version 0.0.3 \
+    --version {{odin-version}} \
     -f values.yaml \
     -n <namespace>
 ```

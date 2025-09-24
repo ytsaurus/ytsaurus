@@ -21,10 +21,9 @@
 
 ```bash
 helm install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
-  --version 0.0.2 \
+  --version {{cron-version}} \
   --set yt.proxy="http_proxy" \
-  --set yt.token="<ROBOT-CRON-TOKEN>" \
-  --set image.tag="0.0.2"
+  --set yt.token="<ROBOT-CRON-TOKEN>"
 ```
 
 ## Конфигурация
@@ -64,7 +63,7 @@ unmanagedSecret:
 
 ```bash
 helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
-  --version 0.0.2 \
+  --version {{cron-version}} \
   --set jobs[1].enabled=true \
   --set jobs[1].args[5]="tmp_files"
 ```
@@ -111,7 +110,7 @@ unmanagedSecret:
 
 ```bash
 helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
-  --version 0.0.2 \
+  --version {{cron-version}} \
   -f my-values.yaml
 ```
 
