@@ -30,6 +30,7 @@ void TTransaction::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, Timeout_);
+    Save(context, Signature_);
     Save(context, GetPersistentState());
     Save(context, StartTimestamp_);
     Save(context, GetPersistentPrepareTimestamp());
@@ -44,6 +45,15 @@ void TTransaction::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, Timeout_);
+
+    // COMPAT(ponasenko-rs)
+    auto reign = context.GetVersion();
+    if (reign >= EChaosReign::PersistTransactionSignature ||
+        (reign < EChaosReign::AddLastCoordinatorCommitTimestamp && reign >= EChaosReign::PersistTransactionSignature_25_2))
+    {
+        Load(context, Signature_);
+    }
+
     SetPersistentState(Load<ETransactionState>(context));
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
