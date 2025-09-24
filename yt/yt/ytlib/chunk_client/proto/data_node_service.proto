@@ -10,6 +10,7 @@ import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
 
@@ -473,6 +474,7 @@ message TReqGetTableSamples
         required int32 sample_count = 2;
         optional bytes lower_key = 3;
         optional bytes upper_key = 4;
+        optional TChunkReplicaSpec replica_spec = 5;
     }
 
     repeated TSampleRequest sample_requests = 1;

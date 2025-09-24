@@ -48,11 +48,11 @@ void TChunkMetaFetcher::ProcessDynamicStore(int /*chunkIndex*/)
     YT_ABORT();
 }
 
-TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
+TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<TChunkToFetch> chunks)
 {
-    YT_LOG_DEBUG("Fetching chunk metas from node (NodeId: %v, ChunkIndexes: %v)",
+    YT_LOG_DEBUG("Fetching chunk metas from node (NodeId: %v, Chunks: %v)",
         nodeId,
-        chunkIndexes);
+        chunks);
 
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -61,7 +61,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
 
     std::vector<TFuture<TDataNodeServiceProxy::TRspGetChunkMetaPtr>> asyncResults;
 
-    for (int index : chunkIndexes) {
+    for (const auto& [index, _] : chunks) {
         const auto& chunk = Chunks_[index];
 
         auto chunkId = EncodeChunkId(chunk, nodeId);
@@ -80,7 +80,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
     }
 
     return AllSucceeded(std::move(asyncResults))
-        .Apply(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, chunkIndexes)
+        .Apply(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, GetChunkIndexes(chunks))
             .AsyncVia(Invoker_));
 }
 
@@ -100,7 +100,7 @@ void TChunkMetaFetcher::OnResponse(
 
     if (!rspOrError.IsOK()) {
         YT_LOG_INFO("Failed to get chunk slices meta from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+            GetNodeAddress(nodeId),
             nodeId);
 
         OnNodeFailed(nodeId, requestedChunkIndexes);

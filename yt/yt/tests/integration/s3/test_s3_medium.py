@@ -1,3 +1,8 @@
+from yt_env_setup import (
+    YTEnvSetup,
+    Restarter,
+    OFFSHORE_NODE_PROXIES_SERVICE,
+)
 from yt.common import YtError
 from yt.yson import YsonList, YsonEntity
 from yt_env_setup import YTEnvSetup
@@ -8,7 +13,8 @@ from yt_commands import (
     copy, move, get_singular_chunk_id, wait, get, concatenate,
     get_account_disk_space_limit, set_account_disk_space_limit,
     write_table, read_table, sync_mount_table, insert_rows, sync_flush_table, attach_table,
-    map, merge, select_rows, lookup_rows, print_debug, write_file, read_file, sort,
+    map, merge, select_rows, lookup_rows, print_debug, write_file, read_file,
+    sort, partition_tables, map_reduce, reduce, ls,
     start_transaction, commit_transaction, abort_transaction)
 
 from yt.test_helpers import assert_items_equal
@@ -19,6 +25,7 @@ import pytest
 import os
 import uuid
 import logging
+import random
 import builtins
 
 import boto3
@@ -42,13 +49,14 @@ MB = 1024 * KB
 
 ################################################################################
 
-
 class TestS3MediumBase(YTEnvSetup):
     # TODO(achulkov2): Switch to multidaemon?
     NUM_MASTERS = 1
     NUM_NODES = 3
 
     NUM_SCHEDULERS = 1
+
+    NUM_OFFSHORE_NODE_PROXIES = 1
 
     USE_DYNAMIC_TABLES = True
 
@@ -96,6 +104,18 @@ class TestS3MediumBase(YTEnvSetup):
                 "session_finalization_period": 100,
                 "shallow_merge_validation_probability": 100,
             }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                # This flag tells job_proxy that it needs to perform a synchronizations of
+                # medium directory right at the startup. It will still attempt the synchronization,
+                # but a little bit later, and if we are not lucky, the TMediumDirectory's methods
+                # will be called earlier, leading to errors, as such medium will not yet be synchronized.
+                "sync_medium_directory_on_start": True,
+            },
         }
     }
 
@@ -181,10 +201,10 @@ class TestS3MediumBase(YTEnvSetup):
                 return None
             raise
 
-    @classmethod 
+    @classmethod
     def get_chunk_path(cls, chunk_id, s3_medium_index=0, prefix=""):
         return f"{prefix}chunk-data/{chunk_id[-4:-2]}/{chunk_id[-2:]}/{chunk_id}"
-    
+
     @classmethod
     def get_chunk_meta_path(cls, chunk_id, s3_medium_index=0, prefix=""):
         return f"{prefix}chunk-data/{chunk_id[-4:-2]}/{chunk_id[-2:]}/{chunk_id}.meta"
@@ -246,6 +266,9 @@ class TestS3MediumBase(YTEnvSetup):
         # Wait for medium directory synchronizer to do its thing.
         # TODO(achulkov2): This can be removed once/if we return medium directory entries along with chunk specs during fetch.
         time.sleep(1)
+
+        # Necessary for the tests involving dynamic tables.
+        sync_create_cells(1)
 
 
 ################################################################################
@@ -320,20 +343,183 @@ class TestS3Medium(TestS3MediumBase):
         # TODO(achulkov2): This will change once we implement replication between S3 media.
         self.assert_table_chunks_exist_in_s3("//tmp/out", negate=with_teleport)
 
-    @authors("achulkov2")
-    def test_sort_operation(self):
-        # TODO(achulkov2): Implement this.
-        pass
+    @authors("achulkov2", "pavel-bash")
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_sort_operation(self, dynamic):
+        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
+            pytest.skip("This operation times out if no offshore node proxies are available")
 
-    @authors("achulkov2")
-    def test_map_reduce_operation(self):
-        # TODO(achulkov2): Implement this.
-        pass
+        INPUT_TABLE = "<append=%true>//tmp/input"
+        OUTPUT_TABLE = "<append=%true>//tmp/output"
 
-    @authors("achulkov2")
-    def test_reduce_operation(self):
-        # TODO(achulkov2): Implement this.
-        pass
+        unsorted_input = [
+            {"key": 420, "value": "hello"},
+            {"key": 80085, "value": "howdy"},
+            {"key": 1, "value": "hi"},
+            {"key": 1337, "value": "Ehehe"},
+        ]
+
+        create("table", INPUT_TABLE, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "dynamic": dynamic,
+            "schema": [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}
+            ]})
+
+        if dynamic:
+            sync_mount_table(INPUT_TABLE)
+            insert_rows(INPUT_TABLE, unsorted_input)
+            sync_flush_table(INPUT_TABLE)
+        else:
+            write_table(INPUT_TABLE, unsorted_input)
+
+        create("table", OUTPUT_TABLE, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ]})
+
+        sort(in_=INPUT_TABLE, out=OUTPUT_TABLE, sort_by=["key"])
+
+        assert read_table(OUTPUT_TABLE) == sorted(unsorted_input, key=lambda row: row["key"])
+
+    @authors("pavel-bash")
+    def test_partition_table(self):
+        # Partition on dynamic sorted tables invokes the GetChunkSlices of OffshoreNodeService,
+        # which is exactly what we want to test here (see partition_tables.cpp).
+        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
+            pytest.skip("This command times out if no offshore node proxies are available")
+
+        INPUT_TABLE = "//tmp/input1"
+
+        sorted_input = [{"key": i, "value": f"hello_{i}"} for i in range(100)]
+
+        create("table", f"<append=%true>{INPUT_TABLE}", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ]})
+        sync_mount_table(INPUT_TABLE)
+
+        # Such insertion should get us 2 chunks.
+        EXPECTED_CHUNKS_AMOUNT = 2
+        insert_rows(INPUT_TABLE, sorted_input[:50])
+        sync_flush_table(INPUT_TABLE)
+        insert_rows(INPUT_TABLE, sorted_input[50:])
+        sync_flush_table(INPUT_TABLE)
+        assert get(f"{INPUT_TABLE}/@chunk_count") == EXPECTED_CHUNKS_AMOUNT
+
+        # If we specify the least data_weight_per_partition possible, we should have as many
+        # partitions as we have chunks.
+        partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
+        assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
+
+    @authors("achulkov2", "pavel-bash")
+    @pytest.mark.parametrize("sorted", [True, False])
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_map_reduce_operation(self, sorted, dynamic):
+        if self.NUM_OFFSHORE_NODE_PROXIES == 0 and sorted and dynamic:
+            pytest.skip("This operation times out if no offshore node proxies are available")
+
+        INPUT_TABLE = "<append=%true>//tmp/input"
+        OUTPUT_TABLE = "<append=%true>//tmp/output"
+
+        input = [{"key": i, "value": f"hello_{i}"} for i in range(100)]
+        if not sorted:
+            random.shuffle(input)
+
+        schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"},
+        ]
+        if sorted:
+            schema[0]["sort_order"] = "ascending"
+
+        create("table", INPUT_TABLE, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "dynamic": dynamic,
+            "schema": schema,
+        })
+
+        if dynamic:
+            sync_mount_table(INPUT_TABLE)
+            insert_rows(INPUT_TABLE, input)
+            sync_flush_table(INPUT_TABLE)
+        else:
+            write_table(INPUT_TABLE, input)
+
+        create("table", OUTPUT_TABLE, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"},
+            ]})
+
+        map_reduce(
+            in_=INPUT_TABLE,
+            out=OUTPUT_TABLE,
+            reduce_by="key",
+            sort_by="key",
+            mapper_command="cat",
+            reducer_command="cat",
+        )
+
+        assert read_table(OUTPUT_TABLE) == builtins.sorted(input, key=lambda row: row["key"])
+
+    @authors("achulkov2", "pavel-bash")
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_reduce_operation(self, dynamic):
+        INPUT_TABLE1 = "<append=%true>//tmp/input1"
+        INPUT_TABLE2 = "<append=%true>//tmp/input2"
+        OUTPUT_TABLE = "//tmp/output"
+
+        input = [{"key": i, "value": f"hello_{i}"} for i in range(100)]
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create("table", INPUT_TABLE1, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "dynamic": dynamic,
+            "schema": schema,
+        })
+        create("table", INPUT_TABLE2, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "dynamic": dynamic,
+            "schema": schema,
+        })
+
+        if dynamic:
+            sync_mount_table(INPUT_TABLE1)
+            insert_rows(INPUT_TABLE1, [input[i] for i in range(len(input)) if i % 2 == 0])
+            sync_flush_table(INPUT_TABLE1)
+
+            sync_mount_table(INPUT_TABLE2)
+            insert_rows(INPUT_TABLE2, [input[i] for i in range(len(input)) if i % 2 == 1])
+            sync_flush_table(INPUT_TABLE2)
+        else:
+            write_table(INPUT_TABLE1, [input[i] for i in range(len(input)) if i % 2 == 0])
+            write_table(INPUT_TABLE2, [input[i] for i in range(len(input)) if i % 2 == 1])
+
+        create("table", OUTPUT_TABLE, attributes={
+            "primary_medium": self.get_s3_medium_name(),
+        })
+
+        reduce(
+            in_=[INPUT_TABLE1, INPUT_TABLE2],
+            out=OUTPUT_TABLE,
+            reduce_by="key",
+            command="cat",
+            spec={"reducer": {"format": "dsv"}},
+        )
+
+        assert read_table(OUTPUT_TABLE) == [{**row, "key": str(row["key"])} for row in input]
 
     @authors("achulkov2")
     def test_files_simple(self):
@@ -471,8 +657,6 @@ class TestS3Medium(TestS3MediumBase):
         # TODO(achulkov2): Fix in one way or the other.
         if not sorted:
             pytest.skip("Ordered dynamic tables do not update replicas on stores update yet :(")
-
-        sync_create_cells(1)
 
         schema = [
             {"name": "s", "type": "string", "sort_order": "ascending" if sorted else None},
@@ -753,6 +937,58 @@ class TestS3Medium(TestS3MediumBase):
 class TestS3MediumRpcProxy(TestS3Medium):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+################################################################################
+
+
+class TestS3MediumNoOffshoreNodeProxies(TestS3Medium):
+    NUM_OFFSHORE_NODE_PROXIES = 0
+
+
+################################################################################
+
+
+class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
+    NUM_OFFSHORE_NODE_PROXIES = 3
+
+    @authors("pavel-bash")
+    def test_offshore_node_proxies_dying(self):
+        # Check that killing offshore nodes proxies does not impact reliability.
+        # Basically, repeating the test_partition_table, but with nodes going back and forth.
+        INPUT_TABLE = "//tmp/input1"
+
+        sorted_input = [{"key": i, "value": f"hello_{i}"} for i in range(100)]
+
+        create("table", f"<append=%true>{INPUT_TABLE}", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "dynamic": True,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ]})
+        sync_mount_table(INPUT_TABLE)
+
+        EXPECTED_CHUNKS_AMOUNT = 2
+        insert_rows(INPUT_TABLE, sorted_input[:50])
+        sync_flush_table(INPUT_TABLE)
+        insert_rows(INPUT_TABLE, sorted_input[50:])
+        sync_flush_table(INPUT_TABLE)
+        assert get(f"{INPUT_TABLE}/@chunk_count") == EXPECTED_CHUNKS_AMOUNT
+
+        # 1 node down cases.
+        node_ids = ls("//sys/offshore_node_proxies/instances")
+        for i in range(0, len(node_ids)):
+            with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=[i]):
+                partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
+                assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
+
+        # 2 nodes down cases.
+        for i in range(0, len(node_ids)):
+            for j in range(i + 1, len(node_ids)):
+                with Restarter(self.Env, OFFSHORE_NODE_PROXIES_SERVICE, indexes=[i, j]):
+                    partition_result = partition_tables([INPUT_TABLE], data_weight_per_partition=1)
+                    assert len(partition_result) == EXPECTED_CHUNKS_AMOUNT
 
 
 ################################################################################
@@ -1117,6 +1353,129 @@ class TestAttachTable(TestS3MediumBase):
             out="//tmp/out",
             spec={"max_failed_job_count": 1})
         assert_items_equal(read_table("//tmp/out"), [record1, record2])
+
+    @authors("pavel-bash")
+    def test_attach_and_sort(self):
+        # TODO(pavel-bash): when we implement retrieval of samples for the external data, make sure
+        # this test still works as expected (by actually retrieving the samples).
+        unsorted_input = [
+            {"key": 420, "value": "hello"},
+            {"key": 80085, "value": "howdy"},
+            {"key": 1, "value": "hi"},
+            {"key": 1337, "value": "Ehehe"},
+        ]
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(unsorted_input))
+        ))
+
+        attributes = {
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": make_schema([
+                make_column("key", optional_type("int64"), type="int64", required=False),
+                make_column("value", optional_type("string"), type="string", required=False),
+            ])
+        }
+
+        create("table", "//tmp/imported", attributes=attributes)
+        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+
+        create("table", "//tmp/output", attributes=attributes)
+
+        sort(in_="//tmp/imported", out="//tmp/output", sort_by=["key"])
+
+        assert read_table("//tmp/output") == sorted(unsorted_input, key=lambda row: row["key"])
+
+    @authors("pavel-bash")
+    def test_attach_and_map_reduce(self):
+        # We want to test the fetcher over external data in this test case. However, it will only
+        # be used if data in the input table is sorted. When attaching, we cannot infer the schema
+        # with the sorted column (yet?), so this test firstly attaches, then sorts and only then
+        # performs a map-reduce operation, successfully invoking the fetcher at the end.
+        # TODO(pavel-bash): when we implement retrieval of samples for the external data, make sure
+        # this test still works as expected (by actually retrieving the samples).
+        unsorted_input = [
+            {"key": 420, "value": "hello"},
+            {"key": 80085, "value": "howdy"},
+            {"key": 1, "value": "hi"},
+            {"key": 1337, "value": "Ehehe"},
+        ]
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(unsorted_input))
+        ))
+
+        attributes = {
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": make_schema([
+                make_column("key", optional_type("int64"), type="int64", required=False),
+                make_column("value", optional_type("string"), type="string", required=False),
+            ])
+        }
+
+        create("table", "//tmp/imported", attributes=attributes)
+        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+
+        create("table", "//tmp/intermediate", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+        })
+
+        sort(in_="//tmp/imported", out="//tmp/intermediate", sort_by=["key"])
+
+        create("table", "//tmp/output", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+        })
+
+        map_reduce(
+            in_="//tmp/intermediate",
+            out="//tmp/output",
+            reduce_by="key",
+            sort_by="key",
+            mapper_command="cat",
+            reducer_command="cat",
+        )
+
+        assert read_table("//tmp/output") == builtins.sorted(unsorted_input, key=lambda row: row["key"])
+
+    @authors("pavel-bash")
+    def test_attach_and_partition_table(self):
+        if self.NUM_OFFSHORE_NODE_PROXIES == 0:
+            pytest.skip("This command times out if no offshore node proxies are available")
+
+        # This test works the same way as the previous one - attach, sort, perform operation - for
+        # the same reasons.
+        # TODO(pavel-bash): when we implement retrieval of samples for the external data, make sure
+        # this test still works as expected (by actually retrieving the samples).
+        unsorted_input = [
+            {"key": 420, "value": "hello"},
+            {"key": 80085, "value": "howdy"},
+            {"key": 1, "value": "hi"},
+            {"key": 1337, "value": "Ehehe"},
+        ]
+        bucket = self.get_s3_medium_bucket()
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records(unsorted_input))
+        ))
+
+        attributes = {
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": make_schema([
+                make_column("key", optional_type("int64"), type="int64", required=False),
+                make_column("value", optional_type("string"), type="string", required=False),
+            ])
+        }
+
+        create("table", "//tmp/imported", attributes=attributes)
+        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+
+        create("table", "//tmp/intermediate", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+        })
+        sort(in_="//tmp/imported", out="//tmp/intermediate", sort_by=["key"])
+
+        # Specifying data_weight_per_partition=1 gives us as many partitions as we have entries.
+        partition_result = partition_tables(["//tmp/intermediate"], data_weight_per_partition=1)
+        assert len(partition_result) == len(unsorted_input)
 
     @authors("faucct")
     def test_attach_jsonl_and_read(self):
@@ -1636,5 +1995,13 @@ class TestAttachTable(TestS3MediumBase):
 
 
 class TestAttachTableRpcProxy(TestAttachTable):
+    NUM_OFFSHORE_NODE_PROXIES = 1
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+################################################################################
+
+
+class TestAttachTableNoOffshoreNodeProxies(TestAttachTable):
+    NUM_OFFSHORE_NODE_PROXIES = 0

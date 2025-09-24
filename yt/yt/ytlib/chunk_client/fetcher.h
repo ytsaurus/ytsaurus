@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
@@ -77,6 +79,15 @@ public:
     //! will never succeed, leading to fiber leak (refer to YT-11643 for example).
     void SetCancelableContext(TCancelableContextPtr cancelableContext) override;
 
+    //! Holder for the chunk index and replica from which this chunk should be retrieved.
+    struct TChunkToFetch
+    {
+        int ChunkIndex;
+        TChunkReplicaWithMedium Replica;
+    };
+
+    static std::vector<int> GetChunkIndexes(const std::vector<TChunkToFetch>& chunks);
+
 protected:
     const TFetcherConfigPtr Config_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
@@ -93,7 +104,7 @@ protected:
 
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> chunkIndexes) = 0;
+        std::vector<TChunkToFetch> chunks) = 0;
 
     virtual void OnFetchingStarted();
     virtual void OnFetchingCompleted();
@@ -105,7 +116,7 @@ protected:
     // NB: Timeouts are retried on the same node.
     void OnChunkFailed(
         NNodeTrackerClient::TNodeId nodeId,
-        int chunkIndex,
+        const TChunkToFetch& failedChunk,
         const TError& error);
     void OnNodeFailed(
         NNodeTrackerClient::TNodeId nodeId,
@@ -114,19 +125,23 @@ protected:
         NNodeTrackerClient::TNodeId nodeId,
         const std::vector<int>& chunkIndexes);
 
+    std::string GetNodeAddress(NNodeTrackerClient::TNodeId nodeId);
+
 private:
     void OnCanceled(const TError& error);
 
     NApi::NNative::IClientPtr Client_;
 
+    using TChunkIndexToReplicaMap = THashMap<int, TChunkReplicaWithMedium>;
+
     // NB: At each moment in time a chunk index is in exactly one of three possible states:
     //     - Stored in |UnfetchedChunkIndexes_|
-    //     - Stored in |NodeToChunkIndexesToFetch_|
+    //     - Stored in |NodeToChunksToFetch_|
     //     - Currently being fetched by |FetchFromNode|
     //! Indexes of chunks for which no info is fetched yet.
     THashSet<int> UnfetchedChunkIndexes_;
-    //! Indexes of chunks to be fetched by each node in the current round.
-    THashMap<NNodeTrackerClient::TNodeId, THashSet<int>> NodeToChunkIndexesToFetch_;
+    //! Chunks to be fetched by each node in the current round.
+    THashMap<NNodeTrackerClient::TNodeId, TChunkIndexToReplicaMap> NodeToChunksToFetch_;
 
     //! Ids of nodes that failed to reply.
     THashSet<NNodeTrackerClient::TNodeId> DeadNodes_;
@@ -153,9 +168,15 @@ private:
     //! Timeouts are retried until they result in success or another error.
     TFuture<void> PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId);
     void PerformFetchingRoundStep(TPromise<void> fetchingRoundPromise, NNodeTrackerClient::TNodeId nodeId);
+
+    void MarkNodeDead(NNodeTrackerClient::TNodeId nodeId);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TFetcherBase::TChunkToFetch& chunk, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -31,6 +31,7 @@ TTestConnection::TTestConnection(
     , NodeDirectory_(std::move(nodeDirectory))
     , SchedulerChannel_(ChannelFactory_->CreateChannel("scheduler"))
     , BundleControllerChannel_(ChannelFactory_->CreateChannel("bundle_controller_channel"))
+    , OffshoreNodeProxyChannel_(ChannelFactory_->CreateChannel("offshore_proxy_channel"))
     , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
 { }
 
@@ -103,6 +104,11 @@ const NRpc::IChannelPtr& TTestConnection::GetSchedulerChannel()
 const NRpc::IChannelPtr& TTestConnection::GetBundleControllerChannel()
 {
     return BundleControllerChannel_;
+}
+
+const NRpc::IChannelPtr& TTestConnection::GetOffshoreNodeProxyChannel()
+{
+    return OffshoreNodeProxyChannel_;
 }
 
 const NTransactionClient::IClockManagerPtr& TTestConnection::GetClockManager()

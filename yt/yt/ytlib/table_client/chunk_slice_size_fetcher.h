@@ -47,15 +47,15 @@ private:
 
     TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> chunkIndexes) override;
+        std::vector<TChunkToFetch> chunks) override;
 
     TFuture<void> DoFetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> chunkIndexes);
+        std::vector<TChunkToFetch> chunks);
 
     void OnResponse(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> requestedChunkIndexes,
+        std::vector<TChunkToFetch> requestedChunks,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSliceDataWeightsPtr& rspOrError);
 
     void OnFetchingStarted() override;

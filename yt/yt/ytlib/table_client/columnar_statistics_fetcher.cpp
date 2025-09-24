@@ -68,14 +68,14 @@ THashSet<int> TColumnarStatisticsFetcher::GetChunkIndexesToFetch()
 
 TFuture<void> TColumnarStatisticsFetcher::FetchFromNode(
     TNodeId nodeId,
-    std::vector<int> chunkIndexes)
+    std::vector<TChunkToFetch> chunks)
 {
-    return BIND(&TColumnarStatisticsFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+    return BIND(&TColumnarStatisticsFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunks)))
         .AsyncVia(Invoker_)
         .Run();
 }
 
-TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
+TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<TChunkToFetch> chunks)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -87,7 +87,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     req->set_enable_early_finish(Options_.EnableEarlyFinish);
 
-    for (int chunkIndex : chunkIndexes) {
+    for (const auto& [chunkIndex, _] : chunks) {
         auto* subrequest = req->add_subrequests();
         for (const auto& columnName : GetColumnStableNames(chunkIndex)) {
             auto columnId = nameTable->GetIdOrRegisterName(columnName.Underlying());
@@ -101,27 +101,29 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     ToProto(req->mutable_name_table(), nameTable);
 
     return req->Invoke().Apply(
-        BIND(&TColumnarStatisticsFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+        BIND(&TColumnarStatisticsFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunks)))
             .AsyncVia(Invoker_));
 }
 
 void TColumnarStatisticsFetcher::OnResponse(
     TNodeId nodeId,
-    const std::vector<int>& chunkIndexes,
+    std::vector<TChunkToFetch> requestedChunks,
     const TDataNodeServiceProxy::TErrorOrRspGetColumnarStatisticsPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
         YT_LOG_INFO(rspOrError, "Failed to get columnar statistics from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+            GetNodeAddress(nodeId),
             nodeId);
-        OnNodeFailed(nodeId, chunkIndexes);
+        OnNodeFailed(nodeId, GetChunkIndexes(requestedChunks));
         return;
     }
 
     const auto& rsp = rspOrError.Value();
 
-    for (int index = 0; index < std::ssize(chunkIndexes); ++index) {
-        int chunkIndex = chunkIndexes[index];
+    for (int index = 0; index < std::ssize(requestedChunks); ++index) {
+        const auto& requestedChunk = requestedChunks[index];
+
+        int chunkIndex = requestedChunk.ChunkIndex;
         const auto& subresponse = rsp->subresponses(index);
         TColumnarStatistics statistics;
         if (subresponse.has_error()) {
@@ -133,7 +135,7 @@ void TColumnarStatisticsFetcher::OnResponse(
                     Chunks_[chunkIndex]->GetDataWeight(),
                     Chunks_[chunkIndex]->GetTotalRowCount());
             } else {
-                OnChunkFailed(nodeId, chunkIndex, error);
+                OnChunkFailed(nodeId, requestedChunk, error);
             }
         } else {
             if (subresponse.has_columnar_statistics()) {

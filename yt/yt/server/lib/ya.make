@@ -54,6 +54,7 @@ RECURSE(
     lsm
     misc
     nbd
+    node_service
     node_tracker_server
     rpc_proxy
     scheduler

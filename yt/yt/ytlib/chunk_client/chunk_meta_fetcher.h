@@ -34,7 +34,7 @@ private:
 
     void ProcessDynamicStore(int chunkIndex) override;
 
-    TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
+    TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<TChunkToFetch> chunks) override;
 
     void OnFetchingStarted() override;
 

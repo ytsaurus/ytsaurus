@@ -396,6 +396,7 @@ QUEUE_AGENTS_SERVICE = "queue_agents"
 RPC_PROXIES_SERVICE = "rpc_proxies"
 HTTP_PROXIES_SERVICE = "http_proxies"
 KAFKA_PROXIES_SERVICE = "kafka_proxies"
+OFFSHORE_NODE_PROXIES_SERVICE = "offshore_node_proxies"
 
 
 class Restarter(object):
@@ -421,6 +422,7 @@ class Restarter(object):
             RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
             HTTP_PROXIES_SERVICE: self.yt_instance.start_http_proxy,
             KAFKA_PROXIES_SERVICE: self.yt_instance.start_kafka_proxy,
+            OFFSHORE_NODE_PROXIES_SERVICE: self.yt_instance.start_offshore_node_proxies,
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
@@ -433,6 +435,7 @@ class Restarter(object):
             RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
             HTTP_PROXIES_SERVICE: lambda: self.yt_instance.kill_http_proxies(*self.kill_args, **self.kill_kwargs),
             KAFKA_PROXIES_SERVICE: lambda: self.yt_instance.kill_kafka_proxies(*self.kill_args, **self.kill_kwargs),
+            OFFSHORE_NODE_PROXIES_SERVICE: lambda: self.yt_instance.kill_offshore_node_proxies(*self.kill_args, **self.kill_kwargs),
         }
 
     def __enter__(self):

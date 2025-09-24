@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/offshore_node_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -169,27 +170,39 @@ private:
 
     TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        std::vector<int> chunkIndexes) override
+        std::vector<TChunkToFetch> chunks) override
     {
-        return BIND(&TChunkSliceFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+        return BIND(&TChunkSliceFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunks)))
             .AsyncVia(Invoker_)
             .Run();
     }
 
     TFuture<void> DoFetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,
-        const std::vector<int>& chunkIndexes)
+        std::vector<TChunkToFetch> chunks)
     {
+        // TODO(pavel-bash): we should unify how the requests are dispatched
+        // to the DataNodeService and to the OffshoreNodeService.
+        bool isOffshoreNode = nodeId == OffshoreNodeId;
+
         TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
         proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+
+        TOffshoreNodeServiceProxy offshoreProxy(GetNodeChannel(nodeId));
+        offshoreProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
         std::vector<TFuture<void>> futures;
 
         TDataNodeServiceProxy::TReqGetChunkSlicesPtr req;
-        std::vector<int> requestedChunkIndexes;
+        std::vector<TChunkToFetch> requestedChunks;
 
         auto createRequest = [&] {
-            req = proxy.GetChunkSlices();
+            if (isOffshoreNode) {
+                req = offshoreProxy.GetChunkSlices();
+            } else {
+                req = proxy.GetChunkSlices();
+            }
+
             // TODO(babenko): make configurable
             SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
             req->SetRequestHeavy(true);
@@ -201,17 +214,19 @@ private:
             if (req->slice_requests_size() > 0) {
                 futures.push_back(
                     req->Invoke().Apply(
-                        BIND(&TChunkSliceFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
+                        BIND(&TChunkSliceFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunks)))
                             .AsyncVia(Invoker_)));
 
-                requestedChunkIndexes.clear();
+                requestedChunks.clear();
                 createRequest();
             }
         };
 
         createRequest();
 
-        for (auto chunkIndex : chunkIndexes) {
+        for (const auto& requestedChunk : chunks) {
+            const auto& [chunkIndex, replica] = requestedChunk;
+
             const auto& chunk = Chunks_[chunkIndex];
             const auto& sliceRequest = ChunkToChunkSliceRequest_[chunk];
 
@@ -231,7 +246,7 @@ private:
             if (chunkDataSize < chunkSliceDataWeight || (sliceByKeys && minKey == maxKey)) {
                 AddTrivialSlice(chunkIndex);
             } else {
-                requestedChunkIndexes.push_back(chunkIndex);
+                requestedChunks.push_back(requestedChunk);
                 auto chunkId = EncodeChunkId(chunk, nodeId);
 
                 auto* protoSliceRequest = req->add_slice_requests();
@@ -250,6 +265,7 @@ private:
                 protoSliceRequest->set_slice_data_weight(chunkSliceDataWeight);
                 protoSliceRequest->set_slice_by_keys(sliceByKeys);
                 protoSliceRequest->set_key_column_count(comparator.GetLength());
+                ToProto(protoSliceRequest->mutable_replica_spec(), replica);
             }
 
             if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {
@@ -264,15 +280,15 @@ private:
 
     void OnResponse(
         NNodeTrackerClient::TNodeId nodeId,
-        const std::vector<int>& requestedChunkIndexes,
+        const std::vector<TChunkToFetch>& requestedChunks,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetChunkSlicesPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_INFO("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
-                NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+                GetNodeAddress(nodeId),
                 nodeId);
 
-            OnNodeFailed(nodeId, requestedChunkIndexes);
+            OnNodeFailed(nodeId, GetChunkIndexes(requestedChunks));
 
             if (rspOrError.FindMatching(EErrorCode::IncomparableTypes)) {
                 // Any exception thrown here interrupts fetching.
@@ -295,8 +311,10 @@ private:
             keyBoundPrefixes = keyBoundsReader->GetKeys();
         }
 
-        for (int i = 0; i < std::ssize(requestedChunkIndexes); ++i) {
-            int index = requestedChunkIndexes[i];
+        for (int i = 0; i < std::ssize(requestedChunks); ++i) {
+            const auto& requestedChunk = requestedChunks[i];
+
+            int index = requestedChunk.ChunkIndex;
             const auto& chunk = Chunks_[index];
             const auto& sliceRequest = ChunkToChunkSliceRequest_[chunk];
             const auto& sliceResponse = rsp->slice_responses(i);
@@ -309,7 +327,7 @@ private:
                     error.ThrowOnError();
                 }
 
-                OnChunkFailed(nodeId, index, error);
+                OnChunkFailed(nodeId, requestedChunk, error);
                 continue;
             }
 

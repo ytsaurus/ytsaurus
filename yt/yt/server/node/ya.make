@@ -217,6 +217,7 @@ PEERDIR(
     yt/yt/server/lib/lsm
     yt/yt/server/lib/nbd
     yt/yt/server/lib/rpc
+    yt/yt/server/lib/node_service
 
     # TODO(max42): Eliminate.
     yt/yt/server/lib/controller_agent

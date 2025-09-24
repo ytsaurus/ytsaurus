@@ -32,6 +32,7 @@ from yt.environment.helpers import (  # noqa
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
     KAFKA_PROXIES_SERVICE,
+    OFFSHORE_NODE_PROXIES_SERVICE,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -264,6 +265,7 @@ class YTEnvSetup(object):
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 0
     NUM_REPLICATED_TABLE_TRACKERS = 0
+    NUM_OFFSHORE_NODE_PROXIES = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
@@ -674,6 +676,7 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             cypress_proxy_count=cypress_proxy_count,
             replicated_table_tracker_count=cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index),
+            offshore_node_proxy_count=cls.get_param("NUM_OFFSHORE_NODE_PROXIES", index),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
@@ -2104,4 +2107,5 @@ def get_service_component_name(service):
         RPC_PROXIES_SERVICE: "proxy",
         HTTP_PROXIES_SERVICE: "http-proxy",
         KAFKA_PROXIES_SERVICE: "kafka-proxy",
+        OFFSHORE_NODE_PROXIES_SERVICE: "offshore-node-proxy",
     }[service]

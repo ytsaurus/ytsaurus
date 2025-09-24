@@ -78,17 +78,17 @@ private:
 
     THashSet<int> GetChunkIndexesToFetch() override;
 
-    TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
+    TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<TChunkToFetch> chunks) override;
 
     void OnFetchingStarted() override;
 
-    TFuture<void> DoFetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes);
+    TFuture<void> DoFetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<TChunkToFetch> chunks);
 
     const std::vector<TColumnStableName>& GetColumnStableNames(int chunkIndex) const;
 
     void OnResponse(
         NNodeTrackerClient::TNodeId nodeId,
-        const std::vector<int>& chunkIndexes,
+        std::vector<TChunkToFetch> requestedChunks,
         const NChunkClient::TDataNodeServiceProxy::TErrorOrRspGetColumnarStatisticsPtr& rspOrError);
 };
 

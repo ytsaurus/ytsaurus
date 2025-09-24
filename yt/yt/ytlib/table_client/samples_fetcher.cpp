@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/offshore_node_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
@@ -95,19 +96,32 @@ void TSamplesFetcher::ProcessDynamicStore(int /*chunkIndex*/)
     // Dynamic stores do not have samples so nothing to do here.
 }
 
-TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
+TFuture<void> TSamplesFetcher::FetchFromNode(TNodeId nodeId, std::vector<TChunkToFetch> chunks)
 {
-    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+    return BIND(&TSamplesFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunks)))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>& chunkIndexes)
+TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<TChunkToFetch> chunks)
 {
+    // TODO(pavel-bash): we should unify how the requests are dispatched
+    // to the DataNodeService and to the OffshoreNodeService.
+    bool isOffshoreNode = nodeId == OffshoreNodeId;
+
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
-    auto req = proxy.GetTableSamples();
+    TOffshoreNodeServiceProxy offshoreProxy(GetNodeChannel(nodeId));
+    offshoreProxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
+
+    auto req = [&] {
+        if (isOffshoreNode) {
+            return offshoreProxy.GetTableSamples();
+        }
+        return proxy.GetTableSamples();
+    }();
+
     // TODO(babenko): make configurable
     SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     req->SetRequestHeavy(true);
@@ -120,16 +134,28 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     i64 currentSize = SizeBetweenSamples_;
     i64 currentSampleCount = 0;
 
-    std::vector<int> requestedChunkIndexes;
+    std::vector<TChunkToFetch> requestedChunks;
 
-    for (int index : chunkIndexes) {
-        const auto& chunk = Chunks_[index];
+    for (const auto& requestedChunk: chunks) {
+        if (!requestedChunk.Replica.GetSourceUri().empty()) {
+            // TODO(pavel-bash): for now we do not support the samples retrieval process for
+            // the external data - chunk meta isn't generated and/or saved anywhere, which
+            // will lead to a crash later. Some of the operations still work even without
+            // the samples (e.g. sort with small amount of data).
+            YT_LOG_INFO(
+                "Requested to fetch table samples, but it is not supported yet for the external data; "
+                "returning empty samples (SourceUri: %v)",
+                requestedChunk.Replica.GetSourceUri());
+            return VoidFuture;
+        }
+
+        const auto& chunk = Chunks_[requestedChunk.ChunkIndex];
 
         currentSize += chunk->GetUncompressedDataSize();
         i64 sampleCount = currentSize / SizeBetweenSamples_;
 
         if (sampleCount > currentSampleCount) {
-            requestedChunkIndexes.push_back(index);
+            requestedChunks.push_back(requestedChunk);
             auto chunkId = EncodeChunkId(chunk, nodeId);
 
             auto* sampleRequest = req->add_sample_requests();
@@ -141,6 +167,7 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
             if (chunk->UpperLimit() && chunk->UpperLimit()->HasLegacyKey()) {
                 ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetLegacyKey());
             }
+            ToProto(sampleRequest->mutable_replica_spec(), requestedChunk.Replica);
             currentSampleCount = sampleCount;
         }
     }
@@ -150,20 +177,20 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
     }
 
     return req->Invoke().Apply(
-        BIND(&TSamplesFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
+        BIND(&TSamplesFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunks)))
             .AsyncVia(Invoker_));
 }
 
 void TSamplesFetcher::OnResponse(
     TNodeId nodeId,
-    const std::vector<int>& requestedChunkIndexes,
+    std::vector<TChunkToFetch> requestedChunks,
     const TDataNodeServiceProxy::TErrorOrRspGetTableSamplesPtr& rspOrError)
 {
     if (!rspOrError.IsOK()) {
         YT_LOG_INFO(rspOrError, "Failed to get samples from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+            GetNodeAddress(nodeId),
             nodeId);
-        OnNodeFailed(nodeId, requestedChunkIndexes);
+        OnNodeFailed(nodeId, GetChunkIndexes(requestedChunks));
         return;
     }
 
@@ -173,18 +200,19 @@ void TSamplesFetcher::OnResponse(
     TKeySetReader keysReader(rsp->Attachments()[0]);
     auto keys = keysReader.GetKeys();
 
-    for (int index = 0; index < std::ssize(requestedChunkIndexes); ++index) {
+    for (int index = 0; index < std::ssize(requestedChunks); ++index) {
+        const auto& requestedChunk = requestedChunks[index];
         const auto& sampleResponse = rsp->sample_responses(index);
 
         if (sampleResponse.has_error()) {
             auto error = FromProto<TError>(sampleResponse.error());
-            OnChunkFailed(nodeId, requestedChunkIndexes[index], error);
+            OnChunkFailed(nodeId, requestedChunk, error);
             continue;
         }
 
         YT_LOG_TRACE("Received %v samples for chunk #%v",
             sampleResponse.samples_size(),
-            requestedChunkIndexes[index]);
+            requestedChunk);
 
         for (const auto& protoSample : sampleResponse.samples()) {
             auto key = RowBuffer_->CaptureRow(keys[protoSample.key_index()]);
@@ -204,4 +232,3 @@ void TSamplesFetcher::OnResponse(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-

@@ -211,6 +211,7 @@ public:
 
     const NRpc::IChannelPtr& GetSchedulerChannel() override;
     const NRpc::IChannelPtr& GetBundleControllerChannel() override;
+    const NRpc::IChannelPtr& GetOffshoreNodeProxyChannel() override;
 
     const NTransactionClient::IClockManagerPtr& GetClockManager() override;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() override;
@@ -240,6 +241,7 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const NRpc::IChannelPtr SchedulerChannel_;
     const NRpc::IChannelPtr BundleControllerChannel_;
+    const NRpc::IChannelPtr OffshoreNodeProxyChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TCellTrackerPtr DownedCellTracker_;

@@ -51,16 +51,16 @@ void TChunkSliceSizeFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TColumnS
 
 TFuture<void> TChunkSliceSizeFetcher::FetchFromNode(
     NNodeTrackerClient::TNodeId nodeId,
-    std::vector<int> chunkIndexes)
+    std::vector<TChunkToFetch> chunks)
 {
-    return BIND(&TChunkSliceSizeFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+    return BIND(&TChunkSliceSizeFetcher::DoFetchFromNode, MakeStrong(this), nodeId, Passed(std::move(chunks)))
         .AsyncVia(Invoker_)
         .Run();
 }
 
 TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     NNodeTrackerClient::TNodeId nodeId,
-    std::vector<int> chunkIndexes)
+    std::vector<TChunkToFetch> chunks)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
@@ -74,7 +74,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     // We use this name table to replace all column names with their ids across the whole rpc request message.
     auto nameTable = New<TNameTable>();
 
-    for (int index : chunkIndexes) {
+    for (const auto& [index, _] : chunks) {
         const auto& chunk = Chunks_[index];
         auto chunkId = EncodeChunkId(chunk, nodeId);
 
@@ -102,7 +102,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     }
 
     return req->Invoke().Apply(
-        BIND(&TChunkSliceSizeFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunkIndexes)))
+        BIND(&TChunkSliceSizeFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(chunks)))
             .AsyncVia(Invoker_));
 }
 
@@ -113,33 +113,35 @@ void TChunkSliceSizeFetcher::ProcessDynamicStore(int /*chunkIndex*/)
 
 void TChunkSliceSizeFetcher::OnResponse(
     NNodeTrackerClient::TNodeId nodeId,
-    std::vector<int> requestedChunkIndexes,
+    std::vector<TChunkToFetch> requestedChunks,
     const TDataNodeServiceProxy::TErrorOrRspGetChunkSliceDataWeightsPtr& rspOrError)
 {
     YT_LOG_DEBUG("Node response received (NodeId: %v, ChunkIndexes: %v)",
         nodeId,
-        requestedChunkIndexes);
+        requestedChunks);
 
     if (!rspOrError.IsOK()) {
         YT_LOG_INFO("Failed to get chunk slice size from node (Address: %v, NodeId: %v)",
-            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+            GetNodeAddress(nodeId),
             nodeId);
 
-        OnNodeFailed(nodeId, requestedChunkIndexes);
+        OnNodeFailed(nodeId, GetChunkIndexes(requestedChunks));
         return;
     }
 
     const auto& responses = rspOrError.Value();
 
-    YT_VERIFY(responses->chunk_responses_size() == std::ssize(requestedChunkIndexes));
+    YT_VERIFY(responses->chunk_responses_size() == std::ssize(requestedChunks));
 
-    for (int index = 0; index < std::ssize(requestedChunkIndexes); ++index) {
-        int chunkIndex = requestedChunkIndexes[index];
+    for (int index = 0; index < std::ssize(requestedChunks); ++index) {
+        const auto& requestedChunk = requestedChunks[index];
+
+        int chunkIndex = requestedChunk.ChunkIndex;
         const auto& rps = responses->chunk_responses(index);
 
         if (rps.has_error()) {
             auto error = FromProto<TError>(rps.error());
-            OnChunkFailed(nodeId, requestedChunkIndexes[index], error);
+            OnChunkFailed(nodeId, requestedChunk, error);
             continue;
         }
 

@@ -105,7 +105,7 @@ public:
 
     TFuture<void> FetchFromNode(
         TNodeId nodeId,
-        std::vector<int> chunkIndexes) override
+        std::vector<TChunkToFetch> chunks) override
     {
         auto& scenario = ResponseProfile_[nodeId];
 
@@ -114,23 +114,23 @@ public:
         });
 
         if (!scenario.NodeResponses.empty() && scenario.NodeResponses.back() != ENodeResponse::OK) {
-            OnNodeFailed(nodeId, chunkIndexes);
+            OnNodeFailed(nodeId, GetChunkIndexes(chunks));
             return VoidFuture;
         }
 
-        for (const auto& chunkIndex : chunkIndexes) {
-            auto& chunkResponses = scenario.ChunkResponses[chunkIndex];
+        for (const auto& chunk : chunks) {
+            auto& chunkResponses = scenario.ChunkResponses[chunk.ChunkIndex];
 
             if (!chunkResponses.empty() && chunkResponses.back() != EChunkResponse::OK) {
                 if (chunkResponses.back() == EChunkResponse::Failure) {
-                    OnChunkFailed(nodeId, chunkIndex, TError("failure"));
+                    OnChunkFailed(nodeId, chunk, TError("failure"));
                 } else if (chunkResponses.back() == EChunkResponse::Timeout) {
-                    OnChunkFailed(nodeId, chunkIndex, TError(NYT::EErrorCode::Timeout, "timeout"));
+                    OnChunkFailed(nodeId, chunk, TError(NYT::EErrorCode::Timeout, "timeout"));
                 } else {
                     YT_ABORT();
                 }
             } else {
-                EXPECT_TRUE(FetchedChunkIndexes_.insert(chunkIndex).second);
+                EXPECT_TRUE(FetchedChunkIndexes_.insert(chunk.ChunkIndex).second);
             }
             TryPopBack(chunkResponses);
         }
