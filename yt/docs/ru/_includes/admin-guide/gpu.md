@@ -64,7 +64,7 @@ yt get //sys/exec_nodes/<node_address>/@resource_limits/gpu
 
 Для этого выполните следующую команду:
 ```bash
-yt create scheduler_pool_tree --attributes '{name=gpu;config={nodes_filter=gpu}}'
+yt create scheduler_pool_tree --attributes '{name=gpu; config={nodes_filter=gpu; main_resource=gpu;}}'
 ```
 
 Теперь можно запустить тестовую операцию и проверить, что в джобе доступен `nvidia-smi`:
