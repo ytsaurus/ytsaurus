@@ -106,7 +106,7 @@ public:
             ChunkReadOptions_,
             TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
             TColumnFilter(NameTable_->GetSize()),
-            /*partitionTag*/ std::nullopt,
+            /*partitionTags*/ {},
             std::move(readerMemoryManager));
     }
 

@@ -15,6 +15,8 @@ class TVirtualValueDirectory;
 
 constexpr int DefaultPartitionTag = -1;
 
+using NChunkClient::TPartitionTags;
+
 // TODO(ifsmirnov): calculate actual estimates.
 constexpr i64 DefaultRemoteDynamicStoreReaderMemoryEstimate = 64_MB;
 

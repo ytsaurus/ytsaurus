@@ -43,7 +43,7 @@ struct IJobInputCache
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetChunkMeta(
         NChunkClient::TChunkId chunkId,
         NChunkClient::TClientChunkReadOptions options,
-        std::optional<int> partitionTag,
+        const NChunkClient::TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) = 0;
 
     virtual THashSet<NChunkClient::TChunkId> FilterHotChunkIds(const std::vector<NChunkClient::TChunkId>& chunkIds) = 0;

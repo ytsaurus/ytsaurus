@@ -166,7 +166,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
-    std::optional<int> partitionTag = std::nullopt)
+    const TPartitionTags& partitionTags = {})
 {
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader
@@ -182,7 +182,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         chunkReadOptions,
         TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
         columnFilter,
-        partitionTag,
+        partitionTags,
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 }
 
@@ -471,7 +471,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
                 chunkReadOptions,
                 TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                 columnFilter,
-                /*partitionTag*/ std::nullopt,
+                /*partitionTags*/ {},
                 memoryManager);
 
             primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), rowBuffer);
@@ -512,7 +512,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
             chunkReadOptions,
             TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
             columnFilter,
-            /*partitionTag*/ std::nullopt,
+            /*partitionTags*/ {},
             memoryManager);
 
         primaryReaders.emplace_back(reader);
@@ -536,7 +536,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
             chunkReadOptions,
             TReaderInterruptionOptions::NonInterruptible(),
             columnFilter,
-            /*partitionTag*/ std::nullopt,
+            /*partitionTags*/ {},
             multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
         foreignReaders.emplace_back(reader);
@@ -683,8 +683,8 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-    auto partitionTag = YT_OPTIONAL_FROM_PROTO(jobSpecExt, partition_tag);
-    YT_VERIFY(partitionTag);
+    YT_VERIFY(jobSpecExt.has_partition_tag());
+    int partitionTag = jobSpecExt.partition_tag();
 
     auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
 
@@ -701,7 +701,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
                 columnFilter,
                 chunkReadOptions,
                 multiReaderMemoryManager,
-                partitionTag),
+                {partitionTag}),
             std::nullopt
         };
     }
@@ -718,7 +718,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
             std::move(dataSliceDescriptors),
             jobSpecExt.input_row_count(),
             jobSpecExt.is_approximate(),
-            *partitionTag,
+            {partitionTag},
             chunkReadOptions,
             multiReaderMemoryManager),
         std::nullopt

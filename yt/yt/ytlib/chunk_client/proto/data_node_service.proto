@@ -446,6 +446,7 @@ message TReqGetChunkMeta
     // the whole available meta is returned.
     optional bool all_extension_tags = 3 [default = false];
     optional int32 partition_tag = 4;
+    repeated int32 partition_tags = 9;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 
     // COMPAT(psushin).

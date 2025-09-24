@@ -251,9 +251,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto partitionTag = request->has_partition_tag()
-            ? std::make_optional(request->partition_tag())
-            : std::nullopt;
+        auto partitionTags = GetPartitionTags(*request);
         auto extensionTags = request->all_extension_tags()
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
@@ -261,16 +259,16 @@ private:
         auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
         context->SetRequestInfo(
-            "ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
+            "ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v",
             chunkId,
             extensionTags,
-            partitionTag,
+            partitionTags,
             workloadDescriptor);
 
         TClientChunkReadOptions jobInputCacheOptions;
         jobInputCacheOptions.WorkloadDescriptor = workloadDescriptor;
 
-        auto chunkMetaFuture = JobInputCache_->GetChunkMeta(chunkId, jobInputCacheOptions, partitionTag, extensionTags);
+        auto chunkMetaFuture = JobInputCache_->GetChunkMeta(chunkId, jobInputCacheOptions, partitionTags, extensionTags);
         auto withTimeout = WrapWithTimeout(
             chunkMetaFuture,
             context,

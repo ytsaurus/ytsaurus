@@ -1383,7 +1383,7 @@ private:
             chunkReadOptions,
             TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
             /*columnFilter*/ {},
-            /*partitionTag*/ std::nullopt);
+            /*partitionTags*/ {});
 
         auto schema = dataSource->Schema();
         auto columns = dataSource->Columns();

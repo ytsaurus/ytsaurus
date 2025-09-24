@@ -240,7 +240,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     TFuture<TSharedRef> LookupRows(
@@ -281,7 +281,7 @@ public:
 
     //! Looks for chunk meta in ChunkMetaCache if the cache is enabled.
     TFuture<TRefCountedChunkMetaPtr> FindMetaInCache(
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags,
         const ICachedChunkMeta::TMetaFetchCallback& callback);
 
@@ -3127,7 +3127,7 @@ public:
     TGetMetaSession(
         TReplicationReader* reader,
         const IChunkReader::TGetMetaOptions& options,
-        const std::optional<int> partitionTag,
+        TPartitionTags partitionTags,
         const std::optional<std::vector<int>>& extensionTags,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
@@ -3140,7 +3140,7 @@ public:
             std::move(mediumThrottler),
             TDispatcher::Get()->GetReaderInvoker())
         , MetaSize_(options.MetaSize)
-        , PartitionTag_(partitionTag)
+        , PartitionTags_(std::move(partitionTags))
         , ExtensionTags_(extensionTags)
     { }
 
@@ -3167,7 +3167,7 @@ public:
 
 private:
     const std::optional<i64> MetaSize_;
-    const std::optional<int> PartitionTag_;
+    const TPartitionTags PartitionTags_;
     const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
@@ -3248,10 +3248,10 @@ private:
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
         req->SetRequestInfo(
-            "ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v, Cookie: %x",
+            "ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v, Cookie: %x",
             ChunkId_,
             ExtensionTags_,
-            PartitionTag_,
+            PartitionTags_,
             WorkloadDescriptor_,
             true,
             SessionOptions_.Cookie);
@@ -3261,7 +3261,7 @@ private:
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
-        YT_OPTIONAL_SET_PROTO(req, partition_tag, PartitionTag_);
+        ToProto(req->mutable_partition_tags(), PartitionTags_);
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
@@ -3348,14 +3348,14 @@ private:
 };
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     const std::optional<std::vector<int>>& extensionTags,
     const ICachedChunkMeta::TMetaFetchCallback& callback)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto decodedChunkId = DecodeChunkId(ChunkId_).Id;
-    if (!partitionTag && !IsJournalChunkId(decodedChunkId) && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
+    if (partitionTags.empty() && !IsJournalChunkId(decodedChunkId) && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
         return ChunkMetaCache_->Fetch(
             decodedChunkId,
             extensionTags,
@@ -3367,7 +3367,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     const TGetMetaOptions& options,
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     const std::optional<std::vector<int>>& extensionTags)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -3376,12 +3376,12 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
         this,
         this_ = MakeStrong(this),
         options,
-        partitionTag
+        partitionTags
     ] (const std::optional<std::vector<int>>& extensionTags) {
         return New<TGetMetaSession>(
             this,
             options,
-            partitionTag,
+            partitionTags,
             extensionTags,
             BandwidthThrottler_,
             RpsThrottler_,
@@ -3389,7 +3389,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
             ->Run();
     });
 
-    auto cacheFuture = FindMetaInCache(partitionTag, extensionTags, callback);
+    auto cacheFuture = FindMetaInCache(partitionTags, extensionTags, callback);
     return cacheFuture
         ? cacheFuture
         : callback(extensionTags);
@@ -3896,7 +3896,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -3905,12 +3905,12 @@ public:
             this,
             this_ = MakeStrong(this),
             options,
-            partitionTag
+            partitionTags
         ] (const std::optional<std::vector<int>>& extensionTags) {
             return New<TGetMetaSession>(
                 UnderlyingReader_.Get(),
                 options,
-                partitionTag,
+                partitionTags,
                 extensionTags,
                 BandwidthThrottler_,
                 RpsThrottler_,
@@ -3918,7 +3918,7 @@ public:
                 ->Run();
         });
 
-        auto cacheFuture = UnderlyingReader_->FindMetaInCache(partitionTag, extensionTags, callback);
+        auto cacheFuture = UnderlyingReader_->FindMetaInCache(partitionTags, extensionTags, callback);
         return cacheFuture
             ? cacheFuture
             : callback(extensionTags);

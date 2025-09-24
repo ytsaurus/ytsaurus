@@ -228,7 +228,7 @@ private:
 
         auto future = chunk.Reader->GetMeta(
             /*options*/ {},
-            /*partitionTag*/ std::nullopt,
+            /*partitionTags*/ {},
             extensionTags)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto blockOffset = offset;

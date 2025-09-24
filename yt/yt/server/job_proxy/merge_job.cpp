@@ -88,7 +88,7 @@ public:
                 ChunkReadOptions_,
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
-                partitionTag,
+                partitionTag ? TPartitionTags{*partitionTag} : TPartitionTags{},
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 

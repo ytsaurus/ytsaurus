@@ -92,7 +92,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         TChunkReadOptions chunkReadOptions;
@@ -105,7 +105,7 @@ public:
             }
             const auto& meta = metaOrError.Value();
 
-            if (!partitionTag) {
+            if (partitionTags.empty()) {
                 return meta;
             }
 
@@ -121,7 +121,7 @@ public:
                 }
             }
 
-            return New<TRefCountedChunkMeta>(FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag));
+            return New<TRefCountedChunkMeta>(FilterChunkMetaByPartitionTags(*meta, cachedBlockMeta, partitionTags));
         }));
     }
 

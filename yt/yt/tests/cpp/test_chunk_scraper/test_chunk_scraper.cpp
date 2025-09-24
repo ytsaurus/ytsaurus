@@ -30,13 +30,6 @@ using namespace testing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class Proj = std::identity>
-bool Contains(auto&& range, const auto& value, Proj proj = {})
-{
-    auto end = std::ranges::end(range);
-    return std::ranges::find(std::ranges::begin(range), end, value, std::move(proj)) != end;
-}
-
 template <class T>
 std::vector<T> RemoveAt(std::vector<T> vector, int position)
 {

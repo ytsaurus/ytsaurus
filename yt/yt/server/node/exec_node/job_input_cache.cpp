@@ -65,7 +65,7 @@ public:
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetChunkMeta(
         NChunkClient::TChunkId chunkId,
         NChunkClient::TClientChunkReadOptions options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     THashSet<NChunkClient::TChunkId> FilterHotChunkIds(const std::vector<NChunkClient::TChunkId>& chunkIds) override;
@@ -287,7 +287,7 @@ void TJobInputCache::UnregisterJobChunks(TJobId jobId)
 TFuture<TRefCountedChunkMetaPtr> TJobInputCache::GetChunkMeta(
     TChunkId chunkId,
     TClientChunkReadOptions options,
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     const std::optional<std::vector<int>>& extensionTags)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -302,7 +302,7 @@ TFuture<TRefCountedChunkMetaPtr> TJobInputCache::GetChunkMeta(
         IChunkReader::TGetMetaOptions{
             .ClientOptions = options,
         },
-        partitionTag,
+        partitionTags,
         extensionTags)
         .ToUncancelable();
 }

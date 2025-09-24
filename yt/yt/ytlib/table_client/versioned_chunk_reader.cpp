@@ -1840,7 +1840,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     /*omittedInaccessibleColumns*/ {},
                     columnFilter,
                     readRange,
-                    std::nullopt,
+                    /*partitionTags*/ {},
                     memoryManagerHolder);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {
@@ -2043,7 +2043,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     /*omittedInaccessibleColumns*/ {},
                     columnFilter,
                     std::move(keys),
-                    std::nullopt,
+                    /*partitionTags*/ {},
                     memoryManagerHolder);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {

@@ -152,7 +152,7 @@ private:
                 EWorkloadCategory::SystemTabletCompaction).ChunkReader;
             asyncRowDigestMetas.push_back(reader->GetMeta(
                 /*options*/ {},
-                /*partitionTag*/ {},
+                /*partitionTags*/ {},
                 std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}));
 
             GetFetchStatus(store).RequestStep = RequestStep;
