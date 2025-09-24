@@ -36,3 +36,27 @@ target_sources(isa-l_ec PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/aarch64/ec_aarch64_highlevel_func.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_base.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/aarch64/ec_aarch64_dispatcher.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/aarch64/ec_aarch64_highlevel_func.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

@@ -118,10 +118,10 @@ DEFINE_REFCOUNTED_TYPE(TBlockMetaCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
+NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTags(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TCachedBlockMetaPtr& cachedBlockMeta,
-    int partitionTag);
+    const TPartitionTags& partitionTags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

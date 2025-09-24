@@ -71,9 +71,14 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        auto partitionTag = YT_OPTIONAL_FROM_PROTO(JobSpecExt_, partition_tag);
-
-        ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
+        ReaderFactory_ = [
+            =,
+            this,
+            this_ = MakeStrong(this),
+            partitionTags = JobSpecExt_.has_partition_tag()
+                ? TPartitionTags{JobSpecExt_.partition_tag()}
+                : TPartitionTags{}
+        ] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
             auto factory = PartitionJobSpecExt_.use_sequential_reader()
@@ -90,7 +95,7 @@ public:
                 ChunkReadOptions_,
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
-                partitionTag,
+                partitionTags,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 

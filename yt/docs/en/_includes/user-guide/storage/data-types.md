@@ -71,6 +71,12 @@ The table lists the supported types and their representation in the `type`/`type
 | an integer in the range `[0, 49673 * 86400 - 1]`, <br> represents the number of seconds from the Unix epoch; <br> representable time range: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59Z]`  <br> see the section about [temporal types](#temporal_types) | `datetime` | `datetime` |
 | an integer in the range `[0, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds from the Unix epoch; <br> representable time range: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59.999999Z]`  <br> see the section about [temporal types](#temporal_types) | `timestamp` | `timestamp` |
 | an integer in the range `[- 49673 * 86400 * 10^6 + 1, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds between two `timestamp` timestamps <br> see the section about [temporal types](#temporal_types) | `interval` | `interval` |
+| *(added in version 25.3)* type `date` with time zone information <br> see the section about [time zones](#time_zones) | tz_date | tz_date |
+| *(added in version 25.3)* type `datetime` with time zone information <br> see the section about [time zones](#time_zones) | tz_datetime | tz_datetime |
+| *(added in version 25.3)* type `timestamp` with time zone information <br> see the section about [time zones](#time_zones) | tz_timestamp | tz_timestamp |
+| *(added in version 25.3)* type `date32` with time zone information <br> see the section about [time zones](#time_zones) | tz_date32 | tz_date32 |
+| *(added in version 25.3)* type `datetime64` with time zone information <br> see the section about [time zones](#time_zones) | tz_datetime64 | tz_datetime |
+| *(added in version 25.3)* type `timestamp64` with time zone information <br> see the section about [time zones](#time_zones) | tz_timestamp64 | tz_timestamp64 |
 | An arbitrary YSON structure<br> that is physically represented as a byte sequence, <br> cannot have a `required=%true` attribute | `any` | `yson` (different from `type`) |
 | a system singular type that can only contain `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `null` | `null` |
 | a singular type that can only contain `null`; this type is different from `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `void` | `void` |
@@ -92,6 +98,40 @@ type_v3=yson
 Temporal types in {{product-name}} are categorized into two groups. Historically, the first ones to appear in the system were `date`, `datetime`, `timestamp`, and `interval`. They are used to represent times from the beginning of 1970 to the end of 2105. They were followed by `date32`, `datetime64`, `timestamp64`, and `interval64`. These types can be used to represent times over a wider range, about 145,000 years into the past and into the future. We recommend using the latter types, because they have a wider range of values.
 
 The Gregorian calendar should be used for all of the temporal types. When dealing with values in the distant past, note that {{product-name}} in no way accounts for the [transition to the Gregorian calendar](https://en.wikipedia.org/wiki/Adoption_of_the_Gregorian_calendar), which occurred in different countries at different times: YT assumes that the Gregorian calendar has always been in use.
+
+### Time zones { #time_zones }
+
+Types `tz_timestamp64`, `tz_datetime64`, `tz_date32`, `tz_timestamp`, `tz_datetime`, and `tz_date` store time information incorporating time zone details. Logically, these types store the pair:
+  - A timestamp, an integer from the corresponding "no time zone" type, representing a point in time in [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time).
+  - The name of the time zone from the [IANA time zone database](https://en.wikipedia.org/wiki/Tz_database).
+
+The internal representation of values for these types is described below. Certain higher-level tools offer a convenient way to work with these types.
+
+#|
+|| **tz type**    | **corresponding "no time zone" type** | **underlying integer type** | **integer type value range** | **unit**  ||
+|| tz_date        | date        | Uint16 | `[0, 49673 - 1]`                                          | days          ||
+|| tz_datetime    | datetime    | Uint32 | `[0, 49673 * 86400 - 1]`                                  | seconds      ||
+|| tz_timestamp   | timestamp   | Uint64 | `[0, 49673 * 86400 * 10^6 - 1]`                           | microseconds ||
+|| tz_date32      | date32      | Int32  | `[-53375809, 53375808 - 1]`                               | days          ||
+|| tz_datetime64  | datetime64  | Int64  | `[-53375809 * 86400, 53375808 * 86400 - 1]`               | seconds      ||
+|| tz_timestamp64 | timestamp64 | Int64  | `[-53375809 * 86400 * 10^6, 53375808 * 86400 * 10^6 - 1]` | microseconds ||
+|#
+
+This pair is serialized into a string as follows:
+  - The integer is written in presorted representation (see below).
+  - The time zone name is written in full, for example, `Europe/Moscow`.
+
+The presorted representation of the integer is obtained as follows:
+
+1. Write the number in big-endian format.
+2. If the underlying integer type is signed (types `tz_date32`, `tz_datetime64`, and `tz_timestamp64`), invert the most significant (sign) bit. Skip this step for unsigned underlying types.
+
+*Example:* you want to save the time point 2025-01-01T00:00:00 in Moscow time zone using type tz_datetime64. To do this, follow the steps below:
+    1. Convert the time point to UTC: `2024-12-31T21:00:00Z`.
+    2. Convert UTC to Unix timestamp: `1735678800`.
+    3. Write the timestamp in big-endian format: `"\x00\x00\x00\x00\x67\x74\x5b\x50"`.
+    4. Since tz_datetime64 is based on the signed Int64 type, invert the most significant bit: `"\x80\x00\x00\x00\x67\x74\x5b\x50"`.
+    5. Append time zone information: `"\x80\x00\x00\x00\x67\x74\x5b\x50Europe/Moscow"`.
 
 ### Decimal { #schema_decimal }
 

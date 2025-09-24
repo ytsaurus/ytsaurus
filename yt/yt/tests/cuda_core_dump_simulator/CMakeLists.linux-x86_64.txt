@@ -53,4 +53,12 @@ target_sources(cuda_core_dump_simulator PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cuda_core_dump_simulator/main.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 vcs_info(cuda_core_dump_simulator)

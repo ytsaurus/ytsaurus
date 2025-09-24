@@ -397,7 +397,7 @@ protected:
         const auto& reader = PartReaders_[RandomNumber(PartReaders_.size())];
         return reader->GetMeta(
             IChunkReader::TGetMetaOptions{ .ClientOptions = ReadBlocksOptions_.ClientOptions, },
-            /*partitionTag*/ std::nullopt,
+            /*partitionTags*/ {},
             std::vector<int>{
                 TProtoExtensionTag<NProto::TStripedErasurePlacementExt>::Value
             }).Apply(BIND([this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {

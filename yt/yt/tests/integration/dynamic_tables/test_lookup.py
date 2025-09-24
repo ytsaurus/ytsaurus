@@ -12,6 +12,7 @@ from yt_commands import (
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_node_banned,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
     wait_for_cells, build_snapshot, sort, merge, create_tablet_cell_bundle,
+    make_ace, create_user,
     AsyncLastCommittedTimestamp)
 
 from yt_type_helpers import make_schema
@@ -1128,6 +1129,12 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("sabdenovch")
     @pytest.mark.parametrize("in_memory", [False, True])
     def test_migrate_to_query_pool(self, in_memory):
+        create_user("u")
+        create("map_node", "//sys/ql_pools/bassein", attributes={
+            "weight": 10.0,
+            "acl": [make_ace("allow", "u", "use")]
+        })
+
         flag_name = f"use_query_pool_for{'_in_memory' if in_memory else ''}_lookups"
 
         set("//sys/cluster_nodes/@config", {"%true": {
@@ -1160,7 +1167,17 @@ class TestLookup(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in range(1, 9999, 2)]
         insert_rows(table_path, rows)
 
-        assert rows == lookup_rows(table_path, keys)
+        node = get(table_path + "/@tablets/0/cell_leader_address")
+
+        wait(lambda: exists(f"//sys/cluster_nodes/{node}/orchid/sensors/yt"))
+
+        assert rows == lookup_rows(table_path, keys, execution_pool="bassein")
+
+        def _wait_metrics():
+            return any([x["tags"].get("thread") == "Query" and x["tags"].get("bucket") == "bassein" and x["value"] > 0
+                        for x in get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/fair_share_queue/buckets")])
+
+        wait(_wait_metrics)
 
 
 @pytest.mark.enabled_multidaemon

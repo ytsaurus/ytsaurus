@@ -33,6 +33,22 @@ target_sources(isa-l_ec PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_base.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_highlevel_func.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 target_yasm_source(isa-l_ec
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/isa-l/erasure_code/ec_multibinary_darwin.asm

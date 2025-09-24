@@ -148,11 +148,14 @@ NS3::IClientPtr CreateS3Client(
     clientConfig->Region = std::move(s3Config.Region);
     clientConfig->Bucket = std::move(s3Config.Bucket);
 
+    auto sslConfig = NYT::New<NYT::NCrypto::TSslContextConfig>();
+    sslConfig->InsecureSkipVerify = true;
+
     auto poller = CreateThreadPoolPoller(1, "S3Poller");
     auto client = NS3::CreateClient(
         std::move(clientConfig),
         std::move(credentialProvider),
-        /*sslContextConfig*/ nullptr,
+        sslConfig,
         poller,
         poller->GetInvoker());
 
@@ -167,7 +170,7 @@ std::vector<TString> GetListFilesKeysFromS3(
     TString secretAccessKey,
     TString prefix)
 {
-    auto s3Client =  CreateS3Client(
+    auto s3Client = CreateS3Client(
         s3Config,
         std::move(accessKeyId),
         std::move(secretAccessKey));
@@ -922,12 +925,11 @@ void ImportFilesFromSource(
             .AddOutput<TNode>(metadataTablePath)
             .DataSizePerJob(1);
 
-        NYT::TUserJobSpec jobSpec;
-
+        auto jobSpec = TUserJobSpec()
+            .MemoryLimit(config->MemoryLimit);
         if (networkProject) {
             jobSpec.NetworkProject(*networkProject);
         }
-
         if (attachLibIconv) {
            jobSpec.AddLocalFile("./libiconv.so");
         }
@@ -952,7 +954,13 @@ void ImportFilesFromSource(
 
     {
         TOperationOptions operationOptions;
-        operationOptions.Spec(TNode()("job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))));
+        auto specNode = TNode()(
+                "job_io", NYT::TNode()("table_writer", NYT::TNode()("max_row_weight", config->MaxRowWeight))
+        );
+        if (config->Pool) {
+            specNode = specNode("pool", *config->Pool);
+        }
+        operationOptions.Spec(specNode);
 
         TTempTable outputInformationTable(
             ytClient,
@@ -992,9 +1000,12 @@ void ImportFilesFromSource(
                 .AddOutput(TRichYPath(outputReduceTable.Name()));
         }
 
+        auto jobSpec = TUserJobSpec()
+            .MemoryLimit(config->MemoryLimit);
         if (attachLibIconv) {
-            reduceOperationSpec = reduceOperationSpec.ReducerSpec(TUserJobSpec().AddLocalFile("./libiconv.so"));
+            jobSpec.AddLocalFile("./libiconv.so");
         }
+        reduceOperationSpec = reduceOperationSpec.ReducerSpec(jobSpec);
 
         YT_LOG_INFO("Starting reduce operation for parsing arrow and producing rows in the temporary tables (MaxRowWeight: %v)", config->MaxRowWeight);
 

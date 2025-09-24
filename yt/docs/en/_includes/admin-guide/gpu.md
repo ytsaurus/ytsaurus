@@ -67,7 +67,7 @@ For efficient scheduler operation, it is highly desirable that resources on the 
 To do this, run the following command:
 
 ```bash
-yt create scheduler_pool_tree --attributes '{name=gpu;config={nodes_filter=gpu}}'
+yt create scheduler_pool_tree --attributes '{name=gpu; config={nodes_filter=gpu; main_resource=gpu;}}'
 ```
 
 Now you can run a test operation and check that `nvidia-smi` is available in the job:

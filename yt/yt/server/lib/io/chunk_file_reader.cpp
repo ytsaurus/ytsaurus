@@ -142,10 +142,10 @@ i64 TChunkFileReader::GetMetaSize() const
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
     const TClientChunkReadOptions& options,
     TFairShareSlotId fairShareSlotId,
-    std::optional<int> partitionTag)
+    const TPartitionTags& partitionTags)
 {
     try {
-        return DoReadMeta(options, partitionTag, fairShareSlotId);
+        return DoReadMeta(options, partitionTags, fairShareSlotId);
     } catch (const std::exception& ex) {
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
@@ -196,7 +196,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
                     }
                 }
 
-                return DoReadMeta(options, std::nullopt, {})
+                return DoReadMeta(options, /*partitionTags*/ {}, /*fairShareSlotId*/ {})
                     .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                         auto guard = Guard(ChunkFragmentReadsLock_);
                         BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
@@ -339,7 +339,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     }
 
     if (!blocksExt) {
-        return DoReadMeta(options, std::nullopt, fairShareSlotId)
+        return DoReadMeta(options, /*partitionTags*/ {}, fairShareSlotId)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
@@ -403,13 +403,13 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     TFairShareSlotId fairShareSlotId)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
-    YT_VERIFY(!partitionTag);
+    YT_VERIFY(partitionTags.empty());
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 

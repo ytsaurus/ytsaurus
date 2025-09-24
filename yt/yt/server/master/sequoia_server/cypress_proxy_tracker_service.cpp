@@ -42,7 +42,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         ValidateClusterInitialized();
-        Bootstrap_->GetHydraFacade()->RequireLeader();
+        ValidatePeer(EPeerKind::Leader);
 
         // NB: static_cast is intented. Cypress proxy reign is used for two
         // purposes only: to compare with master reign and to store as

@@ -188,3 +188,75 @@ target_sources(llvm18-lib-Support PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/BLAKE3/blake3_sse41_x86-64_unix.S
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/BLAKE3/blake3.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/BLAKE3/blake3_dispatch.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/BLAKE3/blake3_neon.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/BLAKE3/blake3_portable.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/regcomp.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/regerror.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/regexec.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/regfree.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Support/regstrlcpy.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

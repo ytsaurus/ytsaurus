@@ -35,3 +35,11 @@ target_sources(contrib-deprecated-http-parser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/http-parser/http_parser.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/http-parser/http_parser.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

@@ -40,3 +40,27 @@ target_sources(restricted-aws-aws-c-compression PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/huffman_testing.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/compression.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/huffman.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/huffman_testing.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

@@ -5,6 +5,7 @@
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/misc/object_pool.h>
+#include <yt/yt/core/misc/range_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -138,21 +139,20 @@ bool FindBoundaryKeyBounds(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkMeta FilterChunkMetaByPartitionTag(
+TChunkMeta FilterChunkMetaByPartitionTags(
     const TChunkMeta& chunkMeta,
     const TCachedBlockMetaPtr& cachedBlockMeta,
-    int partitionTag)
+    const TPartitionTags& partitionTags)
 {
     YT_VERIFY(chunkMeta.type() == static_cast<int>(EChunkType::Table));
+    YT_VERIFY(!partitionTags.empty());
     auto filteredChunkMeta = chunkMeta;
 
-    std::vector<TDataBlockMeta> filteredBlocks;
-    for (const auto& blockMeta : cachedBlockMeta->data_blocks()) {
-        YT_VERIFY(blockMeta.partition_index() != DefaultPartitionTag);
-        if (blockMeta.partition_index() == partitionTag) {
-            filteredBlocks.push_back(blockMeta);
-        }
-    }
+    auto filteredBlocks = RangeTo<std::vector<TDataBlockMeta>>(
+        cachedBlockMeta->data_blocks() | std::views::filter([&] (const auto& blockMeta) {
+            YT_VERIFY(blockMeta.partition_index() != DefaultPartitionTag);
+            return Contains(partitionTags, blockMeta.partition_index());
+        }));
 
     auto blockMetaExt = ObjectPool<TDataBlockMetaExt>().Allocate();
     NYT::ToProto(blockMetaExt->mutable_data_blocks(), filteredBlocks);

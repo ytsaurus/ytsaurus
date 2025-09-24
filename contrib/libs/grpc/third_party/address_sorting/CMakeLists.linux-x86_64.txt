@@ -38,3 +38,27 @@ target_sources(grpc-third_party-address_sorting PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_windows.c
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_posix.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_windows.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

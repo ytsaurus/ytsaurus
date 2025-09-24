@@ -50,4 +50,12 @@ target_sources(crc64_reference_test PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 vcs_info(crc64_reference_test)

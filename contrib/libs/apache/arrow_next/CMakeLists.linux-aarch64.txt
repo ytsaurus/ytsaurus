@@ -369,6 +369,14 @@ target_sources(libs-apache-arrow_next PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow_next/cpp/src/arrow/vendored/musl/strptime.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
 target_fbs_source(libs-apache-arrow_next
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow_next/cpp/src/generated/File.fbs

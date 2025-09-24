@@ -44,3 +44,11 @@ target_sources(restricted-boost-container PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/src/unsynchronized_pool_resource.cpp
 )
 
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/container/src/alloc_lib.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)

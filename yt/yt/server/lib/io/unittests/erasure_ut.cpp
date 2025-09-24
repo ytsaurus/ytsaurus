@@ -52,13 +52,13 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
         if (FailMetaRequests_ && TryFail()) {
             return MakeFuture<TRefCountedChunkMetaPtr>(TError("Failed to read meta"));
         }
-        return Underlying_->GetMeta(options.ClientOptions, {}, partitionTag);
+        return Underlying_->GetMeta(options.ClientOptions, {}, partitionTags);
     }
 
     TChunkId GetChunkId() const override

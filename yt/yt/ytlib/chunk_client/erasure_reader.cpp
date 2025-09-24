@@ -65,17 +65,15 @@ protected:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         if (extensionTags) {
-            for (const auto& forbiddenTag : {TProtoExtensionTag<TBlocksExt>::Value}) {
-                auto it = std::find(extensionTags->begin(), extensionTags->end(), forbiddenTag);
-                YT_VERIFY(it == extensionTags->end());
-            }
+            constexpr i32 ForbiddenTag = TProtoExtensionTag<TBlocksExt>::Value;
+            YT_VERIFY(!Contains(*extensionTags, ForbiddenTag));
         }
 
-        return DoGetMeta(options, std::move(partitionTag), extensionTags);
+        return DoGetMeta(options, partitionTags, extensionTags);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -107,7 +105,7 @@ protected:
 
     virtual TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) = 0;
 };
 
@@ -138,11 +136,11 @@ private:
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         const auto& reader = Readers_[RandomNumber(Readers_.size())];
-        return reader->GetMeta(options, std::move(partitionTag), extensionTags);
+        return reader->GetMeta(options, partitionTags, extensionTags);
     }
 
     TFuture<std::vector<TBlock>> DoReadBlocks(
@@ -224,14 +222,14 @@ private:
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         return BIND(
             &TAdaptiveRepairingErasureReader::DoGetMetaImpl,
             MakeStrong(this),
             options,
-            std::move(partitionTag),
+            partitionTags,
             extensionTags)
             .AsyncVia(ReaderInvoker_)
             .Run();
@@ -239,7 +237,7 @@ private:
 
     TRefCountedChunkMetaPtr DoGetMetaImpl(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags)
     {
         std::vector<TError> errors;
@@ -253,7 +251,7 @@ private:
             if (ReadersObserver_->IsReaderRecentlyFailed(now, index)) {
                 continue;
             }
-            auto result = WaitFor(Readers_[index]->GetMeta(options, partitionTag, extensionTags));
+            auto result = WaitFor(Readers_[index]->GetMeta(options, partitionTags, extensionTags));
             if (result.IsOK()) {
                 return result.Value();
             }
@@ -262,7 +260,7 @@ private:
 
         // NB: This is solely for testing purposes. We want to eliminate unlikely test flaps.
         if (ReadersObserver_->GetConfig()->ChunkMetaCacheFailureProbability) {
-            return DoGetMetaImpl(options, std::move(partitionTag), extensionTags);
+            return DoGetMetaImpl(options, partitionTags, extensionTags);
         }
 
         THROW_ERROR_EXCEPTION(
@@ -396,10 +394,10 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag,
+        const TPartitionTags& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        return UnderlyingReader_->GetMeta(options, partitionTag, extensionTags);
+        return UnderlyingReader_->GetMeta(options, partitionTags, extensionTags);
     }
 
     TChunkId GetChunkId() const override

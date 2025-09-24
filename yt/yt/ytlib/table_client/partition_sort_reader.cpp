@@ -61,7 +61,7 @@ public:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors,
         i64 estimatedRowCount,
         bool approximate,
-        int partitionTag,
+        const TPartitionTags& partitionTags,
         TClientChunkReadOptions chunkReadOptions,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
         : Comparator_(std::move(comparator))
@@ -77,6 +77,7 @@ public:
         , MergeComparer_(this)
         , MemoryPool_(TPartitionSortReaderTag())
     {
+        YT_VERIFY(!partitionTags.empty());
         Shuffle(dataSliceDescriptors.begin(), dataSliceDescriptors.end());
 
         auto options = New<NTableClient::TTableReaderOptions>();
@@ -89,7 +90,7 @@ public:
             std::move(dataSourceDirectory),
             std::move(dataSliceDescriptors),
             NameTable_,
-            partitionTag,
+            partitionTags,
             std::move(chunkReadOptions),
             std::move(multiReaderMemoryManager));
 
@@ -551,7 +552,7 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     std::vector<TDataSliceDescriptor> dataSliceDescriptors,
     i64 estimatedRowCount,
     bool approximate,
-    int partitionTag,
+    const TPartitionTags& partitionTags,
     TClientChunkReadOptions chunkReadOptions,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
@@ -565,7 +566,7 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
         std::move(dataSliceDescriptors),
         estimatedRowCount,
         approximate,
-        partitionTag,
+        partitionTags,
         std::move(chunkReadOptions),
         std::move(multiReaderMemoryManager));
 }
