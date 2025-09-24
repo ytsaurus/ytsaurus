@@ -66,6 +66,9 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_statistics_flush_period", &TThis::UserStatisticsFlushPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("allow_alter_without_full_read", &TThis::AllowAlterWithoutFullRead)
+        .Default(EAllowAlterWithoutFullRead::Allow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
