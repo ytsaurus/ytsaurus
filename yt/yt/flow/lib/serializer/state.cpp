@@ -64,6 +64,9 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
     const auto* meta = ysonStruct->GetMeta();
     bool formatIsRequired = false;
     for (const auto& [key, parameter] : meta->GetParameterMap()) {
+        if (parameter->FindOption<TSkipSerializationTag>()) {
+            continue;
+        }
         if (key == StateFormatColumn) {
             THROW_ERROR_EXCEPTION("YsonState could not have column with name %Qv",
                 StateFormatColumn);
@@ -115,6 +118,9 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
     schema->YsonToTableMapping.resize(schema->YsonSchema->GetColumnCount());
     schema->TableSchema = New<TTableSchema>(std::move(columns));
     for (const auto& [key, parameter] : meta->GetParameterMap()) {
+        if (parameter->FindOption<TSkipSerializationTag>()) {
+            continue;
+        }
         auto columnType = parameter->FindOption<EYsonStateValueType>().value_or(EYsonStateValueType::Simple);
         int ysonIndex = schema->YsonSchema->GetColumnIndex(key);
         int tableIndex = schema->TableSchema->GetColumnIndex(key);
