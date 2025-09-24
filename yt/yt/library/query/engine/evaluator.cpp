@@ -160,7 +160,9 @@ public:
         statistics.ExecuteTime =
             statistics.SyncTime - statistics.ReadTime - statistics.WriteTime - statistics.CodegenTime;
 
-        auto queryStatistics = TQueryStatistics::FromExecutionStatistics(statistics);
+        auto queryStatistics = TQueryStatistics::FromExecutionStatistics(
+            statistics,
+            options.StatisticsAggregation);
 
         YT_LOG_DEBUG("Query statistics (%v)", queryStatistics);
 

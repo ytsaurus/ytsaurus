@@ -727,7 +727,7 @@ private:
                     responseFeatureFlags);
             });
 
-        if (options.StatisticsAggregation == EStatisticsAggregation::Depth) {
+        if (TQueryStatistics::IsDepthAggregate(options.StatisticsAggregation)) {
             auto aggregated = TQueryStatistics();
             aggregated.Merge(statistics);
             return aggregated;
