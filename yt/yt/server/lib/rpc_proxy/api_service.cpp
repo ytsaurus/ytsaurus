@@ -3718,6 +3718,9 @@ private:
         if constexpr (requires {request->has_versioned_read_options();}) {
             FromProto(&options->VersionedReadOptions, request->versioned_read_options());
         }
+        if (request->has_execution_pool()) {
+            options->ExecutionPool = request->execution_pool();
+        }
     }
 
     void ProcessLookupRowsDetailedProfilingInfo(
