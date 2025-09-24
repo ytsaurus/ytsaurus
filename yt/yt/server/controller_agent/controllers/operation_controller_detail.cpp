@@ -2898,9 +2898,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     }
                 }
 
-                for (int index = 0; index < std::ssize(tabletChunks); ++index) {
+                for (const auto& [index, chunks] : SEnumerate(tabletChunks)) {
                     table->OutputChunkListId = table->TabletChunkListIds[index];
-                    for (auto& chunkTree : tabletChunks[index]) {
+                    for (auto& chunkTree : chunks) {
                         addChunkTree(chunkTree);
                     }
                     flushSubrequest(true);
@@ -2908,9 +2908,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
 
                 if (!table->OutputHunkChunks.empty()) {
                     YT_VERIFY(table->TabletHunkChunkListIds.size() == table->TabletChunkListIds.size());
-                    for (int index = 0; index < std::ssize(tabletHunkChunks); ++index) {
+                    for (const auto& [index, chunkTrees] : SEnumerate(tabletHunkChunks)) {
                         table->OutputHunkChunkListId = table->TabletHunkChunkListIds[index];
-                        for (auto& chunkTree : tabletHunkChunks[index]) {
+                        for (auto& chunkTree : chunkTrees) {
                             addChunkTree(chunkTree, /*isHunk*/ true);
                         }
                         flushSubrequest(true);
@@ -6324,8 +6324,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (IsLegacyOutputLivePreviewSupported()) {
         YT_LOG_INFO("Creating live preview for output tables");
 
-        for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-            auto& table = OutputTables_[index];
+        for (const auto& [index, table] : SEnumerate(OutputTables_)) {
             auto path = GetOperationPath(OperationId_) + "/output_" + ToString(index);
             addRequest(
                 path,
@@ -6339,8 +6338,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
     }
 
-    for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-        RegisterLivePreviewTable("output_" + ToString(index), OutputTables_[index]);
+    for (const auto& [index, table] : SEnumerate(OutputTables_)) {
+        RegisterLivePreviewTable("output_" + ToString(index), table);
     }
 
     if (StderrTable_) {
@@ -6414,8 +6413,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         auto rspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspCreate>("create_output");
         YT_VERIFY(rspsOrError.size() == OutputTables_.size());
 
-        for (int index = 0; index < std::ssize(OutputTables_); ++index) {
-            handleResponse(*OutputTables_[index], rspsOrError[index].Value());
+        for (const auto& [table, rspOrError] : Zip(OutputTables_, rspsOrError)) {
+            handleResponse(*table, rspOrError.Value());
         }
 
         YT_LOG_INFO("Live preview for output tables created");
