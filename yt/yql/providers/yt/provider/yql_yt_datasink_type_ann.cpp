@@ -1787,16 +1787,23 @@ private:
                 next.Meta = MakeIntrusive<TYtTableMetaInfo>();
                 next.Meta->DoesExist = true;
 
+                TVector<TString> keys(create.Keys().Size());
+                std::unordered_set<TString> keysSet(create.Keys().Size());
+                auto ik = keys.begin();
+                create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
+                    keysSet.emplace(TString(node.Content()));
+                    (*ik++) = node.Content();
+                });
+                if (keys.size() != keysSet.size()) {
+                    ctx.AddError(TIssue(ctx.GetPosition(create.Keys().Pos()), "Primary key has duplicate keys."));
+                    return TStatus::Error;
+                }
+
                 TVector<const TItemExprType*> items(create.Columns().Size());
                 auto it = items.begin();
                 create.Columns().Ref().ForEachChild([&](const TExprNode& node) {
-                    (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType());
-                });
-
-                TVector<TString> keys(create.Keys().Size());
-                auto ik = keys.begin();
-                create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
-                    (*ik++) = node.Content();
+                    const auto type = node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
+                    (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), keysSet.contains(TString(node.Head().Content())) ? RemoveOptionalType(type) : type);
                 });
 
                 const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
@@ -1806,6 +1813,7 @@ private:
                 const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
                 next.RowSpec = outTable.RowSpec;
                 if (!keys.empty()) {
+                    next.RowSpec->UniqueKeys = true;
                     next.RowSpec->SortedBy = std::move(keys);
                     next.RowSpec->SortDirections.resize(next.RowSpec->SortedBy.size(), true);
                     next.RowSpec->SortedByTypes.resize(next.RowSpec->SortedBy.size());
