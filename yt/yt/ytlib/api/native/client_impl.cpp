@@ -1,6 +1,5 @@
 #include "client_impl.h"
 
-#include "box.h"
 #include "chaos_lease_type_handler.h"
 #include "chaos_replicated_table_type_handler.h"
 #include "chaos_table_replica_type_handler.h"
@@ -399,43 +398,36 @@ TFuture<T> TClient::Execute(
     const TTimeoutOptions& options,
     TCallback<T()> callback)
 {
-    auto promise = NewPromise<T>();
-    BIND([
-        commandName,
-        promise,
-        callback = std::move(callback),
-        this,
-        weakThis = MakeWeak(this)
-    ] () mutable {
-        auto this_ = weakThis.Lock();
-        if (!this_) {
-            return;
-        }
-
-        if (promise.IsCanceled()) {
-            return;
-        }
-
-        auto canceler = NConcurrency::GetCurrentFiberCanceler();
-        if (canceler) {
-            promise.OnCanceled(std::move(canceler));
-        }
-
-        try {
-            YT_LOG_DEBUG("Command started (Command: %v)", commandName);
-            TBox<T> result(callback);
-            YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
-            result.SetPromise(promise);
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
-            promise.Set(TError(ex));
-        }
-    })
-        .Via(Connection_->GetInvoker())
-        .Run();
-
-    return promise
-        .ToFuture()
+    return
+        BIND([
+            this,
+            this_ = MakeStrong(this),
+            commandName,
+            callback = std::move(callback)
+        ] {
+            try {
+                auto prologue = [&] {
+                    YT_LOG_DEBUG("Command started (Command: %v)", commandName);
+                };
+                auto epilogue = [&] {
+                    YT_LOG_DEBUG("Command completed (Command: %v)", commandName);
+                };
+                prologue();
+                if constexpr (std::is_same_v<T, void>) {
+                    callback();
+                    epilogue();
+                } else {
+                    auto result = callback();
+                    epilogue();
+                    return result;
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Command failed (Command: %v)", commandName);
+                throw;
+            }
+        })
+        .AsyncVia(Connection_->GetInvoker())
+        .Run()
         .WithTimeout(options.Timeout, TFutureTimeoutOptions{
             .Error = TError(NYT::EErrorCode::Timeout, "Command timed out")
                 << TErrorAttribute("command", commandName),
