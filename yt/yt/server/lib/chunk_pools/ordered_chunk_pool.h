@@ -23,8 +23,6 @@ struct TOrderedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     bool EnablePeriodicYielder = false;
     bool ShouldSliceByRowIndices = false;
-    // COMPAT(apollo1321): remove in 25.2 release.
-    bool UseNewSlicingImplementation = true;
     NLogging::TSerializableLogger Logger;
     TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
 
