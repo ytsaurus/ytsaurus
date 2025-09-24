@@ -39,25 +39,19 @@ bool ValidateColumnSettings(TExprNode& columnsSettings, TExprContext& ctx, TVect
     return true;
 }
 
-bool ValidateColumnWithTypesSettings(TExprNode& columnsSettings, TExprContext& ctx, TVector<std::pair<TString, const TTypeAnnotationNode*>>& columns) {
+bool ValidateColumnWithTypesSettings(TExprNode& columnsSettings, TExprContext& ctx) {
     if (!EnsureTupleMinSize(columnsSettings, 1U, ctx)) {
         return false;
     }
 
     for (const auto& child : columnsSettings.Children()) {
-        if (!EnsureTupleMinSize(*child, 2U, ctx)) {
+        if (!EnsureTupleSize(*child, 3U, ctx)) {
             return false;
         }
 
         if (!EnsureAtom(child->Head(), ctx)) {
             return false;
         }
-
-        if (EnsureTypeRewrite(child->ChildRef(1), ctx) != IGraphTransformer::TStatus::Ok) {
-            return false;
-        }
-
-        columns.emplace_back(child->Content(), child->Child(1U)->GetTypeAnn());
     }
     return true;
 }
@@ -394,8 +388,7 @@ bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, T
             if (!EnsureTupleSize(*setting, 2, ctx)) {
                 return false;
             }
-            TVector<std::pair<TString, const TTypeAnnotationNode*>> columns;
-            if (!ValidateColumnWithTypesSettings(setting->Tail(), ctx, columns)) {
+            if (!ValidateColumnWithTypesSettings(setting->Tail(), ctx)) {
                 return false;
             }
             break;
