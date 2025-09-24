@@ -219,6 +219,7 @@ namespace {
 NYT::NCrypto::TSslContextPtr CreateSslContext()
 {
     auto sslContext = New<NYT::NCrypto::TSslContext>();
+    sslContext->UseBuiltinOpenSslX509Store();
     sslContext->Commit();
     return sslContext;
 }
