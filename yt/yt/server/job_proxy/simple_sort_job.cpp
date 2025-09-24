@@ -81,7 +81,7 @@ public:
                 ChunkReadOptions_,
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 /*columnFilter*/ {},
-                /*partitionTag*/ std::nullopt,
+                /*partitionTags*/ {},
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             TCallback<TUUComparerSignature> cgComparer;

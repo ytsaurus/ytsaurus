@@ -204,7 +204,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& /*options*/,
-        std::optional<int> /*partitionTag*/,
+        const TPartitionTags& /*partitionTags*/,
         const std::optional<std::vector<int>>& /*extensionTag*/) override
     {
         return MakeFuture<TRefCountedChunkMetaPtr>(MakeError());

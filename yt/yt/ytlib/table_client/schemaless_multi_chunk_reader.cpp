@@ -108,7 +108,7 @@ namespace {
 TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
-    std::optional<int> partitionTag)
+    const TPartitionTags& partitionTags)
 {
     // Download chunk meta.
     std::vector<int> extensionTags{
@@ -127,7 +127,7 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
 
     return chunkReader->GetMeta(
         IChunkReader::TGetMetaOptions{ .ClientOptions = chunkReadOptions },
-        partitionTag,
+        partitionTags,
         extensionTags)
         .Apply(BIND([] (const TRefCountedChunkMetaPtr& chunkMeta) {
             return New<TColumnarChunkMeta>(*chunkMeta);
@@ -156,7 +156,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
@@ -231,7 +231,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
 
-                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, perClusterChunkReadOptions, partitionTag);
+                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, perClusterChunkReadOptions, partitionTags);
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;
@@ -290,7 +290,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSource->OmittedInaccessibleColumns(),
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource->Columns(), nameTable) : columnFilter,
                                 readRange,
-                                partitionTag,
+                                partitionTags,
                                 chunkReaderMemoryManagerHolder
                                     ? chunkReaderMemoryManagerHolder
                                     : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate),
@@ -311,7 +311,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSource->OmittedInaccessibleColumns(),
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource->Columns(), nameTable) : columnFilter,
                                 hintKeyPrefixes->HintPrefixes,
-                                partitionTag,
+                                partitionTags,
                                 chunkReaderMemoryManagerHolder
                                     ? chunkReaderMemoryManagerHolder
                                     : multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
@@ -651,7 +651,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -677,7 +677,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
-                partitionTag,
+                partitionTags,
                 multiReaderMemoryManager,
                 interruptionOptions.InterruptDescriptorKeyLength),
             multiReaderMemoryManager),
@@ -701,7 +701,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
-    std::optional<int> partitionTag,
+    const TPartitionTags& partitionTags,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -727,7 +727,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
-                partitionTag,
+                partitionTags,
                 multiReaderMemoryManager,
                 interruptionOptions.InterruptDescriptorKeyLength),
             multiReaderMemoryManager),
@@ -1543,7 +1543,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 chunkReadOptions,
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
-                /*partitionTag*/ std::nullopt,
+                /*partitionTags*/ {},
                 /*multiReaderMemoryManager*/ nullptr);
         }
         default:

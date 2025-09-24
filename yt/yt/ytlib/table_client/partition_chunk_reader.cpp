@@ -45,7 +45,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
-    int partitionTag,
+    TPartitionTags partitionTags,
     const NChunkClient::TDataSourcePtr& dataSource,
     TChunkReaderMemoryManagerHolderPtr memoryManagerHolder)
     : TChunkReaderBase(
@@ -55,8 +55,9 @@ TPartitionChunkReader::TPartitionChunkReader(
         chunkReadOptions,
         std::move(memoryManagerHolder))
     , NameTable_(nameTable)
-    , PartitionTag_(partitionTag)
+    , PartitionTags_(std::move(partitionTags))
 {
+    YT_VERIFY(!PartitionTags_.empty());
     // NB(gepardo): Real extraChunkTags will be packed later, in InitializeBlockSequence().
     PackBaggageForChunkReader(TraceContext_, dataSource, TExtraChunkTags{});
 
@@ -78,7 +79,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(
         IChunkReader::TGetMetaOptions{ .ClientOptions = ChunkReadOptions_ },
-        PartitionTag_,
+        PartitionTags_,
         extensionTags))
         .ValueOrThrow();
 
@@ -193,7 +194,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
-    int partitionTag,
+    const TPartitionTags& partitionTags,
     const TClientChunkReadOptions& chunkReadOptions,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
@@ -233,7 +234,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         nameTable,
                         chunkReaderHost->BlockCache,
                         chunkReadOptions,
-                        partitionTag,
+                        partitionTags,
                         dataSource,
                         multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
                 });

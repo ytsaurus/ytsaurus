@@ -540,7 +540,7 @@ public:
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
         bool unpackAny,
-        std::optional<int> partitionTag,
+        TPartitionTags partitionTags,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex = std::nullopt)
         : TChunkReaderBase(
@@ -563,7 +563,7 @@ public:
         , ChunkMeta_(chunkMeta)
         , BlockLastKeys_(ChunkMeta_->BlockLastKeys())
         , BlockMetaExt_(ChunkMeta_->DataBlockMeta())
-        , PartitionTag_(partitionTag)
+        , PartitionTags_(std::move(partitionTags))
         , SortOrders_(sortOrders.begin(), sortOrders.end())
         , CommonKeyPrefix_(commonKeyPrefix)
         , UnpackAny_(unpackAny)
@@ -593,7 +593,7 @@ protected:
     const TRefCountedDataBlockMetaPtr BlockMetaExt_;
 
     // TODO(lukyan): Remove
-    std::optional<int> PartitionTag_;
+    TPartitionTags PartitionTags_;
 
     int CurrentBlockIndex_ = 0;
 
@@ -696,7 +696,7 @@ public:
         bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
-        std::optional<int> partitionTag,
+        TPartitionTags partitionTags,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex,
         int interruptDescriptorKeyLength)
@@ -715,7 +715,7 @@ public:
             sortOrders,
             commonKeyPrefix,
             unpackAny,
-            partitionTag,
+            std::move(partitionTags),
             memoryManagerHolder,
             virtualRowIndex)
         , ReadRange_(readRange)
@@ -728,7 +728,7 @@ public:
         // Initialize to lowest reasonable value.
         RowIndex_ = ReadRange_.LowerLimit().GetRowIndex().value_or(0);
 
-        if (PartitionTag_) {
+        if (!PartitionTags_.empty()) {
             YT_VERIFY(ReadRange_.LowerLimit().IsTrivial());
             YT_VERIFY(ReadRange_.UpperLimit().IsTrivial());
 
@@ -966,7 +966,7 @@ public:
         bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
-        std::optional<int> partitionTag = std::nullopt,
+        TPartitionTags partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 protected:
@@ -1017,7 +1017,7 @@ public:
         bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
-        std::optional<int> partitionTag = std::nullopt,
+        TPartitionTags partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
@@ -1043,7 +1043,7 @@ public:
         bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keyPrefixes,
-        std::optional<int> partitionTag = std::nullopt,
+        TPartitionTags partitionTags = {},
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
@@ -1072,7 +1072,7 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
     bool unpackAny,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keyPrefixes,
-    std::optional<int> partitionTag,
+    TPartitionTags partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : THorizontalSchemalessChunkReaderBase(
         columnEvaluatorCache,
@@ -1089,7 +1089,7 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
         sortOrders,
         commonKeyPrefix,
         unpackAny,
-        partitionTag,
+        std::move(partitionTags),
         memoryManagerHolder)
     , Keys_(keyPrefixes)
     , ChunkState_(chunkState)
@@ -1279,7 +1279,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     bool unpackAny,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,
-    std::optional<int> partitionTag,
+    TPartitionTags partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : THorizontalSchemalessLookupChunkReaderBase(
         columnEvaluatorCache,
@@ -1287,7 +1287,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         chunkMeta,
         config,
         nameTable,
-        underlyingReader,
+        std::move(underlyingReader),
         chunkToReaderIdMapping,
         rowIndexId,
         virtualValues,
@@ -1297,7 +1297,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         unpackAny,
         keyWideningOptions,
         keys,
-        partitionTag,
+        std::move(partitionTags),
         memoryManagerHolder)
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
@@ -1341,7 +1341,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
     bool unpackAny,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,  // must be sorted.
-    std::optional<int> partitionTag,
+    TPartitionTags partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
     : THorizontalSchemalessLookupChunkReaderBase(
         columnEvaluatorCache,
@@ -1349,7 +1349,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
         chunkMeta,
         config,
         nameTable,
-        underlyingReader,
+        std::move(underlyingReader),
         chunkToReaderIdMapping,
         rowIndexId,
         virtualValues,
@@ -1359,7 +1359,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
         unpackAny,
         keyWideningOptions,
         keys,
-        partitionTag,
+        std::move(partitionTags),
         memoryManagerHolder)
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
@@ -2652,7 +2652,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
-    std::optional<int> partitionTag,
+    TPartitionTags partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     std::optional<i64> virtualRowIndex,
     int interruptDescriptorKeyLength)
@@ -2701,7 +2701,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 params.UnpackAny,
                 params.KeyWideningOptions,
                 readRange,
-                partitionTag,
+                std::move(partitionTags),
                 memoryManagerHolder,
                 virtualRowIndex,
                 interruptDescriptorKeyLength);
@@ -2747,7 +2747,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    std::optional<int> partitionTag,
+    TPartitionTags partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
@@ -2787,7 +2787,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.UnpackAny,
                 params.KeyWideningOptions,
                 keys,
-                partitionTag,
+                std::move(partitionTags),
                 memoryManagerHolder);
 
         case EChunkFormat::TableUnversionedColumnar:
@@ -2829,7 +2829,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keyPrefixes,
-    std::optional<int> partitionTag,
+    TPartitionTags partitionTags,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
@@ -2867,7 +2867,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
         params.UnpackAny,
         params.KeyWideningOptions,
         keyPrefixes,
-        partitionTag,
+        std::move(partitionTags),
         memoryManagerHolder);
 }
 

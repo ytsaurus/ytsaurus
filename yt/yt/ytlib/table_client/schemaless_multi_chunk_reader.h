@@ -76,7 +76,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter = {},
-    std::optional<int> partitionTag = std::nullopt,
+    const TPartitionTags& partitionTags = {},
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +92,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter = {},
-    std::optional<int> partitionTag = std::nullopt,
+    const TPartitionTags& partitionTags = {},
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

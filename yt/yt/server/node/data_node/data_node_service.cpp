@@ -1822,9 +1822,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto partitionTag = request->has_partition_tag()
-            ? std::make_optional(request->partition_tag())
-            : std::nullopt;
+        auto partitionTags = GetPartitionTags(*request);
         auto extensionTags = request->all_extension_tags()
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
@@ -1832,10 +1830,10 @@ private:
         bool enableThrottling = request->enable_throttling();
         auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
 
-        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
             extensionTags,
-            partitionTag,
+            partitionTags,
             workloadDescriptor,
             enableThrottling);
 
@@ -1900,7 +1898,7 @@ private:
 
             ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
 
-            if (partitionTag) {
+            if (!partitionTags.empty()) {
                 const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
                 auto cachedBlockMeta = blockMetaCache->Find(chunkId);
                 if (!cachedBlockMeta) {
@@ -1909,7 +1907,7 @@ private:
                     blockMetaCache->TryInsert(cachedBlockMeta);
                 }
 
-                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTag(*meta, cachedBlockMeta, *partitionTag);
+                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTags(*meta, cachedBlockMeta, partitionTags);
             } else {
                 *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
             }

@@ -1413,7 +1413,7 @@ private:
                 /*omittedInaccessibleColumns*/ {},
                 TColumnFilter(),
                 NChunkClient::TReadRange(),
-                /*partitionTag*/ std::nullopt,
+                /*partitionTags*/ {},
                 MemoryManager_->CreateChunkReaderMemoryManager());
         }
     };

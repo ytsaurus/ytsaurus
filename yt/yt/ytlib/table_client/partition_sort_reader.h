@@ -27,7 +27,7 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
     i64 estimatedRowCount,
     bool isApproximate,
-    int partitionTag,
+    const TPartitionTags& partitionTags,
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 

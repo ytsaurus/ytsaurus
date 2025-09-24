@@ -89,7 +89,7 @@ public:
                 std::move(dataSliceDescriptors),
                 TotalRowCount_,
                 JobSpecExt_.is_approximate(),
-                partitionTag,
+                {partitionTag},
                 ChunkReadOptions_,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };

@@ -89,7 +89,7 @@ public:
                     ChunkReadOptions_,
                     TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                     /*columnFilter*/ {},
-                    /*partitionTag*/ std::nullopt,
+                    /*partitionTags*/ {},
                     MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
                 readers.push_back(reader);

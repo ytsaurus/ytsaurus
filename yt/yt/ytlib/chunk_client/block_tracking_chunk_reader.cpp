@@ -39,10 +39,10 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        std::optional<int> partitionTag = std::nullopt,
-        const std::optional<std::vector<int>>& extensionTags = {}) override
+        const TPartitionTags& partitionTags,
+        const std::optional<std::vector<int>>& extensionTags) override
     {
-        return Underlying_->GetMeta(options, partitionTag, extensionTags);
+        return Underlying_->GetMeta(options, partitionTags, extensionTags);
     }
 
     TChunkId GetChunkId() const override
