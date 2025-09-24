@@ -130,6 +130,10 @@ jobs:
           docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }} ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
           docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
 
+          docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
+          docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+          docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+
   stop-vm:
     name: Stop VM
     needs:
