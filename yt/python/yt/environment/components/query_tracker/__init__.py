@@ -115,7 +115,7 @@ class QueryTracker(YTServerComponentBase, YTComponent):
 
         logger.info("Initialization for query tracker completed")
 
-    def get_default_config(self):
+    def get_default_config(self, instance_index: int):
         return {
             "user": self.USER_NAME,
             "create_state_tables_on_startup": True,

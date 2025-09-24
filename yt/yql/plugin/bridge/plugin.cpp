@@ -133,6 +133,7 @@ public:
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),
             .MaxYqlLangVersion = options.MaxYqlLangVersion.data(),
+            .StartDqManager = options.StartDqManager
         };
 
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);
@@ -189,6 +190,7 @@ public:
     }
 
     TClustersResult GetUsedClusters(
+        TQueryId queryId,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) noexcept override
@@ -209,6 +211,7 @@ public:
 
         auto* bridgeClustersResult = BridgeGetUsedClusters(
             BridgePlugin_,
+            ToString(queryId).data(),
             queryText.data(),
             settingsString.data(),
             settingsString.length(),
@@ -285,7 +288,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions options) noexcept
+std::unique_ptr<IYqlPlugin> CreateBridgeYqlPlugin(TYqlPluginOptions options) noexcept
 {
     return std::make_unique<NBridge::TYqlPlugin>(std::move(options));
 }
