@@ -154,4 +154,26 @@ int GetJobFirstOutputTableFDFromSpec(const TUserJobSpec& spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPartitionTags GetOptionalPartitionTags(const TJobSpecExt& jobSpecExt)
+{
+    if (!jobSpecExt.partition_tags().empty()) {
+        YT_VERIFY(!jobSpecExt.has_partition_tag());
+        return FromProto<TPartitionTags>(jobSpecExt.partition_tags());
+    }
+    // COMPAT(namorniradnug)
+    if (jobSpecExt.has_partition_tag()) {
+        return {jobSpecExt.partition_tag()};
+    }
+    return {};
+}
+
+TPartitionTags GetPartitionTags(const TJobSpecExt& jobSpecExt)
+{
+    auto partitionTags = GetOptionalPartitionTags(jobSpecExt);
+    YT_VERIFY(!partitionTags.empty());
+    return partitionTags;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobProxy

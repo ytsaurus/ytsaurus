@@ -683,8 +683,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-    YT_VERIFY(jobSpecExt.has_partition_tag());
-    int partitionTag = jobSpecExt.partition_tag();
+    auto partitionTags = GetPartitionTags(jobSpecExt);
 
     auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
 
@@ -701,7 +700,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
                 columnFilter,
                 chunkReadOptions,
                 multiReaderMemoryManager,
-                {partitionTag}),
+                partitionTags),
             std::nullopt
         };
     }
@@ -713,12 +712,12 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
             chunkReaderHost->CreateHostForCluster(LocalClusterName),
             GetComparator(sortColumns),
             nameTable,
-            onNetworkReleased,
+            std::move(onNetworkReleased),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             jobSpecExt.input_row_count(),
             jobSpecExt.is_approximate(),
-            {partitionTag},
+            partitionTags,
             chunkReadOptions,
             multiReaderMemoryManager),
         std::nullopt

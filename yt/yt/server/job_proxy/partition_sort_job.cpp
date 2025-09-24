@@ -63,15 +63,17 @@ public:
         auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
         auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
 
-        YT_VERIFY(JobSpecExt_.has_partition_tag());
-        int partitionTag = JobSpecExt_.partition_tag();
-
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = JobSpecExt_.output_table_specs(0);
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
 
-        ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+        ReaderFactory_ = [
+            =,
+            this,
+            this_ = MakeStrong(this),
+            partitionTags = GetPartitionTags(JobSpecExt_)
+        ] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
             TCallback<TUUComparerSignature> cgComparer;
@@ -89,7 +91,7 @@ public:
                 std::move(dataSliceDescriptors),
                 TotalRowCount_,
                 JobSpecExt_.is_approximate(),
-                {partitionTag},
+                partitionTags,
                 ChunkReadOptions_,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };

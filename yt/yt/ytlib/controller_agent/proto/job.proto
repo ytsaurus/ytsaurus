@@ -493,9 +493,12 @@ message TJobSpecExt
 
     optional string task_name = 25;
 
-    // Index of partition job belongs to. This field is set only in
+    // Indices of partitions job belongs to. This field is set only in
     // Sort and MapReduce jobs.
+    // COMPAT(namorniradnug)
     optional int32 partition_tag = 26;
+
+    repeated int32 partition_tags = 47;
 
     optional string tree_id = 27;
 
