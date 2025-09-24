@@ -6122,7 +6122,7 @@ private:
         auto mediumHolder = TPoolAllocator::New<TS3Medium>(id);
         mediumHolder->SetName(name);
         mediumHolder->SetIndex(mediumIndex);
-        mediumHolder->Config() = std::move(config);
+        YT_VERIFY(mediumHolder->TryUpdateConfig(std::move(config), Bootstrap_->GetSecurityManager()).IsOK());
         if (priority) {
             ValidateMediumPriority(*priority);
             mediumHolder->SetPriority(*priority);

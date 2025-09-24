@@ -14,7 +14,14 @@ class TS3Medium
     : public TMedium
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::TS3MediumConfigPtr, Config, New<NChunkClient::TS3MediumConfig>());
+    DEFINE_BYREF_RO_PROPERTY_NO_INIT(NChunkClient::TS3MediumConfigPtr, Config);
+
+    //! Some of the config fields must not be changed and some can be changed only under certain conditions, so
+    //! this function checks such conditions and returns an error if it cannot apply the #newConfig.
+    //! The only exception is when the TS3Medium is just constructed and has an empty config.
+    TError TryUpdateConfig(
+        NChunkClient::TS3MediumConfigPtr newConfig,
+        const NSecurityServer::ISecurityManagerPtr& securityManager);
 
 public:
     using TMedium::TMedium;

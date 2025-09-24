@@ -63,9 +63,12 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Config: {
-                // TODO(achulkov2): [PForReview] Forbid changing some fields. Maybe ask about best practices for this.
                 auto config = ConvertTo<TS3MediumConfigPtr>(value);
-                medium->Config() = std::move(config);
+                auto updateError = medium->TryUpdateConfig(std::move(config), Bootstrap_->GetSecurityManager());
+                if (!updateError.IsOK()) {
+                    THROW_ERROR_EXCEPTION(updateError);
+                }
+
                 return true;
             }
 

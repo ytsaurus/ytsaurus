@@ -8,7 +8,7 @@ from yt.yson import YsonList, YsonEntity
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, make_random_string, sync_create_cells, create_user, make_ace,
+    authors, make_random_string, sync_create_cells, create_user, add_member, make_ace,
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
     copy, move, get_singular_chunk_id, wait, get, concatenate,
     get_account_disk_space_limit, set_account_disk_space_limit,
@@ -19,6 +19,8 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 from yt_type_helpers import optional_type, make_schema, make_column, struct_type, list_type, normalize_schema_v3
+
+from yt.common import YtResponseError, YtError
 
 import time
 import pytest
@@ -259,7 +261,6 @@ class TestS3MediumBase(YTEnvSetup):
     def setup_method(self, method):
         super(TestS3MediumBase, self).setup_method(method)
 
-        # TODO(achulkov2): Fix related part in yt_env, since we plan to forbid changing some parameters of the medium after it is created.
         for i in range(len(self.S3_MEDIA)):
             set(f"//sys/media/{self.get_s3_medium_name(i)}/@config", self.get_s3_medium_config(i))
 
@@ -275,6 +276,42 @@ class TestS3MediumBase(YTEnvSetup):
 
 
 class TestS3Medium(TestS3MediumBase):
+    @authors("pavel-bash")
+    @pytest.mark.parametrize("as_superuser", [False, True])
+    def test_config_change(self, as_superuser):
+        config_path = f"//sys/media/{self.get_s3_medium_name()}/@config"
+
+        create_user("u")
+        if as_superuser:
+            add_member("u", "superusers")
+
+        def check_field(config, field, should_throw):
+            original_value = config[field]
+            config[field] = original_value + "_updated"
+
+            if should_throw:
+                with pytest.raises(YtError, match="only superusers can change"):
+                    set(config_path, config, authenticated_user="u")
+            else:
+                set(config_path, config, authenticated_user="u")
+
+            config[field] = original_value
+
+        # We can set the same config.
+        config = self.get_s3_medium_config()
+        set(config_path, config)
+
+        # Map of <field, forbidden to change> pairs.
+        fields = [
+            ("access_key_id", False),
+            ("secret_access_key", False),
+            ("url", not as_superuser),
+            ("region", not as_superuser),
+            ("bucket", not as_superuser),
+        ]
+        for field, forbidden in fields:
+            check_field(config, field, forbidden)
+
     @authors("achulkov2")
     def test_tables_simple(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})

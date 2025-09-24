@@ -270,6 +270,7 @@ DEFINE_ENUM(ETractoMasterReign,
     ((OffshoreReplicas)                                             (2701))  // achulkov2
     ((ExternalFormatsAndOffshoreReplicaSourceUri)                   (2702))  // faucct, achulkov2
     ((S3MediumPrefixes)                                             (2703))  // faucct
+    ((ForbidChangingSomeS3MediumConfigFields)                       (2704))  // pavel-bash
 );
 
 static_assert(TEnumTraits<ETractoMasterReign>::IsMonotonic, "Tracto Master reign enum is not monotonic");
