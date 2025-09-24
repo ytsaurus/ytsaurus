@@ -2854,11 +2854,14 @@ def run_command_with_lock_handler(**kwargs):
 
     kwargs["lock_conflict_callback"] = lock_conflict_callback
 
+    term_delay = kwargs.pop("term_delay")
+    kill_delay = kwargs.pop("kill_delay")
+
     def ping_failed_callback(proc):
         proc.send_signal(2)
-        time.sleep(1.0)
+        time.sleep(term_delay)
         proc.terminate()
-        time.sleep(1.0)
+        time.sleep(kill_delay)
         proc.kill()
 
     kwargs["ping_failed_callback"] = ping_failed_callback
@@ -2880,6 +2883,10 @@ def add_run_command_with_lock_parser(add_parser):
                         help="Run command in subshell")
     parser.add_argument("--poll-period", type=float, default=1.0,
                         help="Poll period for command process in seconds")
+    parser.add_argument("--term-delay", type=float, default=1.0,
+                        help="Delay before term signal in seconds")
+    parser.add_argument("--kill-delay", type=float, default=1.0,
+                        help="Delay before kill signal in seconds")
     parser.add_argument("--conflict-exit-code", type=int, default=1,
                         help="Exit code in case of lock conflict")
     parser.add_argument("--set-address", action="store_true", default=False,
