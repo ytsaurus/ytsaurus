@@ -2235,7 +2235,12 @@ public:
         }
 
         if (permission == EPermission::FullRead) {
-            YT_VERIFY(!options.Columns);
+            if (options.Columns) {
+                THROW_ERROR_EXCEPTION(
+                    "Cannot specify columns for %v permission check",
+                    permission)
+                    << TErrorAttribute("columns", options.Columns);
+            }
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& handler = objectManager->GetHandler(object);
             options.Columns = handler->ListColumns(object);
