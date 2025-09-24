@@ -3,8 +3,7 @@
 #include <contrib/ydb/public/sdk/cpp/src/library/persqueue/obfuscate/obfuscate.h>
 #include <contrib/ydb/library/persqueue/topic_parser/topic_parser.h>
 #include <contrib/ydb/core/base/feature_flags.h>
-#include <contrib/ydb/core/persqueue/utils.h>
-#include <contrib/ydb/core/persqueue/user_info.h>
+#include <contrib/ydb/core/persqueue/public/constants.h>
 
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/library/jwt/jwt.h>
 

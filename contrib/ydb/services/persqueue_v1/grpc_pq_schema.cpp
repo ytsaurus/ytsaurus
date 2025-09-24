@@ -3,7 +3,7 @@
 #include "actors/schema_actors.h"
 #include "actors/events.h"
 
-#include <contrib/ydb/core/persqueue/cluster_tracker.h>
+#include <contrib/ydb/core/persqueue/public/cluster_tracker/cluster_tracker.h>
 
 #include <algorithm>
 #include <shared_mutex>

@@ -8,6 +8,7 @@ SRCS(
 PEERDIR(
     library/cpp/protobuf/interop
     contrib/ydb/library/yql/providers/common/http_gateway
+    contrib/ydb/library/yql/providers/solomon/common
     contrib/ydb/library/yql/providers/solomon/proto
     contrib/ydb/library/yql/providers/solomon/solomon_accessor/grpc
     contrib/ydb/public/sdk/cpp/src/client/types/credentials

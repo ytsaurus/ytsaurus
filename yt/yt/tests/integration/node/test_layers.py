@@ -4,7 +4,8 @@ from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job, poll_job_shell,
     raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
-    sort, wait_for_nodes, update_nodes_dynamic_config)
+    sort, wait_for_nodes, update_nodes_dynamic_config,
+    wait_breakpoint, with_breakpoint)
 
 from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
@@ -293,7 +294,7 @@ class TestLayers(TestPortoLayersBase):
                 "mapper": {
                     "layer_paths": ["//tmp/layer1"],
                     "environment": {
-                        "CUSTOM_ROOT_FS": "$(RootFs)",
+                        "CUSTOM_ROOT_FS": "$(RootFS)",
                     },
                 },
             },
@@ -335,6 +336,51 @@ class TestLayers(TestPortoLayersBase):
             stderr = op.read_stderr(job_id)
             assert b"FILE_CONTENT" in stderr
             assert b"static-bin" in stderr
+
+
+class TestRootFS(TestLayersBase):
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/exec.tar.gz")
+        write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+        create("file", "//tmp/rootfs.tar.gz")
+        write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+    @authors("ignat")
+    def test_homedir(self):
+        self.setup_files()
+
+        op = run_test_vanilla(
+            with_breakpoint('set -e; test -d /home/yt_slot_0; touch /home/yt_slot_0/my_file; ls /slot/home >&2; BREAKPOINT'),
+            task_patch={
+                "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
+            },
+        )
+
+        job_ids = wait_breakpoint()
+        assert len(job_ids) == 1
+
+        job_id = job_ids[0]
+        stderr_bytes = op.read_stderr(job_id)
+        assert stderr_bytes.decode("ascii").strip() == "my_file"
 
 
 class TestProbingLayer(TestPortoLayersBase):

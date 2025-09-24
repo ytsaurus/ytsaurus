@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
 import os
+import shlex
 import subprocess
+import tempfile
 from types import NoneType
 from typing import Any
 
@@ -96,14 +99,12 @@ class NativeSnapshotRunner:
 
     def create_export_config(self):
         _attributes = [column for column, _, _, is_attribute in SCHEMA_COLUMNS if is_attribute is True]
-
-        export_config = "{{attributes=[{}]}}".format(
-                        ";".join(_attributes))
-
+        export_users = "%true"
+        export_config = "{{export_users={};attributes=[{}]}}".format(export_users, ";".join(_attributes))
         return export_config
 
     def build_and_export_master_snapshot(self, yt_client: YtClient, append_to_snapshot: list[dict[str, Any]] | None = None):
-
+        snapshot_time = datetime.now(tz=timezone.utc)
         build_master_snapshots()
 
         result_dir = os.path.join(self.path_to_run, "runtime_data", "master", "0")
@@ -112,7 +113,7 @@ class NativeSnapshotRunner:
         snapshot_dir = os.path.join(result_dir, "snapshots")
         changelog_dir = os.path.join(result_dir, "changelogs")
 
-        snapshots = [name for name in os.listdir(snapshot_dir) if name.endswith("snapshot")]
+        snapshots = [name for name in os.listdir(snapshot_dir) if name.endswith(".snapshot")]
         snapshots.sort()
 
         snapshot_id = snapshots[-1].split(".")[0]
@@ -130,7 +131,8 @@ class NativeSnapshotRunner:
         ) == 0
 
         export_config = self.create_export_config()
-        export_destination = "//sys/admin/snapshots/snapshot_exports/latest"
+        snapshot_exports_destination = "//sys/admin/snapshots/snapshot_exports/" + snapshot_id + "_abcdabcd_unified_export"
+        user_exports_destination = "//sys/admin/snapshots/user_exports/" + snapshot_id + "_abcdabcd_user_export"
 
         self._run_export(
             yt_client,
@@ -138,9 +140,13 @@ class NativeSnapshotRunner:
             snapshot_path,
             config_path,
             export_config,
-            export_destination,
-            append_to_snapshot
+            snapshot_exports_destination,
+            user_exports_destination,
+            append_to_snapshot,
+            snapshot_time
         )
+
+        return int(snapshot_time.timestamp())
 
     def _run_export(
             self,
@@ -149,8 +155,10 @@ class NativeSnapshotRunner:
             snapshot_path,
             config_path,
             export_config,
-            export_destination,
-            append_to_snapshot):
+            snapshot_exports_destination,
+            user_exports_destination,
+            append_to_snapshot,
+            snapshot_time):
         command = [
             binary,
             "--export-snapshot", snapshot_path,
@@ -158,23 +166,74 @@ class NativeSnapshotRunner:
             "--export-config", export_config,
         ]
 
-        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        try:
-            stdout, _ = proc.communicate(timeout=PROC_TIMEOUT)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        assert proc.returncode == 0
+        with tempfile.NamedTemporaryFile(mode="rb+") as tmp_file1:
+            with tempfile.NamedTemporaryFile(mode="rb+") as tmp_file4:
+                command = shlex.join(command)
+                subprocess.run(
+                    f"{command} 1>{tmp_file1.name} 4>{tmp_file4.name}",
+                    shell=True,
+                    check=True,
+                    timeout=PROC_TIMEOUT
+                )
+
+                tmp_file1.seek(0)
+                fd1_output = tmp_file1.read()
+
+                tmp_file4.seek(0)
+                fd4_output = tmp_file4.read()
 
         export_table_schema = create_schema()
-        yt_client.remove(os.path.dirname(export_destination), recursive=True, force=True)
-        yt_client.create("map_node", os.path.dirname(export_destination), recursive=True)
-        yt_client.create("table", export_destination, recursive=True, ignore_existing=True, attributes={"schema": export_table_schema})
+
+        yt_client.create(
+            "map_node",
+            os.path.dirname(snapshot_exports_destination),
+            recursive=True,
+            ignore_existing=True,
+        )
+        yt_client.create(
+            "map_node",
+            os.path.dirname(user_exports_destination),
+            recursive=True,
+            ignore_existing=True,
+        )
+
+        yt_client.create(
+            "table",
+            snapshot_exports_destination,
+            recursive=True,
+            ignore_existing=True,
+            attributes={
+                "schema": export_table_schema,
+                "snapshot_creation_time": "{}".format(snapshot_time),
+            },
+        )
+        yt_client.create(
+            "table",
+            user_exports_destination,
+            recursive=True,
+            ignore_existing=True,
+            attributes={
+                "snapshot_creation_time": "{}".format(snapshot_time),
+            },
+        )
+
         yt_client.write_table(
-            export_destination,
-            yson.loads(stdout, yson_type="list_fragment"),
+            snapshot_exports_destination,
+            yson.loads(fd1_output, yson_type="list_fragment"),
         )
         if not isinstance(append_to_snapshot, NoneType):
-            yt_client.write_table(f"<append=%true;>{export_destination}", append_to_snapshot)
+            yt_client.write_table(f"<append=%true;>{snapshot_exports_destination}", append_to_snapshot)
+
+        yt_client.write_table(
+            user_exports_destination,
+            yson.loads(fd4_output, yson_type="list_fragment"),
+        )
+        yt_client.link(snapshot_exports_destination, "//sys/admin/snapshots/snapshot_exports/latest", force=True)
+        yt_client.link(
+            user_exports_destination,
+            "//sys/admin/snapshots/user_exports/latest",
+            force=True,
+        )
 
     def _run_validation(
             self,

@@ -66,7 +66,13 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
-	return nil, nil
+	return make(yson.RawValue, 0), nil
+}
+
+type jupytOpletInfo struct{}
+
+func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
+	return jupytOpletInfo{}, nil
 }
 
 func (c *Controller) buildCommand(speclet *Speclet) (command string, env map[string]string) {

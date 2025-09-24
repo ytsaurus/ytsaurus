@@ -639,7 +639,13 @@ private:
                     locationIndex);
                 continue;
             }
-
+            auto node = location->GetNode();
+            if (!IsObjectAlive(node)) {
+                YT_LOG_ERROR("Found Sequoia chunk replica with a location not bound to any node (ChunkId: %v, LocationIndex: %v)",
+                    chunkId,
+                    locationIndex);
+                continue;
+            }
             aliveReplicas.emplace_back(location, replica.ReplicaIndex, replica.ReplicaState);
         }
         return aliveReplicas;

@@ -35,7 +35,7 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 }
 
 func (c *Controller) GetControllerSnapshot() (yson.RawValue, error) {
-	return nil, nil
+	return make(yson.RawValue, 0), nil
 }
 
 func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (discoveryAddresses string, err error) {
@@ -293,6 +293,12 @@ func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) map[string]any {
 
 func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.OpletInfoForScaler) (*strawberry.ScalerTarget, error) {
 	return nil, nil
+}
+
+type livyOpletInfo struct{}
+
+func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
+	return livyOpletInfo{}, nil
 }
 
 func (c *Controller) RunAsUser() bool {

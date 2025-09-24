@@ -112,6 +112,7 @@ The following parameters are supported for each user script (default values, if 
 - `network_project` — name of the MTN project with the network where the job should be run. The project must be registered in Cypress, with the necessary access rights granted.{% endif %}
 - `job_speculation_timeout` — timeout period after which a speculative job can be run for the current one. A speculative job is a mechanism for running an additional copy of a job with the same input data and in parallel with the original job in cases where the latter appears to have frozen. The scheduler identifies "suspicious" jobs by itself based on the statistics regarding the read (for input data) and write (for output data) speeds, job preparation time, attempts to divide up the job, and other heuristics.
 - `waiting_job_timeout` — timeout period during which the job can remain queued for launch on the node. By default, it is taken from the settings of a particular cluster.
+- `enable_rpc_proxy_in_job_proxy` (false) – if this option is specified, an RPC Proxy service will be started for each job within the Job Proxy. This provides a convenient way to communicate with the cluster from a job without the risk of overloading the cluster-wide RPC Proxies; access to the RPC Proxy is performed via a local socket, the path to which is defined in the environment variable `YT_JOB_PROXY_SOCKET_PATH`.
 
 
 {% note info "Note" %}

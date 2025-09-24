@@ -65,14 +65,7 @@ TStateSchemaPtr GetYsonStateSchema();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TEraseMutation
-{ };
-
-struct TEmptyMutation
-{ };
-
-using TUpdateMutation = NTableClient::TUnversionedOwningRow;
-using TStateMutation = std::variant<TEraseMutation, TUpdateMutation, TEmptyMutation>;
+THashMap<int, int> PrepareMapping(const TStateSchemaPtr& stateSchema, const NTableClient::TTableSchemaPtr& rowSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +75,9 @@ class TState
 public:
     TState(TStateSchemaPtr schema);
 
-    void Init(const std::optional<NTableClient::TUnversionedRow>& tableRow = std::nullopt);
+    void Init(
+        const std::optional<NTableClient::TUnversionedRow>& tableRow = std::nullopt,
+        const std::optional<THashMap<int, int>>& mapping = std::nullopt);
 
     i64 GetSize() const;
 
@@ -97,6 +92,8 @@ public:
     }
 
     NYTree::TYsonStructPtr GetValue() const;
+    void ExtractValue(const NYTree::TYsonStructPtr& ysonStruct) const;
+
     void SetValue(NYTree::TYsonStructPtr value);
 
     void SetFormat(TFormatPtr format);

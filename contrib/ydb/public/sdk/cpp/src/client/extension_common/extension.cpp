@@ -1,8 +1,8 @@
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/extension_common/extension.h>
 
 #define INCLUDE_YDB_INTERNAL_H
-#include <contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/grpc_connections/grpc_connections.h>
-#include <contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/stats_extractor/extractor.h>
+#include <contrib/ydb/public/sdk/cpp/src/client/impl/internal/grpc_connections/grpc_connections.h>
+#include <contrib/ydb/public/sdk/cpp/src/client/impl/internal/stats_extractor/extractor.h>
 #undef INCLUDE_YDB_INTERNAL_H
 
 namespace NYdb::inline Dev {

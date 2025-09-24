@@ -52,6 +52,11 @@ namespace NYql {
     }
 
 namespace NTypeAnnImpl {
+    TExprNodeBuilder& AddChildren(TExprNodeBuilder& builder, ui32 index, const TExprNode::TPtr& input) {
+        const auto i = index;
+        return i >= input->ChildrenSize() ? builder : AddChildren(builder.Add(i, input->ChildPtr(i)), ++index, input);
+    }
+
     const TTypeAnnotationNode* ParseTypeCached(const TString& typeStr, TExprContext& ctx, TTypeAnnotationContext& typeCtx) {
         if (!ctx.ParseTypeCache.contains(typeStr)) {
             auto typeNode = ctx.Builder({})
@@ -5167,12 +5172,23 @@ namespace NTypeAnnImpl {
             }
         }
         if (input->ChildrenSize() > 0) {
-            auto status = EnsureDependsOnTailAndRewrite(input, output, ctx.Expr, ctx.Types, 0, 1);
-            if (status != IGraphTransformer::TStatus::Ok) {
-                return status;
+            TExprNode::TPtr depOn;
+            if (NNodes::TCoDependsOnBase::Match(&input->Head())) {
+                if (!ctx.Types.DirectRowDependsOn) {
+                    output = ctx.Expr.ChangeChild(*input, 0, input->Head().HeadPtr());
+                    return IGraphTransformer::TStatus::Repeat;
+                }
+
+                auto status = EnsureDependsOnTailAndRewrite(input, output, ctx.Expr, ctx.Types, 0, 1);
+                if (status != IGraphTransformer::TStatus::Ok) {
+                    return status;
+                }
+
+                depOn = input->Head().HeadPtr();
+            } else {
+                depOn = input->HeadPtr();
             }
 
-            auto depOn = input->Head().HeadPtr();
             if (ctx.Types.StrictTableProps && !EnsureStructType(*depOn, ctx.Expr)) {
                 return IGraphTransformer::TStatus::Error;
             }
@@ -5262,12 +5278,23 @@ template <NKikimr::NUdf::EDataSlot DataSlot>
             }
         }
         if (input->ChildrenSize() > 0) {
-            auto status = EnsureDependsOnTailAndRewrite(input, output, ctx.Expr, ctx.Types, 0, 1);
-            if (status != IGraphTransformer::TStatus::Ok) {
-                return status;
+            TExprNode::TPtr depOn;
+            if (NNodes::TCoDependsOnBase::Match(&input->Head())) {
+                if (!ctx.Types.DirectRowDependsOn) {
+                    output = ctx.Expr.ChangeChild(*input, 0, input->Head().HeadPtr());
+                    return IGraphTransformer::TStatus::Repeat;
+                }
+
+                auto status = EnsureDependsOnTailAndRewrite(input, output, ctx.Expr, ctx.Types, 0, 1);
+                if (status != IGraphTransformer::TStatus::Ok) {
+                    return status;
+                }
+
+                depOn = input->Head().HeadPtr();
+            } else {
+                depOn = input->HeadPtr();
             }
 
-            auto depOn = input->Head().HeadPtr();
             if (ctx.Types.StrictTableProps && !EnsureStructType(*depOn, ctx.Expr)) {
                 return IGraphTransformer::TStatus::Error;
             }
@@ -13071,6 +13098,10 @@ template <NKikimr::NUdf::EDataSlot DataSlot>
         ExtFunctions["MutDictItems"] = &MutDictItemsWrapper;
         ExtFunctions["MutDictKeys"] = &MutDictKeysWrapper;
         ExtFunctions["MutDictPayloads"] = &MutDictPayloadsWrapper;
+        ExtFunctions["DictInsert"] = &DictBlindOpWrapper<true>;
+        ExtFunctions["DictUpsert"] = &DictBlindOpWrapper<true>;
+        ExtFunctions["DictUpdate"] = &DictBlindOpWrapper<true>;
+        ExtFunctions["DictRemove"] = &DictBlindOpWrapper<false>;
         Functions["Nothing"] = &NothingWrapper;
         Functions["AsOptionalType"] = &AsOptionalTypeWrapper;
         Functions["List"] = &ListWrapper;

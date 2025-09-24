@@ -1,7 +1,7 @@
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/draft/ydb_bridge.h>
 
 #include <contrib/ydb/public/sdk/cpp/src/client/common_client/impl/client.h>
-#include <contrib/ydb/public/sdk/cpp/src/client/impl/ydb_internal/make_request/make.h>
+#include <contrib/ydb/public/sdk/cpp/src/client/impl/internal/make_request/make.h>
 
 #include <contrib/ydb/public/api/grpc/draft/ydb_bridge_v1.grpc.pb.h>
 #include <contrib/ydb/public/api/protos/draft/ydb_bridge.pb.h>

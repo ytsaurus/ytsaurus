@@ -76,7 +76,7 @@ protected:
         TCellTag ExternalCellTag = NObjectClient::InvalidCellTag;
         NTransactionClient::TTransactionId ExternalTransactionId;
         std::optional<std::vector<std::string>> Columns;
-        std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RlAcl;
+        std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RowLevelAcl;
         bool OmitInaccessibleColumns = false;
         bool OmitInaccessibleRows = false;
         std::optional<std::vector<std::string>> OmittedInaccessibleColumns;

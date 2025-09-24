@@ -6,7 +6,7 @@
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 #include <contrib/ydb/public/lib/base/msgbus.h>
 #include <contrib/ydb/core/persqueue/events/internal.h>
-#include <contrib/ydb/core/persqueue/actor_persqueue_client_iface.h>
+#include <contrib/ydb/core/persqueue/common/proxy/actor_persqueue_client_iface.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/topic/client.h>
 #include <contrib/ydb/public/sdk/cpp/src/client/persqueue_public/persqueue.h>
 

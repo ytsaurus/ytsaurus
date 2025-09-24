@@ -2246,6 +2246,11 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != expectedPhase) {
+        // COMPAT(krasovav)
+        if (expectedPhase == EJobPhase::CachingArtifacts && JobPhase_ == EJobPhase::DownloadingArtifacts) {
+            return;
+        }
+
         YT_LOG_DEBUG(
             "Unexpected job phase (Actual: %v, Expected: %v)",
             JobPhase_,
@@ -2287,7 +2292,10 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
             }
 
             SetJobPhase(EJobPhase::DownloadingArtifacts);
-            SetJobPhase(EJobPhase::CachingArtifacts);
+            // COMPAT(krasovav)
+            if (UserJobSpec_ && UserJobSpec_->enable_caching_artifacts_phase()) {
+                SetJobPhase(EJobPhase::CachingArtifacts);
+            }
 
             auto artifactsFuture = DownloadArtifacts();
             artifactsFuture.Subscribe(
@@ -3453,6 +3461,8 @@ void TJob::InitializeSandboxNbdRootVolumeData()
 
     SandboxNbdRootVolumeData_->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
     SandboxNbdRootVolumeData_->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    SandboxNbdRootVolumeData_->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_rpc_timeout());
+    SandboxNbdRootVolumeData_->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(nbdDisk.data_node_nbd_service_make_timeout());
     SandboxNbdRootVolumeData_->MinDataNodeCount = nbdDisk.min_data_node_count();
     SandboxNbdRootVolumeData_->MaxDataNodeCount = nbdDisk.max_data_node_count();
 }

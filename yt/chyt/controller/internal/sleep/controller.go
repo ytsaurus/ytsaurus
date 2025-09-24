@@ -112,6 +112,12 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	return nil, nil
 }
 
+type sleepOpletInfo struct{}
+
+func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
+	return sleepOpletInfo{}, nil
+}
+
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
 	return &Controller{
 		ytc:                 ytc,

@@ -2,7 +2,7 @@
 
 #include <contrib/ydb/core/grpc_services/grpc_request_proxy.h>
 
-#include <contrib/ydb/core/persqueue/cluster_tracker.h>
+#include <contrib/ydb/core/persqueue/public/cluster_tracker/cluster_tracker.h>
 #include <contrib/ydb/core/util/address_classifier.h>
 
 #include <library/cpp/monlib/dynamic_counters/counters.h>

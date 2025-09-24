@@ -89,6 +89,9 @@ IAttributeDictionaryPtr GetStatesTableAttributes()
             TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
             TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("state", EValueType::Any),
+            TColumnSchema("compressed", EValueType::String),
+            TColumnSchema("compressed_patch", EValueType::String),
+            TColumnSchema("format", EValueType::Any),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));
@@ -102,6 +105,9 @@ IAttributeDictionaryPtr GetPartitionStatesTableAttributes()
             TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("name", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("state", EValueType::Any),
+            TColumnSchema("compressed", EValueType::String),
+            TColumnSchema("compressed_patch", EValueType::String),
+            TColumnSchema("format", EValueType::Any),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));

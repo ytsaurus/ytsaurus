@@ -263,7 +263,13 @@
 
 #include "xdelta3.h"
 #include "xdelta3-internal.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
+
 /***********************************************************************
  STATIC CONFIGURATION
  ***********************************************************************/
@@ -903,8 +909,6 @@ xd3_build_code_table (const xd3_code_table_desc *desc, xd3_dinst *tbl)
   XD3_ASSERT (d - tbl == 256);
 }
 
-static pthread_once_t xd3_rfc3284_code_table_once = PTHREAD_ONCE_INIT;
-
 static void
 xd3_rfc3284_build_code_table_once (void)
 {
@@ -914,11 +918,28 @@ xd3_rfc3284_build_code_table_once (void)
     }
 }
 
+#ifdef _WIN32
+INIT_ONCE xd3_rfc3284_code_table_once = INIT_ONCE_STATIC_INIT;
+
+BOOL CALLBACK xd3_rfc3284_build_code_table_once_wrapper (PINIT_ONCE InitOnce, PVOID Parameter, PVOID *lpContext)
+{
+  xd3_rfc3284_build_code_table_once();
+  return TRUE;
+}
+
+#else
+static pthread_once_t xd3_rfc3284_code_table_once = PTHREAD_ONCE_INIT;
+#endif
+
 /* This function generates the static default code table. */
 static const xd3_dinst*
 xd3_rfc3284_code_table (void)
 {
+#ifdef _WIN32
+  InitOnceExecuteOnce(&xd3_rfc3284_code_table_once, xd3_rfc3284_build_code_table_once_wrapper, NULL, NULL);
+#else
   pthread_once(&xd3_rfc3284_code_table_once, xd3_rfc3284_build_code_table_once);
+#endif
   return __rfc3284_code_table;
 }
 

@@ -130,14 +130,12 @@ namespace {
 class TPrimaryDomain
 {
 public:
-    TLogger Logger;
-
     DEFINE_BYVAL_RO_PROPERTY(TKeyBound, UpperBound);
     DEFINE_BYVAL_RO_PROPERTY(TResourceVector, Statistics);
 
 public:
-    TPrimaryDomain(TStringBuf kind, const TLogger& logger, const TComparator& comparator)
-        : Logger(logger.WithTag("Domain: %v", kind))
+    TPrimaryDomain(TStringBuf kind, TLogger logger, const TComparator& comparator)
+        : Logger(std::move(logger).WithTag("Domain: %v", kind))
         , Comparator_(comparator)
     { }
 
@@ -172,7 +170,13 @@ public:
         return std::exchange(DataSlices_, {});
     }
 
+    const TLogger& GetLogger() const
+    {
+        return Logger;
+    }
+
 private:
+    TLogger Logger;
     const TComparator& Comparator_;
     std::deque<TLegacyDataSlicePtr> DataSlices_;
 
@@ -611,7 +615,7 @@ private:
                 actualLowerBound = PrimaryComparator_.WeakerKeyBound(dataSlice->LowerLimit().KeyBound, actualLowerBound);
                 actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
                 YT_VERIFY(dataSlice->Tag);
-                const auto& Logger = domain.Logger;
+                const auto& Logger = domain.GetLogger();
                 if (!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
                     YT_LOG_TRACE(
                         "Adding primary data slice to job (DataSlice: %v)",
@@ -695,14 +699,14 @@ std::unique_ptr<ISortedStagingArea> CreateSortedStagingArea(
     TComparator primaryComparator,
     TComparator foreignComparator,
     TRowBufferPtr rowBuffer,
-    const TLogger& logger)
+    TLogger logger)
 {
     return std::make_unique<TSortedStagingArea>(
         enableKeyGuarantee,
         std::move(primaryComparator),
         std::move(foreignComparator),
         std::move(rowBuffer),
-        logger);
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

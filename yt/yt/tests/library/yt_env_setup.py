@@ -2330,10 +2330,43 @@ class YTEnvSetup(object):
                 print(format_error(err), file=sys.stderr)
 
         # TODO(ignat): is it actually need to be called here?
+        # NB(kvk1920): yes. Even more, there could be race between transactions
+        # abort and operations revival in CA which leads to start of new
+        # transactions and acquiring more snapshot locks.
         self._abort_transactions(driver=driver)
 
         for response in yt_commands.execute_batch(remove_requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
+
+        def ensure_operation_transactions_aborted():
+            instances = yt_commands.ls("//sys/controller_agents/instances", driver=driver)
+            operations = []
+            for instance, response in zip(instances, yt_commands.execute_batch([
+                yt_commands.make_batch_request(
+                    "list",
+                    path=f"//sys/controller_agents/instances/{instance}/orchid/controller_agent/operations")
+                for instance in instances
+            ], driver=driver)):
+                if not yt_commands.get_batch_error(response):
+                    operations += [(instance, operation_id) for operation_id in yt_commands.get_batch_output(response)]
+
+            if not operations:
+                return True
+
+            for response in yt_commands.execute_batch([
+                yt_commands.make_batch_request(
+                    "get",
+                    path=f"//sys/controller_agents/instances/{instance}/orchid/controller_agent/operations/{operation_id}/state")
+                for instance, operation_id in operations
+            ], driver=driver):
+                if not yt_commands.get_batch_error(response) and yt_commands.get_batch_output(response) not in ("committed", "aborted"):
+                    # Some alive operations found. Abort all transactions and retry.
+                    self._abort_transactions(driver=driver)
+                    return False
+
+            return True
+
+        wait(ensure_operation_transactions_aborted)
 
     def _wait_for_jobs_to_vanish(self, driver=None):
         nodes_with_flavors = yt_commands.get("//sys/cluster_nodes", driver=driver, attributes=["flavors"])

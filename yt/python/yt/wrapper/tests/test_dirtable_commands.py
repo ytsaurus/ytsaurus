@@ -68,6 +68,22 @@ class TestDirtableCommands(object):
         assert tmpdir.join("dir2").join("subdir").join("file2").read_binary() == b"5678"
         assert tmpdir.join("dir2").join("file3").read_binary() == b"9"
 
+        dir3 = tmpdir.mkdir("dir3")
+        dirtable_commands.download_directory_from_yt(
+            directory=dir3,
+            yt_table=yt_table,
+            process_count=4,
+            exact_filenames="file3,file1",
+            filter_by_regexp=None,
+            exclude_by_regexp=None,
+            client=None,
+            process_pool_class=multiprocessing.pool.ThreadPool,
+        )
+
+        assert tmpdir.join("dir3").join("file1").read_binary() == b"1234"
+        assert tmpdir.join("dir3").join("file3").read_binary() == b"9"
+        assert not tmpdir.join("dir3").join("subdir").exists()
+
     @authors("optimus", "denvr")
     def test_dirtable_commands_full_path(self, tmpdir, capsys):
         """

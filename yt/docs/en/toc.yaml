@@ -476,8 +476,16 @@ items:
          href: admin-guide/problems.md
        - name: Cell addition
          href: admin-guide/cell-addition.md
+       - name: GPU support
+         href: admin-guide/gpu.md
        - name: Users and groups synchronization
          href: admin-guide/identity-sync.md
+       - name: Tablet cell bundle management
+         href: admin-guide/bundle-controller.md
+       - name: Misc
+         items:
+           - name: Reading from remote clusters via RPC proxy
+             href: admin-guide/multiproxy.md
    - name: Release notes
      href: admin-guide/releases.md
    - name: FAQ

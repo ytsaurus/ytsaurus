@@ -149,13 +149,27 @@ TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<int, int> PrepareMapping(const TStateSchemaPtr& stateSchema, const NTableClient::TTableSchemaPtr& rowSchema)
+{
+    THashMap<int, int> mapping;
+    for (int i = 0; i < rowSchema->GetColumnCount(); ++i) {
+        auto columnName = rowSchema->Columns()[i].Name();
+        if (auto targetColumn = stateSchema->TableSchema->FindColumn(columnName)) {
+            mapping[i] = stateSchema->TableSchema->GetColumnIndex(*targetColumn);
+        }
+    }
+    return mapping;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TState::TState(TStateSchemaPtr schema)
     : Schema_(std::move(schema))
 {
-    Init(std::nullopt);
+    Init();
 }
 
-void TState::Init(const std::optional<TUnversionedRow>& tableRow)
+void TState::Init(const std::optional<TUnversionedRow>& tableRow, const std::optional<THashMap<int, int>>& mapping)
 {
     if (tableRow) {
         std::vector<TUnversionedOwningValue> tableValues;
@@ -163,8 +177,15 @@ void TState::Init(const std::optional<TUnversionedRow>& tableRow)
         for (int i = 0; i < Schema_->TableSchema->GetColumnCount(); ++i) {
             tableValues.push_back(MakeUnversionedNullValue(i));
         }
-        for (const auto& value : *tableRow) {
-            tableValues[value.Id] = value;
+        for (auto value : *tableRow) {
+            if (mapping) {
+                if (auto iter = mapping->find(value.Id); iter != mapping->end()) {
+                    value.Id = iter->second;
+                    tableValues[value.Id] = value;
+                }
+            } else {
+                tableValues[value.Id] = value;
+            }
         }
 
         TableRow_ = std::move(tableValues);
@@ -286,9 +307,15 @@ void TState::ParseTableRow() {
 TYsonStructPtr TState::GetValue() const
 {
     auto ysonStruct = Schema_->MakeYsonStruct();
-    NYsonSerializer::Deserialize(ysonStruct, YsonRow_, Schema_->YsonSchema);
+    ExtractValue(ysonStruct);
     return ysonStruct;
 }
+
+void TState::ExtractValue(const NYTree::TYsonStructPtr& ysonStruct) const
+{
+    NYsonSerializer::Deserialize(ysonStruct, YsonRow_, Schema_->YsonSchema);
+}
+
 
 void TState::SetValue(TYsonStructPtr ysonStruct)
 {

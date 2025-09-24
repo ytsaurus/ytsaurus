@@ -3,7 +3,7 @@
 #include "persqueue_utils.h"
 
 #include <contrib/ydb/core/client/server/ic_nodes_cache_service.h>
-#include <contrib/ydb/core/persqueue/utils.h>
+#include <contrib/ydb/core/persqueue/public/utils.h>
 #include <contrib/ydb/core/ydb_convert/topic_description.h>
 #include <contrib/ydb/core/ydb_convert/ydb_convert.h>
 #include <contrib/ydb/public/sdk/cpp/src/library/persqueue/obfuscate/obfuscate.h>

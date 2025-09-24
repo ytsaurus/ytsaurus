@@ -1,5 +1,6 @@
 RECURSE(
     build_secondary_index
+    bundle_controller_tools
 )
 
 IF (NOT OPENSOURCE)

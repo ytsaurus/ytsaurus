@@ -1446,6 +1446,18 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             });
         }
 
+        // Mount sandbox home to user homedir.
+        {
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = NFS::CombinePaths(
+                    GetPreparationPath(),
+                    GetSandboxRelPath(ESandboxKind::Home)),
+                .TargetPath = Format("/home/yt_slot_%d", Config_->SlotIndex),
+                .ReadOnly = false,
+            });
+        }
+
+
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
             rootFS.Binds.push_back(TBind{
                 .SourcePath = tmpfsPath,
