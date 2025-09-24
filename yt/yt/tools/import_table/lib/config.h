@@ -20,6 +20,12 @@ struct TImportConfig
     //! Singletons configuration to be used in the map-reduce jobs.
     TSingletonsConfigPtr JobSingletons;
 
+    //! Scheduling pool for YT operations.
+    std::optional<TString> Pool;
+
+    //! Memory limit for download operation.
+    i64 MemoryLimit;
+
     //! Maximum weight of a single row in the imported table.
     i64 MaxRowWeight;
 

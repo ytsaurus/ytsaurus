@@ -14,6 +14,10 @@ void TImportConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("job_singletons", &TThis::JobSingletons)
         .DefaultNew();
+    registrar.Parameter("pool", &TThis::Pool)
+        .Default();
+    registrar.Parameter("memory_limit", &TThis::MemoryLimit)
+        .Default(2_GB);
     registrar.Parameter("max_row_weight", &TThis::MaxRowWeight)
         .Default(16_MB);
     registrar.Parameter("max_metadata_row_weight", &TThis::MaxMetadataRowWeight)
