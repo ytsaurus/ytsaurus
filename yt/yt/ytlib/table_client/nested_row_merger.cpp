@@ -661,4 +661,49 @@ TVersionedValue TNestedTableMerger::BuildMergedValueColumn(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void EnrichColumnFilterWithNestedKeys(TColumnFilter::TIndexes* indexes, const TNestedColumnsSchema& nestedSchema)
+{
+    bool hasNestedColumns = false;
+    for (auto id : *indexes) {
+        if (const auto* ptr = GetNestedColumnById(nestedSchema.KeyColumns, id)) {
+            hasNestedColumns = true;
+        }
+
+        if (const auto* ptr = GetNestedColumnById(nestedSchema.ValueColumns, id)) {
+            hasNestedColumns = true;
+        }
+    }
+
+    if (hasNestedColumns) {
+        for (auto nestedKeyColumn : nestedSchema.KeyColumns) {
+            indexes->push_back(nestedKeyColumn.Id);
+        }
+    }
+}
+
+TColumnFilter EnrichColumnFilter(
+    const TColumnFilter& columnFilter,
+    const TNestedColumnsSchema& nestedSchema,
+    int requiredKeyColumnCount)
+{
+    if (columnFilter.IsUniversal()) {
+        return {};
+    }
+
+    auto indexes = columnFilter.GetIndexes();
+
+    EnrichColumnFilterWithNestedKeys(&indexes, nestedSchema);
+
+    for (int index = 0; index < requiredKeyColumnCount; ++index) {
+        indexes.push_back(index);
+    }
+
+    std::sort(indexes.begin(), indexes.end());
+    indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+
+    return TColumnFilter({std::move(indexes)});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

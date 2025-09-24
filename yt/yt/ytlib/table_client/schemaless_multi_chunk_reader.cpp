@@ -1183,7 +1183,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         columnFilter = TColumnFilter(TColumnFilter::TIndexes{transformedIndexes.begin(), transformedIndexes.end()});
     }
 
-    ValidateColumnFilter(columnFilter, tableSchema->GetColumnCount());
+    auto nestedSchema = GetNestedColumnsSchema(tableSchema);
+    auto enrichedColumnFilter = EnrichColumnFilter(
+        columnFilter,
+        nestedSchema,
+        tableSchema->GetKeyColumnCount());
+
+    ValidateColumnFilter(enrichedColumnFilter, tableSchema->GetColumnCount());
 
     auto [versionedReadSchema, timestampedColumnFilter] = CreateVersionedReadParameters(
         tableSchema,
@@ -1225,12 +1231,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, ColumnFilter: %v)",
+    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, ColumnFilter: %v, EnrichedColumnFilter: %v)",
         boundaries,
         MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
         }),
-        columnFilter);
+        columnFilter,
+        enrichedColumnFilter);
 
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -1378,7 +1385,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkReadOptions,
         chunkSpecs,
         tableSchema,
-        columnFilter,
+        enrichedColumnFilter,
         timestamp,
         multiReaderMemoryManager,
         createVersionedChunkReader,
@@ -1395,7 +1402,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 config->DynamicStoreReader,
                 chunkReaderHost,
                 chunkReadOptions,
-                columnFilter,
+                enrichedColumnFilter,
                 timestamp,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                     DefaultRemoteDynamicStoreReaderMemoryEstimate),
@@ -1418,7 +1425,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         timestampColumnMapping.empty() ? TColumnFilter::MakeUniversal() : timestampedColumnFilter,
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
-        timestampColumnMapping);
+        timestampColumnMapping,
+        nestedSchema);
 
     auto schemafulReader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
