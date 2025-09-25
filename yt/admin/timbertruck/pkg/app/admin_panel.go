@@ -161,7 +161,7 @@ func (p *adminPanel) Run(ctx context.Context) error {
 		<-ctx.Done()
 		err := p.server.Close()
 		if err != nil {
-			p.logger.Error("Error closing admin panel server", "error", err)
+			p.logger.Warn("Error closing admin panel server", "error", err)
 		}
 	}()
 	p.logger.Info("Starting admin panel server", "address", p.server.Addr)

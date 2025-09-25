@@ -191,7 +191,7 @@ func (t *textFollower) Process(ctx context.Context, _ RowMeta, in Impulse, emit 
 	if errors.Is(err, io.EOF) {
 		t.emitRemainingLines(ctx, emit)
 	} else if errors.Is(err, io.ErrUnexpectedEOF) {
-		t.logger.Error("Unexpected EOF: file may be corrupted", "error", err, "end_position", t.file.FilePosition())
+		t.logger.Warn("Unexpected EOF: file may be corrupted", "error", err, "end_position", t.file.FilePosition())
 		t.emitRemainingLines(ctx, emit)
 	} else if err != nil && !errors.Is(err, context.Canceled) {
 		panic(fmt.Sprintf("unexpected error while reading file: %s", err.Error()))
