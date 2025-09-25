@@ -1,20 +1,20 @@
 RECURSE(
     admin
     benchmarks
-    yt
     chyt
-    yql
     cpp
+    cron
+    docker
+    docs
+    examples
     go
     java
-    python
-    examples
-    docs
-    docker
+    microservices
     odin
+    python
     styleguide
-    admin
-    cron
+    yql
+    yt
 )
 
 IF (NOT OPENSOURCE)
@@ -30,7 +30,6 @@ IF (NOT OPENSOURCE)
         internal
         jaeger
         meta_scheduler
-        microservices
         nirvana
         opensource
         packages
