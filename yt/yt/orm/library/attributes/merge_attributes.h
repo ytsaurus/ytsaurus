@@ -6,6 +6,8 @@
 
 #include <yt/yt/orm/library/mpl/projection.h>
 
+#include <yt/yt/orm/server/objects/config.h>
+
 #include <library/cpp/yt/yson_string/string.h>
 
 #include <ranges>
@@ -62,7 +64,8 @@ private:
 NYson::TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
-    EDuplicatePolicy duplicatePolicy = EDuplicatePolicy::PrioritizeColumn);
+    EDuplicatePolicy duplicatePolicy = EDuplicatePolicy::PrioritizeColumn,
+    NServer::NObjects::EMergeAttributesMode mergeAttributesMode = NServer::NObjects::EMergeAttributesMode::Old);
 
 ////////////////////////////////////////////////////////////////////////////////
 

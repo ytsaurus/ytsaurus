@@ -128,7 +128,10 @@ private:
 
     std::optional<TCompactionRequest> ScanEdenForPartitioning(TPartition* eden)
     {
-        if (eden->GetState() != EPartitionState::Normal) {
+        bool enableConcurrentPartitioningAndCompaction = eden->GetTablet()->GetMountConfig()->EnableConcurrentEdenPartitioningAndCompaction;
+        bool isStateValid = eden->GetState() == EPartitionState::Normal ||
+            (eden->GetState() == EPartitionState::Compacting && enableConcurrentPartitioningAndCompaction);
+        if (!isStateValid) {
             return {};
         }
 
@@ -228,7 +231,10 @@ private:
 
     std::optional<TCompactionRequest> ScanPartitionForCompaction(TPartition* partition, bool allowForcedCompaction)
     {
-        if (partition->GetState() != EPartitionState::Normal ||
+        bool enableConcurrentPartitioningAndCompaction = partition->GetTablet()->GetMountConfig()->EnableConcurrentEdenPartitioningAndCompaction && partition->IsEden();
+        bool isStateValid = partition->GetState() == EPartitionState::Normal ||
+            (partition->GetState() == EPartitionState::Partitioning && enableConcurrentPartitioningAndCompaction);
+        if (!isStateValid ||
             partition->GetIsImmediateSplitRequested() ||
             partition->Stores().empty())
         {

@@ -37,7 +37,7 @@ using namespace ::testing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedChunkPoolTestBase
+class TOrderedChunkPoolTest
     : public TChunkPoolTestBase
 {
 protected:
@@ -417,21 +417,9 @@ protected:
     THashMap<TOutputCookie, TInputChunkPtr> TeleportChunks_;
 };
 
-// COMPAT(apollo1321): Remove in 25.2 release.
-class TOrderedChunkPoolTest
-    : public TOrderedChunkPoolTestBase
-    , public WithParamInterface<bool>
-{
-    void SetUp() override
-    {
-        TOrderedChunkPoolTestBase::SetUp();
-        Options_.UseNewSlicingImplementation = GetParam();
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, OrderedMergeSimple)
+TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -466,7 +454,7 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeSimple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, OrderedMergeExactSlices)
+TEST_F(TOrderedChunkPoolTest, OrderedMergeExactSlices)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -499,53 +487,32 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeExactSlices)
     CheckEverything(stripeLists);
 
     std::vector<std::vector<i64>> dataSliceDataWeightLists;
-    if (!Options_.UseNewSlicingImplementation) {
-        dataSliceDataWeightLists = {
-            {
-                // chunkA, job0
-                2_KB, 2_KB, 2_KB, 2_KB, 2_KB
-            },
-            {
-                // chunkA, job1
-                2_KB, 2_KB, 2_KB,
-                // chunkB, job1
-                2_KB, 2_KB
-            },
-            {
-                // chunkB, job2
-                2_KB, 2_KB, 2_KB, 2_KB,
-                // chunkC, job2
-                2_KB
-            }
-        };
-    } else {
-        // Check that slices are not split unnecessarily.
-        dataSliceDataWeightLists = {
-            {
-                // chunkA, job0
-                10_KB
-            },
-            {
-                // chunkA, job1
-                6_KB,
-                // chunkB, job1
-                4_KB
-            },
-            {
-                // chunkB, job2
-                8_KB,
-                // chunkC, job2
-                2_KB
-            }
-        };
-    }
+    // Check that slices are not split unnecessarily.
+    dataSliceDataWeightLists = {
+        {
+            // chunkA, job0
+            10_KB
+        },
+        {
+            // chunkA, job1
+            6_KB,
+            // chunkB, job1
+            4_KB
+        },
+        {
+            // chunkB, job2
+            8_KB,
+            // chunkC, job2
+            2_KB
+        }
+    };
 
     CheckDataSliceDataWeights(stripeLists, dataSliceDataWeightLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, LargeChunksPreciseSlicing)
+TEST_F(TOrderedChunkPoolTest, LargeChunksPreciseSlicing)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -580,7 +547,7 @@ TEST_P(TOrderedChunkPoolTest, LargeChunksPreciseSlicing)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, BatchRowCountBasic)
+TEST_F(TOrderedChunkPoolTest, BatchRowCountBasic)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -617,7 +584,7 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountBasic)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
+TEST_F(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -652,7 +619,7 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
+TEST_F(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -692,7 +659,7 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
+TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
@@ -772,7 +739,7 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
+TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 {
     InitTables(
         /*isTeleportable*/ {false},
@@ -804,7 +771,7 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TOrderedChunkPoolTest, ExplicitSingleJob)
+TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
 {
     InitTables(
         /*isTeleportable*/ {true},
@@ -839,7 +806,7 @@ TEST_P(TOrderedChunkPoolTest, ExplicitSingleJob)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
+TEST_F(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
 {
     InitTables(
         /*isTeleportable*/ {false},
@@ -862,7 +829,7 @@ TEST_P(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
     CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
 }
 
-TEST_P(TOrderedChunkPoolTest, EnlargementAfterSampling)
+TEST_F(TOrderedChunkPoolTest, EnlargementAfterSampling)
 {
     // This test verifies that jobs are initially sliced by sampling data
     // weight per job, some jobs are omitted, and the remaining jobs are
@@ -923,12 +890,8 @@ TEST_P(TOrderedChunkPoolTest, EnlargementAfterSampling)
     EXPECT_GT(numberOfSmallHoles, 5);
 }
 
-TEST_P(TOrderedChunkPoolTest, SliceByDataWeightFirstChunkOnly)
+TEST_F(TOrderedChunkPoolTest, SliceByDataWeightFirstChunkOnly)
 {
-    if (!Options_.UseNewSlicingImplementation) {
-        GTEST_SKIP_("Compressed data size per job is not supported");
-    }
-
     // +-------+---------------+
     // |       |               |
     // | Data  |               |
@@ -987,12 +950,8 @@ TEST_P(TOrderedChunkPoolTest, SliceByDataWeightFirstChunkOnly)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TOrderedChunkPoolTest, SliceByCompressedDataSizeAndThenByDataWeight)
+TEST_F(TOrderedChunkPoolTest, SliceByCompressedDataSizeAndThenByDataWeight)
 {
-    if (!Options_.UseNewSlicingImplementation) {
-        GTEST_SKIP_("Compressed data size per job is not supported");
-    }
-
     // +-------+---------------+
     // |       |          #  # | <- 1_GB
     // | Data  |          #  # |
@@ -1056,10 +1015,6 @@ TEST_P(TOrderedChunkPoolTest, SliceByCompressedDataSizeAndThenByDataWeight)
     CheckEverything(stripeLists);
 }
 
-INSTANTIATE_TEST_SUITE_P(BasicTests,
-    TOrderedChunkPoolTest,
-    Values(/*useNewSlicingImplementation*/ false, /*useNewSlicingImplementation*/ true));
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedChunkPoolTestJobSizeAdjuster
@@ -1100,7 +1055,7 @@ protected:
     }
 };
 
-TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeSimple)
+TEST_F(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeSimple)
 {
     InitPoolAndFeedChunks();
     EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 10);
@@ -1131,7 +1086,7 @@ TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeSimple)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, RemoveFromBeginning)
+TEST_F(TOrderedChunkPoolTestJobSizeAdjuster, RemoveFromBeginning)
 {
     InitTables(
             /*isTeleportable*/ {false},
@@ -1197,7 +1152,7 @@ TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, RemoveFromBeginning)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataWeight)
+TEST_F(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataWeight)
 {
     MaxDataWeightPerJob_ = 2_KB;
     InitPoolAndFeedChunks();
@@ -1229,7 +1184,7 @@ TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataWeight)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxCompressedDataSize)
+TEST_F(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxCompressedDataSize)
 {
     MaxCompressedDataSizePerJob_ = 2_KB;
     InitPoolAndFeedChunks();
@@ -1261,7 +1216,7 @@ TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxCompressedDataSize)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataSlices)
+TEST_F(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataSlices)
 {
     MaxDataSlicesPerJob_ = 2;
     InitPoolAndFeedChunks();
@@ -1293,29 +1248,13 @@ TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataSlices)
     CheckEverything(stripeLists);
 }
 
-INSTANTIATE_TEST_SUITE_P(OrderedChunkPoolJobSizeAdjuster,
-    TOrderedChunkPoolTestJobSizeAdjuster,
-    Values(/*useNewSlicingImplementation*/ false, /*useNewSlicingImplementation*/ true));
-
 ////////////////////////////////////////////////////////////////////////////////
-
-class TOrderedChunkPoolTestRandomized
-    : public WithParamInterface<std::tuple<int, bool>>
-    , public TOrderedChunkPoolTestBase
-{
-public:
-    void SetUp() final
-    {
-        TOrderedChunkPoolTestBase::SetUp();
-        Gen_.seed(std::get<0>(GetParam()));
-        Options_.UseNewSlicingImplementation = std::get<1>(GetParam());
-    }
-};
 
 static constexpr int NumberOfRepeats = 15;
 
-TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
+TEST_PI(TOrderedChunkPoolTest, VariousOperationsWithPoolTest, Range(0, NumberOfRepeats), int)
 {
+    Gen_.seed(GetParam());
     InitTables(
         /*isTeleportable*/ {false},
         /*isVersioned*/ {false});
@@ -1483,26 +1422,11 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(std::ssize(resumedChunks) + std::ssize(suspendedChunks), chunkCount);
 }
 
-INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
-    TOrderedChunkPoolTestRandomized,
-    Combine(Range(0, NumberOfRepeats), Values(/*useNewSlicingImplementation*/ false, /*useNewSlicingImplementation*/ true)));
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedChunkPoolJobSizesTestRandomized
-    : public WithParamInterface<int>
-    , public TOrderedChunkPoolTestBase
+TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, Range(/*start*/ 0, /*end*/ 10000), int)
 {
-public:
-    void SetUp() final
-    {
-        TOrderedChunkPoolTestBase::SetUp();
-        Gen_.seed(GetParam());
-    }
-};
-
-TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSizeAndDataWeight)
-{
+    Gen_.seed(GetParam());
     int tableCount = std::uniform_int_distribution<int>(1, 3)(Gen_);
 
     bool useJobSizeAdjuster = std::uniform_int_distribution<int>(0, 1)(Gen_);
@@ -1659,10 +1583,6 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
         }
     }
 }
-
-INSTANTIATE_TEST_SUITE_P(BuildJobsInputByCompressedDataSizeAndDataWeight,
-    TOrderedChunkPoolJobSizesTestRandomized,
-    Range(/*start*/ 0, /*end*/ 10000));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,6 +27,15 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EAllowAlterWithoutFullRead,
+    (Allow)
+    (AllowAndAlert)
+    (Deny)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 struct TDynamicSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -65,6 +74,11 @@ struct TDynamicSecurityManagerConfig
 
     // This is a panic button.
     bool EnableSubjectTagFilters;
+
+    // COMPAT(coteeq)
+    //! Defines what to do when a user is altering table but lacks
+    //! full_read permission on that table.
+    EAllowAlterWithoutFullRead AllowAlterWithoutFullRead;
 
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 

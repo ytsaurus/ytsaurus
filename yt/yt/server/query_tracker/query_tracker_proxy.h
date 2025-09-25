@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "engine.h"
 
 #include <yt/yt/client/api/client.h>
 
@@ -64,11 +65,14 @@ public:
     NApi::TGetQueryTrackerInfoResult GetQueryTrackerInfo(
         const NApi::TGetQueryTrackerInfoOptions& options);
 
+    NApi::TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        const NApi::TGetDeclaredParametersInfoOptions& options);
+
 private:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
     TQueryTrackerProxyConfigPtr ProxyConfig_;
-    std::unordered_map<EQueryEngine, IQueryEngineInfoProviderPtr> EngineInfoProviders_;
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
     const int ExpectedTablesVersion_;
     ISearchIndexPtr TimeBasedIndex_;
     ISearchIndexPtr TokenBasedIndex_;

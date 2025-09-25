@@ -1,0 +1,12 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TInputMessage {
+    optional bytes Acl = 1 [(NYT.column_name) = "acl", (NYT.flags) = ANY];
+    required bool InheritAcl = 2 [(NYT.column_name) = "inherit_acl"];
+    required string Path = 3 [(NYT.column_name) = "path"];
+}
+
+message TOutputMessage {
+    optional uint64 Idx = 1 [(NYT.column_name) = "idx"];
+    optional string Part = 2 [(NYT.column_name) = "part"];
+}

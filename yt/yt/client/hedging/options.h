@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/client/api/options.h>
+
+namespace NYT::NClient::NHedging::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NApi::GetClientOptionsFromEnv;
+using NApi::GetClientOptionsFromEnvStatic;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NClient::NHedging::NRpc

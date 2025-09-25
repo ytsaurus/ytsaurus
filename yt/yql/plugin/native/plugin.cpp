@@ -561,9 +561,10 @@ public:
         std::vector<TQueryFile> files,
         int executeMode)
     {
+
         auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(*dynamicConfig);
-        auto program = factory->Create("-memory-", queryText);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settings, credentialsStr, dynamicConfig, factory);
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
             auto guard = WriterGuard(ProgressSpinLock_);
@@ -575,27 +576,6 @@ public:
                 .PipelineConfigurator = pipelineConfigurator,
             };
         }
-
-        TVector<std::pair<TString, NYql::TCredential>> credentials;
-        const auto credentialsMap = NodeFromYsonString(credentialsStr.ToString()).AsMap();
-        credentials.reserve(credentialsMap.size());
-        for (const auto& item : credentialsMap) {
-            credentials.emplace_back(item.first, NYql::TCredential {
-                item.second.HasKey("category") ? item.second.ChildAsString("category") : "",
-                item.second.HasKey("subcategory") ? item.second.ChildAsString("subcategory") : "",
-                item.second.HasKey("content") ? item.second.ChildAsString("content") : ""
-            });
-        }
-        program->AddCredentials(credentials);
-        program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settings));
-
-        auto defaultQueryCluster = dynamicConfig->DefaultCluster;
-        auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
-        if (auto cluster = settingsMap.FindPtr("cluster")) {
-            defaultQueryCluster = cluster->AsString();
-        }
-
-        SetProgramYqlVersion(program, settingsMap);
 
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
@@ -622,14 +602,6 @@ public:
             }
         });
 
-        NSQLTranslation::TTranslationSettings sqlSettings;
-        sqlSettings.ClusterMapping = dynamicConfig->Clusters;
-        sqlSettings.ModuleMapping = Modules_;
-        if (defaultQueryCluster) {
-            sqlSettings.DefaultCluster = *defaultQueryCluster;
-        }
-        sqlSettings.SyntaxVersion = 1;
-        sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
         if (DqManager_) {
             sqlSettings.DqDefaultAuto = NSQLTranslation::ISqlFeaturePolicy::MakeAlwaysAllow();
         }
@@ -637,6 +609,11 @@ public:
         if (UIOrigin_) {
             program->SetOperationId(ToString(queryId));
             program->SetOperationUrl(NFS::CombinePaths({UIOrigin_, sqlSettings.DefaultCluster, "queries", ToString(queryId)}));
+        }
+
+        auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
+        if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
+            program->SetParametersYson(parameters->AsString());
         }
 
         if (!program->ParseSql(sqlSettings)) {
@@ -706,6 +683,33 @@ public:
             .Progress = progress,
             .TaskInfo = MaybeToOptional(program->GetTasksInfo()),
             .Ast = MaybeToOptional(program->GetQueryAst()),
+        };
+    }
+
+    TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TString user,
+        TString queryText,
+        TYsonString settingsStr,
+        TYsonString credentialsStr) override
+    {
+        auto dynamicConfig = DynamicConfig_.Acquire();
+        auto factory = CreateProgramFactory(*dynamicConfig);
+        auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(queryText, settingsStr, credentialsStr, dynamicConfig, factory);
+
+        if (!program->ParseSql(sqlSettings)) {
+            ythrow yexception() << IssuesToYtErrorYson(program->Issues());
+        }
+
+        if (!program->Compile(user, true)) {
+            ythrow yexception() << IssuesToYtErrorYson(program->Issues());
+        }
+
+        if (!program->ExtractQueryParametersMetadata()) {
+            ythrow yexception() << IssuesToYtErrorYson(program->Issues());
+        }
+
+        return TGetDeclaredParametersInfoResult{
+            .YsonParameters = program->GetExtractedQueryParametersMetadataYson(),
         };
     }
 
@@ -1021,6 +1025,49 @@ private:
         } else {
             program->SetLanguageVersion(DefaultYqlApiLangVersion_);
         }
+    }
+
+    std::pair<TProgramPtr, NSQLTranslation::TTranslationSettings> CreateProgramAndSqlSettingsFromParameters(
+        const TString& queryText,
+        const TYsonString& settingsStr,
+        const TYsonString& credentialsStr,
+        TDynamicConfigPtr dynamicConfig,
+        TProgramFactoryPtr factory)
+    {
+        auto program = factory->Create("-memory-", queryText);
+
+        TVector<std::pair<TString, NYql::TCredential>> credentials;
+        const auto credentialsMap = NodeFromYsonString(credentialsStr.ToString()).AsMap();
+        credentials.reserve(credentialsMap.size());
+        for (const auto& item : credentialsMap) {
+            credentials.emplace_back(item.first, NYql::TCredential {
+                item.second.HasKey("category") ? item.second.ChildAsString("category") : "",
+                item.second.HasKey("subcategory") ? item.second.ChildAsString("subcategory") : "",
+                item.second.HasKey("content") ? item.second.ChildAsString("content") : ""
+            });
+        }
+        program->AddCredentials(credentials);
+
+        program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settingsStr));
+
+        auto defaultQueryCluster = dynamicConfig->DefaultCluster;
+        auto settingsMap = NodeFromYsonString(settingsStr.ToString()).AsMap();
+        if (auto cluster = settingsMap.FindPtr("cluster")) {
+            defaultQueryCluster = cluster->AsString();
+        }
+
+        SetProgramYqlVersion(program, settingsMap);
+
+        NSQLTranslation::TTranslationSettings sqlSettings;
+        sqlSettings.ClusterMapping = dynamicConfig->Clusters;
+        sqlSettings.ModuleMapping = Modules_;
+        if (defaultQueryCluster) {
+            sqlSettings.DefaultCluster = *defaultQueryCluster;
+        }
+        sqlSettings.SyntaxVersion = 1;
+        sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
+
+        return {program, sqlSettings};
     }
 };
 

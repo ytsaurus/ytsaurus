@@ -75,9 +75,7 @@ public:
             =,
             this,
             this_ = MakeStrong(this),
-            partitionTags = JobSpecExt_.has_partition_tag()
-                ? TPartitionTags{JobSpecExt_.partition_tag()}
-                : TPartitionTags{}
+            partitionTags = GetOptionalPartitionTags(JobSpecExt_)
         ] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 

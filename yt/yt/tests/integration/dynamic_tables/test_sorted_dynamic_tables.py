@@ -14,7 +14,8 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
-    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node)
+    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node,
+    sort)
 
 import yt_error_codes
 
@@ -3255,6 +3256,9 @@ class TestDynamicTablesTtl(DynamicTablesBase):
 class TestDynamicNestedColumns(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
+    NUM_SCHEDULERS = 1
+    ENABLE_BULK_INSERT = True
+
     def _create_table(self, path, schema):
         create(
             "table",
@@ -3275,20 +3279,18 @@ class TestDynamicNestedColumns(DynamicTablesBase):
         int64_list = {"type_name": "list", "item": "int64"}
         optional_int64_list = {"type_name": "optional", "item": int64_list}
 
-        self._create_table(
-            "//tmp/t",
-            [
-                {"name": "k1", "type": "int64", "sort_order": "ascending"},
-                {"name": "k2", "type": "int64", "sort_order": "ascending"},
-                {"name": "v1", "type": "int64", "aggregate": "sum"},
-                {"name": "v2", "type": "int64", "aggregate": "sum"},
-                {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
-                {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
-                {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
-                {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
-            ]
-        )
+        schema = [
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "v1", "type": "int64", "aggregate": "sum"},
+            {"name": "v2", "type": "int64", "aggregate": "sum"},
+            {"name": "nk1", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nk2", "type_v3": int64_list, "aggregate": "nested_key(n)"},
+            {"name": "nv1", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+            {"name": "nv2", "type_v3": optional_int64_list, "aggregate": "nested_value(n, sum)"},
+        ]
 
+        self._create_table("//tmp/t", schema)
         sync_mount_table("//tmp/t")
 
         insert_rows(
@@ -3308,31 +3310,43 @@ class TestDynamicNestedColumns(DynamicTablesBase):
             aggregate=True
         )
 
-        def _check():
+        def _check(table_name="//tmp/t"):
             expected = [
                 {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nk2": [10, 20, 30], "nv1": [100, 400, 300], "nv2": [1000, 4000, 3000]},
                 {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nk2": [10, 20], "nv1": [100, 200], "nv2": [1000, 2000]},
             ]
-            actual = select_rows("k1, k2, v1, v2, nk1, nk2, nv1, nv2 from [//tmp/t]")
+            actual = select_rows(f"k1, k2, v1, v2, nk1, nk2, nv1, nv2 from [{table_name}]")
             assert sorted_dicts(actual) == sorted_dicts(expected)
 
             expected = [
                 {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nk1": [1, 2, 3], "nv1": [100, 400, 300]},
                 {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nk1": [1, 2], "nv1": [100, 200]},
             ]
-            actual = select_rows("k1, k2, v1, v2, nk1, nv1 from [//tmp/t]")
+            actual = select_rows(f"k1, k2, v1, v2, nk1, nv1 from [{table_name}]")
             assert sorted_dicts(actual) == sorted_dicts(expected)
 
             expected = [
                 {"k1": 1, "k2": 10, "v1": 2, "v2": 20, "nv1": [100, 400, 300]},
                 {"k1": 2, "k2": 10, "v1": 1, "v2": 10, "nv1": [100, 200]},
             ]
-            actual = select_rows("k1, k2, v1, v2, nv1 from [//tmp/t]")
+            actual = select_rows(f"k1, k2, v1, v2, nv1 from [{table_name}]")
             assert sorted_dicts(actual) == sorted_dicts(expected)
 
         _check()
 
         sync_flush_table("//tmp/t")
+        _check()
+
+        schema = [{"name": "h", "sort_order": "ascending", "type": "uint64", "expression": "farm_hash(k1)"}] + schema
+        self._create_table("//tmp/t_shuffle", schema)
+        sync_mount_table("//tmp/t_shuffle")
+
+        sort_by = [col["name"] for col in schema if "sort_order" in col]
+        sort(in_=["//tmp/t"], out="//tmp/t_shuffle", sort_by=sort_by, spec={"partition_count": 2})
+        _check("//tmp/t_shuffle")
+        sync_compact_table("//tmp/t_shuffle")
+        _check("//tmp/t_shuffle")
+
         sync_compact_table("//tmp/t")
         _check()
 

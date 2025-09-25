@@ -212,6 +212,35 @@ void BridgeFreeAbortResult(TBridgeAbortResult* result)
     delete result;
 }
 
+TBridgeGetDeclaredParametersInfoResult* BridgeGetDeclaredParametersInfo(
+    TBridgeYqlPlugin* plugin,
+    const char* user,
+    const char* queryText,
+    const char* settings,
+    int settingsLength,
+    const char* credentials,
+    int credentialsLength)
+{
+    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
+    auto* bridgeResult = new TBridgeGetDeclaredParametersInfoResult;
+
+    auto result = nativePlugin->GetDeclaredParametersInfo(
+        TString(user),
+        TString(queryText),
+        TYsonString(TString(settings, settingsLength)),
+        TYsonString(TString(credentials, credentialsLength)));
+    FOR_EACH_GET_DECLARE_PARAMETERS_RESULT_STRING_FIELD(FILL_STRING_FIELD);
+
+    return bridgeResult;
+}
+
+void BridgeFreeGetDeclaredParametersInfoResult(TBridgeGetDeclaredParametersInfoResult* result)
+{
+    FOR_EACH_GET_DECLARE_PARAMETERS_RESULT_STRING_FIELD(FREE_STRING_FIELD);
+    delete result;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Validate that the all functions from the bridge interface are implemented with proper signatures.

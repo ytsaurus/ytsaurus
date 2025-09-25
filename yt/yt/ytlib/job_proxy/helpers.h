@@ -39,4 +39,10 @@ int GetJobFirstOutputTableFDFromSpec(const NControllerAgent::NProto::TUserJobSpe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NChunkClient::TPartitionTags GetOptionalPartitionTags(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
+
+NChunkClient::TPartitionTags GetPartitionTags(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobProxy
