@@ -535,6 +535,9 @@ struct TDynamicSequoiaChunkReplicasConfig
     // TODO(aleksandra-zh): remove that.
     std::vector<TErrorCode> RetriableErrorCodes;
 
+    // COMPAT(aleksandra-zh).
+    bool AlwaysIncludeUnapprovedReplicas;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);

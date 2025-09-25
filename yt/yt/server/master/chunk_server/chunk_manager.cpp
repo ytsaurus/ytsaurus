@@ -2866,7 +2866,6 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         node->Reset(nodeTracker);
 
-
         for (auto location : node->ChunkLocations()) {
             DiscardEndorsements(location);
 
