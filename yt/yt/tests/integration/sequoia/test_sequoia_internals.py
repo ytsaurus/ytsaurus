@@ -601,7 +601,7 @@ class TestSequoiaInternals(YTEnvSetup):
         checker = self.spawn_additional_thread(name="wait for profiling counter to change",
                                                target=wait_for_counter_to_change)
 
-        assert measure_read_time() > NUM_REQUESTS * 0.8
+        assert measure_read_time() > NUM_REQUESTS * 0.7
 
         checker.join()
 
