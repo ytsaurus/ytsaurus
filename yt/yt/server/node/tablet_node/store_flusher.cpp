@@ -167,7 +167,8 @@ public:
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler_.Gauge("/running_store_flushes")))
         , Orchid_(New<TFlushOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreFlusher->Orchid))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreFlusher->Orchid,
+            Profiler_))
         , OrchidService_(CreateOrchidService())
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -238,6 +239,8 @@ private:
         ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
         BackingMemoryUsage_ = 0;
+
+        Orchid_->OnProfiling();
     }
 
     void OnScanSlot(const ITabletSlotPtr& slot)

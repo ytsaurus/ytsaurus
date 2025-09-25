@@ -949,9 +949,11 @@ public:
             Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
         , CompactionOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Profiler_.WithTag("activity", "compaction")))
         , PartitioningOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -968,6 +970,9 @@ public:
         ScanForCompactions_ = CompactionSemaphore_->IsReady();
         PartitioningCandidates_.clear(); // Though must be clear already.
         CompactionCandidates_.clear(); // Though must be clear already.
+
+        CompactionOrchid_->OnProfiling();
+        PartitioningOrchid_->OnProfiling();
     }
 
     void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) override
