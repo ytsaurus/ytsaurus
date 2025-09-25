@@ -9,7 +9,7 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_helpers import profiler_factory
 
-from yt_queries import get_query_tracker_info
+from yt_queries import get_query_tracker_info, get_declared_parameters_info
 
 from yt.wrapper import yson, YtError
 
@@ -1614,6 +1614,30 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
         self._test_qt_info_with_incorrect_yqla_stage()
 
 
+class TestDeclare(TestQueriesYqlBase):
+    @authors("kirsiv40")
+    def test_declare(self, query_tracker, yql_agent):
+        assert get_declared_parameters_info("select 1;", "yql") == {}
+
+        query_text = "DECLARE $VAR as string;\nselect 1;\nselect $VAR as result"
+        assert get_declared_parameters_info(query_text, "yql") == {'$VAR': 'String'}
+
+        query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"}}"})
+        query.track()
+        assert query.read_result(1)[0]["result"] == "test-string"
+
+        query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"};\"$some_unused_var\"={\"Data\"=\"111\"}}"})
+        query.track()
+        assert query.read_result(1)[0]["result"] == "test-string"
+
+        # a syntactially correct query can still be parsed even if it can't be executed
+        query_text = "DECLARE $VAR as Json;\nselect 1;\nselect $VAR as result;select FileContent(\"some-file\");"
+        assert get_declared_parameters_info(query_text, "yql") == {'$VAR': 'Json'}
+
+
+##################################################################
+
+
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
 class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithMaxYqlVersion):
@@ -1640,6 +1664,13 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersionRpcProxy(TestGetQueryTracke
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
+    DRIVER_BACKEND = "rpc"
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("kirsiv40")
+@pytest.mark.enabled_multidaemon
+class TestDeclareRpcProxy(TestDeclare):
     DRIVER_BACKEND = "rpc"
     ENABLE_MULTIDAEMON = True
 

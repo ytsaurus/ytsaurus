@@ -371,31 +371,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlEngineInfoProvider
-    : public IQueryEngineInfoProvider
+class TProxyYqlEngineProvider
+    : public IProxyEngineProvider
 {
 public:
-    TYqlEngineInfoProvider(IClientPtr stateClient, TYPath stateRoot)
+    TProxyYqlEngineProvider(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
     { }
 
-    NYson::TYsonString GetEngineInfo(IMapNodePtr settingsMap) override
+    TYsonString GetEngineInfo(IMapNodePtr settingsMap) override
     {
         auto stage = settingsMap->GetChildValueOrDefault("yql_agent_stage", DefaultYqlAgentStageName);
 
-        std::vector<std::string> availableYqlVersions;
-        std::string defaultYqlUIVersion;
-
-        auto connection = DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection());
-
-        auto providerInfo = connection->GetYqlAgentChannelProviderOrThrow(stage);
-        auto yqlAgentChannelProvider = providerInfo.first;
-        auto yqlServiceName = NYqlClient::TYqlServiceProxy::GetDescriptor().ServiceName;
-
-        auto yqlAgentChannel = WaitForFast(yqlAgentChannelProvider->GetChannel(yqlServiceName))
-            .ValueOrThrow();
-        TYqlServiceProxy proxy(yqlAgentChannel);
+        auto proxy = CreateProxy(stage);
 
         YT_LOG_DEBUG("Sending YQLA GetYqlAgentInfo request");
 
@@ -403,6 +392,9 @@ public:
         getYqlAgentInfoRequest->SetTimeout(TDuration::Seconds(10));
         auto getYqlAgentInfoResponse = WaitFor(getYqlAgentInfoRequest->Invoke())
             .ValueOrThrow();
+
+        std::vector<std::string> availableYqlVersions;
+        std::string defaultYqlUIVersion;
 
         FromProto(&availableYqlVersions, getYqlAgentInfoResponse->available_yql_versions());
         FromProto(&defaultYqlUIVersion, getYqlAgentInfoResponse->default_ui_yql_version());
@@ -415,9 +407,66 @@ public:
             .EndMap();
     }
 
+    TYsonString GetDeclaredParametersInfo(const std::string& query, const TYsonString& settings) override
+    {
+        auto stage = ConvertTo<TYqlSettingsPtr>(ConvertToNode(settings))->Stage.value_or(DefaultYqlAgentStageName);
+
+        auto proxy = CreateProxy(stage);
+
+        YT_LOG_DEBUG("Sending YQLA GetDeclaredParametersInfo request");
+
+        auto getDeclaredParametersInfoRequest = proxy.GetDeclaredParametersInfo();
+        getDeclaredParametersInfoRequest->SetTimeout(TDuration::Seconds(10));
+
+        getDeclaredParametersInfoRequest->set_query(query);
+        getDeclaredParametersInfoRequest->set_settings(ToProto(settings));
+
+        auto getDeclaredParametersInfoResponse = WaitFor(getDeclaredParametersInfoRequest->Invoke())
+            .ValueOrThrow();
+
+        auto declaredParametersInfo = TYsonString(TString(getDeclaredParametersInfoResponse->declared_parameters_info()));
+        YT_LOG_DEBUG("GetYqlAgentInfo response recieved (DeclaredParametersInfo: %v)", declaredParametersInfo);
+
+        static const TYsonString EmptyMap = TYsonString(TString("{}"));
+        auto rawParametersNode = ConvertToNode(declaredParametersInfo);
+        if (rawParametersNode->GetType() != ENodeType::Map) {
+            YT_LOG_DEBUG("Declared parameters node recieved from YQL facade has incorrect type. Expected map. (NodeType: %v)", rawParametersNode->GetType());
+            return EmptyMap;
+        }
+        auto processedParameters = ConvertToNode(EmptyMap)->AsMap();
+        for (const auto& [key, valueNode] : rawParametersNode->AsMap()->GetChildren()) {
+            if (valueNode->GetType() != ENodeType::List) {
+                YT_LOG_DEBUG("Node with declared parameter info has incorrect type. Expected list. (NodeType: %v)", valueNode->GetType());
+                continue;
+            }
+            auto list = valueNode->AsList()->GetChildren();
+            if (list.size() != 2 || list[0]->AsString()->GetValue() != "DataType") {
+                YT_LOG_DEBUG("Declared parameter info list has incorrect format. Expected first element to be 'DataType', and second to be parameter type. (ParameterInfoList: %v)", ConvertToYsonString(valueNode));
+                continue;
+            }
+            processedParameters->AddChild(key, ConvertToNode(list[1]->AsString()->GetValue()));
+        }
+        return ConvertToYsonString(processedParameters);
+    }
+
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
+
+    TYqlServiceProxy CreateProxy(const std::string& stage)
+    {
+        auto connection = DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection());
+
+        auto providerInfo = connection->GetYqlAgentChannelProviderOrThrow(stage);
+        auto yqlAgentChannelProvider = providerInfo.first;
+        auto yqlServiceName = NYqlClient::TYqlServiceProxy::GetDescriptor().ServiceName;
+
+        auto yqlAgentChannel = WaitForFast(yqlAgentChannelProvider->GetChannel(yqlServiceName))
+            .ValueOrThrow();
+        TYqlServiceProxy proxy(yqlAgentChannel);
+
+        return proxy;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -429,9 +478,9 @@ IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEngineInfoProviderPtr CreateYqlEngineInfoProvider(const IClientPtr& stateClient, const TYPath& stateRoot)
+IProxyEngineProviderPtr CreateProxyYqlEngineProvider(const IClientPtr& stateClient, const TYPath& stateRoot)
 {
-    return New<TYqlEngineInfoProvider>(stateClient, stateRoot);
+    return New<TProxyYqlEngineProvider>(stateClient, stateRoot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,7 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(yt)
 add_subdirectory(interface)
 add_subdirectory(library)
+add_subdirectory(yt)
 add_subdirectory(examples)

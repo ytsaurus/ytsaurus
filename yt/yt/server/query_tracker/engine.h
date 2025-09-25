@@ -48,13 +48,15 @@ DEFINE_REFCOUNTED_TYPE(IQueryEngine)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IQueryEngineInfoProvider
+struct IProxyEngineProvider
     : public TRefCounted
 {
     virtual NYson::TYsonString GetEngineInfo(NYTree::IMapNodePtr settingsMap) = 0;
+
+    virtual NYson::TYsonString GetDeclaredParametersInfo(const std::string& query, const NYson::TYsonString& settings) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IQueryEngineInfoProvider)
+DEFINE_REFCOUNTED_TYPE(IProxyEngineProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

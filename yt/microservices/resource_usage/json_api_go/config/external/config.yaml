@@ -1,0 +1,26 @@
+http_addr: "[::]:80"
+http_handler_timeout: 120000000000
+
+debug_http_addr: "[::]:81"
+
+cors: 
+  allowed_hosts: []
+  allowed_host_suffixes: [".ytsaurus.tech"]
+
+auth_cookie_name: "Session_id"
+
+snapshot_root: "//sys/admin/yt-microservices/resource_usage"
+
+logs_dir: "logs/"
+
+excluded_fields: []
+update_snapshots_on_every_request: false
+
+included_clusters:
+  - proxy: "proxy_for_yt_client"
+    cluster_name: "cluster_name"
+
+bulk_acl_checker_base_url: "https://bulk-acl-checker.ytsaurus.tech"
+
+debug_login: ""
+disable_acl: true

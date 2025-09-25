@@ -13,6 +13,8 @@
 # changes in this file.
 
 add_subdirectory(query_tracker_client)
+add_subdirectory(hedging)
+add_subdirectory(cache)
 add_subdirectory(logging)
 add_subdirectory(formats)
 add_subdirectory(arrow)
@@ -21,10 +23,8 @@ add_subdirectory(query_client)
 add_subdirectory(signature)
 add_subdirectory(table_client)
 add_subdirectory(unittests)
-add_subdirectory(cache)
 add_subdirectory(driver)
 add_subdirectory(federated)
-add_subdirectory(hedging)
 
 set(YT_RPC_MODIFY_ROWS_STRONG_LOCKS_VERSION 2)
 

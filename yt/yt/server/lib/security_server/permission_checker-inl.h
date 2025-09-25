@@ -56,9 +56,6 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         }
     }
 
-    if (ace.Expression && !Response_.RowLevelAcl) {
-        Response_.RowLevelAcl.emplace();
-    }
 
     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
         return;
@@ -75,6 +72,20 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         if (!CheckVitalityMatch(*ace.Vital, Options_->Vital.value_or(false))) {
             return;
         }
+    }
+
+    // NB(coteeq): Generally, Row-Level ACE presence means that some action
+    // should be partially denied (e.g. read-like action must return only
+    // a subset of rows). We do not want to break this rule, so we do not want
+    // to return RL ACEs while checking non-read permissions (the logic
+    // in GetBasicAttributes also relies on this rule).
+    //
+    // At this point, we already checked that caller requested relevant permission.
+    // Keeping in mind that row-level ACE must have exactly ["read"] permissions,
+    // we can be sure that the caller must have requested read, so we can safely
+    // emplace into RowLevelAcl in the response.
+    if (ace.Expression && !Response_.RowLevelAcl) {
+        Response_.RowLevelAcl.emplace();
     }
 
     for (auto subject : ace.Subjects) {

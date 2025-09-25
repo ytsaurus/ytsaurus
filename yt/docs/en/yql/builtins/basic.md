@@ -3,6 +3,7 @@
 
 Below are the general-purpose functions. For specialized functions, there are separate articles: [aggregate](aggregation.md), [window](window.md), as well as for [lists](list.md), [dictionaries](dict.md), [structures](struct.md), [data types](types.md), and [code generation](codegen.md).
 
+
 ## COALESCE {#coalesce}
 
 Goes through the arguments from left to right and returns the first non-empty argument found. For the result to be guaranteed non-empty (not [optional type](../types/optional.md)), the rightmost argument must be of this type (a literal is often used). If there is one argument, returns it without change.
@@ -358,6 +359,7 @@ Builds a `Callable` object by the specified function name and optional `externa
 * `Udf(Foo::Bar)(1, 2, 'abc')` — Calling the UDF `Foo::Bar`.
 * `Udf(Foo::Bar, Int32, @@{"device":"AHCI"}@@ as TypeConfig")(1, 2, 'abc')`: Calling the `Foo::Bar` user-defined function with an additional `Int32` type and a specified `TypeConfig`.
 * `Udf(Foo::Bar, "1e9+7" as RunConfig")(1, 'extended' As Precision)`: Calling the `Foo::Bar` user-defined function with the specified `RunConfig` and named parameters.
+* `Udf(Foo::Bar, $parent as Depends)`: Calling the `Foo::Bar` user-defined function indicating the dependency of the calculation on a given node (starting with version [2025.03](../changelog/2025.03.md)).
 
 #### Signatures
 
@@ -918,6 +920,7 @@ No arguments. When used together with [CONCAT](../syntax/select/concat.md#concat
 SELECT TableRecordIndex() FROM my_table;
 ```
 
+
 ## TableRow, JoinTableRow {#tablerow}
 
 Getting the entire table row as a structure. No arguments. `JoinTableRow` in case of `JOIN` always returns a structure with table prefixes.
@@ -933,7 +936,6 @@ TableRow()->Struct
 ```yql
 SELECT TableRow() FROM my_table;
 ```
-
 
 ## FileContent and FilePath {#file-content-path}
 
@@ -1016,8 +1018,6 @@ WHERE int_column IN ParseFile("Int64", "my_file.txt");
 ```
 
 
-{% if audience == "internal" %}In [yql]({{ml-link}}/lists/yql), you can request adding a desired format for ParseFile if this format is widespread.{% endif %}
-
 ## WeakField {#weakfield}
 
 Fetches a table column from a strong schema, if it is in a strong schema, or from the `_other` and `_rest` fields. If the value is missing, it returns `NULL`.
@@ -1062,6 +1062,8 @@ Arguments:
 3. An optional string with an error comment to be included in the overall error message when the query is complete. The data itself can't be used for type checks, since the data check is performed at query validation (or can be an arbitrary expression in the case of Ensure).
 
 To check the conditions based on the final calculation result, it's convenient to combine Ensure with [DISCARD SELECT](../syntax/discard.md).
+
+Ensure calculation is not guaranteed if the program result does not depend on its return value. In particular, don't use singular types, such as `Null`,`Void`,`EmptyList`,`EmptyDict`, or empty `Struct`/`Tuple`, as the first Ensure argument.
 
 #### Examples
 
@@ -1136,6 +1138,45 @@ WHERE Likely(a.amount > 0)  -- This condition is almost always true
 ```
 
 When you use `Likely`, the optimizer won't attempt to perform filtering before `JOIN`.
+
+## WithSideEffects, WithSideEffectsMode {#side_effects}
+
+#### Signature
+
+```yql
+WithSideEffects(T)->T
+WithSideEffectsMode(T, mode:string)->T
+```
+
+The functions are available starting with version [2025.04](../changelog/2025.04.md).
+The `WithSideEffects` or `WithSideEffectsMode` function returns its first argument. The function serves as a requirement for the optimizer and marks the internal expression (usually a UDF call) as the one containing side effects.
+
+A side effect is:
+* The impact of a function call on another function beyond passing data in arguments — for example, through a global state.
+* Observed behavior beyond YQL during query execution — for example, reading/writing data in external systems.
+
+Not a side effect:
+* UDF counters and logs available in the ABI. In other words, optimizations that change the values of these counters or log entries due to a different number of UDF calls are allowed.
+* Query execution error.
+
+The optimizer should not remove the calculation of this expression and should generally not change the number of its calculations if it depends, for example, on each table row.
+
+Possible mode values:
+
+* `General`: All side effects are allowed; common subexpressions can't be deleted.
+* `SemilatticeRT`: Only idempotent and commutative side effects are allowed; the expression result can be calculated once and reused, allowing for the removal of common subexpressions.
+* `None`: Side effects are not allowed beyond the expression.
+
+Using the `WithSideEffects` function is equivalent to calling `WithSideEffectsMode` with the mode set to `General`.
+
+A typical example of a `General` side effect is executing `UPDATE` to another system and returning the number of modified entries as the expression result.
+A typical example of a `SemilatticeRT` side effect is executing `UPSERT` to a table without non-key columns (which is an idempotent and commutative action) and returning the number of sent entries as the expression result.
+
+#### Example
+
+```yql
+SELECT WithSideEffects(MyModule::Func(...)) FROM table
+```
 
 ## EvaluateExpr, EvaluateAtom {#evaluate_expr_atom}
 

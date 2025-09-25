@@ -222,6 +222,29 @@ def get_query_tracker_info(attributes=None, stage=None, format=None, client=None
 
     return make_formatted_request("get_query_tracker_info", params=params, format=format, client=client)
 
+
+def get_declared_parameters_info(query, engine, stage=None, settings=None, format=None, client=None):
+    """Get parameters DECLAREd in YQL query. Currently supported only for YQL.
+
+    :param query: text of query to be parsed
+    :type query: str
+    :param engine: query engine, one of "ql", "yql", "chyt", "spyt".
+    :type engine: str
+    :param stage: query tracker stage, defaults to "production"
+    :type stage: str
+    :param settings: a dictionary of settings
+    :type settings: dict or None
+    """
+
+    params = {
+        "query": query,
+        "engine": engine,
+        "stage": get_value(stage, "production"),
+    }
+    set_param(params, "settings", settings)
+
+    return make_formatted_request("get_declared_parameters_info", params=params, format=format, client=client)
+
 # Helpers
 
 

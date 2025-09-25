@@ -12,10 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(library)
-add_subdirectory(interface)
 add_subdirectory(client)
 add_subdirectory(common)
+add_subdirectory(interface)
 add_subdirectory(http)
 add_subdirectory(http_client)
 add_subdirectory(io)
@@ -23,4 +22,5 @@ add_subdirectory(skiff)
 add_subdirectory(rpc_client)
 add_subdirectory(util)
 add_subdirectory(tests)
+add_subdirectory(library)
 add_subdirectory(examples)

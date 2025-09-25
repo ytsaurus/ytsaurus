@@ -858,6 +858,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ListQueries));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterQuery));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
             .SetCancelable(true));
@@ -7064,6 +7065,28 @@ private:
                 response->MergeFrom(result->rpc_proxy_response());
 
                 context->SetResponseInfo("ClusterName: %v", response->cluster_name());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetDeclaredParametersInfo)
+    {
+        auto proxy = GetQueryTrackerProxy(context, request);
+
+        auto req = proxy.GetDeclaredParametersInfo();
+        FillQueryTrackerRequest(context, request, req);
+
+        context->SetRequestInfo("Stage: %v", request->query_tracker_stage());
+
+        ExecuteCall(
+            context,
+            [=] {
+                return req->Invoke();
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->MergeFrom(result->rpc_proxy_response());
+
+                context->SetResponseInfo();
             });
     }
 

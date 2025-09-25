@@ -29,8 +29,8 @@ get_built_tool_path(
 )
 
 add_subdirectory(dry_run)
-add_subdirectory(mock)
 add_subdirectory(unittests)
+add_subdirectory(mock)
 
 add_library(server-lib-hydra)
 
