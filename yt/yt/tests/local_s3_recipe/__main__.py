@@ -44,7 +44,7 @@ def wait_for_s3_start(endpoint_url):
 
 
 def start(_: List[str]) -> None:
-    base_path = os.path.join(get_source_root(), "yt/yt/tests/local-s3")
+    base_path = os.path.join(get_source_root(), "yt/yt/tests/local_s3_recipe")
 
     # Retrieve the necessary environment variables' values.
     endpoint_url = os.environ["AWS_ENDPOINT_URL"]

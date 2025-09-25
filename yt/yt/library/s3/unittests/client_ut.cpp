@@ -40,7 +40,7 @@ private:
         auto accessKeyId = GetEnv("AWS_ACCESS_KEY_ID");
         auto secretAccessKey = GetEnv("AWS_SECRET_ACCESS_KEY");
         if (endpointUrl.empty() || region.empty() || accessKeyId.empty() || secretAccessKey.empty()) {
-            GTEST_SKIP() << "Skipping S3 client tests as no S3 environment is configured";
+            GTEST_FAIL() << "S3 environment is not configured; check if the local_s3_recipe is included";
         }
 
         auto clientConfig = New<NS3::TS3ClientConfig>();

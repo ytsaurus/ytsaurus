@@ -12,13 +12,13 @@ DEFAULT(AWS_SECRET_ACCESS_KEY S3_PROXY_CREDENTIAL)
 ENV(AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY)
 
 DEPENDS(
-    yt/yt/tests/local-s3
+    yt/yt/tests/local_s3_recipe
 )
 
 DATA(
-    arcadia/yt/yt/tests/local-s3/bin/s3proxy
+    arcadia/yt/yt/tests/local_s3_recipe/bin/s3proxy
 )
 
 USE_RECIPE(
-    yt/yt/tests/local-s3/local_s3_recipe
+    yt/yt/tests/local_s3_recipe/local_s3_recipe
 )

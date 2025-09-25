@@ -1,7 +1,7 @@
 PY3_PROGRAM(local_s3_recipe)
 
 SRCDIR(
-    yt/yt/tests/local-s3
+    yt/yt/tests/local_s3_recipe
 )
 
 PY_SRCS(__main__.py)
