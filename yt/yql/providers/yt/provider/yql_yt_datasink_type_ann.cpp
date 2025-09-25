@@ -1788,14 +1788,14 @@ private:
                 next.Meta->DoesExist = true;
 
                 TVector<TString> keys(create.Keys().Size());
-                std::unordered_set<TString> keysSet(create.Keys().Size());
+                std::unordered_set<std::string_view> keysSet(create.Keys().Size());
                 auto ik = keys.begin();
                 create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
-                    keysSet.emplace(TString(node.Content()));
+                    keysSet.emplace(node.Content());
                     (*ik++) = node.Content();
                 });
                 if (keys.size() != keysSet.size()) {
-                    ctx.AddError(TIssue(ctx.GetPosition(create.Keys().Pos()), "Primary key has duplicate keys."));
+                    ctx.AddError(TIssue(ctx.GetPosition(create.Keys().Pos()), "Primary key has duplicate columns."));
                     return TStatus::Error;
                 }
 
@@ -1803,7 +1803,7 @@ private:
                 auto it = items.begin();
                 create.Columns().Ref().ForEachChild([&](const TExprNode& node) {
                     const auto type = node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
-                    (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), keysSet.contains(TString(node.Head().Content())) ? RemoveOptionalType(type) : type);
+                    (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), keysSet.contains(node.Head().Content()) ? RemoveOptionalType(type) : type);
                 });
 
                 const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
