@@ -131,6 +131,11 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pause_at_smooth_movement_stage", &TThis::PauseAtSmoothMovementStage)
         .Default();
+
+    registrar.Parameter("partitioning_delay", &TThis::PartitioningDelay)
+        .Default();
+    registrar.Parameter("compaction_delay", &TThis::CompactionDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,6 +359,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("always_flush_to_eden", &TThis::AlwaysFlushToEden)
+        .Default(false);
+
+    registrar.Parameter("enable_concurrent_eden_partitioning_and_compaction", &TThis::EnableConcurrentEdenPartitioningAndCompaction)
         .Default(false);
 
     registrar.Parameter("enable_data_node_lookup", &TThis::EnableDataNodeLookup)

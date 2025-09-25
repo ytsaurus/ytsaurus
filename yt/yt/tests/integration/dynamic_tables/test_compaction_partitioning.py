@@ -1116,6 +1116,44 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@tablets/0/performance_counters/static_chunk_row_read_count") == 0
         wait(lambda: get("//tmp/t/@tablets/0/performance_counters/compaction_data_weight_count") == get("//tmp/t/@data_weight"))
 
+    @authors("tem-shett")
+    @pytest.mark.parametrize("delays", [{"partitioning": 1000000, "compaction": 5000}, {"partitioning": 5000, "compaction": 1000000}])
+    def test_concurrent_eden_partitioning_and_compaction(self, delays):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "always_flush_to_eden": True,
+                "enable_concurrent_eden_partitioning_and_compaction": True,
+                "max_dynamic_store_row_coun": 1,
+                # 1500 is approximately equal to 1.5 * chunk_size.
+                "min_partitioning_data_size": 1500,
+                "backing_store_retention_time": 0,
+                "testing": {
+                    "partitioning_delay": delays["partitioning"],
+                    "compaction_delay": delays["compaction"]
+                }
+            },
+            compression_codec="none"
+        )
+
+        sync_mount_table("//tmp/t")
+        for i in range(10):
+            insert_rows("//tmp/t", [{"key": i, "value": 'a' * 1000}])
+            sync_flush_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        wait(lambda: len(get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/partitioning_tasks/running_tasks")) > 0)
+        wait(lambda: len(get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/running_tasks")) > 0)
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/eden/state") == "partitioning_and_compacting")
+        if delays["partitioning"] > delays["compaction"]:
+            wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/eden/state") == "partitioning")
+        else:
+            wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/eden/state") == "compacting")
+
 
 ################################################################################
 
