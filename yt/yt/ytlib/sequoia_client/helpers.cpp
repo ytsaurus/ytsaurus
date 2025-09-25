@@ -133,10 +133,18 @@ bool IsRetriableSequoiaError(const TError& error)
 
 bool IsRetriableSequoiaReplicasError(
     const TError& error,
-    const std::vector<TErrorCode>& /*retriableErrorCodes*/)
+    const std::vector<TErrorCode>& retriableErrorCodes)
 {
     if (error.IsOK()) {
         return false;
+    }
+
+    if (error.FindMatching(
+        [&] (TErrorCode errorCode) {
+            return std::ranges::find(retriableErrorCodes, errorCode) != retriableErrorCodes.end();
+        }))
+    {
+        return true;
     }
 
     return !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
