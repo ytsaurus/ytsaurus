@@ -2,9 +2,9 @@
 
 PY3_LIBRARY()
 
-VERSION(1.16.1)
+VERSION(1.16.2)
 
-ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.16.1.tar.gz)
+ORIGINAL_SOURCE(mirror://pypi/s/scipy/scipy-1.16.2.tar.gz)
 
 LICENSE(BSD-3-Clause)
 
