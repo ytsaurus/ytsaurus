@@ -187,7 +187,6 @@ void FormatValue(TStringBuilderBase* builder, TStoredReplica value, TStringBuf s
 
 void ToProto(ui64* protoValue, TStoredReplica value)
 {
-
     Visit(value.ReplicaInfo_,
         [&] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
             ToProto(protoValue, chunkLocation);

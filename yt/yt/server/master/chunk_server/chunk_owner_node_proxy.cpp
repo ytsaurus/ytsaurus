@@ -155,6 +155,7 @@ static void PopulateChunkSpecWithReplicas(
 
     auto addReplica = [&] (TStoredReplica replica)  {
         if (!replica.IsChunkLocation()) {
+            // TODO(cherepashka): actually return medium replicas in chunk specs, once more logic is here.
             return false;
         }
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {

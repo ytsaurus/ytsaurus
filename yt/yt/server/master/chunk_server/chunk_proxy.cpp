@@ -105,14 +105,6 @@ static_assert(IsLeaderChunkScanKind(EChunkScanKind::GlobalStatisticsCollector));
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_BIT_ENUM(EStoredReplicasType,
-    ((None)        (0x0000))
-    ((Master)      (0x0001))
-    ((Offshore)    (0x0002))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkProxy
     : public TNonversionedObjectProxyBase<TChunk>
 {
@@ -139,9 +131,6 @@ private:
             .SetPresent(!isForeign)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredMasterReplicas)
-            .SetPresent(!isForeign));
-        // NB: Offshore replicas are not stored in Sequoia and thus don't have to be opaque for now.
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredOffshoreReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
             .SetPresent(!isForeign)
@@ -299,7 +288,8 @@ private:
         const TChunkLocation* location,
         int replicaIndex,
         EChunkReplicaState replicaState,
-        int mediumIndex)
+        int mediumIndex,
+        bool offshoreMedium)
     {
         auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
         fluent.Item()
@@ -321,6 +311,10 @@ private:
                     fluent
                         .Item("state").Value(replicaState);
                 })
+                .DoIf(offshoreMedium, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("offshore").Value(true);
+                })
             .EndAttributes()
             // Maybe not the cleanest approach, but good enough for now.
             .Value(node ? node->GetDefaultAddress() : TString(medium->GetName()));
@@ -330,8 +324,7 @@ private:
         IYsonConsumer* consumer,
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
-        TStoredReplicaList replicas,
-        EStoredReplicasType storedReplicasType)
+        TStoredReplicaList replicas)
     {
         SortBy(replicas, [] (TStoredReplica replica) {
             return std::tuple(replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
@@ -339,13 +332,6 @@ private:
 
         BuildYsonFluently(consumer)
             .DoListFor(replicas, [&] (TFluentList fluent, TStoredReplica replica) {
-                if (None(storedReplicasType & EStoredReplicasType::Master) && replica.IsChunkLocation()) {
-                    return;
-                }
-                if (None(storedReplicasType & EStoredReplicasType::Offshore) && replica.IsMedium()) {
-                    return;
-                }
-
                 TChunkLocation* location = nullptr;
                 TNodeRawPtr node = nullptr;
                 if (replica.IsChunkLocation()) {
@@ -360,7 +346,8 @@ private:
                     location,
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
-                    location->GetEffectiveMediumIndex());
+                    location->GetEffectiveMediumIndex(),
+                    /*offshoreMedium*/ replica.IsMedium());
             });
     };
 
@@ -389,23 +376,7 @@ private:
                     consumer,
                     chunkManager,
                     chunk->GetId(),
-                    replicaList,
-                    EStoredReplicasType::Master);
-                return true;
-            }
-
-             case EInternedAttributeKey::StoredOffshoreReplicas: {
-                if (isForeign) {
-                    break;
-                }
-
-                auto storedReplicas = chunk->StoredReplicas();
-                TStoredReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
-                BuildYsonReplicas(consumer,
-                    chunkManager,
-                    chunk->GetId(),
-                    replicaList,
-                    EStoredReplicasType::Offshore);
+                    replicaList);
                 return true;
             }
 
@@ -966,7 +937,8 @@ private:
                             /*location*/ nullptr,
                             replica.GetReplicaIndex(),
                             replica.GetReplicaState(),
-                            replica.GetMediumIndex());
+                            replica.GetMediumIndex(),
+                            /*offshoreMedium*/ false);
                     });
                 return true;
             }
@@ -1173,8 +1145,7 @@ private:
                                     fluent.GetConsumer(),
                                     chunkManager,
                                     chunkId,
-                                    aliveReplicas,
-                                    EStoredReplicasType::Master | EStoredReplicasType::Offshore);
+                                    aliveReplicas);
                             });
                     }));
             }
@@ -1197,8 +1168,7 @@ private:
                                     fluent.GetConsumer(),
                                     chunkManager,
                                     chunkId,
-                                    chunkReplicas,
-                                    EStoredReplicasType::Master);
+                                    chunkReplicas);
                             });
                     }));
             }
