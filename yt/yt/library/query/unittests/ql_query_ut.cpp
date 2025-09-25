@@ -4503,6 +4503,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         "a=1;nestedA=[1;2;3;4];nestedB=[-1;-2;-3]",
         "a=3;nestedA=[5;6;7];nestedB=[-5;-6;-7;-8]",
         "a=5;nestedA=[];nestedB=[]",
+        "a=6;nestedA=[9];nestedB=#",
     };
 
     auto split = MakeSplit({
@@ -4526,6 +4527,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         "a=3; flattenedA=6; flattenedB=-6",
         "a=3; flattenedA=7; flattenedB=-7",
         "a=3;               flattenedB=-8",
+        "a=6; flattenedA=9;              ",
     }, resultSplit);
 
     Evaluate(
@@ -4544,6 +4546,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         "a=3; flattenedA=7; flattenedB=-7",
         "a=3;               flattenedB=-8",
         "a=5;                            ",
+        "a=6; flattenedA=9;              ",
     }, resultSplit);
 
     Evaluate(
@@ -4567,6 +4570,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         "a=3; flattenedA=7;",
         "a=3;              ",
         "a=5;              ",
+        "a=6; flattenedA=9;",
     }, resultSplit);
 
     Evaluate(
