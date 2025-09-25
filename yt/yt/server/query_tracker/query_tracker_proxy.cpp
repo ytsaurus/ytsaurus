@@ -927,6 +927,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
             .BeginMap()
                 .Item("access_control").Value(true)
                 .Item("multiple_aco").Value(true)
+                .Item("new_search").Value(true)
             .EndMap();
     }
 

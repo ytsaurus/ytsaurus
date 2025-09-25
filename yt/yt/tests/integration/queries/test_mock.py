@@ -735,14 +735,23 @@ class TestAccessControl(YTEnvSetup):
         with raises_yt_error(ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
 
-    @authors("aleksandr.gaev", "kirsiv40")
+
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfo(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+    ENABLE_MULTIDAEMON = True
+    SUPPORTED_FEATURES = {'access_control': True, 'multiple_aco': True, 'new_search_on_proxies': True, 'new_search': True}
+
+    @authors("aleksandr.gaev", "kirsiv40", "mpereskokova")
     def test_get_query_tracker_info(self, query_tracker):
         def check_qt_info(expected=None, **kwargs):
             info = get_query_tracker_info(**kwargs)
             assert isinstance(info.pop("expected_tables_version"), int)
             assert info == expected
 
-        supported_features = {'access_control': True, 'multiple_aco': True}
+        supported_features = self.SUPPORTED_FEATURES
 
         check_qt_info(
             expected={
@@ -1371,6 +1380,16 @@ class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
+
+
+@authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+    SUPPORTED_FEATURES = {'access_control': True, 'multiple_aco': True, 'new_search': True}
 
 
 @authors("kirsiv40")
