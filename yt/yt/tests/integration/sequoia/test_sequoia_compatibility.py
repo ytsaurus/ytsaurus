@@ -93,7 +93,7 @@ class TestSequoiaCompatibility(YTEnvSetup):
                 attributes={
                     "dynamic": True,
                     "schema": schema,
-                    "tablet_cell_bundle": "sequoia",
+                    "tablet_cell_bundle": "sequoia-cypress",
                     "account": "sequoia",
                     "in_memory_mode": "uncompressed",
                 },

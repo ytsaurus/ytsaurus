@@ -222,7 +222,9 @@ public:
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
-        SequoiaTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xfffffffffffffffe);
+        // NB(danilalexeev): YT-25348. The "0xfffffffffffffffe" counter is reserved.
+        SequoiaChunksTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xfffffffffffffffd);
+        SequoiaCypressTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xfffffffffffffffc);
 
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletUnmounted, Unretained(this)));
@@ -2740,8 +2742,11 @@ private:
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
-    TTabletCellBundleId SequoiaTabletCellBundleId_;
-    TTabletCellBundle* SequoiaTabletCellBundle_ = nullptr;
+    TTabletCellBundleId SequoiaChunksTabletCellBundleId_;
+    TTabletCellBundle* SequoiaChunksTabletCellBundle_ = nullptr;
+
+    TTabletCellBundleId SequoiaCypressTabletCellBundleId_;
+    TTabletCellBundle* SequoiaCypressTabletCellBundle_ = nullptr;
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
 
@@ -4357,7 +4362,8 @@ private:
         TableReplicaMap_.Clear();
 
         DefaultTabletCellBundle_ = nullptr;
-        SequoiaTabletCellBundle_ = nullptr;
+        SequoiaChunksTabletCellBundle_ = nullptr;
+        SequoiaCypressTabletCellBundle_ = nullptr;
         NonAvenueTabletCount_ = 0;
     }
 
@@ -4424,19 +4430,34 @@ private:
             DefaultTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
         }
 
-        // sequoia
-        if (EnsureBuiltinCellBundleInitialized(SequoiaTabletCellBundle_, SequoiaTabletCellBundleId_, SequoiaTabletCellBundleName)) {
-            SequoiaTabletCellBundle_->Acd().AddEntry(TAccessControlEntry(
+        // sequoia-chunks
+        if (EnsureBuiltinCellBundleInitialized(SequoiaChunksTabletCellBundle_, SequoiaChunksTabletCellBundleId_, SequoiaChunksTabletCellBundleName)) {
+            SequoiaChunksTabletCellBundle_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            SequoiaTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
-            SequoiaTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
+            SequoiaChunksTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaChunksTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
 
-            auto options = SequoiaTabletCellBundle_->GetOptions();
+            auto options = SequoiaChunksTabletCellBundle_->GetOptions();
             options->ChangelogAccount = NSecurityClient::SequoiaAccountName;
             options->SnapshotAccount = NSecurityClient::SequoiaAccountName;
-            SequoiaTabletCellBundle_->SetOptions(std::move(options));
+            SequoiaChunksTabletCellBundle_->SetOptions(std::move(options));
+        }
+
+        // sequoia-cypress
+        if (EnsureBuiltinCellBundleInitialized(SequoiaCypressTabletCellBundle_, SequoiaCypressTabletCellBundleId_, SequoiaCypressTabletCellBundleName)) {
+            SequoiaCypressTabletCellBundle_->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Use));
+            SequoiaCypressTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaCypressTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
+
+            auto options = SequoiaCypressTabletCellBundle_->GetOptions();
+            options->ChangelogAccount = NSecurityClient::SequoiaAccountName;
+            options->SnapshotAccount = NSecurityClient::SequoiaAccountName;
+            SequoiaCypressTabletCellBundle_->SetOptions(std::move(options));
         }
     }
 
