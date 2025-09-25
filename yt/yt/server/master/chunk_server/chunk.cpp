@@ -287,23 +287,6 @@ void TChunk::AddReplica(
     auto* data = MutableReplicasData();
 
     if (medium->IsOffshore()) {
-        if (!replica.IsMedium()) {
-            YT_LOG_ALERT(
-                "Attempted to add offshore medium to chunk replica, ignored"
-                "(ChunkId: %v, MediumIndex: %v)",
-                GetId(),
-                medium->GetIndex());
-            return;
-        }
-        if (replica.GetEffectiveMediumIndex() != medium->GetIndex()) {
-            YT_LOG_ALERT(
-                "Offshore replica medium index differs from medium index, ignored"
-                "(ChunkId: %v, OffshoreReplicaMediumIndex: %v, MediumIndex: %v)",
-                GetId(),
-                replica.GetEffectiveMediumIndex(),
-                medium->GetIndex());
-            return;
-        }
         data->AddStoredReplica(replica);
         return;
     }
