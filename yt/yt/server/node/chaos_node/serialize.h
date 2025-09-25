@@ -25,6 +25,7 @@ DEFINE_ENUM(EChaosReign,
     ((IntroduceChaosObjectAndLease)             (300102)) // gryzlov-ad
     ((FixTransactionActionAbort)                (300103)) // kvk1920
     ((TransactionActionStates)                  (300104)) // babenko
+    ((PersistTransactionSignature_25_2)         (300105)) // ponasenko-rs
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
