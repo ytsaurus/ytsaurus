@@ -134,6 +134,8 @@ public:
 
     std::vector<NScheduler::TIncarnationId> GetRegisteredAgentIncarnationIds() const;
 
+    int GetEpoch() const;
+
 private:
     THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
 
@@ -144,6 +146,9 @@ private:
     NTracing::TSamplerPtr TracingSampler_;
 
     bool MasterConnected_ = false;
+
+    // The epoch changes when CA is added/deleted
+    int Epoch_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -160,6 +165,8 @@ private:
     void OnConfigUpdated(const TControllerAgentConnectorDynamicConfigPtr& newConfig);
 
     void OnJobFinished(const TJobPtr& job);
+
+    void IncrementEpoch();
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
