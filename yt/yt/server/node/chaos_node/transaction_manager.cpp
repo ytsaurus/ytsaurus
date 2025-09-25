@@ -76,7 +76,6 @@ public:
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             Logger))
         , ClockClusterTag_(clockClusterTag)
-        , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -180,8 +179,6 @@ public:
         const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        AbortTransactionIdPool_.Register(transactionId);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
@@ -304,7 +301,6 @@ private:
     const TClusterTag ClockClusterTag_;
 
     TEntityMap<TTransaction> TransactionMap_;
-    TTransactionIdPool AbortTransactionIdPool_;
 
     IYPathServicePtr OrchidService_;
 
@@ -520,11 +516,6 @@ private:
     {
         if (auto* transaction = TransactionMap_.Find(transactionId)) {
             return transaction;
-        }
-
-        if (AbortTransactionIdPool_.IsRegistered(transactionId)) {
-            THROW_ERROR_EXCEPTION("Abort was requested for transaction %v",
-                transactionId);
         }
 
         if (fresh) {
