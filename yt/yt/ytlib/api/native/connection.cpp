@@ -985,11 +985,10 @@ public:
 
         // Slow path: create a new client.
         auto config = Config_.Acquire()->SequoiaConnection;
-        auto localClient = config ? CreateNativeClient(NNative::TClientOptions::Root()) : IClientPtr();
-        auto groundClientFuture = [&] () -> TFuture<IClientPtr> {
+        auto groundClientFuture = [&] {
             if (config) {
                 return InsistentGetRemoteConnection(this, config->GroundClusterName)
-                    .Apply(BIND([] (const IConnectionPtr& groundConnection) {
+                    .Apply(BIND([] (const IConnectionPtr& groundConnection) -> IClientPtr {
                         auto options = NNative::TClientOptions::Root();
                         options.ChannelWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannel);
                         options.ChannelFactoryWrapper = BIND_NO_PROPAGATE(NSequoiaClient::WrapGroundChannelFactory);
@@ -1006,21 +1005,15 @@ public:
             std::move(groundClientFuture));
 
         if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
+            // This was a race.
             return existingSequoiaClient;
         }
 
         YT_LOG_DEBUG("Sequoia client recreated");
 
         if (config) {
-            // We've got a cycle:
-            // *-> local client -> local connection -> sequoia client --*
-            // |                                                        |
-            // *--------------------------------------------------------*
-            //
-            // This callback is scheduled to break it after a short period of time
-            // and force the cached sequoia client to be recreated on demand.
-            //
-            // This also deals with ground cluster reconfiguration.
+            // Keep this cached client for a while but reset it after a given period of time
+            // to ensure changes to cluster directory are propagated to sequoia clients.
             TDelayedExecutor::Submit(
                 BIND([weakThis = MakeWeak(this)] {
                     if (auto this_ = weakThis.Lock()) {
