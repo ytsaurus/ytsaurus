@@ -474,6 +474,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
         YT_LOG_DEBUG(
             "Remove controller agent connector since incarnation is outdated (ControllerAgentDescriptor: %v)",
             ControllerAgentDescriptor_);
+
+        ControllerAgentConnectorPool_->IncrementEpoch();
     } else {
         YT_LOG_DEBUG(
             "Controller agent connector is already removed (ControllerAgentDescriptor: %v)",
@@ -668,6 +670,18 @@ void TControllerAgentConnectorPool::OnJobFinished(const TJobPtr& job)
     }
 }
 
+int TControllerAgentConnectorPool::GetEpoch() const
+{
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+    return Epoch_;
+}
+
+void TControllerAgentConnectorPool::IncrementEpoch()
+{
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+    ++Epoch_;
+}
+
 TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector>
 TControllerAgentConnectorPool::AddControllerAgentConnector(
     TControllerAgentDescriptor agentDescriptor)
@@ -677,6 +691,8 @@ TControllerAgentConnectorPool::AddControllerAgentConnector(
     auto controllerAgentConnector = New<TControllerAgentConnector>(this, agentDescriptor);
 
     EmplaceOrCrash(ControllerAgentConnectors_, std::move(agentDescriptor), controllerAgentConnector);
+
+    IncrementEpoch();
 
     return controllerAgentConnector;
 }

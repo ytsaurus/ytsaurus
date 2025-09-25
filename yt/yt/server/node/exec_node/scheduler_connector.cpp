@@ -441,6 +441,9 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
         *request->mutable_disk_resources() = diskResources;
     }
 
+    const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+    context->Epoch = controllerAgentConnectorPool->GetEpoch();
+
     const auto& jobController = Bootstrap_->GetJobController();
     jobController->PrepareSchedulerHeartbeatRequest(request, context);
 }
