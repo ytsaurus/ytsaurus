@@ -2265,11 +2265,12 @@ class TestRowAcls(YTEnvSetup):
             with raises_yt_error(expected_error):
                 create("table", "//tmp/t", attributes={"acl": [bad_ace]})
 
-    def _prepare_check_permission(self, user):
+    def _prepare_check_permission(self, user, permission="read"):
         create_user("u0")
         create_user("u1")
         create_user("u2")
         create_user("u3")
+        create_user("writer")
 
         acl = [
             make_rl_ace("u0", "a < 3"),
@@ -2277,10 +2278,11 @@ class TestRowAcls(YTEnvSetup):
             make_rl_ace(["u0", "u1"], "c == \"asdf\"", "ignore"),
             make_ace("allow", ["u2"], "full_read"),
             make_rl_ace(["u3"]),
+            make_ace("allow", "writer", "write"),
         ]
 
         create("table", "//tmp/t", attributes={"acl": acl})
-        return check_permission(user, "read", "//tmp/t")
+        return check_permission(user, permission, "//tmp/t")
 
     @authors("coteeq")
     def test_check_permission_u0(self):
@@ -2315,6 +2317,11 @@ class TestRowAcls(YTEnvSetup):
     def test_check_permission_u3(self):
         response = self._prepare_check_permission("u3")
         assert response["row_level_acl"] == []
+
+    @authors("coteeq")
+    def test_check_permission_writer(self):
+        response = self._prepare_check_permission("writer", permission="write")
+        assert "row_level_acl" not in response
 
     @authors("coteeq")
     @pytest.mark.parametrize("mode", ["ignore", "fail"])
@@ -2482,6 +2489,29 @@ class TestRowAcls(YTEnvSetup):
         )
 
         assert self._read("u") == self._rows(4, 5, 6)
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rls_does_not_affect_writes(self, optimize_for):
+        create_user("u")
+        create_user("writer")
+
+        self._create_and_write_table(
+            [
+                make_rl_ace(["u", "writer"]),
+                make_rl_ace("u", "col1 = 4"),
+                make_rl_ace("u", "col1 = 5"),
+                make_ace("allow", "writer", "write"),
+            ],
+            optimize_for,
+        )
+
+        with raises_yt_error("\"write\" permission for node"):
+            write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="u")
+
+        write_table("<append=%true>//tmp/t", self._rows(10, 11), authenticated_user="writer")
+        # Check that 'writer' has row-level acl in effect.
+        assert self._read("writer") == []
 
 
 ##################################################################
