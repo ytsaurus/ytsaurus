@@ -2236,6 +2236,6 @@ RUN_PROGRAM(
 
 END()
 
-RECURSE_FOR_TESTS(
+RECURSE(
     tests
 )
