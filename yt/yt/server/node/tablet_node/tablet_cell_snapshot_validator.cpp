@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
 
 #include <yt/yt/server/lib/hydra/snapshot.h>
@@ -48,7 +49,7 @@ ICellarOccupantPtr CreateFakeOccupant(
     const auto& cellarManager = bootstrap
         ->GetCellarNodeBootstrap()
         ->GetCellarManager();
-    const auto& cellar = cellarManager->GetCellar(ECellarType::Tablet);
+    const auto& cellar = cellarManager->GetCellar(GetCellarTypeFromCellId(cellId));
 
     // We create fake tablet slot here populating descriptors with the least amount
     // of data such that configuration succeeds.
