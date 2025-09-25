@@ -1784,41 +1784,45 @@ private:
 
             if (const auto commitEpoch = tableInfo.CommitEpoch) {
                 auto& next = State_->TablesData->GetOrAddTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, commitEpoch);
-                next.Meta = MakeIntrusive<TYtTableMetaInfo>();
-                next.Meta->DoesExist = true;
-
-                TVector<TString> keys(create.Keys().Size());
-                std::unordered_set<std::string_view> keysSet(create.Keys().Size());
-                auto ik = keys.begin();
-                create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
-                    keysSet.emplace(node.Content());
-                    (*ik++) = node.Content();
-                });
-                if (keys.size() != keysSet.size()) {
-                    ctx.AddError(TIssue(ctx.GetPosition(create.Keys().Pos()), "Primary key has duplicate columns."));
-                    return TStatus::Error;
+                if (!next.Meta) {
+                    next.Meta = MakeIntrusive<TYtTableMetaInfo>();
+                    next.Meta->DoesExist = true;
                 }
 
-                TVector<const TItemExprType*> items(create.Columns().Size());
-                auto it = items.begin();
-                create.Columns().Ref().ForEachChild([&](const TExprNode& node) {
-                    const auto type = node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
-                    (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), keysSet.contains(node.Head().Content()) ? RemoveOptionalType(type) : type);
-                });
+                if (!next.RowSpec) {
+                    TVector<TString> keys(create.Keys().Size());
+                    std::unordered_set<std::string_view> keysSet(keys.size());
+                    auto ik = keys.begin();
+                    create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
+                        keysSet.emplace(node.Content());
+                        (*ik++) = node.Content();
+                    });
+                    if (keys.size() != keysSet.size()) {
+                        ctx.AddError(TIssue(ctx.GetPosition(create.Keys().Pos()), "Primary key has duplicate columns."));
+                        return TStatus::Error;
+                    }
 
-                const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
-                next.RowType = rowType;
-                next.IsReplaced = true;
+                    TVector<const TItemExprType*> items(create.Columns().Size());
+                    auto it = items.begin();
+                    create.Columns().Ref().ForEachChild([&](const TExprNode& node) {
+                        const auto type = node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
+                        (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), keysSet.contains(node.Head().Content()) ? RemoveOptionalType(type) : type);
+                    });
 
-                const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
-                next.RowSpec = outTable.RowSpec;
-                if (!keys.empty()) {
-                    next.RowSpec->UniqueKeys = true;
-                    next.RowSpec->SortedBy = std::move(keys);
-                    next.RowSpec->SortDirections.resize(next.RowSpec->SortedBy.size(), true);
-                    next.RowSpec->SortedByTypes.resize(next.RowSpec->SortedBy.size());
-                    std::transform(next.RowSpec->SortedBy.cbegin(), next.RowSpec->SortedBy.cend(), next.RowSpec->SortedByTypes.begin(),
-                        std::bind(&TStructExprType::FindItemType, rowType, std::placeholders::_1));
+                    const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
+                    next.RowType = rowType;
+                    next.IsReplaced = true;
+
+                    const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
+                    next.RowSpec = outTable.RowSpec;
+                    if (!keys.empty()) {
+                        next.RowSpec->UniqueKeys = true;
+                        next.RowSpec->SortedBy = std::move(keys);
+                        next.RowSpec->SortDirections.resize(next.RowSpec->SortedBy.size(), true);
+                        next.RowSpec->SortedByTypes.resize(next.RowSpec->SortedBy.size());
+                        std::transform(next.RowSpec->SortedBy.cbegin(), next.RowSpec->SortedBy.cend(), next.RowSpec->SortedByTypes.begin(),
+                            std::bind(&TStructExprType::FindItemType, rowType, std::placeholders::_1));
+                    }
                 }
             }
         }

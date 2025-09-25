@@ -39,23 +39,6 @@ bool ValidateColumnSettings(TExprNode& columnsSettings, TExprContext& ctx, TVect
     return true;
 }
 
-bool ValidateColumnWithTypesSettings(TExprNode& columnsSettings, TExprContext& ctx) {
-    if (!EnsureTupleMinSize(columnsSettings, 1U, ctx)) {
-        return false;
-    }
-
-    for (const auto& child : columnsSettings.Children()) {
-        if (!EnsureTupleSize(*child, 3U, ctx)) {
-            return false;
-        }
-
-        if (!EnsureAtom(child->Head(), ctx)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool ValidateColumnPairSettings(TExprNode& columnsSettings, TExprContext& ctx, TVector<TString>& columns) {
     if (!EnsureTupleMinSize(columnsSettings, 1, ctx)) {
         return false;
@@ -382,15 +365,6 @@ bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, T
                 }
             }
 
-            break;
-        }
-        case EYtSettingType::Columns: {
-            if (!EnsureTupleSize(*setting, 2, ctx)) {
-                return false;
-            }
-            if (!ValidateColumnWithTypesSettings(setting->Tail(), ctx)) {
-                return false;
-            }
             break;
         }
         case EYtSettingType::StatColumns: {
@@ -972,6 +946,7 @@ bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, T
             }
             break;
         }
+        case EYtSettingType::Columns:
         case EYtSettingType::Actions:
         case EYtSettingType::PrimaryKey: {
             ctx.AddError(TIssue(ctx.GetPosition(nameNode->Pos()), TStringBuilder()
