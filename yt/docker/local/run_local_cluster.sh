@@ -297,8 +297,23 @@ if [ "${enable_debug_logging}" == true ]; then
     ) >&2
 fi
 
+ui_run_params=""
+auth_proxy_config=""
 if [ "${with_auth}" == true ]; then
     params="${params} --enable-auth --create-admin-user"
+    auth_proxy_config=$(echo "
+      auth={
+        cypress_cookie_manager={
+          cookie_generator={cookie_expiration_timeout=864000000000;cookie_renewal_period=432000000000};
+          cookie_store={full_fetch_period=200};
+          cookie_authenticator={cache={cache_ttl=100;optimistic_cache_ttl=100;error_ttl=100}}
+       }
+      }
+    " | tr '\n' ' ' | sed 's/\s//g')
+
+    # ui specific configuration
+    export YT_TOKEN=${YT_TOKEN:-password}
+    ui_run_params="${ui_run_params} -e ALLOW_PASSWORD_AUTH=1 -e YT_TOKEN=$YT_TOKEN"
 fi
 
 if [ "${init_operations_archive}" == true ]; then
@@ -337,7 +352,7 @@ cluster_container=$(
         $yt_image \
         --fqdn "${yt_fqdn:-${docker_hostname}}" \
         --port-range-start ${port_range_start} --node-port-set-size ${node_port_set_size} \
-        --proxy-config "{coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
+        --proxy-config "{coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"};$auth_proxy_config}" \
         --rpc-proxy-count ${rpc_proxy_count} \
         --rpc-proxy-port ${rpc_proxy_port} \
         --node-count ${node_count} \
@@ -429,7 +444,7 @@ EOF
     already busy, so you have to provide another port via --prometheus-port option."
     fi
 
-    PROMETHEUS_BASE_URL=http://yt.prometheus:9090
+    ui_run_params="${ui_run_params} -e PROMETHEUS_BASE_URL=http://yt.prometheus:9090"
 fi
 
 interface_container=$(
@@ -442,7 +457,7 @@ interface_container=$(
         -e PROXY_INTERNAL=$ui_proxy_internal \
         -e APP_ENV=local \
         -e APP_INSTALLATION=${app_installation} \
-        -e PROMETHEUS_BASE_URL=${PROMETHEUS_BASE_URL} \
+        ${ui_run_params} \
         --rm \
         $ui_image
 )
