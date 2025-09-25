@@ -53,8 +53,9 @@ public:
             if (!replica.IsChunkLocation()) {
                 continue;
             }
+            auto chunkLocation = replica.AsChunkLocation();
             if (replica.GetEffectiveMediumIndex() == mediumIndex) {
-                auto node = replica.AsChunkLocation().GetPtr()->GetNode();
+                auto node = chunkLocation.GetPtr()->GetNode();
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
@@ -64,7 +65,7 @@ public:
                 // storage data centers and RS(3, 3) chunk. Data center replica count limit forbids to
                 // put more than two replicas in every data center, so it's impossible to allocate extra
                 // replica to move unsafely placed replica there.
-                if (!node->IsDecommissioned() && replica != unsafelyPlacedReplica) {
+                if (!node->IsDecommissioned() && chunkLocation != unsafelyPlacedReplica) {
                     processAllocatedNode(node);
                 }
             }

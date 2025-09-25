@@ -390,7 +390,14 @@ void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkMa
     for (auto& entry : Entries_) {
         auto* medium = chunkManager->GetMediumByIndex(entry.MediumIndex);
         if (isErasureChunk || medium->IsOffshore()) {
-            entry.ReplicationPolicy.SetReplicationFactor(1);
+            auto& replicationPolicy = entry.ReplicationPolicy;
+            if (!replicationPolicy) {
+                YT_LOG_ALERT(
+                    "Medium is disabled for requisition entry, ignore replication factor set (RequisitionEntry: %v)",
+                    entry);
+                continue;
+            }
+            replicationPolicy.SetReplicationFactor(1);
         }
     }
 }

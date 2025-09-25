@@ -1896,8 +1896,8 @@ private:
             }
 
             // COMPAT(achulkov2, cherepashka): This is not supposed to happen on any real cluster. The code below is a safety precation to avoid
-            // damage to the cluster in such an unimaginalbe case. Updating a cluster from such a state will require local builds,
-            // but it is so unlikely that any cluster has had so many nodes, that we consider it impossible.
+            // damage to the cluster in such an unimaginalbe case. Updating a cluster from such a state will require custom builds,
+            // but it is so unlikely that any cluster has had so many nodes that we consider it impossible.
             if (node->GetId() > MaxRealNodeId) {
                 YT_LOG_FATAL(
                     "Existing node id is too large (NodeId: %v, MaxRealNodeId: %v)",

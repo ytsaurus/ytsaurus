@@ -605,8 +605,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (auto replica : replicas) {
         if (!replica.IsChunkLocation()) {
-            YT_LOG_ALERT("Non chunk location stored replica occured during computation statistics for erasure chunk "
-                "(ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+            YT_LOG_ALERT("Non-chunk location stored replica encountered during computation statistics for erasure chunk "
+                "(ChunkId: %v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+                chunk->GetId(),
                 replica.GetEffectiveMediumIndex(),
                 replica.GetReplicaIndex());
             continue;
@@ -2433,8 +2434,9 @@ void TChunkReplicator::RefreshChunk(
     for (const auto& replica: chunkReplicas) {
         if (!replica.IsChunkLocation()) {
             YT_LOG_ALERT(
-                "Non chunk location stored replica was found during refresh of chunk "
-                "(ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+                "Non-chunk location stored replica was found during refresh of chunk "
+                "(ChunkId:%v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+                chunk->GetId(),
                 replica.GetEffectiveMediumIndex(),
                 replica.GetReplicaIndex());
             continue;
