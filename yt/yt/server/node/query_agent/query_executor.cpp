@@ -1689,7 +1689,7 @@ TQueryStatistics ExecuteSubquery(
 
     auto statistics = execution->Execute(profilerGuard);
 
-    if (queryOptions.StatisticsAggregation == EStatisticsAggregation::Depth) {
+    if (TQueryStatistics::IsDepthAggregate(queryOptions.StatisticsAggregation)) {
         TQueryStatistics aggregated;
         aggregated.Merge(statistics);
         return aggregated;

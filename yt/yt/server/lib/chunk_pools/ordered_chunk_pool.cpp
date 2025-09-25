@@ -77,7 +77,6 @@ public:
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
-        , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
     {
         Logger = options.Logger;
 
@@ -282,7 +281,7 @@ private:
     // If the value is not set, it indicates that the row count until job split
     // cannot be currently estimated. In this scenario, a new slice may be
     // added without requiring a split.
-    std::optional<i64> RowCountUntilJobSplitNew_;
+    std::optional<i64> RowCountUntilJobSplit_;
     std::unique_ptr<TNewJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
@@ -291,11 +290,6 @@ private:
     bool SingleJob_ = false;
 
     bool IsCompleted_ = false;
-
-    bool UseNewSlicingImplementation_ = true;
-
-    i64 RowCountUntilJobSplitOld_ = 0;
-    i64 JobCarryOverDataWeightOld_ = 0;
 
     void SetupSuspendedStripes()
     {
@@ -360,10 +354,10 @@ private:
             for (const auto& dataSlice : stripe->DataSlices) {
                 yielder.TryYield();
                 if (IsTeleportable(dataSlice)) {
-                    // NB(apollo1321): RowCountUntilJobSplitNew_ may be non-empty after
+                    // NB(apollo1321): RowCountUntilJobSplit_ may be non-empty after
                     // AddSplittablePrimaryDataSlice only if BatchRowCount is set, and
                     // BatchRowCount disables teleporting chunks.
-                    YT_VERIFY(!RowCountUntilJobSplitNew_.has_value());
+                    YT_VERIFY(!RowCountUntilJobSplit_.has_value());
                     if (Sampler_.Sample()) {
                         EndJob();
 
@@ -384,11 +378,7 @@ private:
 
                 YT_VERIFY(!dataSlice->IsLegacy);
                 if (IsDataSliceSplittable(dataSlice)) {
-                    if (UseNewSlicingImplementation_) {
-                        AddSplittablePrimaryDataSliceNew(dataSlice, inputCookie);
-                    } else {
-                        AddSplittablePrimaryDataSliceOld(dataSlice, inputCookie, GetDataWeightPerJobForBuildingJobs());
-                    }
+                    AddSplittablePrimaryDataSlice(dataSlice, inputCookie);
                 } else {
                     AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, GetDataWeightPerJobForBuildingJobs(), JobSizeConstraints_->GetCompressedDataSizePerJob());
                 }
@@ -494,10 +484,7 @@ private:
     {
         YT_VERIFY(!dataSlice->IsLegacy);
 
-        RowCountUntilJobSplitNew_ = std::nullopt;
-
-        RowCountUntilJobSplitOld_ = 0;
-        JobCarryOverDataWeightOld_ = 0;
+        RowCountUntilJobSplit_ = std::nullopt;
 
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
         dataSliceCopy->Tag = cookie;
@@ -505,10 +492,8 @@ private:
 
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-            CurrentJob()->GetDataWeight() >= dataWeightPerJob;
-        if (UseNewSlicingImplementation_) {
-            jobIsLargeEnough |= CurrentJob()->GetCompressedDataSize() >= compressedDataSizePerJob;
-        }
+            CurrentJob()->GetDataWeight() >= dataWeightPerJob ||
+            CurrentJob()->GetCompressedDataSize() >= compressedDataSizePerJob;
         if (jobIsLargeEnough && !SingleJob_) {
             return EndJob();
         }
@@ -532,122 +517,7 @@ private:
         return ShouldSliceByRowIndices_;
     }
 
-    i64 GetCurrentJobDataWeightOld()
-    {
-        return JobCarryOverDataWeightOld_ + CurrentJob()->GetDataWeight();
-    }
-
-    // COMPAT(apollo1321): Remove ...Old fields in 25.2 release.
-    // Adding slices via this method essentially circles between multiple stages.
-    // First, we add slices while none of the limits (data weight / slice count) are violated.
-    // The job slice limit is considered hard: whenever it is hit, we just end the current job.
-    // Once we reach a slice adding which would violate the data weight limit, we break into multiple cases:
-    //   - First, we compute the ideal split index by data weight.
-    //   - Then, if batch row count is not set, we try to split the job by the index above.
-    //   - Otherwise, we compute the next split that would make the number of rows in the job divisible by batch row count and store it for the next iteration.
-    // Next iterations operate on a data weight "discount", decrementing the stored row count until next split.
-    void AddSplittablePrimaryDataSliceOld(
-        const TLegacyDataSlicePtr& dataSlice,
-        IChunkPoolInput::TCookie cookie,
-        i64 dataWeightPerJob)
-    {
-        YT_VERIFY(IsDataSliceSplittable(dataSlice));
-
-        auto chunkSlices = dataSlice->GetSingleUnversionedChunkSlice()
-            ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
-
-        auto batchRowCount = JobSizeConstraints_->GetBatchRowCount();
-
-        TInputChunkSlicePtr pocket;
-        int chunkSliceIndex = 0;
-        while (chunkSliceIndex < std::ssize(chunkSlices) || pocket) {
-            // The pocket holds the slice that should be handled before handling the next chunk slice index.
-            // It is used to store the suffix of the current slice when we only add a prefix of it to the current job.
-            auto chunkSlice = pocket ? pocket : chunkSlices[chunkSliceIndex];
-            pocket = nullptr;
-
-            // If the pocket is empty, we can handle the next slice in our input order.
-            // Note the continuation statements below that will lead to the execution of this code.
-            auto nextIteration = Finally([&] () {
-                if (!pocket) {
-                    ++chunkSliceIndex;
-                }
-            });
-
-            if (!chunkSlice->GetRowCount()) {
-                continue;
-            }
-
-            // NB: Hitting this limit means we cannot take more than one slice.
-            // In this case the final row count of this job might not be divisible by batch row count.
-            // NB: We need >= instead of == to handle the case of an explicit single job.
-            if (CurrentJob()->GetPreliminarySliceCount() + 1 >= JobSizeConstraints_->GetMaxDataSlicesPerJob()) {
-                RowCountUntilJobSplitOld_ = chunkSlice->GetRowCount();
-                // This will lead to the carry-over value being zero after adding `chunkSliceToAdd->GetDataWeight()`.
-                JobCarryOverDataWeightOld_ = -chunkSlice->GetDataWeight();
-            }
-
-            if (RowCountUntilJobSplitOld_ == 0 && GetCurrentJobDataWeightOld() + chunkSlice->GetDataWeight() >= dataWeightPerJob) {
-                // Taking this maximum is needed if jobs of batch row count rows are significantly larger than data size per job.
-                // In these cases we simply try to end the jobs as soon as we can hit an acceptable split.
-                auto dataWeightUntilSplit = std::max<i64>(dataWeightPerJob - GetCurrentJobDataWeightOld(), 0);
-
-                RowCountUntilJobSplitOld_ = DivCeil(dataWeightUntilSplit * chunkSlice->GetRowCount(), chunkSlice->GetDataWeight());
-                YT_VERIFY(RowCountUntilJobSplitOld_ <= chunkSlice->GetRowCount());
-
-                // We only carry-over from one previous job.
-                // NB: We use splitting here in order to get the exact same data weight we would get later on in the process.
-                JobCarryOverDataWeightOld_ = RowCountUntilJobSplitOld_ ? -chunkSlice->SplitByRowIndex(RowCountUntilJobSplitOld_).first->GetDataWeight() : 0;
-
-                if (batchRowCount) {
-                    YT_VERIFY(*batchRowCount > 0);
-                    // Zero rows until split force us to look for the next acceptable split (even when batchRowCountRemainder = 0) since it usually means that a job just ended.
-                    if (auto batchRowCountRemainder = (CurrentJob()->GetRowCount() + RowCountUntilJobSplitOld_) % *batchRowCount; !RowCountUntilJobSplitOld_ || batchRowCountRemainder) {
-                        RowCountUntilJobSplitOld_ += *batchRowCount - batchRowCountRemainder;
-                    }
-                } else if (RowCountUntilJobSplitOld_ == 0) {
-                    // We should not actually end up here, since both slice addition implementations finish jobs
-                    // as soon as the limit is hit when batch row count is not set.
-                    // However, if we do, let's reset the carry-over data weight, end the job and reprocess the current slice.
-                    YT_LOG_WARNING(
-                        "Creating ordered job prematurely (CurrentJobDataWeight: %v, JobCarryOverDataWeight: %v, ActiveSliceDataWeight: %v, ActiveSliceRowCount: %v)",
-                        GetCurrentJobDataWeightOld(),
-                        JobCarryOverDataWeightOld_,
-                        chunkSlice->GetDataWeight(),
-                        chunkSlice->GetRowCount());
-                    JobCarryOverDataWeightOld_ = 0;
-                    EndJob();
-                    // Current job data weight should be zero now, so we can handle the whole slice again.
-                    pocket = chunkSlice;
-                    continue;
-                }
-            }
-
-            auto chunkSliceToAdd = chunkSlice;
-
-            bool endJob = RowCountUntilJobSplitOld_ > 0 && RowCountUntilJobSplitOld_ <= chunkSlice->GetRowCount();
-            if (endJob && RowCountUntilJobSplitOld_ < chunkSlice->GetRowCount()) {
-                std::tie(chunkSliceToAdd, pocket) = chunkSlice->SplitByRowIndex(RowCountUntilJobSplitOld_);
-            }
-
-            if (RowCountUntilJobSplitOld_ > 0) {
-                RowCountUntilJobSplitOld_ -= chunkSliceToAdd->GetRowCount();
-                JobCarryOverDataWeightOld_ += chunkSliceToAdd->GetDataWeight();
-            }
-
-            auto dataSliceToAdd = CreateUnversionedInputDataSlice(chunkSliceToAdd);
-            dataSliceToAdd->CopyPayloadFrom(*dataSlice);
-            dataSliceToAdd->Tag = cookie;
-
-            CurrentJob()->AddDataSlice(dataSliceToAdd, cookie, /*isPrimary*/ true);
-            if (endJob && !SingleJob_) {
-                YT_VERIFY(RowCountUntilJobSplitOld_ == 0);
-                EndJob();
-            }
-        }
-    }
-
-    void AddSplittablePrimaryDataSliceNew(
+    void AddSplittablePrimaryDataSlice(
         const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie)
     {
@@ -660,15 +530,15 @@ private:
 
             TInputChunkSlicePtr chunkSliceToAdd;
 
-            if (!RowCountUntilJobSplitNew_.has_value() || *RowCountUntilJobSplitNew_ >= chunkSlice->GetRowCount()) {
+            if (!RowCountUntilJobSplit_.has_value() || *RowCountUntilJobSplit_ >= chunkSlice->GetRowCount()) {
                 std::swap(chunkSliceToAdd, chunkSlice);
             } else {
-                YT_VERIFY(*RowCountUntilJobSplitNew_ >= 0);
-                std::tie(chunkSliceToAdd, chunkSlice) = chunkSlice->SplitByRowIndex(*RowCountUntilJobSplitNew_);
+                YT_VERIFY(*RowCountUntilJobSplit_ >= 0);
+                std::tie(chunkSliceToAdd, chunkSlice) = chunkSlice->SplitByRowIndex(*RowCountUntilJobSplit_);
             }
 
-            if (RowCountUntilJobSplitNew_.has_value()) {
-                *RowCountUntilJobSplitNew_ -= chunkSliceToAdd->GetRowCount();
+            if (RowCountUntilJobSplit_.has_value()) {
+                *RowCountUntilJobSplit_ -= chunkSliceToAdd->GetRowCount();
             }
 
             i64 addedRowCount = chunkSliceToAdd->GetRowCount();
@@ -681,8 +551,8 @@ private:
                 CurrentJob()->AddDataSlice(dataSliceToAdd, cookie, /*isPrimary*/ true);
             }
 
-            if (RowCountUntilJobSplitNew_.has_value() && *RowCountUntilJobSplitNew_ == 0) {
-                RowCountUntilJobSplitNew_ = std::nullopt;
+            if (RowCountUntilJobSplit_.has_value() && *RowCountUntilJobSplit_ == 0) {
+                RowCountUntilJobSplit_ = std::nullopt;
                 YT_VERIFY(CurrentJob()->GetRowCount() > 0);
                 EndJob();
             } else {
@@ -724,17 +594,17 @@ private:
                 std::min(JobSizeConstraints_->GetInputSliceRowCount(), chunkSlice->GetRowCount()));
         }
 
-        if (!RowCountUntilJobSplitNew_.has_value()) {
+        if (!RowCountUntilJobSplit_.has_value()) {
             i64 dataWeightUntilJobSplit = std::max<i64>(0, GetDataWeightPerJobForBuildingJobs() - CurrentJob()->GetDataWeight());
             i64 compressedDataSizeUntilJobSplit = std::max<i64>(0, GetCompressedDataSizePerJobForBuildingJobs() - CurrentJob()->GetCompressedDataSize());
 
             if (dataWeightUntilJobSplit <= chunkSlice->GetDataWeight() || compressedDataSizeUntilJobSplit <= chunkSlice->GetCompressedDataSize()) {
                 // Finally, we can estimate row count until job split.
-                RowCountUntilJobSplitNew_ = SignedSaturationConversion(std::min(
+                RowCountUntilJobSplit_ = SignedSaturationConversion(std::min(
                     std::ceil(static_cast<double>(dataWeightUntilJobSplit) * chunkSlice->GetRowCount() / chunkSlice->GetDataWeight()),
                     std::ceil(static_cast<double>(compressedDataSizeUntilJobSplit) * chunkSlice->GetRowCount() / chunkSlice->GetCompressedDataSize())));
 
-                RowCountUntilJobSplitNew_ = std::clamp<i64>(*RowCountUntilJobSplitNew_, 1, chunkSlice->GetRowCount());
+                RowCountUntilJobSplit_ = std::clamp<i64>(*RowCountUntilJobSplit_, 1, chunkSlice->GetRowCount());
             }
         }
 
@@ -744,29 +614,29 @@ private:
             maxRowCountUntilJobSplit = std::numeric_limits<i64>::max();
         }
 
-        if (maxRowCountUntilJobSplit > chunkSlice->GetRowCount() && !RowCountUntilJobSplitNew_.has_value()) {
+        if (maxRowCountUntilJobSplit > chunkSlice->GetRowCount() && !RowCountUntilJobSplit_.has_value()) {
             // Did not hit any constraints, continue adding new slices.
             return;
         }
 
-        if (!RowCountUntilJobSplitNew_.has_value()) {
-            RowCountUntilJobSplitNew_ = maxRowCountUntilJobSplit;
+        if (!RowCountUntilJobSplit_.has_value()) {
+            RowCountUntilJobSplit_ = maxRowCountUntilJobSplit;
         } else if (maxRowCountUntilJobSplit <= chunkSlice->GetRowCount()) {
-            RowCountUntilJobSplitNew_ = std::min(*RowCountUntilJobSplitNew_, maxRowCountUntilJobSplit);
+            RowCountUntilJobSplit_ = std::min(*RowCountUntilJobSplit_, maxRowCountUntilJobSplit);
         }
 
         i64 batchRowCount = JobSizeConstraints_->GetBatchRowCount().value_or(1);
-        i64 batchRowCountRemainder = (CurrentJob()->GetRowCount() + *RowCountUntilJobSplitNew_) % batchRowCount;
+        i64 batchRowCountRemainder = (CurrentJob()->GetRowCount() + *RowCountUntilJobSplit_) % batchRowCount;
         if (batchRowCountRemainder == 0) {
             return;
         }
 
-        i64 maxEnlargeRowCount = std::max<i64>(0, maxRowCountUntilJobSplit - *RowCountUntilJobSplitNew_);
-        i64 maxShrinkRowCount = CurrentJob()->GetRowCount() == 0 ? 0 : *RowCountUntilJobSplitNew_;
+        i64 maxEnlargeRowCount = std::max<i64>(0, maxRowCountUntilJobSplit - *RowCountUntilJobSplit_);
+        i64 maxShrinkRowCount = CurrentJob()->GetRowCount() == 0 ? 0 : *RowCountUntilJobSplit_;
         if (batchRowCount - batchRowCountRemainder <= maxEnlargeRowCount) {
-            *RowCountUntilJobSplitNew_ += batchRowCount - batchRowCountRemainder;
+            *RowCountUntilJobSplit_ += batchRowCount - batchRowCountRemainder;
         } else if (batchRowCountRemainder <= maxShrinkRowCount) {
-            *RowCountUntilJobSplitNew_ -= batchRowCountRemainder;
+            *RowCountUntilJobSplit_ -= batchRowCountRemainder;
         } else {
             // Now we give up. Forget about batchRowCount :(
         }
@@ -866,8 +736,7 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(12, BuiltJobCount_);
     PHOENIX_REGISTER_FIELD(13, SingleJob_);
     PHOENIX_REGISTER_FIELD(14, IsCompleted_);
-    PHOENIX_REGISTER_FIELD(15, UseNewSlicingImplementation_,
-        .SinceVersion(ESnapshotVersion::NewOrderedChunkPoolSlicing));
+    PHOENIX_REGISTER_DELETED_FIELD(15, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldOrderedChunkPoolSlicing);
     PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
         .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 

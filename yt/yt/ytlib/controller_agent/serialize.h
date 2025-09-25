@@ -79,6 +79,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 25.4 starts here
     ((BumpTo_25_4)                           (302000))
     ((PrimaryCompressedDataSizePerJob)       (302001))
+    ((RemoveOldOrderedChunkPoolSlicing)      (302002))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

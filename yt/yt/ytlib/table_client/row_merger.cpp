@@ -287,6 +287,7 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
         auto columnId = NestedColumnsSchema_.KeyColumns[index].Id;
 
         auto state = NestedMerger_.BuildMergedKeyColumns(index, RowBuffer_.Get());
+        state.Id = columnId;
 
         auto columnIndex = ColumnIdToIndex_[columnId];
         // Nested key columns are added to enriched column filter.
@@ -311,6 +312,8 @@ TMutableUnversionedRow TSchemafulRowMerger::BuildMergedRow()
             NestedColumnsSchema_.ValueColumns[index].Type,
             NestedColumnsSchema_.ValueColumns[index].AggregateFunction,
             RowBuffer_.Get());
+
+        state.Id = columnId;
 
         auto columnIndex = ColumnIdToIndex_[columnId];
         // For nested value columns requested and enriched column filters are matched.

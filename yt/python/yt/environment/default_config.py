@@ -124,6 +124,7 @@ def get_dynamic_master_config():
             "request_rate_smoothing_period": 60000,
             "account_master_memory_usage_update_period": 500,
             "enable_delayed_membership_closure_recomputation": False,
+            "allow_alter_without_full_read": "deny",
         },
 
         "cypress_manager": {

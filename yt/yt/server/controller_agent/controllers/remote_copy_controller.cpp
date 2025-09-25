@@ -800,7 +800,6 @@ private:
         chunkPoolOptions.MinTeleportChunkSize = std::numeric_limits<i64>::max() / 4;
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.ShouldSliceByRowIndices = false;
-        chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
         chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
         return chunkPoolOptions;
     }

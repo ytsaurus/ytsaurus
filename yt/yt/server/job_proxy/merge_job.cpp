@@ -56,7 +56,6 @@ public:
         TSimpleJobBase::Initialize();
 
         TKeyColumns keyColumns;
-        auto partitionTag = YT_OPTIONAL_FROM_PROTO(JobSpecExt_, partition_tag);
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
@@ -72,7 +71,12 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
+        ReaderFactory_ = [
+            =,
+            this,
+            this_ = MakeStrong(this),
+            partitionTags = GetOptionalPartitionTags(JobSpecExt_)
+        ] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
             auto readerFactory = UseParallelReader_
                 ? CreateSchemalessParallelMultiReader
@@ -88,7 +92,7 @@ public:
                 ChunkReadOptions_,
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
-                partitionTag ? TPartitionTags{*partitionTag} : TPartitionTags{},
+                partitionTags,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 

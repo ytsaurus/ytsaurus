@@ -2142,7 +2142,6 @@ protected:
             options.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
             options.EnablePeriodicYielder = true;
             options.ShouldSliceByRowIndices = true;
-            options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.Logger = Logger().WithTag("Name: RootPartition");
 

@@ -477,7 +477,6 @@ protected:
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.ShouldSliceByRowIndices = true;
-        chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         return chunkPoolOptions;
     }
