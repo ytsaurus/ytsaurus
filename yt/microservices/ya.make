@@ -1,0 +1,24 @@
+RECURSE(
+    bulk_acl_checker
+    bulk_acl_checker_roren
+    resource_usage
+    resource_usage_roren
+)
+
+IF (NOT OPENSOURCE)
+    RECURSE(
+        access_log_viewer
+        error_manager
+        excel
+        firehose
+        grant_permissions
+        hermes
+        id_to_path_mapping
+        klacalka
+        lib
+        perfetto
+        resource-pumper
+        solomon-resolver
+        thor
+    )
+ENDIF()
