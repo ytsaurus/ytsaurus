@@ -427,7 +427,7 @@ private:
         }
     }
 
-    std::vector<std::string> GetTabletIds(i64 limit) const
+    std::vector<std::string> GetTabletIds(i64 /*limit*/) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
         auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
@@ -435,9 +435,6 @@ private:
         std::vector<std::string> result;
         TTabletId last;
         for (const auto& [key, _] : TabletIdToSnapshot_) {
-            if (std::ssize(result) >= limit) {
-                break;
-            }
             if (last != key) {
                 result.push_back(ToString(key));
                 last = key;
