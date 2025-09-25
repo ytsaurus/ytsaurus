@@ -5028,6 +5028,10 @@ class TestAccessControlObjects(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+    }
+
     @authors("shakurov")
     def test_access_control_object_creation(self):
         # Namespace is required.
@@ -5138,6 +5142,14 @@ class TestAccessControlObjects(YTEnvSetup):
         assert check_permission("rat", "read", "//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal")["action"] == "allow"
         assert get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@acl") == \
             get("//sys/access_control_object_namespaces/animal_shelters/dogs_house/principal/@effective_acl")
+
+    @authors("cherepashka")
+    def test_full_read_check_permission(self):
+        create_user("dog")
+        schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        with raises_yt_error("Cannot specify columns for FullRead permission check"):
+            check_permission("dog", "full_read", "//tmp/t", columns=["x"])
 
     @authors("shakurov")
     def test_access_control_object_replication(self):
