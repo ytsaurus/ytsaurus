@@ -367,6 +367,15 @@ public:
             .Run();
     }
 
+    TFuture<TRspGetDeclaredParametersInfo> GetDeclaredParametersInfo(const TString& user, const TString& query, const NYson::TYsonString& settings) override
+    {
+        YT_LOG_INFO("Getting query declared parameters types");
+
+        return BIND(&TYqlAgent::DoGetDeclaredParametersInfo, MakeStrong(this), user, query, settings)
+            .AsyncVia(ThreadPool_->GetInvoker())
+            .Run();
+    }
+
     TRspGetQueryProgress GetQueryProgress(TQueryId queryId) override
     {
         YT_LOG_DEBUG("Getting query progress (QueryId: %v)", queryId);
@@ -550,7 +559,7 @@ private:
                 THROW_ERROR error;
             }
 
-            YT_LOG_INFO("YQL plugin call completed");
+            YT_LOG_INFO("YQL plugin 'StartQuery' call completed");
 
             auto clientOptions = NApi::TClientOptions();
             clientOptions.User = user;
@@ -595,8 +604,55 @@ private:
             response.mutable_yql_response()->Swap(&yqlResponse);
             return {response, wireRowsets};
         } catch (const std::exception& ex) {
-            auto error = TError("YQL plugin call failed") << TError(ex);
-            YT_LOG_INFO(error, "YQL plugin call failed");
+            auto error = TError("YQL plugin 'StartQuery' call failed") << TError(ex);
+            YT_LOG_INFO(error, "YQL plugin 'StartQuery' call failed");
+            THROW_ERROR error;
+        }
+    }
+
+    TRspGetDeclaredParametersInfo DoGetDeclaredParametersInfo(const TString& user, const TString& query, const NYson::TYsonString& settings)
+    {
+        const auto& Logger = YqlAgentLogger();
+
+        TRspGetDeclaredParametersInfo response;
+
+        YT_LOG_INFO("Invoking YQL plugin GetDeclaredParametersInfo");
+
+        try {
+            auto clustersResult = YqlPlugin_->GetUsedClusters(query, settings, {});
+            if (clustersResult.YsonError) {
+                auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
+                THROW_ERROR error;
+            }
+
+            THashMap<TString, NApi::NNative::IClientPtr> queryClients;
+            for (const auto& clusterName : clustersResult.Clusters) {
+                queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+            }
+
+            auto token = IssueToken(TGuid::Create(), user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
+
+            auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+            refreshTokenExecutor->Start();
+
+            const auto defaultCluster = clustersResult.Clusters.front();
+            // TODO(ngc224): revise after proper auth support in UI
+            THashMap<TString, THashMap<TString, TString>> credentials = {
+                {"default_yt", {{"category", "yt"}, {"content", token}}},
+                {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+            };
+
+            const auto result = YqlPlugin_->GetDeclaredParametersInfo(user, query, settings, ConvertToYsonString(credentials));
+            WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
+
+            ToProto(response.mutable_declared_parameters_info(), result.YsonParameters.value_or("{}"));
+
+            YT_LOG_INFO("YQL plugin 'GetDeclaredParametersInfo' call completed");
+
+            return response;
+        } catch (const std::exception& ex) {
+            auto error = TError("YQL plugin 'GetDeclaredParametersInfo' call failed") << TError(ex);
+            YT_LOG_INFO(error, "YQL plugin 'GetDeclaredParametersInfo' call failed");
             THROW_ERROR error;
         }
     }

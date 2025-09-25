@@ -265,6 +265,30 @@ public:
         return abortResult;
     }
 
+    TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TString user,
+        TString queryText,
+        NYson::TYsonString settings,
+        NYson::TYsonString credentials) noexcept override
+    {
+        const auto credentialsString = credentials ? credentials.ToString() : "{}";
+        const auto settingsString = settings ? settings.ToString() : "{}";
+
+        auto* bridgeQueryResult = BridgeGetDeclaredParametersInfo(
+            BridgePlugin_,
+            user.data(),
+            queryText.data(),
+            settingsString.data(),
+            settingsString.length(),
+            credentialsString.data(),
+            credentialsString.length());
+        TGetDeclaredParametersInfoResult queryResult{
+            .YsonParameters = ToString(bridgeQueryResult->YsonParameters, bridgeQueryResult->YsonParametersLength),
+        };
+        BridgeFreeGetDeclaredParametersInfoResult(bridgeQueryResult);
+        return queryResult;
+    }
+
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
         BridgeOnDynamicConfigChanged(BridgePlugin_, &config);

@@ -118,3 +118,16 @@ message TRspGetYqlAgentInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetDeclaredParametersInfo
+{
+    required string query = 1;
+    optional bytes settings = 2; // YSON
+}
+
+message TRspGetDeclaredParametersInfo
+{
+    required bytes declared_parameters_info = 1; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

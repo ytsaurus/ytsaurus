@@ -36,6 +36,8 @@ struct IYqlAgent
 
     virtual TFuture<void> AbortQuery(TQueryId queryId) = 0;
 
+    virtual TFuture<NYqlClient::NProto::TRspGetDeclaredParametersInfo> GetDeclaredParametersInfo(const TString& user, const TString& query, const NYson::TYsonString& settings) = 0;
+
     virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId) = 0;
 
     virtual NYqlClient::NProto::TRspGetYqlAgentInfo GetYqlAgentInfo() = 0;

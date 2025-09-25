@@ -346,7 +346,7 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     , TimeBasedIndex_(CreateTimeBasedIndex(StateClient_, StateRoot_))
     , TokenBasedIndex_(CreateTokenBasedIndex(StateClient_, StateRoot_))
 {
-    EngineInfoProviders_[EQueryEngine::Yql] = CreateYqlEngineInfoProvider(StateClient_, StateRoot_);
+    EngineProviders_[EQueryEngine::Yql] = CreateProxyYqlEngineProvider(StateClient_, StateRoot_);
 }
 
 void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config)
@@ -955,7 +955,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     auto enginesInfoMap = ConvertToNode(EmptyMap)->AsMap();
     if (attributes.AdmitsKeySlow("engines_info")) {
         try {
-            auto yqlEngineInfo = EngineInfoProviders_[EQueryEngine::Yql]->GetEngineInfo(settingsMap);
+            auto yqlEngineInfo = EngineProviders_.contains(EQueryEngine::Yql) ? EngineProviders_[EQueryEngine::Yql]->GetEngineInfo(settingsMap) : EmptyMap;
             enginesInfoMap->AddChild("yql", ConvertToNode(yqlEngineInfo));
         } catch (const std::exception& ex) {
             YT_LOG_ERROR("GetEngineInfo call failed with exception. (Exception: %v)", ex);
@@ -974,6 +974,17 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         .ExpectedTablesVersion = ExpectedTablesVersion_,
     };
 }
+
+TGetDeclaredParametersInfoResult TQueryTrackerProxy::GetDeclaredParametersInfo(
+    const TGetDeclaredParametersInfoOptions& options)
+{
+    static const TYsonString EmptyMap = TYsonString(TString("{}"));
+    auto parameters = EngineProviders_.contains(options.Engine) ? EngineProviders_[options.Engine]->GetDeclaredParametersInfo(options.Query, options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap) : EmptyMap;
+    return TGetDeclaredParametersInfoResult{
+        .Parameters = parameters,
+    };
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

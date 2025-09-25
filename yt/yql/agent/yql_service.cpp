@@ -17,6 +17,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NComponentStateChecker;
 using namespace NYqlClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +36,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetYqlAgentInfo));
     }
@@ -46,7 +48,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, StartQuery)
     {
         // TODO(babenko): switch to std::string
-        auto impersonationUser = TString(context->GetAuthenticationIdentity().User);
+        auto user = TString(context->GetAuthenticationIdentity().User);
 
         auto queryId = request->has_query_id()
             ? FromProto<TQueryId>(request->query_id())
@@ -57,11 +59,11 @@ private:
         context->SetResponseInfo("QueryId: %v", queryId);
 
         if (ComponentStateChecker_->IsComponentBanned()) {
-            YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, impersonationUser);
+            YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, user);
             THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
         }
 
-        auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
+        auto responseFuture = YqlAgent_->StartQuery(queryId, user, *request);
 
         context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             YT_LOG_INFO(error, "Query is cancelled (QueryId: %v)", queryId);
@@ -100,6 +102,25 @@ private:
 
         WaitFor(YqlAgent_->AbortQuery(queryId))
             .ThrowOnError();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, GetDeclaredParametersInfo)
+    {
+        // TODO(babenko): switch to std::string
+        auto user = TString(context->GetAuthenticationIdentity().User);
+
+        context->SetRequestInfo();
+        context->SetResponseInfo();
+
+        static const auto EmptyMap = TYsonString(TString("{}"));
+        auto responseFuture = YqlAgent_->GetDeclaredParametersInfo(user, request->query(), request->has_settings() ? TYsonString(request->settings()) : EmptyMap);
+
+        auto result = WaitForUnique(responseFuture)
+            .ValueOrThrow();
+
+        response->MergeFrom(result);
 
         context->Reply();
     }
