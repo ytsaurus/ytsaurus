@@ -1299,7 +1299,7 @@ public:
         // Schedule removal jobs.
         for (auto storedReplica : chunk->StoredReplicas()) {
             if (!storedReplica.IsChunkLocation()) {
-                // TODO(cherepashka): handle this, when offshore mediums will be supported.
+                // TODO(cherepashka): handle this when offshore media will be supported.
                 continue;
             }
             // TODO(aleksandra-zh): skip Sequoia replicas here.
@@ -1691,7 +1691,7 @@ public:
         TNodePtrWithReplicaAndMediumIndexList result;
         for (auto replica : replicas) {
             if (!replica.IsChunkLocation()) {
-                // TODO(cherepashka): handle this, when offshore mediums will be supported.
+                // TODO(cherepashka): handle this when offshore media will be supported.
                 continue;
             }
             if (replicaIndex != GenericChunkReplicaIndex && replica.GetReplicaIndex() != replicaIndex) {
@@ -3202,8 +3202,11 @@ private:
         TChunkLocation* locationWithMaxId = nullptr;
 
         for (auto replica : chunk->StoredReplicas()) {
+            if (!replica.IsChunkLocation()) {
+                continue;
+            }
             auto* medium = FindMediumByIndex(replica.GetEffectiveMediumIndex());
-            if (!medium || !replica.IsChunkLocation()) {
+            if (!medium) {
                 continue;
             }
 
@@ -4758,7 +4761,13 @@ private:
         // NB: Not supported for now, but theoretically possible, if the underlying storage supports appending to files.
         THROW_ERROR_EXCEPTION_IF(medium->IsOffshore() && isJournal, "Journal chunks cannot be placed on offshore media");
 
-        auto replicationFactor = (isErasure || medium->IsOffshore()) ? 1 : subrequest->replication_factor();
+        auto replicationFactor = subrequest->replication_factor();
+        if (isErasure) {
+            replicationFactor = 1;
+        }
+        if (medium->IsOffshore()) {
+            replicationFactor = 1;
+        }
         ValidateReplicationFactor(replicationFactor);
 
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());

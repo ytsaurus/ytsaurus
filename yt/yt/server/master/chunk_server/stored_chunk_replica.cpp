@@ -14,11 +14,15 @@ TStoredReplica::TStoredReplica()
 
 TStoredReplica::TStoredReplica(const TChunkLocationPtrWithReplicaInfo& chunkLocation)
     : ReplicaInfo_(chunkLocation)
-{ }
+{
+    YT_VERIFY(chunkLocation.GetPtr());
+}
 
 TStoredReplica::TStoredReplica(const TMediumPtrWithReplicaInfo& medium)
     : ReplicaInfo_(medium)
-{ }
+{
+    YT_VERIFY(medium.GetPtr());
+}
 
 bool TStoredReplica::operator<(const TStoredReplica& other) const
 {

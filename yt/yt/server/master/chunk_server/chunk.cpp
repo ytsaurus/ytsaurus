@@ -284,13 +284,14 @@ void TChunk::AddReplica(
     const TMedium* medium,
     bool approved)
 {
+    auto* data = MutableReplicasData();
+
     if (medium->IsOffshore()) {
-        auto* data = MutableReplicasData();
         data->AddStoredReplica(replica);
         return;
     }
+
     auto* domesticMedium = medium->AsDomestic();
-    auto* data = MutableReplicasData();
     if (IsJournal()) {
         for (auto& existingReplica : data->MutableStoredReplicas()) {
             if (existingReplica.ToGenericState() == replica.ToGenericState()) {
@@ -351,6 +352,14 @@ void TChunk::RemoveReplica(
 
 void TChunk::ApproveReplica(TStoredReplica replica)
 {
+    if (replica.IsMedium()) {
+        YT_LOG_ALERT(
+            "Attempted to approve offshore medium replica, ignored (ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+            replica.GetEffectiveMediumIndex(),
+            replica.GetReplicaIndex());
+        return;
+    }
+
     auto* data = MutableReplicasData();
     ++data->ApprovedReplicaCount;
 

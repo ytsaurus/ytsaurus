@@ -140,7 +140,7 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredMasterReplicas)
             .SetPresent(!isForeign));
-        // NB: Offshore replicas are not stored in sequoia and thus don't have to be opaque for now.
+        // NB: Offshore replicas are not stored in Sequoia and thus don't have to be opaque for now.
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredOffshoreReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredSequoiaReplicas)
