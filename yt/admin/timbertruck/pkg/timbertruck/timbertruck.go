@@ -185,35 +185,9 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 	tt.cleanupDeprecatedStreamDirs()
 
 	for i := range tt.handlers {
-		curHandler := &tt.handlers[i]
-		err = curHandler.initStagingDir()
-		if err != nil {
-			tt.logger.Error("Error initializing stream", "error", err)
-			continue
+		if err := tt.initializeStream(ctx, &tt.handlers[i]); err != nil {
+			tt.logger.Error("Error initializing stream", "error", err, "stream", tt.handlers[i].config.Name)
 		}
-		fileEventChan := make(chan FileEvent, 1000)
-		err = tt.fsWatcher.AddLogPath(curHandler.config.LogFile, fileEventChan)
-		if err != nil {
-			close(fileEventChan)
-			tt.logger.Error("Cannot watch stream path", "error", err)
-			continue
-		}
-		defer close(fileEventChan)
-
-		go curHandler.ProcessFileEventQueue(ctx, fileEventChan)
-		go curHandler.ProcessTaskQueue(ctx)
-
-		_, err = os.Stat(curHandler.config.LogFile)
-		if err != nil {
-			if err != ErrNotFound {
-				tt.logger.Warn("Cannot stat log path", "path", tt.handlers[i].config.LogFile, "error", err)
-			} else {
-				fileEventChan <- FileRemoveOrRenameEvent
-			}
-		} else {
-			fileEventChan <- FileCreateEvent
-		}
-		curHandler.logger.Info("Stream initialized ok")
 	}
 
 	tt.launchMetricsProc(ctx)
@@ -238,6 +212,33 @@ func (tt *TimberTruck) deprecatedStreams() map[string]struct{} {
 		result[name] = struct{}{}
 	}
 	return result
+}
+
+func (tt *TimberTruck) initializeStream(ctx context.Context, handler *streamHandler) error {
+	err := handler.initStagingDir()
+	if err != nil {
+		return fmt.Errorf("failed to initialize staging directory: %w", err)
+	}
+	fileEventChan := make(chan FileEvent, 1000)
+	err = tt.fsWatcher.AddLogPath(handler.config.LogFile, fileEventChan)
+	if err != nil {
+		close(fileEventChan)
+		return fmt.Errorf("failed to watch stream path: %w", err)
+	}
+	go handler.ProcessFileEventQueue(ctx, fileEventChan)
+	go handler.ProcessTaskQueue(ctx)
+
+	if _, err := os.Stat(handler.config.LogFile); err != nil {
+		if err != ErrNotFound {
+			tt.logger.Warn("Cannot stat log path", "path", handler.config.LogFile, "error", err)
+		} else {
+			fileEventChan <- FileRemoveOrRenameEvent
+		}
+	} else {
+		fileEventChan <- FileCreateEvent
+	}
+	handler.logger.Info("Stream initialized ok")
+	return nil
 }
 
 // cleanupDeprecatedStreamDirs removes per-stream working directories for streams explicitly listed as deprecated.
@@ -393,14 +394,12 @@ func (h *streamHandler) initStagingDir() (err error) {
 	stagingDir := h.stagingDir()
 	err = os.MkdirAll(stagingDir, 0755)
 	if err != nil {
-		// TODO: metrics
-		h.logger.Error("Failed to create staging directory", "error", err, "directory", stagingDir)
-		return
+		return fmt.Errorf("failed to create staging directory %q: %w", stagingDir, err)
 	}
 
 	entries, err := os.ReadDir(stagingDir)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to read staging directory %q: %w", stagingDir, err)
 	}
 
 	for _, entry := range entries {
@@ -421,8 +420,7 @@ func (h *streamHandler) handleCreate() {
 	// but it would be more reliable to create it each time
 	err := os.MkdirAll(stagingDir, 0755)
 	if err != nil {
-		// TODO: metrics
-		h.logger.Error("Failed to create staging directory", "error", err, "directory", stagingDir)
+		h.logger.Warn("Failed to create staging directory", "error", err, "directory", stagingDir)
 		return
 	}
 	now := time.Now()
@@ -430,7 +428,7 @@ func (h *streamHandler) handleCreate() {
 
 	err = os.Link(h.config.LogFile, linkedPath)
 	if err != nil {
-		h.logger.Error("Failed to link log file", "error", err, "filepath", h.config.LogFile, "stagingFilepath", linkedPath)
+		h.logger.Warn("Failed to link log file", "error", err, "filepath", h.config.LogFile, "stagingFilepath", linkedPath)
 		return
 	}
 	h.logger.Info("Linked task to temporary name", "tmpname", linkedPath)
@@ -441,7 +439,7 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 	removeStagedPath := func(removeReason string) {
 		err := os.Remove(stagedPath)
 		if err != nil {
-			h.logger.Error("Failed to remove task file", "removeReason", removeReason, "stagedpath", stagedPath, "error", err)
+			h.logger.Warn("Failed to remove task file", "removeReason", removeReason, "stagedpath", stagedPath, "error", err)
 		} else {
 			h.logger.Info("Removed task file", "removeReason", removeReason, "stagedPath", stagedPath)
 		}
@@ -452,7 +450,7 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 	logger := h.logger.With("path", path.Base(stagedPath))
 	err = syscall.Stat(stagedPath, &stat)
 	if err != nil {
-		logger.Error("Failed to stat staging file", "error", err)
+		logger.Warn("Failed to stat staging file", "error", err)
 		return
 	}
 
@@ -467,7 +465,7 @@ func (h *streamHandler) handleStagedPath(stagedPath string) {
 		stagedPath = h.finalStagedPath(creationTime, ino)
 		err = os.Rename(oldStagedPath, stagedPath)
 		if err != nil {
-			h.logger.Error("Failed to move staged file", "tempstagedpath", oldStagedPath, "error", err)
+			h.logger.Warn("Failed to move staged file", "tempstagedpath", oldStagedPath, "error", err)
 			return
 		}
 		h.logger.Info("Renamed to final staged name", "tempstagedpath", oldStagedPath, "stagedpath", stagedPath)
@@ -665,7 +663,7 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 			}
 			err = os.Remove(task.StagedPath)
 			if err != nil {
-				h.logger.Error("Failed to remove staged file", "error", err, "stagedpath", task.StagedPath)
+				h.logger.Warn("Failed to remove staged file", "error", err, "stagedpath", task.StagedPath)
 			}
 			h.logger.Info("Pipeline completed", "stagedpath", task.StagedPath, "ino", task.INode)
 		}

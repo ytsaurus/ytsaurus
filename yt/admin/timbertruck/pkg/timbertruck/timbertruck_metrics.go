@@ -32,7 +32,7 @@ func newActiveTaskCounter(logger *slog.Logger, streamNames []string, registry me
 func (c *activeTaskCounter) Do() {
 	tasks, err := c.datastore.ListActiveTasks()
 	if err != nil {
-		c.logger.Error("Unexpected error ListActiveTasks()", "error", err)
+		c.logger.Warn("Unexpected error ListActiveTasks()", "error", err)
 		return
 	}
 
