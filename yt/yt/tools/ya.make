@@ -6,6 +6,7 @@ RECURSE(
     dump_changelog
     dump_chunk_meta
     dynamic_tables
+    force_abort_tx
     force_commit_tx
     generate_component_config_for_cluster
     hunk_chunk_advisor
