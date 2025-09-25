@@ -289,6 +289,7 @@ void TP2PSnooper::UpdateConfig(const TP2PConfigPtr& config)
 
 i64 TP2PSnooper::GetWeight(const TP2PChunkPtr& value) const
 {
+    auto guard = ReaderGuard(value->BlocksLock);
     return value->Weight;
 }
 
@@ -323,8 +324,9 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
     {
         auto guard = WriterGuard(chunk->BlocksLock);
         chunk->Reserve(*std::max_element(blockIndices.begin(), blockIndices.end()) + 1);
-        UpdateWeight(chunk);
     }
+
+    UpdateWeight(chunk);
 
     std::vector<TP2PSuggestion> suggestions;
 
@@ -532,8 +534,9 @@ void TP2PSnooper::CoolChunk(const TP2PChunkPtr& chunk)
         auto guard = WriterGuard(chunk->BlocksLock);
         chunk->Blocks.clear();
         chunk->Weight = 0;
-        UpdateWeight(chunk);
     }
+
+    UpdateWeight(chunk);
 
     {
         auto guard = Guard(chunk->PeersLock);
