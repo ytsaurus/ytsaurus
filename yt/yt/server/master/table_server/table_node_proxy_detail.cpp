@@ -2174,8 +2174,32 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         schema = New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
     }
 
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+
     if (table->IsNative()) {
         ValidateAdHocPermission(EPermission::Write);
+        switch (config->SecurityManager->AllowAlterWithoutFullRead) {
+            case EAllowAlterWithoutFullRead::Allow: {
+                break;
+            }
+            case EAllowAlterWithoutFullRead::Deny: {
+                ValidateAdHocPermission(EPermission::FullRead);
+                break;
+            }
+            case EAllowAlterWithoutFullRead::AllowAndAlert: {
+                try {
+                    ValidateAdHocPermission(EPermission::FullRead);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ALERT(
+                        ex,
+                        "User requested to alter table but lacks \"full_read\" permission (TableId: %v, User: %v)",
+                        table->GetId(),
+                        securityManager->GetAuthenticatedUser());
+                }
+                break;
+            }
+        }
 
         if (table->GetSchema()->AsCompactTableSchema()->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
@@ -2278,7 +2302,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
         }
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         const auto& tableManager = Bootstrap_->GetTableManager();
         auto newTableSchema = tableManager->GetHeavyTableSchemaSync(schema);
         auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
