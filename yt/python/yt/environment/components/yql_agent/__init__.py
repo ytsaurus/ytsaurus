@@ -96,7 +96,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
             return get_state() == "completed"
 
-        wait(check_query)
+        wait(check_query, ignore_exceptions=True)
 
         logger.info("Initialization for yql agent completed")
 

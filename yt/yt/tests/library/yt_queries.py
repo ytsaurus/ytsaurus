@@ -112,3 +112,9 @@ def alter_query(id, **kwargs):
 
 def get_query_tracker_info(**kwargs):
     return execute_command("get_query_tracker_info", kwargs, parse_yson=True)
+
+
+def get_declared_parameters_info(query, engine, **kwargs):
+    kwargs["query"] = query
+    kwargs["engine"] = engine
+    return execute_command("get_declared_parameters_info", kwargs, parse_yson=True)

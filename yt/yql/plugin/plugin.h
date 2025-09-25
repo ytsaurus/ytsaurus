@@ -79,6 +79,12 @@ struct TAbortResult
     std::optional<TString> YsonError;
 };
 
+struct TGetDeclaredParametersInfoResult
+{
+    std::optional<TString> YsonParameters;
+};
+
+
 //! This interface encapsulates YT <-> YQL integration.
 //! There are two major implementation: one of them is based
 //! on YQL code and another wraps the pure C bridge interface, which
@@ -107,6 +113,12 @@ struct IYqlPlugin
     virtual TQueryResult GetProgress(TQueryId queryId) noexcept = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) noexcept = 0;
+
+    virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TString user,
+        TString queryText,
+        NYson::TYsonString settings,
+        NYson::TYsonString credentials) = 0;
 
     virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept = 0;
 

@@ -132,6 +132,15 @@ struct TBridgeAbortResult
 #define FOR_EACH_ABORT_RESULT_STRING_FIELD(XX) \
     XX(YsonError)
 
+struct TBridgeGetDeclaredParametersInfoResult
+{
+    const char* YsonParameters = nullptr;
+    ssize_t YsonParametersLength = 0;
+};
+
+#define FOR_EACH_GET_DECLARE_PARAMETERS_RESULT_STRING_FIELD(XX) \
+    XX(YsonParameters)
+
 using TFuncBridgeFreeQueryResult = void(TBridgeQueryResult* result);
 using TFuncBridgeFreeClustersResult = void(TBridgeClustersResult* result);
 using TFuncBridgeRun = TBridgeQueryResult*(
@@ -157,6 +166,15 @@ using TFuncBridgeGetProgress = TBridgeQueryResult*(TBridgeYqlPlugin* plugin, con
 using TFuncBridgeAbort = TBridgeAbortResult*(TBridgeYqlPlugin* plugin, const char* queryId);
 using TFuncBridgeFreeAbortResult = void(TBridgeAbortResult* result);
 using TFuncBridgeOnDynamicConfigChanged = void(TBridgeYqlPlugin* plugin, const /*TYqlPluginDynamicConfig*/ void* config);
+using TFuncBridgeFreeGetDeclaredParametersInfoResult = void(TBridgeGetDeclaredParametersInfoResult* result);
+using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoResult*(
+    TBridgeYqlPlugin* plugin,
+    const char* user,
+    const char* queryText,
+    const char* settings,
+    int settingsLength,
+    const char* credentials,
+    int credentialsLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,6 +190,8 @@ using TFuncBridgeOnDynamicConfigChanged = void(TBridgeYqlPlugin* plugin, const /
     XX(BridgeGetAbiVersion) \
     XX(BridgeAbort) \
     XX(BridgeFreeAbortResult) \
-    XX(BridgeOnDynamicConfigChanged)
+    XX(BridgeOnDynamicConfigChanged) \
+    XX(BridgeGetDeclaredParametersInfo) \
+    XX(BridgeFreeGetDeclaredParametersInfoResult)
 
 ////////////////////////////////////////////////////////////////////////////////

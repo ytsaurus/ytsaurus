@@ -53,6 +53,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
     }
 
 private:
@@ -384,6 +385,32 @@ private:
         if (result.ExpectedTablesVersion) {
             rpcResponse->set_expected_tables_version(result.ExpectedTablesVersion.value());
         }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetDeclaredParametersInfo)
+    {
+        YT_VERIFY(NRpcProxy::NProto::TReqGetDeclaredParametersInfo::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetDeclaredParametersInfo::GetDescriptor()->field_count() == 1);
+
+        auto rpcRequest = request->rpc_proxy_request();
+        auto* rpcResponse = response->mutable_rpc_proxy_response();
+
+        TGetDeclaredParametersInfoOptions options;
+        if (rpcRequest.has_query_tracker_stage()) {
+            options.QueryTrackerStage = rpcRequest.query_tracker_stage();
+        }
+        if (rpcRequest.has_settings()) {
+            options.Settings = TYsonString(rpcRequest.settings());
+        }
+        options.Query = rpcRequest.query();
+        options.Engine = ConvertQueryEngineFromProto(rpcRequest.engine());
+        context->SetRequestInfo();
+
+        auto result = QueryTracker_->GetDeclaredParametersInfo(options);
+
+        rpcResponse->set_declared_parameters_info(ToProto(result.Parameters));
 
         context->Reply();
     }
