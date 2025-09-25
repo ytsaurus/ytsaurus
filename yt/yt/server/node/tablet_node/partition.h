@@ -81,6 +81,9 @@ public:
 
     void CheckedSetState(EPartitionState oldState, EPartitionState newState);
 
+    void EnterCompactionState(EPartitionState stateToAdd);
+    void ExitCompactionState(EPartitionState stateToRemove);
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
@@ -105,6 +108,13 @@ public:
 
 private:
     EPartitionState State_ = EPartitionState::Normal;
+
+    static constexpr ui32 CompactingMask = 0b001;
+    static constexpr ui32 PartitioningMask = 0b010;
+    static constexpr ui32 CompactionNotAllowedMask = 0b100;
+
+    static ui32 StateToMask(EPartitionState state);
+    static EPartitionState MaskToState(ui32 mask);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

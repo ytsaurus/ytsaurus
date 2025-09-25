@@ -77,6 +77,20 @@ void TPartition::CheckedSetState(EPartitionState oldState, EPartitionState newSt
     SetState(newState);
 }
 
+void TPartition::EnterCompactionState(EPartitionState stateToAdd)
+{
+    auto mask = StateToMask(GetState());
+    YT_VERIFY((mask & StateToMask(stateToAdd)) == 0);
+    SetState(MaskToState(mask ^ StateToMask(stateToAdd)));
+}
+
+void TPartition::ExitCompactionState(EPartitionState stateToRemove)
+{
+    auto mask = StateToMask(GetState());
+    YT_VERIFY(mask & StateToMask(stateToRemove));
+    SetState(MaskToState(mask ^ StateToMask(stateToRemove)));
+}
+
 void TPartition::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -237,6 +251,48 @@ void TPartition::BuildOrchidYson(TFluentMap fluent) const
                         .Item().Value(key);
                 });
         });
+}
+
+ui32 TPartition::StateToMask(EPartitionState state)
+{
+    switch (state) {
+        case EPartitionState::Normal:
+            return 0;
+
+        case EPartitionState::Compacting:
+            return CompactingMask;
+
+        case EPartitionState::Partitioning:
+            return PartitioningMask;
+
+        case EPartitionState::PartitioningAndCompacting:
+            return CompactingMask | PartitioningMask;
+
+        default:
+            return CompactionNotAllowedMask;
+    }
+}
+
+EPartitionState TPartition::MaskToState(ui32 mask)
+{
+    YT_VERIFY((mask & CompactionNotAllowedMask) == 0);
+
+    switch (mask) {
+        case 0:
+            return EPartitionState::Normal;
+
+        case CompactingMask:
+            return EPartitionState::Compacting;
+
+        case PartitioningMask:
+            return EPartitionState::Partitioning;
+
+        case PartitioningMask | CompactingMask:
+            return EPartitionState::PartitioningAndCompacting;
+
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
