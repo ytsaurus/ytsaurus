@@ -508,6 +508,9 @@ public:
     TFuture<TGetQueryTrackerInfoResult> GetQueryTrackerInfo(
         const TGetQueryTrackerInfoOptions& options = {}) override;
 
+    TFuture<TGetDeclaredParametersInfoResult> GetDeclaredParametersInfo(
+        const TGetDeclaredParametersInfoOptions& options = {}) override;
+
     // Authentication
 
     virtual TFuture<void> SetUserPassword(

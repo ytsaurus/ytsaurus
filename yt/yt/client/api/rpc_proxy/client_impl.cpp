@@ -2596,6 +2596,30 @@ TFuture<TGetQueryTrackerInfoResult> TClient::GetQueryTrackerInfo(
     }));
 }
 
+TFuture<TGetDeclaredParametersInfoResult> TClient::GetDeclaredParametersInfo(
+    const TGetDeclaredParametersInfoOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetDeclaredParametersInfo();
+    SetTimeoutOptions(*req, options);
+
+    req->set_query_tracker_stage(options.QueryTrackerStage);
+
+    if (options.Settings) {
+        ToProto(req->mutable_settings(), ConvertToYsonString(options.Settings).ToString());
+    }
+
+    req->set_query(options.Query);
+    req->set_engine(NProto::ConvertQueryEngineToProto(options.Engine));
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetDeclaredParametersInfoPtr& rsp) {
+        return TGetDeclaredParametersInfoResult{
+            .Parameters = TYsonString(rsp->declared_parameters_info()),
+        };
+    }));
+}
+
 TFuture<NBundleControllerClient::TBundleConfigDescriptorPtr> TClient::GetBundleConfig(
     const TString& /*bundleName*/,
     const NBundleControllerClient::TGetBundleConfigOptions& /*options*/)
