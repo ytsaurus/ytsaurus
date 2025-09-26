@@ -188,4 +188,15 @@ using TTagSet = TBitSet<TTag>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DECLARE_REFCOUNTED_CLASS_WITH_CONST(type) \
+DECLARE_REFCOUNTED_CLASS(type) \
+using type ## ConstPtr = ::NYT::TIntrusivePtr<const type>;
+
+
+#define DECLARE_REFCOUNTED_STRUCT_WITH_CONST(type) \
+DECLARE_REFCOUNTED_STRUCT(type) \
+using type ## ConstPtr = ::NYT::TIntrusivePtr<const type>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NOrm::NClient::NObjects
