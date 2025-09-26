@@ -50,15 +50,17 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
         return;
     }
 
-    TString fqdn;
+    TString fqdnAttr;
     try {
-        fqdn = client->Get("//sys/@local_mode_fqdn").AsString();
+        fqdnAttr = client->Get("//sys/@local_mode_fqdn").AsString();
     } catch (const TErrorResponse& error) {
         Y_ABORT("Attribute //sys/@local_mode_fqdn not found; are you trying to run tests on a real cluster?");
     }
+    fqdnAttr = to_lower(fqdnAttr);
+    auto realFqdn = to_lower(::FQDNHostName());
     Y_ENSURE(
-        fqdn == ::FQDNHostName(),
-        "FQDN from cluster differs from host name: " << fqdn << ' ' << ::FQDNHostName()
+        fqdnAttr == realFqdn,
+        "FQDN from cluster differs from host name: " << fqdnAttr << ' ' << realFqdn
             << "; are you trying to run tests on a real cluster?");
 }
 
