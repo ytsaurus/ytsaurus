@@ -37,11 +37,13 @@ func (initializer *ClusterInitializer) setUpIDMRoles(ctx context.Context) error 
 				yt.PermissionRead,
 				yt.PermissionManage,
 				yt.PermissionRemove,
+				yt.PermissionUse,
 			},
 		},
 		"use": map[string]any{
 			"idm_name": "Use",
 			"permissions": []yt.Permission{
+				yt.PermissionRead,
 				yt.PermissionUse,
 			},
 		},
