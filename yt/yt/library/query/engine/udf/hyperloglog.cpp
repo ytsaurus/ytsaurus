@@ -133,3 +133,44 @@ extern "C" void cardinality_merge_finalize(
     result->Type = EValueType::Uint64;
     result->Data.Uint64 = HyperLogLogEstimateCardinality(state->Data.String);
 }
+
+extern "C" void cardinality_merge_state_init(
+    TExpressionContext* context,
+    TUnversionedValue* result)
+{
+    HyperLogLogAllocate(context, result);
+}
+
+extern "C" void cardinality_merge_state_update(
+    TExpressionContext* /*context*/,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* newValue)
+{
+    result->Type = EValueType::String;
+    result->Length = state->Length;
+    result->Data.String = state->Data.String;
+
+    HyperLogLogMergeWithValidation(state->Data.String, newValue->Data.String, newValue->Length);
+}
+
+extern "C" void cardinality_merge_state_merge(
+    TExpressionContext* /*context*/,
+    TUnversionedValue* result,
+    TUnversionedValue* state1,
+    TUnversionedValue* state2)
+{
+    result->Type = EValueType::String;
+    result->Length = state1->Length;
+    result->Data.String = state1->Data.String;
+
+    HyperLogLogMerge(state1->Data.String, state2->Data.String);
+}
+
+extern "C" void cardinality_merge_state_finalize(
+    TExpressionContext* /*context*/,
+    TUnversionedValue* result,
+    TUnversionedValue* state)
+{
+    *result = *state;
+}
