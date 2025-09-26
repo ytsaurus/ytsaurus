@@ -546,24 +546,27 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
 ```
 
 #### Работа с датами
-При округлении используется UTC-таймзона
+При округлении используется UTC-таймзона, если у функции нет суффикса _tz. В противном случае вторым аргументом передается IANA имя часового пояса. 
 
-`timestamp_floor_year(t) :: int64 -> int64`
+`timestamp_floor_year[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Получить timestamp года (на 0:00 первого января) для указанного timestamp.
 
-`timestamp_floor_month(t) :: int64 -> int64`
+`timestamp_floor_quarter[_tz](t[, tz]) :: int64 [-> string] -> int64`
+Получить timestamp квартала (на 0:00 первого января, апреля, июля или октября) для указанного timestamp.
+
+`timestamp_floor_month[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Получить timestamp месяца (на 0:00 первого дня месяца) для указанного timestamp.
 
-`timestamp_floor_week(t) :: int64 -> int64`
+`timestamp_floor_week[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Получить timestamp недели (на 0:00 понедельника) для указанного timestamp.
 
-`timestamp_floor_day(t) :: int64 -> int64`
+`timestamp_floor_day[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Получить timestamp дня (на 0:00 начала дня) для указанного timestamp.
 
-`timestamp_floor_hour(t) :: int64 -> int64`
+`timestamp_floor_hour[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Получить timestamp часа (0 мин. 0 секунд начала часа) для указанного timestamp.
 
-`format_timestamp(t, format) :: int64 -> string -> string`
+`format_timestamp[_tz](t[, tz], format) :: int64 [-> string] -> string -> string`
 Форматирует время, указанное в timestamp, согласно строке format. Использует ту же конвенцию, что и `std::strftime`.
 
 #### Хеширование
