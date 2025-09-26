@@ -1366,6 +1366,7 @@ def add_start_query_parser(add_parser):
     parser.add_argument("--access-control-object", type=str, help='optional access control object name (deprecated)')
     add_structured_argument(parser, "--access-control-objects", help='access control objects, a YSON list of ACO names')
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    parser.add_argument("--do-not-index", action="store_false", default=True, dest="is_indexed", help="makes query invisible for list_queries")
 
 
 @copy_docstring_from(yt.run_query)

@@ -9,7 +9,7 @@ from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
 from yt_helpers import profiler_factory
 
-from yt_queries import Query, start_query, list_queries, get_query_tracker_info
+from yt_queries import Query, start_query, list_queries, get_query_tracker_info, get_query
 
 from yt.common import date_string_to_timestamp_mcs
 
@@ -283,6 +283,21 @@ class TestQueriesMock(YTEnvSetup):
         q.track()
         assert q.get_result(0)["is_truncated"]
         assert not q.get_result(1)["is_truncated"]
+
+    @authors("kirsiv40")
+    def test_is_indexed_flag(self, query_tracker):
+        q = start_query("mock", "complete_after", settings={"duration": 1000})
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "true"
+        q.track()
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "true"
+        q = start_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': False})
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "false"
+        q.track()
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "false"
 
 
 @pytest.mark.enabled_multidaemon

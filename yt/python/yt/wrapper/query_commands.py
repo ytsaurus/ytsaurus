@@ -17,7 +17,7 @@ from typing import Iterator, Optional, Tuple, List, Dict
 import logging
 
 
-def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, secrets=None, client=None):
+def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, secrets=None, is_indexed=None, client=None):
     """Start query.
 
     :param engine: one of "ql", "yql", "chyt", "spyt".
@@ -38,10 +38,14 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
     :type access_control_objects: list or None
     """
 
+    settings = get_value(settings, {})
+    if is_indexed is not None:
+        settings["is_indexed"] = is_indexed
+
     params = {
         "engine": engine,
         "query": query,
-        "settings": get_value(settings, {}),
+        "settings": settings,
         "files": get_value(files, []),
         "stage": get_value(stage, "production"),
         "annotations": get_value(annotations, {}),
@@ -531,7 +535,7 @@ class Query:
 
 def run_query(
         engine: str, query: str, settings: Optional[Dict] = None, files: Optional[List] = None, stage: Optional[str] = None,
-        annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, sync: bool = True,
+        annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, is_indexed: Optional[bool] = None, sync: bool = True,
         client=None) -> Query:
     """Run query and track its progress (unless sync = false).
 
@@ -554,7 +558,7 @@ def run_query(
     """
 
     query_id = start_query(engine, query, settings=settings, files=files, stage=stage,
-                           annotations=annotations, access_control_objects=access_control_objects, client=client)
+                           annotations=annotations, access_control_objects=access_control_objects, is_indexed=is_indexed, client=client)
     query = Query(query_id, engine, query_tracker_stage=stage, client=client)
     logger.info("Query started: %s", query.url or query.id)
     if sync:

@@ -148,6 +148,11 @@ types:
         column_type: Any
         lock: client
 
+      - cpp_name: IsIndexed
+        cpp_type: bool
+        column_name: is_indexed
+        column_type: Boolean
+
 
   - type_name: TFinishedQuery
     fields:
@@ -242,6 +247,11 @@ types:
         cpp_type: std::optional<std::string>
         column_name: assigned_tracker
         column_type: String
+
+      - cpp_name: IsIndexed
+        cpp_type: bool
+        column_name: is_indexed
+        column_type: Boolean
 
 
   - type_name: TFinishedQueryByStartTime

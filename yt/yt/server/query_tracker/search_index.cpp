@@ -667,7 +667,7 @@ private:
             toTime = i64(options.CursorTime->MicroSeconds()) - 1;
         }
 
-        auto placeholdersFluentMap = BuildYsonStringFluently().BeginMap();
+        auto placeholdersFluentMap = BuildYsonNodeFluently().BeginMap();
         if (options.UserFilter) {
             builder.AddWhereConjunct("[user] = {UserFilter}");
             placeholdersFluentMap.Item("UserFilter").Value(*options.UserFilter);
@@ -691,6 +691,8 @@ private:
             if (toTime) {
                 builder.AddWhereConjunct("[start_time] <= " + ToString(toTime));
             }
+
+            builder.AddWhereConjunct("[is_indexed] = TRUE");
 
             if (!isSuperuser) {
                 placeholdersFluentMap.Item("User").Value(user);
@@ -724,7 +726,7 @@ private:
             }
         }
 
-        placeholderValues = placeholdersFluentMap.EndMap();
+        placeholderValues = ConvertToYsonString(placeholdersFluentMap.EndMap());
     }
 
     template <typename TRecord>
