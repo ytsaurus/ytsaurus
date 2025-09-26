@@ -124,7 +124,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                         : new RpcClientFactoryImpl(
                         busConnector,
                         builder.auth,
-                        builder.builder.compression);
+                        builder.builder.compression,
+                        builder.builder.config.getRpcOptions().getRpcClientListener());
 
         this.poolProvider = new ClientPoolProvider(
                 busConnector,
