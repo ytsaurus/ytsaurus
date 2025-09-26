@@ -4,6 +4,12 @@ This page features video content and publications from {{product-name}} develope
 
 ## Conferences, publications
 
+
+### 2025: YTsaurus dynamic tables in action: how we build ad profiles for behavioral targeting
+- **Event:** [Publication on Habr](https://habr.com/ru/companies/yandex/articles/939078/)
+- **Author:** Ruslan Savchenko
+- **Language:** Russian
+
 ### 2024: YTsaurus dynamic tables — and yet another DBMS from Yandex
 - **Event:** HighLoad++ 2024
 - **Materials:** [YouTube](https://youtu.be/Zik0TXOHcmY)
