@@ -269,8 +269,13 @@ public:
                     replica.NodeId = masterReplica.GetNodeId();
                     replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                     replica.ReplicaState = masterReplica.GetReplicaState();
-                    if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
-                        unapprovedReplicas.push_back(replica);
+                    if (masterReplica.IsChunkLocation()) {
+                        auto location = masterReplica.AsChunkLocation().GetPtr();
+                        if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
+                            unapprovedReplicas.push_back(replica);
+                        } else {
+                            replicas.push_back(replica);
+                        }
                     } else {
                         replicas.push_back(replica);
                     }
