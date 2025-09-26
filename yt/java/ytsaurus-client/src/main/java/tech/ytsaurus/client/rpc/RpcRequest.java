@@ -44,6 +44,14 @@ public class RpcRequest<RequestType extends MessageLite> {
         this.compressedAttachments = attachments;
     }
 
+    protected RpcRequest(RpcRequest<RequestType> request) {
+        this.header = request.header;
+        this.body = request.body;
+        this.attachments = request.attachments;
+        this.compressedAttachmentsCodec = request.compressedAttachmentsCodec;
+        this.compressedAttachments = request.compressedAttachments;
+    }
+
     public RpcRequest<RequestType> copy(TRequestHeader header) {
         if (attachments != null) {
             return new RpcRequest<>(header, body, attachments);
@@ -64,7 +72,7 @@ public class RpcRequest<RequestType extends MessageLite> {
         return RpcUtil.fromProto(header.getRequestId());
     }
 
-    List<byte[]> serialize(TRequestHeader header) {
+    protected List<byte[]> serialize(TRequestHeader header) {
         Compression attachmentsCodec = header.hasRequestCodec() ?
                 Compression.fromValue(header.getRequestCodec()) :
                 Compression.fromValue(0);

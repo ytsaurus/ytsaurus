@@ -66,7 +66,8 @@ public class RpcProxyGetterTest extends YTsaurusClientTestBase {
                 new RpcClientFactoryImpl(
                         new DefaultBusConnector(),
                         YTsaurusClientAuth.empty(),
-                        new RpcCompression()),
+                        new RpcCompression(),
+                        null),
                 new RpcOptions(),
                 new Random());
 
@@ -92,7 +93,8 @@ public class RpcProxyGetterTest extends YTsaurusClientTestBase {
         RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(
                 new DefaultBusConnector(),
                 YTsaurusClientAuth.empty(),
-                new RpcCompression());
+                new RpcCompression(),
+                null);
         var poolClient = rpcClientFactory.create(proxiesFromList.get(0), "local-dc");
         RpcProxyGetter proxyGetter = new RpcProxyGetter(
                 List.of(HostPort.parse("example.com")),

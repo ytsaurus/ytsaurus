@@ -207,7 +207,7 @@ class OutageRpcClientFactoryImpl extends RpcClientFactoryImpl {
             RpcCompression compression,
             OutageController controller
     ) {
-        super(connector, auth, compression);
+        super(connector, auth, compression, null);
         this.controller = controller;
     }
 
