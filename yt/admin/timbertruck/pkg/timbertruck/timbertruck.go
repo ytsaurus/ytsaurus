@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 
 	"go.ytsaurus.tech/library/go/core/metrics"
@@ -656,13 +657,8 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 		if err != nil {
 			h.logger.Error("Pipeline error", "error", err)
 		} else {
-			err = h.completeTask(task, nil)
-			if err != nil {
-				h.logger.Error("Failed to complete task", "error", err, "stagedpath", task.StagedPath)
-				return
-			}
-			err = os.Remove(task.StagedPath)
-			if err != nil {
+			h.completeTask(task, nil)
+			if err := os.Remove(task.StagedPath); err != nil {
 				h.logger.Warn("Failed to remove staged file", "error", err, "stagedpath", task.StagedPath)
 			}
 			h.logger.Info("Pipeline completed", "stagedpath", task.StagedPath, "ino", task.INode)
@@ -670,16 +666,28 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 	}
 }
 
-func (h *streamHandler) completeTask(task Task, taskError error) (err error) {
-	err = h.timberTruck.datastore.CompleteTask(task.StagedPath, time.Now(), taskError)
-	if err != nil {
-		return
+func (h *streamHandler) completeTask(task Task, taskError error) {
+	b := backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(20*time.Second),
+		backoff.WithMaxElapsedTime(0), // Must never stop.
+	)
+	for {
+		err := h.timberTruck.datastore.CompleteTask(task.StagedPath, time.Now(), taskError)
+		if err == nil {
+			break
+		}
+		next := b.NextBackOff()
+		if next == b.Stop {
+			panic(fmt.Sprintf("CompleteTask failed, retries exhausted: %v", err))
+		}
+		h.timberTruck.logger.Warn("CompleteTask failed, will retry", "error", err, "stagedpath", task.StagedPath, slog.Duration("backoff", next))
+		time.Sleep(next)
 	}
-	err = h.timberTruck.datastore.CleanupOldCompletedTasks(time.Now().Add(-*h.timberTruck.config.CompletedTaskRetainPeriod))
+	err := h.timberTruck.datastore.CleanupOldCompletedTasks(time.Now().Add(-*h.timberTruck.config.CompletedTaskRetainPeriod))
 	if err != nil {
-		h.timberTruck.logger.Error("Failed to cleanup old completed tasks", "error", err)
+		h.timberTruck.logger.Warn("Failed to cleanup old completed tasks", "error", err)
 	}
-	return
 }
 
 type taskController struct {
@@ -690,14 +698,22 @@ type taskController struct {
 
 func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
 	c.logger.Debug("Update end position", "progress", pos)
+	b := backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxInterval(5*time.Second),
+		backoff.WithMaxElapsedTime(0), // Must never stop.
+	)
 	for {
 		err := c.datastore.UpdateEndPosition(c.path, pos)
-		if err != nil {
-			c.logger.Warn("Failed to notify progress, will retry", "error", err)
-			time.Sleep(1 * time.Second)
-			continue
+		if err == nil {
+			break
 		}
-		break
+		next := b.NextBackOff()
+		if next == b.Stop {
+			panic(fmt.Sprintf("NotifyProgress failed, retries exhausted: %v", err))
+		}
+		c.logger.Warn("Failed to notify progress, will retry", "error", err, slog.Duration("backoff", next))
+		time.Sleep(next)
 	}
 	c.logger.Debug("Task progress", "progress", pos)
 }
