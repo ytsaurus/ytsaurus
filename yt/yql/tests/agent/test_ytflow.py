@@ -51,6 +51,12 @@ class TestYtflowBase(TestQueueAgentBase):
             )],
         )
 
+        yt_gateway_config = config['yql_agent']['gateway_config']
+        yt_gateway_config['mr_job_udfs_dir'] = ";".join([
+            yt_gateway_config['mr_job_udfs_dir'],
+            yatest.common.binary_path("yt/yql/tests/agent/throwing_udf"),
+        ])
+
     def _run_test(
         self, input_table_attrs, input_rows,
         query_text,
@@ -144,5 +150,42 @@ where string_field = "foo" or int64_field >= 100;
             expected_output_rows=[
                 {"string_field": "foo_ytflow", "int64_field": 100, "bool_field": False},
                 {"string_field": "foobar_ytflow", "int64_field": 10000, "bool_field": True},
+            ],
+        )
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    def test_throwing_udf(self, query_tracker, yql_agent):
+        self._run_test(
+            input_table_attrs=dict(
+                schema=[
+                    {"name": "$timestamp", "type": "uint64"},
+                    {"name": "$cumulative_data_weight", "type": "int64"},
+                    {"name": "value", "type": "string"},
+                    {"name": "need_throw", "type": "boolean"},
+                ],
+            ),
+            input_rows=[
+                {"value": "foo", "need_throw": False},
+                {"value": "bar", "need_throw": True},
+                {"value": "foobar", "need_throw": False},
+            ],
+            query_text=f"""
+insert into `{self.OUTPUT_TABLE}`
+select
+    ThrowingUdf::ParseWithThrow(value, need_throw) as parsed_value
+from `{self.INPUT_TABLE}`
+""",
+            output_table_attrs=dict(
+                schema=[
+                    {"name": "$timestamp", "type": "uint64"},
+                    {"name": "$cumulative_data_weight", "type": "int64"},
+                    {"name": "parsed_value", "type": "string"},
+                ],
+            ),
+            expected_output_rows=[
+                {"parsed_value": "foo"},
+                {'parsed_value': '(yexception) yt/yql/tests/agent/throwing_udf/throwing_udf.cpp:14: expected exception'},
+                {"parsed_value": "foobar"},
             ],
         )
