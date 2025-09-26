@@ -1133,8 +1133,8 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
-        bool isErasure = IsErasureChunkType(chunkType);
-        bool isJournal = IsJournalChunkType(chunkType);
+        auto isErasure = IsErasureChunkType(chunkType);
+        auto isJournal = IsJournalChunkType(chunkType);
 
         auto* chunk = hintId ? DoCreateChunk(hintId) : DoCreateChunk(chunkType);
         chunk->SetReadQuorum(readQuorum);

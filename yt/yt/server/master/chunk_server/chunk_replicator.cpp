@@ -542,8 +542,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TChunk* chunk,
     const TStoredReplicaList& replicas)
 {
-    auto offshoreReplica = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMedium(); });
-    if (chunk->IsErasure() && offshoreReplica) {
+    auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMedium(); });
+    if (chunk->IsErasure() && offshoreReplicaIt != replicas.end()) {
         std::vector<TMediumPtrWithReplicaInfo> offshoreReplicas;
         for (const auto& replica: replicas) {
             if (replica.IsMedium()) {
