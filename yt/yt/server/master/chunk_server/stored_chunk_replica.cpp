@@ -36,12 +36,16 @@ bool TStoredReplica::IsChunkLocation() const
 
 TChunkLocationPtrWithReplicaInfo& TStoredReplica::AsChunkLocation()
 {
-    return std::get<0>(ReplicaInfo_);
+    auto* location = std::get_if<TChunkLocationPtrWithReplicaInfo>(&ReplicaInfo_);
+    YT_VERIFY(location);
+    return *location;
 }
 
 const TChunkLocationPtrWithReplicaInfo& TStoredReplica::AsChunkLocation() const
 {
-    return std::get<0>(ReplicaInfo_);
+    const auto* location = std::get_if<TChunkLocationPtrWithReplicaInfo>(&ReplicaInfo_);
+    YT_VERIFY(location);
+    return *location;
 }
 
 bool TStoredReplica::IsMedium() const
@@ -51,12 +55,16 @@ bool TStoredReplica::IsMedium() const
 
 TMediumPtrWithReplicaInfo& TStoredReplica::AsMedium()
 {
-    return std::get<1>(ReplicaInfo_);
+    auto* medium = std::get_if<TMediumPtrWithReplicaInfo>(&ReplicaInfo_);
+    YT_VERIFY(medium);
+    return *medium;
 }
 
 const TMediumPtrWithReplicaInfo& TStoredReplica::AsMedium() const
 {
-    return std::get<1>(ReplicaInfo_);
+    const auto* medium = std::get_if<TMediumPtrWithReplicaInfo>(&ReplicaInfo_);
+    YT_VERIFY(medium);
+    return *medium;
 }
 
 TStoredReplica TStoredReplica::ToGenericState() const
