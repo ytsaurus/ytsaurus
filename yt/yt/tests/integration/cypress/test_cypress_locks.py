@@ -741,16 +741,6 @@ class TestCypressLocks(YTEnvSetup):
             remove("//tmp/a")
 
     @authors("babenko", "ignat")
-    @cannot_be_implemented_in_sequoia("list nodes aren't supported")
-    def test_remove_list_subtree_lock(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/a", [1])
-        tx = start_transaction()
-        lock("//tmp/a/0", mode="exclusive", tx=tx)
-        with raises_yt_error("\"exclusive\" lock is taken by concurrent transaction"):
-            remove("//tmp/a")
-
-    @authors("babenko", "ignat")
     def test_exclusive_vs_snapshot_locks1(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
@@ -1332,12 +1322,6 @@ class TestCypressLocks(YTEnvSetup):
 
         assert get("//tmp/a/d/@id") != get("//tmp/a/d/@id", tx=tx)
         assert get("//tmp/a/d/@id", tx=tx) == doc_id
-
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        create("list_node", "//tmp/a/l")
-
-        assert exists("//tmp/a/l")
-        assert not exists("//tmp/a/l", tx=tx)
 
     @authors("babenko", "ignat")
     def test_attr_locks1(self):

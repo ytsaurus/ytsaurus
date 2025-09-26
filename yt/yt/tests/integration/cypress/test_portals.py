@@ -480,24 +480,6 @@ class TestPortals(YTEnvSetup):
         assert not exists("//tmp/p/t")
         assert exists("//tmp/p/t2")
 
-    @authors("h0pless")
-    def test_cross_cell_copy_banned_for_list_nodes(self):
-        create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
-
-        create("map_node", "//tmp/p1/m", attributes={"account": "a"})
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        create("list_node", "//tmp/p1/m/l")
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
-
-        with raises_yt_error("List nodes are deprecated and do not support cross-cell copying"):
-            copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True)
-
-        # XXX(babenko): cleanup is weird
-        remove("//tmp/p1")
-        remove("//tmp/p2")
-
     @authors("babenko")
     @pytest.mark.parametrize("in_tx", [False, True])
     def test_cross_cell_move(self, in_tx):
