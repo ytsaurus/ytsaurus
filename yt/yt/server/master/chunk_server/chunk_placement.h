@@ -90,7 +90,7 @@ public:
     // on different location of the same node.
     TChunkLocation* GetRemovalTarget(
         TChunkPtrWithReplicaAndMediumIndex replica,
-        const TChunkLocationPtrWithReplicaInfoList& replicas);
+        const TStoredReplicaList& replicas);
 
     template <typename TGenericChunk>
     int GetMaxReplicasPerRack(

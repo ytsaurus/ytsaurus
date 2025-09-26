@@ -2430,20 +2430,14 @@ void TChunkReplicator::RefreshChunk(
 
     auto durabilityRequired = IsDurabilityRequired(chunk, chunkReplicas);
 
-    TChunkLocationPtrWithReplicaInfoList locationReplicas;
-    locationReplicas.reserve(chunkReplicas.size());
-    for (const auto& replica: chunkReplicas) {
-        if (!replica.IsChunkLocation()) {
-            YT_LOG_ALERT(
-                "Non-chunk location stored replica was found during refresh of chunk "
-                "(ChunkId:%v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
-                chunk->GetId(),
-                replica.GetEffectiveMediumIndex(),
-                replica.GetReplicaIndex());
-            continue;
-        }
-        locationReplicas.push_back(replica.AsChunkLocation());
-    }
+    auto alertNonChunkLocationReplica = [&] (const auto& replica) {
+        YT_LOG_ALERT(
+            "Non-chunk location stored replica was found during refresh of chunk "
+            "(ChunkId:%v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
+            chunk->GetId(),
+            replica.GetEffectiveMediumIndex(),
+            replica.GetReplicaIndex());
+    };
 
     for (auto entry : replication) {
         auto mediumIndex = entry.GetMediumIndex();
@@ -2499,7 +2493,7 @@ void TChunkReplicator::RefreshChunk(
 
                 for (int replicaIndex : statistics.BalancingRemovalIndexes) {
                     TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(chunk, replicaIndex, mediumIndex);
-                    auto* targetLocation = ChunkPlacement_->GetRemovalTarget(chunkWithIndexes, locationReplicas);
+                    auto* targetLocation = ChunkPlacement_->GetRemovalTarget(chunkWithIndexes, chunkReplicas);
                     if (!targetLocation) {
                         continue;
                     }
@@ -2539,6 +2533,7 @@ void TChunkReplicator::RefreshChunk(
                     } else {
                         for (auto replica : chunkReplicas) {
                             if (!replica.IsChunkLocation()) {
+                                alertNonChunkLocationReplica(replica);
                                 continue;
                             }
                             if (chunk->IsJournal() && replica.GetReplicaState() != EChunkReplicaState::Sealed) {
@@ -2580,6 +2575,7 @@ void TChunkReplicator::RefreshChunk(
                     if (config->EnableRepairViaReplication) {
                         for (auto replica : chunkReplicas) {
                             if (!replica.IsChunkLocation()) {
+                                alertNonChunkLocationReplica(replica);
                                 continue;
                             }
                             auto* location = replica.AsChunkLocation().GetPtr();
@@ -2606,6 +2602,7 @@ void TChunkReplicator::RefreshChunk(
         YT_ASSERT(chunk->IsJournal());
         for (auto replica : chunkReplicas) {
             if (!replica.IsChunkLocation()) {
+                alertNonChunkLocationReplica(replica);
                 continue;
             }
             if (replica.GetReplicaState() != EChunkReplicaState::Unsealed) {
