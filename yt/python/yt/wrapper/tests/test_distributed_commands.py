@@ -15,7 +15,7 @@ class TestCypressCommands(object):
         sorted_table_path = "//tmp/target_table"
         client.create("table", sorted_table_path, attributes={"schema": [{"name": "f_str", "type": "string", "sort_order": "ascending"}]})
 
-        if yt.config["backend"] == "http" and yt.driver.get_api_version() == "v3" or yt.config["backend"] == "rpc":
+        if yt.config["backend"] == "http" and yt.driver.get_api_version() == "v3":
             with pytest.raises(yt.YtError) as pytest_err:
                 write_session, write_cookies = client.start_distributed_write_session(path=sorted_table_path, fragments_count=1)
             assert pytest_err.value.is_command_not_supported()
@@ -30,6 +30,6 @@ class TestCypressCommands(object):
             write_result_1 = client.write_table_fragment(cookie=write_cookies[0], input_stream=b"{\"f_str\": \"bar_9\"}", format="json", raw=True)
             write_result_2 = client.write_table_fragment(cookie=write_cookies[1], input_stream=[{"f_str": "bar_1"}, {"f_str": "bar_2"}, {"f_str": "bar_3"}])
             client.ping_distributed_write_session(session=write_session)
-            client.finish_distributed_write_session(session=write_session, results=[write_result_1, write_result_2])
+            client.finish_distributed_write_session(session=write_session, results=[write_result_2, write_result_1])
             assert list(client.read_table(sorted_table_path)) == [{"f_str": "bar_1"}, {"f_str": "bar_2"}, {"f_str": "bar_3"}, {"f_str": "bar_9"}]
             assert client.get(f"{sorted_table_path}/@sorted")

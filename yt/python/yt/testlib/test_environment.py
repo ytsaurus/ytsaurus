@@ -164,6 +164,9 @@ class YtTestEnvironment(object):
             for config in configs["http_proxy"]:
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
+            for config in configs["rpc_proxy"]:
+                if delta_proxy_config:
+                    update_inplace(config, delta_proxy_config)
             for config in configs["driver"]:
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)

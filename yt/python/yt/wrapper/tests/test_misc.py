@@ -1154,7 +1154,7 @@ class TestTransferAccountResources(object):
         assert yt.get("//sys/accounts/a/@resource_limits") == get_limits(6)
 
 
-@pytest.mark.usefixtures("yt_env_with_rpc")
+@pytest.mark.usefixtures("yt_env_with_rpc_v3")
 class TestTransferPoolResources(object):
     @authors("renadeen")
     def test_transfer_pool_resources_simple(self):
