@@ -220,7 +220,11 @@ namespace {
 NYT::NCrypto::TSslContextPtr CreateSslContext(const NYT::NCrypto::TSslContextConfigPtr& config, NYT::NCrypto::TCertificatePathResolver pathResolver = nullptr)
 {
     auto sslContext = New<NYT::NCrypto::TSslContext>();
-    sslContext->ApplyConfig(config, std::move(pathResolver));
+    if (config) {
+        sslContext->ApplyConfig(config, std::move(pathResolver));
+    } else {
+        sslContext->UseBuiltinOpenSslX509Store();
+    }
     sslContext->Commit();
     return sslContext;
 }
@@ -234,12 +238,13 @@ public:
     THttpClient(
         NHttp::TClientConfigPtr config,
         TNetworkAddress address,
+        bool useTls,
         const NYT::NCrypto::TSslContextConfigPtr& sslContextConfig,
         IPollerPtr poller,
         IInvokerPtr invoker)
         : Config_(config)
         , Address_(std::move(address))
-        , Dialer_(sslContextConfig
+        , Dialer_(useTls
             ? CreateSslContext(sslContextConfig)->CreateDialer(
                 config->Dialer,
                 std::move(poller),
@@ -286,7 +291,10 @@ private:
             request.Region,
             request.Service);
 
-        auto connection = WaitFor(Dialer_->Dial(Address_))
+        auto dialerContext = New<TDialerContext>();
+        dialerContext->Host = request.Host;
+
+        auto connection = WaitFor(Dialer_->Dial(Address_, dialerContext))
             .ValueOrThrow();
 
         auto input = New<THttpInput>(
@@ -341,6 +349,7 @@ private:
 IHttpClientPtr CreateHttpClient(
     NHttp::TClientConfigPtr config,
     NNet::TNetworkAddress address,
+    bool useTls,
     const NYT::NCrypto::TSslContextConfigPtr& sslContextConfig,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr invoker)
@@ -348,6 +357,7 @@ IHttpClientPtr CreateHttpClient(
     return New<THttpClient>(
         std::move(config),
         std::move(address),
+        useTls,
         sslContextConfig,
         std::move(poller),
         std::move(invoker));
