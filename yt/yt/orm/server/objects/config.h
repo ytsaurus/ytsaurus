@@ -73,7 +73,6 @@ struct TObjectManagerConfig
     bool EnableHistory;
     THashSet<TObjectTypeName> HistoryDisabledTypes;
     bool HistoryIndexGroupByEnabled;
-    THashMap<TString, bool> HistoryLabelsStoreEnabledPerType;
 
     // Indexes that are allowed to be read in building mode.
     THashSet<std::string> IndexesWithAllowedBuildingRead;
