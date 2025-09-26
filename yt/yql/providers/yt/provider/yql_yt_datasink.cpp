@@ -235,6 +235,7 @@ public:
         callables.insert(TYtWriteTable::CallableName());
         callables.insert(TYtDropTable::CallableName());
         callables.insert(TYtConfigure::CallableName());
+        callables.insert(TYtCreateTable::CallableName());
     }
 
     bool IsWrite(const TExprNode& node) override {
@@ -254,6 +255,19 @@ public:
             TExprNode::TListType children = node->ChildrenList();
             children.resize(3);
             return ctx.NewCallable(node->Pos(), TYtDropTable::CallableName(), std::move(children));
+        } else if (mode && FromString<EYtWriteMode>(mode->Child(1U)->Content()) == EYtWriteMode::Create) {
+            if (!node->Child(3U)->IsCallable("Void")) {
+                ctx.AddError(TIssue(ctx.GetPosition(node->Child(3U)->Pos()), TStringBuilder()
+                    << "Expected Void, but got: " << node->Child(3U)->Content()));
+                return {};
+            }
+
+            auto children = node->ChildrenList();
+            children.resize(5U);
+            children[3U] = NYql::GetSetting(*node->Child(4U), EYtSettingType::Columns)->TailPtr();
+            const auto keys = NYql::GetSetting(*node->Child(4U), EYtSettingType::PrimaryKey);
+            children.back() = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
+            return ctx.NewCallable(node->Pos(), TYtCreateTable::CallableName(), std::move(children));
         } else {
             auto res = ctx.RenameNode(*node, TYtWriteTable::CallableName());
             if ((!mode || FromString<EYtWriteMode>(mode->Child(1)->Content()) == EYtWriteMode::Renew) && NYql::HasSetting(*node->Child(4), EYtSettingType::KeepMeta)) {
