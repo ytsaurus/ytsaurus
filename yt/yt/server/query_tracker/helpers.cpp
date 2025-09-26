@@ -31,9 +31,9 @@ std::string BuildFilterFactors(const std::string& query, const TYsonString& anno
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 17);
-    static_assert(TActiveQueryDescriptor::FieldCount == 21);
-    static_assert(TFinishedQueryDescriptor::FieldCount == 16);
+    static_assert(pfr::tuple_size<TQuery>::value == 18);
+    static_assert(TActiveQueryDescriptor::FieldCount == 22);
+    static_assert(TFinishedQueryDescriptor::FieldCount == 17);
 
     TQuery query;
     // Note that some of the fields are twice optional.
@@ -55,6 +55,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
     query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("[]")));
+    query.IsIndexed = partialRecord.IsIndexed;
 
     IAttributeDictionaryPtr otherAttributes;
     auto fillIfPresent = [&] (const TString& key, const auto& value) {

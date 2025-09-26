@@ -589,3 +589,27 @@ class TestMigration(YTEnvSetup):
             {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "spyt", "user": "", "total_occurrences": 1, "unique_queries": 1},
             {"access_scope": "user:kirsiv40", "token": "some_token", "engine": "yql", "user": "", "total_occurrences": 2, "unique_queries": 1},
         ]
+
+    @authors("kirsiv40")
+    def test_do_not_index_flag_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 18)
+
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "test_query_id"}])
+        rows_before_migration = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        assert len(rows_before_migration) == 1
+        assert len(rows_before_migration[0]) == 16
+        assert "is_indexed" not in rows_before_migration[0]
+
+        run_migration(client, 19)
+        assert exists("//sys/query_tracker/finished_queries")
+        rows_after_migration = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        assert len(rows_after_migration) == 1
+        assert len(rows_after_migration[0]) == 17
+        assert "is_indexed" in rows_after_migration[0]
+        assert str(rows_after_migration[0]["is_indexed"]) == "true"

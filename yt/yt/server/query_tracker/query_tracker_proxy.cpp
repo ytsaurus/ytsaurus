@@ -381,9 +381,12 @@ void TQueryTrackerProxy::StartQuery(
         }
     }
 
-    YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v)",
+    auto isIndexed = options.Settings ? options.Settings->AsMap()->GetChildValueOrDefault("is_indexed", true) : true;
+
+    YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v, IsIndexed: %v)",
         queryId,
-        options.Draft);
+        options.Draft,
+        isIndexed);
 
     auto rowBuffer = New<TRowBuffer>();
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
@@ -401,7 +404,7 @@ void TQueryTrackerProxy::StartQuery(
     if (options.Draft) {
         TString filterFactors;
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 16);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 17);
             TFinishedQueryPartial newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
@@ -415,6 +418,7 @@ void TQueryTrackerProxy::StartQuery(
                 .Progress = CompressedEmptyMap,
                 .Annotations = annotations,
                 .Secrets = ConvertToYsonString(options.Secrets),
+                .IsIndexed = isIndexed,
             };
             filterFactors = GetFilterFactors(newRecord);
             std::vector rows{
@@ -426,11 +430,13 @@ void TQueryTrackerProxy::StartQuery(
                 MakeSharedRange(std::move(rows), rowBuffer));
 
             auto query = PartialRecordToQuery(newRecord);
-            TimeBasedIndex_->AddQuery(query, transaction);
-            TokenBasedIndex_->AddQuery(query, transaction);
+            if (isIndexed) {
+                TimeBasedIndex_->AddQuery(query, transaction);
+                TokenBasedIndex_->AddQuery(query, transaction);
+            }
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 21);
+        static_assert(TActiveQueryDescriptor::FieldCount == 22);
 
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
@@ -445,7 +451,8 @@ void TQueryTrackerProxy::StartQuery(
             .Incarnation = -1,
             .Progress = CompressedEmptyMap,
             .Annotations = annotations,
-            .Secrets = ConvertToYsonString(options.Secrets)
+            .Secrets = ConvertToYsonString(options.Secrets),
+            .IsIndexed = isIndexed,
         };
         newRecord.FilterFactors = GetFilterFactors(newRecord);
         std::vector rows{
@@ -778,6 +785,7 @@ void TQueryTrackerProxy::AlterQuery(
         "engine",
         "settings",
         "annotations",
+        "is_indexed",
     };
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
@@ -824,22 +832,24 @@ void TQueryTrackerProxy::AlterQuery(
                 TFinishedQueryDescriptor::Get()->GetNameTable(),
                 MakeSharedRange(std::move(rows), rowBuffer));
 
-            TUpdateQueryOptions indexUpdateOptions{
-                .NewAnnotations = options.Annotations,
-                .NewAccessControlObjects = accessControlObjects
-            };
+            if (query.IsIndexed && query.IsIndexed.value()) {
+                TUpdateQueryOptions indexUpdateQueryOptions{
+                    .NewAnnotations = options.Annotations,
+                    .NewAccessControlObjects = accessControlObjects
+                };
 
-            TimeBasedIndex_->UpdateQuery(
-                query,
-                indexUpdateOptions,
-                transaction
-            );
+                TimeBasedIndex_->UpdateQuery(
+                    query,
+                    indexUpdateQueryOptions,
+                    transaction
+                );
 
-            TokenBasedIndex_->UpdateQuery(
-                query,
-                indexUpdateOptions,
-                transaction
-            );
+                TokenBasedIndex_->UpdateQuery(
+                    query,
+                    indexUpdateQueryOptions,
+                    transaction
+                );
+            }
         }
     } else {
         auto rowBuffer = New<TRowBuffer>();
