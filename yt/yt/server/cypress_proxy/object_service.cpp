@@ -637,10 +637,10 @@ private:
                     continue;
                 }
             } else {
-                auto [patchedMessage, originError] = WrapRetriableResolveError(index, subresponseMessage);
+                auto [patchedMessage, originalError] = WrapRetriableResolveError(index, subresponseMessage);
                 if (patchedMessage) {
                     YT_LOG_DEBUG(
-                        originError,
+                        originalError,
                         "Possible Sequoia resolve miss encountered; marking it as retriable "
                         "(SubrequestIndex: %v, SequoiaObjectId: %v)",
                         index,
@@ -684,8 +684,8 @@ private:
             .has_value();
     }
 
-    // If resolve miss occurred patched response message and resolve error are
-    // returned. Otherwise, empty array and OK are returned.
+    // If resolve error occurred, patched response message and original resolve
+    // error are returned. Otherwise, empty array and OK are returned.
     std::pair<TSharedRefArray, TError> WrapRetriableResolveError(
         int subrequestIndex,
         const TSharedRefArray& responseMessage)
@@ -701,51 +701,16 @@ private:
             return {};
         }
 
-        auto originError = FromProto<TError>(header.error());
+        auto originalError = FromProto<TError>(header.error());
 
-        auto noSuchObjectError = originError.FindMatching([&] (const TError& error) {
-            if (error.GetCode() != NYTree::EErrorCode::ResolveError) {
-                return false;
-            }
-
-            if (!error.HasAttributes()) {
-                return false;
-            }
-
-            const auto& attributes = error.Attributes();
-            try {
-                if (auto id = attributes.Find<TObjectId>("missing_object_id")) {
-                    return *id == subrequest->ResolvedNodeId;
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
-            }
-
-            return false;
-        });
-
-        // COMPAT(kvk1920): remove after 25.2.
-        if (!noSuchObjectError.has_value()) {
-            auto noSuchObjectErrorMessage = Format("No such object %v", subrequest->ResolvedNodeId);
-            noSuchObjectError = originError.FindMatching([&] (const TError& error) {
-                return
-                    error.GetCode() == NYTree::EErrorCode::ResolveError &&
-                    error.GetMessage() == noSuchObjectErrorMessage;
-            });
-        }
-
-        if (!noSuchObjectError.has_value()) {
+        auto wrappedError = NCypressProxy::WrapRetriableResolveError(originalError, subrequest->ResolvedNodeId);
+        if (wrappedError.IsOK()) {
             return {};
         }
 
-        ToProto(
-            header.mutable_error(),
-            TError(
-                NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                "Object was resolved in Sequoia but missing on master")
-                << originError);
+        ToProto(header.mutable_error(), wrappedError);
 
-        return {CreateErrorResponseMessage(header), std::move(originError)};
+        return {CreateErrorResponseMessage(header), std::move(originalError)};
     }
 
     NRpc::NProto::TResponseHeader ParseResponseHeader(

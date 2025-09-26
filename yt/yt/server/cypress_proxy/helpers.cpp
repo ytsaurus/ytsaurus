@@ -1,5 +1,6 @@
 #include "helpers.h"
 
+#include "private.h"
 #include "path_resolver.h"
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
@@ -47,6 +48,10 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto& Logger = CypressProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TError WrapCypressProxyRegistrationError(TError error)
 {
     if (error.IsOK()) {
@@ -55,6 +60,51 @@ TError WrapCypressProxyRegistrationError(TError error)
 
     return TError(NRpc::EErrorCode::Unavailable, "Cypress proxy is not registered")
         << std::move(error);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError WrapRetriableResolveError(const TError& error, NCypressClient::TNodeId resolvedNodeId)
+{
+    auto noSuchObjectError = error.FindMatching([&] (const TError& error) {
+        if (error.GetCode() != NYTree::EErrorCode::ResolveError) {
+            return false;
+        }
+
+        if (!error.HasAttributes()) {
+            return false;
+        }
+
+        const auto& attributes = error.Attributes();
+        try {
+            if (auto id = attributes.Find<TObjectId>("missing_object_id")) {
+                return *id == resolvedNodeId;
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
+        }
+
+        return false;
+    });
+
+    // COMPAT(kvk1920): remove after 25.2.
+    if (!noSuchObjectError.has_value()) {
+        auto noSuchObjectErrorMessage = Format("No such object %v", resolvedNodeId);
+        noSuchObjectError = error.FindMatching([&] (const TError& error) {
+            return
+                error.GetCode() == NYTree::EErrorCode::ResolveError &&
+                error.GetMessage() == noSuchObjectErrorMessage;
+        });
+    }
+
+    if (!noSuchObjectError.has_value()) {
+        return {};
+    }
+
+    return TError(
+        NSequoiaClient::EErrorCode::SequoiaRetriableError,
+        "Object was resolved in Sequoia but missing on master")
+        << error;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
