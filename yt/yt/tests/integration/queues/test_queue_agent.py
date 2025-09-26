@@ -2485,6 +2485,21 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
         assert partition["next_row_index"] == next_row_index
         assert partition["unread_row_count"] == unread_row_count
 
+    @staticmethod
+    def _check_queue_partition(partition, lower_row_index, upper_row_index):
+        return (
+            partition["lower_row_index"] == lower_row_index and
+            partition["upper_row_index"] == upper_row_index and
+            partition["available_row_count"] == upper_row_index - lower_row_index
+        )
+
+    @staticmethod
+    def _check_consumer_partition(partition, next_row_index, unread_row_count):
+        return (
+            partition["next_row_index"] == next_row_index and
+            partition["unread_row_count"] == unread_row_count
+        )
+
     def _create_chaos_replicated_queue(self, path):
         queue_queue_replica_path = f"{path}_queue"
         chaos_replicated_queue_replicas = [
@@ -2690,20 +2705,17 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
 
-        queue_partitions = queue_orchid.get_partitions()
-        self._assert_queue_partition(queue_partitions[0], 0, 3)
+        wait(lambda: self._check_queue_partition(queue_orchid.get_partitions()[0], 0, 3))
 
-        consumer_partitions = consumer_orchid.get_partitions()
-        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
-                                        next_row_index=0, unread_row_count=3)
+        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[f"primary:{queue}"][0],
+                                                    next_row_index=0, unread_row_count=3))
 
         advance_consumer(consumer, queue, partition_index=0, old_offset=None, new_offset=1)
 
         consumer_orchid.wait_fresh_pass()
 
-        consumer_partitions = consumer_orchid.get_partitions()
-        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
-                                        next_row_index=1, unread_row_count=2)
+        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[f"primary:{queue}"][0],
+                                                    next_row_index=1, unread_row_count=2))
 
         set(f"{queue}/@auto_trim_config", {"enable": True})
         cypress_synchronizer_orchid.wait_fresh_pass()
@@ -2716,12 +2728,10 @@ class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObje
         queue_orchid.wait_fresh_pass()
         consumer_orchid.wait_fresh_pass()
 
-        queue_partitions = queue_orchid.get_partitions()
-        self._assert_queue_partition(queue_partitions[0], 1, 5)
+        wait(lambda: self._check_queue_partition(queue_orchid.get_partitions()[0], 1, 5))
 
-        consumer_partitions = consumer_orchid.get_partitions()
-        self._assert_consumer_partition(consumer_partitions[f"primary:{queue}"][0],
-                                        next_row_index=1, unread_row_count=4)
+        wait(lambda: self._check_consumer_partition(consumer_orchid.get_partitions()[f"primary:{queue}"][0],
+                                                    next_row_index=1, unread_row_count=4))
 
         unregister_queue_consumer(queue, consumer)
 
