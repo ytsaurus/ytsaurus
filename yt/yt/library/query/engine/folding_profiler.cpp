@@ -1126,7 +1126,8 @@ size_t TExpressionProfiler::Profile(
             std::move(whenThenExpressionIds),
             defaultExprId,
             caseExpr->GetWireType(),
-            ComparerManager_),
+            ComparerManager_,
+            UseCanonicalNullRelations_),
         caseExpr->GetWireType(),
         nullable);
 

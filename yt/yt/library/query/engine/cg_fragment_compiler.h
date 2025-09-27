@@ -143,7 +143,8 @@ TCodegenExpression MakeCodegenCaseExpr(
     std::vector<std::pair<size_t, size_t>> whenThenExpressionIds,
     std::optional<size_t> defaultId,
     EValueType resultType,
-    TComparerManagerPtr comparerManager);
+    TComparerManagerPtr comparerManager,
+    bool useCanonicalNullRelations);
 
 TCodegenExpression MakeCodegenLikeExpr(
     size_t textId,
