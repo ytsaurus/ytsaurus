@@ -75,9 +75,9 @@ import (
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/nop"
 	"go.ytsaurus.tech/library/go/core/metrics/solomon"
-	"go.ytsaurus.tech/yt/admin/timbertruck/internal/misc"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/timbertruck"
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/ttlog"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/uploader"
 )
 
@@ -268,7 +268,7 @@ func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 	var logFile io.WriteCloser = os.Stderr
 	closeLogFile := func() {}
 	if config.LogFile != "" {
-		logFile, err = misc.NewLogrotatingFile(config.LogFile, config.LoggerBufferSize, reopenLogFileInterval)
+		logFile, err = ttlog.NewLogrotatingFile(config.LogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open log file: %v", err)
 			return
@@ -280,7 +280,7 @@ func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 	closeErrorLogFile := func() {}
 	if config.ErrorLogFile != "" {
 		var logrotatingFile io.WriteCloser
-		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, config.LoggerBufferSize, reopenLogFileInterval)
+		logrotatingFile, err = ttlog.NewLogrotatingFile(config.ErrorLogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open error log file: %v", err)
 			return
@@ -302,8 +302,8 @@ func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 			errorCounter,
 		),
 	)
-	misc.SetLogrotatingLogger(app.logger)
-	misc.LogLoggingStarted(app.logger)
+	ttlog.SetLogrotatingLogger(app.logger)
+	ttlog.LogLoggingStarted(app.logger)
 
 	restartCounter := app.metrics.Counter("tt.application.restart_count")
 	restartCounter.Add(0)
@@ -672,7 +672,7 @@ func (t logErrorTrackingHandler) Enabled(ctx context.Context, level slog.Level) 
 }
 
 func (t logErrorTrackingHandler) Handle(ctx context.Context, record slog.Record) error {
-	if record.Level >= slog.LevelWarn || ctx.Value(&misc.LoggingStartedKey) != nil {
+	if record.Level >= slog.LevelWarn || ctx.Value(&ttlog.LoggingStartedKey) != nil {
 		if err := t.errorHandler.Handle(ctx, record); err != nil {
 			return err
 		}

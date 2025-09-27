@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"time"
 
-	"go.ytsaurus.tech/yt/admin/timbertruck/internal/misc"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/ttlog"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
@@ -47,7 +47,7 @@ type OutputConfig struct {
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
-	arcLogger := misc.NewArcadiaLevelCappingLogger(config.Logger, "ytclient")
+	arcLogger := ttlog.NewArcadiaLevelCappingLogger(config.Logger, "ytclient")
 	ytConfig := yt.Config{
 		Proxy:     config.Cluster,
 		ProxyRole: config.RPCProxyRole,
