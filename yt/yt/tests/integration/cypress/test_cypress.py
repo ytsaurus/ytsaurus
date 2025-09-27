@@ -4015,7 +4015,6 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1")
 
     @authors("abogutskiy")
-    @not_implemented_in_sequoia
     def test_forbidden_erasure_codecs(self):
         create("map_node", "//tmp/ec1", attributes={"erasure_codec": "reed_solomon_6_3"})
 
