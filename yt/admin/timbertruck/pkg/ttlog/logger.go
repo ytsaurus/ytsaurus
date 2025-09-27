@@ -1,4 +1,4 @@
-package misc
+package ttlog
 
 import (
 	"bufio"

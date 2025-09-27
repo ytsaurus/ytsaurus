@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"go.ytsaurus.tech/yt/admin/timbertruck/internal/misc"
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/ttlog"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
@@ -192,7 +192,7 @@ func (u *verificationFileUploader) uploadFileToYT(ctx context.Context, filePath 
 
 	ytConfig := yt.Config{
 		Proxy:  u.config.YTCluster,
-		Logger: misc.NewArcadiaLevelCappingLogger(u.logger, "ytclient").Structured(),
+		Logger: ttlog.NewArcadiaLevelCappingLogger(u.logger, "ytclient").Structured(),
 	}
 	if u.authConfig.TVMFn != nil {
 		ytConfig.TVMFn = u.authConfig.TVMFn
