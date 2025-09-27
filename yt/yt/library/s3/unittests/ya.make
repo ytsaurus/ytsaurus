@@ -15,4 +15,6 @@ PEERDIR(
     yt/yt/library/s3
 )
 
+INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/local_s3_recipe/recipe.inc)
+
 END()
