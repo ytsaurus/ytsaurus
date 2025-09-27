@@ -1175,6 +1175,11 @@ class YTEnvSetup(object):
                 cls.update_timestamp_provider_config(config, cluster_index)
                 cls.update_sequoia_connection_config(config, cluster_index)
                 cls.update_transaction_supervisor_config(config, cluster_index)
+                cls.update_master_replication_card_cache_config(
+                    config,
+                    cluster_index,
+                    configs["cluster_connection"]
+                )
                 cls.modify_master_config(config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index)
                 multidaemon_config["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = config
 
@@ -1316,6 +1321,17 @@ class YTEnvSetup(object):
             return
         config.setdefault("transaction_supervisor", {})
         config["transaction_supervisor"]["enable_wait_until_prepared_transactions_finished"] = True
+
+    @classmethod
+    def update_master_replication_card_cache_config(cls, config, cluster_index, cluster_connection_config):
+        if cls._is_ground_cluster(cluster_index):
+            return config
+        if not cls.get_param("NUM_CHAOS_NODES", cluster_index) or not cls.get_param("NUM_MASTER_CACHES", cluster_index):
+            return config
+
+        chaos_cache_addresses = cluster_connection_config["replication_card_cache"]["addresses"]
+        if chaos_cache_addresses:
+            config["cluster_connection"]["replication_card_cache"]["addresses"] = chaos_cache_addresses
 
     @classmethod
     def update_sequoia_connection_config(cls, config, cluster_index):
