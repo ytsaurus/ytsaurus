@@ -366,6 +366,32 @@ TJob::TJob(
 
     YT_LOG_DEBUG("Creating job");
 
+    if (Allocation_ || JobSpecExt_.has_user_job_spec()) {
+        auto resourceLimits = New<TJobResourceLimits>();
+
+        if (Allocation_) {
+            resourceLimits->AllocationCpuLimit = Allocation_->GetRequestedCpu();
+            resourceLimits->AllocationMemoryLimit = Allocation_->GetRequestedMemory();
+            resourceLimits->AllocationGpuLimit = Allocation_->GetRequestedGpu();
+        }
+
+        if (JobSpecExt_.has_user_job_spec()) {
+            const auto& userJobSpec = JobSpecExt_.user_job_spec();
+
+            if (userJobSpec.has_container_cpu_limit()) {
+                resourceLimits->UserJobContainerCpuLimit = userJobSpec.container_cpu_limit();
+            }
+
+            if (userJobSpec.has_slot_container_memory_limit()) {
+                resourceLimits->UserJobSlotContainerMemoryLimit = userJobSpec.slot_container_memory_limit();
+            }
+
+            resourceLimits->UserJobMemoryLimit = userJobSpec.memory_limit();
+        }
+
+        ExecAttributes_.ResourceLimits = std::move(resourceLimits);
+    }
+
     PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_, Type_);
 
     TrafficMeter_->Start();

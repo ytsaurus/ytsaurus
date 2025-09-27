@@ -6,8 +6,9 @@ from yt_commands import (
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
-    update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
-    make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job, list_operation_events)
+    update_controller_agent_config, remember_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
+    make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job, list_operation_events,
+    create_test_tables)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
@@ -1544,6 +1545,137 @@ class TestListJobsAllocation(TestListJobsBase):
         jobs_end = checked_list_jobs(op.id)["jobs"]
         assert "allocation_id" in jobs_end[0] and "allocation_id" in jobs_end[1]
         assert allocation_id_before == jobs_end[0]["allocation_id"] == jobs_end[1]["allocation_id"]
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.parametrize("set_container_cpu_limit", [False, True])
+    def test_exec_attributes_include_resource_limits(self, set_container_cpu_limit):
+        table_attributes = {
+            "schema": [{"name": "key", "type": "string"}],
+            "replication_factor": 1,
+        }
+
+        create_test_tables(row_count=0, attributes=table_attributes)
+        input_table = "//tmp/t_in"
+        output_table = "//tmp/t_out"
+        write_table(input_table, [{"key": "value"}])
+
+        memory_limit = 400_000_000
+        mapper_cpu_limit = 0.42
+        footprint_memory = 33_000_000
+        job_proxy_buffer_size = 60_000_000
+        job_proxy_send_window_size = 11_000_000
+        job_proxy_encode_window_size = 5_000_000
+
+        mapper_spec = {
+            "cpu_limit": mapper_cpu_limit,
+            "memory_limit": memory_limit,
+            "set_container_cpu_limit": set_container_cpu_limit,
+        }
+
+        if set_container_cpu_limit:
+            mapper_spec["container_cpu_limit"] = mapper_cpu_limit
+
+        def run_map_and_get_limits(*, slot_overhead, footprint):
+            # We spin up a small map operation and request job exec attributes.
+            # By tweaking controller-agent options before each run we can observe how
+            # user_job_slot_container_memory_limit reacts to individual components
+            # of the formula
+            #   memory_limit + job_proxy_memory + footprint_memory + slot_overhead.
+            local_mapper_spec = deepcopy(mapper_spec)
+            local_mapper_spec["job_io"] = {
+                "table_writer": {
+                    "max_buffer_size": job_proxy_buffer_size,
+                    "send_window_size": job_proxy_send_window_size,
+                    "encode_window_size": job_proxy_encode_window_size,
+                    "max_row_weight": job_proxy_buffer_size // 2,
+                },
+            }
+
+            with remember_controller_agent_config():
+                update_controller_agent_config(
+                    "operation_options/set_slot_container_memory_limit",
+                    True,
+                )
+                update_controller_agent_config(
+                    "operation_options/slot_container_memory_overhead",
+                    slot_overhead,
+                )
+                update_controller_agent_config(
+                    "footprint_memory",
+                    footprint,
+                )
+
+                op = map(
+                    command="cat",
+                    in_=input_table,
+                    out=output_table,
+                    format="yson",
+                    spec={"mapper": local_mapper_spec},
+                )
+                op.track()
+
+            jobs = checked_list_jobs(op.id, attributes=["exec_attributes"])["jobs"]
+            assert len(jobs) == 1
+            exec_attributes = jobs[0]["exec_attributes"]
+            assert "resource_limits" in exec_attributes
+            return exec_attributes["resource_limits"]
+
+        slot_container_memory_overhead = 50_000_000
+
+        limits_without_extras = run_map_and_get_limits(
+            slot_overhead=0,
+            footprint=0,
+        )
+        limits_with_footprint = run_map_and_get_limits(
+            slot_overhead=0,
+            footprint=footprint_memory,
+        )
+        limits_with_overhead = run_map_and_get_limits(
+            slot_overhead=slot_container_memory_overhead,
+            footprint=footprint_memory,
+        )
+
+        expected_keys = builtins.set([
+            "allocation_cpu_limit",
+            "allocation_memory_limit",
+            "allocation_gpu_limit",
+            "user_job_memory_limit",
+            "user_job_slot_container_memory_limit",
+        ])
+        if set_container_cpu_limit:
+            expected_keys.add("user_job_container_cpu_limit")
+        assert builtins.set(limits_without_extras.keys()) == expected_keys
+        assert limits_without_extras["user_job_memory_limit"] == memory_limit
+        assert limits_with_footprint["user_job_memory_limit"] == memory_limit
+        assert limits_with_overhead["user_job_memory_limit"] == memory_limit
+        assert limits_without_extras["allocation_cpu_limit"] == pytest.approx(mapper_cpu_limit)
+        assert (
+            limits_without_extras["allocation_memory_limit"]
+            == limits_with_footprint["allocation_memory_limit"] - footprint_memory
+        )
+        assert limits_without_extras["allocation_gpu_limit"] == 0
+        if set_container_cpu_limit:
+            assert limits_without_extras["user_job_container_cpu_limit"] == pytest.approx(mapper_cpu_limit)
+        else:
+            assert "user_job_container_cpu_limit" not in limits_without_extras
+        assert (
+            limits_with_footprint["user_job_slot_container_memory_limit"]
+            - limits_without_extras["user_job_slot_container_memory_limit"]
+            == footprint_memory
+        )
+        assert (
+            limits_with_footprint["allocation_memory_limit"]
+            - limits_without_extras["allocation_memory_limit"]
+            == footprint_memory
+        )
+        assert (
+            limits_with_overhead["allocation_memory_limit"]
+            == limits_with_footprint["allocation_memory_limit"]
+        )
+        assert (
+            limits_with_overhead["user_job_slot_container_memory_limit"]
+            == limits_with_footprint["user_job_slot_container_memory_limit"] + slot_container_memory_overhead
+        )
 
 
 ##################################################################

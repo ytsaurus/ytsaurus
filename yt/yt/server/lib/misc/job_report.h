@@ -138,6 +138,23 @@ struct TGpuDevice
 
 DEFINE_REFCOUNTED_TYPE(TGpuDevice);
 
+struct TJobResourceLimits final
+    : public NYTree::TYsonStructLite
+{
+    std::optional<double> AllocationCpuLimit;
+    std::optional<i64> AllocationMemoryLimit;
+    std::optional<i64> AllocationGpuLimit;
+    std::optional<double> UserJobContainerCpuLimit;
+    std::optional<i64> UserJobSlotContainerMemoryLimit;
+    std::optional<i64> UserJobMemoryLimit;
+
+    REGISTER_YSON_STRUCT_LITE(TJobResourceLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobResourceLimits);
+
 struct TExecAttributes
     : public NYTree::TYsonStructLite
 {
@@ -160,6 +177,9 @@ struct TExecAttributes
 
     //! GPU devices used by job.
     std::vector<TIntrusivePtr<TGpuDevice>> GpuDevices;
+
+    //! Resource limits for the job.
+    TIntrusivePtr<TJobResourceLimits> ResourceLimits;
 
     REGISTER_YSON_STRUCT_LITE(TExecAttributes);
 
