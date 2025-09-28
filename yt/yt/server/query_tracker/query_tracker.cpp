@@ -617,7 +617,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 22 && TFinishedQueryDescriptor::FieldCount == 17);
+                static_assert(TActiveQueryDescriptor::FieldCount == 23 && TFinishedQueryDescriptor::FieldCount == 18);
                 TFinishedQueryPartial newRecord{
                     .Key = {.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -636,6 +636,7 @@ private:
                     .Secrets = activeQueryRecord->Secrets.value_or(TYsonString(TString("[]"))),
                     .AssignedTracker = activeQueryRecord->AssignedTracker,
                     .IsIndexed = activeQueryRecord->IsIndexed,
+                    .IsTutorial = activeQueryRecord->IsTutorial,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),

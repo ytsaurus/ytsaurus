@@ -11,7 +11,6 @@ types:
         column_type: String
         sort_order: Ascending
 
-
       # Query specification; written by the client on initial query creation.
 
       # One of: yql, chyt.
@@ -153,6 +152,11 @@ types:
         column_name: is_indexed
         column_type: Boolean
 
+      - cpp_name: IsTutorial
+        cpp_type: bool
+        column_name: is_tutorial
+        column_type: Boolean
+
 
   - type_name: TFinishedQuery
     fields:
@@ -253,10 +257,20 @@ types:
         column_name: is_indexed
         column_type: Boolean
 
+      - cpp_name: IsTutorial
+        cpp_type: bool
+        column_name: is_tutorial
+        column_type: Boolean
+
 
   - type_name: TFinishedQueryByStartTime
     fields:
       # Key.
+      - cpp_name: IsTutorial
+        cpp_type: bool
+        column_name: is_tutorial
+        column_type: Boolean
+        sort_order: Ascending
 
       - cpp_name: MinusStartTime
         cpp_type: i64
@@ -302,6 +316,11 @@ types:
   - type_name: TFinishedQueryByAcoAndStartTime
     fields:
       # Key.
+      - cpp_name: IsTutorial
+        cpp_type: bool
+        column_name: is_tutorial
+        column_type: Boolean
+        sort_order: Ascending
 
       - cpp_name: AccessControlObject
         cpp_type: std::string
@@ -347,6 +366,11 @@ types:
   - type_name: TFinishedQueryByUserAndStartTime
     fields:
       # Key.
+      - cpp_name: IsTutorial
+        cpp_type: bool
+        column_name: is_tutorial
+        column_type: Boolean
+        sort_order: Ascending
 
       - cpp_name: User
         cpp_type: std::string

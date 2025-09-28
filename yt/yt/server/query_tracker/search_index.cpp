@@ -448,14 +448,15 @@ public:
         auto rowBuffer = New<TRowBuffer>();
 
         auto filterFactors = TString(GetFilterFactors(query));
+        auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
 
         auto accessControlObjects = query.AccessControlObjects ? ConvertTo<std::vector<std::string>>(query.AccessControlObjects) : std::vector<std::string>{};
 
         {
-            static_assert(TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
+            static_assert(TFinishedQueryByStartTimeDescriptor::FieldCount == 8);
 
             TFinishedQueryByStartTime newRecord{
-                .Key = {.MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
+                .Key = {.IsTutorial = isTutorial, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
                 .Engine = query.Engine.value(),
                 .User = query.User.value(),
                 .AccessControlObjects = query.AccessControlObjects.value_or(EmptyMap),
@@ -471,10 +472,10 @@ public:
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
         {
-            static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
+            static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 7);
 
             TFinishedQueryByUserAndStartTime newRecord{
-                .Key = {.User = query.User.value(), .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
+                .Key = {.IsTutorial = isTutorial, .User = query.User.value(), .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
                 .Engine = query.Engine.value(),
                 .State = query.State.value(),
                 .FilterFactors = filterFactors,
@@ -488,14 +489,14 @@ public:
                 MakeSharedRange(std::move(rows), rowBuffer));
         }
         {
-            static_assert(TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
+            static_assert(TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 8);
 
             if (!accessControlObjects.empty()) {
                 std::vector<TUnversionedRow> rows;
                 rows.reserve(accessControlObjects.size());
                 for (const auto& aco : accessControlObjects) {
                     TFinishedQueryByAcoAndStartTime newRecord{
-                        .Key = {.AccessControlObject = aco, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
+                        .Key = {.IsTutorial = isTutorial, .AccessControlObject = aco, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
                         .Engine = query.Engine.value(),
                         .User = query.User.value(),
                         .State = query.State.value(),
@@ -526,10 +527,11 @@ public:
             query.Query.value(),
             options.NewAnnotations ? ConvertToYsonString(options.NewAnnotations, EYsonFormat::Text) : TYsonString(),
             options.NewAccessControlObjects ? ConvertToYsonString(options.NewAccessControlObjects) : TYsonString()));
+        auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
 
         {
             TFinishedQueryByStartTimePartial record{
-                .Key = {.MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
+                .Key = {.IsTutorial = isTutorial, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
                 .FilterFactors = filterFactors,
             };
             if (options.NewAccessControlObjects) {
@@ -547,7 +549,7 @@ public:
         {
             if (options.NewAnnotations) {
                 TFinishedQueryByUserAndStartTimePartial record{
-                    .Key = {.User = *query.User, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
+                    .Key = {.IsTutorial = isTutorial, .User = *query.User, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
                     .FilterFactors = filterFactors,
                 };
 
@@ -572,7 +574,7 @@ public:
                 keysToDelete.reserve(acoToDelete.size());
                 for (const auto& aco : acoToDelete) {
                     keysToDelete.push_back(
-                        TFinishedQueryByAcoAndStartTimeKey{.AccessControlObject = aco, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id}.ToKey(rowBuffer));
+                        TFinishedQueryByAcoAndStartTimeKey{.IsTutorial = isTutorial, .AccessControlObject = aco, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id}.ToKey(rowBuffer));
                 }
                 transaction->DeleteRows(
                     StateRoot_ + "/" + FinishedQueriesByAcoAndStartTimeTable,
@@ -589,7 +591,7 @@ public:
                 rows.reserve(acoToInsert.size());
                 for (const auto& aco : acoToInsert) {
                     TFinishedQueryByAcoAndStartTimePartial record{
-                        .Key = {.AccessControlObject = aco, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
+                        .Key = {.IsTutorial = isTutorial, .AccessControlObject = aco, .MinusStartTime = -TMinusTimestamp(query.StartTime->MicroSeconds()), .QueryId = query.Id},
                         .Engine = query.Engine,
                         .User = query.User,
                         .State = query.State,
@@ -684,6 +686,9 @@ private:
             builder.AddWhereConjunct("is_substr({SubstrFilter}, filter_factors)");
             placeholdersFluentMap.Item("SubstrFilter").Value(*options.SubstrFilter);
         }
+        builder.AddWhereConjunct("[is_tutorial] = {TutorialFilter}");
+        placeholdersFluentMap.Item("TutorialFilter").Value(options.TutorialFilter);
+
         if (table == "active_queries") {
             if (fromTime) {
                 builder.AddWhereConjunct("[start_time] >= " + ToString(fromTime));

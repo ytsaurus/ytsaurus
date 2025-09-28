@@ -1613,17 +1613,21 @@ class YtClient(ClientState):
     def list_queries(
             self,
             user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
-            cursor_direction=None, limit=None, attributes=None, stage=None, format=None, search_by_token_prefix=None,
-            use_full_text_search=None):
+            cursor_direction=None, limit=None, attributes=None, tutorial_filter=None, stage=None,
+            format=None, search_by_token_prefix=None, use_full_text_search=None):
         """
         List operations that satisfy given options.
+
+        :param tutorial_filter: specifies whether to search among tutorials
+        :type tutorial_filter: bool
 
         """
         return client_api.list_queries(
             client=self,
             user=user, engine=engine, state=state, filter=filter, from_time=from_time, to_time=to_time,
             cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit, attributes=attributes,
-            stage=stage, format=format, search_by_token_prefix=search_by_token_prefix, use_full_text_search=use_full_text_search)
+            tutorial_filter=tutorial_filter, stage=stage, format=format, search_by_token_prefix=search_by_token_prefix,
+            use_full_text_search=use_full_text_search)
 
     def list_queue_consumer_registrations(
             self,

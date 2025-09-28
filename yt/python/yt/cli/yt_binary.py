@@ -1516,6 +1516,7 @@ def add_list_queries_parser(add_parser):
     group.add_argument("--search-by-token-prefix", action="store_true", help='can\'t be used with "--use-full-scan-search". '
                                                                              'If set, search will be performed not by exact token '
                                                                              'match but by prefix match')
+    parser.add_argument("--tutorials", action="store_true", dest="tutorial_filter", help="show tutorial queries")
     add_structured_format_argument(parser)
 
 
