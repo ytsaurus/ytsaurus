@@ -401,10 +401,24 @@ void TQueryTrackerProxy::StartQuery(
     // non-draft queries go to the active query table.
 
     auto startTime = TInstant::Now();
+    bool isTutorial = false;
+
+    if (options.Settings) {
+        auto settingsMap = options.Settings->AsMap();
+        if (settingsMap->GetChildValueOrDefault("is_tutorial", false)) {
+            if (GetUserSubjects(user, StateClient_).contains(SuperusersGroupName)) {
+                isTutorial = true;
+            } else {
+                YT_LOG_DEBUG("Attempt to create a tutorial failed. User is not a superuser (User: %v)", user);
+                THROW_ERROR_EXCEPTION("Non-superusers can't create tutorial queries. To create one contact your cluster administrator.");
+            }
+        }
+    }
+
     if (options.Draft) {
         TString filterFactors;
         {
-            static_assert(TFinishedQueryDescriptor::FieldCount == 17);
+            static_assert(TFinishedQueryDescriptor::FieldCount == 18);
             TFinishedQueryPartial newRecord{
                 .Key = {.QueryId = queryId},
                 .Engine = engine,
@@ -419,6 +433,7 @@ void TQueryTrackerProxy::StartQuery(
                 .Annotations = annotations,
                 .Secrets = ConvertToYsonString(options.Secrets),
                 .IsIndexed = isIndexed,
+                .IsTutorial = isTutorial,
             };
             filterFactors = GetFilterFactors(newRecord);
             std::vector rows{
@@ -432,11 +447,13 @@ void TQueryTrackerProxy::StartQuery(
             auto query = PartialRecordToQuery(newRecord);
             if (isIndexed) {
                 TimeBasedIndex_->AddQuery(query, transaction);
-                TokenBasedIndex_->AddQuery(query, transaction);
+                if (!isTutorial) {
+                    TokenBasedIndex_->AddQuery(query, transaction);
+                }
             }
         }
     } else {
-        static_assert(TActiveQueryDescriptor::FieldCount == 22);
+        static_assert(TActiveQueryDescriptor::FieldCount == 23);
 
         TActiveQueryPartial newRecord{
             .Key = {.QueryId = queryId},
@@ -453,6 +470,7 @@ void TQueryTrackerProxy::StartQuery(
             .Annotations = annotations,
             .Secrets = ConvertToYsonString(options.Secrets),
             .IsIndexed = isIndexed,
+            .IsTutorial = isTutorial,
         };
         newRecord.FilterFactors = GetFilterFactors(newRecord);
         std::vector rows{
@@ -464,8 +482,12 @@ void TQueryTrackerProxy::StartQuery(
             MakeSharedRange(std::move(rows), rowBuffer));
 
         auto query = PartialRecordToQuery(newRecord);
-        TokenBasedIndex_->AddQuery(query, transaction);
-        TimeBasedIndex_->AddQuery(query, transaction);
+        if (isIndexed) {
+            TimeBasedIndex_->AddQuery(query, transaction);
+            if (!isTutorial) {
+                TokenBasedIndex_->AddQuery(query, transaction);
+            }
+        }
     }
 
     // Forces the use of two-phase commit protocol.
@@ -739,10 +761,9 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     const TListQueriesOptions& options,
     const std::string& user)
 {
-
     YT_LOG_DEBUG(
         "Listing queries (State: %v, CursorDirection: %v, FromTime: %v, ToTime: %v, CursorTime: %v,"
-        "Substr: %v, User: %v, Engine: %v, Limit: %v, Attributes: %v, SearchByTokenPrefix: %v, UseFullTextSearch: %v)",
+        "Substr: %v, User: %v, Engine: %v, Limit: %v, Attributes: %v, TutorialFilter: %v, SearchByTokenPrefix: %v, UseFullTextSearch: %v)",
         options.StateFilter,
         options.CursorDirection,
         options.FromTime,
@@ -753,6 +774,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         options.EngineFilter,
         options.Limit,
         options.Attributes,
+        options.TutorialFilter,
         options.SearchByTokenPrefix,
         options.UseFullTextSearch);
 
@@ -786,9 +808,11 @@ void TQueryTrackerProxy::AlterQuery(
         "settings",
         "annotations",
         "is_indexed",
+        "is_tutorial",
     };
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
+    auto isTutorial = query.OtherAttributes ? query.OtherAttributes->Get("is_tutorial", false) : false;
 
     auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects);
 
@@ -843,12 +867,13 @@ void TQueryTrackerProxy::AlterQuery(
                     indexUpdateQueryOptions,
                     transaction
                 );
-
-                TokenBasedIndex_->UpdateQuery(
-                    query,
-                    indexUpdateQueryOptions,
-                    transaction
-                );
+                if (!isTutorial) {
+                    TokenBasedIndex_->UpdateQuery(
+                        query,
+                        indexUpdateQueryOptions,
+                        transaction
+                    );
+                }
             }
         }
     } else {
@@ -886,11 +911,13 @@ void TQueryTrackerProxy::AlterQuery(
                 transaction
             );
 
-            TokenBasedIndex_->UpdateQuery(
-                query,
-                indexUpdateOptions,
-                transaction
-            );
+            if (!isTutorial) {
+                TokenBasedIndex_->UpdateQuery(
+                    query,
+                    indexUpdateOptions,
+                    transaction
+                );
+            }
         }
     }
 

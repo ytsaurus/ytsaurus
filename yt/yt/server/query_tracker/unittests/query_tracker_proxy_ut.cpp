@@ -360,15 +360,15 @@ TEST_F(TListQueryTrackerProxyTest, ListQueries)
         CreateSimpleQuery<TActiveQuery>(queryId[3], startTime[3]),
     };
 
-    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE ([is_tutorial] = {TutorialFilter}) AND (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByUserAndStartTimeDescriptor>(finishedQueryByUserAndStartTimeRecords, /*isPartialRecord*/ true)));
-    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_aco_and_start_time] WHERE (access_control_object IN {acosForUser}) GROUP BY (minus_start_time), (query_id) ORDER BY (minus_start_time) ASC LIMIT 4", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_aco_and_start_time] WHERE ([is_tutorial] = {TutorialFilter}) AND (access_control_object IN {acosForUser}) GROUP BY (minus_start_time), (query_id) ORDER BY (minus_start_time) ASC LIMIT 4", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByAcoAndStartTimeDescriptor>(finishedQueryByAcoAndStartTimeRecords, /*isPartialRecord*/ true)));
     EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/finished_queries] WHERE ([query_id] in {QueryIds})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryDescriptor>(finishedQueryRecords)));
     EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([query_id] in {QueryIds})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>({})));
-    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_indexed] = TRUE) AND (user = {User} OR list_contains(access_control_objects, \"aco\"))", _))
+    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_tutorial] = {TutorialFilter}) AND ([is_indexed] = TRUE) AND (user = {User} OR list_contains(access_control_objects, \"aco\"))", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>(activeQueryRecords)));
 
     auto result = WaitFor(BIND([&] {
@@ -408,13 +408,13 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesWithoutAco)
         CreateSimpleQuery<TActiveQuery>(queryId[2], startTime[2]),
     };
 
-    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE ([is_tutorial] = {TutorialFilter}) AND (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 4", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByUserAndStartTimeDescriptor>(finishedQueryByUserAndStartTimeRecords, /*isPartialRecord*/ true)));
     EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/finished_queries] WHERE ([query_id] in {QueryIds})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryDescriptor>(finishedQueryRecords)));
     EXPECT_CALL(*MockClient, SelectRows(std::string(Format("* FROM [//sys/query_tracker/active_queries] WHERE ([query_id] in {QueryIds})")), _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>({})));
-    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_indexed] = TRUE) AND (user = {User})", _))
+    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_tutorial] = {TutorialFilter}) AND ([is_indexed] = TRUE) AND (user = {User})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>(activeQueryRecords)));
 
     auto result = WaitFor(BIND([&] {
@@ -441,9 +441,9 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesOnOnlyActive)
         CreateSimpleQuery<TActiveQuery>(queryId),
     };
 
-    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 101", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_user_and_start_time] WHERE ([is_tutorial] = {TutorialFilter}) AND (user = {User}) ORDER BY (minus_start_time) ASC LIMIT 101", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByUserAndStartTimeDescriptor>(finishedQueryByUserAndStartTimeRecords, /*isPartialRecord*/ true)));
-    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_indexed] = TRUE) AND (user = {User})", _))
+    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_tutorial] = {TutorialFilter}) AND ([is_indexed] = TRUE) AND (user = {User})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>(activeQueryRecords)));
 
     auto result = WaitFor(BIND([&] {
@@ -469,13 +469,13 @@ TEST_F(TListQueryTrackerProxyTest, ListQueriesForSuperuser)
     };
     std::vector<TActiveQuery> activeQueryRecords;
 
-    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_start_time] ORDER BY (minus_start_time) ASC LIMIT 101", _))
+    EXPECT_CALL(*MockClient, SelectRows("([minus_start_time]), ([query_id]) FROM [//sys/query_tracker/finished_queries_by_start_time] WHERE ([is_tutorial] = {TutorialFilter}) ORDER BY (minus_start_time) ASC LIMIT 101", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryByStartTimeDescriptor>(finishedQueryByStartTimeRecords, /*isPartialRecord*/ true)));
     EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/finished_queries] WHERE ([query_id] in {QueryIds})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TFinishedQueryDescriptor>(finishedQueryRecords)));
     EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([query_id] in {QueryIds})", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>({})));
-    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_indexed] = TRUE)", _))
+    EXPECT_CALL(*MockClient, SelectRows("* FROM [//sys/query_tracker/active_queries] WHERE ([is_tutorial] = {TutorialFilter}) AND ([is_indexed] = TRUE)", _))
         .WillOnce(Return(MakeQueryResult<TSelectRowsResult, TActiveQueryDescriptor, TActiveQuery>(activeQueryRecords)));
 
     auto result = WaitFor(BIND([&] {
