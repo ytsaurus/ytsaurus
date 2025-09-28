@@ -72,7 +72,7 @@ const TString FinishedQueriesByUserAndStartTimeTable = "finished_queries_by_user
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 17);
+    static_assert(pfr::tuple_size<TQuery>::value == 18);
     static_assert(TActiveQueryDescriptor::FieldCount == 21);
     static_assert(TFinishedQueryDescriptor::FieldCount == 16);
 

@@ -1401,6 +1401,9 @@ void ToProto(
     if (query.Secrets) {
         protoQuery->set_secrets(ToProto(*query.Secrets));
     }
+    if (query.IsIndexed) {
+        protoQuery->set_is_indexed(*query.IsIndexed);
+    }
 }
 
 void FromProto(
@@ -1444,6 +1447,9 @@ void FromProto(
         query->Secrets = TYsonString(protoQuery.secrets());
     } else if (query->Secrets) {
         query->Secrets = TYsonString{};
+    }
+    if (protoQuery.has_is_indexed()) {
+        query->IsIndexed = protoQuery.is_indexed();
     }
 }
 

@@ -149,6 +149,7 @@ types:
         lock: client
 
 
+
   - type_name: TFinishedQuery
     fields:
       # Key.
