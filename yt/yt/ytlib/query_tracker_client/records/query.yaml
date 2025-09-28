@@ -422,3 +422,94 @@ types:
         cpp_type: std::optional<NYson::TYsonString>
         column_name: full_result
         column_type: Any
+
+
+  - type_name: TSearchIndexRecord
+    fields:
+      # Key.
+
+      - cpp_name: AccessScope
+        cpp_type: std::string
+        column_name: access_scope
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Token
+        cpp_type: std::string
+        column_name: token
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Engine
+        cpp_type: std::string
+        column_name: engine
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: User
+        cpp_type: std::string
+        column_name: user
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: MinusStartTime
+        cpp_type: i64
+        column_name: minus_start_time
+        column_type: Int64
+        sort_order: Ascending
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: OccurrenceCount
+        cpp_type: i64
+        column_name: occurrences
+        column_type: Int64
+
+
+  - type_name: TSearchMetaRecord
+    fields:
+      # Key.
+
+      - cpp_name: AccessScope
+        cpp_type: std::string
+        column_name: access_scope
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Token
+        cpp_type: std::string
+        column_name: token
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Engine
+        cpp_type: std::string
+        column_name: engine
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: User
+        cpp_type: std::string
+        column_name: user
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: TotalOccurrences
+        cpp_type: i64
+        column_name: total_occurrences
+        column_type: Int64
+        aggregate: sum
+
+      - cpp_name: UniqueQueries
+        cpp_type: i64
+        column_name: unique_queries
+        column_type: Int64
+        aggregate: sum
