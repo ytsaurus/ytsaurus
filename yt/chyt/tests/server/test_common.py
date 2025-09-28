@@ -2299,7 +2299,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 make_ace("allow", "u", "read"),
                 make_ace("allow", "u", "read"),
             ]
-            acl[-1]["expression"] = "key = 15"
+            acl[-1]["row_access_predicate"] = "key = 15"
             set("//tmp/t/@acl", acl)
 
             with raises_yt_error("row-level ACL is present, but is not supported"):
