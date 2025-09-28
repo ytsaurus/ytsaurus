@@ -6,12 +6,12 @@
 #include <yt/yt/core/yson/null_consumer.h>
 #include <yt/yt/core/yson/string_merger.h>
 #include <yt/yt/core/yson/yson_builder.h>
+
 #include <yt/yt/core/ypath/tokenizer.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/ypath_client.h>
-
-#include <yt/yt/orm/server/objects/config.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -20,8 +20,6 @@
 namespace NYT::NOrm::NAttributes {
 
 using namespace NYson;
-
-using NServer::NObjects::EMergeAttributesMode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

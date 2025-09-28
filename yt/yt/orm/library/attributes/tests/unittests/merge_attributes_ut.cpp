@@ -1,13 +1,12 @@
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/core/ypath/public.h>
-#include <yt/yt/core/yson/string.h>
-#include <yt/yt/core/yson/yson_builder.h>
-
 #include <yt/yt/orm/library/attributes/merge_attributes.h>
 #include <yt/yt/orm/library/attributes/unwrapping_consumer.h>
 
-#include <yt/yt/orm/server/objects/config.h>
+#include <yt/yt/core/ypath/public.h>
+
+#include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/yson_builder.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NOrm::NAttributes::NTests {
 namespace {
@@ -61,7 +60,7 @@ NYson::TYsonString NewMergeAttributes(std::vector<TAttributeValue> attributeValu
         std::move(attributeValues),
         NYson::EYsonFormat::Text,
         EDuplicatePolicy::PrioritizeColumn,
-        NServer::NObjects::EMergeAttributesMode::Compare);
+        EMergeAttributesMode::Compare);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +192,7 @@ TEST(TMergeAttributesTest, DuplicateValues)
             attributeValues,
             NYson::EYsonFormat::Text,
             EDuplicatePolicy::PrioritizeEtc,
-            NServer::NObjects::EMergeAttributesMode::Compare);
+            EMergeAttributesMode::Compare);
         NYson::TYsonString expectedYsonString{R"({"x"={"a"="c";};})"sv};
         EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
     }
