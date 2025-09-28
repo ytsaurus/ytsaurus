@@ -9,7 +9,7 @@ from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
 from yt_helpers import profiler_factory
 
-from yt_queries import Query, start_query, list_queries, get_query_tracker_info
+from yt_queries import Query, start_query, list_queries
 
 from yt.common import date_string_to_timestamp_mcs
 
@@ -730,95 +730,6 @@ class TestAccessControl(YTEnvSetup):
 
         with raises_yt_error(ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
-
-    @authors("aleksandr.gaev", "kirsiv40")
-    def test_get_query_tracker_info(self, query_tracker):
-        supported_features = {'access_control': True, 'multiple_aco': True}
-        assert get_query_tracker_info() == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': 'primary',
-                'supported_features': supported_features,
-                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
-                'clusters': ['primary'],
-                'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(attributes=[]) == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': '',
-                'supported_features': {},
-                'access_control_objects': [],
-                'clusters': [],
-                'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["cluster_name"]) == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': 'primary',
-                'supported_features': {},
-                'access_control_objects': [],
-                'clusters': [],
-                'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["supported_features"]) == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': '',
-                'supported_features': supported_features,
-                'access_control_objects': [],
-                'clusters': [],
-                'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["access_control_objects"]) == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': '',
-                'supported_features': {},
-                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
-                'clusters': [],
-                'engines_info' : {},
-            }
-        assert get_query_tracker_info(attributes=["clusters"]) == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': '',
-                'supported_features': {},
-                'access_control_objects': [],
-                'clusters': ['primary'],
-                'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(attributes=["engines_info"]) == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': '',
-                'supported_features': {},
-                'access_control_objects': [],
-                'clusters': [],
-                'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(yql_agent_stage="some-invalid-stage") == \
-            {
-                'query_tracker_stage': 'production',
-                'cluster_name': 'primary',
-                'supported_features': supported_features,
-                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
-                'clusters': ['primary'],
-                'engines_info' : {},
-            }
-
-        assert get_query_tracker_info(stage='testing') == \
-            {
-                'query_tracker_stage': 'testing',
-                'cluster_name': 'primary',
-                'supported_features': supported_features,
-                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
-                'clusters': ['primary'],
-                'engines_info' : {},
-            }
 
 
 @pytest.mark.enabled_multidaemon

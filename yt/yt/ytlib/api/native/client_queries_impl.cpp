@@ -311,10 +311,20 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
 
+
+    auto mergedSupportedFeatures = TYsonString(TString("{}"));
+    if (options.Attributes.AdmitsKeySlow("supported_features")) {
+        if (auto supportedFeaturesYson = TYsonString(rpcResponse.supported_features()); supportedFeaturesYson) {
+            auto supportedFeraturesMap = ConvertToNode(supportedFeaturesYson)->AsMap();
+            supportedFeraturesMap->AddChild("new_search_on_proxies", ConvertToNode(true));
+            mergedSupportedFeatures = ConvertToYsonString(supportedFeraturesMap);
+        }
+    }
+
     return TGetQueryTrackerInfoResult{
         .QueryTrackerStage = rpcResponse.query_tracker_stage(),
         .ClusterName = rpcResponse.cluster_name(),
-        .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
+        .SupportedFeatures = mergedSupportedFeatures,
         .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
         .EnginesInfo = rpcResponse.has_engines_info() ? std::optional(TYsonString(rpcResponse.engines_info())) : std::nullopt,
