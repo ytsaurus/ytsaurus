@@ -56,6 +56,8 @@
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -674,7 +676,7 @@ protected:
         ValidatePermissionForThis(EPermission::Read);
 
         NYPath::TTokenizer tokenizer(path);
-        std::optional<TString> key;
+        std::optional<std::string> key;
         if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
             tokenizer.Expect(NYPath::ETokenType::Literal);
             key = tokenizer.GetLiteralValue();
@@ -709,7 +711,7 @@ protected:
             // The key is requested by path, and we haven't forwarded request to master.
             // This means that key is special attribute which we have fetched, so we can return it.
             if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %v not found", key.value());
+                THROW_ERROR_EXCEPTION("Attribute %Qv not found", key.value());
             }
 
             auto attributeFragmentPath = TYPath(tokenizer.GetInput());
@@ -1859,7 +1861,7 @@ private:
         void OnMyKeyedItem(TYPathBuf key) override
         {
             CurrentPath_.Join(
-                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + key));
+                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + ToYPathLiteral(key)));
         }
 
         void OnMyBeginMap() override
@@ -2028,7 +2030,7 @@ private:
 
             auto subtreeRootPath = PathJoin(
                 Path_,
-                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + key));
+                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + ToYPathLiteral(key)));
 
             auto& builder = SubtreeBuilderHolder_.emplace(
                 Session_,

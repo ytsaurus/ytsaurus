@@ -2906,7 +2906,6 @@ class TestCypress(YTEnvSetup):
         assert path == f"#{node_id}" or path == "//tmp/a"
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_node_path_with_slash(self):
         set("//tmp/dir", {"my\\t": {}}, force=True)
         assert ls("//tmp/dir") == ["my\\t"]
