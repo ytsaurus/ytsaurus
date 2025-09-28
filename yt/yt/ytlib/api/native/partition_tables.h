@@ -63,7 +63,7 @@ private:
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(
         const NChunkPools::TChunkStripeListPtr& chunkStripeList);
     void AddDataSlice(int tableIndex, NChunkClient::TLegacyDataSlicePtr dataSlice);
-    void RequestVersionedDataSlices(const TInputTable& inputTable);
+    void PrepareVersionedSliceFetcher(const TInputTable& inputTable);
     void FetchVersionedDataSlices();
     void AddUnversionedDataSlices(const TInputTable& inputTable);
     NTableClient::TComparator GetComparator(int tableIndex);
