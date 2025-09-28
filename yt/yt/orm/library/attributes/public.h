@@ -72,6 +72,12 @@ DEFINE_ENUM(EMissingFieldPolicy,
     (ForceLeaf) // Visit the leaf field anyway, otherwise `Throw`.
 );
 
+DEFINE_ENUM(EMergeAttributesMode,
+    (Old)
+    (New)
+    (Compare)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TWrappedMessage>
