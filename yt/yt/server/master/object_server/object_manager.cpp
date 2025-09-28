@@ -795,7 +795,7 @@ private:
                         patchedRequestHeader->CopyFrom(context->GetRequestHeader());
                         SetTransactionId(patchedRequestHeader.get(), targetPayload.Transaction->GetId());
                         context->SetRequestHeader(std::move(patchedRequestHeader));
-                        YT_LOG_DEBUG("Request transaction compat applied (OriginalTransacionId: %v, EffectiveTransactionId: %v)",
+                        YT_LOG_DEBUG("Request transaction compat applied (OriginalTransactionId: %v, EffectiveTransactionId: %v)",
                             originalTransactionId,
                             effectiveTransactionId);
                     }
