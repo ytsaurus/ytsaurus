@@ -19,7 +19,7 @@ TAllocation::TAllocation(
     TInstant startTime,
     const TAllocationStartDescriptor& startDescriptor,
     EPreemptionMode preemptionMode,
-    TString treeId,
+    std::string treeId,
     int schedulingIndex,
     // std::optional<NStrategy::NPolicy::EAllocationSchedulingStage> schedulingStage,
     std::optional<TNetworkPriority> networkPriority,

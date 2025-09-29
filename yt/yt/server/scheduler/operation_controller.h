@@ -68,7 +68,7 @@ struct TOperationControllerReviveResult
 {
     bool RevivedFromSnapshot = false;
     std::vector<TAllocationPtr> RevivedAllocations;
-    THashSet<TString> RevivedBannedTreeIds;
+    THashSet<std::string> RevivedBannedTreeIds;
     TCompositeNeededResources NeededResources;
     TAllocationGroupResourcesMap GroupedNeededResources;
     TAllocationGroupResourcesMap InitialGroupedNeededResources;

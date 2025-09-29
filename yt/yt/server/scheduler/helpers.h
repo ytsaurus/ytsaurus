@@ -51,7 +51,7 @@ void BuildSupportedFeatures(NYTree::TFluentMap fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GuessGpuType(const TString& treeId);
+std::string GuessGpuType(const std::string& treeId);
 
 std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant startTime, TInstant finishTime);
 
@@ -73,7 +73,7 @@ struct TAllocationDescription
         TOperationId OperationId;
         TInstant StartTime;
         EAllocationState State;
-        TString TreeId;
+        std::string TreeId;
         bool Preempted;
         TString PreemptionReason;
         TDuration PreemptionTimeout;

@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TPersistentTreeState)
 struct TPersistentStrategyState
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TPersistentTreeStatePtr> TreeStates;
+    THashMap<std::string, TPersistentTreeStatePtr> TreeStates;
 
     REGISTER_YSON_STRUCT(TPersistentStrategyState);
 

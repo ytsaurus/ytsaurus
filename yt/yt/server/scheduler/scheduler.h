@@ -144,7 +144,7 @@ public:
     void OnOperationAgentUnregistered(const TOperationPtr& operation);
     void OnOperationBannedInTentativeTree(
         const TOperationPtr& operation,
-        const TString& treeId,
+        const std::string& treeId,
         const std::vector<TAllocationId>& allocationIds);
 
     using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<

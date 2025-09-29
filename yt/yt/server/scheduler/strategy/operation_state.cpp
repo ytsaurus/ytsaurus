@@ -13,7 +13,7 @@ TStrategyOperationState::TStrategyOperationState(
     , Controller_(New<TOperationController>(Host_, config, nodeShardInvokers))
 { }
 
-TPoolName TStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
+TPoolName TStrategyOperationState::GetPoolNameByTreeId(const std::string& treeId) const
 {
     return GetOrCrash(TreeIdToPoolNameMap_, treeId);
 }

@@ -142,7 +142,7 @@ void Serialize(const TJobMetrics& jobMetrics, NYson::IYsonConsumer* consumer);
 
 struct TTreeTaggedJobMetrics
 {
-    TString TreeId;
+    std::string TreeId;
     TJobMetrics Metrics;
 };
 

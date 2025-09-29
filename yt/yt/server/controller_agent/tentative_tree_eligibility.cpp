@@ -12,10 +12,10 @@ using namespace NLogging;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTentativeTreeEligibility::TTentativeTreeEligibility(
-    std::optional<THashSet<TString>> tentativeTrees,
+    std::optional<THashSet<std::string>> tentativeTreeIds,
     const NScheduler::TTentativeTreeEligibilityConfigPtr& config,
     const TLogger& logger)
-    : TentativeTrees_(std::move(tentativeTrees.value_or(THashSet<TString>())))
+    : TentativeTreeIds_(std::move(tentativeTreeIds.value_or(THashSet<std::string>())))
     , SampleJobCount_(config->SampleJobCount)
     , MaxTentativeTreeJobDurationRatio_(config->MaxTentativeJobDurationRatio)
     , MinJobDuration_(config->MinJobDuration)
@@ -32,22 +32,22 @@ void TTentativeTreeEligibility::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, NonTentativeTreeDuration_);
 
-    PHOENIX_REGISTER_FIELD(2, Durations_);
+    PHOENIX_REGISTER_FIELD(2, TreeIdToDuration_);
 
     PHOENIX_REGISTER_FIELD(3, SampleJobCount_);
     PHOENIX_REGISTER_FIELD(4, MaxTentativeTreeJobDurationRatio_);
     PHOENIX_REGISTER_FIELD(5, MinJobDuration_);
 
-    PHOENIX_REGISTER_FIELD(6, StartedJobsPerPoolTree_);
-    PHOENIX_REGISTER_FIELD(7, LastStartJobTimePerPoolTree_);
-    PHOENIX_REGISTER_FIELD(8, FinishedJobsPerStatePerPoolTree_);
-    PHOENIX_REGISTER_FIELD(9, BannedTrees_);
+    PHOENIX_REGISTER_FIELD(6, TreeIdToStartedJobs_);
+    PHOENIX_REGISTER_FIELD(7, TreeIdToLastStartJobTime_);
+    PHOENIX_REGISTER_FIELD(8, TreeIdToFinishedJobsPerState_);
+    PHOENIX_REGISTER_FIELD(9, BannedTreeIds_);
 
     PHOENIX_REGISTER_FIELD(10, Logger);
 }
 
 bool TTentativeTreeEligibility::CanScheduleJob(
-    const TString& treeId,
+    const std::string& treeId,
     bool tentative)
 {
     if (!tentative) {
@@ -64,13 +64,13 @@ bool TTentativeTreeEligibility::CanScheduleJob(
         return false;
     }
 
-    auto startedJobCount = StartedJobsPerPoolTree_.Value(treeId, 0);
+    auto startedJobCount = TreeIdToStartedJobs_.Value(treeId, 0);
     int finishedJobCount = 0;
-    for (const auto& [jobState, jobCount] : FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>())) {
+    for (const auto& [jobState, jobCount] : TreeIdToFinishedJobsPerState_.Value(treeId, THashMap<EJobState, int>())) {
         finishedJobCount += jobCount;
     }
     int runningJobCount = startedJobCount - finishedJobCount;
-    int completedJobCount = FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
+    int completedJobCount = TreeIdToFinishedJobsPerState_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
     int remainingSampleJobCount = SampleJobCount_ - completedJobCount;
 
     if (remainingSampleJobCount > 0 && runningJobCount >= remainingSampleJobCount)
@@ -88,35 +88,35 @@ void TTentativeTreeEligibility::Disable()
     Disabled_ = true;
 }
 
-void TTentativeTreeEligibility::OnJobStarted(const TString& treeId, bool tentative)
+void TTentativeTreeEligibility::OnJobStarted(const std::string& treeId, bool tentative)
 {
     if (tentative) {
-        ++StartedJobsPerPoolTree_[treeId];
-        LastStartJobTimePerPoolTree_[treeId] = TInstant::Now();
+        ++TreeIdToStartedJobs_[treeId];
+        TreeIdToLastStartJobTime_[treeId] = TInstant::Now();
     }
 }
 
 void TTentativeTreeEligibility::OnJobFinished(
     const TJobSummary& jobSummary,
-    const TString& treeId,
+    const std::string& treeId,
     bool tentative,
-    std::vector<TString>* newlyBannedTrees)
+    std::vector<std::string>* newlyBannedTreeIds)
 {
     if (tentative) {
-        ++FinishedJobsPerStatePerPoolTree_[treeId][jobSummary.State];
+        ++TreeIdToFinishedJobsPerState_[treeId][jobSummary.State];
     }
 
     if (jobSummary.State == EJobState::Completed) {
         UpdateDurations(jobSummary, treeId, tentative);
-        *newlyBannedTrees = FindAndBanSlowTentativeTrees();
+        *newlyBannedTreeIds = FindAndBanSlowTentativeTrees();
     }
 }
 
-std::vector<TString> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()
+std::vector<std::string> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()
 {
-    std::vector<TString> slowTreeIds;
-    for (const auto& [treeId, jobs] : StartedJobsPerPoolTree_) {
-        if (!IsTreeBanned(treeId) && IsSlow(treeId)) {
+    std::vector<std::string> slowTreeIds;
+    for (const auto& [treeId, jobs] : TreeIdToStartedJobs_) {
+        if (!IsTreeBanned(treeId) && IsTreeSlow(treeId)) {
             BanTree(treeId);
             slowTreeIds.push_back(treeId);
         }
@@ -126,12 +126,12 @@ std::vector<TString> TTentativeTreeEligibility::FindAndBanSlowTentativeTrees()
 
 void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
 {
-    if (StartedJobsPerPoolTree_.empty() || Disabled_) {
+    if (TreeIdToStartedJobs_.empty() || Disabled_) {
         return;
     }
 
     THashMap<TString, TDuration> treeAverageJobDurations;
-    for (const auto& [treeId, jobs] : StartedJobsPerPoolTree_) {
+    for (const auto& [treeId, jobs] : TreeIdToStartedJobs_) {
         treeAverageJobDurations.emplace(treeId, GetTentativeTreeAverageJobDuration(treeId));
     }
 
@@ -141,45 +141,45 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
         treeAverageJobDurations);
 }
 
-THashMap<TString, int> TTentativeTreeEligibility::GetPendingJobCount() const
+THashMap<std::string, int> TTentativeTreeEligibility::GetPendingJobCount() const
 {
-    return THashMap<TString, int>();
+    return THashMap<std::string, int>();
 }
 
 void TTentativeTreeEligibility::UpdateDurations(
     const TJobSummary& jobSummary,
-    const TString& treeId,
+    const std::string& treeId,
     bool tentative)
 {
     auto totalDuration = jobSummary.TimeStatistics.PrepareDuration.value_or(TDuration()) + jobSummary.TimeStatistics.ExecDuration.value_or(TDuration());
-    auto& durationSummary = tentative ? Durations_[treeId] : NonTentativeTreeDuration_;
+    auto& durationSummary = tentative ? TreeIdToDuration_[treeId] : NonTentativeTreeDuration_;
     durationSummary.AddSample(totalDuration);
 }
 
-TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TString& treeId) const
+TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const std::string& treeId) const
 {
     TDuration tentativeDurationSum;
     int tentativeCount = 0;
 
     {
-        auto it = Durations_.find(treeId);
-        if (it != Durations_.end()) {
+        auto it = TreeIdToDuration_.find(treeId);
+        if (it != TreeIdToDuration_.end()) {
             tentativeDurationSum += it->second.GetSum();
             tentativeCount += it->second.GetCount();
         }
     }
 
     if (tentativeCount < SampleJobCount_) {
-        auto it = LastStartJobTimePerPoolTree_.find(treeId);
+        auto it = TreeIdToLastStartJobTime_.find(treeId);
         tentativeCount += 1;
         tentativeDurationSum += TInstant::Now() - it->second;
         return tentativeDurationSum / tentativeCount;
     } else {
-        int completedJobCount = FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
+        int completedJobCount = TreeIdToFinishedJobsPerState_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);
         if (completedJobCount == tentativeCount) {
             return tentativeDurationSum / tentativeCount;
         } else { // Consider last job separately.
-            const auto& lastStartJobTime = GetOrCrash(LastStartJobTimePerPoolTree_, treeId);
+            const auto& lastStartJobTime = GetOrCrash(TreeIdToLastStartJobTime_, treeId);
             auto lastJobDuration = TInstant::Now() - lastStartJobTime;
 
             // Weight average duration with last job duration as if we run only sample jobs.
@@ -189,7 +189,7 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
     }
 }
 
-bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const
+bool TTentativeTreeEligibility::IsTreeSlow(const std::string& treeId) const
 {
     if (NonTentativeTreeDuration_.GetCount() < SampleJobCount_) {
         return false;
@@ -206,9 +206,9 @@ bool TTentativeTreeEligibility::IsSlow(const TString& treeId) const
     return (tentativeDurationAvg / *NonTentativeTreeDuration_.GetAvg()) >= MaxTentativeTreeJobDurationRatio_;
 }
 
-void TTentativeTreeEligibility::BanTree(const TString& treeId)
+void TTentativeTreeEligibility::BanTree(const std::string& treeId)
 {
-    BannedTrees_.insert(treeId);
+    BannedTreeIds_.insert(treeId);
 
     auto tentativeDurationAvg = GetTentativeTreeAverageJobDuration(treeId);
     auto nonTentativeDurationAvg = NonTentativeTreeDuration_.GetAvg();
@@ -222,9 +222,9 @@ void TTentativeTreeEligibility::BanTree(const TString& treeId)
         MaxTentativeTreeJobDurationRatio_);
 }
 
-bool TTentativeTreeEligibility::IsTreeBanned(const TString& treeId) const
+bool TTentativeTreeEligibility::IsTreeBanned(const std::string& treeId) const
 {
-    return BannedTrees_.contains(treeId);
+    return BannedTreeIds_.contains(treeId);
 }
 
 PHOENIX_DEFINE_TYPE(TTentativeTreeEligibility);

@@ -46,8 +46,8 @@ struct TScheduleAllocationRequest
     TOperationId OperationId;
     TAllocationId AllocationId;
     TJobResources AllocationResourceLimits;
-    TString TreeId;
-    TString PoolPath;
+    std::string TreeId;
+    NYPath::TYPath PoolPath;
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;
     TDiskResources NodeDiskResources;

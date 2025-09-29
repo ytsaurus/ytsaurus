@@ -136,7 +136,7 @@ TString TSchedulingSegmentManager::GetNodeTagFromModuleName(
 }
 
 TSchedulingSegmentManager::TSchedulingSegmentManager(
-    TString treeId,
+    std::string treeId,
     TStrategySchedulingSegmentsConfigPtr config,
     NLogging::TLogger logger,
     const NProfiling::TProfiler& profiler)

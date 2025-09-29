@@ -233,7 +233,7 @@ public:
 
     void RegisterOperation(
         IOperationPtr operation,
-        std::vector<TString>* unknownTreeIds,
+        std::vector<std::string>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -256,23 +256,23 @@ public:
             std::pair(operation->GetId(), state)).second);
 
         auto runtimeParameters = operation->GetRuntimeParameters();
-        for (const auto& [treeName, poolName] : state->TreeIdToPoolNameMap()) {
-            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeName);
-            auto tree = GetTree(treeName);
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
+            const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
+            auto tree = GetTree(treeId);
 
             auto registrationResult = tree->RegisterOperation(
                 state,
-                operation->GetStrategySpecForTree(treeName),
+                operation->GetStrategySpecForTree(treeId),
                 treeParams,
                 operation->GetOperationOptions());
 
             poolTreeControllerSettingsMap->emplace(
-                treeName,
+                treeId,
                 TPoolTreeControllerSettings{
                     .SchedulingTagFilter = tree->GetNodesFilter(),
-                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative,
-                    .Probing = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Probing,
-                    .Offloading = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Offloading,
+                    .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeId)->Tentative,
+                    .Probing = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeId)->Probing,
+                    .Offloading = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeId)->Offloading,
                     .MainResource = tree->GetConfig()->MainResource,
                     .AllowIdleCpuPolicy = registrationResult.AllowIdleCpuPolicy,
                 });
@@ -291,7 +291,7 @@ public:
         EraseOrCrash(OperationIdToOperationState_, operation->GetId());
     }
 
-    void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
+    void UnregisterOperationFromTree(TOperationId operationId, const std::string& treeId) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -306,7 +306,7 @@ public:
         YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
 
-    void DoUnregisterOperationFromTree(const TStrategyOperationStatePtr& operationState, const TString& treeId)
+    void DoUnregisterOperationFromTree(const TStrategyOperationStatePtr& operationState, const std::string& treeId)
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
@@ -379,10 +379,10 @@ public:
             std::vector<TError> errors;
 
             // Collect trees to add and remove.
-            THashSet<TString> treeIdsToAdd;
-            THashSet<TString> treeIdsToRemove;
-            THashSet<TString> treeIdsWithChangedFilter;
-            THashMap<TString, TSchedulingTagFilter> treeIdToFilter;
+            THashSet<std::string> treeIdsToAdd;
+            THashSet<std::string> treeIdsToRemove;
+            THashSet<std::string> treeIdsWithChangedFilter;
+            THashMap<std::string, TSchedulingTagFilter> treeIdToFilter;
             CollectTreeChanges(poolsMap, &treeIdsToAdd, &treeIdsToRemove, &treeIdsWithChangedFilter, &treeIdToFilter);
 
             YT_LOG_INFO("Pool trees collected to update (TreeIdsToAdd: %v, TreeIdsToRemove: %v, TreeIdsWithChangedFilter: %v)",
@@ -400,7 +400,7 @@ public:
 
             // Check default tree pointer. It should point to some valid tree,
             // otherwise pool trees are not updated.
-            auto defaultTreeId = poolsMap->Attributes().Find<TString>(DefaultTreeAttributeName);
+            auto defaultTreeId = poolsMap->Attributes().Find<std::string>(DefaultTreeAttributeName);
 
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
                 errors.push_back(TError("Default tree is missing"));
@@ -419,7 +419,7 @@ public:
 
             // Update configs and pools structure of all trees.
             // NB: It updates already existing trees inplace.
-            std::vector<TString> updatedTreeIds;
+            std::vector<std::string> updatedTreeIds;
             UpdateTreesConfigs(
                 poolsMap,
                 idToTree,
@@ -532,9 +532,8 @@ public:
             bool hasTreeWithProgress = false;
             TError operationError("Operation scheduling is stuck");
 
-            for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
-                const auto& treeName = treePoolPair.first;
-                auto error = GetTree(treeName)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
+            for (const auto& [treeId, _] : operationState->TreeIdToPoolNameMap()) {
+                auto error = GetTree(treeId)->CheckOperationIsStuck(operationId, Config_->OperationStuckCheck);
                 if (error.IsOK()) {
                     hasTreeWithProgress = true;
                     break;
@@ -650,8 +649,8 @@ public:
         auto poolTrees = ParsePoolTrees(spec, operationType);
         for (const auto& poolTreeDescription : poolTrees) {
             auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
-            auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Name);
-            auto tree = GetTree(poolTreeDescription.Name);
+            auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Id);
+            auto tree = GetTree(poolTreeDescription.Id);
             std::optional<TString> poolFromSpec;
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
@@ -671,11 +670,11 @@ public:
 
             treeParams->Tentative = poolTreeDescription.Tentative;
             treeParams->Probing = poolTreeDescription.Probing;
-            EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, poolTreeDescription.Name, std::move(treeParams));
+            EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, poolTreeDescription.Id, std::move(treeParams));
         }
 
-        for (const auto& [treeName, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
-            const auto& offloadingSettings = GetTree(treeName)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName(), user);
+        for (const auto& [treeId, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
+            const auto& offloadingSettings = GetTree(treeId)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName(), user);
             if (offloadingSettings.empty()) {
                 continue;
             }
@@ -815,7 +814,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         // Snapshot list of treeIds.
-        std::vector<TString> treeIds;
+        std::vector<std::string> treeIds;
         treeIds.reserve(std::size(IdToTree_));
         THashMap<std::string, TJobResourcesWithDiskConfigPtr> guaranteedJobResources;
         for (auto [treeId, tree] : IdToTree_) {
@@ -829,7 +828,7 @@ public:
             .OptionalItem("default_pool_tree", DefaultTreeId_)
             .Item("last_metering_statistics_update_time").Value(LastMeteringStatisticsUpdateTime_)
             .Item("guaranteed_job_resources_per_pool_tree").Value(guaranteedJobResources)
-            .Item("scheduling_info_per_pool_tree").DoMapFor(treeIds, [&] (TFluentMap fluent, const TString& treeId) {
+            .Item("scheduling_info_per_pool_tree").DoMapFor(treeIds, [&] (TFluentMap fluent, const std::string& treeId) {
                 auto tree = FindTree(treeId);
                 if (!tree) {
                     return;
@@ -848,14 +847,14 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        THashMap<TString, IPoolTreePtr> idToTree;
+        THashMap<std::string, IPoolTreePtr> idToTree;
         if (auto snapshot = TreeSetSnapshot_.Acquire()) {
             idToTree = snapshot->BuildIdToTreeMapping();
         } else {
             return;
         }
 
-        THashMap<TString, THashMap<TOperationId, TJobMetrics>> treeIdToJobMetricDeltas;
+        THashMap<std::string, THashMap<TOperationId, TJobMetrics>> treeIdToJobMetricDeltas;
 
         for (auto& [operationId, metricsPerTree] : operationIdToOperationJobMetrics) {
             for (auto& metrics : metricsPerTree) {
@@ -927,7 +926,7 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        std::vector<std::pair<TString, IPoolTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
+        std::vector<std::pair<std::string, IPoolTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
         std::sort(
             idToTree.begin(),
             idToTree.end(),
@@ -1063,12 +1062,12 @@ public:
             "Processing allocation updates in strategy (UpdateCount: %v)",
             allocationUpdates.size());
 
-        THashMap<TString, std::vector<TAllocationUpdate>> allocationUpdatesPerTree;
+        THashMap<std::string, std::vector<TAllocationUpdate>> allocationUpdatesPerTree;
         for (const auto& allocationUpdate : allocationUpdates) {
             allocationUpdatesPerTree[allocationUpdate.TreeId].push_back(allocationUpdate);
         }
 
-        THashMap<TString, IPoolTreePtr> idToTree;
+        THashMap<std::string, IPoolTreePtr> idToTree;
         if (auto snapshot = TreeSetSnapshot_.Acquire()) {
             idToTree = snapshot->BuildIdToTreeMapping();
         } else {
@@ -1103,7 +1102,7 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        THashMap<TString, std::vector<TAllocationPtr>> allocationsByTreeId;
+        THashMap<std::string, std::vector<TAllocationPtr>> allocationsByTreeId;
         for (const auto& allocation : allocations) {
             allocationsByTreeId[allocation->GetTreeId()].push_back(allocation);
         }
@@ -1203,7 +1202,7 @@ public:
         return Connected_;
     }
 
-    void SetSchedulerTreeAlert(const TString& treeId, ESchedulerAlertType alertType, const TError& alert) override
+    void SetSchedulerTreeAlert(const std::string& treeId, ESchedulerAlertType alertType, const TError& alert) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1371,7 +1370,7 @@ public:
         bool scheduleInSingleTree,
         const TCompositeNeededResources& neededResources,
         bool revivedFromSnapshot,
-        std::vector<TString>* treeIdsToErase) override
+        std::vector<std::string>* treeIdsToErase) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1386,7 +1385,7 @@ public:
         }
 
         // TODO(eshcherbin): Move to std::string.
-        auto unregisterFromTrees = [&] (std::vector<TString>&& treeIds) {
+        auto unregisterFromTrees = [&] (std::vector<std::string>&& treeIds) {
             for (auto&& treeId : treeIds) {
                 UnregisterOperationFromTree(operationId, treeId);
                 treeIdsToErase->push_back(std::move(treeId));
@@ -1394,7 +1393,7 @@ public:
         };
 
         {
-            std::vector<TString> treeIdsToUnregister;
+            std::vector<std::string> treeIdsToUnregister;
             auto error = CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot, &treeIdsToUnregister);
             if (!error.IsOK()) {
                 return error;
@@ -1426,14 +1425,14 @@ public:
             }
 
             auto bestTree = errorOrTree.ValueOrThrow();
-            std::vector<TString> treesToUnregister;
+            std::vector<std::string> treeIdsToUnregister;
             for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
                 if (treeId != bestTree) {
-                    treesToUnregister.push_back(treeId);
+                    treeIdsToUnregister.push_back(treeId);
                 }
             }
 
-            unregisterFromTrees(std::move(treesToUnregister));
+            unregisterFromTrees(std::move(treeIdsToUnregister));
         }
 
         if (auto error = CheckOperationSchedulingInSeveralTreesAllowed(operationId);
@@ -1448,10 +1447,10 @@ public:
     TError CheckOperationJobResourceLimitsRestrictions(
         TOperationId operationId,
         bool revivedFromSnapshot,
-        std::vector<TString>* treeIdsToUnregister)
+        std::vector<std::string>* treeIdsToUnregister)
     {
         auto state = GetOperationState(operationId);
-        std::vector<std::pair<TString, TError>> jobResourceLimitsRestrictionsErrors;
+        std::vector<std::pair<std::string, TError>> jobResourceLimitsRestrictionsErrors;
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
             auto error = tree->CheckOperationJobResourceLimitsRestrictions(operationId, revivedFromSnapshot);
@@ -1534,7 +1533,7 @@ public:
         }
     }
 
-    std::optional<TString> GetMaybeTreeIdForNode(TNodeId nodeId) const override
+    std::optional<std::string> GetMaybeTreeIdForNode(TNodeId nodeId) const override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1569,11 +1568,11 @@ private:
 
     THashMap<TOperationId, TStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    using TPoolTreeMap = THashMap<TString, IPoolTreePtr>;
+    using TPoolTreeMap = THashMap<std::string, IPoolTreePtr>;
     TPoolTreeMap IdToTree_;
     bool Initialized_ = false;
 
-    std::optional<TString> DefaultTreeId_;
+    std::optional<std::string> DefaultTreeId_;
 
     // NB(eshcherbin): Note that these pool tree mapping are only *snapshot* of actual mapping.
     // We should not expect that the set of trees or their structure in the snapshot are the same as
@@ -1593,18 +1592,18 @@ private:
     {
         TBooleanFormulaTags Tags;
         std::string Address;
-        std::optional<TString> TreeId;
+        std::optional<std::string> TreeId;
     };
 
     THashMap<TNodeId, TStrategyExecNodeDescriptor> NodeIdToDescriptor_;
     THashSet<std::string> NodeAddresses_;
-    THashMap<TString, TNodeIdSet> NodeIdsPerTree_;
+    THashMap<std::string, TNodeIdSet> NodeIdsPerTree_;
     TNodeIdSet NodeIdsWithoutTree_;
 
     TYsonString LastPoolTreesYson_;
     TYsonString LastTemplatePoolTreeConfigMapYson_;
 
-    TEnumIndexedArray<ESchedulerAlertType, THashMap<TString, TError>> TreeAlerts_;
+    TEnumIndexedArray<ESchedulerAlertType, THashMap<std::string, TError>> TreeAlerts_;
 
     bool Connected_ = false;
 
@@ -1613,7 +1612,7 @@ private:
 
     struct TPoolTreeDescription
     {
-        TString Name;
+        std::string Id;
         bool Tentative = false;
         bool Probing = false;
     };
@@ -1628,7 +1627,7 @@ private:
             }
         }
 
-        THashSet<TString> tentativePoolTrees;
+        THashSet<std::string> tentativePoolTrees;
         if (spec->TentativePoolTrees) {
             tentativePoolTrees = *spec->TentativePoolTrees;
         } else if (spec->UseDefaultTentativePoolTrees) {
@@ -1647,8 +1646,8 @@ private:
 
         std::vector<TPoolTreeDescription> result;
         if (spec->PoolTrees) {
-            for (const auto& treeName : *spec->PoolTrees) {
-                result.push_back(TPoolTreeDescription{ .Name = treeName });
+            for (const auto& treeId : *spec->PoolTrees) {
+                result.push_back(TPoolTreeDescription{.Id = treeId});
             }
         } else {
             if (!DefaultTreeId_) {
@@ -1657,7 +1656,7 @@ private:
                     "Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
-            result.push_back(TPoolTreeDescription{ .Name = *DefaultTreeId_ });
+            result.push_back(TPoolTreeDescription{.Id = *DefaultTreeId_});
         }
 
         if (result.empty()) {
@@ -1675,7 +1674,7 @@ private:
                     : Config_->OperationsWithoutTentativePoolTrees;
                 if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
                     result.push_back(TPoolTreeDescription{
-                        .Name = treeId,
+                        .Id = treeId,
                         .Tentative = true
                     });
                 }
@@ -1688,16 +1687,16 @@ private:
 
         if (spec->ProbingPoolTree) {
             for (const auto& desc : result) {
-                if (desc.Name == *spec->ProbingPoolTree) {
+                if (desc.Id == *spec->ProbingPoolTree) {
                     THROW_ERROR_EXCEPTION("Probing pool tree must not be in regular or tentative pool tree lists")
-                        << TErrorAttribute("pool_tree", desc.Name)
+                        << TErrorAttribute("pool_tree", desc.Id)
                         << TErrorAttribute("is_tentative", desc.Tentative);
                 }
             }
 
             if (auto tree = FindTree(spec->ProbingPoolTree.value())) {
                 result.push_back(TPoolTreeDescription{
-                    .Name = *spec->ProbingPoolTree,
+                    .Id = *spec->ProbingPoolTree,
                     .Probing = true
                 });
             } else {
@@ -1824,13 +1823,13 @@ private:
         return GetOrCrash(OperationIdToOperationState_, operationId);
     }
 
-    IPoolTreePtr FindTree(const TString& id) const
+    IPoolTreePtr FindTree(const std::string& id) const
     {
         auto treeIt = IdToTree_.find(id);
         return treeIt != IdToTree_.end() ? treeIt->second : nullptr;
     }
 
-    IPoolTreePtr GetTree(const TString& id) const
+    IPoolTreePtr GetTree(const std::string& id) const
     {
         auto tree = FindTree(id);
         YT_VERIFY(tree);
@@ -1889,13 +1888,13 @@ private:
 
     TStrategyTreeConfigPtr BuildConfig(
         const IMapNodePtr& poolTreesMap,
-        const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
-        const TString& treeId) const
+        const THashMap<std::string, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
+        const std::string& treeId) const
     {
         struct TPoolTreesTemplateConfigInfoView
         {
-            TStringBuf name;
-            const TPoolTreesTemplateConfig* config;
+            TStringBuf Name;
+            const TPoolTreesTemplateConfig* Config;
         };
 
         const auto& poolTreeAttributes = poolTreesMap->GetChildOrThrow(treeId);
@@ -1916,12 +1915,12 @@ private:
             std::begin(matchedTemplateConfigs),
             std::end(matchedTemplateConfigs),
             [] (const TPoolTreesTemplateConfigInfoView first, const TPoolTreesTemplateConfigInfoView second) {
-                return first.config->Priority < second.config->Priority;
+                return first.Config->Priority < second.Config->Priority;
             });
 
         INodePtr compiledConfigNode = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& config : matchedTemplateConfigs) {
-            compiledConfigNode = PatchNode(compiledConfigNode, config.config->Config);
+            compiledConfigNode = PatchNode(compiledConfigNode, config.Config->Config);
         }
 
         return ParsePoolTreeConfig(poolTreeAttributes, compiledConfigNode);
@@ -1929,16 +1928,16 @@ private:
 
     void CollectTreeChanges(
         const IMapNodePtr& poolsMap,
-        THashSet<TString>* treesToAdd,
-        THashSet<TString>* treesToRemove,
-        THashSet<TString>* treeIdsWithChangedFilter,
-        THashMap<TString, TSchedulingTagFilter>* treeIdToFilter) const
+        THashSet<std::string>* treeIdsToAdd,
+        THashSet<std::string>* treeIdsToRemove,
+        THashSet<std::string>* treeIdsWithChangedFilter,
+        THashMap<std::string, TSchedulingTagFilter>* treeIdToFilter) const
     {
         for (const auto& key_ : poolsMap->GetKeys()) {
             // TODO(babenko): migrate to std::string
             auto key = TString(key_);
             if (IdToTree_.find(key) == IdToTree_.end()) {
-                treesToAdd->insert(key);
+                treeIdsToAdd->insert(key);
                 try {
                     auto config = ParsePoolTreeConfig(poolsMap->FindChild(key));
                     treeIdToFilter->emplace(key, config->NodesFilter);
@@ -1952,7 +1951,7 @@ private:
         for (const auto& [treeId, tree] : IdToTree_) {
             auto child = poolsMap->FindChild(treeId);
             if (!child) {
-                treesToRemove->insert(treeId);
+                treeIdsToRemove->insert(treeId);
                 continue;
             }
 
@@ -1972,14 +1971,14 @@ private:
 
     TPoolTreeMap ConstructUpdatedTreeMap(
         const IMapNodePtr& poolTreesMap,
-        const THashSet<TString>& treesToAdd,
-        const THashSet<TString>& treesToRemove,
-        const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
+        const THashSet<std::string>& treeIdsToAdd,
+        const THashSet<std::string>& treeIdsToRemove,
+        const THashMap<std::string, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         std::vector<TError>* errors)
     {
         TPoolTreeMap trees;
 
-        for (const auto& treeId : treesToAdd) {
+        for (const auto& treeId : treeIdsToAdd) {
             TStrategyTreeConfigPtr treeConfig;
             try {
                 treeConfig = BuildConfig(poolTreesMap, templatePoolTreeConfigMap, treeId);
@@ -2001,7 +2000,7 @@ private:
         }
 
         for (const auto& [treeId, tree] : IdToTree_) {
-            if (treesToRemove.find(treeId) == treesToRemove.end()) {
+            if (treeIdsToRemove.find(treeId) == treeIdsToRemove.end()) {
                 trees.emplace(treeId, tree);
             }
         }
@@ -2009,18 +2008,18 @@ private:
         return trees;
     }
 
-    bool CheckTreesConfiguration(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter, std::vector<TError>* errors) const
+    bool CheckTreesConfiguration(const THashMap<std::string, TSchedulingTagFilter>& treeIdToFilter, std::vector<TError>* errors) const
     {
-        THashMap<TNodeId, std::vector<TString>> nodeIdToTreeSet;
+        THashMap<TNodeId, std::vector<std::string>> nodeIdToTreeIds;
         for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
             for (const auto& [treeId, filter] : treeIdToFilter) {
                 if (filter.CanSchedule(descriptor.Tags)) {
-                    nodeIdToTreeSet[nodeId].push_back(treeId);
+                    nodeIdToTreeIds[nodeId].push_back(treeId);
                 }
             }
         }
 
-        for (const auto& [nodeId, treeIds] : nodeIdToTreeSet) {
+        for (const auto& [nodeId, treeIds] : nodeIdToTreeIds) {
             if (treeIds.size() > 1) {
                 errors->emplace_back(
                     TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
@@ -2037,9 +2036,9 @@ private:
     void UpdateTreesConfigs(
         const IMapNodePtr& poolTreesMap,
         const TPoolTreeMap& trees,
-        const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
+        const THashMap<std::string, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         std::vector<TError>* errors,
-        std::vector<TString>* updatedTreeIds) const
+        std::vector<std::string>* updatedTreeIds) const
     {
         for (const auto& [treeId, tree] : trees) {
             auto child = poolTreesMap->GetChildOrThrow(treeId);
@@ -2066,30 +2065,30 @@ private:
     }
 
     void RemoveTreesFromOperationStates(
-        const THashSet<TString>& treesToRemove,
+        const THashSet<std::string>& treeIdsToRemove,
         std::vector<TOperationId>* orphanedOperationIds,
         std::vector<TOperationId>* operationsToFlush)
     {
-        if (treesToRemove.empty()) {
+        if (treeIdsToRemove.empty()) {
             return;
         }
 
-        THashMap<TOperationId, THashSet<TString>> operationIdToTreeSet;
-        THashMap<TString, THashSet<TOperationId>> treeIdToOperationSet;
+        THashMap<TOperationId, THashSet<std::string>> operationIdToTreeIds;
+        THashMap<std::string, THashSet<TOperationId>> treeIdToOperationIds;
 
         for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
             const auto& poolsMap = operationState->TreeIdToPoolNameMap();
             for (const auto& [treeId, pool] : poolsMap) {
-                YT_VERIFY(operationIdToTreeSet[operationId].insert(treeId).second);
-                YT_VERIFY(treeIdToOperationSet[treeId].insert(operationId).second);
+                YT_VERIFY(operationIdToTreeIds[operationId].insert(treeId).second);
+                YT_VERIFY(treeIdToOperationIds[treeId].insert(operationId).second);
             }
         }
 
-        for (const auto& treeId : treesToRemove) {
-            auto it = treeIdToOperationSet.find(treeId);
+        for (const auto& treeId : treeIdsToRemove) {
+            auto it = treeIdToOperationIds.find(treeId);
 
             // No operations are running in this tree.
-            if (it == treeIdToOperationSet.end()) {
+            if (it == treeIdToOperationIds.end()) {
                 continue;
             }
 
@@ -2099,15 +2098,15 @@ private:
                 GetTree(treeId)->UnregisterOperation(state);
                 EraseOrCrash(state->TreeIdToPoolNameMap(), treeId);
 
-                auto& treeSet = GetOrCrash(operationIdToTreeSet, operationId);
+                auto& treeSet = GetOrCrash(operationIdToTreeIds, operationId);
                 EraseOrCrash(treeSet, treeId);
             }
         }
 
-        for (const auto& [operationId, treeSet] : operationIdToTreeSet) {
+        for (const auto& [operationId, treeSet] : operationIdToTreeIds) {
             const auto& state = GetOperationState(operationId);
 
-            std::vector<TString> treeIdsToErase;
+            std::vector<std::string> treeIdsToErase;
             for (auto [treeId, options] : state->GetHost()->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
                 if (treeSet.find(treeId) == treeSet.end()) {
                     treeIdsToErase.push_back(treeId);
@@ -2154,14 +2153,14 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        std::vector<TString> treeIds;
+        std::vector<std::string> treeIds;
         for (const auto& [treeId, tree] : IdToTree_) {
             if (tree->GetNodesFilter().CanSchedule(tags)) {
                 treeIds.push_back(treeId);
             }
         }
 
-        std::optional<TString> treeId;
+        std::optional<std::string> treeId;
         if (treeIds.size() == 0) {
             NodeIdsWithoutTree_.insert(nodeId);
         } else if (treeIds.size() == 1) {
@@ -2220,8 +2219,8 @@ private:
 
     void UpdateNodesOnChangedTrees(
         const TPoolTreeMap& newIdToTree,
-        const THashSet<TString> treeIdsToAdd,
-        const THashSet<TString> treeIdsToRemove)
+        const THashSet<std::string> treeIdsToAdd,
+        const THashSet<std::string> treeIdsToRemove)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2232,7 +2231,7 @@ private:
         // NB(eshcherbin): |OnNodeChangedPoolTree| requires both trees to be present in |NodeIdsPerTree_|.
         // This is why we add new trees before this cycle and remove old trees after it.
         for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
-            std::optional<TString> newTreeId;
+            std::optional<std::string> newTreeId;
             for (const auto& [treeId, tree] : newIdToTree) {
                 if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
                     YT_VERIFY(!newTreeId);
@@ -2265,7 +2264,7 @@ private:
     void OnNodeChangedPoolTree(
         const TPoolTreeMap& idToTree,
         TNodeId nodeId,
-        const std::optional<TString>& newTreeId)
+        const std::optional<std::string>& newTreeId)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2551,7 +2550,7 @@ private:
             return static_cast<bool>(Tree_);
         }
 
-        std::optional<TString> GetMaybeTreeId() const override
+        std::optional<std::string> GetMaybeTreeId() const override
         {
             if (!Tree_) {
                 return std::nullopt;

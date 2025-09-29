@@ -208,7 +208,7 @@ public:
         const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& nodeLimits,
         const TDiskResources& diskResourceLimits,
-        const TString& /* treeId */,
+        const std::string& /* treeId */,
         const TString& /* poolPath */,
         std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */) override;
 
@@ -449,7 +449,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
     const NStrategy::NPolicy::ISchedulingHeartbeatContextPtr& context,
     const TJobResources& nodeLimits,
     const TDiskResources& /*diskResourceLimits*/,
-    const TString& /* treeId */,
+    const std::string& /* treeId */,
     const TString& /* poolPath */,
     std::optional<TDuration> /* waitingForResourcesOnNodeTimeout */)
 {

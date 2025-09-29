@@ -30,7 +30,7 @@ public:
 
     void UpdateConfig(const TStrategyOperationControllerConfigPtr& config);
 
-    TPoolName GetPoolNameByTreeId(const TString& treeId) const;
+    TPoolName GetPoolNameByTreeId(const std::string& treeId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStrategyOperationState)

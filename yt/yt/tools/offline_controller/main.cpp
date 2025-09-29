@@ -291,7 +291,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void OnOperationBannedInTentativeTree(const TString&, const std::vector<TAllocationId>&) override
+    void OnOperationBannedInTentativeTree(const std::string&, const std::vector<TAllocationId>&) override
     {
         YT_UNIMPLEMENTED();
     }
