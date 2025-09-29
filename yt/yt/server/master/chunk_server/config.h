@@ -776,6 +776,8 @@ struct TDynamicChunkManagerConfig
 
     bool EnableRepairViaReplication;
 
+    int MaxLostVitalChunksToLog;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
