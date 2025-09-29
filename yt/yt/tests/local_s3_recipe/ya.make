@@ -13,6 +13,7 @@ PEERDIR(
     library/python/resource
 
     contrib/python/boto3
+    contrib/python/requests
 )
 
 END()

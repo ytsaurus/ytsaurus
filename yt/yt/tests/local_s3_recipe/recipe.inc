@@ -15,10 +15,6 @@ DEPENDS(
     yt/yt/tests/local_s3_recipe
 )
 
-DATA(
-    arcadia/yt/yt/tests/local_s3_recipe/bin/s3proxy
-)
-
 USE_RECIPE(
     yt/yt/tests/local_s3_recipe/local_s3_recipe
 )

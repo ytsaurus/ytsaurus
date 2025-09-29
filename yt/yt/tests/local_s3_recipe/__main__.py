@@ -4,9 +4,11 @@ from yt.test_helpers import get_source_root, get_tests_sandbox, yatest_common, w
 
 import subprocess
 import os
+import stat
 from typing import List
 
 import boto3
+import requests
 
 
 ################################################################################
@@ -25,6 +27,17 @@ jclouds.filesystem.basedir={}
 jclouds.identity=
 jclouds.credential=
 """
+
+
+def download_s3_proxy(path):
+    if os.path.exists(path):
+        return
+
+    S3_PROXY_URL = "https://github.com/gaul/s3proxy/releases/download/s3proxy-2.6.0/s3proxy"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as out_file:
+        out_file.write(requests.get(S3_PROXY_URL, stream=True).content)
+        os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC)
 
 
 def get_env_value(key):
@@ -53,6 +66,11 @@ def wait_for_s3_start():
 def start(_: List[str]) -> None:
     base_path = os.path.join(get_source_root(), "yt/yt/tests/local_s3_recipe")
 
+    # Download S3Proxy binary to be used in the recipe.
+    # TODO(pavel-bash): when it's added to the contrib or to the public S3, change the approach here.
+    s3_binary_path = os.path.join(base_path, "bin", "s3proxy")
+    download_s3_proxy(s3_binary_path)
+
     # Retrieve the necessary environment variables' values.
     endpoint_url = get_env_value("AWS_ENDPOINT_URL")
     access_key_id = get_env_value("AWS_ACCESS_KEY_ID")
@@ -78,7 +96,7 @@ def start(_: List[str]) -> None:
 
     # Launch S3.
     s3_args = [
-        os.path.join(base_path, "bin", "s3proxy"),
+        s3_binary_path,
         "--properties",
         s3_conf_path,
     ]
