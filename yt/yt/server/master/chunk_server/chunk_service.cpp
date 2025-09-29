@@ -969,12 +969,14 @@ private:
             auto requestStatistics = context->Request().request_statistics();
             WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()))
                 .ThrowOnError();
+            ValidatePeer(EPeerKind::Leader);
 
             if (requestStatistics) {
                 const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
                 WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
                     .ThrowOnError();
-
+                ValidatePeer(EPeerKind::Leader);
+                
                 auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
                 if (!chunk->IsConfirmed()) {
                     YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
