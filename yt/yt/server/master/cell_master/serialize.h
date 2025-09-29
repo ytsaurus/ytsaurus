@@ -145,6 +145,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
     ((SealHunkJournalChunkWithMultipleParents)                      (3102))  // akozhikhov
     ((SequoiaTabletCellBundles)                                     (3103))  // danilalexeev
+    ((SequoiaMapKeyLengthLimit)                                     (3104))  // babenko
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

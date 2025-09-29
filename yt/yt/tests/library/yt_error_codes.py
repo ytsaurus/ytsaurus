@@ -16,6 +16,7 @@ InvalidPartitionedBy = 317
 MisconfiguredPartitions = 318
 InvalidTableChunkFormat = 328
 ResolveErrorCode = 500
+MaxKeyLengthViolation = 505
 InvalidInputChunk = 733
 UnsupportedChunkFeature = 734
 AuthorizationErrorCode = 901

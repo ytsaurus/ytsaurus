@@ -24,6 +24,8 @@ import yt.yson as yson
 
 from yt_driver_bindings import Driver
 
+import yt_error_codes
+
 from flaky import flaky
 import pytest
 
@@ -1822,11 +1824,10 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node/@test_attr", "x" * 301)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_map_node_key_length_limits(self):
         set("//sys/@config/cypress_manager/max_map_node_key_length", 300)
         set("//tmp/" + "a" * 300, 0)
-        with raises_yt_error("is not allowed to contain items with keys longer than"):
+        with raises_yt_error(yt_error_codes.MaxKeyLengthViolation):
             set("//tmp/" + "a" * 301, 0)
 
     @authors("babenko")
