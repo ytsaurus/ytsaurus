@@ -49,6 +49,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   cpp-type_info-tz
   library-cpp-yson
   cpp-yson-node
+  cpp-containers-stack_vector
   yql-essentials-ast
   essentials-core-file_storage
   essentials-core-sql_types
@@ -87,6 +88,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_holding_file_storage.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_join.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_library_compiler.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_linear_checker.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_hopping.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_match_recognize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_normalize_depends_on.cpp
