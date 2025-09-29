@@ -31,6 +31,13 @@ DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const 
     return converter.GetDataType();
 }
 
+DB::DataTypePtr ToDataType(const TColumnSchema& columnSchema, const TCompositeSettingsPtr& settings, bool isReadConversions)
+{
+    TComplexTypeFieldDescriptor descriptor(columnSchema);
+    TYTToCHColumnConverter converter(descriptor, settings, isReadConversions);
+    return converter.GetDataType();
+}
+
 DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
     DB::DataTypes result;
@@ -170,7 +177,7 @@ DB::Field ToField(
 
     YT_VERIFY(resultColumn->size() == 1);
 
-return (*resultColumn)[0];
+    return (*resultColumn)[0];
 }
 
 void ToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
@@ -242,6 +249,23 @@ std::vector<int> GetColumnIndexToId(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ToUnversionedValue(
+    const DB::Field& field,
+    const DB::DataTypePtr& dataType,
+    const TCompositeSettingsPtr& settings,
+    NTableClient::TUnversionedValue* value)
+{
+    auto column = dataType->createColumn();
+    column->insert(field);
+    auto range = ToRowRange(
+        DB::Block({DB::ColumnWithTypeAndName(std::move(column), dataType, /*name*/ "")}),
+        {dataType},
+        /*columnIndexToId*/ {0},
+        settings
+    );
+    *value = range[0][0];
+}
 
 TSharedRange<TUnversionedRow> ToRowRange(
     const DB::Block& block,
@@ -316,7 +340,7 @@ TSharedMutableRange<TMutableUnversionedRow> ToMutableRowRange(
  * If a key is shorter than provided usedKeyColumnCount, the rest of the key is
  * filled with min (lower) or max (upper) possible value of the corresponding column.
  *
- * If provided bounds are excplusive and tryMakeBoundsInclusive is |true|,
+ * If provided bounds are exclusive and tryMakeBoundsInclusive is |true|,
  * this functions will try to convert them to inclusive using some heuristics.
  *
  */

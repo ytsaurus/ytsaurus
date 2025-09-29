@@ -16,7 +16,7 @@ from yt.test_helpers import assert_items_equal
 
 import random
 import builtins
-import datetime
+from datetime import datetime
 
 import pytest
 
@@ -1099,23 +1099,23 @@ class TestInputFetching(ClickHouseTestBase):
         write_table(
             "<append=%true>//tmp/t-ts",
             [
-                {"ts": int(datetime.datetime(2023, 1, 1).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2023, 5, 5).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2023, 10, 10).timestamp() * 10**6)},
+                {"ts": int(datetime(2023, 1, 1).timestamp() * 10**6)},
+                {"ts": int(datetime(2023, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime(2023, 10, 10).timestamp() * 10**6)},
             ]
         )
         write_table(
             "<append=%true>//tmp/t-ts",
             [
-                {"ts": int(datetime.datetime(2023, 12, 12).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2024, 2, 2).timestamp() * 10**6)},
+                {"ts": int(datetime(2023, 12, 12).timestamp() * 10**6)},
+                {"ts": int(datetime(2024, 2, 2).timestamp() * 10**6)},
             ]
         )
         write_table(
             "<append=%true>//tmp/t-ts",
             [
-                {"ts": int(datetime.datetime(2024, 5, 5).timestamp() * 10**6)},
-                {"ts": int(datetime.datetime(2024, 10, 10).timestamp() * 10**6)}
+                {"ts": int(datetime(2024, 5, 5).timestamp() * 10**6)},
+                {"ts": int(datetime(2024, 10, 10).timestamp() * 10**6)}
             ]
         )
 
@@ -1592,6 +1592,106 @@ class TestReadInOrder(ClickHouseTestBase):
             register_query_check('select message from "//tmp/table-0" order by ts, ts_2, message limit 1', read_in_order_mode="none")
 
             self._check_read_in_order_modes(log_table, expected_read_in_order_modes)
+
+
+class TestInferReadRange(ClickHouseTestBase):
+    def _get_config_patch(self):
+        return {
+            "yt": {
+                "settings": {
+                    "execution": {
+                        "enable_read_range_inferring": True,
+                    },
+                }
+            }
+        }
+
+    @authors("buyval01")
+    def test_simple_range(self):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        chunks_count = 2
+        rows_per_chunk = 3
+        for chunk_index in range(chunks_count):
+            write_table("<append=%true>//tmp/t", [{
+                "key": chunk_index * rows_per_chunk + row_index,
+                "value": f"{row_index}, {chunk_index}"}
+                for row_index in range(rows_per_chunk)])
+
+        with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
+            query = 'select value from "//tmp/t" where key > 1 and key < 4 order by key'
+            assert clique.make_query_and_validate_prewhered_row_count(query, exact=2) == [
+                {"value": "2, 0"},
+                {"value": "0, 1"},
+            ]
+
+    @authors("buyval01")
+    def test_supported_ranges(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                # TODO (buyval01) : check with narrow timestamp type cause it has difference in YT <-> CH conversion
+                "schema": [{"name": "ts", "type": "timestamp64", "sort_order": "ascending"}],
+            }
+        )
+
+        ts_pattern = '%Y-%m-%d %H:%M:%S'
+        timestamps = [
+            [
+                "2025-01-01 12:21:00",
+                "2025-02-02 12:22:00",
+                "2025-03-03 12:23:00",
+            ],
+            [
+                "2025-04-04 12:24:00",
+                "2025-05-05 12:25:00",
+                "2025-06-06 12:26:00",
+            ],
+            [
+                "2025-07-07 12:27:00",
+                "2025-08-08 12:28:00",
+                "2025-09-09 12:29:00",
+            ],
+        ]
+
+        for chunk_tss in timestamps:
+            write_table(
+                "<append=%true>//tmp/t",
+                [{"ts": int(datetime.strptime(ts_str, ts_pattern).timestamp() * 10**6)} for ts_str in chunk_tss]
+            )
+
+        with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
+            def check(predicate, exact, expected=None):
+                query = f"select ts from '//tmp/t' where {predicate}"
+                res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
+                if expected is not None:
+                    assert_items_equal(res, expected)
+
+            check("ts < toDateTime('2025-02-01T00:00:00')", 1, expected=[{"ts": "2025-01-01 12:21:00.000000"}])
+            check("ts >= toDateTime('2025-08-08T12:28:00')", 2, expected=[{"ts": "2025-08-08 12:28:00.000000"}, {"ts": "2025-09-09 12:29:00.000000"}])
+            check("ts = toDateTime('2025-08-08T12:28:00')", 1)
+            check(
+                "ts < toDateTime('2025-04-04T00:00:00') AND not ts = toDateTime('2025-02-02T12:22:00')",
+                2,
+                expected=[{"ts": "2025-01-01 12:21:00.000000"}, {"ts": "2025-03-03 12:23:00.000000"}]
+            )
+            check(
+                "ts BETWEEN toDateTime('2025-07-07T00:00:00') AND toDateTime('2025-09-09T00:00:00')",
+                2,
+                expected=[{"ts": "2025-07-07 12:27:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            )
+            check(
+                "ts IN (toDateTime('2025-02-02T12:22:00'), toDateTime('2025-05-05T12:25:00'), toDateTime('2025-08-08T12:28:00'))",
+                3,
+                expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            )
+            check("ts < toDateTime('2025-02-02T00:00:00') OR ts > toDateTime('2025-09-09T00:00:00')", 2)
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

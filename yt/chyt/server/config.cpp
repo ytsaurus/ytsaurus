@@ -160,6 +160,9 @@ void TExecutionSettings::Register(TRegistrar registrar)
     registrar.Parameter("enable_input_specs_pulling", &TThis::EnableInputSpecsPulling)
         .Default(false);
 
+    registrar.Parameter("enable_read_range_inferring", &TThis::EnableReadRangeInferring)
+        .Default(false);
+
     registrar.Parameter("allow_string_min_max_optimization", &TThis::AllowStringMinMaxOptimization)
         .Default(false);
 }
