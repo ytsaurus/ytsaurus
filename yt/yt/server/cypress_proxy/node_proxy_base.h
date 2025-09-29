@@ -51,6 +51,9 @@ protected:
         NObjectClient::TCellId coordinatorCellId,
         bool commitSession);
 
+    void AbortSequoiaSessionForLaterForwardingToMaster(
+        std::optional<NSecurityClient::TSerializableAccessControlList> forwardEffectiveAcl = std::nullopt);
+
     const NApi::NNative::IClientPtr& GetNativeAuthenticatedClient() const;
 };
 

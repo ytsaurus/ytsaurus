@@ -250,6 +250,10 @@ public:
 
     // Resolve helpers.
 
+    //! Throws "no such object" exception if no node's branch exists in Sequoia
+    //! resolve table.
+    void ValidateNodeExistence(NCypressClient::TNodeId nodeId);
+
     struct TResolvedNodeId
     {
         NSequoiaClient::TAbsolutePath Path;

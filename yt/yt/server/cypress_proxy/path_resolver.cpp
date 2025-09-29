@@ -177,7 +177,7 @@ struct TForwardToMaster
 
 struct TResolveHere
 {
-    TSequoiaResolveResult Result;
+        TSequoiaResolveResult Result;
 };
 
 struct TResolveThere
@@ -189,7 +189,8 @@ struct TResolveThere
 using TResolveIterationResult = std::variant<
     TForwardToMaster,
     TResolveHere,
-    TResolveThere>;
+    TResolveThere,
+    TUnreachableSequoiaResolveResult>;
 
 TResolveIterationResult ResolveByPath(
     const TSequoiaSessionPtr& session,
@@ -349,6 +350,15 @@ TResolveIterationResult ResolveByObjectId(
         return TForwardToMaster{std::move(path)};
     }
 
+    // NB: since ACL is non-versioned attribute there is no necessarity in
+    // transaction ID here. Therefore, even if bruch with the given transaction
+    // does not exists resolve should be succesful if at least one branch of
+    // node exists.
+    if (method == "CheckPermission" && std::ranges::count(pathSuffix, '&') == std::ssize(pathSuffix)) {
+        session->ValidateNodeExistence(rootDesignator);
+        return TUnreachableSequoiaResolveResult{.Id = rootDesignator};
+    }
+
     THROW_ERROR_EXCEPTION("No such object %v", rootDesignator);
 }
 
@@ -372,16 +382,7 @@ TResolveIterationResult RunResolveIteration(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TSequoiaResolveResult::IsSnapshot() const noexcept
-{
-    return TypeFromId(Id) != EObjectType::Scion && !ParentId;
-}
-
-TResolveResult ResolvePath(
+TMaybeUnreachableResolveResult DoResolvePath(
     const TSequoiaSessionPtr& session,
     TYPath path,
     bool pathIsAdditional,
@@ -412,7 +413,7 @@ TResolveResult ResolvePath(
         ValidateYPathResolutionDepth(path, resolutionDepth);
 
         auto iterationResult = RunResolveIteration(session, method, std::move(path), pathIsAdditional);
-        static_assert(std::variant_size<decltype(iterationResult)>() == 3);
+        static_assert(std::variant_size<decltype(iterationResult)>() == 4);
 
         if (auto* forwardToMaster = std::get_if<TForwardToMaster>(&iterationResult)) {
             return TCypressResolveResult{
@@ -420,6 +421,8 @@ TResolveResult ResolvePath(
             };
         } else if (auto* resolvedHere = std::get_if<TResolveHere>(&iterationResult)) {
             return std::move(resolvedHere->Result);
+        } else if (auto* unreachableResolveResult = std::get_if<TUnreachableSequoiaResolveResult>(&iterationResult)) {
+            return std::move(*unreachableResolveResult);
         } else {
             auto& resolvedThere = GetOrCrash<TResolveThere>(iterationResult);
 
@@ -430,6 +433,50 @@ TResolveResult ResolvePath(
             path = std::move(resolvedThere.RewrittenTargetPath);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TSequoiaResolveResult::IsSnapshot() const noexcept
+{
+    return TypeFromId(Id) != EObjectType::Scion && !ParentId;
+}
+
+TResolveResult ResolvePath(
+    const TSequoiaSessionPtr& session,
+    TYPath path,
+    bool pathIsAdditional,
+    TStringBuf service,
+    TStringBuf method,
+    std::vector<TSequoiaResolveIterationResult>* history)
+{
+    auto result = DoResolvePath(session, path, pathIsAdditional, service, method, history);
+    return Visit(result,
+        [] (TSequoiaResolveResult& result) -> TResolveResult {
+            return std::move(result);
+        },
+        [] (TCypressResolveResult& result) -> TResolveResult {
+            return std::move(result);
+        },
+        [] (TMasterResolveResult& result) -> TResolveResult {
+            return std::move(result);
+        },
+        [] (TUnreachableSequoiaResolveResult& result) -> TResolveResult {
+            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", result.Id);
+        });
+}
+
+TMaybeUnreachableResolveResult ResolvePathWithUnreachableResultAllowed(
+    const TSequoiaSessionPtr& session,
+    NYPath::TYPath path,
+    TStringBuf service,
+    TStringBuf method)
+{
+    return DoResolvePath(session, path, /*pathIsAdditional*/ false, service, method, /*history*/ nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

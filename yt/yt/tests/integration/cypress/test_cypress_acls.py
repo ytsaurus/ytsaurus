@@ -5,7 +5,8 @@ from yt_commands import (
     create_account, create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member,
     remove_group, remove_user, start_transaction, lock, read_table, write_table, alter_table, map,
     set_account_disk_space_limit, raises_yt_error, gc_collect, build_snapshot, create_access_control_object_namespace,
-    create_access_control_object, get_active_primary_master_leader_address, concatenate
+    create_access_control_object, get_active_primary_master_leader_address, concatenate,
+    abort_transaction, unlock,
 )
 
 from yt_type_helpers import make_schema
@@ -1531,7 +1532,14 @@ class TestCypressAcls(CheckPermissionBase):
         do("//tmp/t_in{secret}", {}, True)
 
     @authors("shakurov", "danilalexeev")
-    def test_orphaned_node(self):
+    @pytest.mark.parametrize("removal", ["abort", "unlock"])
+    def test_orphaned_node(self, removal):
+        if removal == "unlock":
+            # Using unlock() on snapshot branch leads to
+            # "Non-zero reference counter after object removal" alert.
+            # TODO(kvk1920): investigate it.
+            pytest.skip()
+
         create_user("u")
 
         create(
@@ -1550,6 +1558,19 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//tmp/d/t")
 
         assert check_permission("u", "read", "#" + table_id, tx=tx)["action"] == "allow"
+        assert check_permission("u", "read", "#" + table_id)["action"] == "allow"
+
+        if removal == "unlock":
+            unlock(f"#{table_id}", tx=tx)
+        else:
+            abort_transaction(tx)
+        gc_collect()
+
+        if removal == "unlock":
+            with raises_yt_error(f"No such object {table_id}"):
+                check_permission("u", "read", f"#{table_id}", tx=tx)
+        with raises_yt_error(f"No such object {table_id}"):
+            check_permission("u", "read", f"#{table_id}")
 
     def _test_columnar_acl_copy_yt_12749(self, src_dir, dst_dir):
         create(

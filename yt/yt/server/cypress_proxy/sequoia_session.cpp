@@ -922,6 +922,22 @@ bool TSequoiaSession::IsMapNodeEmpty(TNodeId nodeId)
         .empty();
 }
 
+void TSequoiaSession::ValidateNodeExistence(TNodeId nodeId)
+{
+    auto records = WaitFor(SequoiaTransaction_->SelectRows<NRecords::TNodeIdToPath>({
+        .WhereConjuncts = {
+            Format("node_id = %Qv", nodeId),
+            "fork_kind != \"tombstone\"",
+        },
+        .Limit = 1,
+    }))
+        .ValueOrThrow();
+
+    if (records.empty()) {
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", nodeId);
+    }
+}
+
 void TSequoiaSession::DetachAndRemoveSingleNode(
     TNodeId nodeId,
     TAbsolutePathBuf path,

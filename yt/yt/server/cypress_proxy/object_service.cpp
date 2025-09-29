@@ -753,7 +753,7 @@ private:
      */
     static void PatchRequestAfterResolve(
         TSubrequest* subrequest,
-        const TResolveResult& resolveResult,
+        const TMaybeUnreachableResolveResult& resolveResult,
         const std::vector<TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions)
     {
         TStringBuf newPath;
@@ -769,6 +769,11 @@ private:
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
                 newPath = sequoiaResolveResult.UnresolvedSuffix;
+            },
+            [&] (const TUnreachableSequoiaResolveResult& unreachableResolveResult) {
+                subrequest->ResolvedNodeId = unreachableResolveResult.Id;
+
+                newPath = "";
             });
 
         auto& header = *subrequest->RequestHeader;
@@ -805,7 +810,7 @@ private:
 
     void RewriteRequestForForwardingToMaster(
         TSubrequest* subrequest,
-        const TResolveResult& resolveResult,
+        const TMaybeUnreachableResolveResult& resolveResult,
         const TForwardToMasterPayload& payload)
     {
         YT_ASSERT(subrequest->RequestHeader.has_value());
@@ -821,6 +826,8 @@ private:
         if (const auto* sequoiaResolveResult = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
             ypathExt->set_target_path(
                 FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix);
+        } else if (const auto* unreachableResolveResult = std::get_if<TUnreachableSequoiaResolveResult>(&resolveResult)) {
+            ypathExt->set_target_path(FromObjectId(unreachableResolveResult->Id));
         }
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
@@ -860,7 +867,7 @@ private:
         }
 
         TSequoiaSessionPtr session;
-        TResolveResult resolveResult;
+        TMaybeUnreachableResolveResult resolveResult;
         try {
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
@@ -868,10 +875,9 @@ private:
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.
-            resolveResult = ResolvePath(
+            resolveResult = ResolvePathWithUnreachableResultAllowed(
                 session,
                 originalTargetPath,
-                /*pathIsAdditional*/ false,
                 header.service(),
                 header.method());
         } catch (const std::exception& ex) {
@@ -882,7 +888,7 @@ private:
 
         std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions;
         // Otherwise request will be forwarded to master,
-        // where prerequisite revisions will be validated before invokation.
+        // where prerequisite revisions will be validated before invocation.
         if (std::holds_alternative<TSequoiaResolveResult>(resolveResult)) {
             auto resolvedPrerequisiteRevisionsOrError = ResolvePrerequisiteRevisions(header, session, originalTargetPath, prerequisiteRevisions);
             if (!resolvedPrerequisiteRevisionsOrError.IsOK()) {
