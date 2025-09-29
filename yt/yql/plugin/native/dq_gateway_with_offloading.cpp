@@ -2,18 +2,21 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-
 namespace NYT::NYqlPlugin::NNative {
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-class TDqGatewayWithOffloading: public NYql::IDqGateway
+////////////////////////////////////////////////////////////////////////////////
+
+class TDqGatewayWithOffloading
+    : public NYql::IDqGateway
 {
 public:
     TDqGatewayWithOffloading(
         ::TIntrusivePtr<NYql::IDqGateway> underlying,
-        IThreadPool* threadPool
-    )
+        IThreadPool* threadPool)
         : Underlying_(std::move(underlying))
         , ThreadPool_(threadPool)
     {
@@ -27,7 +30,6 @@ public:
         });
     }
 
-public:
     NThreading::TFuture<void> OpenSession(
         const TString& sessionId,
         const TString& username) override
@@ -90,7 +92,11 @@ private:
     IThreadPool* ThreadPool_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 ::TIntrusivePtr<NYql::IDqGateway> CreateDqGatewayWithOffloading(
     ::TIntrusivePtr<NYql::IDqGateway> underlying,
@@ -98,5 +104,7 @@ private:
 {
     return MakeIntrusive<TDqGatewayWithOffloading>(std::move(underlying), threadPool);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlPlugin::NNative
