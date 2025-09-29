@@ -202,7 +202,7 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_merged.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
-  -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize#cardinality_state_init#cardinality_state_update#cardinality_state_merge#cardinality_state_finalize#cardinality_merge_init#cardinality_merge_update#cardinality_merge_merge#cardinality_merge_finalize
+  -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize#cardinality_state_init#cardinality_state_update#cardinality_state_merge#cardinality_state_finalize#cardinality_merge_init#cardinality_merge_update#cardinality_merge_merge#cardinality_merge_finalize#cardinality_merge_state_init#cardinality_merge_state_update#cardinality_merge_state_merge#cardinality_merge_state_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 

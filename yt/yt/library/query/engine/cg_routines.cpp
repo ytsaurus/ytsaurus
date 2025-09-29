@@ -3125,7 +3125,7 @@ void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingSta
 {
     THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
         "State size mismatch in hyperloglog: expected %v, got %v; "
-        "this potentially signals a misuse of function \"cardinality_merge\"",
+        "this potentially signals a misuse of function \"cardinality_*\"",
         sizeof(THLL),
         incomingStateLength);
     HyperLogLogMerge(hll1, hll2);

@@ -2534,9 +2534,19 @@ class TestQuery(DynamicTablesBase):
             select_rows("min(X.[T.v]) AS small, max(X.[D.s]) as big FROM "
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
 
-        assert select_rows("cardinality_merge(Subquery.x) AS c FROM "
-                           "(SELECT cardinality_state(k_2) AS x FROM `//tmp/t` GROUP BY k_1) AS Subquery "
-                           "GROUP BY 1")[0]["c"] == 4
+        assert select_rows("""
+            cardinality_merge(Subquery_2.x) AS c
+            FROM (
+                SELECT cardinality_merge_state(Subquery_1.y) AS x
+                FROM (
+                    SELECT cardinality_state(k_2) as y, g
+                    FROM `//tmp/t`
+                    GROUP BY k_1 as g
+                ) AS Subquery_1
+                GROUP BY Subquery_1.g % 2 as g
+            ) AS Subquery_2
+            GROUP BY 1
+        """)[0]["c"] == 4
 
     @authors("sabdenovch")
     def test_join_after_subquery(self):

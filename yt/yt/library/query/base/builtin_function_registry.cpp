@@ -308,6 +308,15 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
+        "cardinality_merge_state",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {EValueType::String},
+        EValueType::String,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
         "array_agg",
         {},
         {
