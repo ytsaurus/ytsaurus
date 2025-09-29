@@ -141,6 +141,7 @@ public:
         , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
         , OperandSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
+        , KeyReadRanges_(queryAnalysisResult.KeyReadRanges)
         , NeedTableStatistics_(queryAnalysisResult.EnableMinMaxOptimization)
         , RealColumnNames_(realColumnNames)
         , VirtualColumnNames_(virtualColumnNames)
@@ -182,6 +183,7 @@ private:
 
     std::vector<TTableSchemaPtr> OperandSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
+    std::vector<TReadRange> KeyReadRanges_;
 
     bool NeedTableStatistics_ = false;
 
@@ -743,6 +745,9 @@ private:
 
             // We do not need to fetch anything if table was filtered by index.
             if (CanBeTrueOnTable_[tableIndex]) {
+                if (OperandCount_ == 1 && !table->Path.HasNontrivialRanges() && !KeyReadRanges_.empty()) {
+                    table->Path.SetRanges(KeyReadRanges_);
+                }
                 AddTableForFetching(table, tableIndex);
             }
         }

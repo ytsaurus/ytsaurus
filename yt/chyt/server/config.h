@@ -238,6 +238,10 @@ public:
     //! Count of input specifications for the pull model is generated based on the TaskCountIncreaseFactor parameter.
     bool EnableInputSpecsPulling;
 
+    //! CHYT supports explicitly specifying rich YPath with a read range for tables in the query.
+    //! This option allows you to implicitly infer the reading range from the query predicate and use it when fetching chunk specs.
+    bool EnableReadRangeInferring;
+
     //! Allow to use minmax optimization for strings (answer can be corrupted for string with max_chars).
     bool AllowStringMinMaxOptimization;
 

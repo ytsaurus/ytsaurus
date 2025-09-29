@@ -20,6 +20,11 @@ DB::DataTypePtr ToDataType(
     const TCompositeSettingsPtr& settings,
     bool isReadConversions = true);
 
+DB::DataTypePtr ToDataType(
+    const NTableClient::TColumnSchema& columnSchema,
+    const TCompositeSettingsPtr& settings,
+    bool isReadConversions = true);
+
 DB::DataTypes ToDataTypes(
     const std::vector<NTableClient::TColumnSchema>& schemas,
     const TCompositeSettingsPtr& settings,
@@ -65,6 +70,12 @@ std::vector<DB::Field> UnversionedRowToFields(
 
 // TODO(max42): pass logical type.
 void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
+
+void ToUnversionedValue(
+    const DB::Field& field,
+    const DB::DataTypePtr& dataType,
+    const TCompositeSettingsPtr& settings,
+    NTableClient::TUnversionedValue* value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

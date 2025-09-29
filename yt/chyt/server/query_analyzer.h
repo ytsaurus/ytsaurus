@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -29,6 +30,7 @@ struct TQueryAnalysisResult
     std::vector<NTableClient::TTableSchemaPtr> TableSchemas;
     std::vector<std::vector<TTablePtr>> Tables;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
+    std::vector<NChunkClient::TReadRange> KeyReadRanges;
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;

@@ -54,8 +54,8 @@ SRCS(
     cluster_nodes.cpp
     columnar_conversion.cpp
     computed_columns.cpp
-    config_repository.cpp
     config.cpp
+    config_repository.cpp
     conversion.cpp
     custom_data_types.cpp
     dictionary_source.cpp
@@ -86,10 +86,12 @@ SRCS(
     query_service.cpp
     read_from_yt_step.cpp
     read_plan.cpp
+    read_range_inference.cpp
     remote_source.cpp
     revision_tracker.cpp
     schema_inference.cpp
     secondary_query_header.cpp
+    secondary_query_input_puller.cpp
     secondary_query_source.cpp
     sink_to_storage.cpp
     stack_size_checker.cpp
@@ -99,24 +101,23 @@ SRCS(
     storage_system_clique.cpp
     storage_system_log_table_exporter.cpp
     storages_yt_nodes.cpp
-    subquery_spec.cpp
     subquery.cpp
-    secondary_query_input_puller.cpp
+    subquery_spec.cpp
+    table.cpp
     table_function_yt_list_log_tables.cpp
     table_function_yt_node_attributes.cpp
     table_function_yt_secondary_query.cpp
     table_function_yt_tables.cpp
+    table_functions.cpp
     table_functions_concat.cpp
     table_functions_list_dir.cpp
-    table_functions.cpp
     table_traverser.cpp
-    table.cpp
     tcp_handler.cpp
     user_defined_sql_objects_storage.cpp
     version.cpp
     virtual_column.cpp
-    yt_database_base.cpp
     yt_database.cpp
+    yt_database_base.cpp
     yt_directory_database.cpp
     yt_to_ch_block_converter.cpp
     yt_to_ch_column_converter.cpp
