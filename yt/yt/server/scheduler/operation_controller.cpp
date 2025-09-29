@@ -30,10 +30,10 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
             << TErrorAttribute("needed_resources", FormatResources(compositeNeededResources));
     }
 
-    for (const auto& [tree, neededResources] : compositeNeededResources.ResourcesByPoolTree) {
+    for (const auto& [treeId, neededResources] : compositeNeededResources.ResourcesByPoolTreeId) {
         if (!Dominates(neededResources, TJobResources())) {
             return TError("Controller has reported negative needed resources")
-                << TErrorAttribute("pool_tree", tree)
+                << TErrorAttribute("pool_tree", treeId)
                 << TErrorAttribute("needed_resources", FormatResources(compositeNeededResources));
         }
     }
@@ -125,7 +125,7 @@ void FromProto(
             allocation->SetPreemptibleProgressStartTime(FromProto<TInstant>(allocationProto.preemptible_progress_start_time()));
         }
     }
-    result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
+    result->RevivedBannedTreeIds = FromProto<THashSet<std::string>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
     result->GroupedNeededResources = FromProto<TAllocationGroupResourcesMap>(resultProto.grouped_needed_resources());
     result->InitialGroupedNeededResources = FromProto<TAllocationGroupResourcesMap>(resultProto.initial_grouped_needed_resources());

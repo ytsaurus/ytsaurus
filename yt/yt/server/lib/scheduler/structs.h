@@ -130,10 +130,10 @@ void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer
 
 struct TCompositeNeededResources
 {
-    NVectorHdrf::TJobResources DefaultResources = {};
-    THashMap<TString, NVectorHdrf::TJobResources> ResourcesByPoolTree = {};
+    NVectorHdrf::TJobResources DefaultResources;
+    THashMap<std::string, NVectorHdrf::TJobResources> ResourcesByPoolTreeId;
 
-    const TJobResources& GetNeededResourcesForTree(const TString& tree) const;
+    const TJobResources& GetNeededResourcesForTree(const std::string& treeId) const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

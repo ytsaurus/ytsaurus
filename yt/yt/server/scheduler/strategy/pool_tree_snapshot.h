@@ -62,7 +62,7 @@ class TPoolTreeSetSnapshot
 public:
     TPoolTreeSetSnapshot(std::vector<IPoolTreePtr> trees, int topologyVersion);
 
-    THashMap<TString, IPoolTreePtr> BuildIdToTreeMapping() const;
+    THashMap<std::string, IPoolTreePtr> BuildIdToTreeMapping() const;
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<IPoolTreePtr>, Trees);
     DEFINE_BYVAL_RO_PROPERTY(int, TopologyVersion);

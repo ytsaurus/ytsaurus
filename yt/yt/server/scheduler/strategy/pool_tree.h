@@ -55,7 +55,7 @@ struct IPoolTreeHost
 
     virtual bool IsConnected() const = 0;
 
-    virtual void SetSchedulerTreeAlert(const TString& treeId, ESchedulerAlertType alertType, const TError& alert) = 0;
+    virtual void SetSchedulerTreeAlert(const std::string& treeId, ESchedulerAlertType alertType, const TError& alert) = 0;
 
     virtual const re2::RE2& GetEphemeralPoolNameRegex() const = 0;
 };
@@ -149,7 +149,7 @@ struct IPoolTree
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
 
-    virtual const TString& GetId() const = 0;
+    virtual const std::string& GetId() const = 0;
 
     virtual TError CheckOperationIsStuck(
         TOperationId operationId,
@@ -206,7 +206,7 @@ IPoolTreePtr CreatePoolTree(
     IPoolTreeHost* host,
     IStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
-    TString treeId);
+    std::string treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

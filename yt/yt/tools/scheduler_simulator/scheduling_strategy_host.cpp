@@ -179,7 +179,7 @@ void TStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYson
 }
 
 void TStrategyHost::ValidatePoolPermission(
-    const TString& /*treeId*/,
+    const std::string& /*treeId*/,
     TGuid /*poolObjectId*/,
     const TString& /*poolName*/,
     const std::string& /*user*/,

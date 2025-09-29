@@ -204,7 +204,7 @@ const std::vector<TPreemptedAllocation>& TSchedulingHeartbeatContextBase::Preemp
 }
 
 void TSchedulingHeartbeatContextBase::StartAllocation(
-    const TString& treeId,
+    const std::string& treeId,
     TOperationId operationId,
     TIncarnationId incarnationId,
     TControllerEpoch controllerEpoch,

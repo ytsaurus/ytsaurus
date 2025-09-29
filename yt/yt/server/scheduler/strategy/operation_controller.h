@@ -29,7 +29,7 @@ struct ISchedulingOperationController
         const NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
-        const TString& treeId,
+        const std::string& treeId,
         const TString& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout) = 0;
 
@@ -95,7 +95,7 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const TString& treeId,
+        const std::string& treeId,
         const TString& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout);
 
@@ -107,12 +107,12 @@ public:
 
     void OnScheduleAllocationFailed(
         NProfiling::TCpuInstant now,
-        const TString& treeId,
+        const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
 
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
-        const TString& treeId,
+        const std::string& treeId,
         TDuration saturationDeactivationTimeout) const;
 
     void UpdateConfig(const TStrategyOperationControllerConfigPtr& config);
@@ -155,7 +155,7 @@ private:
     std::atomic<bool> ScheduleAllocationBackoffObserved_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SaturatedTentativeTreesLock_);
-    THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
+    THashMap<std::string, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
 
     bool DetailedLogsEnabled_ = false;
 

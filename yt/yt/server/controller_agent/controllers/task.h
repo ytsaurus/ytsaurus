@@ -54,7 +54,7 @@ using TVertexDescriptorList = TCompactVector<TDataFlowGraph::TVertexDescriptor, 
 
 struct TJobFinishedResult
 {
-    std::vector<TString> NewlyBannedTrees;
+    std::vector<std::string> NewlyBannedTreeIds;
     TError OperationFailedError;
 };
 
@@ -212,7 +212,7 @@ public:
     //! Base implementation returns task's own mapping.
     virtual NChunkPools::TInputChunkMappingPtr GetChunkMapping() const;
 
-    std::vector<TString> FindAndBanSlowTentativeTrees();
+    std::vector<std::string> FindAndBanSlowTentativeTrees();
 
     void LogTentativeTreeStatistics() const;
 

@@ -43,7 +43,7 @@ const NScheduler::TOperationOptionsPtr& TOperation::GetOperationOptions() const
     return stub;
 }
 
-std::optional<NScheduler::NStrategy::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
+std::optional<NScheduler::NStrategy::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<std::string>& treeId) const
 {
     if (treeId) {
         if (Controller_->GetNeededResources().GetNeededResourcesForTree(treeId.value()).GetUserSlots() == 0) {
@@ -52,7 +52,7 @@ std::optional<NScheduler::NStrategy::EUnschedulableReason> TOperation::CheckUnsc
     } else if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
         // Check needed resources of all trees.
         bool noPendingAllocations = true;
-        for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTree) {
+        for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTreeId) {
             noPendingAllocations = noPendingAllocations && neededResources.GetUserSlots() == 0;
         }
         if (noPendingAllocations) {
@@ -78,17 +78,17 @@ std::optional<std::string> TOperation::GetTitle() const
     return std::nullopt;
 }
 
-void TOperation::SetSlotIndex(const TString& treeId, int value)
+void TOperation::SetSlotIndex(const std::string& treeId, int value)
 {
     TreeIdToSlotIndex_[treeId] = value;
 }
 
-void TOperation::ReleaseSlotIndex(const TString& treeId)
+void TOperation::ReleaseSlotIndex(const std::string& treeId)
 {
     YT_VERIFY(TreeIdToSlotIndex_.erase(treeId) == 1);
 }
 
-std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
+std::optional<int> TOperation::FindSlotIndex(const std::string& treeId) const
 {
     auto it = TreeIdToSlotIndex_.find(treeId);
     return it != TreeIdToSlotIndex_.end() ? std::make_optional(it->second) : std::nullopt;
@@ -109,7 +109,7 @@ NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
     }
 }
 
-NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const TString& treeId) const
+NScheduler::TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const std::string& treeId) const
 {
     auto spec = GetStrategySpec();
     auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(treeId);
@@ -149,15 +149,15 @@ void TOperation::SetState(NScheduler::EOperationState state)
     State_ = state;
 }
 
-void TOperation::UpdatePoolAttributes(const TString& /*treeId*/, const NScheduler::NStrategy::TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/)
+void TOperation::UpdatePoolAttributes(const std::string& /*treeId*/, const NScheduler::NStrategy::TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/)
 { }
 
-bool TOperation::IsTreeErased(const TString& /*treeId*/) const
+bool TOperation::IsTreeErased(const std::string& /*treeId*/) const
 {
     YT_UNIMPLEMENTED();
 }
 
-void TOperation::EraseTrees(const std::vector<TString>& /*treeIds*/)
+void TOperation::EraseTrees(const std::vector<std::string>& /*treeIds*/)
 {
     YT_UNIMPLEMENTED();
 }

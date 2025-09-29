@@ -556,7 +556,7 @@ public:
                         auto operation = scheduler->FindOperation(operationId);
                         if (!operation) {
                             // TODO(eshcherbin): This is used for flap diagnostics. Remove when TestPoolMetricsPorto is fixed (YT-12207).
-                            THashMap<TString, i64> treeIdToOperationTotalTimeDelta;
+                            THashMap<std::string, i64> treeIdToOperationTotalTimeDelta;
                             for (const auto& [treeId, metrics] : operationInfo.JobMetrics) {
                                 treeIdToOperationTotalTimeDelta.emplace(treeId, metrics.Values()[EJobMetricName::TotalTime]);
                             }

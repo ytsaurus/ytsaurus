@@ -70,7 +70,7 @@ struct IStrategyHost
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
-        const TString& treeId,
+        const std::string& treeId,
         TGuid poolObjectId,
         const TString& poolName,
         const std::string& user,
@@ -108,7 +108,7 @@ struct TAllocationUpdate
 {
     TOperationId OperationId;
     TAllocationId AllocationId;
-    TString TreeId;
+    std::string TreeId;
     // It is used to update allocation resources in case of EAllocationUpdateStatus::Running status.
     TJobResources AllocationResources;
     // It is used to determine whether the allocation should be aborted if the operation is running in a module-aware scheduling segment.
@@ -159,7 +159,7 @@ struct INodeHeartbeatStrategyProxy
 
     virtual bool HasMatchingTree() const = 0;
 
-    virtual std::optional<TString> GetMaybeTreeId() const = 0;
+    virtual std::optional<std::string> GetMaybeTreeId() const = 0;
 
     virtual TJobResources GetMinSpareResourcesForScheduling() const = 0;
 };
@@ -229,7 +229,7 @@ struct IStrategy
      */
     virtual void RegisterOperation(
         IOperationPtr operation,
-        std::vector<TString>* unknownTreeIds,
+        std::vector<std::string>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) = 0;
 
     //! Disable operation. Remove all operation allocations from tree.
@@ -247,7 +247,7 @@ struct IStrategy
      */
     virtual void UnregisterOperation(const IOperationPtr& operation) = 0;
 
-    virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) = 0;
+    virtual void UnregisterOperationFromTree(TOperationId operationId, const std::string& treeId) = 0;
 
     //! Register allocations that are already created somewhere outside strategy.
     virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, const std::vector<TAllocationPtr>& allocation) = 0;
@@ -258,7 +258,7 @@ struct IStrategy
         bool scheduleInSingleTree,
         const TCompositeNeededResources& neededResources,
         bool revivedFromSnapshot,
-        std::vector<TString>* treeIdsToErase) = 0;
+        std::vector<std::string>* treeIdsToErase) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
@@ -340,7 +340,7 @@ struct IStrategy
         NYTree::TFluentMap fluent) const = 0;
 
     //! These methods are used for event logging.
-    virtual std::optional<TString> GetMaybeTreeIdForNode(NNodeTrackerClient::TNodeId nodeId) const = 0;
+    virtual std::optional<std::string> GetMaybeTreeIdForNode(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
     //! These OnFairShare*At methods used for testing purposes in simulator.
     //! Called periodically to collect the metrics of tree elements.

@@ -208,10 +208,10 @@ void Serialize(const TPreemptedFor& preemptedFor, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TJobResources& TCompositeNeededResources::GetNeededResourcesForTree(const TString& tree) const
+const TJobResources& TCompositeNeededResources::GetNeededResourcesForTree(const std::string& treeId) const
 {
-    auto it = ResourcesByPoolTree.find(tree);
-    return it != ResourcesByPoolTree.end()
+    auto it = ResourcesByPoolTreeId.find(treeId);
+    return it != ResourcesByPoolTreeId.end()
         ? it->second
         : DefaultResources;
 }
@@ -220,7 +220,7 @@ void TCompositeNeededResources::Persist(const TStreamPersistenceContext &context
 {
     using NYT::Persist;
     Persist(context, DefaultResources);
-    Persist(context, ResourcesByPoolTree);
+    Persist(context, ResourcesByPoolTreeId);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& neededResources, TStringBuf /*format*/)
@@ -228,7 +228,7 @@ void FormatValue(TStringBuilderBase* builder, const TCompositeNeededResources& n
     builder->AppendFormat(
         "{DefaultResources: %v, ResourcesByPoolTree: %v}",
         neededResources.DefaultResources,
-        neededResources.ResourcesByPoolTree);
+        neededResources.ResourcesByPoolTreeId);
 }
 
 TCompositeNeededResources operator - (const TCompositeNeededResources& lhs, const TCompositeNeededResources& rhs)
@@ -240,18 +240,18 @@ TCompositeNeededResources operator + (const TCompositeNeededResources& lhs, cons
 {
     TCompositeNeededResources result;
     result.DefaultResources = lhs.DefaultResources + rhs.DefaultResources;
-    for (const auto& [tree, lhsResources] : lhs.ResourcesByPoolTree) {
-        auto rhsIt = rhs.ResourcesByPoolTree.find(tree);
-        if (rhsIt == rhs.ResourcesByPoolTree.end()) {
-            result.ResourcesByPoolTree[tree] = lhsResources;
+    for (const auto& [tree, lhsResources] : lhs.ResourcesByPoolTreeId) {
+        auto rhsIt = rhs.ResourcesByPoolTreeId.find(tree);
+        if (rhsIt == rhs.ResourcesByPoolTreeId.end()) {
+            result.ResourcesByPoolTreeId[tree] = lhsResources;
         } else {
-            result.ResourcesByPoolTree[tree] = lhsResources + rhsIt->second;
+            result.ResourcesByPoolTreeId[tree] = lhsResources + rhsIt->second;
         }
     }
 
-    for (const auto& [tree, rhsResources] : rhs.ResourcesByPoolTree) {
-        if (result.ResourcesByPoolTree.find(tree) == result.ResourcesByPoolTree.end()) {
-            result.ResourcesByPoolTree[tree] = rhsResources;
+    for (const auto& [tree, rhsResources] : rhs.ResourcesByPoolTreeId) {
+        if (result.ResourcesByPoolTreeId.find(tree) == result.ResourcesByPoolTreeId.end()) {
+            result.ResourcesByPoolTreeId[tree] = rhsResources;
         }
     }
 
@@ -262,8 +262,8 @@ TCompositeNeededResources operator - (const TCompositeNeededResources& resources
 {
     TCompositeNeededResources result;
     result.DefaultResources = -resources.DefaultResources;
-    for (const auto& [tree, resourcesPerTree] : resources.ResourcesByPoolTree) {
-        result.ResourcesByPoolTree[tree] = -resourcesPerTree;
+    for (const auto& [tree, resourcesPerTree] : resources.ResourcesByPoolTreeId) {
+        result.ResourcesByPoolTreeId[tree] = -resourcesPerTree;
     }
 
     return result;
@@ -271,20 +271,20 @@ TCompositeNeededResources operator - (const TCompositeNeededResources& resources
 
 TString FormatResources(const TCompositeNeededResources& resources)
 {
-    return Format("{DefaultResources: %v, ResourcesByPoolTree: %v}", resources.DefaultResources, resources.ResourcesByPoolTree);
+    return Format("{DefaultResources: %v, ResourcesByPoolTree: %v}", resources.DefaultResources, resources.ResourcesByPoolTreeId);
 }
 
 void ToProto(NControllerAgent::NProto::TCompositeNeededResources* protoNeededResources, const TCompositeNeededResources& neededResources)
 {
     using namespace NProto;
     ToProto(protoNeededResources->mutable_default_resources(), neededResources.DefaultResources);
-    ToProto(protoNeededResources->mutable_resources_per_pool_tree(), neededResources.ResourcesByPoolTree);
+    ToProto(protoNeededResources->mutable_resources_per_pool_tree(), neededResources.ResourcesByPoolTreeId);
 }
 
 void FromProto(TCompositeNeededResources* neededResources, const NControllerAgent::NProto::TCompositeNeededResources& protoNeededResources)
 {
     FromProto(&neededResources->DefaultResources, protoNeededResources.default_resources());
-    FromProto(&neededResources->ResourcesByPoolTree, protoNeededResources.resources_per_pool_tree());
+    FromProto(&neededResources->ResourcesByPoolTreeId, protoNeededResources.resources_per_pool_tree());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

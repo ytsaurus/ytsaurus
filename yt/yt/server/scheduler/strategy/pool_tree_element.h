@@ -196,7 +196,7 @@ protected:
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
-        TString treeId);
+        std::string treeId);
 
     IStrategyHost* const StrategyHost_;
     IPoolTreeElementHost* const TreeElementHost_;
@@ -215,7 +215,7 @@ protected:
     i64 PendingAllocationCount_ = 0;
     TInstant StartTime_;
 
-    const TString TreeId_;
+    const std::string TreeId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,7 +230,7 @@ public:
 
     virtual ESchedulerElementType GetType() const = 0;
 
-    virtual TString GetTreeId() const;
+    virtual std::string GetTreeId() const;
 
     const NLogging::TLogger& GetLogger() const override;
     bool AreDetailedLogsEnabled() const override;
@@ -340,7 +340,7 @@ protected:
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
-        TString treeId,
+        std::string treeId,
         TString id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
@@ -440,7 +440,7 @@ public:
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
-        const TString& treeId,
+        const std::string& treeId,
         const TString& id,
         EResourceTreeElementKind elementKind,
         const NLogging::TLogger& logger);
@@ -614,7 +614,7 @@ public:
         TPoolConfigPtr config,
         bool defaultConfigured,
         TStrategyTreeConfigPtr treeConfig,
-        const TString& treeId,
+        const std::string& treeId,
         const NLogging::TLogger& logger);
     TPoolTreePoolElement(
         const TPoolTreePoolElement& other,
@@ -815,7 +815,7 @@ public:
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
         IOperationPtr operation,
-        const TString& treeId,
+        const std::string& treeId,
         const NLogging::TLogger& logger);
     TPoolTreeOperationElement(
         const TPoolTreeOperationElement& other,
@@ -900,7 +900,7 @@ public:
     bool HasRecentScheduleAllocationFailure(NProfiling::TCpuInstant now) const;
     bool IsSaturatedInTentativeTree(
         NProfiling::TCpuInstant now,
-        const TString& treeId,
+        const std::string& treeId,
         TDuration saturationDeactivationTimeout) const;
 
     // TODO(eshcherbin): Rename?
@@ -909,10 +909,10 @@ public:
         const TJobResources& availableResources,
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
-        const TString& treeId);
+        const std::string& treeId);
     void OnScheduleAllocationFailed(
         NProfiling::TCpuInstant now,
-        const TString& treeId,
+        const std::string& treeId,
         const TControllerScheduleAllocationResultPtr& scheduleAllocationResult);
     void AbortAllocation(
         TAllocationId allocationId,
@@ -1001,7 +1001,7 @@ public:
         IStrategyHost* strategyHost,
         IPoolTreeElementHost* treeElementHost,
         TStrategyTreeConfigPtr treeConfig,
-        const TString& treeId,
+        const std::string& treeId,
         const NLogging::TLogger& logger);
     TPoolTreeRootElement(const TPoolTreeRootElement& other);
 
