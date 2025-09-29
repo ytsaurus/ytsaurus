@@ -990,7 +990,8 @@ private:
             // NOTE: prevent deadlock upon thread joining
             // details in https://st.yandex-team.ru/YT-26302
             auto dqGatewayWithOffloading = CreateDqGatewayWithOffloading(
-                std::move(dqGateway), DqGatewayOffloadThreadPool_.Get());
+                std::move(dqGateway),
+                DqGatewayOffloadThreadPool_.Get());
 
             auto dqCompFactory = NKikimr::NMiniKQL::GetCompositeWithBuiltinFactory({
                 NYql::GetCommonDqFactory(),
