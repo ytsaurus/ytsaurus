@@ -558,10 +558,6 @@ private:
         {
             using NYT::Load;
             Load(context, Index);
-            // COMPAT(koloshmet)
-            if (context.GetVersion() < EMasterReign::MulticellStatisticsCollector) {
-                Load(context, Statistics);
-            }
         }
     };
 
@@ -763,11 +759,6 @@ private:
 
         Load(context, RegisteredMasterMap_);
         Load(context, RegisterState_);
-        // COMPAT(koloshmet)
-        if (context.GetVersion() < EMasterReign::MulticellStatisticsCollector) {
-            Load(context, LocalCellStatistics_);
-            Load(context, ClusterCellStatisics_);
-        }
         Load(context, EverRegistered_);
         // COMPAT(cherepashka)
         if (context.GetVersion() >= EMasterReign::PrerequisiteTransactionsInSequoia) {

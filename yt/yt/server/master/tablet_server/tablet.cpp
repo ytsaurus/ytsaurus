@@ -184,8 +184,7 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics ||
-        (context.GetVersion() < EMasterReign::Start_25_2 &&
-            context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics_25_1))
+        context.GetVersion() < EMasterReign::Start_25_2)
     {
         Load(context, AuxiliaryNodeStatistics_);
     }

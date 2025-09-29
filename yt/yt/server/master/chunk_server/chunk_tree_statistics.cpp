@@ -89,11 +89,6 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, RegularDiskSpace);
     Persist(context, ErasureDiskSpace);
     Persist(context, ChunkCount);
-    // COMPAT(ifsmirnov)
-    if (context.IsLoad() && context.GetVersion() < NCellMaster::EMasterReign::RipLogicalChunkCount) {
-        i64 dummyLogicalChunkCount;
-        Persist(context, dummyLogicalChunkCount);
-    }
     Persist(context, ChunkListCount);
     Persist(context, Rank);
 }

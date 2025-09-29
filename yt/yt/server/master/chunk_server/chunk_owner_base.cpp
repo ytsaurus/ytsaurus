@@ -37,15 +37,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(cherepashka): remove after corresponding compat in 25.1 will be removed.
-DEFINE_ENUM(ECompatUpdateMode,
-    ((None)                     (0))
-    ((Append)                   (1))
-    ((Overwrite)                (2))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,12 +101,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, ChunkLists_);
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
-        Load(context, UpdateMode_);
-    } else {
-        UpdateMode_ = CheckedEnumCast<EUpdateMode>(Load<ECompatUpdateMode>(context));
-    }
+    Load(context, UpdateMode_);
     Load(context, Replication_);
     Load(context, PrimaryMediumIndex_);
     Load(context, SnapshotStatistics_);
@@ -127,21 +113,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, EnableStripedErasure_);
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
-        Load(context, ChunkMergerMode_);
-    } else {
-        auto compatChunkMergerMode = Load<TVersionedBuiltinAttribute<ECompatChunkMergerMode>>(context);
-        if (compatChunkMergerMode.IsNull()) {
-            ChunkMergerMode_.Reset();
-        } else if (compatChunkMergerMode.IsTombstoned()) {
-            ChunkMergerMode_.Remove();
-        } else if (compatChunkMergerMode.IsSet()) {
-            auto chunkMergerMode = compatChunkMergerMode.ToOptional();
-            YT_VERIFY(chunkMergerMode);
-            ChunkMergerMode_.Set(CheckedEnumCast<EChunkMergerMode>(*chunkMergerMode));
-        }
-    }
+    Load(context, ChunkMergerMode_);
     Load(context, EnableSkynetSharing_);
     Load(context, UpdatedSinceLastMerge_);
     Load(context, ChunkMergerTraversalInfo_);

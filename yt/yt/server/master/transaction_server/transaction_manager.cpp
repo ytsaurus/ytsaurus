@@ -2302,9 +2302,6 @@ private:
     THashSet<TTransaction*> NativeTopmostTransactions_;
     THashSet<TTransaction*> NativeTransactions_;
 
-    // COMPAT(aleksandra-zh).
-    bool FixExportedObjectsRefs_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     // This should become a mutation used to create system transactions only.
@@ -3529,16 +3526,12 @@ private:
         TransactionMap_.LoadValues(context);
         Load(context, TimestampHolderMap_);
         BoomerangTracker_->Load(context);
-
-        FixExportedObjectsRefs_ = context.GetVersion() < EMasterReign::FixExportedObjectsRefs;
     }
 
 
     void OnAfterSnapshotLoaded() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
 
         // Reconstruct NativeTransactions and NativeTopmostTransactions.
         for (auto [id, transaction] : TransactionMap_) {
@@ -3553,25 +3546,6 @@ private:
                 }
             } else {
                 InsertOrCrash(ForeignTransactions_, transaction);
-            }
-
-            if (FixExportedObjectsRefs_) {
-                if (transaction->GetPersistentState() == ETransactionState::Active) {
-                    for (const auto& exportEntry : transaction->ExportedObjects()) {
-                        YT_LOG_ALERT("Found exported objects for transaction (TransactionId: %v, ObjectId: %v)",
-                            transaction->GetId(),
-                            exportEntry.Object->GetId());
-                        objectManager->RefObject(exportEntry.Object);
-                    }
-                }
-
-                if (!transaction->ExportedObjects().empty() && transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared) {
-                    YT_LOG_ALERT("Found exported objects for transaction in PersistentCommitPrepared state (TransactionId: %v)",
-                        transaction->GetId());
-                    for (const auto& exportEntry : transaction->ExportedObjects()) {
-                        objectManager->RefObject(exportEntry.Object);
-                    }
-                }
             }
         }
 
@@ -3595,7 +3569,6 @@ private:
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
         TransactionPresenceCache_->Clear();
-        FixExportedObjectsRefs_ = false;
     }
 
     void OnStartLeading() override

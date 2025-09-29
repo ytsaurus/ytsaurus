@@ -2515,9 +2515,6 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
-    // COMPAT(ifsmirnov)
-    bool NeedRecomputeOrderedTabletStatistics_ = false;
-
     // COMPAT(danilalexeev)
     bool NeedUnhealthyUnconfirmedChunkScan_ = false;
 
@@ -5051,8 +5048,6 @@ private:
         ChunkViewMap_.LoadKeys(context);
         DynamicStoreMap_.LoadKeys(context);
 
-        // COMPAT(ifsmirnov)
-        NeedRecomputeOrderedTabletStatistics_ = context.GetVersion() < EMasterReign::RipLogicalChunkCount;
         // COMPAT(danilalexeev)
         NeedUnhealthyUnconfirmedChunkScan_ = context.GetVersion() < EMasterReign::WriteAclToSequoiaTable;
     }
@@ -5254,19 +5249,6 @@ private:
             YT_LOG_INFO("Finished initializing chunk placement");
         }
 
-        // COMPAT(ifsmirnov)
-        if (NeedRecomputeOrderedTabletStatistics_) {
-            YT_LOG_INFO("Started initializing chunk lists");
-
-            for (auto [_, chunkList] : ChunkListMap_) {
-                if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
-                    RecomputeOrderedTabletCumulativeStatistics(chunkList);
-                }
-            }
-
-            YT_LOG_INFO("Finished initializing chunk lists");
-        }
-
         if (NeedUnhealthyUnconfirmedChunkScan_) {
             YT_LOG_INFO("Scanning for unhealthy unconfirmed chunks");
 
@@ -5357,7 +5339,6 @@ private:
         DefaultStoreMedium_ = nullptr;
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
-        NeedRecomputeOrderedTabletStatistics_ = false;
         NeedUnhealthyUnconfirmedChunkScan_ = false;
     }
 

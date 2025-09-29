@@ -50,12 +50,7 @@ void TSecondaryIndex::Load(TLoadContext& context)
     Load(context, ExternalCellTag_);
     Load(context, Predicate_);
     Load(context, UnfoldedColumn_);
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexStates) {
-        Load(context, TableToIndexCorrespondence_);
-    } else {
-        TableToIndexCorrespondence_ = ETableToIndexCorrespondence::Unknown;
-    }
+    Load(context, TableToIndexCorrespondence_);
 
     // COMPAT(sabdenovch)
     if (context.GetVersion() >= EMasterReign::SecondaryIndexEvaluated) {

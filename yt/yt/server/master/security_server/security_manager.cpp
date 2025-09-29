@@ -2965,9 +2965,6 @@ private:
     TTimeCounter CheckPermissionTimeCounter_;
     TTimeCounter AclIterationTimeCounter_;
 
-    // COMPAT(cherepashka)
-    bool FixAdminBuiltinGroup_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
@@ -3260,8 +3257,6 @@ private:
         AccountResourceUsageLeaseMap_.LoadValues(context);
 
         Load(context, IsChunkHostCell_);
-
-        FixAdminBuiltinGroup_ = context.GetVersion() < EMasterReign::FixBuiltinAdminsGroupId;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -3345,21 +3340,6 @@ private:
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
 
         InitializeRootAccount();
-
-        if (FixAdminBuiltinGroup_) {
-            auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-            auto newAdminsGroupId = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffc);
-
-            YT_LOG_INFO("Fixing %Qv group id (GroupId: %v -> %v)",
-                AdminsGroupName,
-                AdminsGroup_->GetId(),
-                newAdminsGroupId);
-
-            auto adminsGroupHolder = GroupMap_.Release(AdminsGroup_->GetId());
-            AdminsGroupId_ = newAdminsGroupId;
-            adminsGroupHolder->SetId(AdminsGroupId_);
-            GroupMap_.Insert(AdminsGroupId_, std::move(adminsGroupHolder));
-        }
     }
 
     struct TAccountResourceUsage
@@ -3761,7 +3741,6 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
-        FixAdminBuiltinGroup_ = false;
         GroupNameMapInitialized_ = false;
 
         ResetAuthenticatedUser();
