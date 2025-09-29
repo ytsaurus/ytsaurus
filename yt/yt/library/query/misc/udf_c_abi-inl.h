@@ -4,15 +4,11 @@
 #include "udf_c_abi.h"
 #endif
 
+#include "platform_specific.h"
+
 #include <string.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef __wasm__
-#define WASM_WEAK __attribute__((weak))
-#else
-#define WASM_WEAK
-#endif
 
 inline void WASM_WEAK ClearValue(TUnversionedValue* value)
 {
