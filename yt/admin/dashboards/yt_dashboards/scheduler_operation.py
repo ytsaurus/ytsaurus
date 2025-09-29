@@ -37,12 +37,15 @@ from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardP
 
 def _build_resource_usage(d):
     def build_resource_sensor(resource):
+        resource_in_config = resource if resource != "user_memory" else "memory"
         return MultiSensor(
             SchedulerOperations(f"yt.scheduler.operations_by_slot.resource_usage.{resource}")
+                .nan_as_zero()
                 .legend_format("Usage"),
             SchedulerOperations(f"yt.scheduler.operations_by_slot.resource_demand.{resource}")
+                .nan_as_zero()
                 .legend_format("Demand"),
-            SchedulerOperations(f"yt.scheduler.operations_by_slot.specified_resource_limits.{resource}")
+            SchedulerOperations(f"yt.scheduler.operations_by_slot.specified_resource_limits.{resource_in_config}")
                 .legend_format("Configured limit"),
             # Disabled because of trembling, see details in YT-19499.
             # SchedulerOperations(f"yt.scheduler.operations_by_slot.accumulated_resource_usage.{resource}.rate")
@@ -51,7 +54,6 @@ def _build_resource_usage(d):
 
     d.add(Rowset().row(height=2).cell("", Title("Resources", size="TITLE_SIZE_L")))
     d.add(Rowset()
-        .nan_as_zero()
         .row()
             .stack(False)
             .min(0)
