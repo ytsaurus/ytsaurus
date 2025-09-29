@@ -651,6 +651,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("force_rack_awareness_for_erasure_parts", &TThis::ForceRackAwarenessForErasureParts)
         .Default(false);
 
+    registrar.Parameter("force_host_awareness_for_erasure_parts", &TThis::ForceHostAwarenessForErasureParts)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultCtor([] {
             auto jobThrottler = New<NConcurrency::TThroughputThrottlerConfig>();
@@ -739,6 +743,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_data_center_aware_replicator", &TThis::UseDataCenterAwareReplicator)
         .Default(false);
+
+    registrar.Parameter("use_host_aware_replicator", &TThis::UseHostAwareReplicator)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Parameter("storage_data_centers", &TThis::StorageDataCenters)
         .Default();

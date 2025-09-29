@@ -186,6 +186,7 @@ void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfi
     NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = GetDynamicConfig()->NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
     IsNodeWriteSessionLimitEnabled_ = GetDynamicConfig()->EnableNodeWriteSessionLimitOnWriteTargetAllocation;
     IsNodeWriteSessionLimitForUserAllocationEnabled_ = GetDynamicConfig()->EnableNodeWriteSessionLimitForUserOnWriteTargetAllocation;
+    UseHostAwareReplicator_ = GetDynamicConfig()->UseHostAwareReplicator;
 
     if (!IsDataCenterFailureDetectorEnabled_) {
         FaultyStorageDataCenters_.clear();
@@ -938,6 +939,11 @@ TError TChunkPlacement::ComputeDataCenterFaultiness(
     }
 
     return {};
+}
+
+bool TChunkPlacement::UseHostAwareReplicator() const
+{
+    return UseHostAwareReplicator_;
 }
 
 
