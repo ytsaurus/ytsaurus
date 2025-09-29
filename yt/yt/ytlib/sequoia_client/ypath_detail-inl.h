@@ -213,6 +213,14 @@ TBasicPath<Absolute> operator+(const TPathBase<Absolute, T>& lhs, const TPathBas
     return PathJoin(lhs, rhs);
 }
 
+template <bool Absolute, class T>
+TBasicPath<Absolute> PathJoin(const TPathBase<Absolute, T>& path, TStringBuf literal)
+{
+    TBasicPath<Absolute> result(path);
+    result.Append(literal);
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
