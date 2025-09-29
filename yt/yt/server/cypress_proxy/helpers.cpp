@@ -566,7 +566,7 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NYTree::INodePtr> FetchSingleObject(
+TFuture<INodePtr> FetchSingleObject(
     const NNative::IClientPtr& client,
     TVersionedObjectId objectId,
     const TAttributeFilter& attributeFilter)
@@ -584,6 +584,25 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
     return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
         return ConvertToNode(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));
     }));
+}
+
+
+TFuture<IAttributeDictionaryPtr> FetchSingleObjectAttributes(
+   const NNative::IClientPtr& client,
+   NCypressClient::TVersionedObjectId objectId,
+   const TAttributeFilter& attributeFilter)
+{
+   // Form a template.
+   auto requestTemplate = TYPathProxy::Get("/@");
+   if (attributeFilter) {
+       ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+   }
+   SetSuppressAccessTracking(requestTemplate, true);
+   SetSuppressExpirationTimeoutRenewal(requestTemplate, true);
+   auto batcher = TMasterYPathProxy::CreateGetBatcher(client, requestTemplate, {objectId.ObjectId}, objectId.TransactionId);
+   return batcher.Invoke().Apply(BIND([=] (const TMasterYPathProxy::TVectorizedGetBatcher::TVectorizedResponse& rsp) {
+       return ConvertToAttributes(NYson::TYsonString(rsp.at(objectId.ObjectId).ValueOrThrow()->value()));
+   }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

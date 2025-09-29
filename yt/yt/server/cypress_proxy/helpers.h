@@ -125,6 +125,10 @@ TFuture<NYTree::INodePtr> FetchSingleObject(
     const NApi::NNative::IClientPtr& client,
     NCypressClient::TVersionedObjectId objectId,
     const NYTree::TAttributeFilter& attributeFilter);
+TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleObjectAttributes(
+    const NApi::NNative::IClientPtr& client,
+    NCypressClient::TVersionedObjectId objectId,
+    const NYTree::TAttributeFilter& attributeFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
