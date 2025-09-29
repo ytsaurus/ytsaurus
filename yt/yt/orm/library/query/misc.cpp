@@ -28,7 +28,7 @@ bool IsTargetReference(const TExpressionList& exprs, const NQueryClient::NAst::T
 
 bool IsConstant(const TExpressionPtr expr)
 {
-    if (auto* literal = expr->As<TLiteralExpression>()) {
+    if (expr->As<TLiteralExpression>()) {
         return true;
     }
     if (auto *function = expr->As<TFunctionExpression>()) {

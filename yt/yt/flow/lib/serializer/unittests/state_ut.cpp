@@ -109,9 +109,9 @@ std::optional<TUnversionedOwningRow> ApplyMutation(const std::optional<TUnversio
             result[value.Id] = value;
         }
         return {TRange(std::move(GetValues(result)))};
-    } else if (auto* erase = std::get_if<TEraseMutation>(&mutation)) {
+    } else if (std::get_if<TEraseMutation>(&mutation)) {
         return std::nullopt;
-    } else if (auto* empty = std::get_if<TEmptyMutation>(&mutation)) {
+    } else if (std::get_if<TEmptyMutation>(&mutation)) {
         return row;
     } else {
         Y_ABORT();
