@@ -427,6 +427,13 @@ public:
         }
         response.set_default_ui_yql_version(DefaultYqlUILangVersion_);
 
+        auto supportedFeatures = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("declare").Value(true)
+            .EndMap();
+        response.set_supported_features(supportedFeatures.ToString());
+
+
         return response;
     }
 

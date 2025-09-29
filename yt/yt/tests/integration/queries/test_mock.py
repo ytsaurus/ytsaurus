@@ -757,7 +757,16 @@ class TestGetQueryTrackerInfo(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
     ENABLE_MULTIDAEMON = True
-    SUPPORTED_FEATURES = {'access_control': True, 'multiple_aco': True, 'new_search_on_proxies': True, 'new_search': True, 'not_indexing': True, 'not_indexing_on_proxies': True}
+    SUPPORTED_FEATURES = {
+        'access_control': True,
+        'multiple_aco': True,
+        'new_search_on_proxies': True,
+        'new_search': True,
+        'not_indexing': True,
+        'not_indexing_on_proxies': True,
+        'declare': True,
+        'declare_on_proxies': True
+    }
 
     @authors("aleksandr.gaev", "kirsiv40", "mpereskokova")
     def test_get_query_tracker_info(self, query_tracker):
@@ -1532,7 +1541,13 @@ class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
-    SUPPORTED_FEATURES = {'access_control': True, 'multiple_aco': True, 'new_search': True, 'not_indexing': True}
+    SUPPORTED_FEATURES = {
+        'access_control': True,
+        'multiple_aco': True,
+        'new_search': True,
+        'not_indexing': True,
+        'declare': True
+    }
 
 
 @authors("kirsiv40")
