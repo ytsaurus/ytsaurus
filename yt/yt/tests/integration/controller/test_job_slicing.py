@@ -1131,8 +1131,7 @@ class TestJobSlicingWithLostInput(TestJobSlicingBase):
     }
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("use_new_slicing_implementation", [False, True])
-    def test_lost_input_chunks_with_explicit_job_count(self, use_new_slicing_implementation):
+    def test_lost_input_chunks_with_explicit_job_count(self):
         create("table", "//tmp/t_in", attributes={
             "schema": [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -1173,7 +1172,6 @@ class TestJobSlicingWithLostInput(TestJobSlicingBase):
                         "retry_count": 1,
                     }
                 },
-                "use_new_slicing_implementation_in_unordered_pool": use_new_slicing_implementation,
             }
         )
 
@@ -1197,6 +1195,4 @@ class TestJobSlicingWithLostInput(TestJobSlicingBase):
         progress = get(op.get_path() + "/@progress")
         assert progress["jobs"]["completed"]["total"] == job_count
 
-        if use_new_slicing_implementation:
-            # Check that data weight is distributed evenly.
-            assert self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["data_weight"])["max"] <= data_weight_per_job * 1.5
+        assert self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["data_weight"])["max"] <= data_weight_per_job * 1.5

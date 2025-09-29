@@ -2154,7 +2154,6 @@ protected:
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.Logger = Logger().WithTag("Name: RootPartition");
-            options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInUnorderedPool;
 
             RootPartitionPool_ = CreateUnorderedChunkPool(
                 std::move(options),
@@ -2207,7 +2206,6 @@ protected:
         options.RowBuffer = RowBuffer_;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
         options.Logger = Logger().WithTag("Name: SimpleSort");
-        options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInUnorderedPool;
 
         SimpleSortPool_ = CreateUnorderedChunkPool(
             std::move(options),

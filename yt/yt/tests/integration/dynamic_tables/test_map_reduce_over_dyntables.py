@@ -13,8 +13,6 @@ from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
-from copy import deepcopy
-
 import pytest
 
 import base64
@@ -953,18 +951,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
-class TestMapOnDynamicTablesWithOldSlicing(TestMapOnDynamicTables):
-    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestMapOnDynamicTables, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
-    DELTA_CONTROLLER_AGENT_CONFIG \
-        .setdefault("controller_agent", {}) \
-        .setdefault("operation_options", {}) \
-        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
 class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1401,18 +1387,6 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
 
 @pytest.mark.enabled_multidaemon
-class TestInputOutputForOrderedWithTabletIndexWithOldSlicing(TestInputOutputForOrderedWithTabletIndex):
-    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestInputOutputForOrderedWithTabletIndex, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
-    DELTA_CONTROLLER_AGENT_CONFIG \
-        .setdefault("controller_agent", {}) \
-        .setdefault("operation_options", {}) \
-        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
 class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrderedWithTabletIndex):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1603,18 +1577,6 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
             command="cat",
         )
         assert read_table("//tmp/t_out") == rows
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerMapReduceDynamicWithOldSlicing(TestSchedulerMapReduceDynamic):
-    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapReduceDynamic, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
-    DELTA_CONTROLLER_AGENT_CONFIG \
-        .setdefault("controller_agent", {}) \
-        .setdefault("operation_options", {}) \
-        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################
