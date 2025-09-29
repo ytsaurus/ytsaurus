@@ -4,6 +4,7 @@
 
 #include <yql/essentials/providers/common/config/yql_dispatch.h>
 
+#include <util/datetime/base.h>
 #include <util/generic/ptr.h>
 #include <util/generic/string.h>
 
@@ -44,6 +45,7 @@ public:
     NCommon::TConfSetting<uint64_t, Static> WorkerMonitoringPort;
 
     NCommon::TConfSetting<uint64_t, Static> YtPartitionCount;
+    NCommon::TConfSetting<TDuration, Static> YtTtl;
 
 public:
     TString GetPipelinePath() const;
