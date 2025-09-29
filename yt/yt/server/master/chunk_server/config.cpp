@@ -792,6 +792,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
         .Default(false);
 
+    registrar.Parameter("max_lost_vital_chunks_to_log", &TThis::MaxLostVitalChunksToLog)
+        .Default(100)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
