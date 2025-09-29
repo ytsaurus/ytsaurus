@@ -103,6 +103,8 @@ private:
             return proxy.CommitTransaction();
         };
 
+        context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
+
         ForwardRequestToMaster(std::move(context), createForwardingRequest);
     }
 
@@ -112,6 +114,8 @@ private:
             return proxy.AbortTransaction();
         };
 
+        context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
+
         ForwardRequestToMaster(std::move(context), createForwardingRequest);
     }
 
@@ -120,6 +124,8 @@ private:
         auto createForwardingRequest = [] (const TCypressTransactionServiceProxy& proxy) {
             return proxy.PingTransaction();
         };
+
+        context->SetIncrementalRequestInfo("TransactionId: %v", FromProto<TTransactionId>(request->transaction_id()));
 
         ForwardRequestToMaster(std::move(context), createForwardingRequest);
     }
