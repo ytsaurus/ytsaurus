@@ -3805,7 +3805,7 @@ private:
 
         if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
             YT_LOG_ALERT(
-                "Attempted to subscribe to lease revocation for a transaction in active leasing state"
+                "Attempted to subscribe to lease revocation for a transaction in active leasing state "
                 "(TransactionId: %v, LeasesState: %v)",
                 transaction->GetId(),
                 transaction->GetTransactionLeasesState());

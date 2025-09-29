@@ -613,7 +613,7 @@ void TParameterizedReassignSolver::Initialize()
             } else if (tabletMetric <= MinimumAcceptableMetricValue) {
                 YT_LOG_DEBUG_IF(
                     Bundle_->Config->EnableVerboseLogging,
-                    "Skip tablet since it has metric less than %e"
+                    "Skip tablet since it has metric less than %e "
                     "(TabletId: %v, TableId: %v)",
                     MinimumAcceptableMetricValue,
                     tabletId,

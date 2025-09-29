@@ -1284,7 +1284,7 @@ private:
                 auto valueWeight = GetDataWeight(value);
                 if (valueWeight > MaxStringValueLength) {
                     YT_LOG_WARNING(
-                        "Operation row violates value data weight, archivation skipped"
+                        "Operation row violates value data weight, archivation skipped "
                         "(OperationId: %v, Key: %v, Weight: %v, WeightLimit: %v)",
                         operationId,
                         nameTable->GetNameOrThrow(value.Id),
