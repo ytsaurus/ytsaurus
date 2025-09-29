@@ -1341,10 +1341,10 @@ TCodegenExpression MakeCodegenReferenceExpr(
             } else {
                 return TCGValue::LoadFromRowValues(
                     builder,
-                    builder.GetBindedValues(),
+                    builder.GetBoundValues(),
                     -index - 1,
                     type,
-                    "bindedRef." + Twine(name.c_str()));
+                    "boundRef." + Twine(name.c_str()));
             }
         };
 }
@@ -1362,7 +1362,7 @@ TCGValue CodegenFragment(
                 builder.GetExpressionClosurePtr(),
                 builder.GetLiterals(),
                 builder.RowValues,
-                builder.GetBindedValues(),
+                builder.GetBoundValues(),
             });
 
         return TCGValue::LoadFromRowValue(
@@ -1414,7 +1414,7 @@ void CodegenFragmentBodies(
             Value* expressionClosure = ConvertToPointer(args++);
             Value* literals = ConvertToPointer(args++);
             Value* rowValues = ConvertToPointer(args++);
-            Value* bindedValues = ConvertToPointer(args++);
+            Value* boundValues = ConvertToPointer(args++);
             {
                 TCGIRBuilder irBuilder(function);
                 auto innerBuilder = TCGExprContext::Make(
@@ -1423,7 +1423,7 @@ void CodegenFragmentBodies(
                     expressionClosure,
                     literals,
                     rowValues,
-                    bindedValues);
+                    boundValues);
 
                 Value* fragmentFlag = innerBuilder.GetFragmentFlag(id);
 
@@ -2866,7 +2866,7 @@ void MakeCodegenSubqueryWriteOp(
 TCodegenExpression MakeCodegenSubqueryExpr(
     TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,
-    std::vector<size_t> bindedExprIds,
+    std::vector<size_t> boundExprIds,
     size_t slotCount)
 {
     return [
@@ -2879,10 +2879,10 @@ TCodegenExpression MakeCodegenSubqueryExpr(
                 .StoreToValues(builder, fromValues, index);
         }
 
-        Value* bindedValues = CodegenAllocateValues(builder, std::ssize(bindedExprIds));
-        for (int index = 0; index < std::ssize(bindedExprIds); ++index) {
-            CodegenFragment(builder, bindedExprIds[index])
-                .StoreToValues(builder, bindedValues, index);
+        Value* boundValues = CodegenAllocateValues(builder, std::ssize(boundExprIds));
+        for (int index = 0; index < std::ssize(boundExprIds); ++index) {
+            CodegenFragment(builder, boundExprIds[index])
+                .StoreToValues(builder, boundValues, index);
         }
 
         Type* nestedContextType = TTypeBuilder<TNestedExecutionContext>::Get(builder->getContext());
@@ -2908,7 +2908,7 @@ TCodegenExpression MakeCodegenSubqueryExpr(
                 builder,
                 builder.GetLiterals(),
                 builder.GetOpaqueValues(),
-                bindedValues),
+                boundValues),
             nestedContext,
             &consumers);
 

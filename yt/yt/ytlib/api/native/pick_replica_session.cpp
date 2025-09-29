@@ -131,7 +131,8 @@ void PatchQuery(NAst::TQuery* query, const TReplicaSynchronicityList& replicas)
         if (index) {
             return;
         }
-        table.Path = replicas.at(tableIndex++).ReplicaInfo->ReplicaPath;
+        YT_VERIFY(tableIndex < std::ssize(replicas));
+        table.Path = replicas[tableIndex++].ReplicaInfo->ReplicaPath;
     });
 }
 

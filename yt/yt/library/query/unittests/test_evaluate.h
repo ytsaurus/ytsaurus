@@ -5,6 +5,8 @@
 
 namespace NYT::NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using TResultMatcher = std::function<void(TRange<TRow>, const TTableSchema&)>;
 const TResultMatcher AnyMatcher = [] (TRange<TRow>, const TTableSchema&) { };
 
@@ -169,4 +171,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NQueryClient
+} // namespace NYT::NQueryClient

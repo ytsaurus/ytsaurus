@@ -575,11 +575,11 @@ TCGOpaqueValuesContext::TCGOpaqueValuesContext(
     const TCGBaseContext& base,
     Value* literals,
     Value* opaqueValues,
-    Value* bindedValues)
+    Value* boundValues)
     : TCGBaseContext(base)
     , Literals_(literals)
     , OpaqueValues_(opaqueValues)
-    , BindedValues_(bindedValues)
+    , BoundValues_(boundValues)
 { }
 
 TCGOpaqueValuesContext::TCGOpaqueValuesContext(
@@ -588,7 +588,7 @@ TCGOpaqueValuesContext::TCGOpaqueValuesContext(
     : TCGBaseContext(base)
     , Literals_(other.Literals_)
     , OpaqueValues_(other.OpaqueValues_)
-    , BindedValues_(other.BindedValues_)
+    , BoundValues_(other.BoundValues_)
 { }
 
 Value* TCGOpaqueValuesContext::GetLiterals() const
@@ -614,12 +614,12 @@ Value* TCGOpaqueValuesContext::GetOpaqueValue(size_t index) const
         "opaqueValues." + Twine(index));
 }
 
-Value* TCGOpaqueValuesContext::GetBindedValues() const
+Value* TCGOpaqueValuesContext::GetBoundValues() const
 {
-    if (!BindedValues_) {
+    if (!BoundValues_) {
         return ConstantPointerNull::get(Builder_->getPtrTy());
     }
-    return Builder_->ViaClosure(BindedValues_, "bindedValues");
+    return Builder_->ViaClosure(BoundValues_, "boundValues");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -693,7 +693,7 @@ TCGExprContext TCGExprContext::Make(
     Value* expressionClosurePtr,
     Value* literals,
     Value* rowValues,
-    Value* bindedValues)
+    Value* boundValues)
 {
     Value* opaqueValuesPtr = builder->CreateStructGEP(
         TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
@@ -716,7 +716,7 @@ TCGExprContext TCGExprContext::Make(
         "buffer");
 
     return TCGExprContext(
-        TCGOpaqueValuesContext(builder, literals, opaqueValues, bindedValues),
+        TCGOpaqueValuesContext(builder, literals, opaqueValues, boundValues),
         TCGExprData(
             fragmentInfos,
             buffer,
