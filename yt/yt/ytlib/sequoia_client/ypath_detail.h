@@ -170,6 +170,10 @@ TBasicPath<Absolute> PathJoin(const TPathBase<Absolute, T>& lhs, const TPathBase
 template <bool Absolute, class T, class U>
 TBasicPath<Absolute> operator+(const TPathBase<Absolute, T>& lhs, const TPathBase<false, U>& rhs);
 
+//! Appends literal to the path with introducing a directory separator.
+template <bool Absolute, class T>
+TBasicPath<Absolute> PathJoin(const TPathBase<Absolute, T>& path, TStringBuf literal);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>

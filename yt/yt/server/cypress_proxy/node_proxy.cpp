@@ -1850,10 +1850,9 @@ private:
             }
         }
 
-        void OnMyKeyedItem(TYPathBuf key) override
+        void OnMyKeyedItem(TStringBuf key) override
         {
-            CurrentPath_.Join(
-                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + ToYPathLiteral(key)));
+            CurrentPath_.Append(key);
         }
 
         void OnMyBeginMap() override
@@ -2016,13 +2015,11 @@ private:
         std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
         IAttributeDictionaryPtr Attributes_;
 
-        void OnMyKeyedItem(TYPathBuf key) override
+        void OnMyKeyedItem(TStringBuf key) override
         {
             YT_ASSERT(!SubtreeBuilderHolder_.has_value());
 
-            auto subtreeRootPath = PathJoin(
-                Path_,
-                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + ToYPathLiteral(key)));
+            auto subtreeRootPath = PathJoin(Path_, key);
 
             auto& builder = SubtreeBuilderHolder_.emplace(
                 Session_,
