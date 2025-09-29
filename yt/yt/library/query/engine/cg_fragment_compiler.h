@@ -174,7 +174,7 @@ void MakeCodegenSubqueryWriteOp(
 TCodegenExpression MakeCodegenSubqueryExpr(
     TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,
-    std::vector<size_t> bindedExprIds,
+    std::vector<size_t> boundExprIds,
     size_t slotCount);
 
 size_t MakeCodegenNestedGroupOp(
