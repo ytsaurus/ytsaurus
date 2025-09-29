@@ -357,6 +357,9 @@ IClientPtr CreateClient(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! NB(achulkov2): For now this function is primitive and only retries on dialer transport errors.
+bool IsRetriableError(const TError& error);
+
 //! Wraps client with retries according to provided backoff options and retry checker.
 IClientPtr CreateRetryingClient(
     IClientPtr underlyingClient,

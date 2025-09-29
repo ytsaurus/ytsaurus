@@ -201,17 +201,31 @@ bool TS3MediumDescriptor::IsDomestic() const
 
 NS3::IClientPtr TS3MediumDescriptor::CreateClient(const TS3MediumConfigPtr& mediumConfig)
 {
+    // TODO(achulkov2): Figure out proper invoker to use.
+    auto invoker = TDispatcher::Get()->GetWriterInvoker();
+
     auto clientConfig = New<NS3::TS3ClientConfig>();
     clientConfig->Url = mediumConfig->Url;
     clientConfig->Region = mediumConfig->Region;
     clientConfig->Bucket = mediumConfig->Bucket;
 
-    return NS3::CreateClient(
+    auto client = NS3::CreateClient(
         std::move(clientConfig),
         NS3::CreateStaticCredentialProvider(mediumConfig->AccessKeyId, mediumConfig->SecretAccessKey),
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
-        // TODO(achulkov2): [PLater] Figure out proper invoker to use.
-        TDispatcher::Get()->GetWriterInvoker());
+        invoker);
+
+    auto backoffOptions = TExponentialBackoffOptions{
+        .InvocationCount = 5,
+        .MinBackoff = TDuration::MilliSeconds(100),
+        .MaxBackoff = TDuration::Seconds(1),
+        .BackoffMultiplier = 1.5,
+    };
+
+    return NS3::CreateRetryingClient(
+        std::move(client),
+        std::move(backoffOptions),
+        invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

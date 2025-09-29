@@ -5,7 +5,6 @@ from yt_env_setup import (
 )
 from yt.common import YtError
 from yt.yson import YsonList, YsonEntity
-from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, make_random_string, sync_create_cells, create_user, add_member, make_ace,
@@ -20,8 +19,6 @@ from yt_commands import (
 from yt.test_helpers import assert_items_equal
 from yt_type_helpers import optional_type, make_schema, make_column, struct_type, list_type, normalize_schema_v3
 
-from yt.common import YtResponseError, YtError
-
 import time
 import pytest
 import os
@@ -31,7 +28,7 @@ import random
 import builtins
 
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError
 import pandas
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -50,6 +47,7 @@ KB = 1024
 MB = 1024 * KB
 
 ################################################################################
+
 
 class TestS3MediumBase(YTEnvSetup):
     # TODO(achulkov2): Switch to multidaemon?
@@ -109,16 +107,19 @@ class TestS3MediumBase(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_proxy": {
-                # This flag tells job_proxy that it needs to perform a synchronizations of
-                # medium directory right at the startup. It will still attempt the synchronization,
-                # but a little bit later, and if we are not lucky, the TMediumDirectory's methods
-                # will be called earlier, leading to errors, as such medium will not yet be synchronized.
-                "sync_medium_directory_on_start": True,
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        # Medium directory is needed to perform S3 reads and right now it is not
+                        # passed along with the job spec, so we need to sync it at the start of
+                        # each job. This option is needed for production as well!
+                        "sync_medium_directory_on_start": True,
+                    },
+                },
             },
-        }
+        },
     }
 
     @classmethod
@@ -1733,7 +1734,7 @@ class TestAttachTable(TestS3MediumBase):
 
         with pytest.raises(YtError, match="User has no access to medium"):
             attach_table("//tmp/imported",
-                         source_uris=[f"s3://foo/foo.parquet"],
+                         source_uris=["s3://foo/foo.parquet"],
                          medium=(None if table_should_exist_before else self.get_s3_medium_name()),
                          authenticated_user="u")
 
@@ -1942,7 +1943,7 @@ class TestAttachTable(TestS3MediumBase):
             {"t": {"a": YsonEntity(), "b": YsonEntity(), "e": 3, "f": 4}}
         ]
 
-        assert_items_equal(normalize_schema_v3(get(f"//tmp/imported/@schema")), make_schema([
+        assert_items_equal(normalize_schema_v3(get("//tmp/imported/@schema")), make_schema([
             make_column("x", optional_type("int64")),
             make_column("y", optional_type("string")),
             make_column("z", optional_type(struct_type([
@@ -1986,7 +1987,7 @@ class TestAttachTable(TestS3MediumBase):
             {"z.a": 1.0, "z.b": 5}
         ]
 
-        assert_items_equal(normalize_schema_v3(get(f"//tmp/imported/@schema")), make_schema([
+        assert_items_equal(normalize_schema_v3(get("//tmp/imported/@schema")), make_schema([
             make_column("x", optional_type("string")),
             make_column("y", optional_type("int64")),
             make_column("z.a", optional_type("double")),
@@ -2011,7 +2012,7 @@ class TestAttachTable(TestS3MediumBase):
         assert_items_equal(read_table("//tmp/imported"), [*data.record1, *data.record2])
         for chunk_id in get("//tmp/imported/@chunk_ids"):
             assert_items_equal(get(f"#{chunk_id}/@schema"), data.schema)
-        assert_items_equal(get(f"//tmp/imported/@schema"), data.schema)
+        assert_items_equal(get("//tmp/imported/@schema"), data.schema)
 
     @authors("achulkov2")
     def test_format_specification(self):

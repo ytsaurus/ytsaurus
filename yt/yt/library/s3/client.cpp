@@ -1,4 +1,5 @@
 #include "client.h"
+#include "private.h"
 
 #include <yt/yt/core/crypto/crypto.h>
 
@@ -21,6 +22,10 @@ using namespace NConcurrency;
 using namespace NNet;
 
 using TPocoXmlDocumentPtr = Poco::XML::AutoPtr<Poco::XML::Document>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = S3Logger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -458,6 +463,19 @@ public:
 #undef DEFINE_STRUCTURED_COMMAND
 
 private:
+    void LogRequest(const THttpRequest& request)
+    {
+        YT_LOG_DEBUG(
+            "S3 request prepared (Method: %v, Host: %v, Port: %v, Path: %v, Query: %v, Headers: %v, PayloadSize: %v)",
+            request.Method,
+            request.Host,
+            request.Port ? Format("%v", *request.Port) : "<default>",
+            request.Path,
+            request.Query,
+            request.Headers,
+            request.Payload ? std::ssize(request.Payload) : 0);
+    }
+
     static TError ErrorFromResponse(NHttp::IResponsePtr response)
     {
         auto statusCode = response->GetStatusCode();
@@ -491,12 +509,20 @@ private:
             .Apply(BIND(&TClient::DoSendCommand<TCommandResponse, TCommandRequest>, MakeStrong(this), request));
     }
 
-    // TODO(achulkov2): [PLater] How receptive is this to cancellations?
+    // TODO(achulkov2): Figure out how receptive this is to cancellation.
     template <class TCommandResponse, class TCommandRequest>
     TFuture<TCommandResponse> DoSendCommand(const TCommandRequest& request)
     {
         auto req = BaseHttpRequest_;
         request.Serialize(&req);
+
+        // TODO(achulkov2): We need to do a lot of things for introspection here.
+        // We should probably generate some sort of request id that is persisted
+        // throughout all retries (if any).
+        // We should log the response. Right now it is hard, because there is no good way
+        // to match the response to the original request.
+
+        LogRequest(req);
 
         return BIND([this, this_ = MakeStrong(this)] (THttpRequest req) {
             PrepareHttpRequest(
@@ -580,7 +606,7 @@ public:
     TFuture<T ## Command ## Response> Command(const T ## Command ## Request& request) override          \
     {                                                                                                   \
         return ExecuteCommandWithRetries<T ## Command ## Response, T ## Command ## Request>(            \
-            TCallback(BIND(&IClient::Command, UnderlyingClient_)), request);                            \
+            TCallback(BIND(&IClient::Command, UnderlyingClient_)), request, TStringBuf(#Command));                            \
     }
 
     DEFINE_COMMAND_WITH_RETRIES(ListBuckets)
@@ -606,32 +632,36 @@ private:
     const TCallback<bool(const TError&)> RetryChecker_;
 
     template <class TCommandResponse, class TCommandRequest>
-    TFuture<TCommandResponse> ExecuteCommandWithRetries(auto command, TCommandRequest request)
+    TFuture<TCommandResponse> ExecuteCommandWithRetries(auto command, TCommandRequest request, TStringBuf commandName)
     {
         return BIND(&TRetryingClient::DoExecuteCommandWithRetries<TCommandResponse, TCommandRequest>, MakeStrong(this))
             .AsyncVia(ExecutionInvoker_)
-            .Run(std::move(command), std::move(request));
+            .Run(std::move(command), std::move(request), std::move(commandName));
     }
 
-    // TODO(achulkov2): [PLater] How cancellable is this?
+    // TODO(achulkov2): Think about cancellation.
     template <class TCommandResponse, class TCommandRequest>
-    TCommandResponse DoExecuteCommandWithRetries(TCallback<TFuture<TCommandResponse>(const TCommandRequest&)> command, TCommandRequest request)
+    TCommandResponse DoExecuteCommandWithRetries(TCallback<TFuture<TCommandResponse>(const TCommandRequest&)> command, TCommandRequest request, TStringBuf commandName)
     {
         TBackoffStrategy backoffStrategy(BackoffOptions_);
 
         std::vector<TError> invocationErrors;
 
         while (backoffStrategy.Next()) {
+            YT_LOG_DEBUG("Executing S3 command with retries (Command: %v, Attempt: %v/%v)", commandName, backoffStrategy.GetInvocationIndex(), backoffStrategy.GetInvocationCount());
+
             auto response = WaitFor(command(std::move(request)));
+
             if (response.IsOK()) {
                 return response.Value();
             }
 
-            // TODO(achulkov2): [PLater] Log the error here.
+            YT_LOG_DEBUG(response, "S3 command attempt failed (Command: %v, Attempt: %v/%v)",
+                commandName,
+                backoffStrategy.GetInvocationIndex(),
+                backoffStrategy.GetInvocationCount());
 
-            // TODO(achulkov2): [PForReview] Introduce default retry checker and stop checking that it is not null.
-            // TODO(achulkov2): [PForReview] Default retry checker should not retry auth errors.
-            if (!RetryChecker_ || !RetryChecker_.Run(response)) {
+            if (!RetryChecker_.Run(response)) {
                 THROW_ERROR_EXCEPTION("Request failed with non-retriable error") << response;
             }
 
@@ -647,17 +677,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableError(const TError& error)
+{
+    if (error.FindMatching(NRpc::EErrorCode::TransportError)) {
+        return true;
+    }
+
+    return false;
+}
+
 IClientPtr CreateRetryingClient(
     IClientPtr underlyingClient,
     TExponentialBackoffOptions backoffOptions,
     IInvokerPtr executionInvoker,
     TCallback<bool(const TError&)> retryChecker)
 {
+    static auto DefaultRetryChecker = BIND(&IsRetriableError);
     return New<TRetryingClient>(
         std::move(underlyingClient),
         std::move(backoffOptions),
         std::move(executionInvoker),
-        std::move(retryChecker));
+        retryChecker ? retryChecker : DefaultRetryChecker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
