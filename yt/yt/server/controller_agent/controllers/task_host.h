@@ -179,7 +179,7 @@ struct ITaskHost
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
 
-    virtual const std::vector<TString>& GetOffloadingPoolTrees() = 0;
+    virtual const std::vector<std::string>& GetOffloadingPoolTrees() = 0;
     virtual TJobExperimentBasePtr GetJobExperiment() = 0;
 
     virtual bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const = 0;

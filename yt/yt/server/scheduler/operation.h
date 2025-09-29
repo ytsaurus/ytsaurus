@@ -242,7 +242,7 @@ public:
     TStrategyOperationSpecPtr GetStrategySpec() const override;
 
     //! Returns strategy operation spec patched for given tere.
-    TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;
+    TStrategyOperationSpecPtr GetStrategySpecForTree(const std::string& treeId) const override;
 
     //! Returns operation spec as a yson string.
     const NYson::TYsonString& GetSpecString() const override;
@@ -284,7 +284,7 @@ public:
     bool IsFinishingState() const;
 
     //! Checks whether current operation state doesn't allow starting new allocations.
-    std::optional<NStrategy::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
+    std::optional<NStrategy::EUnschedulableReason> CheckUnschedulable(const std::optional<std::string>& treeId) const override;
 
     NStrategy::ISchedulingOperationControllerPtr GetControllerStrategyHost() const override;
 
@@ -301,16 +301,16 @@ public:
         NYson::TYsonString attributes = {});
 
     //! Slot index machinery.
-    std::optional<int> FindSlotIndex(const TString& treeId) const override;
-    void SetSlotIndex(const TString& treeId, int value) override;
-    void ReleaseSlotIndex(const TString& treeId) override;
-    THashMap<TString, int> GetSlotIndices() const;
-    const THashMap<TString, NStrategy::TOperationPoolTreeAttributes>& GetSchedulingAttributesPerPoolTree() const;
+    std::optional<int> FindSlotIndex(const std::string& treeId) const override;
+    void SetSlotIndex(const std::string& treeId, int value) override;
+    void ReleaseSlotIndex(const std::string& treeId) override;
+    THashMap<std::string, int> GetSlotIndices() const;
+    const THashMap<std::string, NStrategy::TOperationPoolTreeAttributes>& GetSchedulingAttributesPerPoolTree() const;
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
     void UpdatePoolAttributes(
-        const TString& treeId,
+        const std::string& treeId,
         const NStrategy::TOperationPoolTreeAttributes& operationPoolTreeAttributes) override;
 
     NYson::TYsonString BuildAlertsString() const;
@@ -342,9 +342,9 @@ public:
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
 
-    bool IsTreeErased(const TString& treeId) const override;
+    bool IsTreeErased(const std::string& treeId) const override;
     bool AreAllTreesErased() const;
-    void EraseTrees(const std::vector<TString>& treeIds) override;
+    void EraseTrees(const std::vector<std::string>& treeIds) override;
 
     //! Returns vector of experiment assignment names with each
     //! name being of form "<experiment name>.<group name>".
@@ -369,7 +369,7 @@ public:
         NRpc::TMutationId mutationId,
         NTransactionClient::TTransactionId userTransactionId,
         TOperationSpecBasePtr spec,
-        THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
+        THashMap<std::string, TStrategyOperationSpecPtr> customSpecPerTree,
         NYson::TYsonString specString,
         NYson::TYsonString trimmedAnnotations,
         std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
@@ -399,7 +399,7 @@ private:
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
     const std::optional<TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;
-    const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
+    const THashMap<std::string, TStrategyOperationSpecPtr> CustomSpecPerTree_;
     const TOperationOptionsPtr OperationOptions_;
     const std::string Codicil_;
     const IInvokerPtr ControlInvoker_;
@@ -411,14 +411,14 @@ private:
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
 
-    THashMap<TString, NStrategy::TOperationPoolTreeAttributes> SchedulingAttributesPerPoolTree_;
+    THashMap<std::string, NStrategy::TOperationPoolTreeAttributes> SchedulingAttributesPerPoolTree_;
 
     TOperationRuntimeParametersPtr RuntimeParameters_;
 
     TOperationAlertMap Alerts_;
 
-    TPromise<void> StartedPromise_ = NewPromise<void>();
-    TPromise<void> FinishedPromise_ = NewPromise<void>();
+    const TPromise<void> StartedPromise_ = NewPromise<void>();
+    const TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     bool Unregistering_ = false;
 
@@ -446,7 +446,7 @@ struct TPreprocessedSpec
     NYson::TYsonString SpecString;
     NYson::TYsonString ProvidedSpecString;
     NYson::TYsonString TrimmedAnnotations;
-    THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
+    THashMap<std::string, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
     std::vector<TError> ExperimentAssignmentErrors;
     std::optional<THashMap<std::string, TBriefVanillaTaskSpec>> BriefVanillaTaskSpecs;

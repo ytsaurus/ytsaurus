@@ -135,13 +135,13 @@ namespace NDetail {
 
 using TAlertEventsMap = THashMap<EOperationAlertType, std::deque<TOperationAlertEvent>>;
 
-THashMap<TString, TString> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
+THashMap<std::string, TString> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
 {
     if (!schedulingOptionsNode) {
         return {};
     }
 
-    THashMap<TString, TString> poolTreeToPool;
+    THashMap<std::string, TString> poolTreeToPool;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
         poolTreeToPool.emplace(key, value->AsMap()->GetChildValueOrThrow<TString>("pool"));
     }

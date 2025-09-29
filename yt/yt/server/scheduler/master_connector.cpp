@@ -1405,7 +1405,7 @@ private:
                 attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}),
                 attributes.Find<INodePtr>("cumulative_spec_patch"));
 
-            auto schedulingAttributesMap = attributes.Find<THashMap<TString, NStrategy::TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
+            auto schedulingAttributesMap = attributes.Find<THashMap<std::string, NStrategy::TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
             if (schedulingAttributesMap) {
                 for (const auto& [treeId, schedulingInfo] : *schedulingAttributesMap) {
                     if (auto slotIndex = schedulingInfo.SlotIndex) {

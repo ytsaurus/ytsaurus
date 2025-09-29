@@ -85,7 +85,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateAbortedEv
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(
     TOperationId operationId,
     TControllerEpoch controllerEpoch,
-    TString treeId,
+    std::string treeId,
     std::vector<TAllocationId> allocationIds)
 {
     TAgentToSchedulerOperationEvent event(
@@ -505,7 +505,7 @@ void TOperationControllerHost::OnOperationSuspended(const TError& error)
 }
 
 void TOperationControllerHost::OnOperationBannedInTentativeTree(
-    const TString& treeId,
+    const std::string& treeId,
     const std::vector<TAllocationId>& allocationIds)
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(

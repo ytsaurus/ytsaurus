@@ -30,7 +30,7 @@ public:
         NLogging::TLogger logger,
         int maxProbingJobCount,
         std::optional<double> probingRatio,
-        std::optional<TString> probingPoolTree);
+        std::optional<std::string> probingPoolTreeId);
 
     void OnJobScheduled(const TJobletPtr& joblet) override;
     void OnJobCompleted(const TJobletPtr& joblet) override;
@@ -42,7 +42,7 @@ public:
 
 private:
     std::optional<double> ProbingRatio_;
-    std::optional<TString> ProbingPoolTree_;
+    std::optional<std::string> ProbingPoolTreeId_;
 
     std::random_device RandomDevice_;
     std::mt19937 RandomGenerator_;

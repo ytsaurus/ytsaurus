@@ -53,7 +53,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EAllocationState, State, EAllocationState::Scheduled);
 
     //! Fair-share tree this allocation belongs to.
-    DEFINE_BYVAL_RO_PROPERTY(TString, TreeId);
+    DEFINE_BYVAL_RO_PROPERTY(std::string, TreeId);
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
@@ -105,7 +105,7 @@ public:
         TInstant startTime,
         const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
-        TString treeId,
+        std::string treeId,
         int schedulingIndex,
         std::optional<TNetworkPriority> networkPriority = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,

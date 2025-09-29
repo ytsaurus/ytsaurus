@@ -2484,7 +2484,7 @@ bool TScheduleAllocationsContext::IsEligibleForSsdPriorityPreemption(const THash
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulingPolicy::TSchedulingPolicy(
-    TString treeId,
+    std::string treeId,
     NLogging::TLogger logger,
     TWeakPtr<ISchedulingPolicyHost> host,
     IPoolTreeHost* treeHost,

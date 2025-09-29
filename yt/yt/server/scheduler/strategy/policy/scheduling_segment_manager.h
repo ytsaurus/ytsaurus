@@ -94,7 +94,7 @@ public:
         ESchedulingSegmentModuleType moduleType);
 
     TSchedulingSegmentManager(
-        TString treeId,
+        std::string treeId,
         TStrategySchedulingSegmentsConfigPtr config,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler);
@@ -108,7 +108,7 @@ public:
     void UpdateConfig(TStrategySchedulingSegmentsConfigPtr config);
 
 private:
-    const TString TreeId_;
+    const std::string TreeId_;
     const NLogging::TLogger Logger;
 
     TStrategySchedulingSegmentsConfigPtr Config_;

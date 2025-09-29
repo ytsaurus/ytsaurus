@@ -473,7 +473,7 @@ public:
     std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override;
     void UpdateIntermediateMediumUsage(i64 usage) override;
 
-    const std::vector<TString>& GetOffloadingPoolTrees() override;
+    const std::vector<std::string>& GetOffloadingPoolTrees() override;
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
@@ -702,7 +702,7 @@ protected:
 
     void UnregisterJoblet(const TJobletPtr& joblet);
 
-    std::vector<TAllocationId> GetAllocationIdsByTreeId(const TString& treeId);
+    std::vector<TAllocationId> GetAllocationIdsByTreeId(const std::string& treeId);
 
     // Initialization.
     virtual void DoInitialize();
@@ -1101,9 +1101,9 @@ protected:
 
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
-    std::optional<std::vector<TString>> OffloadingPoolTrees_;
+    std::optional<std::vector<std::string>> OffloadingPoolTreeIds_;
 
-    THashSet<TString> BannedTreeIds_;
+    THashSet<std::string> BannedTreeIds_;
 
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options_;
@@ -1473,7 +1473,7 @@ private:
     bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const override;
     bool IsTreeTentative(const TString& treeId) const;
     bool IsTreeProbing(const TString& treeId) const override;
-    void MaybeBanInTentativeTree(const TString& treeId);
+    void MaybeBanInTentativeTree(const std::string& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(TTask& task, TAllocationId allocationId);
 

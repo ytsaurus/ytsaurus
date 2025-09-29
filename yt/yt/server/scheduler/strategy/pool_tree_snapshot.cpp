@@ -67,9 +67,9 @@ TPoolTreeSetSnapshot::TPoolTreeSetSnapshot(std::vector<IPoolTreePtr> trees, int 
     , TopologyVersion_(topologyVersion)
 { }
 
-THashMap<TString, IPoolTreePtr> TPoolTreeSetSnapshot::BuildIdToTreeMapping() const
+THashMap<std::string, IPoolTreePtr> TPoolTreeSetSnapshot::BuildIdToTreeMapping() const
 {
-    THashMap<TString, IPoolTreePtr> idToTree;
+    THashMap<std::string, IPoolTreePtr> idToTree;
     idToTree.reserve(Trees_.size());
     for (const auto& tree : Trees_) {
         idToTree.emplace(tree->GetId(), tree);

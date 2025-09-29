@@ -591,7 +591,7 @@ class TSchedulingPolicy
 {
 public:
     TSchedulingPolicy(
-        TString treeId,
+        std::string treeId,
         NLogging::TLogger logger,
         TWeakPtr<ISchedulingPolicyHost> host,
         IPoolTreeHost* treeHost,
@@ -712,7 +712,7 @@ public:
     TFuture<void> Stop();
 
 private:
-    const TString TreeId_;
+    const std::string TreeId_;
     const NLogging::TLogger Logger;
     // NB(eshcherbin): While tree host and strategy host are singletons (strategy and scheduler respectively), allocation scheduler host (tree)
     // can be outlived by some asynchronous actions. Therefore, we store it as a weak pointer rather than a raw pointer.

@@ -384,10 +384,11 @@ void BuildSupportedFeatures(TFluentMap fluent)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GuessGpuType(const TString& treeId)
+std::string GuessGpuType(const std::string& treeId)
 {
-    if (treeId.StartsWith("gpu_")) {
-        return TString(TStringBuf(treeId).SubStr(4));
+    constexpr auto GpuPrefix = TStringBuf("gpu_");
+    if (treeId.starts_with(GpuPrefix)) {
+        return treeId.substr(GpuPrefix.length());
     }
     return "unknown";
 }

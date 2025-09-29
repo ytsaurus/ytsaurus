@@ -105,7 +105,7 @@ struct ISchedulingHeartbeatContext
     virtual bool ShouldAbortAllocationsSinceResourcesOvercommit() const = 0;
 
     virtual void StartAllocation(
-        const TString& treeId,
+        const std::string& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,

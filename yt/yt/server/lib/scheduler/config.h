@@ -579,7 +579,7 @@ struct TStrategyConfig
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
 
     //! Tentative pool trees used by default for operations that specified 'UseDefaultTentativePoolTrees' options.
-    THashSet<TString> DefaultTentativePoolTrees;
+    THashSet<std::string> DefaultTentativePoolTrees;
 
     //! Enables the "schedule_in_single_tree" operation spec option cluster-wide.
     bool EnableScheduleInSingleTree;
@@ -587,7 +587,7 @@ struct TStrategyConfig
     TStrategyTestingOptionsPtr StrategyTestingOptions;
 
     //! Template pool tree configs.
-    THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
+    THashMap<std::string, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
 
     TDuration SchedulerTreeAlertsUpdatePeriod;
 

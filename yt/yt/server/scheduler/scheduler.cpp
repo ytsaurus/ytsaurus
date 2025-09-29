@@ -121,7 +121,7 @@ using NYT::ToProto;
 
 constinit const auto Logger = SchedulerLogger;
 
-static const TString UnknownTreeId = "<unknown>";
+static const std::string UnknownTreeId = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -514,7 +514,7 @@ public:
     }
 
     void ValidatePoolPermission(
-        const TString& treeId,
+        const std::string& treeId,
         NObjectClient::TObjectId poolObjectId,
         const TString& poolName,
         const std::string& user,
@@ -946,7 +946,7 @@ public:
 
     void OnOperationBannedInTentativeTree(
         const TOperationPtr& operation,
-        const TString& treeId,
+        const std::string& treeId,
         const std::vector<TAllocationId>& allocationIds)
     {
         YT_LOG_INFO(
@@ -966,7 +966,7 @@ public:
             BIND(&TImpl::UnregisterOperationFromTreeForBannedTree, MakeStrong(this), operation, treeId));
     }
 
-    void UnregisterOperationFromTreeForBannedTree(const TOperationPtr& operation, const TString& treeId)
+    void UnregisterOperationFromTreeForBannedTree(const TOperationPtr& operation, const std::string& treeId)
     {
         const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
         if (schedulingOptionsPerPoolTree.find(treeId) != schedulingOptionsPerPoolTree.end()) {
@@ -978,7 +978,7 @@ public:
         }
     }
 
-    void UnregisterOperationFromTrees(const TOperationPtr& operation, const std::vector<TString>& treeIds)
+    void UnregisterOperationFromTrees(const TOperationPtr& operation, const std::vector<std::string>& treeIds)
     {
         for (const auto& treeId : treeIds) {
             YT_LOG_INFO("Unregistering operation from tree (OperationId: %v, TreeId: %v)",
@@ -1333,7 +1333,7 @@ public:
     {
         MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
 
-        std::vector<TString> treeIdsToErase;
+        std::vector<std::string> treeIdsToErase;
         auto error = Strategy_->OnOperationMaterialized(
             operation->GetId(),
             scheduleOperationInSingleTree,
@@ -2002,7 +2002,7 @@ private:
         }
 
         auto nodeYsonList = NodeManager_->BuildNodeYsonList();
-        THashMap<TString, std::vector<TYsonString>> nodeYsonsPerTree;
+        THashMap<std::string, std::vector<TYsonString>> nodeYsonsPerTree;
         for (auto& [nodeId, nodeYson] : nodeYsonList) {
             auto treeId = Strategy_->GetMaybeTreeIdForNode(nodeId).value_or(UnknownTreeId);
             nodeYsonsPerTree[treeId].push_back(std::move(nodeYson));
@@ -2642,7 +2642,7 @@ private:
 
                 auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
 
-                std::vector<TString> erasedTreeIds;
+                std::vector<std::string> erasedTreeIds;
                 for (const auto& [treeId, error] : poolLimitViolations) {
                     bool shouldEraseTree = false;
                     if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
@@ -3059,7 +3059,7 @@ private:
         auto controller = agentTracker->CreateController(operation);
         operation->SetController(controller);
 
-        std::vector<TString> unknownTreeIds;
+        std::vector<std::string> unknownTreeIds;
         TPoolTreeControllerSettingsMap poolTreeControllerSettingsMap;
 
         Strategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
@@ -4207,14 +4207,14 @@ private:
 
     void EraseOffloadingTrees(const TOperationPtr& operation)
     {
-        std::vector<TString> offloadingTrees;
-        for (const auto& [treeName, options] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+        std::vector<std::string> offloadingTreeIds;
+        for (const auto& [treeId, options] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
             if (options->Offloading) {
-                offloadingTrees.push_back(treeName);
+                offloadingTreeIds.push_back(treeId);
             }
         }
 
-        UnregisterOperationFromTrees(operation, offloadingTrees);
+        UnregisterOperationFromTrees(operation, offloadingTreeIds);
     }
 
     class TOperationService
@@ -4614,7 +4614,7 @@ void TScheduler::OnOperationAgentUnregistered(const TOperationPtr& operation)
     Impl_->OnOperationAgentUnregistered(operation);
 }
 
-void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TAllocationId>& allocationIds)
+void TScheduler::OnOperationBannedInTentativeTree(const TOperationPtr& operation, const std::string& treeId, const std::vector<TAllocationId>& allocationIds)
 {
     Impl_->OnOperationBannedInTentativeTree(operation, treeId, allocationIds);
 }

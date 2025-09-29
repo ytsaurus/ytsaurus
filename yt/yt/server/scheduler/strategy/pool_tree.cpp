@@ -273,7 +273,7 @@ public:
         IPoolTreeHost* host,
         IStrategyHost* strategyHost,
         const std::vector<IInvokerPtr>& feasibleInvokers,
-        TString treeId)
+        std::string treeId)
         : Config_(std::move(config))
         , ConfigNode_(ConvertToNode(Config_))
         , ControllerConfig_(std::move(controllerConfig))
@@ -633,7 +633,7 @@ public:
         SchedulingPolicy_->UnregisterNode(nodeId);
     }
 
-    const TString& GetId() const override
+    const std::string& GetId() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1324,7 +1324,7 @@ private:
 
     TStrategyOperationControllerConfigPtr ControllerConfig_;
 
-    const TString TreeId_;
+    const std::string TreeId_;
     const NLogging::TLogger Logger;
 
     IPoolTreeHost* const Host_;
@@ -3587,7 +3587,7 @@ IPoolTreePtr CreatePoolTree(
     IPoolTreeHost* host,
     IStrategyHost* strategyHost,
     std::vector<IInvokerPtr> feasibleInvokers,
-    TString treeId)
+    std::string treeId)
 {
     return New<TPoolTree>(
         std::move(config),

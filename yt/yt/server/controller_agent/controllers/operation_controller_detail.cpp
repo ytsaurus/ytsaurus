@@ -3193,7 +3193,7 @@ void TOperationControllerBase::ProcessJobFinishedResult(const TJobFinishedResult
         OnOperationFailed(result.OperationFailedError);
     }
 
-    for (const auto& treeId : result.NewlyBannedTrees) {
+    for (const auto& treeId : result.NewlyBannedTreeIds) {
         MaybeBanInTentativeTree(treeId);
     }
 }
@@ -5166,7 +5166,7 @@ bool TOperationControllerBase::IsIdleCpuPolicyAllowedInTree(const TString& treeI
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).AllowIdleCpuPolicy;
 }
 
-void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
+void TOperationControllerBase::MaybeBanInTentativeTree(const std::string& treeId)
 {
     if (!BannedTreeIds_.insert(treeId).second) {
         return;
@@ -5944,17 +5944,17 @@ void TOperationControllerBase::UpdateIntermediateMediumUsage(i64 /*usage*/)
     YT_UNIMPLEMENTED();
 }
 
-const std::vector<TString>& TOperationControllerBase::GetOffloadingPoolTrees()
+const std::vector<std::string>& TOperationControllerBase::GetOffloadingPoolTrees()
 {
-    if (!OffloadingPoolTrees_) {
-        OffloadingPoolTrees_.emplace();
+    if (!OffloadingPoolTreeIds_) {
+        OffloadingPoolTreeIds_.emplace();
         for (const auto& [poolTree, settings]: PoolTreeControllerSettingsMap_) {
             if (settings.Offloading) {
-                OffloadingPoolTrees_.value().push_back(poolTree);
+                OffloadingPoolTreeIds_->push_back(poolTree);
             }
         }
     }
-    return *OffloadingPoolTrees_;
+    return *OffloadingPoolTreeIds_;
 }
 
 void TOperationControllerBase::InitializeJobExperiment()
@@ -9378,7 +9378,7 @@ int TOperationControllerBase::GetRegisteredMonitoringDescriptorCount() const
     return RegisteredMonitoringDescriptorCount_;
 }
 
-std::vector<TAllocationId> TOperationControllerBase::GetAllocationIdsByTreeId(const TString& treeId)
+std::vector<TAllocationId> TOperationControllerBase::GetAllocationIdsByTreeId(const std::string& treeId)
 {
     std::vector<TAllocationId> allocationIds;
     allocationIds.reserve(size(AllocationMap_));
@@ -9666,7 +9666,7 @@ void TOperationControllerBase::EnrichJobInfo(NYTree::TFluentMap /*fluent*/, cons
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
 {
-    THashSet<TString> treeIds;
+    THashSet<std::string> treeIds;
     for (const auto& task : Tasks_) {
         task->LogTentativeTreeStatistics();
         for (const auto& treeId : task->FindAndBanSlowTentativeTrees()) {

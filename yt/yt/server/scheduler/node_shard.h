@@ -39,8 +39,8 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString ProfilingUndefinedPoolTreeValue{"undefined_tree"};
-inline const TString ProfilingWithinHeartbeatKey{"withinHeartbeat"};
+inline const std::string ProfilingUndefinedPoolTreeValue{"undefined_tree"};
+inline const std::string ProfilingWithinHeartbeatKey{"withinHeartbeat"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
