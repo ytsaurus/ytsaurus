@@ -2384,6 +2384,8 @@ void TChunkReplicator::RefreshChunk(
     auto chunkId = chunk->GetId();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
+    auto wasLostVital = LostVitalChunks_.contains(chunk);
+
     chunk->OnRefresh();
 
     ResetChunkStatus(chunk);
@@ -2562,11 +2564,22 @@ void TChunkReplicator::RefreshChunk(
         }
     }
 
+    auto maxLostVitalChunksToLog = GetDynamicConfig()->MaxLostVitalChunksToLog;
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost)) {
         YT_VERIFY(LostChunks_.insert(chunk).second);
         if (durabilityRequired) {
             YT_VERIFY(LostVitalChunks_.insert(chunk).second);
+            YT_LOG_DEBUG_IF(std::ssize(LostVitalChunks_) <= maxLostVitalChunksToLog,
+                "Chunk is lost (ChunkId: %v, WasLostVital: %v, ChunkReplicas: %v)",
+                chunk->GetId(),
+                wasLostVital,
+                chunkReplicas);
         }
+    } else if (wasLostVital) {
+        YT_LOG_DEBUG_IF(std::ssize(LostVitalChunks_) < maxLostVitalChunksToLog,
+            "Chunk is no longer lost (ChunkId: %v, ChunkReplicas: %v)",
+            chunk->GetId(),
+            chunkReplicas);
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::DataMissing)) {
