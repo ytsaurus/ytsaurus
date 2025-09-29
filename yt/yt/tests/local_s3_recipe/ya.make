@@ -8,6 +8,7 @@ PY_SRCS(__main__.py)
 
 PEERDIR(
     yt/python/yt/test_helpers
+
     library/python/testing/recipe
     library/python/resource
 

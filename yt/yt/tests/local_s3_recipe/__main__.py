@@ -11,7 +11,6 @@ import boto3
 
 ################################################################################
 
-S3_LOG_FILE = None
 
 S3_PID_FILE_NAME = "s3_pid"
 
@@ -27,11 +26,19 @@ jclouds.identity=
 jclouds.credential=
 """
 
-def wait_for_s3_start(endpoint_url):
+
+def get_env_value(key):
+    value = os.environ[key]
+    if value is None:
+        raise RuntimeError(f"Environment variable {key} is required to be set to start s3proxy")
+    return value
+
+
+def wait_for_s3_start():
     def check_s3_reachable():
         s3_client = None
         try:
-            s3_client = boto3.client('s3')
+            s3_client = boto3.client("s3")
             s3_client.list_buckets()
             return True
         except:
@@ -47,11 +54,9 @@ def start(_: List[str]) -> None:
     base_path = os.path.join(get_source_root(), "yt/yt/tests/local_s3_recipe")
 
     # Retrieve the necessary environment variables' values.
-    endpoint_url = os.environ["AWS_ENDPOINT_URL"]
-    access_key_id = os.environ["AWS_ACCESS_KEY_ID"]
-    secret_access_key = os.environ["AWS_SECRET_ACCESS_KEY"]
-    if endpoint_url is None or access_key_id is None or secret_access_key is None:
-        raise Exception("Failed to start s3proxy: necessary environment variables are not set")
+    endpoint_url = get_env_value("AWS_ENDPOINT_URL")
+    access_key_id = get_env_value("AWS_ACCESS_KEY_ID")
+    secret_access_key = get_env_value("AWS_SECRET_ACCESS_KEY")
 
     # Directory for S3 data.
     tmp_path = os.path.join(get_tests_sandbox(), "s3_runtime")
@@ -68,9 +73,8 @@ def start(_: List[str]) -> None:
         ))
 
     # Declare an S3 log file.
-    global S3_LOG_FILE
     s3_log_file_path = os.path.join(yatest_common.output_path(), "s3_log.log")
-    S3_LOG_FILE = open(s3_log_file_path, mode="w")
+    s3_log_file = open(s3_log_file_path, mode="w")
 
     # Launch S3.
     s3_args = [
@@ -78,17 +82,14 @@ def start(_: List[str]) -> None:
         "--properties",
         s3_conf_path,
     ]
-    s3 = subprocess.Popen(s3_args, stdout=S3_LOG_FILE, text=True, env={"LOG_LEVEL": "debug"})
+    s3 = subprocess.Popen(s3_args, stdout=s3_log_file, text=True, env={"LOG_LEVEL": "debug"})
     with open(S3_PID_FILE_NAME, "w") as f:
         print(s3.pid, file=f)
 
-    wait_for_s3_start(endpoint_url)
+    wait_for_s3_start()
 
 
 def stop(_: List[str]) -> None:
-    if S3_LOG_FILE is not None:
-        S3_LOG_FILE.close()
-
     if not os.path.exists(S3_PID_FILE_NAME):
         return
     with open(S3_PID_FILE_NAME, "r") as f:
