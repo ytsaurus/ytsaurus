@@ -4459,6 +4459,15 @@ class TestCypress(YTEnvSetup):
         gc_collect()
         assert not exists(f"#{table_id}")
 
+    @authors("kvk1920")
+    def test_document_lock_revision(self):
+        create("document", "//tmp/doc")
+        set("//tmp/doc", [1, 2, 3])
+        revision = get("//tmp/doc/@revision")
+
+        tx = start_transaction()
+        assert lock("//tmp/doc", tx=tx)["revision"] == revision
+
 
 ##################################################################
 

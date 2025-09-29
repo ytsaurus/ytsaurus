@@ -1359,23 +1359,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
     const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();
 
-    auto asyncNode = FetchSingleObject(
+    auto asyncNodeAttributes = FetchSingleObjectAttributes(
         client,
         MakeVersionedNodeId(Id_),
         TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
 
     auto nodeLocked = WaitForFast(asyncLockAcquired)
         .ValueOrThrow();
-    auto node = WaitFor(asyncNode)
+    auto nodeAttributes = WaitFor(asyncNodeAttributes)
         .ValueOrThrow();
 
     auto revision = nodeLocked
-        ? node->Attributes().Get<NHydra::TRevision>(revisionAttribute)
+        ? nodeAttributes->Get<NHydra::TRevision>(revisionAttribute)
         : NHydra::NullRevision;
     auto nativeCellTag = CellTagFromId(Id_);
-    auto externalCellTag = node
-        ->Attributes()
-        .Find<TCellTag>(externalCellTagAttribute)
+    auto externalCellTag = nodeAttributes
+        ->Find<TCellTag>(externalCellTagAttribute)
         .value_or(nativeCellTag);
 
     auto externalTransactionId = externalCellTag == nativeCellTag
