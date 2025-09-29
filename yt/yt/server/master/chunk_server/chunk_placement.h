@@ -120,6 +120,8 @@ public:
 
     const std::vector<TError>& GetAlerts() const;
 
+    bool UseHostAwareReplicator() const;
+
 private:
     NLogging::TLogger Logger = ChunkServerLogger();
 
@@ -197,6 +199,7 @@ private:
     bool IsNodeWriteSessionLimitEnabled_ = false;
     // NB: For testing purposes only.
     bool IsNodeWriteSessionLimitForUserAllocationEnabled_ = false;
+    bool UseHostAwareReplicator_ = false;
 
     THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
@@ -252,7 +255,8 @@ private:
         TTargetCollector<TGenericChunk>* collector,
         bool enableRackAwareness,
         bool enableDataCenterAwareness,
-        bool enableNodeWriteSessionLimit);
+        bool enableNodeWriteSessionLimit,
+        bool enableHostAwareness);
     bool IsValidWriteTargetCore(TNode* node);
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,

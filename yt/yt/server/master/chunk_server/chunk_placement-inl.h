@@ -4,6 +4,7 @@
 #include "chunk_placement.h"
 #endif
 
+#include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
 namespace NYT::NChunkServer {
@@ -46,6 +47,7 @@ public:
         auto processAllocatedNode = [&] (TNode* node) {
             IncreaseRackUsage(node);
             IncreaseDataCenterUsage(node);
+            SetHostUsed(node);
         };
 
         int mediumIndex = medium->GetIndex();
@@ -78,7 +80,8 @@ public:
         TNode* node,
         bool enableRackAwareness,
         bool enableDataCenterAwareness,
-        bool enableNodeWriteSessionLimit) const
+        bool enableNodeWriteSessionLimit,
+        bool enableHostAwareness) const
     {
         if (std::find(ForbiddenNodes_.begin(), ForbiddenNodes_.end(), node) != ForbiddenNodes_.end()) {
             return false;
@@ -96,6 +99,10 @@ public:
             return false;
         }
 
+        if (enableHostAwareness && CheckHostUsage(node)) {
+            return false;
+        }
+
         return true;
     }
 
@@ -103,6 +110,7 @@ public:
     {
         IncreaseRackUsage(node);
         IncreaseDataCenterUsage(node);
+        SetHostUsed(node);
         AddedNodes_.push_back(node);
         if (!AllowMultipleReplicasPerNode_) {
             ForbiddenNodes_.push_back(node);
@@ -127,6 +135,8 @@ private:
 
     // TODO(gritukan): YT-16557
     TCompactFlatMap<const NNodeTrackerServer::TDataCenter*, i8, 4> PerDataCenterCounters_;
+
+    TCompactSet<const NNodeTrackerServer::THost*, 16> HostsWithReplicas_;
 
     TNodeList ForbiddenNodes_;
     TNodeList AddedNodes_;
@@ -182,6 +192,21 @@ private:
             Chunk_,
             dataCenter,
             ReplicationFactorOverride_);
+    }
+
+    void SetHostUsed(TNode* node)
+    {
+        if (auto host = node->GetHost()) {
+            HostsWithReplicas_.insert(host);
+        }
+    }
+
+    bool CheckHostUsage(TNode* node) const
+    {
+        if (auto host = node->GetHost()) {
+            return HostsWithReplicas_.contains(host);
+        }
+        return false;
     }
 
     bool CheckWriteSessionUsage(TNode* node) const
@@ -326,14 +351,16 @@ TNodeList TChunkPlacement::GetWriteTargets(
         TNode* node,
         bool enableRackAwareness,
         bool enableDataCenterAwareness,
-        bool enableNodeWriteSessionLimit)
+        bool enableNodeWriteSessionLimit,
+        bool enableHostAwareness)
     {
         if (!IsValidWriteTargetToAllocate(
             node,
             &collector,
             enableRackAwareness,
             enableDataCenterAwareness,
-            enableNodeWriteSessionLimit))
+            enableNodeWriteSessionLimit,
+            enableHostAwareness))
         {
             return false;
         }
@@ -355,7 +382,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
     auto tryAddAll = [&] (
         bool enableRackAwareness,
         bool enableDataCenterAwareness,
-        bool enableNodeWriteSessionLimit)
+        bool enableNodeWriteSessionLimit,
+        bool enableHostAwareness)
     {
         YT_VERIFY(!hasEnoughTargets());
 
@@ -369,7 +397,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
                     node,
                     enableRackAwareness,
                     enableDataCenterAwareness,
-                    enableNodeWriteSessionLimit);
+                    enableNodeWriteSessionLimit,
+                    enableHostAwareness);
             }
             return hasProgress;
         } else {
@@ -383,7 +412,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
                     node,
                     enableRackAwareness,
                     enableDataCenterAwareness,
-                    enableNodeWriteSessionLimit);
+                    enableNodeWriteSessionLimit,
+                    enableHostAwareness);
             }
         }
         return hasProgress;
@@ -396,26 +426,32 @@ TNodeList TChunkPlacement::GetWriteTargets(
             preferredNode,
             /*enableRackAwareness*/ true,
             /*enableDataCenterAwareness*/ IsDataCenterAware_,
-            /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_);
+            /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_,
+            /*enableHostAwareness*/ GetDynamicConfig()->UseHostAwareReplicator);
     }
 
     if (!hasEnoughTargets()) {
         tryAddAll(
             /*enableRackAwareness*/ true,
             /*enableDataCenterAwareness*/ IsDataCenterAware_,
-            /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_);
+            /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_,
+            /*enableHostAwareness*/ GetDynamicConfig()->UseHostAwareReplicator);
     }
 
-    bool forceRackAwareness = sessionType == NChunkClient::ESessionType::Replication ||
-        (chunk->IsErasure() && GetDynamicConfig()->ForceRackAwarenessForErasureParts);
+    auto forceErasureRackAwareness = chunk->IsErasure() && GetDynamicConfig()->ForceRackAwarenessForErasureParts;
 
-    if (!forceRackAwareness) {
+    auto forceErasureHostAwareness = chunk->IsErasure() && GetDynamicConfig()->ForceHostAwarenessForErasureParts;
+
+    if (sessionType != NChunkClient::ESessionType::Replication &&
+        (!forceErasureRackAwareness || !forceErasureHostAwareness))
+    {
         while (!hasEnoughTargets()) {
             // Disabling rack awareness also disables data center awareness.
-            bool hasProgress = tryAddAll(
-                /*enableRackAwareness*/ false,
-                /*enableDataCenterAwareness*/ false,
-                /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_);
+            auto hasProgress = tryAddAll(
+                /*enableRackAwareness*/ forceErasureRackAwareness,
+                /*enableDataCenterAwareness*/ forceErasureRackAwareness,
+                /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_,
+                /*enableHostAwareness*/ forceErasureHostAwareness);
             if (!hasProgress) {
                 break;
             }
@@ -469,7 +505,8 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
     TTargetCollector<TGenericChunk>* collector,
     bool enableRackAwareness,
     bool enableDataCenterAwareness,
-    bool enableNodeWriteSessionLimit)
+    bool enableNodeWriteSessionLimit,
+    bool enableHostAwareness)
 {
     // Check node first.
     if (!IsValidWriteTargetCore(node)) {
@@ -481,7 +518,17 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
         return false;
     }
 
-    if (!collector->CheckNode(node, enableRackAwareness, enableDataCenterAwareness, enableNodeWriteSessionLimit)) {
+    // If replicator is host aware, unaware nodes are not allowed.
+    if (enableHostAwareness && !node->GetHost()) {
+        return false;
+    }
+
+    if (!collector->CheckNode(node,
+        enableRackAwareness,
+        enableDataCenterAwareness,
+        enableNodeWriteSessionLimit,
+        enableHostAwareness))
+    {
         // The collector does not like this node.
         return false;
     }

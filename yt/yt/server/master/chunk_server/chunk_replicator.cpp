@@ -33,6 +33,7 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -563,6 +564,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    TCompactMediumMap<THashSet<const THost*>> replicasHosts;
     // TODO(gritukan): YT-16557.
     TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
@@ -618,6 +620,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
         if (!Config_->AllowMultipleErasurePartsPerNode) {
             node->SetVisitMark(mediumIndex, mark);
+        }
+
+        auto host = replica.GetPtr()->GetNode()->GetHost();
+        if (ChunkPlacement_->UseHostAwareReplicator() && host) {
+            auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
+            if (!inserted) {
+                unsafelyPlacedSealedReplicas[mediumIndex] = replica;
+            }
         }
 
         if (const auto* rack = node->GetRack()) {
@@ -1023,6 +1033,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedReplicas;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    TMediumMap<THashSet<const THost*>> replicasHosts;
     // TODO(gritukan): YT-16557.
     TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
@@ -1083,6 +1094,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         } else {
             ++replicaCount[mediumIndex];
             ++totalReplicaCount;
+        }
+
+        auto host = replica.GetPtr()->GetNode()->GetHost();
+        if (ChunkPlacement_->UseHostAwareReplicator() && host) {
+            auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
+            if (!inserted) {
+                unsafelyPlacedReplicas[mediumIndex] = replica;
+            }
         }
 
         if (const auto* rack = replica.GetPtr()->GetNode()->GetRack()) {
