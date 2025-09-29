@@ -199,10 +199,10 @@ public:
     TInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& session,
-        const TResolveResult& resolveResult,
+        const TMaybeUnreachableResolveResult& resolveResult,
         const std::vector<TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions) override
     {
-        static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 3);
+        static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 4);
 
         INodeProxyPtr proxy;
         if (const auto* cypressResolveResult = std::get_if<TCypressResolveResult>(&resolveResult)) {
@@ -249,7 +249,7 @@ public:
                         ValidateLinkNodeCreation(
                             session,
                             targetPath,
-                            resolveResult);
+                            *cypressResolveResult);
                         // Link should be created in master.
                         return TForwardToMasterPayload{};
                     } catch (const std::exception& ex) {
@@ -261,6 +261,8 @@ public:
                 default:
                     return TForwardToMasterPayload{};
             }
+        } else if (auto* unreachableResolveResult = std::get_if<TUnreachableSequoiaResolveResult>(&resolveResult)) {
+            proxy = CreateUnreachableNodeProxy(Bootstrap_, session, *unreachableResolveResult, AuthenticationIdentity_);
         } else if (std::holds_alternative<TMasterResolveResult>(resolveResult)) {
             proxy = CreateMasterProxy(Bootstrap_, session, AuthenticationIdentity_);
         } else {

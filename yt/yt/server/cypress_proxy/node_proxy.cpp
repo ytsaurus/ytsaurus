@@ -94,6 +94,18 @@ constexpr auto& Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
+const TSerializableAccessControlList UnreachableNodeAcl = {
+    .Entries = {
+        TSerializableAccessControlEntry(
+            ESecurityAction::Allow,
+            /*subjects*/ {EveryoneGroupName},
+            EPermission::Read)
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_SUPPORTS_METHOD(Get);
 DECLARE_SUPPORTS_METHOD(Set);
 DECLARE_SUPPORTS_METHOD(Remove);
@@ -370,14 +382,7 @@ protected:
     {
         // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
         if (IsSnapshot() && std::ssize(ResolveResult_.NodeAncestry) == 1) {
-            return {
-                .Entries = {
-                    TSerializableAccessControlEntry(
-                        ESecurityAction::Allow,
-                        /*subjects*/ {EveryoneGroupName},
-                        EPermission::Read)
-                }
-            };
+            return UnreachableNodeAcl;
         }
 
         return ComputeEffectiveAclForNode(
@@ -451,18 +456,6 @@ protected:
         auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(rspGet->value()));
 
         return SequoiaSession_->RemoveRootstock(rootstockId);
-    }
-
-    void AbortSequoiaSessionForLaterForwardingToMaster(
-        std::optional<TSerializableAccessControlList> forwardEffectiveAcl = {})
-    {
-        TForwardToMasterPayload payload;
-        if (forwardEffectiveAcl.has_value()) {
-            payload.EffectiveAcl = ConvertToYsonString(*forwardEffectiveAcl);
-        }
-
-        InvokeResult_ = std::move(payload);
-        SequoiaSession_->Abort();
     }
 
     struct TSubtreeReplacementResult
@@ -2418,6 +2411,50 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnreachableNodeProxy
+    : public TNodeProxyBase
+{
+public:
+    TUnreachableNodeProxy(
+        IBootstrap* bootstrap,
+        TSequoiaSessionPtr session,
+        TNodeId id,
+        const TAuthenticationIdentity& identity)
+        : TNodeProxyBase(bootstrap, std::move(session), identity)
+        , Id_(id)
+    { }
+
+private:
+    const TNodeId Id_;
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission)
+    {
+        const auto& userName = request->user();
+        auto permission = FromProto<EPermission>(request->permission());
+        auto columns = request->has_columns()
+            ? std::optional(FromProto<std::vector<std::string>>(request->columns().items()))
+            : std::nullopt;
+        auto vital = YT_OPTIONAL_FROM_PROTO(*request, vital, bool);
+        bool ignoreSafeMode = request->ignore_safe_mode();
+        context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
+            userName,
+            permission,
+            columns,
+            vital,
+            ignoreSafeMode);
+
+        AbortSequoiaSessionForLaterForwardingToMaster(/*forwardEffectiveAcl*/ UnreachableNodeAcl);
+    }
+
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", Id_);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
@@ -2450,6 +2487,15 @@ INodeProxyPtr CreateNodeProxy(
             std::move(resolvedPrerequisiteRevisions),
             authenticationIdentity);
     }
+}
+
+INodeProxyPtr CreateUnreachableNodeProxy(
+    IBootstrap* bootstrap,
+    TSequoiaSessionPtr session,
+    TUnreachableSequoiaResolveResult resolveResult,
+    const NRpc::TAuthenticationIdentity& authenticationIdentity)
+{
+    return New<TUnreachableNodeProxy>(bootstrap, std::move(session), resolveResult.Id, authenticationIdentity);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,7 +39,7 @@ struct ISequoiaService
     virtual TInvokeResult TryInvoke(
         const ISequoiaServiceContextPtr& context,
         const TSequoiaSessionPtr& sequoiaSession,
-        const TResolveResult& resolveResult,
+        const TMaybeUnreachableResolveResult& resolveResult,
         const std::vector<NSequoiaClient::TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions) = 0;
 };
 

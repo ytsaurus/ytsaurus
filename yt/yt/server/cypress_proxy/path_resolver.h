@@ -41,6 +41,11 @@ struct TCypressResolveResult
     NYPath::TYPath Path;
 };
 
+struct TUnreachableSequoiaResolveResult
+{
+    NCypressClient::TNodeId Id;
+};
+
 //! Resolves path via Sequoia tables. If path is not resolved returns
 //! |TCypressResolveResult|. Takes optional output parameter #history. History
 //! consists of encountered links.
@@ -51,6 +56,15 @@ TResolveResult ResolvePath(
     TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history = nullptr);
+
+//! The same as ResolvePath() but returns unreachable Sequoia resolve result if
+//! target object ID was not found in resolve table. Used only to allow using
+//! CheckPermission for orphaned nodes without transaction.
+TMaybeUnreachableResolveResult ResolvePathWithUnreachableResultAllowed(
+    const TSequoiaSessionPtr& session,
+    NYPath::TYPath path,
+    TStringBuf service,
+    TStringBuf method);
 
 ////////////////////////////////////////////////////////////////////////////////
 
