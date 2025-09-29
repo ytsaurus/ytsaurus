@@ -1064,10 +1064,10 @@ add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_abs_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_abs_merged.bc
 )
@@ -1341,8 +1341,8 @@ llvm_compile_cxx(library-query-engine.global
 )
 
 llvm_compile_cxx(library-query-engine.global
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/abs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm

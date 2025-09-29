@@ -4,15 +4,11 @@
 #include "udf_cpp_abi.h"
 #endif
 
+#include "platform_specific.h"
+
 namespace NYT::NQueryClient::NUdf {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef __wasm__
-#define WASM_WEAK __attribute__((weak))
-#else
-#define WASM_WEAK
-#endif
 
 inline void WASM_WEAK ClearValue(TUnversionedValue* value)
 {
