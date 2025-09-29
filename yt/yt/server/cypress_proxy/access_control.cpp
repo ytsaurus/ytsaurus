@@ -73,14 +73,15 @@ void LogAndThrowAuthorizationError(
         resultSubjectName = subject->Name;
     }
 
+    const auto& errorPath = nodeAncestry.Back().Path.ToRealPath().Underlying();
     NSecurityServer::LogAndThrowAuthorizationError(
         Logger(),
         target,
         result,
         permission,
         user->Name,
-        nodeAncestry.Back().Path.GetBaseName(),
-        nodeAncestry.Back().Path.ToRealPath().Underlying(),
+        FormatCypressNodeName(errorPath),
+        errorPath,
         resultObjectName,
         resultSubjectName);
 }
