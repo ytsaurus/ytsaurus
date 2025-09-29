@@ -324,4 +324,32 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetDeclaredParametersInfoResult TClient::DoGetDeclaredParametersInfo(const TGetDeclaredParametersInfoOptions& options)
+{
+    TQueryTrackerServiceProxy proxy(
+        Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
+
+    auto req = proxy.GetDeclaredParametersInfo();
+    req->SetTimeout(options.Timeout);
+    req->SetUser(*Options_.User);
+
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    if (options.Settings) {
+        rpcRequest->set_settings(ConvertToYsonString(options.Settings).ToString());
+    }
+    rpcRequest->set_query(options.Query);
+    rpcRequest->set_engine(NProto::ConvertQueryEngineToProto(options.Engine));
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    auto rpcResponse = rsp->rpc_proxy_response();
+
+    return TGetDeclaredParametersInfoResult{
+        .Parameters = TYsonString(rpcResponse.declared_parameters_info()),
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

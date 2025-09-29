@@ -106,3 +106,27 @@ message TRspGetQueryProgress
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetYqlAgentInfo
+{ }
+
+message TRspGetYqlAgentInfo
+{
+    repeated string available_yql_versions = 1;
+    required string default_ui_yql_version = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetDeclaredParametersInfo
+{
+    required string query = 1;
+    optional bytes settings = 2; // YSON
+}
+
+message TRspGetDeclaredParametersInfo
+{
+    required bytes declared_parameters_info = 1; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
