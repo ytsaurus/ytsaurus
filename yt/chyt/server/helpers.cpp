@@ -151,7 +151,9 @@ DB::Field GetMinimumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::DateTime:
             return DB::Field(std::numeric_limits<DB::UInt32>::min());
         case DB::TypeIndex::DateTime64:
-            return DB::Field(std::numeric_limits<DB::Int64>::min());
+            return DB::Field(DB::DecimalField<DB::Decimal64>(
+                std::numeric_limits<DB::Int64>::min(),
+                dynamic_cast<const DB::DataTypeDateTime64*>(dataType.get())->getScale()));
 
         case DB::TypeIndex::String:
             return DB::Field("");
@@ -197,7 +199,9 @@ DB::Field GetMaximumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::DateTime:
             return DB::Field(std::numeric_limits<DB::UInt32>::max());
         case DB::TypeIndex::DateTime64:
-            return DB::Field(std::numeric_limits<DB::Int64>::max());
+            return DB::Field(DB::DecimalField<DB::Decimal64>(
+                std::numeric_limits<DB::Int64>::max(),
+                dynamic_cast<const DB::DataTypeDateTime64*>(dataType.get())->getScale()));
 
         case DB::TypeIndex::String:
             // The "maximum" string does not exist.
@@ -227,7 +231,6 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Int32:
         case DB::TypeIndex::Int64:
         case DB::TypeIndex::Date32:
-        case DB::TypeIndex::DateTime64:
             return DB::Field(field.safeGet<Int64>() - 1);
 
         case DB::TypeIndex::UInt8:
@@ -256,6 +259,11 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             return DB::Field(std::move(value));
         }
 
+        case DB::TypeIndex::DateTime64: {
+            auto decimalField = field.safeGet<DB::DecimalField<DB::Decimal64>>();
+            return DB::Field(DB::DecimalField<DB::Decimal64>(decimalField.getValue() - 1, decimalField.getScale()));
+        }
+
         case DB::TypeIndex::Float32:
         case DB::TypeIndex::Float64:
             // Not implemented yet.
@@ -280,7 +288,6 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
         case DB::TypeIndex::Int32:
         case DB::TypeIndex::Int64:
         case DB::TypeIndex::Date32:
-        case DB::TypeIndex::DateTime64:
             return DB::Field(field.safeGet<Int64>() + 1);
 
         case DB::TypeIndex::UInt8:
@@ -295,6 +302,11 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
             std::string value = field.safeGet<std::string>();
             value.push_back('\0');
             return DB::Field(std::move(value));
+        }
+
+        case DB::TypeIndex::DateTime64: {
+            auto decimalField = field.safeGet<DB::DecimalField<DB::Decimal64>>();
+            return DB::Field(DB::DecimalField<DB::Decimal64>(decimalField.getValue() + 1, decimalField.getScale()));
         }
 
         case DB::TypeIndex::Float32:

@@ -11,6 +11,7 @@
 #include "subquery_spec.h"
 #include "storage_distributor.h"
 #include "table.h"
+#include "read_range_inference.h"
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
@@ -1412,8 +1413,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             if (modifiedWhere && modifiedWhere != currentWhere) {
                 // modifiedWhere contains unresolved identifiers only for the currently processed table expression.
                 // Therefore, we use this table expression as a source for query analysis.
-                DB::QueryAnalysisPass query_analysis_pass(TableExpressions_[index]);
-                query_analysis_pass.run(modifiedWhere, getContext());
+                DB::QueryAnalysisPass queryAnalysisPass(TableExpressions_[index]);
+                queryAnalysisPass.run(modifiedWhere, getContext());
 
                 selectQuery->getWhere() = std::move(modifiedWhere);
 
@@ -1421,10 +1422,10 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                 // Since we changed the query, we need to get new filters to create a KeyCondition with calculated columns.
                 DB::SelectQueryOptions options;
                 DB::Planner planner(QueryInfo_.query_tree, options);
-                const auto & table_filters = planner.getPlannerContext()->getGlobalPlannerContext()->filters_for_table_expressions;
+                const auto & tableFilters = planner.getPlannerContext()->getGlobalPlannerContext()->filters_for_table_expressions;
                 // TODO (buyval01): investigate that computed filter action was added
-                auto it = table_filters.find(TableExpressions_[index]);
-                if (it != table_filters.end()) {
+                auto it = tableFilters.find(TableExpressions_[index]);
+                if (it != tableFilters.end()) {
                     const auto& filters = it->second;
                     // TODO (buyval01) : investigate adding prewhere filters to the common filterActionsDAG.
                     filterActionsDAG = std::make_shared<const DB::ActionsDAG>(filters.filter_actions->clone());
@@ -1440,6 +1441,12 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
             }
 
             keyCondition.emplace(filterActionsDAG.get(), getContext(), schema->GetKeyColumns(), primaryKeyExpression);
+
+            if (settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1) {
+                YT_LOG_DEBUG("Inferring read ranges for %v table", storage->GetTables());
+                result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
+                YT_LOG_DEBUG("Inferred range: %v", result.KeyReadRanges);
+            }
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());

@@ -304,7 +304,7 @@ class Clique(object):
             block_rows += statistics["secondary_query_source"]["block_rows"]["sum"]
 
         if exact is not None:
-            assert block_rows == exact
+            assert block_rows == exact, f"Expected {exact} rows count, but get {block_rows}"
         else:
             assert min <= block_rows <= max
 

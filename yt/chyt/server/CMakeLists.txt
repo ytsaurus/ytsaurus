@@ -75,8 +75,8 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/cluster_nodes.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/columnar_conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/computed_columns.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/config_repository.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/config_repository.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/conversion.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/custom_data_types.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/dictionary_source.cpp
@@ -106,10 +106,12 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_from_yt_step.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_plan.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_range_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/remote_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/revision_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/schema_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_header.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_input_puller.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/sink_to_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/stack_size_checker.cpp
@@ -119,24 +121,23 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_system_clique.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_system_log_table_exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storages_yt_nodes.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_input_puller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery_spec.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_list_log_tables.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_node_attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_secondary_query.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_function_yt_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_functions.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_functions_concat.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_functions_list_dir.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_functions.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/table_traverser.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/tcp_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/user_defined_sql_objects_storage.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/version.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/virtual_column.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_database_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_directory_database.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_block_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/yt_to_ch_column_converter.cpp
