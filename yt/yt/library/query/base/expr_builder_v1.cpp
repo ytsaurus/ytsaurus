@@ -679,7 +679,7 @@ TUntypedExpression TExprBuilderV1::OnExpression(
         return OnCaseOp(caseExpr);
     } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
         return OnLikeOp(likeExpr);
-    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+    } else if (expr->As<NAst::TQueryExpression>()) {
         THROW_ERROR_EXCEPTION("Subqueries in expressions are not supported in expression builder v1.");
     }
 

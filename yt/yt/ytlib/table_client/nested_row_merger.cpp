@@ -172,11 +172,11 @@ TNestedColumnsSchema FilterNestedColumnsSchema(const TNestedColumnsSchema& neste
 {
     bool hasNestedColumns = false;
     for (auto id : columnIds) {
-        if (const auto* ptr = GetNestedColumnById(nestedSchema.KeyColumns, id)) {
+        if (GetNestedColumnById(nestedSchema.KeyColumns, id)) {
             hasNestedColumns = true;
         }
 
-        if (const auto* ptr = GetNestedColumnById(nestedSchema.ValueColumns, id)) {
+        if (GetNestedColumnById(nestedSchema.ValueColumns, id)) {
             hasNestedColumns = true;
         }
     }
@@ -665,11 +665,11 @@ void EnrichColumnFilterWithNestedKeys(TColumnFilter::TIndexes* indexes, const TN
 {
     bool hasNestedColumns = false;
     for (auto id : *indexes) {
-        if (const auto* ptr = GetNestedColumnById(nestedSchema.KeyColumns, id)) {
+        if (GetNestedColumnById(nestedSchema.KeyColumns, id)) {
             hasNestedColumns = true;
         }
 
-        if (const auto* ptr = GetNestedColumnById(nestedSchema.ValueColumns, id)) {
+        if (GetNestedColumnById(nestedSchema.ValueColumns, id)) {
             hasNestedColumns = true;
         }
     }

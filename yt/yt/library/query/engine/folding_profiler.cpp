@@ -2155,7 +2155,7 @@ void TQueryProfiler::Profile(
     size_t resultRowSize = schema->GetColumnCount();
 
     if (!finalMode) {
-        if (auto groupClause = query->GroupClause.Get()) {
+        if (query->GroupClause.Get()) {
             {
                 auto intermediateTypes = std::vector<EValueType>();
 

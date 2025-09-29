@@ -539,7 +539,7 @@ public:
                 }
             }
         }
-        if (auto* columnNode = node->as<DB::ColumnNode>()) {
+        if (node->as<DB::ColumnNode>()) {
             // If we meet a column, it is outside of any function, see needChildVisit.
             HasOnlyMinMax_ = false;
         }
