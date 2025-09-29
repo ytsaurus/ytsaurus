@@ -229,10 +229,10 @@ while [[ $# -gt 0 ]]; do
         shift
         ;;
     --stop)
-        docker stop $ui_container_name $yt_container_name
-        if [ "$(docker ps -q -f name=^/${prometheus_container_name}$)" ]; then
-          docker stop $prometheus_container_name
-        fi
+        docker ps -q --filter "name=${ui_container_name}" \
+                     --filter "name=${yt_container_name}" \
+                     --filter "name=${prometheus_container_name}" | xargs -r docker stop
+
         exit
         ;;
     *) # unknown option
