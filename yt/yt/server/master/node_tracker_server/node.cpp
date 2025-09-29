@@ -717,38 +717,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Annotations_);
     Load(context, Version_);
     Load(context, Flavors_);
-    // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
     Load(context, ReportedHeartbeats_);
     Load(context, ExecNodeIsNotDataNode_);
-    // COMPAT(danilalexeev): YT-23781. Endrsements are now stored at NChunkServer::TChunkLocation.
-    if (context.GetVersion() < EMasterReign::PerLocationNodeHeartbeat) {
-        TChunkLocation::TEndorsementMap replicaEndorsements;
-        Load(context, replicaEndorsements);
-
-        for (auto [chunk, revision] : replicaEndorsements) {
-            // For safety reasons, make a location with the highest index responsible
-            // for endorsement to prevent endorsing the same chunk twice.
-            TChunkLocation* locationWithMaxId = nullptr;
-            for (auto replica : chunk->StoredReplicas()) {
-                auto* location = replica.GetPtr();
-                if (location->GetNode() == this &&
-                    (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()))
-                {
-                    locationWithMaxId = location;
-                }
-            }
-
-            if (!locationWithMaxId) {
-                YT_LOG_ALERT("Chunk replica endorsement lost during migration"
-                    " (ChunkId: %v, Revision: %v)",
-                    chunk->GetId(),
-                    revision);
-                continue;
-            }
-
-            EmplaceOrCrash(locationWithMaxId->ReplicaEndorsements(), chunk, revision);
-        }
-    }
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);

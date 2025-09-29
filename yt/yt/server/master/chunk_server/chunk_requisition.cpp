@@ -134,13 +134,7 @@ void TChunkReplication::Save(NCellMaster::TSaveContext& context) const
 void TChunkReplication::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
-        Load(context, Entries_);
-    } else {
-        static const auto CompatTypicalChunkMediumCount = 7;
-        Entries_ = Load<TCompactVector<TEntry, CompatTypicalChunkMediumCount>>(context);
-    }
+    Load(context, Entries_);
     Load(context, Vital_);
 }
 

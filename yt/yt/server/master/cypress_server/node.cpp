@@ -321,13 +321,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ExternalCellTag_);
     LoadWith<TUniquePtrSerializer<>>(context, LockingState_);
     LoadWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {
-        Load(context, LockMode_);
-    } else {
-        LockMode_ = CheckedEnumCast<ELockMode>(Load<NCypressClient::ECompatLockMode>(context));
-    }
+    Load(context, LockMode_);
     Load(context, ExpirationTime_);
     Load(context, ExpirationTimeout_);
     Load(context, CreationTime_);
@@ -346,13 +340,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     if (Load<bool>(context)) {
         auto key = Load<std::string>(context);
         auto path = Load<TYPath>(context);
-
-        TNodeId parentId = NullObjectId;
-        // COMPAT(kvk1920)
-        if (context.GetVersion() >= EMasterReign::ParentIdForSequoiaNodes) {
-            Load(context, parentId);
-        }
-
+        auto parentId = Load<TNodeId>(context);
         ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
             std::move(key),
             std::move(path),

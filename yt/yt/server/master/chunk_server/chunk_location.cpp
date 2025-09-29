@@ -254,9 +254,7 @@ void TChunkLocation::Load(NCellMaster::TLoadContext& context)
     Load(context, DestroyedReplicas_);
     LoadScratchData_ = std::make_unique<TLoadScratchData>(TSizeSerializer::Load(context));
     Load(context, UnapprovedReplicas_);
-    if (context.GetVersion() >= EMasterReign::PerLocationNodeHeartbeat) {
-        Load(context, ReplicaEndorsements_);
-    }
+    Load(context, ReplicaEndorsements_);
     Load(context, Uuid_);
     Load(context, State_);
     Load(context, MediumOverride_);

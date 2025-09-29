@@ -2762,9 +2762,6 @@ private:
     int NonAvenueTabletCount_ = 0;
 
     // COMPAT(ifsmirnov)
-    bool ForbidAvenuesDuringMigration_ = false;
-
-    // COMPAT(ifsmirnov)
     bool InternalizeBundleResourceQuotaAttribute_ = false;
 
     // COMPAT(babenko)
@@ -4159,8 +4156,6 @@ private:
             Load<THashSet<std::string>>(context);
         }
 
-        ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
-
         // COMPAT(ifsmirnov)
         InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
 
@@ -4221,7 +4216,6 @@ private:
 
         RecomputeAggregateTabletStatistics_ = false;
         RecomputeHunkResourceUsage_ = false;
-        ForbidAvenuesDuringMigration_ = false;
         InternalizeBundleResourceQuotaAttribute_ = false;
         WeakRefTableReplicas_ = false;
     }
@@ -4265,16 +4259,6 @@ private:
         for (auto [id, tablet] : Tablets()) {
             if (tablet->GetState() != ETabletState::Unmounted && !tablet->IsMountedWithAvenue()) {
                 ++NonAvenueTabletCount_;
-            }
-        }
-
-        if (ForbidAvenuesDuringMigration_) {
-            for (auto [id, tablet] : Tablets()) {
-                if (tablet->IsMountedWithAvenue()) {
-                    YT_LOG_FATAL("Tablets mounted with avenues are not allowed during this migration "
-                        "(TabletId: %v)",
-                        id);
-                }
             }
         }
 
