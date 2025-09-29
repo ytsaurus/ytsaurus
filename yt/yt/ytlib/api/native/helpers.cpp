@@ -225,7 +225,7 @@ void CheckPermission(
     EPermission permission)
 {
     NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(tableInfo->TableId),
+        .Path = FromObjectId(tableInfo->TableId),
         .User = options.GetAuthenticatedUser(),
         .Permission = permission,
     };

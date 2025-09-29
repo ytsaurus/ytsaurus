@@ -1067,7 +1067,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
     timer.Restart();
     NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(tableInfo->TableId),
+        .Path = FromObjectId(tableInfo->TableId),
         .User = Options_.GetAuthenticatedUser(),
         .Permission = EPermission::Read,
         .Columns = GetLookupColumns(remappedColumnFilter, *schema),
@@ -1568,7 +1568,7 @@ TDuration TClient::CheckPermissionsForQuery(
             columns.push_back(schema.Original->Columns()[columnDescriptor.Index].Name());
         }
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Object = FromObjectId(id),
+            .Path = FromObjectId(id),
             .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Read,
             .Columns = std::move(columns),
@@ -1592,7 +1592,7 @@ TDuration TClient::CheckPermissionsForQuery(
 
     if (options.ExecutionPool) {
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
+            .Path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
             .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Use,
         });
@@ -2379,7 +2379,7 @@ void TClient::DoTrimTable(
 
     const auto& permissionCache = Connection_->GetPermissionCache();
     NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(tableInfo->TableId),
+        .Path = FromObjectId(tableInfo->TableId),
         .User = Options_.GetAuthenticatedUser(),
         .Permission = NYTree::EPermission::Write
     };
@@ -2910,7 +2910,7 @@ void TClient::DoRegisterQueueConsumer(
         .ValueOrThrow();
 
     NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(queueTableInfo->TableId),
+        .Path = FromObjectId(queueTableInfo->TableId),
         .User = Options_.GetAuthenticatedUser(),
         .Permission = EPermission::RegisterQueueConsumer,
         .Vital = vital,
@@ -2949,13 +2949,13 @@ void TClient::DoUnregisterQueueConsumer(
         const auto& consumerTableInfo = consumerTableInfoOrError.Value();
 
         NSecurityClient::TPermissionKey queuePermissionKey{
-            .Object = FromObjectId(queueTableInfo->TableId),
+            .Path = FromObjectId(queueTableInfo->TableId),
             .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Remove,
         };
 
         NSecurityClient::TPermissionKey consumerPermissionKey{
-            .Object = FromObjectId(consumerTableInfo->TableId),
+            .Path = FromObjectId(consumerTableInfo->TableId),
             .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Remove,
         };

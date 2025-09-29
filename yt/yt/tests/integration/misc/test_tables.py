@@ -2903,6 +2903,33 @@ class TestTables(YTEnvSetup):
         assert len(ls("//sys/chunks", max_size=100500)) == 1
         assert len(get("//sys/chunks", max_size=100500)) == 1
 
+    @authors("coteeq")
+    def test_read_rls_table(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={
+            "inherit_acl": False,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "acl": [
+                dict(action="allow", subjects=["u"], permissions=["read"]),
+                dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate="key in (1, 2)"),
+                dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate="key = 6"),
+            ]
+        })
+
+        rows = []
+        for chunk_index in range(2):
+            chunk_rows = [{"key": i + chunk_index * 5, "value": str(i)} for i in range(5)]
+            write_table("<append=%true>//tmp/t", chunk_rows)
+            rows.extend(chunk_rows)
+
+        with raises_yt_error("Access denied for user \"u\""):
+            read_table("//tmp/t", authenticated_user="u")
+
+        assert read_table("//tmp/t", omit_inaccessible_rows=True, authenticated_user="u") == rows[1:3] + [rows[6]]
+
 
 ##################################################################
 

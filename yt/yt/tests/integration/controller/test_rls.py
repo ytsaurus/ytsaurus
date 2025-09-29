@@ -32,11 +32,11 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @staticmethod
-    def _make_rl_ace(subjects, expression, incompatible_expression_mode=None):
+    def _make_rl_ace(subjects, row_access_predicate, incompatible_row_access_predicate_mode=None):
         ace = make_ace("allow", subjects, "read")
-        ace["expression"] = expression
-        if incompatible_expression_mode:
-            ace["incompatible_expression_mode"] = incompatible_expression_mode
+        ace["row_access_predicate"] = row_access_predicate
+        if incompatible_row_access_predicate_mode:
+            ace["incompatible_row_access_predicate_mode"] = incompatible_row_access_predicate_mode
         return ace
 
     @staticmethod

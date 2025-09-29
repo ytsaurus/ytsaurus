@@ -2084,6 +2084,36 @@ class TestClickHouseCommon(ClickHouseTestBase):
                      'order by (t1.val)')
             assert clique.make_query(query) == [{"res": 3}, {"res": 5}]
 
+    @authors("coteeq")
+    def test_rls(self):
+        with Clique(1) as clique:
+            create_user("u")
+
+            create(
+                "table",
+                "//tmp/t",
+                attributes={
+                    "schema": [
+                        {"name": "key", "type": "int64"},
+                        {"name": "value", "type": "string"}
+                    ]
+                },
+            )
+            write_table("//tmp/t", [{"key": 15, "value": "value2"}])
+
+            acl = [
+                make_ace("allow", "u", "read"),
+                make_ace("allow", "u", "read"),
+            ]
+            acl[-1]["row_access_predicate"] = "key = 15"
+            set("//tmp/t/@acl", acl)
+
+            with raises_yt_error("row-level ACL is present, but is not supported"):
+                clique.make_query('select * from "//tmp/t"', user="u")
+
+            with raises_yt_error("row-level ACL is present, but is not supported"):
+                clique.make_query('select key from "//tmp/t"', user="u")
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")

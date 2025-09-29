@@ -2706,6 +2706,30 @@ class TestQuery(DynamicTablesBase):
         with raises_yt_error("Expected two arguments for \"cast_operator\" function"):
             select_rows("cast_operator(1) from [//tmp/table]", expression_builder_version=2)
 
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_rls(self):
+        sync_create_cells(1)
+        create_user("u")
+        self._create_table(
+            "//tmp/t",
+            [
+                make_sorted_column("key", "int64"),
+                make_column("value", "string"),
+            ],
+            [{"key": 15, "value": "asdf"}]
+        )
+
+        acl = [
+            make_ace("allow", "u", "read"),
+            make_ace("allow", "u", "read"),
+        ]
+        acl[-1]["row_access_predicate"] = "key = 1"
+        set("//tmp/t/@acl", acl)
+
+        with raises_yt_error("row-level ACL is present, but is not supported"):
+            select_rows("* from [//tmp/t]", authenticated_user="u")
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueryRpcProxy(TestQuery):

@@ -5970,6 +5970,7 @@ private:
         NApi::TTableReaderOptions options;
         options.Unordered = request->unordered();
         options.OmitInaccessibleColumns = request->omit_inaccessible_columns();
+        options.OmitInaccessibleRows = request->omit_inaccessible_rows();
         options.EnableTableIndex = request->enable_table_index();
         options.EnableRowIndex = request->enable_row_index();
         options.EnableRangeIndex = request->enable_range_index();
@@ -5989,10 +5990,11 @@ private:
         auto arrowFallbackRowsetFormat = request->arrow_fallback_rowset_format();
 
         context->SetRequestInfo(
-            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
+            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, OmitInaccessibleRows: %v, DesiredRowsetFormat: %v, ArrowFallbackRowsetFormat: %v",
             path,
             options.Unordered,
             options.OmitInaccessibleColumns,
+            options.OmitInaccessibleRows,
             NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat),
             NApi::NRpcProxy::NProto::ERowsetFormat_Name(arrowFallbackRowsetFormat));
 

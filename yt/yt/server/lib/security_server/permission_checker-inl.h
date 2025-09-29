@@ -84,7 +84,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
     // Keeping in mind that row-level ACE must have exactly ["read"] permissions,
     // we can be sure that the caller must have requested read, so we can safely
     // emplace into RowLevelAcl in the response.
-    if (ace.Expression && !Response_.RowLevelAcl) {
+    if (ace.RowAccessPredicate && !Response_.RowLevelAcl) {
         Response_.RowLevelAcl.emplace();
     }
 
@@ -121,11 +121,11 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
                     break;
                 }
             }
-        } else if (ace.Expression) {
+        } else if (ace.RowAccessPredicate) {
             Response_.RowLevelAcl->emplace_back(
-                *ace.Expression,
-                ace.InapplicableExpressionMode
-                    .value_or(NSecurityClient::EInapplicableExpressionMode::Fail));
+                *ace.RowAccessPredicate,
+                ace.InapplicableRowAccessPredicateMode
+                    .value_or(NSecurityClient::EInapplicableRowAccessPredicateMode::Fail));
         } else {
             ProcessMatchingAceAction(
                 &Response_,

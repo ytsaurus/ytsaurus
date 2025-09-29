@@ -1,5 +1,5 @@
-from yt_commands import (authors, raises_yt_error, create_access_control_object_namespace,
-                         create_access_control_object, create_user, make_ace, set as yt_set,
+from yt_commands import (authors, raises_yt_error,
+                         create_user, make_ace, set as yt_set,
                          remove)
 
 from base import ClickHouseTestBase, Clique, QueryFailedError
@@ -10,17 +10,15 @@ import time
 class TestSqlUdf(ClickHouseTestBase):
     def setup_method(self, method):
         super().setup_method(method)
-        create_access_control_object_namespace(name="chyt")
-        create_access_control_object(name="clique", namespace="chyt")
 
     @authors("gudqeit")
     def test_permissions_to_create_function(self):
         create_user("u1")
         create_user("u2")
-        acl = [make_ace("allow", "u1", "manage")]
-        yt_set("//sys/access_control_object_namespaces/chyt/clique/principal/@acl", acl)
 
         with Clique(1, alias="*clique") as clique:
+            acl = [make_ace("allow", "u1", "manage")]
+            yt_set("//sys/access_control_object_namespaces/chyt/clique/principal/@acl", acl)
             query = "create function linear_equation as (x, k, b) -> k*x + b"
 
             with raises_yt_error("Access denied"):

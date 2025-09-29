@@ -269,7 +269,7 @@ public:
     void ValidateCliquePermission(const TString& user, EPermission permission) const
     {
         auto key = TPermissionKey{
-            .Object = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Config_->CliqueAlias)),
+            .Path = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Config_->CliqueAlias)),
             .User = user,
             .Permission = permission,
         };
@@ -285,7 +285,7 @@ public:
         permissionCacheKeys.reserve(paths.size());
         for (const auto& path : paths) {
             permissionCacheKeys.push_back(TPermissionKey{
-                .Object = path.GetPath(),
+                .Path = path.GetPath(),
                 .User = user,
                 .Permission = EPermission::Read,
                 .Columns = path.GetColumns(),

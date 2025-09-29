@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/core/yson/protobuf_helpers.h>
+#include <yt/yt/ytlib/security_client/acl.h>
 
 namespace NYT::NSecurityClient {
 
@@ -23,8 +23,7 @@ using namespace NYTree;
 TPermissionKey::operator size_t() const
 {
     size_t result = 0;
-    HashCombine(result, Object);
-    HashCombine(result, Acl);
+    HashCombine(result, Path);
     HashCombine(result, User);
     HashCombine(result, Permission);
     if (Columns) {
@@ -39,34 +38,26 @@ TPermissionKey::operator size_t() const
         HashCombine(result, 1);
         HashCombine(result, Vital);
     }
+    HashCombine(result, CallerIsRlsAware);
     return result;
-}
-
-void TPermissionKey::AssertValidity() const
-{
-    // Perform sanity check that key is correct only in Debug mode.
-    YT_ASSERT(Object.has_value() || Acl.has_value());
-    YT_ASSERT(!Object.has_value() || !Acl.has_value());
-    YT_ASSERT(Object.has_value() || !Columns.has_value());
-    YT_ASSERT(Object.has_value() || !Vital.has_value());
 }
 
 bool TPermissionKey::operator == (const TPermissionKey& other) const
 {
     return
-        Object == other.Object &&
-        Acl == other.Acl &&
+        Path == other.Path &&
         User == other.User &&
         Permission == other.Permission &&
         Columns == other.Columns &&
-        Vital == other.Vital;
+        Vital == other.Vital &&
+        CallerIsRlsAware == other.CallerIsRlsAware;
 }
 
 void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "%v:%v:%v",
-        key.Object ? TStringBuf(*key.Object) : key.Acl->AsStringBuf(),
+        key.Path,
         key.User,
         key.Permission);
 
@@ -84,6 +75,7 @@ void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TString
 
     append("Columns: %v", key.Columns);
     append("Vital: %v", key.Vital);
+    append("CallerIsRlsAware: %v", key.CallerIsRlsAware);
 
     if (!isFirst) {
         builder->AppendString("}");
@@ -104,13 +96,11 @@ TPermissionCache::TPermissionCache(
     , Connection_(std::move(connection))
 { }
 
-TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate) noexcept
+TFuture<TPermissionValue> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate) noexcept
 {
-    key.AssertValidity();
-
     auto connection = Connection_.Lock();
     if (!connection) {
-        return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+        return MakeFuture<TPermissionValue>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
     TObjectServiceProxy proxy(
@@ -125,24 +115,18 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
 
     return batchReq->Invoke()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            if (key.Object) {
                 auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
-                ParseCheckPermissionResponse(key, rspOrError)
-                    .ThrowOnError();
-            } else {
-                auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCheckPermissionByAcl>(0);
-                ParseCheckPermissionByAclResponse(key, rspOrError)
-                    .ThrowOnError();
-            }
+                return ParseCheckPermissionResponse(key, rspOrError)
+                    .ValueOrThrow();
         }));
 }
 
-TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
+TFuture<std::vector<TErrorOr<TPermissionValue>>> TPermissionCache::DoGetMany(
     const std::vector<TPermissionKey>& keys,
     bool isPeriodicUpdate) noexcept
 {
     if (keys.empty()) {
-        return MakeFuture(std::vector<TError>());
+        return MakeFuture(std::vector<TErrorOr<TPermissionValue>>());
     }
 
     if (!isPeriodicUpdate) {
@@ -151,7 +135,7 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
 
     auto connection = Connection_.Lock();
     if (!connection) {
-        return MakeFuture<std::vector<TError>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+        return MakeFuture<std::vector<TErrorOr<TPermissionValue>>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
     TObjectServiceProxy proxy(
@@ -163,24 +147,18 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
     SetBalancingHeader(batchReq, connection, *Config_->MasterReadOptions);
     batchReq->SetUser(Config_->RefreshUser);
     for (const auto& key : keys) {
-        key.AssertValidity();
         batchReq->AddRequest(MakeRequest(connection, key));
     }
 
     return batchReq->Invoke()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            std::vector<TError> results;
+            std::vector<TErrorOr<TPermissionValue>> results;
             results.reserve(keys.size());
             YT_ASSERT(std::ssize(keys) == batchRsp->GetResponseCount());
             for (int index = 0; index < std::ssize(keys); ++index) {
                 const auto& key = keys[index];
-                if (key.Object) {
-                    const auto& rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(index);
-                    results.push_back(ParseCheckPermissionResponse(key, rspOrError));
-                } else {
-                    const auto& rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCheckPermissionByAcl>(index);
-                    results.push_back(ParseCheckPermissionByAclResponse(key, rspOrError));
-                }
+                const auto& rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(index);
+                results.push_back(ParseCheckPermissionResponse(key, rspOrError));
             }
             return results;
         }));
@@ -195,39 +173,33 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
     const IConnectionPtr& connection,
     const TPermissionKey& key)
 {
+    using NYT::ToProto;
+
     TYPathRequestPtr req;
-    if (key.Object) {
-        auto typedReq = TObjectYPathProxy::CheckPermission(*key.Object);
-        typedReq->set_user(ToProto(key.User));
-        typedReq->set_permission(ToProto(key.Permission));
-        if (key.Columns) {
-            ToProto(typedReq->mutable_columns()->mutable_items(), *key.Columns);
-        }
-        if (key.Vital) {
-            typedReq->set_vital(*key.Vital);
-        }
-        typedReq->set_ignore_safe_mode(true);
-        req = std::move(typedReq);
-    } else {
-        auto typedReq = TMasterYPathProxy::CheckPermissionByAcl();
-        typedReq->set_user(ToProto(key.User));
-        typedReq->set_permission(ToProto(key.Permission));
-        typedReq->set_acl(ToProto(*key.Acl));
-        typedReq->set_ignore_missing_subjects(true);
-        typedReq->set_ignore_pending_removal_subjects(true);
-        req = std::move(typedReq);
+    auto typedReq = TObjectYPathProxy::CheckPermission(key.Path);
+    typedReq->set_user(ToProto(key.User));
+    typedReq->set_permission(ToProto(key.Permission));
+    if (key.Columns) {
+        ToProto(typedReq->mutable_columns()->mutable_items(), *key.Columns);
     }
+    if (key.Vital) {
+        typedReq->set_vital(*key.Vital);
+    }
+    typedReq->set_ignore_safe_mode(true);
+    req = std::move(typedReq);
     SetCachingHeader(req, connection, *Config_->MasterReadOptions);
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
 }
 
-TError TPermissionCache::ParseCheckPermissionResponse(
+TErrorOr<TPermissionValue> TPermissionCache::ParseCheckPermissionResponse(
     const TPermissionKey& key,
     const TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError)
 {
+    using NYT::FromProto;
+
     if (!rspOrError.IsOK()) {
-        return TError("Error checking permissions for %v", key.Object)
+        return TError("Error checking permissions for %v", key.Path)
             << rspOrError;
     }
     const auto& rsp = rspOrError.Value();
@@ -258,25 +230,27 @@ TError TPermissionCache::ParseCheckPermissionResponse(
         }
     }
 
-    return error;
-}
-
-TError TPermissionCache::ParseCheckPermissionByAclResponse(
-    const TPermissionKey& key,
-    const TMasterYPathProxy::TErrorOrRspCheckPermissionByAclPtr& rspOrError)
-{
-    if (!rspOrError.IsOK()) {
-        return rspOrError;
+    if (!error.IsOK()) {
+        return error;
     }
-    const auto& rsp = rspOrError.Value();
 
-    NApi::TCheckPermissionByAclResult result;
-    result.Action = FromProto<ESecurityAction>(rsp->action());
-    result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
-    result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
-    result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
-    result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
-    return result.ToError(key.User, key.Permission);
+    if (rsp->has_row_level_acl()) {
+        if (key.CallerIsRlsAware) {
+            return TPermissionValue{
+                .RowLevelAcl = FromProto<std::vector<TRowLevelAccessControlEntry>>(rsp->row_level_acl().items()),
+            };
+        } else {
+            auto error = TError(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "Access denied for user %Qv: row-level ACL is present, but is not supported by this method yet",
+                key.User);
+            error <<= TErrorAttribute("user", key.User);
+            error <<= TErrorAttribute("permission", key.Permission);
+            return error;
+        }
+    }
+
+    return TErrorOr<TPermissionValue>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

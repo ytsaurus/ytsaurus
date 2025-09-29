@@ -16,21 +16,17 @@ namespace NYT::NSecurityClient {
 
 struct TPermissionKey
 {
-    // Exactly one of the two fields below should be present.
-    //! If set, permission will be validated via `CheckPermission` YPath request for this object.
-    std::optional<NYPath::TYPath> Object;
-    //! If set, permission will by validated via `CheckPermissionByAcl` YPath request against this ACL.
-    std::optional<NYson::TYsonString> Acl;
+    //! Permission will be validated via `CheckPermission` YPath request for this path.
+    NYPath::TYPath Path;
 
     std::string User;
     NYTree::EPermission Permission;
 
-    // Fields below may be specified only when `Object` is set.
-
     std::optional<std::vector<std::string>> Columns;
     std::optional<bool> Vital;
 
-    void AssertValidity() const;
+    // COMPAT(coteeq)
+    bool CallerIsRlsAware = false;
 
     // Hasher.
     operator size_t() const;
@@ -42,12 +38,17 @@ struct TPermissionKey
     friend void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TStringBuf /*spec*/);
 };
 
+struct TPermissionValue
+{
+    std::optional<std::vector<TRowLevelAccessControlEntry>> RowLevelAcl;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This cache is able to store cached results both for `CheckPermission` and `CheckPermissionByAcl`
 //! YPath requests.
 class TPermissionCache
-    : public TAsyncExpiringCache<TPermissionKey, void>
+    : public TAsyncExpiringCache<TPermissionKey, TPermissionValue>
 {
 public:
     TPermissionCache(
@@ -59,10 +60,10 @@ private:
     const TPermissionCacheConfigPtr Config_;
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
 
-    TFuture<void> DoGet(
+    TFuture<TPermissionValue> DoGet(
         const TPermissionKey& key,
         bool isPeriodicUpdate) noexcept override;
-    TFuture<std::vector<TError>> DoGetMany(
+    TFuture<std::vector<TErrorOr<TPermissionValue>>> DoGetMany(
         const std::vector<TPermissionKey>& keys,
         bool isPeriodicUpdate) noexcept override;
 
@@ -77,12 +78,9 @@ private:
         const NApi::NNative::IConnectionPtr& connection,
         const TPermissionKey& key);
 
-    TError ParseCheckPermissionResponse(
+    TErrorOr<TPermissionValue> ParseCheckPermissionResponse(
         const TPermissionKey& key,
         const NObjectClient::TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError);
-    TError ParseCheckPermissionByAclResponse(
-        const TPermissionKey& key,
-        const NObjectClient::TMasterYPathProxy::TErrorOrRspCheckPermissionByAclPtr& rspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCache)

@@ -1,5 +1,5 @@
-from yt_commands import (authors, create_access_control_object_namespace,
-                         create_access_control_object, create, exists, read_table, write_table,
+from yt_commands import (authors,
+                         create, exists, read_table, write_table,
                          raises_yt_error, create_user, set, make_ace, wait)
 
 from yt.test_helpers import assert_items_equal
@@ -24,8 +24,6 @@ class TestQueriesChyt(ClickHouseTestBase):
 
     def setup_method(self, method):
         super().setup_method(method)
-        create_access_control_object_namespace(name="chyt")
-        create_access_control_object(name="ch_alias", namespace="chyt")
 
     @authors("gudqeit")
     def test_simple_query(self, query_tracker):
@@ -175,13 +173,13 @@ class TestQueriesChyt(ClickHouseTestBase):
     @authors("gudqeit")
     def test_user_has_no_access_to_clique(self, query_tracker):
         create_user("u1")
-        acl = [make_ace("deny", "u1", "use")]
-        set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
 
         table_schema = [{"name": "value", "type": "int64"}]
         create("table", "//tmp/test_table", attributes={"schema": table_schema})
 
         with Clique(1, alias="*ch_alias"):
+            acl = [make_ace("deny", "u1", "use")]
+            set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
             settings = {
                 "clique": "ch_alias",
                 "cluster": "primary",
@@ -199,14 +197,14 @@ class TestQueriesChyt(ClickHouseTestBase):
     @authors("gudqeit")
     def test_user_has_no_access_to_data(self, query_tracker):
         create_user("u1")
-        acl = [make_ace("allow", "u1", "use")]
-        set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
 
         acl = [make_ace("deny", "u1", "read")]
         table_schema = [{"name": "value", "type": "int64"}]
         create("table", "//tmp/test_table", attributes={"schema": table_schema, "acl": acl})
 
         with Clique(1, alias="*ch_alias"):
+            acl = [make_ace("allow", "u1", "use")]
+            set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
             settings = {
                 "clique": "ch_alias",
                 "cluster": "primary",
