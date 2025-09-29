@@ -322,6 +322,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
             auto supportedFeraturesMap = ConvertToNode(supportedFeaturesYson)->AsMap();
             supportedFeraturesMap->AddChild("new_search_on_proxies", ConvertToNode(true));
             supportedFeraturesMap->AddChild("not_indexing_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("declare_on_proxies", ConvertToNode(true));
             mergedSupportedFeatures = ConvertToYsonString(supportedFeraturesMap);
         }
     }

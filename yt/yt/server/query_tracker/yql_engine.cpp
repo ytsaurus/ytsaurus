@@ -404,6 +404,9 @@ public:
             .BeginMap()
                 .Item("available_yql_versions").Value(availableYqlVersions)
                 .Item("default_yql_ui_version").Value(defaultYqlUIVersion)
+                .Item("supported_features").Value(getYqlAgentInfoResponse->has_supported_features()
+                    ? TYsonString(getYqlAgentInfoResponse->supported_features())
+                    : TYsonString(TString("{}")))
             .EndMap();
     }
 

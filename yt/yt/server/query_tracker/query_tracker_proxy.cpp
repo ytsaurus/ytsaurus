@@ -966,6 +966,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
                 .Item("multiple_aco").Value(true)
                 .Item("new_search").Value(true)
                 .Item("not_indexing").Value(true)
+                .Item("declare").Value(true)
             .EndMap();
     }
 
