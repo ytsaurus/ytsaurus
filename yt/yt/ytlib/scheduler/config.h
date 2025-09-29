@@ -1318,9 +1318,6 @@ struct TOperationSpecBase
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
 
-    //! COMPAT(apollo1321): remove in 25.2.
-    bool UseNewSlicingImplementationInUnorderedPool;
-
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

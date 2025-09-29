@@ -18,8 +18,6 @@ from yt.common import YtError
 
 from yt.yson.yson_types import YsonEntity
 
-from copy import deepcopy
-
 import pytest
 import random
 import string
@@ -875,18 +873,6 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         )
         op.track()
         self._expect_data_weight_statistics(None, None, "a", [8], fetcher_mode="from_master")
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
-class TestColumnarStatisticsOperationsWithOldSlicing(TestColumnarStatisticsOperations):
-    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestColumnarStatisticsOperations, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
-    DELTA_CONTROLLER_AGENT_CONFIG \
-        .setdefault("controller_agent", {}) \
-        .setdefault("operation_options", {}) \
-        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################

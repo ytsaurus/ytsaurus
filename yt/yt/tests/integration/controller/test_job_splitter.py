@@ -7,8 +7,6 @@ from yt_commands import (
 
 import pytest
 
-from copy import deepcopy
-
 
 @pytest.mark.enabled_multidaemon
 class TestJobSplitter(YTEnvSetup):
@@ -483,15 +481,3 @@ done
         interrupted = completed["interrupted"]
         assert completed["total"] >= 6
         assert interrupted["job_split"] >= 1
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
-class TestJobSplitterWithOldSlicing(TestJobSplitter):
-    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestJobSplitter, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
-    DELTA_CONTROLLER_AGENT_CONFIG \
-        .setdefault("controller_agent", {}) \
-        .setdefault("operation_options", {}) \
-        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False

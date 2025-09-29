@@ -26,8 +26,6 @@ struct TUnorderedChunkPoolOptions
     NTableClient::TRowBufferPtr RowBuffer;
     NLogging::TSerializableLogger Logger;
     NScheduler::ESingleChunkTeleportStrategy SingleChunkTeleportStrategy = NScheduler::ESingleChunkTeleportStrategy::Disabled;
-    // COMPAT(apollo1321): Remove in 25.2.
-    bool UseNewSlicingImplementation = true;
 };
 
 IPersistentChunkPoolPtr CreateUnorderedChunkPool(
