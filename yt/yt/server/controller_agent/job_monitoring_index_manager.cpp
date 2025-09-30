@@ -48,8 +48,7 @@ std::optional<int> TJobMonitoringIndexManager::TryAddIndex(TOperationId operatio
 {
     auto guard = TGuard(SpinLock_);
 
-    YT_VERIFY(Size_ <= MaxSize_);
-    if (Size_ == MaxSize_) {
+    if (Size_ >= MaxSize_) {
         ++NotAddedIndexesCount_;
         return std::nullopt;
     }
