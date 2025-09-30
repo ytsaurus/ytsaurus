@@ -244,6 +244,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
 
     rpcRequest->set_search_by_token_prefix(options.SearchByTokenPrefix);
     rpcRequest->set_use_full_text_search(options.UseFullTextSearch);
+    rpcRequest->set_tutorial_filter(options.TutorialFilter);
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
