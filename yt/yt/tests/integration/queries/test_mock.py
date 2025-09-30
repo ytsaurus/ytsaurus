@@ -179,7 +179,7 @@ class TestQueriesMock(YTEnvSetup):
         assert "assigned_tracker" in finished_query_info
         assert finished_query_info["assigned_tracker"] == active_query_info["assigned_tracker"]
 
-    @authors("max42")
+    @authors("max42", "kirsiv40")
     def test_list(self, query_tracker):
         create_user("u1")
         create_user("u2")
@@ -237,6 +237,22 @@ class TestQueriesMock(YTEnvSetup):
         expect_queries([q4, q3, q2, q0], list_queries(state="failed"))
         expect_queries([q5], list_queries(state="running"))
         expect_queries([q1], list_queries(state="completed"))
+
+        def check_sort_order(future_expected_asc, past_expected_asc, incomplete=False, **list_queries_kwargs):
+            expect_queries(future_expected_asc, list_queries(cursor_direction="future", sort_order="ascending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(future_expected_asc[::-1], list_queries(cursor_direction="future", sort_order="descending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(future_expected_asc[::-1], list_queries(cursor_direction="future", sort_order="cursor", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(future_expected_asc[::-1], list_queries(cursor_direction="future", **list_queries_kwargs), incomplete=incomplete)
+
+            expect_queries(past_expected_asc, list_queries(cursor_direction="past", sort_order="ascending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(past_expected_asc[::-1], list_queries(cursor_direction="past", sort_order="descending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(past_expected_asc, list_queries(cursor_direction="past", sort_order="cursor", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(past_expected_asc, list_queries(cursor_direction="past", **list_queries_kwargs), incomplete=incomplete)
+
+        check_sort_order([q0, q1, q2, q3, q4, q5, q6], [q0, q1, q2, q3, q4, q5, q6], incomplete=False)
+        check_sort_order([q0, q1], [q5, q6], incomplete=True, limit=2)
+        check_sort_order([q4, q5, q6], [q0, q1, q2], incomplete=False, cursor_time=q_times[3])
+        check_sort_order([q4, q5], [q1, q2], incomplete=True, limit=2, cursor_time=q_times[3])
 
     @authors("max42")
     def test_draft(self, query_tracker):

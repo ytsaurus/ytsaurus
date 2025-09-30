@@ -2627,6 +2627,10 @@ func writeListQueriesOptions(w *yson.Writer, o *yt.ListQueriesOptions) {
 		w.MapKeyString("limit")
 		w.Any(o.Limit)
 	}
+	if o.SortOrder != nil {
+		w.MapKeyString("sort_order")
+		w.Any(o.SortOrder)
+	}
 	if o.Attributes != nil {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)

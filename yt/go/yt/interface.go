@@ -1650,10 +1650,11 @@ type ListQueriesOptions struct {
 	CursorDirection *OperationSortDirection `http:"cursor_direction,omitnil"`
 	UserFilter      *string                 `http:"user_filter,omitnil"`
 
-	StateFilter  *QueryState  `http:"state_filter,omitnil"`
-	EngineFilter *QueryEngine `http:"engine_filter,omitnil"`
-	SubstrFilter *string      `http:"substr_filter,omitnil"`
-	Limit        *int64       `http:"limit,omitnil"`
+	StateFilter  *QueryState           `http:"state_filter,omitnil"`
+	EngineFilter *QueryEngine          `http:"engine_filter,omitnil"`
+	SubstrFilter *string               `http:"substr_filter,omitnil"`
+	Limit        *int64                `http:"limit,omitnil"`
+	SortOrder    *ListQueriesSortOrder `http:"sort_order,omitnil"`
 
 	Attributes []string `http:"attributes,omitnil"`
 

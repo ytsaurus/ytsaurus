@@ -102,17 +102,33 @@ struct TSearchMetaRecordKeyComparator
     }
 };
 
-struct TQueryComparator
+struct TSortOrderComparator
 {
-    EOperationSortDirection CursorDirection;
+    EListQueriesSortOrder SortOrder;
 
-    TQueryComparator(EOperationSortDirection cursorDirection)
-        : CursorDirection(cursorDirection)
+    TSortOrderComparator(EListQueriesSortOrder sortOrder)
+        : SortOrder(sortOrder)
     { }
 
     bool operator()(const TQuery& lhs, const TQuery& rhs)
     {
-        return CursorDirection == EOperationSortDirection::Past
+        return SortOrder == EListQueriesSortOrder::Descending
+            ? std::tie(lhs.StartTime, lhs.Query) > std::tie(rhs.StartTime, rhs.Query)
+            : std::tie(lhs.StartTime, lhs.Query) < std::tie(rhs.StartTime, rhs.Query);
+    };
+};
+
+struct TCursorComparator
+{
+    EOperationSortDirection Cursor;
+
+    TCursorComparator(EOperationSortDirection cursor)
+        : Cursor(cursor)
+    { }
+
+    bool operator()(const TQuery& lhs, const TQuery& rhs)
+    {
+        return Cursor == EOperationSortDirection::Past
             ? std::tie(lhs.StartTime, lhs.Query) > std::tie(rhs.StartTime, rhs.Query)
             : std::tie(lhs.StartTime, lhs.Query) < std::tie(rhs.StartTime, rhs.Query);
     };
@@ -340,7 +356,11 @@ protected:
 
         auto queries = RunAsyncAndConcatenate<TQuery>(callbacks);
 
-        std::sort(queries.begin(), queries.end(), TQueryComparator(options.CursorDirection));
+        if (options.SortOrder != EListQueriesSortOrder::Cursor) {
+            std::sort(queries.begin(), queries.end(), TSortOrderComparator(options.SortOrder));
+        } else {
+            std::sort(queries.begin(), queries.end(), TCursorComparator(options.CursorDirection));
+        }
         queries.erase(std::unique(queries.begin(), queries.end(), [&](const TQuery& lhs, const TQuery& rhs) { return lhs.Id == rhs.Id; }), queries.end());
 
         if (!indexSearchOptions.Attributes ||
@@ -627,12 +647,17 @@ public:
         }
 
         if (options.CursorDirection != EOperationSortDirection::None) {
-            std::sort(queries.begin(), queries.end(), TQueryComparator(options.CursorDirection));
+            std::sort(queries.begin(), queries.end(), TCursorComparator(options.CursorDirection));
         }
+
         if (queries.size() > options.Limit) {
             incomplete = true;
         }
         queries.resize(std::min(queries.size(), options.Limit));
+
+        if (options.SortOrder != EListQueriesSortOrder::Cursor) {
+            std::sort(queries.begin(), queries.end(), TSortOrderComparator(options.SortOrder));
+        }
 
         if (!indexSearchOptions.Attributes ||
             std::find(indexSearchOptions.Attributes.Keys().begin(), indexSearchOptions.Attributes.Keys().end(), "access_control_object") != indexSearchOptions.Attributes.Keys().end())
