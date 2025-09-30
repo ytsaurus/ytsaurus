@@ -247,7 +247,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, ListQueries)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqListQueries::GetDescriptor()->field_count() == 13);
+        YT_VERIFY(NRpcProxy::NProto::TReqListQueries::GetDescriptor()->field_count() == 14);
         YT_VERIFY(NRpcProxy::NProto::TRspListQueries::GetDescriptor()->field_count() == 3);
 
         auto rpcRequest = request->rpc_proxy_request();
