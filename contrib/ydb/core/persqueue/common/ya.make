@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    actor.cpp
     common_app.cpp
     heartbeat.cpp
     key.cpp
@@ -12,6 +13,7 @@ GENERATE_ENUM_SERIALIZATION(sourceid_info.h)
 PEERDIR(
     library/cpp/monlib/service/pages
     contrib/ydb/core/persqueue/public
+    contrib/ydb/core/persqueue/public/partition_key_range
     contrib/ydb/library/actors/core
     contrib/ydb/library/logger
 )

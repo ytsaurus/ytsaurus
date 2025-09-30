@@ -12,7 +12,6 @@ SRCS(
 PEERDIR(
     contrib/ydb/library/actors/core
     contrib/ydb/core/base
-    contrib/ydb/core/persqueue/config
     contrib/ydb/core/protos
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat
