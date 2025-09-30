@@ -56,7 +56,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/export
     contrib/ydb/core/tx/columnshard/loading
     contrib/ydb/core/tx/columnshard/normalizer
-    contrib/ydb/core/tx/columnshard/overload
+    contrib/ydb/core/tx/columnshard/overload_manager
     contrib/ydb/core/tx/columnshard/operations
     contrib/ydb/core/tx/columnshard/resource_subscriber
     contrib/ydb/core/tx/columnshard/splitter

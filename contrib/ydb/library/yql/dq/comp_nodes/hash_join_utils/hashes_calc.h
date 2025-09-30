@@ -2,7 +2,7 @@
 
 #include <util/system/unaligned_mem.h>
 
-#include <contrib/ydb/library/yql/utils/simd/simd.h>
+#include <contrib/ydb/library/yql/dq/comp_nodes/hash_join_utils/simd/simd.h>
 
 namespace NKikimr {
 namespace NMiniKQL {

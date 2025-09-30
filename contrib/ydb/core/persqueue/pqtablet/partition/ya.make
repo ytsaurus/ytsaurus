@@ -2,7 +2,7 @@ LIBRARY()
 
 SRCS(
     account_read_quoter.cpp
-    mirrorer.cpp
+    autopartitioning_manager.cpp
     offload_actor.cpp
     ownerinfo.cpp
     partition.cpp
@@ -28,16 +28,19 @@ PEERDIR(
     contrib/ydb/core/backup/impl
     contrib/ydb/core/persqueue/events
     contrib/ydb/core/persqueue/common
-    contrib/ydb/core/persqueue/common/proxy
     contrib/ydb/core/persqueue/public/counters
     contrib/ydb/core/persqueue/public/write_meta
-    contrib/ydb/core/persqueue/partition_key_range
     contrib/ydb/core/persqueue/pqtablet/blob
     contrib/ydb/core/persqueue/pqtablet/cache
     contrib/ydb/core/persqueue/pqtablet/common
+    contrib/ydb/core/persqueue/pqtablet/partition/mirrorer
 )
 
 END()
+
+RECURSE(
+    mirrorer
+)
 
 RECURSE_FOR_TESTS(
 )

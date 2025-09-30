@@ -1,10 +1,13 @@
 #pragma once
 
-#include <contrib/ydb/core/fq/libs/config/protos/row_dispatcher.pb.h>
 #include <util/generic/ptr.h>
 #include <contrib/ydb/library/actors/core/actor.h>
 #include <contrib/ydb/public/sdk/cpp/include/ydb-cpp-sdk/client/driver/driver.h>
 #include <contrib/ydb/library/yql/providers/pq/provider/yql_pq_gateway.h>
+
+namespace NKikimrConfig {
+class TSharedReadingConfig;
+} // namespace NKikimrConfig
 
 namespace NFq::NRowDispatcher {
 
@@ -16,7 +19,8 @@ struct IActorFactory : public TThrRefBase {
         const TString& topicPath,
         const TString& endpoint,
         const TString& database,
-        const NConfig::TRowDispatcherConfig& config,
+        const NKikimrConfig::TSharedReadingConfig& config,
+        const NKikimr::NMiniKQL::IFunctionRegistry* functionRegistry,
         NActors::TActorId rowDispatcherActorId,
         NActors::TActorId compileServiceActorId,
         ui32 partitionId,

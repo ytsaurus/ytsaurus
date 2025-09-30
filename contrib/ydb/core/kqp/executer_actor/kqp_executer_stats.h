@@ -1,10 +1,10 @@
 #pragma once
 
 #include "kqp_tasks_graph.h"
-#include <util/generic/vector.h>
-#include <contrib/ydb/library/yql/dq/actors/protos/dq_stats.pb.h>
-#include <contrib/ydb/library/yql/dq/actors/protos/dq_events.pb.h>
+
 #include <contrib/ydb/core/protos/query_stats.pb.h>
+#include <contrib/ydb/library/yql/dq/actors/protos/dq_events.pb.h>
+#include <contrib/ydb/library/yql/dq/actors/protos/dq_stats.pb.h>
 #include <contrib/ydb/library/yql/dq/runtime/dq_tasks_counters.h>
 
 namespace NKikimr {

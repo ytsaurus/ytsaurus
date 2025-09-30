@@ -18,7 +18,6 @@ PEERDIR(
     contrib/ydb/core/engine/minikql
     contrib/ydb/core/persqueue/events
     contrib/ydb/core/persqueue/common
-    contrib/ydb/core/persqueue/partition_key_range
 )
 
 END()
