@@ -782,6 +782,13 @@ class YTEnvSetup(object):
         return [cls.get_cluster_name(cluster_index) for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1)]
 
     @classmethod
+    def is_sequoia_used(cls):
+        for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
+            if cls.get_param("USE_SEQUOIA", cluster_index):
+                return True
+        return False
+
+    @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
@@ -846,13 +853,13 @@ class YTEnvSetup(object):
             "disk_ssd")
 
         cls.primary_cluster_path = cls.path_to_run
-        if cls.NUM_REMOTE_CLUSTERS > 0 or cls.USE_SEQUOIA:
+        if cls.NUM_REMOTE_CLUSTERS > 0 or cls.is_sequoia_used():
             cls.primary_cluster_path = os.path.join(cls.path_to_run, "primary")
 
-        if cls.USE_SEQUOIA:
+        if cls.is_sequoia_used():
             cls.USE_PRIMARY_CLOCKS = False
 
-        if cls.USE_SEQUOIA != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
+        if cls.is_sequoia_used() != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
             cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
         try:
