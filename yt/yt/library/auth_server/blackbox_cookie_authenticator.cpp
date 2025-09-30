@@ -157,7 +157,7 @@ private:
             auto statusString = status.has_value() ? Format("%lv", *status) : "unknown";
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected session cookie")
                 << TErrorAttribute("reason", reason)
-                << TErrorAttribute("bb_status_string", statusString);
+                << TErrorAttribute("blackbox_status_string", statusString);
         }
 
         auto login = BlackboxService_->GetLogin(data);
