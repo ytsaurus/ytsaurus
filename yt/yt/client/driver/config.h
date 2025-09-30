@@ -54,6 +54,9 @@ struct TDriverConfig
     //! Controls whether authentication commands (SetUserPassword, IssueToken, ListUserTokens, etc.) require a correct password to be used.
     bool RequirePasswordInAuthenticationCommands;
 
+    //! If true, forces the `administer` permission requirement for setting a user’s password.
+    bool RequireAdministerForPasswordSet;
+
     REGISTER_YSON_STRUCT(TDriverConfig);
 
     static void Register(TRegistrar registrar);
