@@ -248,17 +248,11 @@ public:
             return result;
         }
 
-        if (GetDynamicConfig()->AlwaysIncludeUnapprovedReplicas) {
-            includeUnapproved = true;
-        }
-
         THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> masterReplicasInSequoiaSkin;
         THashMap<TChunkId, std::vector<TSequoiaChunkReplica>> unapprovedMasterReplicasInSequoiaSkin;
         // We only need these for validation.
         // If validation is disabled master replicas will be fetched below (in CombineReplicas).
         if (validate) {
-            includeUnapproved = false;
-
             for (const auto& chunk : chunks) {
                 auto masterReplicas = chunk->StoredReplicas();
                 std::vector<TSequoiaChunkReplica> replicas;
