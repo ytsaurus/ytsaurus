@@ -967,6 +967,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
                 .Item("new_search").Value(true)
                 .Item("not_indexing").Value(true)
                 .Item("declare").Value(true)
+                .Item("tutorials").Value(true)
             .EndMap();
     }
 

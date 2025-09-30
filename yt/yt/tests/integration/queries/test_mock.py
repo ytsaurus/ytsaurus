@@ -765,7 +765,9 @@ class TestGetQueryTrackerInfo(YTEnvSetup):
         'not_indexing': True,
         'not_indexing_on_proxies': True,
         'declare': True,
-        'declare_on_proxies': True
+        'declare_on_proxies': True,
+        'tutorials': True,
+        'tutorials_on_proxies': True
     }
 
     @authors("aleksandr.gaev", "kirsiv40", "mpereskokova")
@@ -1546,7 +1548,8 @@ class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
         'multiple_aco': True,
         'new_search': True,
         'not_indexing': True,
-        'declare': True
+        'declare': True,
+        'tutorials': True
     }
 
 
