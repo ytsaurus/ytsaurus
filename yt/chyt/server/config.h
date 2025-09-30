@@ -616,6 +616,21 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDictionaryRepositoryConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+    NYPath::TYPath Path;
+
+    REGISTER_YSON_STRUCT(TDictionaryRepositoryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDictionaryRepositoryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSystemLogTableExporterConfig
     : public NServer::TArchiveReporterConfig
 {
@@ -746,6 +761,8 @@ struct TYtConfig
     TQuerySamplingConfigPtr QuerySampling;
 
     TUserDefinedSqlObjectsStorageConfigPtr UserDefinedSqlObjectsStorage;
+
+    TDictionaryRepositoryConfigPtr DictionaryRepository;
 
     TSystemLogTableExportersConfigPtr SystemLogTableExporters;
 

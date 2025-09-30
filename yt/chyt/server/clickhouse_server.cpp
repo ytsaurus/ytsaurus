@@ -3,6 +3,7 @@
 #include "clickhouse_config.h"
 #include "clickhouse_singletons.h"
 #include "config_repository.h"
+#include "cypress_config_repository.h"
 #include "config.h"
 #include "helpers.h"
 #include "host.h"
@@ -175,6 +176,7 @@ private:
     std::shared_ptr<DB::IDatabase> SystemDatabase_;
 
     scope_guard DictionaryGuard_;
+    scope_guard CypressDictionaryGuard_;
 
     void SetupLogger()
     {
@@ -301,6 +303,13 @@ private:
 
         DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries));
 
+        if (Host_->GetConfig()->DictionaryRepository->Enabled) {
+            YT_LOG_DEBUG("Adding repository for loading dictionaries from cypress");
+
+            CypressDictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(
+                CreateExternalLoaderFromCypressConfigRepository(Host_->GetCypressDictionaryConfigRepository()));
+        }
+
         YT_LOG_DEBUG("Setting chyt custom setting prefix");
 
         accessControl.setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
@@ -347,6 +356,9 @@ private:
     {
         YT_LOG_INFO("Warming up dictionaries");
         ServerContext_->getEmbeddedDictionaries();
+        if (Host_->GetConfig()->DictionaryRepository->Enabled) {
+            ServerContext_->getExternalDictionariesLoader().reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName);
+        }
         YT_LOG_INFO("Finished warming up");
     }
 

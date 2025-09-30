@@ -2,7 +2,7 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_async_expiring_cache_config
 
-from yt_commands import (authors, write_table, create, remove, raises_yt_error)
+from yt_commands import (authors, write_table, create, remove, raises_yt_error, exists)
 
 import time
 from flaky import flaky
@@ -210,3 +210,114 @@ class TestYtDictionaries(ClickHouseTestBase):
         with Clique(1) as clique:
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select dictGetString('this_dict_does_not_exist', 'value', 1)")
+
+    @authors("denmogilevec")
+    def test_create_dictionary(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": i, "b": 2 * i} for i in range(3)])
+        with Clique(2, alias="test_alias") as clique:
+            clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+            test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+            assert clique.make_query(test_query) == [{"value": 2}]
+            instances = clique.get_active_instances()
+            for instance in instances:
+                assert clique.make_direct_query(instance, test_query) == [{"value": 2}]
+
+    @authors("denmogilevec")
+    def test_dictionary_persistence(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": i, "b": 2 * i} for i in range(3)])
+        test_alias = "test_alias"
+        with Clique(2, alias=test_alias) as clique:
+            clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+
+            test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+            dictionary_path = f"//sys/strawberry/chyt/{test_alias}/dictionaries/t_dict"
+            clique.op.suspend()
+            time.sleep(5)
+            clique.op.resume()
+            assert clique.make_query(test_query) == [{"value": 2}]
+            assert exists(dictionary_path)
+
+    @authors("denmogilevec")
+    def test_dictionary_underlying_table_invalidation(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": i, "b": 2 * i} for i in range(3)])
+        with Clique(2, alias="test_alias") as clique:
+            instances = clique.get_active_instances()
+            clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 1 MAX 1);")
+            test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+
+            assert clique.make_query(test_query) == [{"value": 2}]
+
+            write_table("//tmp/t", [{"a": i, "b": 3 * i} for i in range(3)])
+            time.sleep(5)
+
+            assert clique.make_direct_query(instances[0], test_query) == [{"value": 3}]
+            assert clique.make_direct_query(instances[1], test_query) == [{"value": 3}]
+
+    @authors("denmogilevec")
+    def test_drop_dictionary(self):
+        schema = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("//tmp/t", [{"a": i, "b": 2 * i} for i in range(3)])
+        with Clique(2, alias="test_alias") as clique:
+            instances = clique.get_active_instances()
+            clique.make_query("CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+            test_query = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+
+            assert clique.make_query(test_query) == [{"value": 2}]
+
+            clique.make_direct_query(instances[0], "DROP DICTIONARY t_dict")
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_direct_query(instances[1], test_query)
+
+    @authors("denmogilevec")
+    def test_dictionary_ddl_consistency(self):
+        schema1 = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "int64", "required": True},
+        ]
+        schema2 = [
+            {"name": "a", "type": "uint64", "sort_order": "ascending", "required": True},
+            {"name": "b", "type": "string", "required": True},
+        ]
+        create("table", "//tmp/t1", attributes={"schema": schema1})
+        create("table", "//tmp/t2", attributes={"schema": schema2})
+        write_table("//tmp/t1", [{"a": i, "b": 2 * i} for i in range(3)])
+        write_table("//tmp/t2", [{"a": i, "b": str(i)} for i in range(3)])
+        with Clique(2, alias="test_alias") as clique:
+            instances = clique.get_active_instances()
+            clique.make_direct_query(instances[0], "CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t1')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+            test_query_1 = "Select dictGetInt64('t_dict', 'b', CAST(1 as Int64)) as value"
+            assert clique.make_direct_query(instances[1], test_query_1) == [{"value": 2}]
+
+            clique.make_direct_query(instances[1], "DROP DICTIONARY t_dict")
+            with raises_yt_error(QueryFailedError):
+                clique.make_direct_query(instances[0], test_query_1)
+
+            clique.make_direct_query(instances[1], "CREATE DICTIONARY t_dict (`a` Int64, `b` String) PRIMARY KEY a SOURCE(Yt(Path '//tmp/t2')) LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600);")
+            test_query_2 = "Select dictGetString('t_dict', 'b', CAST(2 as Int64)) as value"
+            assert clique.make_direct_query(instances[0], test_query_2) == [{"value": "2"}]
+
+    @authors("denmogilevec")
+    def test_drop_not_existing_dictionary(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("DROP DICTIONARY this_dict_does_not_exist")

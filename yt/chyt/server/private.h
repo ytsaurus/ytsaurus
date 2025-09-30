@@ -82,6 +82,7 @@ DECLARE_REFCOUNTED_CLASS(TPocoOpenSslConfigEntry)
 DECLARE_REFCOUNTED_STRUCT(TPocoOpenSslConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueryCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TUserDefinedSqlObjectsStorageConfig)
+DECLARE_REFCOUNTED_STRUCT(TDictionaryRepositoryConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExporterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSystemLogTableExportersConfig)
 DECLARE_REFCOUNTED_STRUCT(TMemoryWatchdogConfig)
@@ -121,6 +122,7 @@ DECLARE_REFCOUNTED_CLASS(TPrewhereSettings)
 DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskPuller)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryReadTaskIterator)
+DECLARE_REFCOUNTED_CLASS(TCypressDictionaryConfigRepository)
 
 struct TValue;
 struct TSubquerySpec;

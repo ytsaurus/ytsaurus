@@ -54,8 +54,9 @@ SRCS(
     cluster_nodes.cpp
     columnar_conversion.cpp
     computed_columns.cpp
-    config.cpp
     config_repository.cpp
+    cypress_config_repository.cpp
+    config.cpp
     conversion.cpp
     custom_data_types.cpp
     dictionary_source.cpp

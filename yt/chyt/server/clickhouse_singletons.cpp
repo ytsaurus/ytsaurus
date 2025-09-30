@@ -13,6 +13,7 @@ namespace DB
 {
     void registerStorageMemory(StorageFactory& factory);
     void registerStorageBuffer(StorageFactory& factory);
+    void registerStorageDictionary(StorageFactory& factory);
 }
 
 namespace NYT::NClickHouseServer {
@@ -28,6 +29,7 @@ void RegisterClickHouseSingletons()
     DB::registerTableFunctions();
     DB::registerStorageMemory(DB::StorageFactory::instance());
     DB::registerStorageBuffer(DB::StorageFactory::instance());
+    DB::registerStorageDictionary(DB::StorageFactory::instance());
     DB::registerDictionaries();
 }
 
