@@ -1046,7 +1046,10 @@ private:
                                         .Item("temporarily_unavailable").Value(Any(status & EChunkStatus::TemporarilyUnavailable))
                                     .EndMap();
                             });
-                    }));
+                    })
+                    .AsyncViaGuarded(
+                        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                        TError("Error fetching Sequoia replicas")));
 
             }
 
@@ -1126,7 +1129,10 @@ private:
                             .Do([&] (auto fluent) {
                                 BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, aliveReplicas);
                             });
-                    }));
+                    })
+                    .AsyncViaGuarded(
+                        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                        TError("Error fetching Sequoia replicas")));
             }
 
             case EInternedAttributeKey::StoredSequoiaReplicas: {
