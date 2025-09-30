@@ -521,6 +521,9 @@ TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas)
 {
+
+    VerifyPersistentStateRead();
+
     TCompactMediumMap<EChunkStatus> result;
 
     auto statistics = ComputeChunkStatistics(chunk, replicas);
