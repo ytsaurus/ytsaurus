@@ -82,7 +82,7 @@ public:
         int minCount,
         std::optional<int> replicationFactorOverride,
         NChunkClient::ESessionType sessionType,
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
+        TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica = {});
 
     TNodeList GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex);
 
@@ -229,7 +229,7 @@ private:
         const TNodeList* forbiddenNodes = nullptr,
         const TNodeList* allocatedNodes = nullptr,
         const std::optional<std::string>& preferredHostName = {},
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {},
+        TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica = {},
         bool systemAllocation = false);
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(

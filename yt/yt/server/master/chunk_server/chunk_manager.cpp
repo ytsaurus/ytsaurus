@@ -1298,12 +1298,12 @@ public:
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
         for (auto storedReplica : chunk->StoredReplicas()) {
-            if (!storedReplica.IsChunkLocation()) {
+            if (!storedReplica.IsChunkLocationPtr()) {
                 // TODO(cherepashka): handle this when offshore media will be supported.
                 continue;
             }
             // TODO(aleksandra-zh): skip Sequoia replicas here.
-            auto* location = storedReplica.AsChunkLocation().GetPtr();
+            auto* location = storedReplica.AsChunkLocationPtr();
             auto replicaIndex = storedReplica.GetReplicaIndex();
             TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
             if (!location->RemoveReplica(replica)) {
@@ -1690,7 +1690,7 @@ public:
         const auto& replicas = replicasOrError.Value();
         TNodePtrWithReplicaAndMediumIndexList result;
         for (auto replica : replicas) {
-            if (!replica.IsChunkLocation()) {
+            if (!replica.IsChunkLocationPtr()) {
                 // TODO(cherepashka): handle this when offshore media will be supported.
                 continue;
             }
@@ -1698,8 +1698,8 @@ public:
                 continue;
             }
 
-            auto* chunkLocation = replica.AsChunkLocation().GetPtr();
-            result.emplace_back(chunkLocation->GetNode(), replica.GetReplicaIndex(), chunkLocation->GetEffectiveMediumIndex());
+            auto* location = replica.AsChunkLocationPtr();
+            result.emplace_back(location->GetNode(), replica.GetReplicaIndex(), location->GetEffectiveMediumIndex());
         }
 
         return result;
@@ -3199,7 +3199,7 @@ private:
         TChunkLocation* locationWithMaxId = nullptr;
 
         for (auto replica : chunk->StoredReplicas()) {
-            if (!replica.IsChunkLocation()) {
+            if (!replica.IsChunkLocationPtr()) {
                 continue;
             }
             auto* medium = FindMediumByIndex(replica.GetEffectiveMediumIndex());
@@ -3208,7 +3208,7 @@ private:
             }
 
             // We do not care about approvedness.
-            auto location = replica.AsChunkLocation().GetPtr();
+            auto location = replica.AsChunkLocationPtr();
             if (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()) {
                 locationWithMaxId = location;
             }
@@ -5179,10 +5179,10 @@ private:
                 YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 for (auto replica : chunk->StoredReplicas()) {
-                    if (!replica.IsChunkLocation()) {
+                    if (!replica.IsChunkLocationPtr()) {
                         continue;
                     }
-                    auto* location = replica.AsChunkLocation().GetPtr();
+                    auto* location = replica.AsChunkLocationPtr();
                     auto* scratchData = location->GetLoadScratchData();
                     scratchData->Replicas[scratchData->CurrentReplicaIndex++] = TChunkPtrWithReplicaInfo(
                         chunk,
@@ -6045,7 +6045,7 @@ private:
             return;
         }
 
-        TChunkLocationPtrWithReplicaInfo chunkLocationWithReplicaInfo(
+        TStoredChunkReplicaPtrWithReplicaInfo chunkLocationWithReplicaInfo(
             chunkLocation,
             replica.GetReplicaIndex(),
             replica.GetReplicaState());
@@ -6077,7 +6077,7 @@ private:
     {
         auto* chunk = chunkWithIndexes.GetPtr();
         auto node = location->GetNode();
-        TChunkLocationPtrWithReplicaInfo locationWithIndexes(
+        TStoredChunkReplicaPtrWithReplicaInfo locationWithIndexes(
             location,
             chunkWithIndexes.GetReplicaIndex(),
             chunkWithIndexes.GetReplicaState());

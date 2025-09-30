@@ -263,8 +263,8 @@ public:
                     replica.NodeId = masterReplica.GetNodeId();
                     replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                     replica.ReplicaState = masterReplica.GetReplicaState();
-                    if (masterReplica.IsChunkLocation()) {
-                        auto location = masterReplica.AsChunkLocation().GetPtr();
+                    if (masterReplica.IsChunkLocationPtr()) {
+                        auto* location = masterReplica.AsChunkLocationPtr();
                         if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
                             unapprovedReplicas.push_back(replica);
                         } else {
@@ -664,7 +664,7 @@ private:
                     locationIndex);
                 continue;
             }
-            aliveReplicas.emplace_back(TChunkLocationPtrWithReplicaInfo(location, replica.ReplicaIndex, replica.ReplicaState));
+            aliveReplicas.emplace_back(TStoredChunkReplicaPtrWithReplicaInfo(location, replica.ReplicaIndex, replica.ReplicaState));
         }
         return aliveReplicas;
     }
@@ -703,7 +703,7 @@ private:
             auto& replicas = it->second.Value();
             replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
 
-            SortUniqueBy(replicas, [] (const TStoredReplica& replica) {
+            SortUniqueBy(replicas, [] (const auto& replica) {
                 auto replicaIndex = replica.GetReplicaIndex();
                 auto nodeId = replica.GetNodeId();
                 auto locationUuid = replica.GetLocationUuid();

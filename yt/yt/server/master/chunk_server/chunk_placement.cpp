@@ -533,21 +533,21 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 
     auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
         for (auto replica : replicas) {
-            if (!replica.IsChunkLocation()) {
+            if (!replica.IsChunkLocationPtr()) {
                 continue;
             }
             if (replica.GetEffectiveMediumIndex() != mediumIndex) {
                 continue;
             }
 
-            auto locationReplica = replica.AsChunkLocation();
+            auto* location = replica.AsChunkLocationPtr();
 
             if (replicaIndex == NChunkClient::GenericChunkReplicaIndex) {
-                if (locationReplica.GetPtr()->GetNode() == node) {
+                if (location->GetNode() == node) {
                     return true;
                 }
             } else if (replica.GetReplicaIndex() == replicaIndex) {
-                return locationReplica.GetPtr()->GetNode() == node;
+                return location->GetNode() == node;
             }
         }
 
@@ -632,7 +632,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
     TCompactFlatMap<const TDataCenter*, i8, 4> perDataCenterCounters;
 
     for (auto replica : replicas) {
-        if (!replica.IsChunkLocation()) {
+        if (!replica.IsChunkLocationPtr()) {
             YT_LOG_ALERT(
                 "Non-chunk location stored replica was found during processing removal targets for chunk, ignored "
                 "(ChunkId:%v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
@@ -645,7 +645,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
             continue;
         }
 
-        auto* location = replica.AsChunkLocation().GetPtr();
+        auto* location = replica.AsChunkLocationPtr();
 
         if (const auto* rack = location->GetNode()->GetRack()) {
             ++perRackCounters[rack->GetIndex()];
@@ -697,7 +697,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
     };
 
     for (auto replica : replicas) {
-        if (!replica.IsChunkLocation()) {
+        if (!replica.IsChunkLocationPtr()) {
             // NB: Alerted above.
             continue;
         }
@@ -713,7 +713,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
             continue;
         }
 
-        auto* location = replica.AsChunkLocation().GetPtr();
+        auto* location = replica.AsChunkLocationPtr();
         auto node = location->GetNode();
         if (!IsValidRemovalTarget(node)) {
             continue;

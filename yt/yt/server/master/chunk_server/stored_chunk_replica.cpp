@@ -13,6 +13,36 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec)
+{
+    switch (value.GetStoredReplicaType()) {
+        case EStoredReplicaType::ChunkLocation: {
+            FormatValue(builder, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()), spec);
+            break;
+        }
+        case EStoredReplicaType::OffshoreMedia:
+        {
+            FormatValue(builder, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()), spec);
+        }
+    }
+}
+
+//! Serializes node id, replica index, medium index.
+void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value)
+{
+    switch (value.GetStoredReplicaType()) {
+        case EStoredReplicaType::ChunkLocation: {
+            ToProto(protoValue, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()));
+            break;
+        }
+        case EStoredReplicaType::OffshoreMedia: {
+            ToProto(protoValue, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()));
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoredReplica::TStoredReplica()
 { }
 
@@ -96,8 +126,8 @@ int TStoredReplica::GetReplicaIndex() const
         [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
             return chunkLocation.GetReplicaIndex();
         },
-        [] (const TMediumPtrWithReplicaInfo& medium) {
-            return medium.GetReplicaIndex();
+        [] (const TMediumPtrWithReplicaInfo& mediumLocation) {
+            return mediumLocation.GetReplicaIndex();
         });
 }
 
@@ -107,8 +137,8 @@ EChunkReplicaState TStoredReplica::GetReplicaState() const
         [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
             return chunkLocation.GetReplicaState();
         },
-        [] (const TMediumPtrWithReplicaInfo& medium) {
-            return medium.GetReplicaState();
+        [] (const TMediumPtrWithReplicaInfo& mediumLocation) {
+            return mediumLocation.GetReplicaState();
         });
 }
 
