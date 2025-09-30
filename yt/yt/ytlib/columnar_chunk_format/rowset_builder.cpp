@@ -1877,10 +1877,9 @@ private:
 
                 segmentRowLimit = std::min(segmentRowLimit, currentLimit);
             }
-
         }
 
-        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage);
+        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage + MemoryPool_.GetCapacity());
 
         return segmentRowLimit;
     }
@@ -1932,7 +1931,7 @@ private:
             }
         }
 
-        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage);
+        MemoryGuard_.SetSize(ColumnReadersMemorySize_ + totalMemoryUsage + MemoryPool_.GetCapacity());
 
         return segmentRowLimit;
     }
