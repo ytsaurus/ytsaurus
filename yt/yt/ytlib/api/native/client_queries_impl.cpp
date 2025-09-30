@@ -321,6 +321,8 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         if (auto supportedFeaturesYson = TYsonString(rpcResponse.supported_features()); supportedFeaturesYson) {
             auto supportedFeraturesMap = ConvertToNode(supportedFeaturesYson)->AsMap();
             supportedFeraturesMap->AddChild("new_search_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("not_indexing_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("declare_on_proxies", ConvertToNode(true));
             mergedSupportedFeatures = ConvertToYsonString(supportedFeraturesMap);
         }
     }
