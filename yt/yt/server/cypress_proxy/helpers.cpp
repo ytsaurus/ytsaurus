@@ -586,7 +586,6 @@ TFuture<INodePtr> FetchSingleObject(
     }));
 }
 
-
 TFuture<IAttributeDictionaryPtr> FetchSingleObjectAttributes(
    const NNative::IClientPtr& client,
    NCypressClient::TVersionedObjectId objectId,
