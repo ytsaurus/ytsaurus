@@ -1245,7 +1245,7 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
     return mergedChunkViews;
 }
 
-std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
+std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
 {
     if (!chunk->IsJournal()) {
         YT_LOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
@@ -1253,11 +1253,11 @@ std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
 
     std::vector<TChunkReplicaDescriptor> replicas;
     for (auto replica : chunk->StoredReplicas()) {
-        if (!replica.IsChunkLocation()) {
+        if (!replica.IsChunkLocationPtr()) {
             continue;
         }
         replicas.push_back({
-            replica.AsChunkLocation().GetPtr()->GetNode()->GetDescriptor(),
+            replica.AsChunkLocationPtr()->GetNode()->GetDescriptor(),
             replica.GetReplicaIndex(),
             replica.GetEffectiveMediumIndex(),
         });

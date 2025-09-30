@@ -140,7 +140,7 @@ void CanonizeCellTags(TCellTagList* cellTags)
 }
 
 static void PopulateChunkSpecWithReplicas(
-    const TStoredReplicaList& chunkReplicas,
+    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas,
     bool fetchParityReplicas,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -153,17 +153,17 @@ static void PopulateChunkSpecWithReplicas(
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    auto addReplica = [&] (TStoredReplica replica)  {
-        if (!replica.IsChunkLocation()) {
+    auto addReplica = [&] (auto replica)  {
+        if (!replica.IsChunkLocationPtr()) {
             // TODO(cherepashka): actually return medium replicas in chunk specs, once more logic is here.
             return false;
         }
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        const auto* location = replica.AsChunkLocation().GetPtr();
+        const auto* location = replica.AsChunkLocationPtr();
         replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
-        nodeDirectoryBuilder->Add(replica.AsChunkLocation());
+        nodeDirectoryBuilder->Add(replica);
         return true;
     };
 
@@ -270,7 +270,7 @@ void BuildReplicalessChunkSpec(
 void BuildChunkSpec(
     TBootstrap* bootstrap,
     TChunk* chunk,
-    const TStoredReplicaList& chunkReplicas,
+    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,

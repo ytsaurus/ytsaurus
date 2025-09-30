@@ -210,7 +210,7 @@ public:
             }));
     }
 
-    TErrorOr<TStoredReplicaList> GetChunkReplicas(
+    TErrorOr<TStoredChunkReplicaPtrWithReplicaInfoList> GetChunkReplicas(
         const TEphemeralObjectPtr<TChunk>& chunk,
         bool includeUnapproved) const override
     {
@@ -223,7 +223,7 @@ public:
         auto result = GetChunkReplicas(chunks, includeUnapproved);
         return GetOrCrash(result, chunk->GetId());
     }
-    TChunkToStoredReplicaList GetChunkReplicas(
+    TChunkToStoredChunkReplicaPtrWithReplicaInfoList GetChunkReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved) const override
     {
@@ -237,10 +237,10 @@ public:
 
         // Fastpath.
         if (!fetchReplicasFromSequoia || sequoiaChunkIds.empty()) {
-            TChunkToStoredReplicaList result;
+            TChunkToStoredChunkReplicaPtrWithReplicaInfoList result;
             for (const auto& chunk : chunks) {
                 auto masterReplicas = chunk->StoredReplicas();
-                TStoredReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
+                TStoredChunkReplicaPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
                 result.emplace(chunk->GetId(), replicaList);
             }
             return result;
@@ -262,8 +262,8 @@ public:
                     replica.NodeId = masterReplica.GetNodeId();
                     replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                     replica.ReplicaState = masterReplica.GetReplicaState();
-                    if (masterReplica.IsChunkLocation()) {
-                        auto location = masterReplica.AsChunkLocation().GetPtr();
+                    if (masterReplica.IsChunkLocationPtr()) {
+                        auto* location = masterReplica.AsChunkLocationPtr();
                         if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
                             unapprovedReplicas.push_back(replica);
                         } else {
@@ -309,7 +309,7 @@ public:
                 masterReplicas.insert(masterReplicas.end(), unapprovedMasterReplicas.begin(), unapprovedMasterReplicas.end());
             }
 
-            TChunkToStoredReplicaList result;
+            TChunkToStoredChunkReplicaPtrWithReplicaInfoList result;
             for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
                 EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
             }
@@ -642,10 +642,10 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
     }
 
-    TStoredReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
+    TStoredChunkReplicaPtrWithReplicaInfoList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
     {
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        TStoredReplicaList aliveReplicas;
+        TStoredChunkReplicaPtrWithReplicaInfoList aliveReplicas;
         for (const auto& replica : replicas) {
             auto chunkId = replica.ChunkId;
             auto locationIndex = replica.LocationIndex;
@@ -663,19 +663,19 @@ private:
                     locationIndex);
                 continue;
             }
-            aliveReplicas.emplace_back(TChunkLocationPtrWithReplicaInfo(location, replica.ReplicaIndex, replica.ReplicaState));
+            aliveReplicas.emplace_back(TStoredChunkReplicaPtrWithReplicaInfo(location, replica.ReplicaIndex, replica.ReplicaState));
         }
         return aliveReplicas;
     }
 
-    TChunkToStoredReplicaList CombineReplicas(
+    TChunkToStoredChunkReplicaPtrWithReplicaInfoList CombineReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
         const std::vector<TChunkId>& sequoiaChunkIds) const
     {
         VerifyPersistentStateRead();
 
-        TChunkToStoredReplicaList result;
+        TChunkToStoredChunkReplicaPtrWithReplicaInfoList result;
         if (!sequoiaReplicasOrError.IsOK()) {
             for (auto chunkId : sequoiaChunkIds) {
                 EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
@@ -688,7 +688,7 @@ private:
 
         for (const auto& chunk : chunks) {
             auto masterReplicas = chunk->StoredReplicas();
-            TStoredReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
+            TStoredChunkReplicaPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
             auto [it, inserted] = result.emplace(chunk->GetId(), replicaList);
 
             if (inserted) {
@@ -702,7 +702,7 @@ private:
             auto& replicas = it->second.Value();
             replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
 
-            SortUniqueBy(replicas, [] (const TStoredReplica& replica) {
+            SortUniqueBy(replicas, [] (const auto& replica) {
                 auto replicaIndex = replica.GetReplicaIndex();
                 auto nodeId = replica.GetNodeId();
                 auto locationUuid = replica.GetLocationUuid();

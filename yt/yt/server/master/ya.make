@@ -150,11 +150,8 @@ SRCS(
     chunk_server/s3_medium_proxy.cpp
     chunk_server/s3_medium_type_handler.cpp
     chunk_server/s3_medium.cpp
-<<<<<<< HEAD
     chunk_server/sequoia_replicas_modifier.cpp
-=======
     chunk_server/stored_chunk_replica.cpp
->>>>>>> d9106af631c (Refactoring: apply patches from inner repo: TStorevReplica v1)
 
     cypress_server/access_control_object_namespace_type_handler.cpp
     cypress_server/access_control_object_namespace.cpp

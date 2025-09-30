@@ -280,16 +280,16 @@ bool TChunk::HasParents() const
 }
 
 void TChunk::AddReplica(
-    TStoredReplica replica,
+    TStoredChunkReplicaPtrWithReplicaInfo replica,
     const TMedium* medium,
     bool approved)
 {
     auto* data = MutableReplicasData();
 
     if (medium->IsOffshore()) {
-        if (!replica.IsMedium()) {
+        if (replica.IsChunkLocationPtr()) {
             YT_LOG_ALERT(
-                "Attempted to add offshore medium to chunk location replica, ignored"
+                "Attempted to add chunk location replica with offshore medium, ignored"
                 "(ChunkId: %v, MediumIndex: %v)",
                 GetId(),
                 medium->GetIndex());
@@ -362,10 +362,10 @@ void TChunk::RemoveReplica(
     auto storedReplicas = data->GetStoredReplicas();
     for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
         auto existingReplica = storedReplicas[replicaIndex];
-        if (!existingReplica.IsChunkLocation()) {
+        if (!existingReplica.IsChunkLocationPtr()) {
             continue;
         }
-        if (existingReplica.AsChunkLocation().GetPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
+        if (existingReplica.AsChunkLocationPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
             data->RemoveStoredReplica(replicaIndex);
             return;
         }
@@ -373,9 +373,9 @@ void TChunk::RemoveReplica(
     YT_ABORT();
 }
 
-void TChunk::ApproveReplica(TStoredReplica replica)
+void TChunk::ApproveReplica(TStoredChunkReplicaPtrWithReplicaInfo replica)
 {
-    if (replica.IsMedium()) {
+    if (replica.IsMediumPtr()) {
         YT_LOG_ALERT(
             "Attempted to approve offshore medium replica, ignored (ReplicaMediumIndex: %v, ReplicaIndex: %v)",
             replica.GetEffectiveMediumIndex(),
@@ -867,19 +867,19 @@ TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::TRepl
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TRange<TStoredReplica> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
+TRange<TStoredChunkReplicaPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::GetStoredReplicas() const
 {
     return TRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-TMutableRange<TStoredReplica> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
+TMutableRange<TStoredChunkReplicaPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::MutableStoredReplicas()
 {
     return TMutableRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t MaxLastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TStoredReplica replica)
+void TChunk::TReplicasData<TypicalStoredReplicaCount, MaxLastSeenReplicaCount>::AddStoredReplica(TStoredChunkReplicaPtrWithReplicaInfo replica)
 {
     StoredReplicas.push_back(replica);
 }

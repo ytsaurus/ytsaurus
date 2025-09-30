@@ -324,18 +324,18 @@ private:
         IYsonConsumer* consumer,
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
-        TStoredReplicaList replicas)
+        TStoredChunkReplicaPtrWithReplicaInfoList replicas)
     {
-        SortBy(replicas, [] (TStoredReplica replica) {
+        SortBy(replicas, [] (auto replica) {
             return std::tuple(replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
         });
 
         BuildYsonFluently(consumer)
-            .DoListFor(replicas, [&] (TFluentList fluent, TStoredReplica replica) {
+            .DoListFor(replicas, [&] (TFluentList fluent, auto replica) {
                 TChunkLocation* location = nullptr;
                 TNodeRawPtr node = nullptr;
-                if (replica.IsChunkLocation()) {
-                    location = replica.AsChunkLocation().GetPtr();
+                if (replica.IsChunkLocationPtr()) {
+                    location = replica.AsChunkLocationPtr();
                     node = location->GetNode();
                 }
                 SerializeReplica(
@@ -346,8 +346,8 @@ private:
                     location,
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
-                    location->GetEffectiveMediumIndex(),
-                    /*offshoreMedium*/ replica.IsMedium());
+                    replica.GetEffectiveMediumIndex(),
+                    /*offshoreMedium*/ replica.IsMediumPtr());
             });
     };
 
@@ -371,7 +371,7 @@ private:
                 }
 
                 auto storedReplicas = chunk->StoredReplicas();
-                TStoredReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
+                TStoredChunkReplicaPtrWithReplicaInfoList replicaList(storedReplicas.begin(), storedReplicas.end());
                 BuildYsonReplicas(
                     consumer,
                     chunkManager,
@@ -1167,7 +1167,7 @@ private:
                         auto it = replicas.find(chunkId);
                         const auto& chunkReplicas = it != replicas.end()
                             ? chunkReplicaFetcher->FilterAliveReplicas(it->second)
-                            : TStoredReplicaList();
+                            : TStoredChunkReplicaPtrWithReplicaInfoList();
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
                                 BuildYsonReplicas(
