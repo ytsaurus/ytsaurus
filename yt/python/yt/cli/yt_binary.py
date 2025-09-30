@@ -1517,6 +1517,8 @@ def add_list_queries_parser(add_parser):
                                                                              'If set, search will be performed not by exact token '
                                                                              'match but by prefix match')
     parser.add_argument("--tutorials", action="store_true", dest="tutorial_filter", help="show tutorial queries")
+    parser.add_argument("--sort-order", type=str, help='result sort order by query start time, can be one of ("cursor", "ascending", "descending"). '
+                                                       'Sorting is not applied in "cursor" mode, rows will be listed in the order they are read.')
     add_structured_format_argument(parser)
 
 
