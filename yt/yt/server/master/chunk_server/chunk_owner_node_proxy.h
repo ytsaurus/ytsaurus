@@ -17,7 +17,7 @@ namespace NYT::NChunkServer {
 void BuildChunkSpec(
     NCellMaster::TBootstrap* bootstrap,
     TChunk* chunk,
-    const TStoredReplicaList& chunkReplicas,
+    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const NChunkClient::TReadLimit& lowerLimit,

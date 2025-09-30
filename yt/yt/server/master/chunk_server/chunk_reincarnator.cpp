@@ -1432,10 +1432,10 @@ private:
 
         sourceReplicas.reserve(replicas.size());
         for (auto replica : replicas) {
-            if (!replica.IsChunkLocation()) {
+            if (!replica.IsChunkLocationPtr()) {
                 continue;
             }
-            const auto* location = replica.AsChunkLocation().GetPtr();
+            const auto* location = replica.AsChunkLocationPtr();
             sourceReplicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), location->GetEffectiveMediumIndex());
         }
 

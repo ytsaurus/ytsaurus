@@ -13,196 +13,205 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoredReplica::TStoredReplica()
-{ }
-
-TStoredReplica::TStoredReplica(const TChunkLocationPtrWithReplicaInfo& chunkLocation)
-    : ReplicaInfo_(chunkLocation)
+bool TStoredChunkReplicaPtrWithReplicaInfo::HasPtr() const
 {
-    YT_VERIFY(chunkLocation.GetPtr());
+    return Value_ & 0x0000fffffffffffcLL;
 }
 
-TStoredReplica::TStoredReplica(const TMediumPtrWithReplicaInfo& medium)
-    : ReplicaInfo_(medium)
+bool TStoredChunkReplicaPtrWithReplicaInfo::IsChunkLocationPtr() const
 {
-    YT_VERIFY(medium.GetPtr());
+    return GetStoredReplicaType() == EStoredReplicaType::ChunkLocation;
 }
 
-bool TStoredReplica::IsChunkLocation() const
+bool TStoredChunkReplicaPtrWithReplicaInfo::IsMediumPtr() const
 {
-    return std::holds_alternative<TChunkLocationPtrWithReplicaInfo>(ReplicaInfo_);
+    return GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia;
 }
 
-TChunkLocationPtrWithReplicaInfo& TStoredReplica::AsChunkLocation()
+TChunkLocation* TStoredChunkReplicaPtrWithReplicaInfo::AsChunkLocationPtr() const
 {
-    auto* location = std::get_if<TChunkLocationPtrWithReplicaInfo>(&ReplicaInfo_);
-    YT_VERIFY(location);
-    return *location;
+    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
+    return reinterpret_cast<TChunkLocation*>(Value_ & 0x0000fffffffffffcLL);
 }
 
-const TChunkLocationPtrWithReplicaInfo& TStoredReplica::AsChunkLocation() const
+TMedium* TStoredChunkReplicaPtrWithReplicaInfo::AsMediumPtr() const
 {
-    const auto* location = std::get_if<TChunkLocationPtrWithReplicaInfo>(&ReplicaInfo_);
-    YT_VERIFY(location);
-    return *location;
+    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
+    return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
 }
 
-bool TStoredReplica::IsMedium() const
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator==(TStoredChunkReplicaPtrWithReplicaInfo other) const
 {
-    return std::holds_alternative<TMediumPtrWithReplicaInfo>(ReplicaInfo_);
+    return Value_ == other.Value_;
 }
 
-TMediumPtrWithReplicaInfo& TStoredReplica::AsMedium()
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator<(TStoredChunkReplicaPtrWithReplicaInfo other) const
 {
-    auto* medium = std::get_if<TMediumPtrWithReplicaInfo>(&ReplicaInfo_);
-    YT_VERIFY(medium);
-    return *medium;
+    auto thisStoredReplicaType = GetStoredReplicaType();
+    auto otherStoredReplicaType = other.GetStoredReplicaType();
+
+    auto thisReplicaIndex = GetReplicaIndex();
+    auto otherReplicaIndex = other.GetReplicaIndex();
+
+    auto thisState = GetReplicaState();
+    auto otherState = other.GetReplicaState();
+
+    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) < std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
 }
 
-const TMediumPtrWithReplicaInfo& TStoredReplica::AsMedium() const
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator<=(TStoredChunkReplicaPtrWithReplicaInfo other) const
 {
-    const auto* medium = std::get_if<TMediumPtrWithReplicaInfo>(&ReplicaInfo_);
-    YT_VERIFY(medium);
-    return *medium;
+    auto thisStoredReplicaType = GetStoredReplicaType();
+    auto otherStoredReplicaType = other.GetStoredReplicaType();
+
+    auto thisReplicaIndex = GetReplicaIndex();
+    auto otherReplicaIndex = other.GetReplicaIndex();
+
+    auto thisState = GetReplicaState();
+    auto otherState = other.GetReplicaState();
+    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) <= std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
 }
 
-TStoredReplica TStoredReplica::ToGenericState() const
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator>(TStoredChunkReplicaPtrWithReplicaInfo other) const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) -> TStoredReplica {
-            return chunkLocation.ToGenericState();
-        },
-        [] (const TMediumPtrWithReplicaInfo& medium) -> TStoredReplica {
-            return medium.ToGenericState();
-        });
+    return !operator<=(other);
 }
 
-int TStoredReplica::GetEffectiveMediumIndex() const
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator>=(TStoredChunkReplicaPtrWithReplicaInfo other) const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            auto* location = chunkLocation.GetPtr();
-            return IsObjectAlive(location) ? location->GetEffectiveMediumIndex() : GenericMediumIndex;
-        },
-        [] (const TMediumPtrWithReplicaInfo& mediumLocation) {
-            auto* medium = mediumLocation.GetPtr();
-            return IsObjectAlive(medium) ? medium->GetIndex() : GenericMediumIndex;
-        });
+    return !operator<(other);
 }
 
-int TStoredReplica::GetReplicaIndex() const
+TStoredChunkReplicaPtrWithReplicaInfo TStoredChunkReplicaPtrWithReplicaInfo::ToGenericState() const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            return chunkLocation.GetReplicaIndex();
-        },
-        [] (const TMediumPtrWithReplicaInfo& medium) {
-            return medium.GetReplicaIndex();
-        });
+    auto type = GetStoredReplicaType();
+    switch (type) {
+        case EStoredReplicaType::ChunkLocation:
+            return TStoredChunkReplicaPtrWithReplicaInfo(AsChunkLocationPtr(), GetReplicaIndex());
+        case EStoredReplicaType::OffshoreMedia:
+            return TStoredChunkReplicaPtrWithReplicaInfo(AsMediumPtr(), GetReplicaIndex());
+    }
 }
 
-EChunkReplicaState TStoredReplica::GetReplicaState() const
+EChunkReplicaState TStoredChunkReplicaPtrWithReplicaInfo::GetReplicaState() const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            return chunkLocation.GetReplicaState();
-        },
-        [] (const TMediumPtrWithReplicaInfo& medium) {
-            return medium.GetReplicaState();
-        });
+    return static_cast<EChunkReplicaState>(Value_ & 0x3);
 }
 
-TChunkLocationIndex TStoredReplica::GetChunkLocationIndex() const
+int TStoredChunkReplicaPtrWithReplicaInfo::GetReplicaIndex() const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            auto* location = chunkLocation.GetPtr();
-            if (!IsObjectAlive(location)) {
-                return InvalidChunkLocationIndex;
-            }
+    return static_cast<int>((Value_ >> 56) & 0xff);
+}
 
-            return location->GetIndex();
-        },
-        [] (const TMediumPtrWithReplicaInfo& /*medium*/) {
+int TStoredChunkReplicaPtrWithReplicaInfo::GetEffectiveMediumIndex() const
+{
+    auto type = GetStoredReplicaType();
+    switch (type) {
+    case EStoredReplicaType::ChunkLocation:
+        return AsChunkLocationPtr()->GetEffectiveMediumIndex();
+    case EStoredReplicaType::OffshoreMedia:
+        return AsMediumPtr()->GetIndex();
+    }
+}
+
+TChunkLocationIndex TStoredChunkReplicaPtrWithReplicaInfo::GetChunkLocationIndex() const
+{
+    switch (GetStoredReplicaType()) {
+    case EStoredReplicaType::ChunkLocation: {
+        auto* location = AsChunkLocationPtr();
+        if (!IsObjectAlive(location)) {
             return InvalidChunkLocationIndex;
-        });
+        }
+        return location->GetIndex();
+    }
+    case EStoredReplicaType::OffshoreMedia:
+        return InvalidChunkLocationIndex;
+    }
 }
 
-TChunkLocationUuid TStoredReplica::GetLocationUuid() const
+TChunkLocationUuid TStoredChunkReplicaPtrWithReplicaInfo::GetLocationUuid() const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            auto* location = chunkLocation.GetPtr();
-            if (!IsObjectAlive(location)) {
-                return InvalidChunkLocationUuid;
-            }
-
-            return location->GetUuid();
-        },
-        [] (const TMediumPtrWithReplicaInfo& /*medium*/) {
+    switch (GetStoredReplicaType()) {
+    case EStoredReplicaType::ChunkLocation: {
+        auto* location = AsChunkLocationPtr();
+        if (!IsObjectAlive(location)) {
             return InvalidChunkLocationUuid;
-        });
+        }
+        return location->GetUuid();
+    }
+    case EStoredReplicaType::OffshoreMedia:
+        return InvalidChunkLocationUuid;
+    }
 }
 
-TNodeId TStoredReplica::GetNodeId() const
+TNodeId TStoredChunkReplicaPtrWithReplicaInfo::GetNodeId() const
 {
-    return Visit(ReplicaInfo_,
-        [] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            auto* location = chunkLocation.GetPtr();
-            if (!IsObjectAlive(location)) {
-                return InvalidNodeId;
-            }
-            auto node = location->GetNode();
-            if (!IsObjectAlive(node)) {
-                return InvalidNodeId;
-            }
-            return node->GetId();
-        },
-        [] (const TMediumPtrWithReplicaInfo& /*medium*/) {
-            return OffshoreNodeId;
-        });
+    switch (GetStoredReplicaType()) {
+    case EStoredReplicaType::ChunkLocation: {
+        auto* location = AsChunkLocationPtr();
+        if (!IsObjectAlive(location)) {
+            return InvalidNodeId;
+        }
+        auto node = location->GetNode();
+        if (!IsObjectAlive(node)) {
+            return InvalidNodeId;
+        }
+        return node->GetId();
+    }
+    case EStoredReplicaType::OffshoreMedia:
+        return OffshoreNodeId;
+    }
 }
 
-void TStoredReplica::Save(NCellMaster::TSaveContext& context) const
+EStoredReplicaType TStoredChunkReplicaPtrWithReplicaInfo::GetStoredReplicaType() const
 {
-    using NYT::Save;
-
-    Save(context, ReplicaInfo_);
+    return static_cast<EStoredReplicaType>((Value_ >> 48) & 0xff);
 }
 
-void TStoredReplica::Load(NCellMaster::TLoadContext& context)
+NObjectClient::TObjectId TStoredChunkReplicaPtrWithReplicaInfo::GetId() const
 {
-    using NYT::Load;
-
-    if (context.GetVersion() < NCellMaster::EMasterReign::RefactoringAroundChunkStoredReplicas) {
-        Load(context, AsChunkLocation());
-    } else {
-        Load(context, ReplicaInfo_);
+    switch (GetStoredReplicaType()) {
+        case EStoredReplicaType::ChunkLocation: {
+            auto* location = AsChunkLocationPtr();
+            return IsObjectAlive(location) ? location->GetId() : NullObjectId;
+        }
+        case EStoredReplicaType::OffshoreMedia: {
+            auto* medium = AsMediumPtr();
+            return IsObjectAlive(medium) ? medium->GetId() : NullObjectId;
+        }
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, TStoredReplica value, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec)
 {
-    Visit(value.ReplicaInfo_,
-        [&] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            FormatValue(builder, chunkLocation, spec);
-        },
-        [&] (const TMediumPtrWithReplicaInfo& medium) {
-            FormatValue(builder, medium, spec);
-        });
+    switch (value.GetStoredReplicaType()) {
+        case EStoredReplicaType::ChunkLocation: {
+            FormatValue(builder, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()), spec);
+            break;
+        }
+        case EStoredReplicaType::OffshoreMedia:
+        {
+            FormatValue(builder, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()), spec);
+            break;
+        }
+    }
 }
 
-void ToProto(ui64* protoValue, TStoredReplica value)
+//! Serializes node id, replica index, medium index.
+void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value)
 {
-    Visit(value.ReplicaInfo_,
-        [&] (const TChunkLocationPtrWithReplicaInfo& chunkLocation) {
-            ToProto(protoValue, chunkLocation);
-        },
-        [&] (const TMediumPtrWithReplicaInfo& medium) {
-            ToProto(protoValue, medium);
-        });
+    switch (value.GetStoredReplicaType()) {
+        case EStoredReplicaType::ChunkLocation: {
+            ToProto(protoValue, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()));
+            break;
+        }
+        case EStoredReplicaType::OffshoreMedia: {
+            ToProto(protoValue, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()));
+            break;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

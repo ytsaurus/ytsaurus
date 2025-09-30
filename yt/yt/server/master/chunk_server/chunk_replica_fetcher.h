@@ -21,7 +21,7 @@ struct IChunkReplicaFetcher
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId) const = 0;
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const = 0;
 
-    virtual TStoredReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const = 0;
+    virtual TStoredChunkReplicaPtrWithReplicaInfoList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const = 0;
 
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
@@ -29,10 +29,10 @@ struct IChunkReplicaFetcher
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
 
     // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
-    virtual TErrorOr<TStoredReplicaList> GetChunkReplicas(
+    virtual TErrorOr<TStoredChunkReplicaPtrWithReplicaInfoList> GetChunkReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk,
         bool includeUnapproved = false) const = 0;
-    virtual TChunkToStoredReplicaList GetChunkReplicas(
+    virtual TChunkToStoredChunkReplicaPtrWithReplicaInfoList GetChunkReplicas(
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved = false) const = 0;
 

@@ -42,7 +42,7 @@ DEFINE_ENUM(EAddressType,
 );
 
 YT_DEFINE_STRONG_TYPEDEF(TNodeId, ui32);
-// Node ids of physical nodes are in the range [1, MaxRealNodeId].
+// Node ids of real (non-sentinel) nodes are in the range [1, MaxRealNodeId].
 constexpr TNodeId MaxRealNodeId = TNodeId((1 << 24) - 128 - 1); // Leave some room for sentinels.
 constexpr TNodeId MaxNodeId = TNodeId((1 << 24) - 1); // TNodeId must fit into 24 bits (see TChunkReplica)
 // Sentinels.
