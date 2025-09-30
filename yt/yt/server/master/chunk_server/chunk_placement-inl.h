@@ -4,6 +4,8 @@
 #include "chunk_placement.h"
 #endif
 
+// #include "stored_chunk_replica.h"
+
 #include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
@@ -24,7 +26,7 @@ public:
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
+        TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica)
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
         , Chunk_(chunk)
@@ -52,12 +54,12 @@ public:
 
         int mediumIndex = medium->GetIndex();
         for (auto replica : replicas) {
-            if (!replica.IsChunkLocation()) {
+            if (!replica.IsChunkLocationPtr()) {
                 continue;
             }
-            auto chunkLocation = replica.AsChunkLocation();
+            auto chunkLocation = replica.AsChunkLocationPtr();
             if (replica.GetEffectiveMediumIndex() == mediumIndex) {
-                auto node = chunkLocation.GetPtr()->GetNode();
+                auto node = chunkLocation->GetNode();
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
@@ -67,7 +69,7 @@ public:
                 // storage data centers and RS(3, 3) chunk. Data center replica count limit forbids to
                 // put more than two replicas in every data center, so it's impossible to allocate extra
                 // replica to move unsafely placed replica there.
-                if (!node->IsDecommissioned() && chunkLocation != unsafelyPlacedReplica) {
+                if (!node->IsDecommissioned() && replica != unsafelyPlacedReplica) {
                     processAllocatedNode(node);
                 }
             }
@@ -290,7 +292,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
     const std::optional<std::string>& preferredHostName,
-    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica,
+    TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica,
     bool systemAllocation)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
@@ -479,7 +481,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int minCount,
     std::optional<int> replicationFactorOverride,
     NChunkClient::ESessionType sessionType,
-    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
+    TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica)
 {
     auto targetNodes = GetWriteTargets(
         medium,

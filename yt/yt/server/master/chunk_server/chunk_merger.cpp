@@ -157,7 +157,8 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 
         const auto& replicas = replicasOrError.Value();
         ToProto(protoChunk->mutable_source_replicas(), replicas);
-        builder.Add(replicas);
+        // todo
+        // builder.Add(replicas);
 
         protoChunk->set_erasure_codec(ToProto(chunk->GetErasureCodec()));
         protoChunk->set_row_count(chunk->GetRowCount());

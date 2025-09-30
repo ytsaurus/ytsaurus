@@ -326,16 +326,16 @@ private:
         TChunkId chunkId,
         TStoredReplicaList replicas)
     {
-        SortBy(replicas, [] (TStoredReplica replica) {
+        SortBy(replicas, [] (auto replica) {
             return std::tuple(replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
         });
 
         BuildYsonFluently(consumer)
-            .DoListFor(replicas, [&] (TFluentList fluent, TStoredReplica replica) {
+            .DoListFor(replicas, [&] (TFluentList fluent, auto replica) {
                 TChunkLocation* location = nullptr;
                 TNodeRawPtr node = nullptr;
-                if (replica.IsChunkLocation()) {
-                    location = replica.AsChunkLocation().GetPtr();
+                if (replica.IsChunkLocationPtr()) {
+                    location = replica.AsChunkLocationPtr();
                     node = location->GetNode();
                 }
                 SerializeReplica(
@@ -346,8 +346,8 @@ private:
                     location,
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
-                    location->GetEffectiveMediumIndex(),
-                    /*offshoreMedium*/ replica.IsMedium());
+                    replica.GetEffectiveMediumIndex(),
+                    /*offshoreMedium*/ replica.IsMediumPtr());
             });
     };
 

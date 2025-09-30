@@ -173,7 +173,7 @@ private:
         TCompactVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
 
         //! Any replica that violates failure domain placement.
-        TChunkLocationPtrWithReplicaInfo UnsafelyPlacedReplica;
+        TStoredChunkReplicaPtrWithReplicaInfo UnsafelyPlacedReplica;
 
         //! Missing chunk replicas for CRP-enabled chunks.
         TNodePtrWithReplicaAndMediumIndexList MissingReplicas;
@@ -313,7 +313,7 @@ private:
         const TChunkLocationPtrWithReplicaIndexList& decommissionedReplicas,
         bool hasSealedReplica,
         bool totallySealed,
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica,
+        TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica,
         TChunkLocationPtrWithReplicaIndex inconsistentlyPlacedReplica,
         const TNodePtrWithReplicaAndMediumIndexList& missingReplicas);
 
@@ -339,7 +339,7 @@ private:
         TReplicationPolicy replicationPolicy,
         int maxReplicasPerRack,
         const std::array<TChunkLocationList, ChunkReplicaIndexBound>& decommissionedReplicas,
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedSealedReplica,
+        TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedSealedReplica,
         NErasure::TPartIndexSet& erasedIndexes,
         bool totallySealed);
     void ComputeErasureChunkStatisticsCrossMedia(
