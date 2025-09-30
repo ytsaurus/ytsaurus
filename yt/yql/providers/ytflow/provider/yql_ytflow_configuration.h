@@ -30,6 +30,7 @@ public:
     NCommon::TConfSetting<TString, Static> TabletCellBundle;
     NCommon::TConfSetting<TString, Static> Account;
     NCommon::TConfSetting<TString, Static> PrimaryMedium;
+    NCommon::TConfSetting<TString, Static> Pool;
 
     NCommon::TConfSetting<bool, Static> GracefulUpdate;
     NCommon::TConfSetting<bool, Static> FiniteStreams;
