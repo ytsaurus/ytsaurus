@@ -3,6 +3,7 @@
 #include "cluster_nodes.h"
 #include "private.h"
 #include "config.h"
+#include "cypress_config_repository.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -126,6 +127,10 @@ public:
 
     void SetSqlObjectOnOtherInstances(const TString& objectName, const TSqlObjectInfo& info) const;
     void RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const;
+
+    void ReloadDictionaryGlobally(const std::string& dictionaryName) const;
+
+    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository();
 
 private:
     class TImpl;

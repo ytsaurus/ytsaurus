@@ -3,13 +3,14 @@
 #include "storage_distributor.h"
 #include "helpers.h"
 #include "query_context.h"
-#include "query_registry.h"
 #include "table.h"
 #include "host.h"
-#include "table_traverser.h"
+#include "cypress_config_repository.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -18,10 +19,17 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <Common/Exception.h>
+
 #include <Interpreters/Context.h>
+#include <Interpreters/ExternalDictionariesLoader.h>
+
 #include <Storages/IStorage.h>
+#include <Storages/StorageDictionary.h>
+
 #include <Parsers/ParserCreateQuery.h>
 #include <Parsers/parseQuery.h>
+
+#include <DBPoco/Util/XMLConfiguration.h>
 
 #include <memory>
 #include <string>
@@ -43,13 +51,21 @@ TYtDatabaseBase::TYtDatabaseBase(String databaseName)
 { }
 
 void TYtDatabaseBase::createTable(
-    const DB::ContextPtr /*context*/,
-    const std::string& /*name*/,
+    const DB::ContextPtr context,
+    const std::string& name,
     const DB::StoragePtr& table,
     const DB::ASTPtr& /*query*/)
 {
-    if (table->getName() != "StorageDistributor") {
-        THROW_ERROR_EXCEPTION("Table engine %Qv may not be stored in YT database: only YtTable engine is supported",
+    if (table->getName() == "Dictionary") {
+        auto* queryContext = GetQueryContext(context);
+        auto host = queryContext->Host;
+        host->GetCypressDictionaryConfigRepository()->WriteDictionary(
+            context,
+            name,
+            dynamic_pointer_cast<DB::StorageDictionary>(table)->getConfiguration());
+    }
+    else if (table->getName() != "StorageDistributor") {
+        THROW_ERROR_EXCEPTION("Table engine %Qv may not be stored in YT database: only YtTable and Dictionary engine are supported",
             table->getName());
     }
     // Table already created, nothing to do here.
@@ -100,6 +116,15 @@ void TYtDatabaseBase::dropTable(DB::ContextPtr context, const String& name, bool
             Format("/%v_database/drop_table", to_lower(TString(getDatabaseName())))).ValueOrThrow());
 
     TYPath path = getTableDataPath(name);
+    // Definitely not a YT table. It can be dictionary, so we try to delete it.
+    if (!name.starts_with("//")) {
+        auto* queryContext = GetQueryContext(context);
+        auto host = queryContext->Host;
+        if (host->GetCypressDictionaryConfigRepository()->DeleteDictionary(context, name, getDatabaseName())) {
+            return;
+        }
+        // Here we want to continue, because it can be the case of custom database.
+    }
 
     // We can't use Client->RemoveNode() because we need to get the revision of the removed node.
     auto proxy = NObjectClient::CreateObjectServiceWriteProxy(queryContext->Client());
@@ -211,9 +236,9 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
     const String& name) const
 {
     TYPath path = getTableDataPath(name);
-    // Definitely not a YT table. Don't even try to parse it.
+    // Definitely not a YT table. It can be dictionary, so we try to load it.
     if (!path.StartsWith("//") && !path.StartsWith("<")) {
-        return nullptr;
+        return DoGetDictionary(context, name);
     }
 
     // Normally it's called with a query context.
@@ -244,6 +269,17 @@ DB::StoragePtr TYtDatabaseBase::DoGetTable(
         }
         throw;
     }
+}
+
+DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, const String& name) const {
+    auto loadResult = context->getExternalDictionariesLoader().getLoadResult(DB::StorageID(getDatabaseName(), name).getFullTableName());
+    if (!loadResult.config) {
+        return nullptr;
+    }
+    return std::make_shared<DB::StorageDictionary>(
+        DB::StorageID(getDatabaseName(), loadResult.name),
+        loadResult.config->config,
+        context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
