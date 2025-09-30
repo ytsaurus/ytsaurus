@@ -335,9 +335,9 @@ private:
             subresponse->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
 
             auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-            auto replicasOrError = chunkManager->LocateChunk(chunkWithReplicaIndex);
-            if (!replicasOrError.IsOK()) {
-                context->Reply(replicasOrError);
+            auto locatedReplicasOrError = chunkManager->LocateChunk(chunkWithReplicaIndex);
+            if (!locatedReplicasOrError.IsOK()) {
+                context->Reply(locatedReplicasOrError);
                 return;
             }
 
@@ -346,11 +346,15 @@ private:
                 continue;
             }
 
-            const auto& replicas = replicasOrError.Value();
-            for (auto replica : replicas) {
+            const auto& locatedReplicas = locatedReplicasOrError.Value();
+            for (auto replica : locatedReplicas.DomesticReplicas) {
                 subresponse->add_legacy_replicas(ToProto<ui32>(replica));
                 subresponse->add_replicas(ToProto<ui64>(replica));
                 nodeDirectoryBuilder.Add(replica.GetPtr());
+                ToProto(subresponse->add_replica_specs(), replica);
+            }
+            for (auto& offshoreReplica : locatedReplicas.OffshoreReplicas) {
+                ToProto(subresponse->add_replica_specs(), offshoreReplica);
             }
 
             // NB: LocateChunk also touches chunk if its replicator is local.

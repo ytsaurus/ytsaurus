@@ -404,9 +404,12 @@ private:
                         chunkIds[index]));
                     continue;
                 }
-                auto replicas = subresponse.replicas_size() == 0
-                    ? FromProto<TChunkReplicaList>(subresponse.legacy_replicas())
-                    : TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replicas()));
+                auto replicas = (
+                    subresponse.replica_specs_size() != 0
+                    ? TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replica_specs()))
+                    : subresponse.replicas_size() != 0
+                    ? TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replicas()))
+                    : FromProto<TChunkReplicaList>(subresponse.legacy_replicas()));
                 auto replicasInfo = TAllyReplicasInfo::FromChunkReplicas(replicas, rsp->revision());
                 promises[index].TrySet(std::move(replicasInfo));
             }

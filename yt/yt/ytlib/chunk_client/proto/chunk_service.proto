@@ -28,6 +28,7 @@ message TRspLocateChunks
         // COMPAT(babenko)
         repeated fixed32 legacy_replicas = 2;
         repeated fixed64 replicas = 4;
+        repeated TChunkReplicaSpec replica_specs = 5;
         optional int32 erasure_codec = 3;
     }
 

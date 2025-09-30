@@ -188,14 +188,17 @@ private:
                 OnChunkLocated_(chunkId, TChunkReplicaWithMediumList(), /*missing*/ true);
                 continue;
             }
-            if (subresponse.replicas_size() == 0) {
+            if (subresponse.replica_specs_size() != 0) {
+                auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replica_specs());
+                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
+            } else if (subresponse.replicas_size() != 0) {
+                auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
+                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
+            } else {
                 TChunkReplicaWithMediumList replicas;
                 for (auto replica : FromProto<TChunkReplicaList>(subresponse.legacy_replicas())) {
                     replicas.emplace_back(replica);
                 }
-                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
-            } else {
-                auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
                 OnChunkLocated_(chunkId, replicas, /*missing*/ false);
             }
         }

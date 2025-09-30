@@ -1642,7 +1642,7 @@ public:
         chunkTree->StagingAccount().Reset();
     }
 
-    TErrorOr<TNodePtrWithReplicaAndMediumIndexList> LocateChunk(TChunkPtrWithReplicaIndex chunkWithReplicaIndex) override
+    TErrorOr<TLocatedReplicas> LocateChunk(TChunkPtrWithReplicaIndex chunkWithReplicaIndex) override
     {
         auto* chunk = chunkWithReplicaIndex.GetPtr();
         auto replicaIndex = chunkWithReplicaIndex.GetReplicaIndex();
@@ -1656,17 +1656,20 @@ public:
         }
 
         const auto& replicas = replicasOrError.Value();
-        TNodePtrWithReplicaAndMediumIndexList result;
+        TNodePtrWithReplicaAndMediumIndexList domestic;
         for (auto replica : replicas) {
             if (replicaIndex != GenericChunkReplicaIndex && replica.GetReplicaIndex() != replicaIndex) {
                 continue;
             }
 
             auto* chunkLocation = replica.GetPtr();
-            result.emplace_back(chunkLocation->GetNode(), replica.GetReplicaIndex(), chunkLocation->GetEffectiveMediumIndex());
+            domestic.emplace_back(chunkLocation->GetNode(), replica.GetReplicaIndex(), chunkLocation->GetEffectiveMediumIndex());
         }
 
-        return result;
+        return TLocatedReplicas{
+            .DomesticReplicas = domestic,
+            .OffshoreReplicas = ChunkReplicaFetcher_->GetOffshoreChunkReplicas(ephemeralChunk),
+        };
     }
 
     void TouchChunk(TChunk* chunk) override

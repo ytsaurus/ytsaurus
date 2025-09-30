@@ -1343,6 +1343,37 @@ class TestAttachTable(TestS3MediumBase):
 
         assert_items_equal(read_table("//tmp/imported"), [record1, record2, {"x": 3, "y": "d"}, {"x": 4, "y": "c"}])
 
+    # TODO(achulkov2): test behaviour with chunks with multiple types of replicas once that is supported
+    @authors("faucct")
+    def test_attach_and_retry_map(self):
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+        create("table", "//tmp/out", attributes={"primary_medium": self.get_s3_medium_name()})
+        bucket = self.get_s3_medium_bucket()
+        record1 = {"x": 1, "y": "b"}
+        record2 = {"x": 2, "y": "a"}
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=self.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([record1, record2]))
+        ))
+
+        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        secret_access_key = get(f"//sys/media/{self.get_s3_medium_name()}/@config/secret_access_key")
+        set(f"//sys/media/{self.get_s3_medium_name()}/@config/secret_access_key", "foo")
+
+        op = map(
+            command="cat",
+            in_="//tmp/imported",
+            out="//tmp/out",
+            spec={"max_failed_job_count": 1000},
+            track=False,
+        )
+
+        wait(lambda: op.get_job_count("aborted"))
+        assert op.get_state() == "running"
+        set(f"//sys/media/{self.get_s3_medium_name()}/@config/secret_access_key", secret_access_key)
+        op.track()
+        assert_items_equal(read_table("//tmp/out"), [record1, record2])
+
     @authors("faucct")
     def test_attach_and_map(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})

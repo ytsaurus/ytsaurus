@@ -229,7 +229,13 @@ struct IChunkManager
     virtual void UnstageChunk(TChunk* chunk) = 0;
     virtual void UnstageChunkList(TChunkList* chunkList, bool recursive) = 0;
 
-    virtual TErrorOr<TNodePtrWithReplicaAndMediumIndexList> LocateChunk(TChunkPtrWithReplicaIndex chunkWithIndexes) = 0;
+    struct TLocatedReplicas
+    {
+        TNodePtrWithReplicaAndMediumIndexList DomesticReplicas;
+        TMediumPtrWithReplicaInfoList OffshoreReplicas;
+    };
+
+    virtual TErrorOr<TLocatedReplicas> LocateChunk(TChunkPtrWithReplicaIndex chunkWithIndexes) = 0;
     virtual void TouchChunk(TChunk* chunk) = 0;
 
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
