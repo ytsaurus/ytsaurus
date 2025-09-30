@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/schema"
 )
 
@@ -81,6 +82,9 @@ type testItem struct {
 
 	ZeroNum        int `yson:"zero_num"`
 	OmittedZeroNum int `yson:"omitted_zero_num,omitempty"`
+
+	I64Ptr    *int64 `yson:"i64_ptr"`
+	I64NilPtr *int64 `yson:"i64_nil_ptr"`
 }
 
 func TestEncode(t *testing.T) {
@@ -144,6 +148,7 @@ func TestEncode(t *testing.T) {
 					UntaggedExportedField: 94,
 					ZeroNum:               0,
 					OmittedZeroNum:        0,
+					I64Ptr:                ptr.Int64(42),
 				},
 			},
 			expectedNameTable: NameTable{
@@ -178,6 +183,8 @@ func TestEncode(t *testing.T) {
 				{Name: "tagged_ptr"},
 				{Name: "UntaggedExportedField"},
 				{Name: "zero_num"},
+				{Name: "i64_ptr"},
+				{Name: "i64_nil_ptr"},
 			},
 			expectedRows: []Row{
 				{
@@ -212,6 +219,8 @@ func TestEncode(t *testing.T) {
 					NewAny(28, []byte(`{"exported_field_of_tagged_embedded_ptr"=%true;}`)),
 					NewInt64(29, 94),
 					NewInt64(30, 0),
+					NewInt64(31, 42),
+					NewNull(32),
 				},
 			},
 		},
