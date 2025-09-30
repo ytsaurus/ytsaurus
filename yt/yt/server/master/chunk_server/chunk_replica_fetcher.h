@@ -36,7 +36,6 @@ struct IChunkReplicaFetcher
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved = false) const = 0;
 
-    // Do not apply anything to these futures using AsyncVia, it will break everything!
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetChunkReplicasAsync(
         NObjectServer::TEphemeralObjectPtr<TChunk> chunk,
         bool includeUnapproved = false) const = 0;
