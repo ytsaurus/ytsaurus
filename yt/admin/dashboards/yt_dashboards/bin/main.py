@@ -88,7 +88,11 @@ dashboards = {
         },
     },
     "jobs-monitor": {
-        "func": build_jobs_monitor,
+        "func": lambda: build_jobs_monitor(mode="plain"),
+        "monitoring": {},
+    },
+    "jobs-monitor-top-and-bottom": {
+        "func": lambda: build_jobs_monitor(mode="top_and_bottom"),
         "monitoring": {},
     },
     "http-proxies": {
