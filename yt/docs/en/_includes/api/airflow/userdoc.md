@@ -133,7 +133,7 @@ Operator for removing a Cypress node. It implements the [remove](../../../api/co
 Operator for creating an empty Cypress node of the `node_type` with `attributes`. It implements the [create](../../../api/commands.md#create) functionality from the Python SDK.
 
 **Parameters:**
-- `node_type: Literal["table", "file", "map_node", "document", "string_node", "int64_node", "uint64_node", "double_node", "list_node", "boolean_node", "link"]`
+- `node_type: Literal["table", "file", "map_node", "document", "string_node", "int64_node", "uint64_node", "double_node", "boolean_node", "link"]`
 - `path: str | YPath`
 - `recursive: bool = False`
 - `ignore_existing: bool = False`

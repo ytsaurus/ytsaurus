@@ -133,7 +133,7 @@
 Оператор для создания пустого узла Кипариса типа `node_type` с атрибутами `attributes`. Реализует функционал [create](../../../api/commands.md#create) из Python SDK.
 
 **Параметры:**
-- `node_type: Literal["table", "file", "map_node", "document", "string_node", "int64_node", "uint64_node", "double_node", "list_node", "boolean_node", "link"]`
+- `node_type: Literal["table", "file", "map_node", "document", "string_node", "int64_node", "uint64_node", "double_node", "boolean_node", "link"]`
 - `path: str | YPath`
 - `recursive: bool = False`
 - `ignore_existing: bool = False`
