@@ -225,7 +225,7 @@ NS3::IClientPtr TS3MediumDescriptor::CreateClient(const TS3MediumConfigPtr& medi
     return NS3::CreateRetryingClient(
         std::move(client),
         std::move(backoffOptions),
-        invoker);
+        std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

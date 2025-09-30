@@ -656,7 +656,9 @@ private:
                 return response.Value();
             }
 
-            YT_LOG_DEBUG(response, "S3 command attempt failed (Command: %v, Attempt: %v/%v)",
+            YT_LOG_DEBUG(
+                response,
+                "S3 command attempt failed (Command: %v, Attempt: %v/%v)",
                 commandName,
                 backoffStrategy.GetInvocationIndex(),
                 backoffStrategy.GetInvocationCount());
