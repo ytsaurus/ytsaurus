@@ -18,5 +18,14 @@
                 "path": "/certs/cacert.pem",
             },
         },
+        {
+            "source": {
+                "type": "ARCADIA",
+                "path": "yt/docker/ytsaurus/gpuagent_runner.sh",
+            },
+            "destination": {
+                "path": "/gpuagent_runner.sh",
+            },
+        },
     ],
 }
