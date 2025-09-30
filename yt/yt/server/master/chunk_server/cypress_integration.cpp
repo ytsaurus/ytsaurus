@@ -493,7 +493,7 @@ private:
         } else if (IsLocal()) {
             return MakeFuture(GetFilteredChunkIds(limit));
         } else {
-            Bootstrap_->GetHydraFacade()->RequireLeader();
+            Bootstrap_->GetObjectService()->RequireLeader();
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto channels = chunkManager->GetChunkReplicatorChannels();
@@ -609,7 +609,7 @@ private:
             THROW_ERROR_EXCEPTION("Mutating requests through filtered virtual maps are forbidden");
         }
 
-        Bootstrap_->GetHydraFacade()->RequireLeader();
+        Bootstrap_->GetObjectService()->RequireLeader();
 
         YT_VERIFY(IsValidItem(object));
         auto* chunk = object->As<TChunk>();
@@ -638,7 +638,7 @@ private:
         } else if (IsLocal()) {
             return MakeFuture(GetFilteredChunkCount());
         } else {
-            Bootstrap_->GetHydraFacade()->RequireLeader();
+            Bootstrap_->GetObjectService()->RequireLeader();
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto channels = chunkManager->GetChunkReplicatorChannels();

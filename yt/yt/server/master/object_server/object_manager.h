@@ -279,4 +279,3 @@ IObjectManagerPtr CreateObjectManager(TTestingTag, NCellMaster::TBootstrap* boot
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

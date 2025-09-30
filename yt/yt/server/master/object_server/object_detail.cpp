@@ -974,7 +974,7 @@ bool TObjectProxyBase::IsSecondaryMaster() const
 
 void TObjectProxyBase::RequireLeader() const
 {
-    Bootstrap_->GetHydraFacade()->RequireLeader();
+    Bootstrap_->GetObjectService()->RequireLeader();
 }
 
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
