@@ -533,7 +533,7 @@ extend google.protobuf.FileOptions
     optional string module_output_filename = 30035;
 
     optional ESetUpdateObjectMode set_update_object_mode = 30037;
-    optional bool enable_history_snapshot_column = 30038;
+    optional bool enable_history_revisions = 30038;
 
     // Can be overridden per object.
     optional bool remove_legacy_meta_account_id = 30040;
