@@ -161,8 +161,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
     @authors("galtsev")
     @pytest.mark.parametrize("dynamic,sorted", [(False, False), (False, True), (True, False)])
-    def test_unordered_one_table(self, dynamic, sorted):
-        table = "//tmp/sorted-static"
+    def test_unordered_partitioning_one_table(self, dynamic, sorted):
+        table = "//tmp/{}-{}".format(
+            "ordered" if not sorted else "sorted",
+            "dynamic" if dynamic else "static")
         chunk_count = 6
         rows_per_chunk = 1000
         row_weight = 1000
@@ -190,7 +192,9 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
     @pytest.mark.parametrize("one_row_per_partition", [False, True])
     def test_multishard_ordered_dynamic_table(self, enable_dynamic_store_read, one_row_per_partition):
-        table = "//tmp/multishard_ordered_dynamic_table"
+        table = "//tmp/multishard_ordered_dynamic_table-{}-{}".format(
+            "with_dynamic_store_read" if enable_dynamic_store_read else "without_dynamic_store_read",
+            "one_row_per_partition" if one_row_per_partition else "many_rows_per_partition")
         chunk_count = 6
         rows_per_chunk = 10 if one_row_per_partition else 1000
         row_weight = 1000
@@ -682,7 +686,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
     @authors("apollo1321")
     def test_ordered_single_table(self):
-        table = "//tmp/sorted-static"
+        table = "//tmp/static-table"
         chunk_count = 2
         rows_per_chunk = 1000
         row_weight = 1000
@@ -691,3 +695,42 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         partitions = partition_tables([table], data_weight_per_partition=data_weight * 2, partition_mode="ordered")
 
         self.check_partitions([table], partitions)
+
+    @authors("psushin")
+    def test_read_ordered_dynamic_table_partition(self):
+        table = "//tmp/ordered-dynamic-table"
+        chunk_count = 3
+        rows_per_chunk = 100
+        row_weight = 500
+
+        data_weight = self._create_table(
+            table,
+            chunk_count,
+            rows_per_chunk,
+            row_weight,
+            dynamic=True,
+            sorted=False,
+            shard_count=4,
+        )
+
+        partitions = partition_tables(
+            [table],
+            data_weight_per_partition=data_weight // 2,
+            partition_mode="ordered",
+            enable_cookies=True
+        )
+
+        assert len(partitions) > 0
+        for partition in partitions:
+            assert "cookie" in partition
+            assert partition["cookie"] is not None
+
+        expected_rows = read_table(table)
+
+        actual_rows = []
+        for partition in partitions:
+            partition_rows = list(read_table_partition(partition["cookie"]))
+            actual_rows.extend(partition_rows)
+
+        assert len(actual_rows) == len(expected_rows)
+        assert actual_rows == expected_rows
