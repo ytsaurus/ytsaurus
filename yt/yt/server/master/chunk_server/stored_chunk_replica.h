@@ -51,46 +51,11 @@ public:
     TChunkLocation* AsChunkLocationPtr() const;
     TMedium* AsMediumPtr() const;
 
-    // size_t GetHash() const;
-
-    bool operator== (TStoredChunkReplicaPtrWithReplicaInfo other) const
-    {
-        auto thisStoredReplicaType = GetStoredReplicaType();
-        auto otherStoredReplicaType = other.GetStoredReplicaType();
-        return std::tuple(thisStoredReplicaType, GetId()) == std::tuple(otherStoredReplicaType, other.GetId());
-    }
-    // bool operator!=(TStoredChunkReplicaPtrWithReplicaInfo other) const
-    // {
-    //     auto thisStoredReplicaType = GetStoredReplicaType();
-    //     auto otherStoredReplicaType = other.GetStoredReplicaType();
-    //     return std::tuple(thisStoredReplicaType, GetId()) != std::tuple(otherStoredReplicaType, other.GetId());
-    // }
-
-    bool operator< (TStoredChunkReplicaPtrWithReplicaInfo other) const
-    {
-        auto thisStoredReplicaType = GetStoredReplicaType();
-        auto otherStoredReplicaType = other.GetStoredReplicaType();
-        return std::tuple(thisStoredReplicaType, GetId()) < std::tuple(otherStoredReplicaType, other.GetId());
-    }
-    bool operator<= (TStoredChunkReplicaPtrWithReplicaInfo other) const
-    {
-        auto thisStoredReplicaType = GetStoredReplicaType();
-        auto otherStoredReplicaType = other.GetStoredReplicaType();
-        return std::tuple(thisStoredReplicaType, GetId()) <= std::tuple(otherStoredReplicaType, other.GetId());
-    }
-    bool operator> (TStoredChunkReplicaPtrWithReplicaInfo other) const
-    {
-        auto thisStoredReplicaType = GetStoredReplicaType();
-        auto otherStoredReplicaType = other.GetStoredReplicaType();
-        return std::tuple(thisStoredReplicaType, GetId()) > std::tuple(otherStoredReplicaType, other.GetId());
-    }
-
-    bool operator>= (TStoredChunkReplicaPtrWithReplicaInfo other) const
-    {
-        auto thisStoredReplicaType = GetStoredReplicaType();
-        auto otherStoredReplicaType = other.GetStoredReplicaType();
-        return std::tuple(thisStoredReplicaType, GetId()) >= std::tuple(otherStoredReplicaType, other.GetId());
-    }
+    bool operator==(TStoredChunkReplicaPtrWithReplicaInfo other) const;
+    bool operator<(TStoredChunkReplicaPtrWithReplicaInfo other) const;
+    bool operator<=(TStoredChunkReplicaPtrWithReplicaInfo other) const;
+    bool operator>(TStoredChunkReplicaPtrWithReplicaInfo other) const;
+    bool operator>=(TStoredChunkReplicaPtrWithReplicaInfo other) const;
 
     template <class C>
     void Save(C& context) const
