@@ -5,7 +5,7 @@ from yt_commands import (
     authors, create, extract_statistic_v2, get, get_table_columnar_statistics, interrupt_job,
     make_random_string, map, merge, raises_yt_error, read_table, release_breakpoint,
     set_node_banned, set_nodes_banned, sorted_dicts, wait, wait_breakpoint,
-    with_breakpoint, write_table, reduce
+    with_breakpoint, write_table, reduce, map_reduce, sort
 )
 
 from yt_type_helpers import (
@@ -14,6 +14,23 @@ from yt_type_helpers import (
 
 import pytest
 import time
+
+
+DATA_WEIGHT_PER_JOB_NAME = {
+    "map": "data_weight_per_job",
+    "merge": "data_weight_per_job",
+    "reduce": "data_weight_per_job",
+    "map_reduce": "data_weight_per_map_job",
+    "sort": "data_weight_per_partition_job"
+}
+
+COMPRESSED_DATA_SIZE_PER_JOB_NAME = {
+    "map": "compressed_data_size_per_job",
+    "merge": "compressed_data_size_per_job",
+    "reduce": "compressed_data_size_per_job",
+    "map_reduce": "compressed_data_size_per_map_job",
+    "sort": "compressed_data_size_per_partition_job"
+}
 
 
 class TestJobSlicingBase(YTEnvSetup):
@@ -63,7 +80,8 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         progress = get(op.get_path() + "/@progress")
         assert progress["jobs"]["pending"] == progress["jobs"]["total"]
         # Check that job count is correctly estimated, before any job is scheduled.
-        assert abs(progress["jobs"]["total"] - expected_job_count) <= abs_error
+        assert abs(progress["jobs"]["total"] - expected_job_count) <= abs_error, \
+            f"actual_job_count: {progress['jobs']['total']}, expected_job_count: {expected_job_count}"
         op.resume()
         op.track()
 
@@ -213,7 +231,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
             assert progress["jobs"]["completed"]["total"] == min(job_count, row_count)
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("operation", ["map", "merge", "map_reduce"])
     @pytest.mark.parametrize("use_max_constraints", [True, False])
     def test_operation_with_skewed_input_data_ordered(self, operation, use_max_constraints):
         """
@@ -272,7 +290,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
 
         # Ensure that compression and rle took place and compressed data size is small.
         assert get("//tmp/t_in/@compressed_data_size") < 1200
-        assert get("//tmp/t_in/@data_weight") >= 40000
+        assert get("//tmp/t_in/@data_weight") == 40010
 
         # We will have to read both col1 and col2 here. Data weight will be small,
         # but compressed_data_size will be large.
@@ -282,28 +300,58 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
                 "col2": make_random_string(960),
             })
 
-        assert get("//tmp/t_in/@compressed_data_size") > 5000
+        assert 4900 <= get("//tmp/t_in/@compressed_data_size") <= 5500
         assert get("//tmp/t_in/@data_weight") <= 45000
 
-        op_function = merge if operation == "merge" else map
+        data_weight_per_job = 3900
+        compressed_data_size_per_job = 2400 if use_max_constraints else 2200
 
-        op = op_function(
-            in_="//tmp/t_in{col1}",
-            out="<create=true>//tmp/t_out",
-            spec={
-                "data_weight_per_job": 3900,
-            } | ({
-                "max_compressed_data_size_per_job": 2400,
-            } if use_max_constraints else {
-                "compressed_data_size_per_job": 2200,
-            }) | ({
-                "force_transform": True,
-                "mode": "ordered",
-            } if operation == "merge" else {}) | ({
-                "ordered": True,
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}),
-        )
+        if use_max_constraints:
+            common_spec = {
+                "max_compressed_data_size_per_job": compressed_data_size_per_job,
+                DATA_WEIGHT_PER_JOB_NAME[operation]: data_weight_per_job,
+            }
+        else:
+            common_spec = {
+                COMPRESSED_DATA_SIZE_PER_JOB_NAME[operation]: compressed_data_size_per_job,
+                DATA_WEIGHT_PER_JOB_NAME[operation]: data_weight_per_job,
+            }
+
+        common_args = {
+            "in_": "//tmp/t_in{col1}",
+            "out": "<create=true>//tmp/t_out",
+        }
+
+        match operation:
+            case "map":
+                op = map(
+                    **common_args,
+                    spec=common_spec | {
+                        "ordered": True,
+                        "mapper": {"command": "cat > /dev/null"},
+                    },
+                )
+            case "merge":
+                op = merge(
+                    **common_args,
+                    spec=common_spec | {
+                        "force_transform": True,
+                        "mode": "ordered",
+                    },
+                )
+            case "map_reduce":
+                op = map_reduce(
+                    **common_args,
+                    reduce_by="col1",
+                    mapper_command="cat > /dev/null",
+                    reducer_command="cat",
+                    spec=common_spec | {
+                        "ordered": True,
+                        "partition_count": 2,
+                    },
+                )
+            case _:
+                assert False
 
         progress = get(op.get_path() + "/@progress")
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
@@ -311,7 +359,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         assert progress["jobs"]["completed"]["total"] == 12
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("operation", ["map", "merge", "map_reduce", "sort"])
     @pytest.mark.parametrize("use_max_constraints", [True, False])
     def test_operation_with_skewed_input_data_unordered(self, operation, use_max_constraints):
         """
@@ -382,40 +430,95 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
                 "col2": make_random_string(4000),
             })
 
-        data_weight_col1 = get_table_columnar_statistics("[\"//tmp/t_in{col1}\"]")[0]["column_data_weights"]["col1"]
-        assert 3900 <= data_weight_col1 <= 4100
+        assert 3900 <= get_table_columnar_statistics("[\"//tmp/t_in{col1}\"]")[0]["column_data_weights"]["col1"] <= 4100
         assert 20000 <= get("//tmp/t_in/@compressed_data_size") <= 22000
 
-        op_function = merge if operation == "merge" else map
+        compressed_data_size_per_job = 100000
+        data_weight_per_job = 50
 
-        op = op_function(
-            in_="//tmp/t_in{col1}",
-            out="<create=true>//tmp/t_out",
-            spec={
-                "data_weight_per_job": 50,
-                "suspend_operation_after_materialization": True,
-            } | ({
-                "max_compressed_data_size_per_job": 100000,
-            } if use_max_constraints else {
-                "compressed_data_size_per_job": 100000,
-            }) | ({
-                "force_transform": True,
-                "mode": "unordered",
-            } if operation == "merge" else {}) | ({
-                "ordered": False,
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}),
-            track=False,
-        )
+        common_spec = {
+            "suspend_operation_after_materialization": True,
+        }
 
-        if operation == "map":
-            # See test description for explanation.
-            self._check_initial_job_estimation_and_track(op, 5)
+        if use_max_constraints:
+            common_spec.update({
+                "max_compressed_data_size_per_job": compressed_data_size_per_job,
+                DATA_WEIGHT_PER_JOB_NAME[operation]: data_weight_per_job
+            })
         else:
-            self._check_initial_job_estimation_and_track(op, 80, abs_error=3)
+            common_spec.update({
+                COMPRESSED_DATA_SIZE_PER_JOB_NAME[operation]: compressed_data_size_per_job,
+                DATA_WEIGHT_PER_JOB_NAME[operation]: data_weight_per_job,
+            })
+
+        common_args = {
+            "in_": "//tmp/t_in{col1}",
+            "out": "<create=true>//tmp/t_out",
+            "track": False,
+        }
+
+        match operation:
+            case "map":
+                op = map(
+                    **common_args,
+                    spec=common_spec | {
+                        "ordered": False,
+                        "mapper": {"command": "cat > /dev/null"},
+                    },
+                )
+            case "merge":
+                op = merge(
+                    **common_args,
+                    spec=common_spec | {
+                        "force_transform": True,
+                        "mode": "unordered",
+                    },
+                )
+            case "map_reduce":
+                op = map_reduce(
+                    **common_args,
+                    reduce_by="col1",
+                    mapper_command="cat > /dev/null",
+                    reducer_command="cat",
+                    spec=common_spec | {
+                        "ordered": False,
+                        "partition_count": 2,
+                    },
+                )
+            case "sort":
+                op = sort(
+                    **common_args,
+                    sort_by="col1",
+                    spec=common_spec | {
+                        "partition_count": 2,
+                    },
+                )
+            case _:
+                assert False
+
+        match operation:
+            case "map" | "map_reduce" | "sort":
+                # See test description for explanation.
+                self._check_initial_job_estimation_and_track(op, 5)
+            case "merge":
+                self._check_initial_job_estimation_and_track(op, 80, abs_error=3)
+            case _:
+                assert False
 
         progress = get(op.get_path() + "/@progress")
-        assert 1 <= progress["jobs"]["completed"]["total"] <= 2
+
+        match operation:
+            case "map" | "merge" | "map_reduce":
+                assert 1 <= progress["jobs"]["completed"]["total"] <= 2
+            case "sort":
+                tasks = progress["tasks"]
+                assert len(tasks) == 2
+                assert tasks[0]["task_name"] == "partition(0)"
+                assert tasks[1]["task_name"] == "final_sort"
+                assert 1 <= progress["partition"]["total"] <= 2
+                assert progress["final_sort"]["total"] == 1
+            case _:
+                assert False
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "unordered_merge", "ordered_merge", "sorted_merge", "reduce"])
@@ -456,7 +559,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
             op.track()
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("operation", ["map", "merge", "map_reduce", "sort"])
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     @pytest.mark.parametrize("use_max_constraints", [True, False])
     def test_slice_by_compressed_data_size_and_data_weight_alternately(self, operation, mode, use_max_constraints):
@@ -467,12 +570,12 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
 
         +-------+---------------+
         |       | #     #     # | <- 4000 bytes
-        | Data  | #     #     # | <~ compressed_data_size_per_job = 3500 bytes
+        | Data  | #     #     # | <~ data_weight_per_job = 3500 bytes
         | Weight| #     #     # |
         |       | #  #  #  #  # | <- 1000 bytes
         +-------+---------------+
         |       |    #     #    | <- 4000 bytes
-        | Compr.|    #     #    | <~ data_weight_per_job = 3500 bytes
+        | Compr.|    #     #    | <~ compressed_data_size_per_job = 3500 bytes
         | Data  |    #     #    |
         | Size  | #  #  #  #  # | <- 1000 bytes
         +-------+---------------+
@@ -485,6 +588,12 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         NB: In unordered mode chunk indexes are just for convenience, they do
         not guarantee ordering in unordered pools.
         """
+
+        # Sort operation is always unordered.
+        # Max constraints are not implemented for sort operation, because
+        # they will be violated on sort phase.
+        if operation == "sort" and (mode == "ordered" or use_max_constraints):
+            pytest.skip()
 
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
@@ -506,46 +615,97 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
                     "col2": make_random_string(3900),
                 })
 
-        data_weight_col1 = get_table_columnar_statistics("[\"//tmp/t_in{col1}\"]")[0]["column_data_weights"]["col1"]
-        assert 13700 <= data_weight_col1 <= 14300
+        assert 13700 <= get_table_columnar_statistics("[\"//tmp/t_in{col1}\"]")[0]["column_data_weights"]["col1"] <= 14300
         assert 11000 <= get("//tmp/t_in/@compressed_data_size") <= 12000
 
-        op_function = merge if operation == "merge" else map
+        common_args = {
+            "in_": "//tmp/t_in{col1,col3}",
+            "out": "<create=true>//tmp/t_out",
+            "track": False,
+        }
 
-        op = op_function(
-            in_="//tmp/t_in{col1}",
-            out="<create=true>//tmp/t_out",
-            spec={
-                "suspend_operation_after_materialization": True,
-            } | ({
-                "data_weight_per_job": 7000,
-                "max_compressed_data_size_per_job": 7000,
-                "max_data_weight_per_job": 7000,
-            } if use_max_constraints else {
-                "data_weight_per_job": 3500,
-                "compressed_data_size_per_job": 3500,
-            }) | ({
-                "force_transform": True,
-                "mode": mode,
-            } if operation == "merge" else {}) | ({
-                "ordered": mode == "ordered",
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}),
-            track=False,
-        )
+        common_spec = {
+            "suspend_operation_after_materialization": True,
+        }
+        if use_max_constraints:
+            common_spec.update({
+                "max_compressed_data_size_per_job": 4500,
+                "max_data_weight_per_job": 4500,
+            })
+        else:
+            common_spec.update({
+                DATA_WEIGHT_PER_JOB_NAME[operation]: 3500,
+                COMPRESSED_DATA_SIZE_PER_JOB_NAME[operation]: 3500,
+            })
 
-        self._check_initial_job_estimation_and_track(op, 5)
+        match operation:
+            case "map":
+                op = map(
+                    **common_args,
+                    spec=common_spec | {
+                        "mapper": {"command": "cat > /dev/null"},
+                        "ordered": mode == "ordered",
+                    },
+                )
+            case "merge":
+                op = merge(
+                    **common_args,
+                    spec=common_spec | {
+                        "force_transform": True,
+                        "mode": mode,
+                    },
+                )
+            case "map_reduce":
+                op = map_reduce(
+                    **common_args,
+                    reduce_by="col1",
+                    reducer_command="cat",
+                    mapper_command="cat > /dev/null",
+                    spec=common_spec | {
+                        "ordered": mode == "ordered",
+                        "partition_count": 2,
+                    },
+                )
+            case "sort":
+                op = sort(
+                    **common_args,
+                    sort_by="col1",
+                    spec=common_spec | {
+                        "partition_count": 2,
+                    },
+                )
+            case _:
+                assert False
+
+        # Unordered mode uses relaxed accuracy (abs_error=2) due to its specific
+        # implementation. Standard modes use strict accuracy (abs_error=0).
+        self._check_initial_job_estimation_and_track(op, 5, 2 if mode == "unordered" else 0)
 
         progress = get(op.get_path() + "/@progress")
-        assert progress["jobs"]["completed"]["total"] == 5
+        tasks = progress["tasks"]
+        match operation:
+            case "map" | "merge" | "map_reduce":
+                assert len(tasks) == 1
+                assert progress["jobs"]["completed"]["total"] == 5
+            case "sort":
+                assert len(tasks) == 2
+                assert tasks[0]["task_name"] == "partition(0)"
+                assert tasks[1]["task_name"] == "final_sort"
+                assert progress["partition"]["total"] == 5
+                assert progress["final_sort"]["total"] == 2
+            case _:
+                assert False
+
+        if not use_max_constraints:
+            return
 
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
 
-        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 7000
-        assert self._get_completed_summary(input_statistics["data_weight"])["max"] <= 7000
+        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 4500
+        assert self._get_completed_summary(input_statistics["data_weight"])["max"] <= 4500
 
     @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("operation", ["map", "merge", "map_reduce", "sort"])
     def test_slice_by_compressed_data_size_unordered(self, operation):
         """
         Test that input can be sliced only by compressed_data_size. The
@@ -579,59 +739,100 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
             "schema": make_schema([
                 {"name": "col1", "type": "string", "group": "custom"},
                 {"name": "col2", "type": "string", "group": "custom"},
+                # Col3 is needed only for sort operation. Col1 cannot be used as
+                # sort key, because it is too big to fit in max_key_weight.
+                {"name": "col3", "type": "string"},
             ]),
             "optimize_for": "scan",
         })
 
-        write_table("<append=%true>//tmp/t_in", {
-            "col1": "a" * 1,
-            "col2": make_random_string(40000),
-        })
-
-        write_table("<append=%true>//tmp/t_in", {
-            "col1": "a" * 50_000,
-            "col2": make_random_string(40000),
-        })
-
-        write_table("<append=%true>//tmp/t_in", {
-            "col1": "a" * 250_000,
-            "col2": make_random_string(20000),
-        })
-
-        write_table("<append=%true>//tmp/t_in", {
-            "col1": "a" * 500_000,
-            "col2": make_random_string(20000),
-        })
+        for data_weight, compressed_size in [
+            (1, 40_000),
+            (50_000, 40_000),
+            (250_000, 20_000),
+            (500_000, 20_000),
+        ]:
+            write_table("<append=%true>//tmp/t_in", {
+                "col1": "a" * data_weight,
+                "col2": make_random_string(compressed_size),
+                "col3": make_random_string(5),
+            })
 
         assert 120000 <= get("//tmp/t_in/@compressed_data_size") <= 130000
 
-        op_function = merge if operation == "merge" else map
+        common_args = {
+            "in_": "//tmp/t_in{col1,col3}",
+            "out": "<create=true>//tmp/t_out",
+            "track": False,
+        }
+        common_spec = {
+            "suspend_operation_after_materialization": True,
+            COMPRESSED_DATA_SIZE_PER_JOB_NAME[operation]: 30000,
+        }
 
-        op = op_function(
-            in_="//tmp/t_in{col1}",
-            out="<create=true>//tmp/t_out",
-            spec={
-                "suspend_operation_after_materialization": True,
-                "compressed_data_size_per_job": 30000,
-            } | ({
-                "force_transform": True,
-                "mode": "unordered",
-            } if operation == "merge" else {}) | ({
-                "ordered": False,
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}),
-            track=False,
-        )
+        match operation:
+            case "map":
+                op = map(**common_args, spec=common_spec | {
+                    "mapper": {"command": "cat > /dev/null"},
+                    "ordered": False,
+                })
+            case "merge":
+                op = merge(**common_args, spec=common_spec | {
+                    "force_transform": True,
+                    "mode": "unordered",
+                })
+            case "map_reduce":
+                op = map_reduce(
+                    **common_args,
+                    reduce_by="col1",
+                    reducer_command="cat",
+                    mapper_command="cat",
+                    spec=common_spec | {
+                        "ordered": False,
+                        "partition_count": 2
+                    },
+                )
+            case "sort":
+                op = sort(
+                    **common_args,
+                    sort_by="col3",
+                    spec=common_spec | {
+                        "partition_count": 2,
+                    },
+                )
+            case _:
+                assert False
 
-        if operation == "map":
-            # NB: User job size constraints take into account the number of
-            # rows. So job count will be 4 instead of 5 in map operation.
-            self._check_initial_job_estimation_and_track(op, 4)
-        else:
-            self._check_initial_job_estimation_and_track(op, 5)
+        match operation:
+            case "map" | "map_reduce" | "sort":
+                # NB: User and partition job size constraints take into account the number
+                # of rows. So job count will be 4 instead of 5 in map operation.
+                self._check_initial_job_estimation_and_track(op, 4)
+            case "merge":
+                self._check_initial_job_estimation_and_track(op, 5)
+            case _:
+                assert False
 
         progress = get(op.get_path() + "/@progress")
-        assert 2 <= progress["jobs"]["completed"]["total"] <= 3
+        tasks = progress["tasks"]
+        match operation:
+            case "map" | "merge":
+                assert len(tasks) == 1
+                assert 2 <= progress["jobs"]["completed"]["total"] <= 3
+            case "map_reduce":
+                assert len(tasks) == 2
+                assert tasks[0]["task_name"] == "partition_map(0)"
+                assert tasks[1]["task_name"] == "partition_reduce"
+                assert 2 <= progress["partition_map"]["total"] <= 3
+                assert progress["partition_reduce"]["total"] == 2
+            case "sort":
+                assert len(tasks) == 2
+                assert tasks[0]["task_name"] == "partition(0)"
+                assert tasks[1]["task_name"] == "final_sort"
+                assert 2 <= progress["partition"]["total"] <= 3
+                assert progress["final_sort"]["total"] == 2
+            case _:
+                assert False
 
     @authors("apollo1321")
     def test_slice_by_compressed_data_size_sorted_reduce(self):
