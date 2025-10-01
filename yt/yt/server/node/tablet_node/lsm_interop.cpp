@@ -335,6 +335,8 @@ private:
             lsmStore->UpperBoundKey() = sortedStore->GetUpperBoundKey();
         }
 
+        EmplaceOrCrash(lsmTablet->StoreIdMap(), lsmStore->GetId(), lsmStore.get());
+
         return lsmStore;
     }
 
