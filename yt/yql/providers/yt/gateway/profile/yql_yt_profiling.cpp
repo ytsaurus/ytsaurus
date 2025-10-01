@@ -186,7 +186,7 @@ public:
     void AddCluster(const TYtClusterConfig&) override {
     }
 
-    TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) override {
+    TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) const override {
         YQL_PROFILE_FUNC(TRACE);
         return Slave_->GetClusterConnection(std::move(options));
     }

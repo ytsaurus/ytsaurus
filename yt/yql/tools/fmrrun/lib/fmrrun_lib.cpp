@@ -39,13 +39,16 @@ IYtGateway::TPtr TFmrRunTool::CreateYtGateway() {
     fmrServices->FunctionRegistry = GetFuncRegistry().Get();
     fmrServices->JobLauncher = MakeIntrusive<NFmr::TFmrUserJobLauncher>(NFmr::TFmrUserJobLauncherOptions{
         .RunInSeparateProcess = true,
-        .FmrJobBinaryPath = FmrJobBin_
+        .FmrJobBinaryPath = FmrJobBin_,
+        .TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_,
+        .GatewayType = "file"
     });
     fmrServices->TableDataServiceDiscoveryFilePath = TableDataServiceDiscoveryFilePath_;
     fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
     fmrServices->CoordinatorServerUrl = FmrCoordinatorServerUrl_;
     fmrServices->DisableLocalFmrWorker = DisableLocalFmrWorker_;
+    fmrServices->NeedToTransformTmpTablePaths = false;
     auto [fmrGateway, worker] = NFmr::InitializeFmrGateway(fileGateway, fmrServices);
     FmrWorker_ = std::move(worker);
     return fmrGateway;
