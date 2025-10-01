@@ -114,6 +114,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((InvalidDataWeightPerJob)                     (44)) // COMPAT(apollo1321)
     ((InaccuratelyEstimatedCompressedDataSize)     (45))
     ((TooManySlicesInJobs)                         (46))
+    ((SpecIsTooLarge)                              (47))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
