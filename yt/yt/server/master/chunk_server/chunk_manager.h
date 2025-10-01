@@ -162,7 +162,7 @@ struct IChunkManager
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -173,7 +173,7 @@ struct IChunkManager
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -184,7 +184,7 @@ struct IChunkManager
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -193,7 +193,7 @@ struct IChunkManager
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
