@@ -23,7 +23,9 @@ enum class EYtWriteMode: ui32 {
     Drop            /* "drop" */,
     Flush           /* "flush" */,
     Create          /* "create" */,
+    CreateIfNotExists /* "create_if_not_exists" */,
     Alter           /* "alter" */,
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
