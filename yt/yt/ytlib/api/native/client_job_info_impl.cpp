@@ -1496,7 +1496,7 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
         builder->AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
     }
     if (options.ToTime) {
-        builder->AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
+        builder->AddWhereConjunct(Format("start_time <= %v", options.ToTime->MicroSeconds()));
     }
 
     if (options.TaskName) {
