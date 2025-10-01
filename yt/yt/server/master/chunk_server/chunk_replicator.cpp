@@ -519,7 +519,7 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
 
 TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
 
     VerifyPersistentStateRead();
@@ -537,18 +537,18 @@ TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
 
 ECrossMediumChunkStatus TChunkReplicator::ComputeCrossMediumChunkStatus(
     TChunk* chunk,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     return ComputeChunkStatistics(chunk, replicas).Status;
 }
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TChunk* chunk,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMediumPtr(); });
     if (chunk->IsErasure() && offshoreReplicaIt != replicas.end()) {
-        TStoredReplicaList offshoreReplicas;
+        TStoredChunkReplicaPtrWithReplicaInfoList offshoreReplicas;
         for (const auto& replica: replicas) {
             if (replica.IsMediumPtr()) {
                 offshoreReplicas.push_back(replica);
@@ -574,7 +574,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatistics(
     const TChunk* chunk,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     TChunkStatistics result;
 
@@ -761,7 +761,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
 TCompactMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
     const TChunk* chunk,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     if (!chunk->HasConsistentReplicaPlacementHash()) {
         return {};
@@ -1053,7 +1053,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(
     const TChunk* chunk,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     TChunkStatistics results;
 
@@ -1499,7 +1499,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     TChunkPtrWithReplicaIndex chunkWithIndex,
     TDomesticMedium* targetMedium,
     TNodeId targetNodeId,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     auto* sourceNode = context->GetNode();
     auto* chunk = chunkWithIndex.GetPtr();
@@ -1707,7 +1707,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
     IJobSchedulingContext* context,
     EChunkRepairQueue repairQueue,
     TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
@@ -2413,7 +2413,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
 
 void TChunkReplicator::RefreshChunk(
     const TEphemeralObjectPtr<TChunk>& ephemeralChunk,
-    const TStoredReplicaList& chunkReplicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas)
 {
     if (!IsObjectAlive(ephemeralChunk)) {
         return;
@@ -2750,7 +2750,7 @@ void TChunkReplicator::MaybeRememberPartMissingChunk(TChunk* chunk)
 
 void TChunkReplicator::RemoveChunkReplicasFromReplicationQueues(
     TChunkId chunkId,
-    const TStoredReplicaList& replicas)
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
 {
     for (auto replica : replicas) {
         if (!replica.IsChunkLocationPtr()) {
@@ -2780,7 +2780,7 @@ bool TChunkReplicator::IsReplicaOnPendingRestartNode(TChunkLocation* replica)
 
 TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(
     const TChunk* chunk,
-    const TStoredReplicaList& replicas) const
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas) const
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
@@ -3065,7 +3065,7 @@ TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
 
 bool TChunkReplicator::IsDurabilityRequired(
     TChunk* chunk,
-    const TStoredReplicaList& replicas) const
+    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas) const
 {
     if (chunk->GetHistoricallyNonVital()) {
         return false;

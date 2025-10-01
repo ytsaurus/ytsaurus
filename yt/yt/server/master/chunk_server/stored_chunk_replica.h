@@ -1,35 +1,29 @@
 #pragma once
 
 #include "public.h"
+// COMPAT(cherepashka): drop after RefactoringAroundChunkStoredReplicas will be removed.
 #include "chunk_replica.h"
-#include "chunk_location.h"
-#include <yt/yt/server/master/chunk_server/medium_base.h>
-#include <yt/yt/server/master/node_tracker_server/node.h>
+
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EStoredReplicaType,
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EStoredReplicaType, ui8,
     ((ChunkLocation)   (0))
     ((OffshoreMedia)   (1))
 );
 
 static_assert(
     static_cast<int>(TEnumTraits<EStoredReplicaType>::GetMaxValue()) < (1LL << 3),
-    "Stored replica replica type must fit into 2 bits.");
+    "Stored replica type must fit into 2 bits.");
 
 //! A compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
 class TStoredChunkReplicaPtrWithReplicaInfo
-    // : public TAugmentationAccessor<TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>>
 {
-private:
-    // static_assert(1 <= IndexCount && IndexCount <= 2);
-    // friend class TAugmentationAccessor<TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>>;
-    // friend class TStoredReplicaAugmentedPtr<!WithReplicaState>;
-
 public:
-    TStoredChunkReplicaPtrWithReplicaInfo() {}
+    TStoredChunkReplicaPtrWithReplicaInfo();
     template <class T>
     TStoredChunkReplicaPtrWithReplicaInfo(T* ptr, int index, EChunkReplicaState replicaState = EChunkReplicaState::Generic)
         requires ((std::is_same_v<T, TChunkLocation> || std::is_same_v<T, TMedium>))
@@ -49,47 +43,28 @@ public:
 
     TStoredChunkReplicaPtrWithReplicaInfo& operator=(const TStoredChunkReplicaPtrWithReplicaInfo& other) = default;
 
-    bool HasPtr() const
-    {
-        return Value_ & 0x0000fffffffffffcLL;
-    }
+    bool HasPtr() const;
 
-    bool IsChunkLocationPtr() const
-    {
-        return GetStoredReplicaType() == EStoredReplicaType::ChunkLocation;
-    }
+    bool IsChunkLocationPtr() const;
+    bool IsMediumPtr() const;
 
-    bool IsMediumPtr() const
-    {
-        return GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia;
-    }
+    TChunkLocation* AsChunkLocationPtr() const;
+    TMedium* AsMediumPtr() const;
 
-    TChunkLocation* AsChunkLocationPtr() const
-    {
-        YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
-        return reinterpret_cast<TChunkLocation*>(Value_ & 0x0000fffffffffffcLL);
-    }
+    // size_t GetHash() const;
 
-    TMedium* AsMediumPtr() const
-    {
-        YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
-        return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
-    }
-
-    size_t GetHash() const;
-
-    bool operator==(TStoredChunkReplicaPtrWithReplicaInfo other) const
+    bool operator== (TStoredChunkReplicaPtrWithReplicaInfo other) const
     {
         auto thisStoredReplicaType = GetStoredReplicaType();
         auto otherStoredReplicaType = other.GetStoredReplicaType();
         return std::tuple(thisStoredReplicaType, GetId()) == std::tuple(otherStoredReplicaType, other.GetId());
     }
-    bool operator!=(TStoredChunkReplicaPtrWithReplicaInfo other) const
-    {
-        auto thisStoredReplicaType = GetStoredReplicaType();
-        auto otherStoredReplicaType = other.GetStoredReplicaType();
-        return std::tuple(thisStoredReplicaType, GetId()) != std::tuple(otherStoredReplicaType, other.GetId());
-    }
+    // bool operator!=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+    // {
+    //     auto thisStoredReplicaType = GetStoredReplicaType();
+    //     auto otherStoredReplicaType = other.GetStoredReplicaType();
+    //     return std::tuple(thisStoredReplicaType, GetId()) != std::tuple(otherStoredReplicaType, other.GetId());
+    // }
 
     bool operator< (TStoredChunkReplicaPtrWithReplicaInfo other) const
     {
@@ -97,7 +72,7 @@ public:
         auto otherStoredReplicaType = other.GetStoredReplicaType();
         return std::tuple(thisStoredReplicaType, GetId()) < std::tuple(otherStoredReplicaType, other.GetId());
     }
-    bool operator<=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+    bool operator<= (TStoredChunkReplicaPtrWithReplicaInfo other) const
     {
         auto thisStoredReplicaType = GetStoredReplicaType();
         auto otherStoredReplicaType = other.GetStoredReplicaType();
@@ -110,7 +85,7 @@ public:
         return std::tuple(thisStoredReplicaType, GetId()) > std::tuple(otherStoredReplicaType, other.GetId());
     }
 
-    bool operator>=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+    bool operator>= (TStoredChunkReplicaPtrWithReplicaInfo other) const
     {
         auto thisStoredReplicaType = GetStoredReplicaType();
         auto otherStoredReplicaType = other.GetStoredReplicaType();
@@ -127,16 +102,15 @@ public:
         Save(context, GetReplicaState());
 
         switch (type) {
-                case EStoredReplicaType::ChunkLocation: {
-                    SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsChunkLocationPtr());
-                    break;
-                }
-                case EStoredReplicaType::OffshoreMedia: {
-                    SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsMediumPtr());
-                    break;
-                }
+            case EStoredReplicaType::ChunkLocation: {
+                SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsChunkLocationPtr());
+                break;
             }
-        
+            case EStoredReplicaType::OffshoreMedia: {
+                SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsMediumPtr());
+                break;
+            }
+        }
     }
     template <class C>
     void Load(C& context)
@@ -165,106 +139,28 @@ public:
         }
     }
 
-    TStoredChunkReplicaPtrWithReplicaInfo ToGenericState() const
-    {
-        auto type = GetStoredReplicaType();
-        switch (type) {
-            case EStoredReplicaType::ChunkLocation:
-                return TStoredChunkReplicaPtrWithReplicaInfo(AsChunkLocationPtr(), GetReplicaIndex());
-            case EStoredReplicaType::OffshoreMedia:
-                return TStoredChunkReplicaPtrWithReplicaInfo(AsMediumPtr(), GetReplicaIndex());
-        }
-    }
+    TStoredChunkReplicaPtrWithReplicaInfo ToGenericState() const;
 
-    EChunkReplicaState GetReplicaState() const
-    {
-        return static_cast<EChunkReplicaState>(Value_ & 0x3);
-    }
+    EChunkReplicaState GetReplicaState() const;
 
     // todo: -> ui8
-    int GetReplicaIndex() const
-    {
-        return static_cast<int>((Value_ >> (56)) & 0xff);
-    }
-
-    int GetEffectiveMediumIndex() const
-    {
-        auto type = GetStoredReplicaType();
-        switch (type) {
-        case EStoredReplicaType::ChunkLocation:
-            return AsChunkLocationPtr()->GetEffectiveMediumIndex();
-        case EStoredReplicaType::OffshoreMedia:
-            return AsMediumPtr()->GetIndex();
-        }
-    }
-
-    NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const
-    {
-        switch (GetStoredReplicaType()) {
-        case EStoredReplicaType::ChunkLocation: {
-            auto* location = AsChunkLocationPtr();
-            if (!NObjectServer::IsObjectAlive(location)) {
-                return NNodeTrackerClient::InvalidChunkLocationIndex;
-            }
-            return location->GetIndex();
-        }
-        case EStoredReplicaType::OffshoreMedia:
-            return NNodeTrackerClient::InvalidChunkLocationIndex;
-        }
-    }
-    NChunkClient::TChunkLocationUuid GetLocationUuid() const
-    {
-        switch (GetStoredReplicaType()) {
-        case EStoredReplicaType::ChunkLocation: {
-            auto* location = AsChunkLocationPtr();
-            if (!NObjectServer::IsObjectAlive(location)) {
-                return NChunkClient::InvalidChunkLocationUuid;
-            }
-            return location->GetUuid();
-        }
-        case EStoredReplicaType::OffshoreMedia:
-            return NChunkClient::InvalidChunkLocationUuid;
-        }
-    }
-    NNodeTrackerClient::TNodeId GetNodeId() const
-    {
-        switch (GetStoredReplicaType()) {
-        case EStoredReplicaType::ChunkLocation: {
-            auto* location = AsChunkLocationPtr();
-            if (!NObjectServer::IsObjectAlive(location)) {
-                return NNodeTrackerClient::InvalidNodeId;
-            }
-            auto node = location->GetNode();
-            if (!NObjectServer::IsObjectAlive(node)) {
-                return NNodeTrackerClient::InvalidNodeId;
-            }
-            return node->GetId();
-        }
-        case EStoredReplicaType::OffshoreMedia:
-            return NNodeTrackerClient::OffshoreNodeId;
-        }
-    }
+    int GetReplicaIndex() const;
+    int GetEffectiveMediumIndex() const;
+    NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const;
+    NChunkClient::TChunkLocationUuid GetLocationUuid() const;
+    NNodeTrackerClient::TNodeId GetNodeId() const;
 
 private:
     static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
 
-    // Use compact 8-byte representation with index occupying the highest 8 bits.
+    // Use compact 8-byte representation.
+    // |replica_index, replica_type, (variant(TChunkLocation*, TMedium*), replica_state)|
+    // |       8 bits,       8 bits,
     uintptr_t Value_;
 
-    EStoredReplicaType GetStoredReplicaType() const
-    {
-        return static_cast<EStoredReplicaType>((Value_ >> (48)) & 0xff);
-    }
+    EStoredReplicaType GetStoredReplicaType() const;
 
-    NObjectClient::TObjectId GetId() const
-    {
-        switch (GetStoredReplicaType()) {
-        case EStoredReplicaType::ChunkLocation:
-            return AsChunkLocationPtr()->GetId();
-        case EStoredReplicaType::OffshoreMedia:
-            return AsMediumPtr()->GetId();
-        }
-    }
+    NObjectClient::TObjectId GetId() const;
 
     friend void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec);
     friend void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value);
@@ -275,62 +171,15 @@ YT_STATIC_ASSERT_SIZEOF_SANITY(TStoredChunkReplicaPtrWithReplicaInfo, 8);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TStoredChunkReplicaPtrWithReplicaInfoList = TCompactVector<TStoredChunkReplicaPtrWithReplicaInfo, TypicalReplicaCount>;
+using TChunkToStoredChunkReplicaPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TStoredChunkReplicaPtrWithReplicaInfoList>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec);
 
 //! Serializes node id, replica index, medium index.
 void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStoredReplica
-{
-public:
-    TStoredReplica();
-    TStoredReplica(const TChunkLocationPtrWithReplicaInfo& chunkLocation);
-    TStoredReplica(const TMediumPtrWithReplicaInfo& medium);
-
-    std::strong_ordering operator<=> (const TStoredReplica& other) const = default;
-
-    bool IsChunkLocation() const;
-    TChunkLocationPtrWithReplicaInfo& AsChunkLocation();
-    const TChunkLocationPtrWithReplicaInfo& AsChunkLocation() const;
-
-    bool IsMedium() const;
-    TMediumPtrWithReplicaInfo& AsMedium();
-    const TMediumPtrWithReplicaInfo& AsMedium() const;
-
-    TStoredReplica ToGenericState() const;
-
-    int GetEffectiveMediumIndex() const;
-    int GetReplicaIndex() const;
-
-    EChunkReplicaState GetReplicaState() const;
-
-    NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const;
-    NChunkClient::TChunkLocationUuid GetLocationUuid() const;
-    NNodeTrackerClient::TNodeId GetNodeId() const;
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-private:
-    std::variant<TChunkLocationPtrWithReplicaInfo, TMediumPtrWithReplicaInfo> ReplicaInfo_;
-
-    friend void FormatValue(TStringBuilderBase* builder, TStoredReplica value, TStringBuf spec);
-    friend void ToProto(ui64* protoValue, TStoredReplica value);
-};
-
-// Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TStoredReplica, 16);
-
-using TStoredReplicaList = TCompactVector<TStoredChunkReplicaPtrWithReplicaInfo, TypicalReplicaCount>;
-using TChunkToStoredReplicaList = THashMap<TChunkId, TErrorOr<TStoredReplicaList>>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, TStoredReplica value, TStringBuf spec);
-
-//! Serializes node id, replica index, medium index.
-void ToProto(ui64* protoValue, TStoredReplica value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -769,7 +769,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -793,7 +793,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -817,7 +817,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -839,7 +839,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TStoredReplicaList& replicas,
+        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,

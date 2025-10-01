@@ -432,8 +432,7 @@ private:
     struct TReplicasData
         : public TReplicasDataBase
     {
-        // using TStoredReplicaList = 
-        TStoredReplicaList StoredReplicas;
+        TStoredChunkReplicaPtrWithReplicaInfoList StoredReplicas;
 
         std::array<TNodeId, MaxLastSeenReplicaCount> LastSeenReplicas;
 
