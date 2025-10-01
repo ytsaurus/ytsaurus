@@ -870,8 +870,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         // Add layer files.
-        auto layerPaths = GetLayerPaths(userJobSpec);
-        for (const auto& path : layerPaths) {
+        for (const auto& path : GetLayerPaths(userJobSpec)) {
             files.emplace_back(
                 path,
                 InputTransactions_->GetTransactionIdForObject(path),
@@ -881,12 +880,11 @@ void TOperationControllerBase::InitializeStructures()
         // Add gpu check layers.
         if (userJobSpec->EnableGpuCheck) {
             for (const auto& path : Options_->GpuCheck->LayerPaths) {
-                auto file = TUserFile(
+                auto& file = files.emplace_back(
                     path,
                     InputTransactions_->GetTransactionIdForObject(path),
                     /*layer*/ true);
                 file.GpuCheck = true;
-                files.push_back(std::move(file));
             }
         }
 
@@ -964,11 +962,7 @@ void TOperationControllerBase::ValidateIntermediateDataAccess(const std::string&
 
 void TOperationControllerBase::InitUpdatingTables()
 {
-    UpdatingTables_.clear();
-
-    for (auto& table : OutputTables_) {
-        UpdatingTables_.emplace_back(table);
-    }
+    UpdatingTables_ = OutputTables_;
 
     if (StderrTable_) {
         UpdatingTables_.emplace_back(StderrTable_);
@@ -1744,27 +1738,27 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
         return result;
     };
 
-    TCellTagList replicateToCellTags;
-    switch (type) {
-        // NB: These transactions are started when no basic attributes have been
-        // fetched yet and collecting cell tags is therefore useless.
-        case ETransactionType::Async:
-        case ETransactionType::Input:
-        case ETransactionType::Output:
-        case ETransactionType::Debug:
-            break;
+    auto replicateToCellTags = [&] () -> TCellTagList {
+        switch (type) {
+            // NB: These transactions are started when no basic attributes have been
+            // fetched yet and collecting cell tags is therefore useless.
+            case ETransactionType::Async:
+            case ETransactionType::Input:
+            case ETransactionType::Output:
+            case ETransactionType::Debug:
+                return {};
 
-        case ETransactionType::OutputCompletion:
-            replicateToCellTags = collectTableCellTags(OutputTables_);
-            break;
+            case ETransactionType::OutputCompletion:
+                return collectTableCellTags(OutputTables_);
 
-        case ETransactionType::DebugCompletion:
-            replicateToCellTags = collectTableCellTags({StderrTable_, CoreTable_});
-            break;
+            case ETransactionType::DebugCompletion:
+                return collectTableCellTags({StderrTable_, CoreTable_});
 
-        default:
-            YT_ABORT();
-    }
+            default:
+                YT_ABORT();
+        }
+    }();
+
     SortUnique(replicateToCellTags);
 
     YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, ReplicateToCellTags: %v)",
@@ -1934,25 +1928,26 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         return false;
     }
 
-    i64 maxIntermediateChunkCount;
-    i64 chunkCountPerMergeJob;
-    switch (mode) {
-        case EAutoMergeMode::Relaxed:
-            maxIntermediateChunkCount = std::numeric_limits<int>::max() / 4;
-            chunkCountPerMergeJob = 500;
-            break;
-        case EAutoMergeMode::Economy:
-            maxIntermediateChunkCount = std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate)));
-            chunkCountPerMergeJob = maxIntermediateChunkCount / 10;
-            maxIntermediateChunkCount *= OutputTables_.size();
-            break;
-        case EAutoMergeMode::Manual:
-            maxIntermediateChunkCount = *autoMergeSpec->MaxIntermediateChunkCount;
-            chunkCountPerMergeJob = *autoMergeSpec->ChunkCountPerMergeJob;
-            break;
-        default:
-            YT_ABORT();
-    }
+    auto [maxIntermediateChunkCount, chunkCountPerMergeJob] = [&] () -> std::pair<i64, i64> {
+        switch (mode) {
+            case EAutoMergeMode::Relaxed:
+                return {std::numeric_limits<int>::max() / 4, 500};
+
+            case EAutoMergeMode::Economy: {
+                i64 chunkCount = std::max(500, static_cast<int>(2.5 * sqrt(outputChunkCountEstimate)));
+                return {chunkCount * OutputTables_.size(), chunkCount / 10};
+            }
+
+            case EAutoMergeMode::Manual:
+                return {
+                    *autoMergeSpec->MaxIntermediateChunkCount,
+                    *autoMergeSpec->ChunkCountPerMergeJob,
+                };
+
+            default:
+                YT_ABORT();
+        }
+    }();
 
     YT_VERIFY(EstimatedInputStatistics_);
     const i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
@@ -2689,15 +2684,15 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
         table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
         table->LastKey)
     {
+        const auto& outputMinKey = table->OutputChunkTreeIds.front().first.AsBoundaryKeys().MinKey;
+
         YT_LOG_DEBUG(
             "Comparing table last key against first chunk min key (LastKey: %v, MinKey: %v, Comparator: %v)",
             table->LastKey,
-            table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
+            outputMinKey,
             comparator);
 
-        int cmp = comparator.CompareKeys(
-            table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey,
-            table->LastKey);
+        int cmp = comparator.CompareKeys(outputMinKey, table->LastKey);
 
         if (cmp < 0) {
             THROW_ERROR_EXCEPTION(
@@ -2705,31 +2700,36 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
                 "Output table %v is not sorted: job outputs overlap with original table",
                 table->GetPath())
                 << TErrorAttribute("table_max_key", table->LastKey)
-                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("job_output_min_key", outputMinKey)
                 << TErrorAttribute("comparator", comparator);
         }
 
         if (cmp == 0 && table->TableWriterOptions->ValidateUniqueKeys) {
             THROW_ERROR_EXCEPTION(
-                NTableClient::EErrorCode::SortOrderViolation,
+                NTableClient::EErrorCode::UniqueKeyViolation,
                 "Output table %v contains duplicate keys: job outputs overlap with original table",
                 table->GetPath())
                 << TErrorAttribute("table_max_key", table->LastKey)
-                << TErrorAttribute("job_output_min_key", table->OutputChunkTreeIds.begin()->first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("job_output_min_key", outputMinKey)
                 << TErrorAttribute("comparator", comparator);
         }
     }
 
-    for (const auto& [current, next] : Zip(table->OutputChunkTreeIds, std::views::drop(table->OutputChunkTreeIds, 1))) {
-        int cmp = comparator.CompareKeys(next.first.AsBoundaryKeys().MinKey, current.first.AsBoundaryKeys().MaxKey);
+    for (auto stripes = table->OutputChunkTreeIds | std::views::elements<0>;
+        const auto& [currentStripe, nextStripe] : Zip(stripes, stripes | std::views::drop(1)))
+    {
+        const auto& currentMaxKey = currentStripe.AsBoundaryKeys().MaxKey;
+        const auto& nextMinKey = nextStripe.AsBoundaryKeys().MinKey;
+
+        int cmp = comparator.CompareKeys(nextMinKey, currentMaxKey);
 
         if (cmp < 0) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SortOrderViolation,
                 "Output table %v is not sorted: job outputs have overlapping key ranges",
                 table->GetPath())
-                << TErrorAttribute("current_range_max_key", current.first.AsBoundaryKeys().MaxKey)
-                << TErrorAttribute("next_range_min_key", next.first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("current_range_max_key", currentMaxKey)
+                << TErrorAttribute("next_range_min_key", nextMinKey)
                 << TErrorAttribute("comparator", comparator);
         }
 
@@ -2738,8 +2738,8 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
                 NTableClient::EErrorCode::UniqueKeyViolation,
                 "Output table %v contains duplicate keys: job outputs have overlapping key ranges",
                 table->GetPath())
-                << TErrorAttribute("current_range_max_key", current.first.AsBoundaryKeys().MaxKey)
-                << TErrorAttribute("next_range_min_key", next.first.AsBoundaryKeys().MinKey)
+                << TErrorAttribute("current_range_max_key", currentMaxKey)
+                << TErrorAttribute("next_range_min_key", nextMinKey)
                 << TErrorAttribute("comparator", comparator);
         }
     }
@@ -2859,14 +2859,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
-                    auto start = BinarySearch(0, tabletChunks.size(), [&] (size_t index) {
+                    i64 start = BinarySearch(0, tabletChunks.size(), [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
                     if (start > 0) {
                         --start;
                     }
 
-                    auto end = BinarySearch(0, tabletChunks.size() - 1, [&] (size_t index) {
+                    i64 end = BinarySearch(0, tabletChunks.size() - 1, [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], maxKey) <= 0;
                     });
 
@@ -2892,7 +2892,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                         }
                     }
 
-                    for (auto index = start; index < end; ++index) {
+                    for (i64 index : std::views::iota(start, end)) {
                         tabletChunks[index].push_back(chunkId);
                         tabletHunkChunks[index].insert(hunkChunkIds.begin(), hunkChunkIds.end());
                     }
@@ -5392,11 +5392,11 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
 
         const auto& taskName = task->GetVertexDescriptor();
 
-        TJobResourcesWithQuota minNeededResources;
-        int pendingJobCount;
+        TAllocationGroupResources allocationGroupResources;
         try {
-            minNeededResources = task->GetMinNeededResources();
-            pendingJobCount = task->GetPendingJobCount().DefaultCount;
+            allocationGroupResources = {
+                .MinNeededResources = task->GetMinNeededResources(),
+                .AllocationCount = task->GetPendingJobCount().DefaultCount};
         } catch (const std::exception& ex) {
             auto error = TError("Failed to update minimum needed resources or pending job count")
                 << TErrorAttribute("task", taskName)
@@ -5404,11 +5404,6 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
             DoFailOperation(error);
             return;
         }
-
-        TAllocationGroupResources allocationGroupResources{
-            .MinNeededResources = std::move(minNeededResources),
-            .AllocationCount = pendingJobCount,
-        };
 
         YT_LOG_DEBUG(
             "Updated allocation group needed resources (Task: %v, AllocationGroupResources: %v)",
@@ -7235,17 +7230,16 @@ void TOperationControllerBase::FetchUserFiles()
         int fileIndex = userFiles.size();
         userFiles.push_back(&file);
 
-        std::vector<TReadRange> readRanges;
-        switch (file.Type) {
-            case EObjectType::Table:
-                readRanges = file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
-                break;
-            case EObjectType::File:
-                readRanges = {TReadRange()};
-                break;
-            default:
-                YT_ABORT();
-        }
+        auto readRanges = [&] () -> std::vector<TReadRange> {
+            switch (file.Type) {
+                case EObjectType::Table:
+                    return file.Path.GetNewRanges(file.Schema->ToComparator(), file.Schema->GetKeyColumnTypes());
+                case EObjectType::File:
+                    return {TReadRange()};
+                default:
+                    YT_ABORT();
+            }
+        }();
 
         chunkSpecFetcher->Add(
             file.ObjectId,
@@ -7365,11 +7359,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     auto updateOptional = [] (auto& updated, auto patch, auto defaultValue)
     {
         if (!updated.has_value()) {
-            if (patch.has_value()) {
-                updated = patch;
-            } else {
-                updated = defaultValue;
-            }
+            updated = patch.value_or(defaultValue);
         } else if (patch.has_value()) {
             updated = std::min(updated.value(), patch.value());
         }
@@ -7403,9 +7393,9 @@ void TOperationControllerBase::ValidateUserFileSizes()
             file.FileName,
             file.Path,
             file.Type,
-            file.Path.GetColumns().operator bool());
-        auto chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : file.Chunks.size();
-        if (static_cast<i64>(chunkCount) > userFileLimits->MaxChunkCount) {
+            file.Path.GetColumns().has_value());
+        i64 chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : std::ssize(file.Chunks);
+        if (chunkCount > userFileLimits->MaxChunkCount) {
             THROW_ERROR_EXCEPTION(
                 "User file %v exceeds chunk count limit: %v > %v",
                 file.Path.GetPath(),
@@ -7842,10 +7832,7 @@ void TOperationControllerBase::ParseInputQuery(
         allowTimestampColumns |= table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp;
     }
 
-    InputQuery_.emplace();
-    InputQuery_->Query = std::move(query);
-    InputQuery_->ExternalCGInfo = std::move(externalCGInfo);
-    InputQuery_->QueryFilterOptions = std::move(queryFilterOptions);
+    InputQuery_.emplace(std::move(query), std::move(externalCGInfo), std::move(queryFilterOptions));
 
     try {
         ValidateTableSchema(
@@ -8119,9 +8106,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 {
     auto createScraperForFetcher = [&] (const TClusterName& clusterName) -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            auto scraper = InputManager_->CreateFetcherChunkScraper(clusterName);
-            DataSliceFetcherChunkScrapers_.push_back(scraper);
-            return scraper;
+            return DataSliceFetcherChunkScrapers_.emplace_back(InputManager_->CreateFetcherChunkScraper(clusterName));
         }
         return {};
     };
@@ -8167,7 +8152,6 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
-            YT_VERIFY(table->Comparator);
             comparators.push_back(table->Comparator);
         }
     }
@@ -8367,8 +8351,6 @@ TString TOperationControllerBase::GetLoggingProgress() const
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary, const TJobletPtr& joblet) const
 {
-    std::vector<TLegacyDataSlicePtr> dataSliceList;
-
     const auto& jobResultExt = jobSummary.GetJobResultExt();
 
     std::vector<TDataSliceDescriptor> unreadDataSliceDescriptors;
@@ -9226,12 +9208,9 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::AcquireMonitor
         "Trying to assign monitoring descriptor to job (JobId: %v)",
         joblet->JobId);
 
-    std::optional<TJobMonitoringDescriptor> descriptor;
-    if (MonitoringDescriptorPool_.empty()) {
-        descriptor = RegisterNewMonitoringDescriptor(joblet);
-    } else {
-        descriptor = TryAcquireMonitoringDescriptorFromPool(joblet);
-    }
+    auto descriptor = MonitoringDescriptorPool_.empty()
+        ? RegisterNewMonitoringDescriptor(joblet)
+        : TryAcquireMonitoringDescriptorFromPool(joblet);
 
     if (descriptor) {
         YT_LOG_DEBUG(
@@ -9899,7 +9878,7 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
         }
     }
 
-    Host_->ReleaseJobs(jobsToRelease);
+    Host_->ReleaseJobs(std::move(jobsToRelease));
 }
 
 // TODO(max42): rename job -> joblet.
@@ -10151,17 +10130,19 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     auto specifiedCpuLimit = GetCpuLimit(jobSpecConfig);
     // This is common policy for all operations of given type.
     if (Options_->SetContainerCpuLimit) {
-        double cpuLimit;
-        switch (Options_->CpuLimitOvercommitMode) {
-            case ECpuLimitOvercommitMode::Linear:
-                cpuLimit = Options_->CpuLimitOvercommitMultiplier * specifiedCpuLimit + Options_->InitialCpuLimitOvercommit;
-                break;
-            case ECpuLimitOvercommitMode::Minimum:
-                cpuLimit = std::min(
-                    specifiedCpuLimit * Options_->CpuLimitOvercommitMultiplier,
-                    specifiedCpuLimit + Options_->InitialCpuLimitOvercommit);
-                break;
-        }
+        double cpuLimit = [&] {
+            switch (Options_->CpuLimitOvercommitMode) {
+                case ECpuLimitOvercommitMode::Linear:
+                    return Options_->CpuLimitOvercommitMultiplier * specifiedCpuLimit +
+                        Options_->InitialCpuLimitOvercommit;
+                case ECpuLimitOvercommitMode::Minimum:
+                    return std::min(
+                        specifiedCpuLimit * Options_->CpuLimitOvercommitMultiplier,
+                        specifiedCpuLimit + Options_->InitialCpuLimitOvercommit);
+                default:
+                    YT_ABORT();
+            }
+        }();
         jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
@@ -10264,7 +10245,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_use_smaps_memory_tracker(jobSpecConfig->UseSMapsMemoryTracker);
 
-    auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
+    auto fillEnvironment = [&] (const THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));
         }
@@ -10801,9 +10782,7 @@ void TOperationControllerBase::FilterOutputSchemaByInputColumnSelectors(const TS
     THashSet<std::string> selectedColumns;
     for (const auto& table : InputManager_->GetInputTables()) {
         if (auto selectors = table->Path.GetColumns()) {
-            for (const auto& column : *selectors) {
-                selectedColumns.insert(column);
-            }
+            std::ranges::move(*selectors, std::inserter(selectedColumns, selectedColumns.end()));
         } else {
             return;
         }
@@ -11385,20 +11364,19 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(TTask& task
     //! NB(arkady-e1ppa): we always have one joblet per allocation.
     const auto& joblet = GetJoblet(allocationId);
 
-    bool needLaunchSpeculativeJob;
-    switch (Spec_->TestingOperationOptions->TestingSpeculativeLaunchMode) {
-        case ETestingSpeculativeLaunchMode::None:
-            needLaunchSpeculativeJob = false;
-            break;
-        case ETestingSpeculativeLaunchMode::Once:
-            needLaunchSpeculativeJob = joblet->JobIndex == 0;
-            break;
-        case ETestingSpeculativeLaunchMode::Always:
-            needLaunchSpeculativeJob = !joblet->CompetitionType;
-            break;
-        default:
-            YT_ABORT();
-    }
+    bool needLaunchSpeculativeJob = [&] {
+        switch (Spec_->TestingOperationOptions->TestingSpeculativeLaunchMode) {
+            case ETestingSpeculativeLaunchMode::None:
+                return false;
+            case ETestingSpeculativeLaunchMode::Once:
+                return joblet->JobIndex == 0;
+            case ETestingSpeculativeLaunchMode::Always:
+                return !joblet->CompetitionType;
+            default:
+                YT_ABORT();
+        }
+    }();
+
     if (needLaunchSpeculativeJob) {
         task.TryRegisterSpeculativeJob(joblet);
     }
@@ -11787,8 +11765,7 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
 
     const auto& globalNodeDirectory = Host_->GetNodeDirectory();
 
-    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
-    for (auto replica : replicas) {
+    for (const auto& replica : GetReplicasFromChunkSpec(chunkSpec)) {
         auto nodeId = replica.GetNodeId();
         if (OutputNodeDirectory_->FindDescriptor(nodeId)) {
             continue;
