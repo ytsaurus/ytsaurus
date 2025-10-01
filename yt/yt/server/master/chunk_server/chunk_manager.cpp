@@ -6125,7 +6125,8 @@ private:
         auto mediumHolder = TPoolAllocator::New<TS3Medium>(id);
         mediumHolder->SetName(name);
         mediumHolder->SetIndex(mediumIndex);
-        YT_VERIFY(mediumHolder->TryUpdateConfig(std::move(config), Bootstrap_->GetSecurityManager()).IsOK());
+        // Not calling the TryUpdateConfig(...) because we're actually creating a new medium here.
+        mediumHolder->Config() = std::move(config);
         if (priority) {
             ValidateMediumPriority(*priority);
             mediumHolder->SetPriority(*priority);

@@ -279,13 +279,15 @@ class TestS3Medium(TestS3MediumBase):
     @authors("pavel-bash")
     @pytest.mark.parametrize("as_superuser", [False, True])
     def test_config_change(self, as_superuser):
-        config_path = f"//sys/media/{self.get_s3_medium_name()}/@config"
-
         create_user("u")
         if as_superuser:
             add_member("u", "superusers")
 
-        def check_field(config, field, should_throw):
+        def check_field(config, config_path, field, should_throw):
+            # Some fields may not be set in some configs (for instance, 'prefix').
+            if field not in config:
+                return
+
             original_value = config[field]
             config[field] = original_value + "_updated"
 
@@ -297,10 +299,6 @@ class TestS3Medium(TestS3MediumBase):
 
             config[field] = original_value
 
-        # We can set the same config.
-        config = self.get_s3_medium_config()
-        set(config_path, config)
-
         # Map of <field, forbidden to change> pairs.
         fields = [
             ("access_key_id", False),
@@ -308,9 +306,18 @@ class TestS3Medium(TestS3MediumBase):
             ("url", not as_superuser),
             ("region", not as_superuser),
             ("bucket", not as_superuser),
+            ("prefix", not as_superuser),
         ]
-        for field, forbidden in fields:
-            check_field(config, field, forbidden)
+
+        for medium_index in range(0, len(self.S3_MEDIA)):
+            config_path = f"//sys/media/{self.get_s3_medium_name(medium_index)}/@config"
+
+            # We can set the same config.
+            config = self.get_s3_medium_config(medium_index)
+            set(config_path, config)
+
+            for field, forbidden in fields:
+                check_field(config, config_path, field, forbidden)
 
     @authors("achulkov2")
     def test_tables_simple(self):

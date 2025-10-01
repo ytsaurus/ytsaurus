@@ -28,16 +28,15 @@ TError TS3Medium::TryUpdateConfig(
             Format("Offshore medium's %v", fieldName));
     };
 
-    if (Config_) {
-        try {
-            // TODO(pavel-bash): next step would be to allow changing these fields if the
-            // medium is empty, i.e. there are no objects referencing it.
-            checkRestrictedField("url", Config_->Url, newConfig->Url);
-            checkRestrictedField("region", Config_->Region, newConfig->Region);
-            checkRestrictedField("bucket", Config_->Bucket, newConfig->Bucket);
-        } catch (const TErrorException& ex) {
-            return TError(ex);
-        }
+    try {
+        // TODO(pavel-bash): next step would be to allow changing these fields if the
+        // medium is empty, i.e. there are no objects referencing it.
+        checkRestrictedField("url", Config_->Url, newConfig->Url);
+        checkRestrictedField("region", Config_->Region, newConfig->Region);
+        checkRestrictedField("bucket", Config_->Bucket, newConfig->Bucket);
+        checkRestrictedField("prefix", Config_->Prefix, newConfig->Prefix);
+    } catch (const TErrorException& ex) {
+        return TError(ex);
     }
 
     Config_ = std::move(newConfig);
