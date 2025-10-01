@@ -142,7 +142,7 @@ i64 TChunkFileReader::GetMetaSize() const
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::GetMeta(
     const TClientChunkReadOptions& options,
     TFairShareSlotId fairShareSlotId,
-    const TPartitionTags& partitionTags)
+    const std::optional<TPartitionTags>& partitionTags)
 {
     try {
         return DoReadMeta(options, partitionTags, fairShareSlotId);
@@ -403,13 +403,13 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
 TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     const TClientChunkReadOptions& options,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     TFairShareSlotId fairShareSlotId)
 {
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
-    YT_VERIFY(partitionTags.empty());
+    YT_VERIFY(!partitionTags);
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 

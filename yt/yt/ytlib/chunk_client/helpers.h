@@ -353,6 +353,14 @@ TString FormatBlocks(int startBlockIndex, int endBlockIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProtoMessage>
+std::optional<TPartitionTags> GetOptionalPartitionTags(const TProtoMessage& message);
+
+template <class TProtoMessage>
+TPartitionTags GetPartitionTags(const TProtoMessage& message);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_

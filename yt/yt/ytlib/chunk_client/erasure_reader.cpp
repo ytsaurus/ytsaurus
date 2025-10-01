@@ -65,7 +65,7 @@ protected:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         if (extensionTags) {
@@ -105,7 +105,7 @@ protected:
 
     virtual TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) = 0;
 };
 
@@ -136,7 +136,7 @@ private:
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         const auto& reader = Readers_[RandomNumber(Readers_.size())];
@@ -222,7 +222,7 @@ private:
 
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         return BIND(
@@ -237,7 +237,7 @@ private:
 
     TRefCountedChunkMetaPtr DoGetMetaImpl(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags)
     {
         std::vector<TError> errors;
@@ -394,7 +394,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         return UnderlyingReader_->GetMeta(options, partitionTags, extensionTags);
