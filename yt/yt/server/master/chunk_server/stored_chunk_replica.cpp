@@ -43,6 +43,48 @@ TMedium* TStoredChunkReplicaPtrWithReplicaInfo::AsMediumPtr() const
     return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
 }
 
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator==(TStoredChunkReplicaPtrWithReplicaInfo other) const
+{
+    return Value_ == other.Value_;
+}
+
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator<(TStoredChunkReplicaPtrWithReplicaInfo other) const
+{
+    auto thisStoredReplicaType = GetStoredReplicaType();
+    auto otherStoredReplicaType = other.GetStoredReplicaType();
+
+    auto thisReplicaIndex = GetReplicaIndex();
+    auto otherReplicaIndex = other.GetReplicaIndex();
+
+    auto thisState = GetReplicaState();
+    auto otherState = other.GetReplicaState();
+
+    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) < std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
+}
+
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator<=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+{
+    auto thisStoredReplicaType = GetStoredReplicaType();
+    auto otherStoredReplicaType = other.GetStoredReplicaType();
+
+    auto thisReplicaIndex = GetReplicaIndex();
+    auto otherReplicaIndex = other.GetReplicaIndex();
+
+    auto thisState = GetReplicaState();
+    auto otherState = other.GetReplicaState();
+    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) <= std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
+}
+
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator>(TStoredChunkReplicaPtrWithReplicaInfo other) const
+{
+    return !operator<=(other);
+}
+
+bool TStoredChunkReplicaPtrWithReplicaInfo::operator>=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+{
+    return !operator<(other);
+}
+
 TStoredChunkReplicaPtrWithReplicaInfo TStoredChunkReplicaPtrWithReplicaInfo::ToGenericState() const
 {
     auto type = GetStoredReplicaType();
