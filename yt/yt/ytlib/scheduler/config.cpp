@@ -1961,6 +1961,9 @@ void TSortOperationSpec::Register(TRegistrar registrar)
         .Alias("data_size_per_partition_job")
         .Default()
         .GreaterThan(0);
+    registrar.BaseClassParameter("compressed_data_size_per_partition_job", &TSortOperationSpec::CompressedDataSizePerPartitionJob)
+        .Default()
+        .GreaterThan(0);
     registrar.BaseClassParameter("simple_sort_locality_timeout", &TSortOperationSpec::SimpleSortLocalityTimeout)
         .Default(TDuration::Seconds(5));
     registrar.BaseClassParameter("simple_merge_locality_timeout", &TSortOperationSpec::SimpleMergeLocalityTimeout)
@@ -2042,6 +2045,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.BaseClassParameter("data_weight_per_map_job", &TMapReduceOperationSpec::DataWeightPerPartitionJob)
         .Alias("data_size_per_map_job")
+        .Default()
+        .GreaterThan(0);
+    registrar.BaseClassParameter("compressed_data_size_per_map_job", &TSortOperationSpec::CompressedDataSizePerPartitionJob)
         .Default()
         .GreaterThan(0);
     registrar.BaseClassParameter("map_locality_timeout", &TMapReduceOperationSpec::PartitionLocalityTimeout)
