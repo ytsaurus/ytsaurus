@@ -233,7 +233,7 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const TString& treeId,
+    const std::string& treeId,
     const TString& poolPath,
     std::optional<TDuration> waitingForResourcesOnNodeTimeout)
 {
@@ -317,7 +317,7 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
 
 void TOperationController::OnScheduleAllocationFailed(
     TCpuInstant now,
-    const TString& treeId,
+    const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
     auto config = GetConfig();
@@ -358,7 +358,7 @@ void TOperationController::OnScheduleAllocationFailed(
     }
 }
 
-bool TOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
+bool TOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const std::string& treeId, TDuration saturationDeactivationTimeout) const
 {
     auto guard = ReaderGuard(SaturatedTentativeTreesLock_);
 

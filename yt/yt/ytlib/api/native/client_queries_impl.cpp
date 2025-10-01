@@ -244,6 +244,8 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
 
     rpcRequest->set_search_by_token_prefix(options.SearchByTokenPrefix);
     rpcRequest->set_use_full_text_search(options.UseFullTextSearch);
+    rpcRequest->set_tutorial_filter(options.TutorialFilter);
+    rpcRequest->set_sort_order(static_cast<NProto::EListQueriesSortOrder>(options.SortOrder));
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
@@ -314,10 +316,23 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
 
+
+    auto mergedSupportedFeatures = TYsonString(TString("{}"));
+    if (options.Attributes.AdmitsKeySlow("supported_features")) {
+        if (auto supportedFeaturesYson = TYsonString(rpcResponse.supported_features()); supportedFeaturesYson) {
+            auto supportedFeraturesMap = ConvertToNode(supportedFeaturesYson)->AsMap();
+            supportedFeraturesMap->AddChild("new_search_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("not_indexing_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("declare_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("tutorials_on_proxies", ConvertToNode(true));
+            mergedSupportedFeatures = ConvertToYsonString(supportedFeraturesMap);
+        }
+    }
+
     return TGetQueryTrackerInfoResult{
         .QueryTrackerStage = rpcResponse.query_tracker_stage(),
         .ClusterName = rpcResponse.cluster_name(),
-        .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
+        .SupportedFeatures = mergedSupportedFeatures,
         .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
         .EnginesInfo = rpcResponse.has_engines_info() ? std::optional(TYsonString(rpcResponse.engines_info())) : std::nullopt,

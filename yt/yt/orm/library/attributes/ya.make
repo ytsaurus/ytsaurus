@@ -19,6 +19,8 @@ PEERDIR(
     yt/yt/orm/library/mpl
 
     yt/yt/core
+
+    library/cpp/containers/bitset
 )
 
 END()

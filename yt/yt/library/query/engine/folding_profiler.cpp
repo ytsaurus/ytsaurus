@@ -496,7 +496,7 @@ struct TExpressionFragments
 struct TReferenceProvider
 {
     TTableSchemaPtr Schema;
-    std::vector<std::pair<std::string, TLogicalTypePtr>> BindedReferences;
+    std::vector<std::pair<std::string, TLogicalTypePtr>> BoundReferences;
     TReferenceProvider* Parent = nullptr;
 
     // Or can get types from schema.
@@ -511,17 +511,17 @@ struct TReferenceProvider
             THROW_ERROR_EXCEPTION("Cannot resove column with name %Qv", name);
         }
 
-        for (int index = 0; index < std::ssize(BindedReferences); ++index) {
-            if (BindedReferences[index].first == name) {
+        for (int index = 0; index < std::ssize(BoundReferences); ++index) {
+            if (BoundReferences[index].first == name) {
                 return -(index + 1);
             }
         }
 
         // Throw exception if not found.
         Parent->GetColumnIndex(name, type);
-        BindedReferences.emplace_back(std::string(name), type);
+        BoundReferences.emplace_back(std::string(name), type);
 
-        return -std::ssize(BindedReferences);
+        return -std::ssize(BoundReferences);
     }
 };
 
@@ -1126,7 +1126,8 @@ size_t TExpressionProfiler::Profile(
             std::move(whenThenExpressionIds),
             defaultExprId,
             caseExpr->GetWireType(),
-            ComparerManager_),
+            ComparerManager_,
+            UseCanonicalNullRelations_),
         caseExpr->GetWireType(),
         nullable);
 
@@ -1478,22 +1479,22 @@ size_t TExpressionProfiler::Profile(
         currentSlot,
         nestedSchema->GetColumnCount());
 
-    std::vector<size_t> bindedExprIds;
-    for (const auto& [name, type] : nestedReferenceProvider.BindedReferences) {
+    std::vector<size_t> boundExprIds;
+    for (const auto& [name, type] : nestedReferenceProvider.BoundReferences) {
         auto referenceExpr = New<TReferenceExpression>(
             type,
             name);
 
-        size_t bindedExprId = Profile(referenceExpr, referenceProvider, fragments, isolated);
-        id.AddInteger(bindedExprId);
-        bindedExprIds.push_back(bindedExprId);
+        size_t boundExprId = Profile(referenceExpr, referenceProvider, fragments, isolated);
+        id.AddInteger(boundExprId);
+        boundExprIds.push_back(boundExprId);
     }
 
     Fold(id);
 
     fragments->DebugInfos.emplace_back(subqueryExpr, std::vector{fromExprIds});
     fragments->Items.emplace_back(
-        MakeCodegenSubqueryExpr(codegenSource, fromExprIds, bindedExprIds, slotCount),
+        MakeCodegenSubqueryExpr(codegenSource, fromExprIds, boundExprIds, slotCount),
         EValueType::Any,
         /*nullable*/ false);
 
@@ -2154,7 +2155,7 @@ void TQueryProfiler::Profile(
     size_t resultRowSize = schema->GetColumnCount();
 
     if (!finalMode) {
-        if (auto groupClause = query->GroupClause.Get()) {
+        if (query->GroupClause.Get()) {
             {
                 auto intermediateTypes = std::vector<EValueType>();
 

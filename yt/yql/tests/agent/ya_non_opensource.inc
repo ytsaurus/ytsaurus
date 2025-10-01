@@ -3,5 +3,6 @@ TEST_SRCS(
 )
 
 DEPENDS(
+    yt/yql/tests/agent/throwing_udf
     yt/yql/tools/ytflow_worker
 )

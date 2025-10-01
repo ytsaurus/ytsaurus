@@ -25,7 +25,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/compute/ut/proto
     contrib/ydb/library/yql/dq/actors/input_transforms
     contrib/ydb/library/yql/dq/actors/task_runner
-    contrib/ydb/library/yql/dq/comp_nodes
+    contrib/ydb/library/yql/dq/comp_nodes/no_llvm
     contrib/ydb/library/yql/dq/tasks
     contrib/ydb/library/yql/dq/transform
     contrib/ydb/library/yql/providers/dq/task_runner

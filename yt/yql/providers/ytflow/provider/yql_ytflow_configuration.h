@@ -4,6 +4,7 @@
 
 #include <yql/essentials/providers/common/config/yql_dispatch.h>
 
+#include <util/datetime/base.h>
 #include <util/generic/ptr.h>
 #include <util/generic/string.h>
 
@@ -29,6 +30,7 @@ public:
     NCommon::TConfSetting<TString, Static> TabletCellBundle;
     NCommon::TConfSetting<TString, Static> Account;
     NCommon::TConfSetting<TString, Static> PrimaryMedium;
+    NCommon::TConfSetting<TString, Static> Pool;
 
     NCommon::TConfSetting<bool, Static> GracefulUpdate;
     NCommon::TConfSetting<bool, Static> FiniteStreams;
@@ -44,10 +46,12 @@ public:
     NCommon::TConfSetting<uint64_t, Static> WorkerMonitoringPort;
 
     NCommon::TConfSetting<uint64_t, Static> YtPartitionCount;
+    NCommon::TConfSetting<TDuration, Static> YtTtl;
 
 public:
     TString GetPipelinePath() const;
     TString GetYtConsumerPath() const;
+    bool GetYtConsumerVital() const;
     TString GetYtProducerPath() const;
 
 protected:
@@ -58,6 +62,7 @@ protected:
     NCommon::TConfSetting<TString, Static> YtConsumerDirectory;
     NCommon::TConfSetting<TString, Static> YtConsumerName;
     NCommon::TConfSetting<TString, Static> YtConsumerPath;
+    NCommon::TConfSetting<bool, Static> YtConsumerVital;
 
     NCommon::TConfSetting<TString, Static> YtProducerDirectory;
     NCommon::TConfSetting<TString, Static> YtProducerName;

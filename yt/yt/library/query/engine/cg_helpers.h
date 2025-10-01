@@ -185,7 +185,7 @@ public:
         const TCGBaseContext& base,
         Value* literals,
         Value* opaqueValues,
-        Value* bindedValues = nullptr);
+        Value* boundValues = nullptr);
 
     TCGOpaqueValuesContext(const TCGBaseContext& base, const TCGOpaqueValuesContext& other);
 
@@ -195,12 +195,12 @@ public:
 
     Value* GetOpaqueValue(size_t index) const;
 
-    Value* GetBindedValues() const;
+    Value* GetBoundValues() const;
 
 private:
     Value* const Literals_;
     Value* const OpaqueValues_;
-    Value* BindedValues_;
+    Value* BoundValues_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +247,7 @@ public:
         Value* expressionClosure,
         Value* literals,
         Value* rowValues,
-        Value* bindedValues);
+        Value* boundValues);
 
     static TCGExprContext Make(
         const TCGOpaqueValuesContext& builder,

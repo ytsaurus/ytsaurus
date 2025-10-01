@@ -445,7 +445,7 @@ message TColumnsOptions
     repeated TLockGroup lock_groups = 1;
 }
 
-// Next field 30051.
+// Next field 30052.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -533,7 +533,7 @@ extend google.protobuf.FileOptions
     optional string module_output_filename = 30035;
 
     optional ESetUpdateObjectMode set_update_object_mode = 30037;
-    optional bool enable_history_snapshot_column = 30038;
+    optional bool enable_history_revisions = 30038;
 
     // Can be overridden per object.
     optional bool remove_legacy_meta_account_id = 30040;
@@ -551,6 +551,9 @@ extend google.protobuf.FileOptions
     optional bool enable_additional_meta_key_attributes = 30045 [default = true];
 
     optional TColumnsOptions columns_options = 30050;
+
+    // Generate new-style references in codegen output by default. May be disabled by field option.
+    optional bool convert_to_new_references = 30051;
 }
 
 enum EGenerationPolicy
@@ -799,12 +802,15 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31056.
+// Next field 31058.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
 
+    // Create a reference to this foreign type with this field as the key.
     optional string foreign_key = 31002;
+    // Generate new-style reference in codegen output.
+    optional bool convert_to_new_reference = 31057;
     optional string children_view = 31046;
     optional bool no_foreign_view = 31024;
     // A special type of reference for ancestor fields.

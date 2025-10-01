@@ -1,7 +1,9 @@
 package tech.ytsaurus.client;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
+import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
@@ -26,7 +29,9 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.ETransactionType;
+import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 public class RpcBackendTest extends YTsaurusClientTestBase {
@@ -64,6 +69,94 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
                 .build();
 
         yt.waitProxies().join();
+    }
+
+    @Test
+    public void testRpcClientListener() {
+        class Event {
+            final String method;
+            final String service;
+            final boolean isStream;
+            long bytes;
+
+            Event(String method, String service, boolean isStream, long bytes) {
+                this.method = method;
+                this.service = service;
+                this.isStream = isStream;
+                this.bytes = bytes;
+            }
+
+            Event(String method, String service, boolean isStream) {
+                this.method = method;
+                this.service = service;
+                this.isStream = isStream;
+            }
+        }
+
+        List<Event> events = Collections.synchronizedList(new ArrayList<>());
+
+        var rpcOptions = new RpcOptions()
+                .setRpcClientListener((ctx, bytes) -> {
+                    events.add(new Event(ctx.getMethod(), ctx.getService(), ctx.isStream(),
+                            bytes));
+                });
+        YTsaurusClient ytWithListener = YTsaurusClient.builder()
+                .setClusters(yt.getClusters())
+                .setPreferredClusterName("local")
+                .setAuth(YTsaurusClientAuth.builder().setUser("root").setToken("").build())
+                .setConfig(YTsaurusClientConfig.builder()
+                        .setRpcOptions(rpcOptions)
+                        .build())
+                .disableValidation()
+                .build();
+
+        ytWithListener.waitProxies().join();
+
+        String path = "//tmp/test_listener_" + UUID.randomUUID();
+        TableSchema schema = new TableSchema.Builder()
+                .addKey("key", ColumnValueType.STRING)
+                .addValue("value", ColumnValueType.STRING)
+                .build();
+
+        ytWithListener.createNode(CreateNode.builder()
+                .setPath(YPath.simple(path))
+                .setType(CypressNodeType.TABLE)
+                .setAttributes(Map.of("schema", schema.toYTree()))
+                .build()).join();
+
+        var writer = ytWithListener.writeTableV2(WriteTable.builder(YTreeMapNode.class)
+                .setPath(YPath.simple(path))
+                .build()).join();
+
+        writer.write(List.of(YTree.mapBuilder().key("key").value("k1").key("value").value("v1").buildMap())).join();
+        writer.finish().join();
+
+        List<Event> expected = List.of(
+                new Event("CreateNode", "ApiService", false),
+                new Event("StartTransaction", "ApiService", false),
+                new Event("CreateNode", "ApiService", false),
+                new Event("LockNode", "ApiService", false),
+                new Event("GetNode", "ApiService", false),
+                new Event("StartTransaction", "ApiService", false),
+                new Event("WriteTable", "ApiService", false),
+                new Event("WriteTable", "ApiService", true),
+                new Event("CommitTransaction", "ApiService", false),
+                new Event("CommitTransaction", "ApiService", false)
+        );
+
+        int idx = 0;
+        for (Event e : events) {
+            if (idx >= expected.size()) {
+                break;
+            }
+            var exp = expected.get(idx);
+            Assert.assertEquals(exp.method, e.method);
+            Assert.assertEquals(exp.service, e.service);
+            Assert.assertEquals(exp.isStream, e.isStream);
+            Assert.assertTrue(e.bytes > 0);
+            idx++;
+        }
+        Assert.assertEquals("Did not observe expected RPC sequence", expected.size(), idx);
     }
 
     @Test

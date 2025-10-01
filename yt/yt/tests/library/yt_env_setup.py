@@ -343,11 +343,6 @@ class YTEnvSetup(object):
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_table_column_renaming": True,
-            "operation_options": {
-                "spec_template": {
-                    "use_new_slicing_implementation_in_unordered_pool": True,
-                },
-            },
         },
     }
     DELTA_HTTP_PROXY_CONFIG = {}
@@ -787,6 +782,13 @@ class YTEnvSetup(object):
         return [cls.get_cluster_name(cluster_index) for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1)]
 
     @classmethod
+    def is_sequoia_used(cls):
+        for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
+            if cls.get_param("USE_SEQUOIA", cluster_index):
+                return True
+        return False
+
+    @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
@@ -851,13 +853,13 @@ class YTEnvSetup(object):
             "disk_ssd")
 
         cls.primary_cluster_path = cls.path_to_run
-        if cls.NUM_REMOTE_CLUSTERS > 0 or cls.USE_SEQUOIA:
+        if cls.NUM_REMOTE_CLUSTERS > 0 or cls.is_sequoia_used():
             cls.primary_cluster_path = os.path.join(cls.path_to_run, "primary")
 
-        if cls.USE_SEQUOIA:
+        if cls.is_sequoia_used():
             cls.USE_PRIMARY_CLOCKS = False
 
-        if cls.USE_SEQUOIA != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
+        if cls.is_sequoia_used() != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
             cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
         try:
@@ -1064,8 +1066,8 @@ class YTEnvSetup(object):
             return
 
         cls._restore_sequoia_bundle_options(cluster_index + cls.get_ground_index_offset())
-        # TODO(h0pless): Use values from config for path, account and bundle names.
-        yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia", driver=ground_driver)
+        # TODO(h0pless, danilalexeev): YT-25434. Use values from config for path, account and bundle names.
+        yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia-cypress", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_static_memory", 4 * (2**30), driver=ground_driver)
 
@@ -1086,7 +1088,7 @@ class YTEnvSetup(object):
                     attributes={
                         "dynamic": True,
                         "schema": descriptor.schema,
-                        "tablet_cell_bundle": "sequoia",
+                        "tablet_cell_bundle": "sequoia-cypress",
                         "account": "sequoia",
                         "in_memory_mode": "uncompressed",
                     },
@@ -1175,6 +1177,11 @@ class YTEnvSetup(object):
                 cls.update_timestamp_provider_config(config, cluster_index)
                 cls.update_sequoia_connection_config(config, cluster_index)
                 cls.update_transaction_supervisor_config(config, cluster_index)
+                cls.update_master_replication_card_cache_config(
+                    config,
+                    cluster_index,
+                    configs["cluster_connection"]
+                )
                 cls.modify_master_config(config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index)
                 multidaemon_config["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = config
 
@@ -1316,6 +1323,17 @@ class YTEnvSetup(object):
             return
         config.setdefault("transaction_supervisor", {})
         config["transaction_supervisor"]["enable_wait_until_prepared_transactions_finished"] = True
+
+    @classmethod
+    def update_master_replication_card_cache_config(cls, config, cluster_index, cluster_connection_config):
+        if cls._is_ground_cluster(cluster_index):
+            return config
+        if not cls.get_param("NUM_CHAOS_NODES", cluster_index) or not cls.get_param("NUM_MASTER_CACHES", cluster_index):
+            return config
+
+        chaos_cache_addresses = cluster_connection_config["replication_card_cache"]["addresses"]
+        if chaos_cache_addresses:
+            config["cluster_connection"]["replication_card_cache"]["addresses"] = chaos_cache_addresses
 
     @classmethod
     def update_sequoia_connection_config(cls, config, cluster_index):
@@ -1932,8 +1950,8 @@ class YTEnvSetup(object):
             ids = []
 
             # COMPAT(gritukan, aleksandra-zh)
-            if yt_commands.exists("//sys/tablet_cell_bundles/sequoia", driver=driver):
-                ids += yt_commands.get("//sys/tablet_cell_bundles/sequoia/@tablet_cell_ids", driver=driver)
+            if yt_commands.exists("//sys/tablet_cell_bundles/sequoia-cypress", driver=driver):
+                ids += yt_commands.get("//sys/tablet_cell_bundles/sequoia-cypress/@tablet_cell_ids", driver=driver)
 
             return ids
 
@@ -2305,7 +2323,7 @@ class YTEnvSetup(object):
         assert cls._is_ground_cluster(cluster_index)
         # TODO(kvk1920): use Sequoia bundle and account from non-ground
         # cluster's config.
-        cls._restore_bundle_options("sequoia", "sequoia", cluster_index)
+        cls._restore_bundle_options("sequoia-cypress", "sequoia", cluster_index)
 
     def _remove_operations(self, driver=None):
         abort_command = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"

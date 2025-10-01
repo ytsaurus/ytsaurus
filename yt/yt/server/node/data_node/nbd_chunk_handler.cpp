@@ -50,90 +50,163 @@ public:
     //! Open NBD file handler and create NBD chunk file.
     TFuture<void> Create() override
     {
-        auto future = IOEngine_->Open(
-            {.Path = ChunkPath_, .Mode = RdWr|CreateAlways},
-            WorkloadDescriptor_.Category);
+        // Acquire a writer guard.
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+                if (std::exchange(State_, EState::Initializing) != EState::Uninitialized) {
+                    THROW_ERROR_EXCEPTION("Creating not uninitialized nbd chunk handler")
+                    << TErrorAttribute("chunk_id", ChunkId_)
+                    << TErrorAttribute("chunk_path", ChunkPath_)
+                    << TErrorAttribute("chunk_size", ChunkSize_)
+                    << TErrorAttribute("state", State_);
+                }
 
-        return future.Apply(BIND([this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& ioEngineHandle) {
-            IOEngineHandle_ = ioEngineHandle;
-            return IOEngine_->Resize({
-                .Handle = IOEngineHandle_,
-                .Size = ChunkSize_},
-                WorkloadDescriptor_.Category);
-        })
-        .AsyncVia(Invoker_));
+                auto openFuture = IOEngine_->Open(
+                    {.Path = ChunkPath_, .Mode = RdWr|CreateAlways},
+                    WorkloadDescriptor_.Category);
+
+                return openFuture.Apply(BIND([guard = std::move(guard), this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& ioEngineHandle) {
+                    auto resizeFuture = IOEngine_->Resize({
+                        .Handle = ioEngineHandle,
+                        .Size = ChunkSize_},
+                        WorkloadDescriptor_.Category);
+
+                    return resizeFuture
+                        .Apply(BIND([guard = std::move(guard), ioEngineHandle, this, this_ = MakeStrong(this)] () {
+                            IOEngineHandle_ = std::move(ioEngineHandle);
+                            State_ = EState::Initialized;
+                            return;
+                        })
+                        .AsyncVia(Invoker_));
+                })
+                .AsyncVia(Invoker_));
+            })
+            .AsyncVia(Invoker_));
     }
 
     //! Close NBD file handler and remove NBD chunk file.
     TFuture<void> Destroy() override
     {
-        auto future = IOEngine_->Close(
-            {.Handle = IOEngineHandle_, .Size = ChunkSize_},
-            WorkloadDescriptor_.Category);
+        // Acquire a writer guard.
+        return TAsyncLockWriterGuard::Acquire(&Lock_)
+            .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
+                if (std::exchange(State_, EState::Finalizing) != EState::Initialized) {
+                    THROW_ERROR_EXCEPTION("Destroying not initialized nbd chunk handler")
+                        << TErrorAttribute("chunk_id", ChunkId_)
+                        << TErrorAttribute("chunk_path", ChunkPath_)
+                        << TErrorAttribute("chunk_size", ChunkSize_)
+                        << TErrorAttribute("state", State_);
+                }
 
-        return future.Apply(BIND([this, this_ = MakeStrong(this)] (const TCloseResponse&) {
-            NFs::Remove(ChunkPath_);
-        })
-        .AsyncVia(Invoker_));
+                auto closeFuture = IOEngine_->Close(
+                    {.Handle = IOEngineHandle_, .Size = ChunkSize_},
+                    WorkloadDescriptor_.Category);
+
+                return closeFuture.Apply(BIND([guard = std::move(guard), this, this_ = MakeStrong(this)] (const TCloseResponse&) {
+                    State_ = EState::Uninitialized;
+                    NFs::Remove(ChunkPath_);
+                })
+                .AsyncVia(Invoker_));
+            })
+            .AsyncVia(Invoker_));
     }
 
     //! Read size bytes from NBD chunk at offset.
     TFuture<NChunkClient::TBlock> Read(i64 offset, i64 length, ui64 cookie) override
     {
-        if (offset + length > ChunkSize_) {
-            THROW_ERROR_EXCEPTION("Read is out of range")
-                << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", length)
-                << TErrorAttribute("cookie", cookie)
-                << TErrorAttribute("chunk_size", ChunkSize_);
-        }
+        // Acquire a reader guard.
+        return TAsyncLockReaderGuard::Acquire(&Lock_)
+            .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>&& guard) {
+                if (State_ != EState::Initialized) {
+                    THROW_ERROR_EXCEPTION("Read from uninitialized nbd chunk handler")
+                        << TErrorAttribute("chunk_id", ChunkId_)
+                        << TErrorAttribute("chunk_path", ChunkPath_)
+                        << TErrorAttribute("chunk_size", ChunkSize_)
+                        << TErrorAttribute("offset", offset)
+                        << TErrorAttribute("length", length)
+                        << TErrorAttribute("cookie", cookie)
+                        << TErrorAttribute("state", State_);
+                }
 
-        // Throttle read.
-        auto throttleFuture = ReadThrottler_->Throttle(length);
+                if (offset + length > ChunkSize_) {
+                    THROW_ERROR_EXCEPTION("Read is out of range")
+                        << TErrorAttribute("chunk_id", ChunkId_)
+                        << TErrorAttribute("chunk_path", ChunkPath_)
+                        << TErrorAttribute("chunk_size", ChunkSize_)
+                        << TErrorAttribute("offset", offset)
+                        << TErrorAttribute("length", length)
+                        << TErrorAttribute("cookie", cookie)
+                        << TErrorAttribute("state", State_);
+                }
 
-        // Perform read and return result.
-        return throttleFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-            return IOEngine_->Read(
-                {{.Handle = IOEngineHandle_, .Offset = offset, .Size = length}},
-                WorkloadDescriptor_.Category,
-                GetRefCountedTypeCookie<TNbdChunkReaderBufferTag>());
-        })
-        .AsyncVia(Invoker_))
-        .Apply(BIND([] (const TReadResponse& response) {
-            YT_VERIFY(response.OutputBuffers.size() == 1);
-            return NChunkClient::TBlock(response.OutputBuffers[0]);
-        })
-        .AsyncVia(Invoker_));
+                // Throttle disk read.
+                auto throttleFuture = ReadThrottler_->Throttle(length);
+
+                // Perform read and return result.
+                return throttleFuture.Apply(BIND([=, guard = std::move(guard), this, this_ = MakeStrong(this)] () {
+                    auto readFuture = IOEngine_->Read(
+                        {{.Handle = IOEngineHandle_, .Offset = offset, .Size = length}},
+                        WorkloadDescriptor_.Category,
+                        GetRefCountedTypeCookie<TNbdChunkReaderBufferTag>());
+
+                    return readFuture.Apply(BIND([guard = std::move(guard)] (const TReadResponse& response) {
+                        YT_VERIFY(response.OutputBuffers.size() == 1);
+                        return NChunkClient::TBlock(response.OutputBuffers[0]);
+                    }).AsyncVia(Invoker_));
+                })
+                .AsyncVia(Invoker_));
+            })
+            .AsyncVia(Invoker_));
     }
 
     // ! Write buffer to NBD chunk at offset.
     TFuture<NIO::TIOCounters> Write(i64 offset, const TBlock& block, ui64 cookie) override
     {
-        if (offset + std::ssize(block.Data) > ChunkSize_) {
-            THROW_ERROR_EXCEPTION("Write is out of range")
-                << TErrorAttribute("offset", offset)
-                << TErrorAttribute("length", block.Size())
-                << TErrorAttribute("cookie", cookie)
-                << TErrorAttribute("chunk_size", ChunkSize_);
-        }
+        // Acquire a reader guard.
+        return TAsyncLockReaderGuard::Acquire(&Lock_)
+            .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>&& guard) {
+                if (State_ != EState::Initialized) {
+                    THROW_ERROR_EXCEPTION("Write to uninitialized nbd chunk handler")
+                        << TErrorAttribute("chunk_id", ChunkId_)
+                        << TErrorAttribute("chunk_path", ChunkPath_)
+                        << TErrorAttribute("chunk_size", ChunkSize_)
+                        << TErrorAttribute("offset", offset)
+                        << TErrorAttribute("length", block.Size())
+                        << TErrorAttribute("cookie", cookie)
+                        << TErrorAttribute("state", State_);
+                }
 
-        // Throttle write.
-        auto throttleFuture = WriteThrottler_->Throttle(block.Data.Size());
+                if (offset + std::ssize(block.Data) > ChunkSize_) {
+                    THROW_ERROR_EXCEPTION("Write is out of range")
+                        << TErrorAttribute("chunk_id", ChunkId_)
+                        << TErrorAttribute("chunk_path", ChunkPath_)
+                        << TErrorAttribute("chunk_size", ChunkSize_)
+                        << TErrorAttribute("offset", offset)
+                        << TErrorAttribute("length", block.Size())
+                        << TErrorAttribute("cookie", cookie)
+                        << TErrorAttribute("state", State_);
+                }
 
-        // Perform write and return result.
-        return throttleFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-            return IOEngine_->Write(
-                {.Handle = IOEngineHandle_, .Offset = offset, .Buffers = {block.Data}},
-                WorkloadDescriptor_.Category);
-        })
-        .AsyncVia(Invoker_))
-        .Apply(BIND([] (const TWriteResponse& response) {
-            return NIO::TIOCounters {
-                .Bytes = response.WrittenBytes,
-                .IORequests = response.IOWriteRequests,
-            };
-        })
-        .AsyncVia(Invoker_));
+                // Throttle disk write.
+                auto throttleFuture = WriteThrottler_->Throttle(block.Data.Size());
+
+                // Perform write and return result.
+                return throttleFuture.Apply(BIND([=, guard = std::move(guard), this, this_ = MakeStrong(this)] () {
+                    auto writeFuture = IOEngine_->Write(
+                        {.Handle = IOEngineHandle_, .Offset = offset, .Buffers = {block.Data}},
+                        WorkloadDescriptor_.Category);
+
+                        return writeFuture.Apply(BIND([guard = std::move(guard)] (const TWriteResponse& response) {
+                            return NIO::TIOCounters {
+                                .Bytes = response.WrittenBytes,
+                                .IORequests = response.IOWriteRequests,
+                            };
+                        })
+                        .AsyncVia(Invoker_));
+                })
+                .AsyncVia(Invoker_));
+            })
+            .AsyncVia(Invoker_));
     }
 
 private:
@@ -147,6 +220,17 @@ private:
     TIOEngineHandlePtr IOEngineHandle_;
     const IThroughputThrottlerPtr ReadThrottler_;
     const IThroughputThrottlerPtr WriteThrottler_;
+
+    enum EState
+    {
+        Uninitialized,
+        Initialized,
+        Initializing,
+        Finalizing,
+    };
+    EState State_ = EState::Uninitialized;
+    // This lock is needed to create and destory NBD chunk with exclusive access.
+    TAsyncReaderWriterLock Lock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

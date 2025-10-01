@@ -166,6 +166,9 @@ struct TTestingTableMountConfig
 
     std::optional<ESmoothMovementStage> PauseAtSmoothMovementStage;
 
+    TDuration PartitioningDelay;
+    TDuration CompactionDelay;
+
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
     static void Register(TRegistrar registrar);
@@ -274,6 +277,7 @@ struct TCustomTableMountConfig
     bool EnableDiscardingExpiredPartitions;
     bool PrioritizeEdenForcedCompaction;
     bool AlwaysFlushToEden;
+    bool EnableConcurrentEdenPartitioningAndCompaction;
 
     bool EnableDataNodeLookup;
 

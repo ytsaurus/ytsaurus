@@ -275,7 +275,10 @@ def test_queues(base_path, spec, attributes, args):
                 registry.dump + ".pull_queue_consumer",
                 registry.result + ".pull_queue_consumer",
                 spec)
-            process_runner.join_processes()
+            results = process_runner.join_processes()
+            errors = [r for r in results if r is not None]
+            if errors:
+                raise yt.YtError("Some operations failed", inner_errors=errors)
 
         if spec.ordered.trim and iteration % 2 == 1:
             trim_and_update(registry, tablet_trimmed_row_count, current_tablet_count)

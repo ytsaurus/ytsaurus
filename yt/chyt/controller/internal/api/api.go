@@ -376,13 +376,13 @@ func (a *API) Create(
 				yt.ACE{
 					Action:      yt.ActionAllow,
 					Subjects:    []string{user},
-					Permissions: []yt.Permission{yt.PermissionUse},
+					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionUse},
 				},
 				// ACE for Manage role.
 				yt.ACE{
 					Action:      yt.ActionAllow,
 					Subjects:    []string{user},
-					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionManage},
+					Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionRemove, yt.PermissionManage, yt.PermissionUse},
 				}),
 			"idm_initial_roles": []map[string]any{
 				{

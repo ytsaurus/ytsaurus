@@ -18,11 +18,6 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLeaderFallbackException
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IHydraFacade
     : public TRefCounted
 {
@@ -48,9 +43,6 @@ public:
     virtual bool IsAutomatonLocked() = 0;
 
     virtual void VerifyPersistentStateRead() = 0;
-
-    //! Throws TLeaderFallbackException at followers.
-    virtual void RequireLeader() = 0;
 
     virtual void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig) = 0;
 

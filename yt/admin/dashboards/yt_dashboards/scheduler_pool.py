@@ -40,22 +40,26 @@ from yt_dashboard_generator.specific_tags.tags import TemplateTag
 
 def _build_quotas_usage(d, os_documentation):
     def build_resource_sensor(resource):
+        resource_in_config = resource if resource != "user_memory" else "memory"
         return MultiSensor(
             SchedulerPools(f"yt.scheduler.pools.resource_usage.{resource}")
+                .nan_as_zero()
                 .legend_format("Usage"),
             SchedulerPools(f"yt.scheduler.pools.resource_demand.{resource}")
+                .nan_as_zero()
                 .legend_format("Resource demand"),
             SchedulerPools(f"yt.scheduler.pools.effective_strong_guarantee_resources.{resource}")
+                .nan_as_zero()
                 .legend_format("Effective guarantee"),
             SchedulerPools(f"yt.scheduler.pools.strong_guarantee_resources.{resource}")
+                .nan_as_zero()
                 .legend_format("Configured guarantee"),
-            SchedulerPools(f"yt.scheduler.pools.specified_resource_limits.{resource}")
+            SchedulerPools(f"yt.scheduler.pools.specified_resource_limits.{resource_in_config}")
                 .legend_format("Configured limit"),
         )
 
     d.add(Rowset().row(height=2).cell("", Title("Resources", size="TITLE_SIZE_L")))
     d.add(Rowset()
-        .nan_as_zero()
         .row()
             .stack(False)
             .min(0)

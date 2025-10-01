@@ -56,6 +56,12 @@ public class RpcOptions {
     private TestingOptions testingOptions = new TestingOptions();
 
     /**
+     * @see #setRpcClientListener(RpcClientListener)
+     */
+    @Nullable
+    private RpcClientListener rpcClientListener;
+
+    /**
      * @see #setMinBackoffTime
      */
     private Duration minBackoffTime = Duration.ofSeconds(3);
@@ -106,6 +112,7 @@ public class RpcOptions {
         this.proxyUpdateTimeout = options.getProxyUpdateTimeout();
         this.channelPoolSize = options.getChannelPoolSize();
         this.testingOptions = options.getTestingOptions();
+        this.rpcClientListener = options.getRpcClientListener();
         this.minBackoffTime = options.getMinBackoffTime();
         this.maxBackoffTime = options.getMaxBackoffTime();
         this.windowSize = options.getStreamingWindowSize();
@@ -184,6 +191,23 @@ public class RpcOptions {
      */
     public RpcOptions setTestingOptions(TestingOptions testingOptions) {
         this.testingOptions = testingOptions;
+        return this;
+    }
+
+    /**
+     * @see #setRpcClientListener(RpcClientListener)
+     */
+    public @Nullable RpcClientListener getRpcClientListener() {
+        return this.rpcClientListener;
+    }
+
+    /**
+     * Set listener to account bytes sent by the client.
+     * <p>
+     * Listener is invoked for regular requests and streaming payloads.
+     */
+    public RpcOptions setRpcClientListener(RpcClientListener rpcClientListener) {
+        this.rpcClientListener = rpcClientListener;
         return this;
     }
 

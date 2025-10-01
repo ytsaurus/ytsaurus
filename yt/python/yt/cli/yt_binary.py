@@ -1366,6 +1366,7 @@ def add_start_query_parser(add_parser):
     parser.add_argument("--access-control-object", type=str, help='optional access control object name (deprecated)')
     add_structured_argument(parser, "--access-control-objects", help='access control objects, a YSON list of ACO names')
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    parser.add_argument("--do-not-index", action="store_false", default=True, dest="is_indexed", help="makes query invisible for list_queries")
 
 
 @copy_docstring_from(yt.run_query)
@@ -1515,6 +1516,9 @@ def add_list_queries_parser(add_parser):
     group.add_argument("--search-by-token-prefix", action="store_true", help='can\'t be used with "--use-full-scan-search". '
                                                                              'If set, search will be performed not by exact token '
                                                                              'match but by prefix match')
+    parser.add_argument("--tutorials", action="store_true", dest="tutorial_filter", help="show tutorial queries")
+    parser.add_argument("--sort-order", type=str, help='result sort order by query start time, can be one of ("cursor", "ascending", "descending"). '
+                                                       'Sorting is not applied in "cursor" mode, rows will be listed in the order they are read.')
     add_structured_format_argument(parser)
 
 

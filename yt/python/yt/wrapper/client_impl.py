@@ -1613,17 +1613,21 @@ class YtClient(ClientState):
     def list_queries(
             self,
             user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
-            cursor_direction=None, limit=None, attributes=None, stage=None, format=None, search_by_token_prefix=None,
-            use_full_text_search=None):
+            cursor_direction=None, limit=None, attributes=None, tutorial_filter=None, stage=None,
+            format=None, sort_order=None, search_by_token_prefix=None, use_full_text_search=None):
         """
         List operations that satisfy given options.
+
+        :param tutorial_filter: specifies whether to search among tutorials
+        :type tutorial_filter: bool
 
         """
         return client_api.list_queries(
             client=self,
             user=user, engine=engine, state=state, filter=filter, from_time=from_time, to_time=to_time,
             cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit, attributes=attributes,
-            stage=stage, format=format, search_by_token_prefix=search_by_token_prefix, use_full_text_search=use_full_text_search)
+            tutorial_filter=tutorial_filter, stage=stage, format=format, sort_order=sort_order, search_by_token_prefix=search_by_token_prefix,
+            use_full_text_search=use_full_text_search)
 
     def list_queue_consumer_registrations(
             self,
@@ -2651,7 +2655,8 @@ class YtClient(ClientState):
             self,
             engine: str, query: str,
             settings: Optional[Dict] = None, files: Optional[List] = None, stage: Optional[str] = None,
-            annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, sync: bool = True) -> Query:
+            annotations: Optional[Dict] = None, access_control_objects: Optional[List] = None, is_indexed: Optional[bool] = None,
+            sync: bool = True) -> Query:
         """
         Run query and track its progress (unless sync = false).
 
@@ -2677,7 +2682,7 @@ class YtClient(ClientState):
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_objects=access_control_objects,
-            sync=sync)
+            is_indexed=is_indexed, sync=sync)
 
     def run_reduce(
             self,
@@ -3010,7 +3015,7 @@ class YtClient(ClientState):
             self,
             engine, query,
             settings=None, files=None, stage=None, annotations=None, access_control_object=None,
-            access_control_objects=None, secrets=None):
+            access_control_objects=None, secrets=None, is_indexed=None):
         """
         Start query.
 
@@ -3036,7 +3041,7 @@ class YtClient(ClientState):
             engine, query,
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
-            access_control_objects=access_control_objects, secrets=secrets)
+            access_control_objects=access_control_objects, secrets=secrets, is_indexed=is_indexed)
 
     def start_transaction(
             self,

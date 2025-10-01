@@ -161,19 +161,19 @@ public:
         : Context_(context)
     { }
 
-    TStringBuf View() const
+    TStringBuf GetView() const
     {
         return {PtrToVM(GetCurrentCompartment(), Begin_), Size_};
     }
 
-    TStringBuf HostView() const
+    TStringBuf GetHostView() const
     {
         return {Begin_, Size_};
     }
 
 private:
     TExpressionContext* Context_;
-    char* Begin_ = {};
+    char* Begin_ = nullptr;
     size_t Size_ = 0;
     size_t Capacity_ = 0;
 
@@ -984,7 +984,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
             TPIValue parsedValue;
 
             auto validateType = [] (EValueType expected, EValueType actual) {
-                THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join, expected %Qlv, actual %Qlv ",
+                THROW_ERROR_EXCEPTION_IF(expected != actual, "Type mismatch in array join: expected %Qlv, actual %Qlv",
                     expected,
                     actual);
             };
@@ -1027,7 +1027,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
                     case EYsonItemType::BeginList:
                     case EYsonItemType::BeginMap: {
                         THROW_ERROR_EXCEPTION_IF(listItemType != EValueType::Any && listItemType != EValueType::Composite,
-                            "Type mismatch in array join, expected %Qlv or %Qlv, actual %Qlv ",
+                            "Type mismatch in array join: expected %Qlv or %Qlv, actual %Qlv",
                             EValueType::Any,
                             EValueType::Composite,
                             listItemType);
@@ -1039,11 +1039,11 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
 
                         writer.Finish();
 
-                        MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.HostView());
+                        MakePositionIndependentStringLikeValue(&parsedValue, listItemType, output.GetHostView());
                         break;
                     }
                     default:
-                        THROW_ERROR_EXCEPTION("Unexpected item in array join, expected value of type %Qlv, encountered %Qlv",
+                        THROW_ERROR_EXCEPTION("Unexpected item in array join: expected value of type %Qlv, encountered %Qlv",
                             current.GetType(),
                             listItemType);
                 }
@@ -2763,7 +2763,7 @@ extern "C" void MakeMap(
     }
     writer.OnEndMap();
 
-    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.View());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetView());
 }
 
 extern "C" void MakeList(
@@ -2820,7 +2820,7 @@ extern "C" void MakeList(
     }
     writer.OnEndList();
 
-    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.View());
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Any, output.GetView());
 }
 
 bool ListContainsNullImpl(const INodePtr& node)
@@ -3037,7 +3037,7 @@ extern "C" void NumericToString(
             YT_ABORT();
     }
 
-    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::String, output.View());
+    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::String, output.GetView());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3104,7 +3104,7 @@ void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingSta
 {
     THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
         "State size mismatch in hyperloglog: expected %v, got %v; "
-        "this potentially signals a misuse of function \"cardinality_merge\"",
+        "this potentially signals a misuse of function \"cardinality_*\"",
         sizeof(THLL),
         incomingStateLength);
     HyperLogLogMerge(hll1, hll2);
@@ -3574,7 +3574,7 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     writer.OnEndList();
 
-    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::Any, output.View());
+    *resultAtHost = MakeUnversionedStringLikeValue(EValueType::Any, output.GetView());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4000,7 +4000,7 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TExpressionContex
     }
     writer.OnEndList();
 
-    return MakeUnversionedStringLikeValue(EValueType::Composite, output.View());
+    return MakeUnversionedStringLikeValue(EValueType::Composite, output.GetView());
 }
 
 void SubqueryWriteHelper(

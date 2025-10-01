@@ -55,8 +55,15 @@ public:
     {
         YT_LOG_DEBUG("Started building store compactor action batch");
 
+        TLsmActionBatch batch;
         for (const auto& tablet : tablets) {
-            OverallCompactionRequests_.MergeWith(ScanTablet(tablet.Get()));
+            batch.MergeWith(ScanTablet(tablet.Get()));
+        }
+
+        {
+            auto guard = Guard(CompactionRequestsSpinLock_);
+
+            OverallCompactionRequests_.MergeWith(std::move(batch));
         }
 
         YT_LOG_DEBUG("Finished building store compactor action batch");
@@ -67,7 +74,13 @@ public:
     TLsmActionBatch BuildOverallLsmActions() override
     {
         TLsmActionBatch batch;
-        std::swap(batch, OverallCompactionRequests_);
+
+        {
+            auto guard = Guard(CompactionRequestsSpinLock_);
+
+            std::swap(batch, OverallCompactionRequests_);
+        }
+
         std::sort(batch.Compactions.begin(), batch.Compactions.end(), CompareCompactionRequests);
         std::sort(batch.Partitionings.begin(), batch.Partitionings.end(), CompareCompactionRequests);
         return batch;
@@ -79,7 +92,9 @@ private:
     TLsmTabletNodeConfigPtr Config_;
     // System time. Used for imprecise activities like periodic compaction.
     TInstant CurrentTime_;
+
     TLsmActionBatch OverallCompactionRequests_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CompactionRequestsSpinLock_);
 
     TLsmActionBatch ScanTablet(TTablet* tablet)
     {
@@ -128,7 +143,10 @@ private:
 
     std::optional<TCompactionRequest> ScanEdenForPartitioning(TPartition* eden)
     {
-        if (eden->GetState() != EPartitionState::Normal) {
+        bool enableConcurrentPartitioningAndCompaction = eden->GetTablet()->GetMountConfig()->EnableConcurrentEdenPartitioningAndCompaction;
+        bool isStateValid = eden->GetState() == EPartitionState::Normal ||
+            (eden->GetState() == EPartitionState::Compacting && enableConcurrentPartitioningAndCompaction);
+        if (!isStateValid) {
             return {};
         }
 
@@ -228,7 +246,10 @@ private:
 
     std::optional<TCompactionRequest> ScanPartitionForCompaction(TPartition* partition, bool allowForcedCompaction)
     {
-        if (partition->GetState() != EPartitionState::Normal ||
+        bool enableConcurrentPartitioningAndCompaction = partition->GetTablet()->GetMountConfig()->EnableConcurrentEdenPartitioningAndCompaction && partition->IsEden();
+        bool isStateValid = partition->GetState() == EPartitionState::Normal ||
+            (partition->GetState() == EPartitionState::Partitioning && enableConcurrentPartitioningAndCompaction);
+        if (!isStateValid ||
             partition->GetIsImmediateSplitRequested() ||
             partition->Stores().empty())
         {

@@ -36,30 +36,31 @@ bool IsTypeBoolean(const TLogicalType& logicalType)
     return false;
 }
 
-bool ValidateRowLevelAceApplicability(
+bool ValidatePredicateApplicability(
     TRowLevelAccessControlEntry rowLevelAce,
     const TTableSchemaPtr& schema,
     const TLogger& Logger)
 {
     try {
         THashSet<std::string> references;
-        auto preparedExpression = PrepareExpression(rowLevelAce.Expression, *schema, GetBuiltinTypeInferrers(), &references);
+        auto preparedExpression = PrepareExpression(rowLevelAce.RowAccessPredicate, *schema, GetBuiltinTypeInferrers(), &references);
         THROW_ERROR_EXCEPTION_IF(
             !IsTypeBoolean(*preparedExpression->LogicalType),
-            "Expected expression's result type to be boolean, got %Qlv",
+            "Expected row access predicate's result type to be boolean, got %Qlv",
             *preparedExpression->LogicalType);
         return true;
     } catch (const std::exception& ex) {
-        switch (rowLevelAce.InapplicableExpressionMode) {
-            case EInapplicableExpressionMode::Ignore: {
-                YT_LOG_INFO(ex, "Ignored expression (Expression: %v)", rowLevelAce.Expression);
+        switch (rowLevelAce.InapplicableRowAccessPredicateMode) {
+            case EInapplicableRowAccessPredicateMode::Ignore: {
+                YT_LOG_INFO(ex, "Ignored row access predicate (RowAccessPredicate: %v)", rowLevelAce.RowAccessPredicate);
                 return false;
             }
-            case EInapplicableExpressionMode::Fail: {
+            case EInapplicableRowAccessPredicateMode::Fail: {
                 auto error = TError(
-                    "One of row-level ACE's expression is inapplicable to the table schema "
-                    "and ACE has inapplicable_expression_mode=%v",
-                    EInapplicableExpressionMode::Fail)
+                    "One of row-level ACE's predicate is inapplicable to the table schema "
+                    "and ACE has %v=%v",
+                    TSerializableAccessControlEntry::InapplicableRowAccessPredicateModeKey,
+                    EInapplicableRowAccessPredicateMode::Fail)
                     << ex;
 
                 THROW_ERROR std::move(error);
@@ -68,11 +69,11 @@ bool ValidateRowLevelAceApplicability(
     }
 }
 
-//! Builds a single expression, which is a disjunction of all Row-Level ACE's expressions.
+//! Builds a single expression, which is a disjunction of all Row-Level ACE's predicates.
 //!
-//! When all rl aces are inapplicable and inapplicable_expression_mode=ignore,
+//! When all rl aces are inapplicable and inapplicable_row_access_predicate_mode=ignore,
 //! return nullopt.
-std::optional<std::string> ValidateAndBuildExpression(
+std::optional<std::string> ValidateAndBuildPredicate(
     const TTableSchemaPtr& schema,
     const std::vector<TRowLevelAccessControlEntry>& rowLevelAcl,
     const TLogger& Logger)
@@ -80,16 +81,16 @@ std::optional<std::string> ValidateAndBuildExpression(
     TStringBuilder builder;
     bool first = true;
     for (const auto& rowLevelAce : rowLevelAcl) {
-        YT_VERIFY(!rowLevelAce.Expression.empty());
+        YT_VERIFY(!rowLevelAce.RowAccessPredicate.empty());
 
-        if (!ValidateRowLevelAceApplicability(rowLevelAce, schema, Logger)) {
+        if (!ValidatePredicateApplicability(rowLevelAce, schema, Logger)) {
             continue;
         }
 
-        // NB(coteeq): |ValidateRowLevelAceApplicability| checks that the |rowLevelAce.Expression| is a valid expression.
-        // That means that we can just copy-paste the expression into the builder and not care about
-        // SQL-injection-like things (e.g. it is not possible to have one of expressions be like
-        // `) || true || (` and break the logic of disjunction†). And since we enclose expressions
+        // NB(coteeq): |ValidateRowLevelAceApplicability| checks that the |rowLevelAce.RowAccessPredicate| is a valid expression.
+        // That means that we can just copy-paste the predicate into the builder and not care about
+        // SQL-injection-like things (e.g. it is not possible to have one of predicates be like
+        // `) || true || (` and break the logic of disjunction†). And since we enclose predicates
         // in parens, the logic should not be affected by operators precedence either.
         //
         // † For now, all these expressions are controlled by the table's admins anyway,
@@ -101,12 +102,12 @@ std::optional<std::string> ValidateAndBuildExpression(
         }
         first = false;
         builder.AppendChar('(');
-        builder.AppendString(rowLevelAce.Expression);
+        builder.AppendString(rowLevelAce.RowAccessPredicate);
         builder.AppendChar(')');
     }
 
-    auto expression = builder.Flush();
-    if (expression.empty()) {
+    auto predicate = builder.Flush();
+    if (predicate.empty()) {
         if (rowLevelAcl.empty()) {
             YT_LOG_INFO("RL ACL is empty; denying to read any rows");
         } else {
@@ -115,7 +116,7 @@ std::optional<std::string> ValidateAndBuildExpression(
         return std::nullopt;
     }
 
-    return expression;
+    return predicate;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,15 +298,15 @@ std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
     if (!rowLevelAcl) {
         return std::nullopt;
     }
-    auto expression = ValidateAndBuildExpression(tableSchema, *rowLevelAcl, logger);
-    YT_VERIFY(!expression || !expression->empty());
+    auto predicate = ValidateAndBuildPredicate(tableSchema, *rowLevelAcl, logger);
+    YT_VERIFY(!predicate || !predicate->empty());
 
     TRlsReadSpec rlsReadSpec;
     rlsReadSpec.TableSchema_ = tableSchema;
-    if (expression) {
-        rlsReadSpec.ExpressionOrTrivialDeny_ = *expression;
+    if (predicate) {
+        rlsReadSpec.PredicateOrTrivialDeny_ = *predicate;
     } else {
-        rlsReadSpec.ExpressionOrTrivialDeny_ = TTrivialDeny{};
+        rlsReadSpec.PredicateOrTrivialDeny_ = TTrivialDeny{};
     }
 
     return rlsReadSpec;
@@ -313,13 +314,13 @@ std::optional<TRlsReadSpec> TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
 
 bool TRlsReadSpec::IsTrivialDeny() const
 {
-    return std::holds_alternative<TTrivialDeny>(ExpressionOrTrivialDeny_);
+    return std::holds_alternative<TTrivialDeny>(PredicateOrTrivialDeny_);
 }
 
-const std::string& TRlsReadSpec::GetExpression() const
+const std::string& TRlsReadSpec::GetPredicate() const
 {
     YT_VERIFY(!IsTrivialDeny());
-    return std::get<std::string>(ExpressionOrTrivialDeny_);
+    return std::get<std::string>(PredicateOrTrivialDeny_);
 }
 
 const TTableSchemaPtr& TRlsReadSpec::GetTableSchema() const
@@ -331,7 +332,7 @@ void TRlsReadSpec::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, TableSchema_,
         .template Serializer<TNonNullableIntrusivePtrSerializer<>>());
-    PHOENIX_REGISTER_FIELD(2, ExpressionOrTrivialDeny_);
+    PHOENIX_REGISTER_FIELD(2, PredicateOrTrivialDeny_);
 }
 
 PHOENIX_DEFINE_TYPE(TRlsReadSpec);
@@ -341,9 +342,9 @@ void ToProto(
     const TRlsReadSpec& rlsReadSpec)
 {
     Visit(
-        rlsReadSpec.ExpressionOrTrivialDeny_,
-        [&] (const std::string& expression) {
-            protoRlsReadSpec->set_expression(expression);
+        rlsReadSpec.PredicateOrTrivialDeny_,
+        [&] (const std::string& predicate) {
+            protoRlsReadSpec->set_predicate(predicate);
         },
         [&] (const TRlsReadSpec::TTrivialDeny& /*trivialDeny*/) {
             protoRlsReadSpec->mutable_trivial_deny();
@@ -358,12 +359,12 @@ void FromProto(
     TRlsReadSpec* rlsReadSpec,
     const NProto::TRlsReadSpec& protoRlsReadSpec)
 {
-    switch (protoRlsReadSpec.expression_or_trivial_deny_case()) {
-        case NProto::TRlsReadSpec::kExpression:
-            rlsReadSpec->ExpressionOrTrivialDeny_ = NYT::FromProto<std::string>(protoRlsReadSpec.expression());
+    switch (protoRlsReadSpec.predicate_or_trivial_deny_case()) {
+        case NProto::TRlsReadSpec::kPredicate:
+            rlsReadSpec->PredicateOrTrivialDeny_ = NYT::FromProto<std::string>(protoRlsReadSpec.predicate());
             break;
         case NProto::TRlsReadSpec::kTrivialDeny:
-            rlsReadSpec->ExpressionOrTrivialDeny_ = TRlsReadSpec::TTrivialDeny{};
+            rlsReadSpec->PredicateOrTrivialDeny_ = TRlsReadSpec::TTrivialDeny{};
             break;
         default:
             YT_ABORT();
@@ -385,7 +386,7 @@ IRlsCheckerFactoryPtr CreateRlsCheckerFactory(
 
     THashSet<std::string> references;
     auto preparedExpression = PrepareExpression(
-        rlsReadSpec.GetExpression(),
+        rlsReadSpec.GetPredicate(),
         *schema,
         GetBuiltinTypeInferrers(),
         &references);

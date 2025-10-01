@@ -4071,7 +4071,7 @@ private:
         auto leaseManagerDecommissioned = Slot_->GetLeaseManager()->IsFullyDecommissioned();
 
         YT_LOG_INFO(
-            "Checking if tablet cell is suspended"
+            "Checking if tablet cell is suspended "
             "(TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v, "
             "LeaseManagerDecommissioned: %v)",
             transactionManagerDecommissioned,

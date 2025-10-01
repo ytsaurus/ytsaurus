@@ -26,31 +26,31 @@ class TTentativeTreeEligibility
 {
 public:
     TTentativeTreeEligibility(
-        std::optional<THashSet<TString>> tentativeTrees,
+        std::optional<THashSet<std::string>> tentativeTreeIds,
         const NScheduler::TTentativeTreeEligibilityConfigPtr& config,
         const NLogging::TLogger& logger);
 
     // For persistence only.
     TTentativeTreeEligibility();
 
-    bool CanScheduleJob(const TString& treeId, bool tentative);
+    bool CanScheduleJob(const std::string& treeId, bool tentative);
 
-    void OnJobStarted(const TString& treeId, bool tentative);
+    void OnJobStarted(const std::string& treeId, bool tentative);
 
     //! No jobs in tentative trees can start after call to this method.
     void Disable();
 
     void OnJobFinished(
         const TJobSummary& jobSummary,
-        const TString& treeId,
+        const std::string& treeId,
         bool tentative,
-        std::vector<TString>* newlyBannedTrees);
+        std::vector<std::string>* newlyBannedTreeIds);
 
-    std::vector<TString> FindAndBanSlowTentativeTrees();
+    std::vector<std::string> FindAndBanSlowTentativeTrees();
 
     void LogTentativeTreeStatistics() const;
 
-    THashMap<TString, int> GetPendingJobCount() const;
+    THashMap<std::string, int> GetPendingJobCount() const;
 
 private:
     using TDurationSummary = TAvgSummary<TDuration>;
@@ -58,20 +58,20 @@ private:
     TDurationSummary NonTentativeTreeDuration_;
 
     // Tentative job durations - by pool trees.
-    THashMap<TString, TDurationSummary> Durations_;
+    THashMap<std::string, TDurationSummary> TreeIdToDuration_;
 
-    THashSet<TString> TentativeTrees_;
+    THashSet<std::string> TentativeTreeIds_;
 
     int SampleJobCount_ = -1;
     double MaxTentativeTreeJobDurationRatio_ = -1.0;
     TDuration MinJobDuration_;
 
     // Number of started/finished jobs per pool tree.
-    THashMap<TString, int> StartedJobsPerPoolTree_;
-    THashMap<TString, TInstant> LastStartJobTimePerPoolTree_;
-    THashMap<TString, THashMap<EJobState, int>> FinishedJobsPerStatePerPoolTree_;
+    THashMap<std::string, int> TreeIdToStartedJobs_;
+    THashMap<std::string, TInstant> TreeIdToLastStartJobTime_;
+    THashMap<std::string, THashMap<EJobState, int>> TreeIdToFinishedJobsPerState_;
 
-    THashSet<TString> BannedTrees_;
+    THashSet<std::string> BannedTreeIds_;
 
     bool Disabled_ = false;
 
@@ -81,14 +81,14 @@ private:
     // TTentativeTreeEligibilityConfig::{SampleJobCount,MaxTentativeJobDurationRatio,MinJobDuration} respectively.
     TTentativeTreeEligibility(int sampleJobCount, double maxTentativeJobDurationRatio, TDuration minJobDuration);
 
-    TDuration GetTentativeTreeAverageJobDuration(const TString& treeId) const;
+    TDuration GetTentativeTreeAverageJobDuration(const std::string& treeId) const;
 
-    void UpdateDurations(const TJobSummary& jobSummary, const TString& treeId, bool tentative);
+    void UpdateDurations(const TJobSummary& jobSummary, const std::string& treeId, bool tentative);
 
-    bool IsSlow(const TString& treeId) const;
+    bool IsTreeSlow(const std::string& treeId) const;
 
-    void BanTree(const TString& treeId);
-    bool IsTreeBanned(const TString& treeId) const;
+    void BanTree(const std::string& treeId);
+    bool IsTreeBanned(const std::string& treeId) const;
 
     PHOENIX_DECLARE_TYPE(TTentativeTreeEligibility, 0xf8113e3d);
 };

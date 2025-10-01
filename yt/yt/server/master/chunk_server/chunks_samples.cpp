@@ -110,9 +110,7 @@ void TChunksSamples::Clear()
 void TChunksSamples::Load(TLoadContext& context)
 {
     using NYT::Load;
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MulticellStatisticsCollector) {
-        Load(context, LostVitalChunksSample_);
-    }
+    Load(context, LostVitalChunksSample_);
     if (context.GetVersion() >= NCellMaster::EMasterReign::MulticellChunksSamples) {
         Load(context, DataMissingChunksSample_);
         Load(context, ParityMissingChunksSample_);

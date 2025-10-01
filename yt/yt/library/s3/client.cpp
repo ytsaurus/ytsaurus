@@ -417,6 +417,7 @@ public:
             Client_ = CreateHttpClient(
                 Config_,
                 s3Address,
+                useTls,
                 SslContextConfig_,
                 Poller_,
                 ExecutionInvoker_);

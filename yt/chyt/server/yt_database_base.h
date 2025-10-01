@@ -51,6 +51,9 @@ public:
 
 protected:
     DB::StoragePtr DoGetTable(DB::ContextPtr context, const String& name) const;
+
+private:
+    DB::StoragePtr DoGetDictionary(DB::ContextPtr context, const String& name) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

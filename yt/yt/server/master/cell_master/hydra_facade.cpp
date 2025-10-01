@@ -277,20 +277,6 @@ public:
 #endif
     }
 
-    void RequireLeader() override
-    {
-        if (!HydraManager_->IsLeader()) {
-            if (HasMutationContext()) {
-                // Just a precaution, not really expected to happen.
-                auto error = TError("Request can only be served at leaders");
-                YT_LOG_ALERT(error);
-                THROW_ERROR error;
-            } else {
-                throw TLeaderFallbackException();
-            }
-        }
-    }
-
     void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig) override
     {
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);

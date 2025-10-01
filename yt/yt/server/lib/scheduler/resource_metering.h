@@ -41,7 +41,7 @@ struct TMeteringKey
     // NB(mrkastep) Use negative AbcId as default in order to be able to log root pools without ABC
     // e.g. personal experimental pools.
     int AbcId = UndefinedAbcId;
-    TString TreeId;
+    std::string TreeId;
     TString PoolId;
     THashMap<TString, TString> MeteringTags;
 

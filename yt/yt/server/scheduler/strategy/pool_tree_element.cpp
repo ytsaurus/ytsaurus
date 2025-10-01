@@ -57,7 +57,7 @@ TPoolTreeElementFixedState::TPoolTreeElementFixedState(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
-    TString treeId)
+    std::string treeId)
     : TreeConfig_(std::move(treeConfig))
     , StrategyHost_(strategyHost)
     , TreeElementHost_(treeElementHost)
@@ -367,7 +367,7 @@ double TPoolTreeElement::GetResourceDominantUsageShareAtUpdate() const
     return MaxComponent(Attributes_.UsageShare);
 }
 
-TString TPoolTreeElement::GetTreeId() const
+std::string TPoolTreeElement::GetTreeId() const
 {
     return TreeId_;
 }
@@ -381,7 +381,7 @@ TPoolTreeElement::TPoolTreeElement(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
-    TString treeId,
+    std::string treeId,
     TString id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
@@ -681,7 +681,7 @@ TPoolTreeCompositeElement::TPoolTreeCompositeElement(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
-    const TString& treeId,
+    const std::string& treeId,
     const TString& id,
     EResourceTreeElementKind elementKind,
     const NLogging::TLogger& logger)
@@ -1242,7 +1242,7 @@ TPoolTreePoolElement::TPoolTreePoolElement(
     TPoolConfigPtr config,
     bool defaultConfigured,
     TStrategyTreeConfigPtr treeConfig,
-    const TString& treeId,
+    const std::string& treeId,
     const NLogging::TLogger& logger)
     : TPoolTreeCompositeElement(
         strategyHost,
@@ -1823,7 +1823,7 @@ TPoolTreeOperationElement::TPoolTreeOperationElement(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
     IOperationPtr operation,
-    const TString& treeId,
+    const std::string& treeId,
     const NLogging::TLogger& logger)
     : TPoolTreeElement(
         strategyHost,
@@ -2237,7 +2237,7 @@ bool TPoolTreeOperationElement::HasRecentScheduleAllocationFailure(NProfiling::T
 
 bool TPoolTreeOperationElement::IsSaturatedInTentativeTree(
     NProfiling::TCpuInstant now,
-    const TString& treeId,
+    const std::string& treeId,
     TDuration saturationDeactivationTimeout) const
 {
     return Controller_->IsSaturatedInTentativeTree(now, treeId, saturationDeactivationTimeout);
@@ -2248,7 +2248,7 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
     const TJobResources& availableResources,
     const TDiskResources& availableDiskResources,
     TDuration timeLimit,
-    const TString& treeId)
+    const std::string& treeId)
 {
     return Controller_->ScheduleAllocation(
         context,
@@ -2262,7 +2262,7 @@ TControllerScheduleAllocationResultPtr TPoolTreeOperationElement::ScheduleAlloca
 
 void TPoolTreeOperationElement::OnScheduleAllocationFailed(
     TCpuInstant now,
-    const TString& treeId,
+    const std::string& treeId,
     const TControllerScheduleAllocationResultPtr& scheduleAllocationResult)
 {
     Controller_->OnScheduleAllocationFailed(now, treeId, scheduleAllocationResult);
@@ -2547,7 +2547,7 @@ TPoolTreeRootElement::TPoolTreeRootElement(
     IStrategyHost* strategyHost,
     IPoolTreeElementHost* treeElementHost,
     TStrategyTreeConfigPtr treeConfig,
-    const TString& treeId,
+    const std::string& treeId,
     const NLogging::TLogger& logger)
     : TPoolTreeCompositeElement(
         strategyHost,

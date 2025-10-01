@@ -23,6 +23,8 @@ PEERDIR(
     contrib/ydb/library/formats/arrow
     contrib/ydb/library/services
     yql/essentials/core/arrow_kernels/request
+    yql/essentials/minikql
+    contrib/ydb/library/yql/dq/runtime
 )
 
 YQL_LAST_ABI_VERSION()
@@ -30,6 +32,7 @@ YQL_LAST_ABI_VERSION()
 SRCS(
     arrow_batch_builder.cpp
     arrow_helpers.cpp
+    arrow_helpers_minikql.cpp
     arrow_filter.cpp
     converter.cpp
     converter.h

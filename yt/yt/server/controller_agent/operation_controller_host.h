@@ -18,7 +18,7 @@ struct TAgentToSchedulerOperationEvent
         NScheduler::EAgentToSchedulerOperationEventType eventType,
         TOperationId operationId,
         NScheduler::TControllerEpoch controllerEpoch,
-        TError error = TError());
+        TError error = {});
 
     static TAgentToSchedulerOperationEvent CreateCompletedEvent(
         TOperationId operationId,
@@ -38,7 +38,7 @@ struct TAgentToSchedulerOperationEvent
     static TAgentToSchedulerOperationEvent CreateBannedInTentativeTreeEvent(
         TOperationId operationId,
         NScheduler::TControllerEpoch controllerEpoch,
-        TString treeId,
+        std::string treeId,
         std::vector<TAllocationId> allocationIds);
     static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
         TOperationId operationId,
@@ -70,7 +70,7 @@ struct TAgentToSchedulerOperationEvent
     TOperationId OperationId;
     NScheduler::TControllerEpoch ControllerEpoch;
     TError Error;
-    TString TentativeTreeId;
+    std::string TentativeTreeId;
     std::vector<TAllocationId> TentativeTreeAllocationIds;
     std::optional<TOperationControllerInitializeResult> InitializeResult;
     std::optional<TOperationControllerPrepareResult> PrepareResult;
@@ -165,7 +165,7 @@ public:
     void OnOperationFailed(const TError& error) override;
     void OnOperationSuspended(const TError& error) override;
     void OnOperationBannedInTentativeTree(
-        const TString& treeId,
+        const std::string& treeId,
         const std::vector<TAllocationId>& allocationIds) override;
 
     void ValidateOperationAccess(

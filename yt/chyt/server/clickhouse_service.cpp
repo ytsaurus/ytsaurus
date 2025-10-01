@@ -5,9 +5,13 @@
 #include "host.h"
 #include "helpers.h"
 #include "user_defined_sql_objects_storage.h"
+#include "cypress_config_repository.h"
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <Interpreters/ExternalDictionariesLoader.h>
+#include <Interpreters/DatabaseCatalog.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -34,6 +38,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(InvalidateCachedObjectAttributes));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetSqlObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveSqlObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReloadDictionary));
     }
 
 private:
@@ -101,6 +106,18 @@ private:
 
         storage->TryRemoveObject(objectName, revision);
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, ReloadDictionary)
+    {
+        const auto& dictionaryName = request->dictionary_name();
+
+        context->SetRequestInfo("DictionaryName: %v",
+            dictionaryName);
+
+        const auto& externalDictionariesLoader = Host_->GetContext()->getExternalDictionariesLoader();
+        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, dictionaryName);
         context->Reply();
     }
 };

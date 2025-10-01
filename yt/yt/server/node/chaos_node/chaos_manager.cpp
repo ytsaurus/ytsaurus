@@ -1670,7 +1670,7 @@ private:
             // Need to make a better protocol (YT-16072).
             if (chaosObject->Coordinators().contains(cellId)) {
                 if (strict) {
-                    YT_LOG_ALERT("Will not grant shortcut as the coordinator is already present for the object"
+                    YT_LOG_ALERT("Will not grant shortcut as the coordinator is already present for the object "
                         "(ChaosObjectId: %v, Type: %v, Era: %v, CoordinatorCellId: %v, CoordinatorState: %v)",
                         chaosObject->GetId(),
                         TypeFromId(chaosObject->GetId()),

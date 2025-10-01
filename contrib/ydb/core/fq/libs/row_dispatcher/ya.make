@@ -19,7 +19,9 @@ PEERDIR(
     contrib/ydb/core/fq/libs/row_dispatcher/purecalc_compilation
     contrib/ydb/core/fq/libs/shared_resources
     contrib/ydb/core/fq/libs/ydb
+
     contrib/ydb/core/mon
+    contrib/ydb/core/mind
 
     contrib/ydb/library/actors/core
     contrib/ydb/library/security

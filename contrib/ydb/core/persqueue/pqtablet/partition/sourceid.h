@@ -4,7 +4,7 @@
 #include <contrib/ydb/core/persqueue/common/sourceid_info.h>
 #include <contrib/ydb/core/persqueue/common/key.h>
 #include "ownerinfo.h"
-#include <contrib/ydb/core/persqueue/partition_key_range/partition_key_range.h>
+#include <contrib/ydb/core/persqueue/public/partition_key_range/partition_key_range.h>
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 
 #include <util/generic/set.h>

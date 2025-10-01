@@ -617,7 +617,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 21 && TFinishedQueryDescriptor::FieldCount == 16);
+                static_assert(TActiveQueryDescriptor::FieldCount == 23 && TFinishedQueryDescriptor::FieldCount == 18);
                 TFinishedQueryPartial newRecord{
                     .Key = {.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -635,6 +635,8 @@ private:
                     .Annotations = activeQueryRecord->Annotations,
                     .Secrets = activeQueryRecord->Secrets.value_or(TYsonString(TString("[]"))),
                     .AssignedTracker = activeQueryRecord->AssignedTracker,
+                    .IsIndexed = activeQueryRecord->IsIndexed,
+                    .IsTutorial = activeQueryRecord->IsTutorial,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetPartialIdMapping()),
@@ -644,7 +646,9 @@ private:
                     TFinishedQueryDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(newRows), rowBuffer));
 
-                TimeBasedIndex_->AddQuery(PartialRecordToQuery(newRecord), transaction);
+                if (activeQueryRecord->IsIndexed) {
+                    TimeBasedIndex_->AddQuery(PartialRecordToQuery(newRecord), transaction);
+                }
             }
 
             auto commitResultOrError = WaitFor(transaction->Commit());

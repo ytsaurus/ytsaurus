@@ -70,6 +70,21 @@ using TResolveResult = std::variant<
     TSequoiaResolveResult
 >;
 
+// Cypress node cannot be resolved by ID without proper transaction after trunk
+// node was removed. But some verbs (e.g. CheckPermission) are non-transactional
+// by design. For such verbs if target ID is not found in resove table but
+// target path consist of object ID only this special resolve result is used to
+// indicate that (1) there is still no resolve error and (2) we don't know
+// reliably if node exists or not.
+struct TUnreachableSequoiaResolveResult;
+
+using TMaybeUnreachableResolveResult = std::variant<
+    TCypressResolveResult,
+    TMasterResolveResult,
+    TSequoiaResolveResult,
+    TUnreachableSequoiaResolveResult
+>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EUserWorkloadType,

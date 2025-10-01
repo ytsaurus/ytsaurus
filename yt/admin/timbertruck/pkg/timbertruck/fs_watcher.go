@@ -95,12 +95,12 @@ loop:
 			if !ok {
 				break loop
 			}
-			w.logger.Error("Detected fsnotify error", "error", watcherErr)
+			w.logger.Warn("Detected fsnotify error", "error", watcherErr)
 		}
 	}
 	err := w.watcher.Close()
 	if err != nil {
-		w.logger.Error("Error closing watcher")
+		w.logger.Warn("Error closing watcher")
 		return err
 	}
 	w.logger.Info("Stopped FsWatcher")

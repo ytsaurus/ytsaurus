@@ -1,7 +1,7 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
-    authors, wait, create, get, set, insert_rows, delete_rows, select_rows, lookup_rows,
+    authors, create_tablet_cell_bundle, ls, wait, create, get, set, insert_rows, delete_rows, select_rows, lookup_rows,
     alter_table, write_table,
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
@@ -1115,6 +1115,78 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         wait(lambda: get("//tmp/t/@tablets/0/statistics/chunk_count") < 10)
         assert get("//tmp/t/@tablets/0/performance_counters/static_chunk_row_read_count") == 0
         wait(lambda: get("//tmp/t/@tablets/0/performance_counters/compaction_data_weight_count") == get("//tmp/t/@data_weight"))
+
+    @authors("tem-shett")
+    @pytest.mark.parametrize("delays", [{"partitioning": 1000000, "compaction": 5000}, {"partitioning": 5000, "compaction": 1000000}])
+    def test_concurrent_eden_partitioning_and_compaction(self, delays):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "always_flush_to_eden": True,
+                "enable_concurrent_eden_partitioning_and_compaction": True,
+                "max_dynamic_store_row_count": 1,
+                # 1500 is approximately equal to 1.5 * chunk_size.
+                "min_partitioning_data_size": 1500,
+                "backing_store_retention_time": 0,
+                "testing": {
+                    "partitioning_delay": delays["partitioning"],
+                    "compaction_delay": delays["compaction"]
+                }
+            },
+            compression_codec="none"
+        )
+
+        sync_mount_table("//tmp/t")
+        for i in range(10):
+            insert_rows("//tmp/t", [{"key": i, "value": 'a' * 1000}])
+            sync_flush_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        wait(lambda: len(get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/partitioning_tasks/running_tasks")) > 0)
+        wait(lambda: len(get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/running_tasks")) > 0)
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/eden/state") == "partitioning_and_compacting")
+        if delays["partitioning"] > delays["compaction"]:
+            wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/eden/state") == "partitioning")
+        else:
+            wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/eden/state") == "compacting")
+
+    @authors("tem-shett")
+    def test_lsm_multiple_cells_per_node(self):
+        create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@node_tag_filter", "custom")
+        node_address = ls("//sys/cluster_nodes")[0]
+        set(f"//sys/cluster_nodes/{node_address}/@user_tags", ["custom"])
+        cell_ids = sync_create_cells(3, tablet_cell_bundle="b")
+
+        assert len(builtins.set([get(f"#{cell_id}/@peers/0/address") for cell_id in cell_ids])) == 1
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "backing_store_retention_time": 0
+            },
+            tablet_cell_bundle="b"
+        )
+
+        tablet_count = 10
+        pivot_keys = [[]] + [[i] for i in range(tablet_count)]
+
+        sync_reshard_table("//tmp/t", pivot_keys)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(tablet_count)])
+        sync_flush_table("//tmp/t")
+
+        old_chunk_ids = builtins.set(get("//tmp/t/@chunk_ids"))
+
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        wait(lambda: len(old_chunk_ids.intersection(get("//tmp/t/@chunk_ids"))) == 0)
 
 
 ################################################################################

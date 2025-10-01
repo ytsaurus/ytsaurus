@@ -264,7 +264,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     YT_LOG_INFO("Operation started (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
 
     // Notify scheduler.
-    std::vector<TString> unknownTreeIds;
+    std::vector<std::string> unknownTreeIds;
     TPoolTreeControllerSettingsMap poolTreeControllerSettingsMap;
     Strategy_->RegisterOperation(operation.Get(), &unknownTreeIds, &poolTreeControllerSettingsMap);
     YT_VERIFY(unknownTreeIds.empty());

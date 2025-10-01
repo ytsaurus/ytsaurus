@@ -33,6 +33,7 @@
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
+#include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -520,6 +521,9 @@ TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& replicas)
 {
+
+    VerifyPersistentStateRead();
+
     TCompactMediumMap<EChunkStatus> result;
 
     auto statistics = ComputeChunkStatistics(chunk, replicas);
@@ -563,6 +567,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     TCompactMediumMap<std::array<TChunkLocationList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TCompactMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    TCompactMediumMap<THashSet<const THost*>> replicasHosts;
     // TODO(gritukan): YT-16557.
     TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
@@ -618,6 +623,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
         if (!Config_->AllowMultipleErasurePartsPerNode) {
             node->SetVisitMark(mediumIndex, mark);
+        }
+
+        auto host = replica.GetPtr()->GetNode()->GetHost();
+        if (ChunkPlacement_->UseHostAwareReplicator() && host) {
+            auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
+            if (!inserted) {
+                unsafelyPlacedSealedReplicas[mediumIndex] = replica;
+            }
         }
 
         if (const auto* rack = node->GetRack()) {
@@ -1023,6 +1036,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     TMediumMap<TChunkLocationPtrWithReplicaInfo> unsafelyPlacedReplicas;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    TMediumMap<THashSet<const THost*>> replicasHosts;
     // TODO(gritukan): YT-16557.
     TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
@@ -1083,6 +1097,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         } else {
             ++replicaCount[mediumIndex];
             ++totalReplicaCount;
+        }
+
+        auto host = replica.GetPtr()->GetNode()->GetHost();
+        if (ChunkPlacement_->UseHostAwareReplicator() && host) {
+            auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
+            if (!inserted) {
+                unsafelyPlacedReplicas[mediumIndex] = replica;
+            }
         }
 
         if (const auto* rack = replica.GetPtr()->GetNode()->GetRack()) {
@@ -2384,6 +2406,8 @@ void TChunkReplicator::RefreshChunk(
     auto chunkId = chunk->GetId();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
+    auto wasLostVital = LostVitalChunks_.contains(chunk);
+
     chunk->OnRefresh();
 
     ResetChunkStatus(chunk);
@@ -2562,11 +2586,22 @@ void TChunkReplicator::RefreshChunk(
         }
     }
 
+    auto maxLostVitalChunksToLog = GetDynamicConfig()->MaxLostVitalChunksToLog;
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Lost)) {
         YT_VERIFY(LostChunks_.insert(chunk).second);
         if (durabilityRequired) {
             YT_VERIFY(LostVitalChunks_.insert(chunk).second);
+            YT_LOG_DEBUG_IF(std::ssize(LostVitalChunks_) <= maxLostVitalChunksToLog,
+                "Chunk is lost (ChunkId: %v, WasLostVital: %v, ChunkReplicas: %v)",
+                chunk->GetId(),
+                wasLostVital,
+                chunkReplicas);
         }
+    } else if (wasLostVital) {
+        YT_LOG_DEBUG_IF(std::ssize(LostVitalChunks_) < maxLostVitalChunksToLog,
+            "Chunk is no longer lost (ChunkId: %v, ChunkReplicas: %v)",
+            chunk->GetId(),
+            chunkReplicas);
     }
 
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::DataMissing)) {

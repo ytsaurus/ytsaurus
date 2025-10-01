@@ -9,7 +9,7 @@ from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
 
 from yt_helpers import profiler_factory
 
-from yt_queries import Query, start_query, list_queries, get_query_tracker_info
+from yt_queries import Query, start_query, list_queries, get_query_tracker_info, get_query
 
 from yt.common import date_string_to_timestamp_mcs
 
@@ -179,7 +179,7 @@ class TestQueriesMock(YTEnvSetup):
         assert "assigned_tracker" in finished_query_info
         assert finished_query_info["assigned_tracker"] == active_query_info["assigned_tracker"]
 
-    @authors("max42")
+    @authors("max42", "kirsiv40")
     def test_list(self, query_tracker):
         create_user("u1")
         create_user("u2")
@@ -238,6 +238,22 @@ class TestQueriesMock(YTEnvSetup):
         expect_queries([q5], list_queries(state="running"))
         expect_queries([q1], list_queries(state="completed"))
 
+        def check_sort_order(future_expected_asc, past_expected_asc, incomplete=False, **list_queries_kwargs):
+            expect_queries(future_expected_asc, list_queries(cursor_direction="future", sort_order="ascending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(future_expected_asc[::-1], list_queries(cursor_direction="future", sort_order="descending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(future_expected_asc[::-1], list_queries(cursor_direction="future", sort_order="cursor", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(future_expected_asc[::-1], list_queries(cursor_direction="future", **list_queries_kwargs), incomplete=incomplete)
+
+            expect_queries(past_expected_asc, list_queries(cursor_direction="past", sort_order="ascending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(past_expected_asc[::-1], list_queries(cursor_direction="past", sort_order="descending", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(past_expected_asc, list_queries(cursor_direction="past", sort_order="cursor", **list_queries_kwargs), incomplete=incomplete)
+            expect_queries(past_expected_asc, list_queries(cursor_direction="past", **list_queries_kwargs), incomplete=incomplete)
+
+        check_sort_order([q0, q1, q2, q3, q4, q5, q6], [q0, q1, q2, q3, q4, q5, q6], incomplete=False)
+        check_sort_order([q0, q1], [q5, q6], incomplete=True, limit=2)
+        check_sort_order([q4, q5, q6], [q0, q1, q2], incomplete=False, cursor_time=q_times[3])
+        check_sort_order([q4, q5], [q1, q2], incomplete=True, limit=2, cursor_time=q_times[3])
+
     @authors("max42")
     def test_draft(self, query_tracker):
         q = start_query("mock", "blahblah", draft=True)
@@ -283,6 +299,21 @@ class TestQueriesMock(YTEnvSetup):
         q.track()
         assert q.get_result(0)["is_truncated"]
         assert not q.get_result(1)["is_truncated"]
+
+    @authors("kirsiv40")
+    def test_is_indexed_flag(self, query_tracker):
+        q = start_query("mock", "complete_after", settings={"duration": 1000})
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "true"
+        q.track()
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "true"
+        q = start_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': False})
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "false"
+        q.track()
+        assert len(list_queries()["queries"]) == 1
+        assert str(get_query(q.id)["is_indexed"]) == "false"
 
 
 @pytest.mark.enabled_multidaemon
@@ -735,14 +766,34 @@ class TestAccessControl(YTEnvSetup):
         with raises_yt_error(ResolveErrorCode):
             q_u1.alter(authenticated_user="u1", access_control_object="nonexistent_aco")
 
-    @authors("aleksandr.gaev", "kirsiv40")
+
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfo(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+    ENABLE_MULTIDAEMON = True
+    SUPPORTED_FEATURES = {
+        'access_control': True,
+        'multiple_aco': True,
+        'new_search_on_proxies': True,
+        'new_search': True,
+        'not_indexing': True,
+        'not_indexing_on_proxies': True,
+        'declare': True,
+        'declare_on_proxies': True,
+        'tutorials': True,
+        'tutorials_on_proxies': True
+    }
+
+    @authors("aleksandr.gaev", "kirsiv40", "mpereskokova")
     def test_get_query_tracker_info(self, query_tracker):
         def check_qt_info(expected=None, **kwargs):
             info = get_query_tracker_info(**kwargs)
             assert isinstance(info.pop("expected_tables_version"), int)
             assert info == expected
 
-        supported_features = {'access_control': True, 'multiple_aco': True}
+        supported_features = self.SUPPORTED_FEATURES
 
         check_qt_info(
             expected={
@@ -1003,6 +1054,134 @@ class TestMultipleAccessControl(YTEnvSetup):
 
         expect_queries([q1, q2], list_queries(authenticated_user="u1"))
         expect_queries([q2], list_queries(authenticated_user="u2"))
+
+    @authors("kirsiv40")
+    def test_tutorials_are_not_listed_with_standart_queries(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+        create_user("u3_superuser")
+        add_member("u3_superuser", "superusers")
+        create_access_control_object("yet_another_nobody", "queries")
+        create_access_control_object(
+            "aco",
+            "queries",
+            attributes={
+                "principal_acl": [
+                    make_ace("allow", "u1", "read"),
+                    make_ace("allow", "u1", "use"),
+                ]
+            })
+
+        q1 = start_query(
+            "mock",
+            "complete_after",
+            settings={"duration": 1000},
+            access_control_objects=["nobody", "yet_another_nobody"],
+            annotations={"is_tutorial": True, "tutorial": True}
+        )
+        q2 = start_query(
+            "mock",
+            "complete_after",
+            settings={"duration": 1000},
+            access_control_objects=["aco"],
+            annotations={"is_tutorial": "true", "tutorial": "true"}
+        )
+        q3 = start_query(
+            "mock",
+            "complete_after",
+            settings={"duration": 1000, "is_tutorial": False},
+            access_control_objects=["nobody", "yet_another_nobody"],
+            annotations={"is_tutorial": False, "tutorial": False}
+        )
+        q4 = start_query(
+            "mock",
+            "complete_after",
+            settings={"duration": 1000, "is_tutorial": False},
+            access_control_objects=["aco"],
+            annotations={"is_tutorial": "false", "tutorial": "false"}
+        )
+        q5 = start_query(
+            "mock",
+            "complete_after",
+            settings={"duration": 1000, "is_tutorial": True},
+            access_control_objects=["nobody", "yet_another_nobody"],
+            annotations={"is_tutorial": False, "tutorial": False}
+        )
+        q6 = start_query(
+            "mock",
+            "complete_after",
+            settings={"duration": 1000, "is_tutorial": True},
+            access_control_objects=["aco"],
+            annotations={"is_tutorial": "false", "tutorial": "false"}
+        )
+
+        def check_tutorial_queries():
+            expect_queries([q2, q4], list_queries(authenticated_user="u1"))
+            expect_queries([], list_queries(authenticated_user="u2"))
+            expect_queries([q1, q2, q3, q4], list_queries(authenticated_user="u3_superuser"))
+
+            expect_queries([q2, q4], list_queries(authenticated_user="u1", tutorial_filter=False))
+            expect_queries([], list_queries(authenticated_user="u2", tutorial_filter=False))
+            expect_queries([q1, q2, q3, q4], list_queries(authenticated_user="u3_superuser", tutorial_filter=False))
+
+            expect_queries([q6], list_queries(authenticated_user="u1", tutorial_filter=True))
+            expect_queries([], list_queries(authenticated_user="u2", tutorial_filter=True))
+            expect_queries([q5, q6], list_queries(authenticated_user="u3_superuser", tutorial_filter=True))
+
+        check_tutorial_queries()
+
+        q1.track()
+        q2.track()
+        q3.track()
+        q4.track()
+        q5.track()
+        q6.track()
+
+        check_tutorial_queries()
+
+    @authors("kirsiv40")
+    def test_only_superusers_can_create_tutorials(self, query_tracker):
+        create_user("u1_superuser")
+        create_user("u2")
+        add_member("u1_superuser", "superusers")
+
+        u1q1 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
+        u1q2 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
+        u1q3 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["nobody"])
+        u1q4 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u1_superuser", access_control_objects=["everyone"])
+
+        u2q1 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u2", access_control_objects=["nobody"])
+        u2q2 = start_query("mock", "complete_after", settings={"duration": 1000}, authenticated_user="u2", access_control_objects=["everyone"])
+        u2q3 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": False}, authenticated_user="u2", access_control_objects=["nobody"])
+        u2q4 = start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": False}, authenticated_user="u2", access_control_objects=["everyone"])
+
+        with raises_yt_error("superuser"):
+            start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u2", access_control_objects=["nobody"])
+        with raises_yt_error("superuser"):
+            start_query("mock", "complete_after", settings={"duration": 1000, "is_tutorial": True}, authenticated_user="u2", access_control_objects=["everyone"])
+
+        def check_tutorial_queries():
+            expect_queries([u1q1, u1q2, u2q1, u2q2, u2q3, u2q4], list_queries(authenticated_user="u1_superuser"))
+            expect_queries([u1q2, u2q1, u2q2, u2q3, u2q4], list_queries(authenticated_user="u2"))
+
+            expect_queries([u1q1, u1q2, u2q1, u2q2, u2q3, u2q4], list_queries(authenticated_user="u1_superuser", tutorial_filter=False))
+            expect_queries([u1q2, u2q1, u2q2, u2q3, u2q4], list_queries(authenticated_user="u2", tutorial_filter=False))
+
+            expect_queries([u1q3, u1q4], list_queries(authenticated_user="u1_superuser", tutorial_filter=True))
+            expect_queries([u1q4], list_queries(authenticated_user="u2", tutorial_filter=True))
+
+        check_tutorial_queries()
+
+        u1q1.track()
+        u1q2.track()
+        u1q3.track()
+        u1q4.track()
+        u2q1.track()
+        u2q2.track()
+        u2q3.track()
+        u2q4.track()
+
+        check_tutorial_queries()
 
 
 # Separate list to fit 480 seconds limit for a test class.
@@ -1371,6 +1550,23 @@ class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
     ENABLE_MULTIDAEMON = True
+
+
+@authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
+class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+    SUPPORTED_FEATURES = {
+        'access_control': True,
+        'multiple_aco': True,
+        'new_search': True,
+        'not_indexing': True,
+        'declare': True,
+        'tutorials': True
+    }
 
 
 @authors("kirsiv40")

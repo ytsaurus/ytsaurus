@@ -95,7 +95,7 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
             maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
 
             YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet size config overridden by tablet to cell ratio"
+                "Tablet size config overridden by tablet to cell ratio "
                 "(TableId: %v, MaxTabletCount: %v, MinTabletSize: %v, DesiredTabletSize: %v, "
                 "MaxTabletSize: %v)",
                 table->GetId(),

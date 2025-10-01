@@ -124,10 +124,10 @@ static constexpr int MaxAllowedProfilingTagCount = 200;
 TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 {
     if (parent) {
-        Pool = *parent +  Delimiter + pool;
-        ParentPool = std::move(parent);
+        Pool_ = *parent +  Delimiter + pool;
+        ParentPool_ = std::move(parent);
     } else {
-        Pool = std::move(pool);
+        Pool_ = std::move(pool);
     }
 }
 
@@ -135,17 +135,17 @@ const char TPoolName::Delimiter = '$';
 
 const TString& TPoolName::GetPool() const
 {
-    return Pool;
+    return Pool_;
 }
 
 const std::optional<TString>& TPoolName::GetParentPool() const
 {
-    return ParentPool;
+    return ParentPool_;
 }
 
 const TString& TPoolName::GetSpecifiedPoolName() const
 {
-    return ParentPool ? *ParentPool : Pool;
+    return ParentPool_ ? *ParentPool_ : Pool_;
 }
 
 TPoolName TPoolName::FromString(const TString& value)
@@ -166,7 +166,7 @@ TPoolName TPoolName::FromString(const TString& value)
 
 TString TPoolName::ToString() const
 {
-    return Pool;
+    return Pool_;
 }
 
 void Deserialize(TPoolName& value, INodePtr node)
@@ -1050,9 +1050,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_multiple_jobs_in_allocation", &TThis::EnableMultipleJobsInAllocation)
         .Default();
-
-    registrar.Parameter("use_new_slicing_implementation_in_unordered_pool", &TThis::UseNewSlicingImplementationInUnorderedPool)
-        .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

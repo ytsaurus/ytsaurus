@@ -36,13 +36,13 @@ struct IOperation
 
     virtual EOperationState GetState() const = 0;
 
-    virtual std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId = std::nullopt) const = 0;
+    virtual std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<std::string>& treeId = std::nullopt) const = 0;
 
     virtual TInstant GetStartTime() const = 0;
 
-    virtual std::optional<int> FindSlotIndex(const TString& treeId) const = 0;
-    virtual void SetSlotIndex(const TString& treeId, int index) = 0;
-    virtual void ReleaseSlotIndex(const TString& treeId) = 0;
+    virtual std::optional<int> FindSlotIndex(const std::string& treeId) const = 0;
+    virtual void SetSlotIndex(const std::string& treeId, int index) = 0;
+    virtual void ReleaseSlotIndex(const std::string& treeId) = 0;
 
     virtual std::string GetAuthenticatedUser() const = 0;
 
@@ -54,7 +54,7 @@ struct IOperation
 
     virtual TStrategyOperationSpecPtr GetStrategySpec() const = 0;
 
-    virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const = 0;
+    virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const std::string& treeId) const = 0;
 
     virtual const NYson::TYsonString& GetSpecString() const = 0;
 
@@ -67,12 +67,12 @@ struct IOperation
     virtual const TOperationOptionsPtr& GetOperationOptions() const = 0;
 
     virtual void UpdatePoolAttributes(
-        const TString& treeId,
+        const std::string& treeId,
         const TOperationPoolTreeAttributes& operationPoolTreeAttributes) = 0;
 
-    virtual bool IsTreeErased(const TString& treeId) const = 0;
+    virtual bool IsTreeErased(const std::string& treeId) const = 0;
 
-    virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
+    virtual void EraseTrees(const std::vector<std::string>& treeIds) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperation)

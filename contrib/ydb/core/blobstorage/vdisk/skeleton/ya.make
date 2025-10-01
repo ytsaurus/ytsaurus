@@ -5,6 +5,7 @@ PEERDIR(
     contrib/ydb/core/blobstorage/vdisk/balance
     contrib/ydb/core/blobstorage/vdisk/hulldb/base
     contrib/ydb/core/blobstorage/vdisk/hulldb/bulksst_add
+    contrib/ydb/core/blobstorage/vdisk/metadata
     contrib/ydb/core/blobstorage/vdisk/synclog
     contrib/ydb/core/protos
 )

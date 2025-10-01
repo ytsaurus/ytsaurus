@@ -146,7 +146,7 @@ TTabletSizeConfig GetTabletSizeConfig(
             }
 
             YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet size config overridden by tablet to cell ratio"
+                "Tablet size config overridden by tablet to cell ratio "
                 "(TableId: %v, MaxTabletCount: %v, MinTabletSize: %v, DesiredTabletSize: %v, "
                 "MaxTabletSize: %v)",
                 table->Id,

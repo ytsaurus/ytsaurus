@@ -8,7 +8,7 @@ namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationPoolTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationPtr& operation, const TString& treeId)
+TOperationPoolTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationPtr& operation, const std::string& treeId)
 {
     return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }

@@ -12,8 +12,7 @@ from yt_commands import (
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_node_banned,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
     wait_for_cells, build_snapshot, sort, merge, create_tablet_cell_bundle,
-    make_ace, create_user,
-    AsyncLastCommittedTimestamp)
+    AsyncLastCommittedTimestamp, create_user, make_ace)
 
 from yt_type_helpers import make_schema
 
@@ -1178,6 +1177,28 @@ class TestLookup(TestSortedDynamicTablesBase):
                         for x in get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/fair_share_queue/buckets")])
 
         wait(_wait_metrics)
+
+    @authors("coteeq")
+    @not_implemented_in_sequoia
+    def test_rls(self):
+        sync_create_cells(1)
+        create_user("u")
+        self._create_simple_table(
+            "//tmp/t",
+        )
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 15, "value": "asdf"}])
+
+        acl = [
+            make_ace("allow", "u", "read"),
+            make_ace("allow", "u", "read"),
+        ]
+        acl[-1]["row_access_predicate"] = "key = 1"
+        set("//tmp/t/@acl", acl)
+
+        with raises_yt_error("row-level ACL is present, but is not supported"):
+            lookup_rows("//tmp/t", [{"key": 15}], authenticated_user="u")
 
 
 @pytest.mark.enabled_multidaemon

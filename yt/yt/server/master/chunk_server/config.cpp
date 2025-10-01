@@ -435,13 +435,15 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("retriable_error_codes", &TThis::RetriableErrorCodes)
         .Default(std::vector<TErrorCode>(std::begin(RetriableSequoiaErrorCodes), std::end(RetriableSequoiaErrorCodes)));
 
-
     registrar.Parameter("validate_sequoia_replicas_fetch", &TThis::ValidateSequoiaReplicasFetch)
         .Default(false);
 
     registrar.Parameter("allow_extra_master_replicas_during_validation", &TThis::AllowExtraMasterReplicasDuringValidation)
         .Default(true);
 
+    registrar.Parameter("always_include_unapproved_replicas", &TThis::AlwaysIncludeUnapprovedReplicas)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
@@ -649,6 +651,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("force_rack_awareness_for_erasure_parts", &TThis::ForceRackAwarenessForErasureParts)
         .Default(false);
 
+    registrar.Parameter("force_host_awareness_for_erasure_parts", &TThis::ForceHostAwarenessForErasureParts)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultCtor([] {
             auto jobThrottler = New<NConcurrency::TThroughputThrottlerConfig>();
@@ -738,6 +744,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_data_center_aware_replicator", &TThis::UseDataCenterAwareReplicator)
         .Default(false);
 
+    registrar.Parameter("use_host_aware_replicator", &TThis::UseHostAwareReplicator)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("storage_data_centers", &TThis::StorageDataCenters)
         .Default();
 
@@ -789,6 +799,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
         .Default(false);
+
+    registrar.Parameter("max_lost_vital_chunks_to_log", &TThis::MaxLostVitalChunksToLog)
+        .Default(100)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

@@ -535,6 +535,9 @@ struct TDynamicSequoiaChunkReplicasConfig
     // TODO(aleksandra-zh): remove that.
     std::vector<TErrorCode> RetriableErrorCodes;
 
+    // COMPAT(aleksandra-zh).
+    bool AlwaysIncludeUnapprovedReplicas;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);
@@ -733,6 +736,9 @@ struct TDynamicChunkManagerConfig
     //! If true, replicator is aware of data centers when placing replicas.
     bool UseDataCenterAwareReplicator;
 
+    //! If true, replicator is aware of hosts when placing replicas. No two replicas are allowed on the same host.
+    bool UseHostAwareReplicator;
+
     //! Set of data centers that are used for chunk storage.
     THashSet<std::string> StorageDataCenters;
 
@@ -756,6 +762,9 @@ struct TDynamicChunkManagerConfig
     //! Forces rack awareness for erasure parts during write targets allocation.
     bool ForceRackAwarenessForErasureParts;
 
+    //! Forces host awareness for erasure parts during write targets allocation.
+    bool ForceHostAwarenessForErasureParts;
+
     bool EnableTwoRandomChoicesWriteTargetAllocation;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
@@ -772,6 +781,8 @@ struct TDynamicChunkManagerConfig
     bool UseHunkSpecificMediaForRequisitionUpdates;
 
     bool EnableRepairViaReplication;
+
+    int MaxLostVitalChunksToLog;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

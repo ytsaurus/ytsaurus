@@ -18,6 +18,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, InvalidateCachedObjectAttributes);
     DEFINE_RPC_PROXY_METHOD(NProto, SetSqlObject);
     DEFINE_RPC_PROXY_METHOD(NProto, RemoveSqlObject);
+    DEFINE_RPC_PROXY_METHOD(NProto, ReloadDictionary);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

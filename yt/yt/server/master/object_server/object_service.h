@@ -18,6 +18,9 @@ struct IObjectService
     virtual NObjectClient::TObjectServiceCachePtr GetCache() = 0;
     virtual IInvokerPtr CreateLocalReadInvoker(const std::string& user) = 0;
     virtual IInvokerPtr GetLocalReadOffloadInvoker() = 0;
+
+    //! Throws TLeaderFallbackException at followers.
+    virtual void RequireLeader() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectService)

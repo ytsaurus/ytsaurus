@@ -306,6 +306,10 @@ func convertValue(id uint16, value reflect.Value) (Value, error) {
 	}
 
 	if typ.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return NewNull(id), nil
+		}
+		value = value.Elem()
 		typ = typ.Elem()
 	}
 

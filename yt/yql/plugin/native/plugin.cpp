@@ -1,4 +1,5 @@
 #include "dq_manager.h"
+#include "dq_gateway_with_offloading.h"
 #include "plugin.h"
 
 #include "error_helpers.h"
@@ -83,7 +84,9 @@
 
 #include <util/string/builder.h>
 
+#include <util/generic/ptr.h>
 #include <util/system/fs.h>
+#include <util/thread/pool.h>
 
 namespace NYT::NYqlPlugin {
 namespace NNative {
@@ -355,6 +358,8 @@ public:
                     options.DqGatewayConfig,
                     NYson::ReflectProtobufMessageType<NYql::TDqGatewayConfig>(),
                     protobufWriterOptions));
+
+                DqGatewayOffloadThreadPool_ = MakeHolder<TThreadPool>();
             }
 
             auto* gatewayYtConfig = GatewaysConfigInitial_.MutableYt();
@@ -470,6 +475,7 @@ public:
     {
         if (DqManager_) {
             DqManager_->Start();
+            DqGatewayOffloadThreadPool_->Start(1);
         }
     }
 
@@ -844,6 +850,7 @@ public:
 private:
     const TDqManagerConfigPtr DqManagerConfig_;
     TDqManagerPtr DqManager_;
+    THolder<IThreadPool> DqGatewayOffloadThreadPool_;
     NYql::TFileStoragePtr FileStorage_;
     ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
     TAtomicIntrusivePtr<TDynamicConfig> DynamicConfig_;
@@ -980,12 +987,25 @@ private:
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {
             auto dqGateway = NYql::CreateDqGateway("localhost", DqManagerConfig_->GrpcPort);
+            // NOTE: prevent deadlock upon thread joining
+            // details in https://st.yandex-team.ru/YT-26302
+            auto dqGatewayWithOffloading = CreateDqGatewayWithOffloading(
+                std::move(dqGateway),
+                DqGatewayOffloadThreadPool_.Get());
+
             auto dqCompFactory = NKikimr::NMiniKQL::GetCompositeWithBuiltinFactory({
                 NYql::GetCommonDqFactory(),
                 NYql::GetDqYtFactory(),
                 NKikimr::NMiniKQL::GetYqlFactory(),
             });
-            dataProvidersInit.push_back(GetDqDataProviderInitializer(NYql::CreateDqExecTransformerFactory(MakeIntrusive<TSkiffConverter>()), dqGateway, dqCompFactory, {}, FileStorage_));
+
+            dataProvidersInit.push_back(
+                GetDqDataProviderInitializer(
+                    NYql::CreateDqExecTransformerFactory(MakeIntrusive<TSkiffConverter>()),
+                    std::move(dqGatewayWithOffloading),
+                    std::move(dqCompFactory),
+                    {},
+                    FileStorage_));
         }
 
         auto ytNativeGateway = CreateYtNativeGateway(ytServices);

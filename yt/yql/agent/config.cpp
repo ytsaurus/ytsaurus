@@ -129,6 +129,7 @@ constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf
     {"WorkerMemoryLimit", "1G"},
     {"WorkerRpcPort", "10082"},
     {"WorkerMonitoringPort", "10083"},
+    {"YtConsumerVital", "false"},
     {"YtPartitionCount", "10"}
 });
 

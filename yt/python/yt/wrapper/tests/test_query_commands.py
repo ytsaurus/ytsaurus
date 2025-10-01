@@ -118,3 +118,35 @@ class TestQueryCommands:
         with pytest.raises(yt.errors.YtError):
             list(q.get_result(0).read_rows())
         assert list(q.get_result(0).read_rows(validate_not_truncated=False)) == self.TRUNCATED_ROWSET["rows"]
+
+    @authors("kirsiv40")
+    def test_is_indexed_flag(self, yt_query_tracker):
+        queries_before_test = len(yt.list_queries()["queries"])
+        q = yt.run_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': True}, sync=False)
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "true"
+        q.wait()
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "true"
+        q = yt.run_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': False}, sync=False)
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "false"
+        q.wait()
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "false"
+
+    @authors("kirsiv40")
+    def test_is_indexed_flag_overwrites_settings_flag(self, yt_query_tracker):
+        queries_before_test = len(yt.list_queries()["queries"])
+        q = yt.run_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': False}, is_indexed=True, sync=False)
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "true"
+        q.wait()
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "true"
+        q = yt.run_query("mock", "complete_after", settings={"duration": 1000, 'is_indexed': True}, is_indexed=False, sync=False)
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "false"
+        q.wait()
+        assert len(yt.list_queries()["queries"]) == queries_before_test + 1
+        assert str(yt.get_query(q.id)["is_indexed"]) == "false"

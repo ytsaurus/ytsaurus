@@ -68,6 +68,10 @@ def init_environment_for_test_session(request, mode, **kwargs):
             config["api_version"] = "v4"
     elif mode == "rpc":
         config["backend"] = "rpc"
+        config["api_version"] = "v4"
+    elif mode == "rpc_v3":
+        config["backend"] = "rpc"
+        config["api_version"] = "v3"
     elif mode in ("native_multicell", "yamr", "job_archive"):
         config["backend"] = "http"
         config["api_version"] = "v4"
@@ -218,8 +222,17 @@ def test_environment_with_framing(request):
     return environment
 
 
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc_v3"])
+def test_environment_with_rpc_v3(request):
+    return _test_environment_with_rpc(request)
+
+
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
+    return _test_environment_with_rpc(request)
+
+
+def _test_environment_with_rpc(request):
     environment = init_environment_for_test_session(
         request,
         request.param,
@@ -464,6 +477,11 @@ def yt_env_with_framing(request, test_environment_with_framing):
 @pytest.fixture(scope="function")
 def yt_env_with_rpc(request, test_environment_with_rpc):
     return _yt_env(request, test_environment_with_rpc)
+
+
+@pytest.fixture(scope="function")
+def yt_env_with_rpc_v3(request, test_environment_with_rpc_v3):
+    return _yt_env(request, test_environment_with_rpc_v3)
 
 
 @pytest.fixture(scope="function")

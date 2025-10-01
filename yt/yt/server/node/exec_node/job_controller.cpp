@@ -662,7 +662,8 @@ private:
         return nullptr;
     }
 
-    void CreateAndStartAllocations(std::vector<TAllocationStartInfo> allocationStartInfoProtos)
+    void CreateAndStartAllocations(std::vector<TAllocationStartInfo> allocationStartInfoProtos,
+        const TSchedulerHeartbeatContextPtr& context)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -682,7 +683,7 @@ private:
             auto allocationAttributes = FromProto<NScheduler::TAllocationAttributes>(startInfoProto.allocation_attributes());
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-            auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
+            auto agentDescriptor = controllerAgentConnectorPool->FindDescriptorByIncarnationId(incarnationId);
 
             auto resourceDemand = FromNodeResources(startInfoProto.resource_limits());
 
@@ -692,8 +693,23 @@ private:
                 resourceDemand,
                 std::move(allocationAttributes),
                 networkPriority,
-                agentDescriptor,
+                *agentDescriptor,
                 Bootstrap_->GetExecNodeBootstrap());
+
+            if (!agentDescriptor) {
+                if (controllerAgentConnectorPool->GetEpoch() == context->Epoch) {
+                    YT_LOG_ERROR(
+                        "Descriptor not found but epoch didn't change (OperationId: %v, AllocationId: %v, IncarnationId %v)",
+                        operationId,
+                        allocationId,
+                        incarnationId);
+
+                    auto error = TError("Descriptor not found but epoch didn't change")
+                        << TErrorAttribute("abort_reason", EAbortReason::Other);
+                    allocation->Abort(error);
+                }
+                continue;
+            }
 
             if (areJobsDisabled) {
                 YT_LOG_INFO(
@@ -1421,7 +1437,7 @@ private:
 
     void DoProcessSchedulerHeartbeatResponse(
         const TSchedulerConnector::TRspHeartbeatPtr& response,
-        const TSchedulerHeartbeatContextPtr& /*context*/)
+        const TSchedulerHeartbeatContextPtr& context)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1461,6 +1477,33 @@ private:
             }
         }
 
+        for (const auto& protoOperationInfo : response->operation_infos()) {
+            auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
+            if (!protoOperationInfo.running()) {
+                HandleJobsOfNonRunningOperation(operationId);
+                continue;
+            }
+
+            if (!protoOperationInfo.has_controller_agent_descriptor()) {
+                continue;
+            }
+
+            auto incarnationId = FromProto<NScheduler::TIncarnationId>(
+                protoOperationInfo.controller_agent_descriptor().incarnation_id());
+
+            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+            auto descriptor = controllerAgentConnectorPool->FindDescriptorByIncarnationId(incarnationId);
+            if (!descriptor) {
+                if (controllerAgentConnectorPool->GetEpoch() == context->Epoch) {
+                    YT_VERIFY(descriptor);
+                } else {
+                    continue;
+                }
+            }
+
+            UpdateOperationControllerAgent(operationId, std::move(*descriptor));
+        }
+
         for (const auto& allocationToPreempt : response->allocations_to_preempt()) {
             auto timeout = FromProto<TDuration>(allocationToPreempt.timeout());
             auto allocationId = FromProto<TAllocationId>(allocationToPreempt.allocation_id());
@@ -1489,25 +1532,6 @@ private:
                     "Scheduler requested to preempt a non-existent allocation (AllocationId: %v)",
                     allocationId);
             }
-        }
-
-        for (const auto& protoOperationInfo : response->operation_infos()) {
-            auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
-            if (!protoOperationInfo.running()) {
-                HandleJobsOfNonRunningOperation(operationId);
-                continue;
-            }
-
-            if (!protoOperationInfo.has_controller_agent_descriptor()) {
-                continue;
-            }
-
-            auto incarnationId = FromProto<NScheduler::TIncarnationId>(
-                protoOperationInfo.controller_agent_descriptor().incarnation_id());
-
-            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-            auto descriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
-            UpdateOperationControllerAgent(operationId, std::move(descriptor));
         }
 
         {
@@ -1540,7 +1564,7 @@ private:
             OperationsArchiveVersion_ = response->operations_archive_version();
         }
 
-        CreateAndStartAllocations(std::move(allocationStartInfos));
+        CreateAndStartAllocations(std::move(allocationStartInfos), context);
     }
 
     void StartWaitingAllocations()

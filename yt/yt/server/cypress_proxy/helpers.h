@@ -18,6 +18,13 @@ TError WrapCypressProxyRegistrationError(TError error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Checks whether #error contains a resolve error for the #resolvedNodeId.
+// If so, wraps it into a Sequoia retriable error and returns that.
+// Otherwise, returns an OK error.
+TError WrapRetriableResolveError(const TError& error, NCypressClient::TNodeId resolvedNodeId);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SetAccessTrackingOptions(
     const NRpc::IClientRequestPtr& request,
     const NApi::TSuppressableAccessTrackingOptions& commandOptions);
@@ -115,6 +122,10 @@ void FromProto(
 //! is no resolve step on master.
 //! All access/expiration tracking is suppressed.
 TFuture<NYTree::INodePtr> FetchSingleObject(
+    const NApi::NNative::IClientPtr& client,
+    NCypressClient::TVersionedObjectId objectId,
+    const NYTree::TAttributeFilter& attributeFilter);
+TFuture<NYTree::IAttributeDictionaryPtr> FetchSingleObjectAttributes(
     const NApi::NNative::IClientPtr& client,
     NCypressClient::TVersionedObjectId objectId,
     const NYTree::TAttributeFilter& attributeFilter);

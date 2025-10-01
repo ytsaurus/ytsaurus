@@ -198,7 +198,7 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_merged.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/hyperloglog_optimized.bc
-  -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize#cardinality_state_init#cardinality_state_update#cardinality_state_merge#cardinality_state_finalize#cardinality_merge_init#cardinality_merge_update#cardinality_merge_merge#cardinality_merge_finalize
+  -internalize-public-api-list=cardinality_init#cardinality_update#cardinality_merge#cardinality_finalize#cardinality_state_init#cardinality_state_update#cardinality_state_merge#cardinality_state_finalize#cardinality_merge_init#cardinality_merge_update#cardinality_merge_merge#cardinality_merge_finalize#cardinality_merge_state_init#cardinality_merge_state_update#cardinality_merge_state_merge#cardinality_merge_state_finalize
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 
@@ -1064,10 +1064,10 @@ add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_abs_merged.bc
   DEPENDS
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp.bc
   COMMAND
   ${LLVMLINK}
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp.bc
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/math_abs_merged.bc
 )
@@ -1341,8 +1341,8 @@ llvm_compile_cxx(library-query-engine.global
 )
 
 llvm_compile_cxx(library-query-engine.global
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/abs.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/abs.cpp.bc
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/math_abs.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm

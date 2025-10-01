@@ -321,6 +321,7 @@ public:
         // because this information cannot be directly obtained from RowBatch.
         progress(readRows, resultBlock.bytes());
 
+        Statistics_.AddSample("/secondary_query_source/total_rows"_SP, readRows);
         Statistics_.AddSample("/secondary_query_source/block_rows"_SP, resultBlock.rows());
         Statistics_.AddSample("/secondary_query_source/block_columns"_SP, resultBlock.columns());
         Statistics_.AddSample("/secondary_query_source/block_bytes"_SP, resultBlock.bytes());

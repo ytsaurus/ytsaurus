@@ -11,7 +11,7 @@ import pytest
 import os
 
 
-@pytest.mark.usefixtures("yt_env_with_rpc")
+@pytest.mark.usefixtures("yt_env_with_rpc_v3")
 class TestAdminCommands(object):
     @authors("gritukan")
     def test_write_operation_controller_core_dump(self):

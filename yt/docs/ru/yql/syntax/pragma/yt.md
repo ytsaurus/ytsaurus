@@ -1029,7 +1029,7 @@ Map-side стратегия JOIN может выполняться в шарди
 {% if audience == "internal" %}
 {% note info %}
 
-В Query Tracker прагма `yt.UseNativeYtTypes` включена по умолчанию, а на сервисе [{{yql.link}}]({{yql.link}}) её необходимо включить явно, вызвав команду `PRAGMA yt.UseNativeYtType("1")`.
+В Query Tracker прагма `yt.UseNativeYtTypes` включена по умолчанию, а на сервисе [{{yql.link}}]({{yql.link}}) её необходимо включить явно, вызвав команду `PRAGMA yt.UseNativeYtTypes`.
 
 {% endnote %}
 {% endif %}

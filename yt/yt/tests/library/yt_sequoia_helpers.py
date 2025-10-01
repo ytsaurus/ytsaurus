@@ -216,8 +216,10 @@ def select_cypress_transaction_prerequisites(transaction_id):
 
 def not_implemented_in_sequoia(func):
     def wrapper(func, self, *args, **kwargs):
-        if self.ENABLE_TMP_ROOTSTOCK or self.ENABLE_SYS_OPERATIONS_ROOTSTOCK:
-            pytest.skip("Not implemented in Sequoia")
+        for cluster_index in range(self.NUM_REMOTE_CLUSTERS + 1):
+            if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) or \
+                    self.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index):
+                pytest.skip("Not implemented in Sequoia")
         return func(self, *args, **kwargs)
 
     return decorator.decorate(func, wrapper)

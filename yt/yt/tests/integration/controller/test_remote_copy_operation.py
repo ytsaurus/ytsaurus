@@ -18,6 +18,8 @@ from yt_commands import (
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt_helpers import skip_if_component_old, profiler_factory
 from yt_type_helpers import make_column, make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
@@ -32,6 +34,7 @@ from functools import partial
 import time
 import builtins
 from math import ceil
+from copy import deepcopy
 
 HUNK_COMPATIBLE_CHUNK_FORMATS = [
     "table_versioned_simple",
@@ -487,7 +490,9 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         clusters = get("//sys/clusters")
         cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
         try:
-            set("//sys/clusters", {})
+            clusters_without_remote = deepcopy(clusters)
+            del clusters_without_remote[self.REMOTE_CLUSTER_NAME]
+            set("//sys/clusters", clusters_without_remote)
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 # NB(coteeq): This will clear scheduler's internal cache of connections.
                 # And also scheduler will reconfigure cluster directory.
@@ -564,6 +569,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             )
 
     @authors("asaitgalin", "ignat")
+    @not_implemented_in_sequoia
     def test_acl(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")
@@ -1236,6 +1242,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     @pytest.mark.parametrize("abuse_via", ["ypath", "omit_inaccessible_columns"])
+    @not_implemented_in_sequoia
     def test_columnar_acl(self, abuse_via):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         for user in [
@@ -1372,7 +1379,9 @@ class TestSchedulerRemoteCopyCommandsRevive(TestSchedulerRemoteCopyCommandsBase)
         clusters = get("//sys/clusters")
         cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
         try:
-            set("//sys/clusters", {})
+            clusters_without_remote = deepcopy(clusters)
+            del clusters_without_remote[self.REMOTE_CLUSTER_NAME]
+            set("//sys/clusters", clusters_without_remote)
             # TODO(babenko): wait for cluster sync
             time.sleep(2)
             op = remote_copy(
@@ -1414,6 +1423,101 @@ class TestSchedulerRemoteCopyCommandsShardedTx(TestSchedulerRemoteCopyCommandsRe
     }
 
     REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
+
+
+##################################################################
+
+
+class TestSchedulerRemoteCopyCommandsSequoiaRemote(TestSchedulerRemoteCopyCommands):
+    USE_SEQUOIA = True
+    USE_SEQUOIA_PRIMARY = False
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA_REMOTE_0 = True
+    ENABLE_TMP_ROOTSTOCK_REMOTE_0 = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK_REMOTE_0 = True
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 3
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "20": {"roles": ["cypress_node_host"]},
+        "21": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "22": {"roles": ["chunk_host"]},
+        "23": {"roles": ["sequoia_node_host"]}
+    }
+    REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    }
+
+
+class TestSchedulerRemoteCopyCommandsSequoiaPrimary(TestSchedulerRemoteCopyCommands):
+    USE_SEQUOIA = True
+    USE_SEQUOIA_REMOTE_0 = False
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA_PRIMARY = True
+    ENABLE_TMP_ROOTSTOCK_PRIMARY = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK_PRIMARY = True
+    NUM_SECONDARY_MASTER_CELLS_PRIMARY = 3
+    MASTER_CELL_DESCRIPTORS_PRIMARY = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["sequoia_node_host"]}
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    }
+
+
+class TestSchedulerRemoteCopyCommandsSequoia(TestSchedulerRemoteCopyCommands):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS_PRIMARY = 3
+    MASTER_CELL_DESCRIPTORS_PRIMARY = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["sequoia_node_host"]}
+    }
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 3
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "20": {"roles": ["cypress_node_host"]},
+        "21": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "22": {"roles": ["chunk_host"]},
+        "23": {"roles": ["sequoia_node_host"]}
+    }
+    REMOTE_TRANSACTION_COORDINATOR = hex(21)[2:]
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    }
 
 
 ##################################################################

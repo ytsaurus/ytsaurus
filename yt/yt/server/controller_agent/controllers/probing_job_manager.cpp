@@ -23,7 +23,7 @@ TProbingJobManager::TProbingJobManager()
 TProbingJobManager& TProbingJobManager::operator=(const TProbingJobManager& other)
 {
     ProbingRatio_ = other.ProbingRatio_;
-    ProbingPoolTree_ = other.ProbingPoolTree_;
+    ProbingPoolTreeId_ = other.ProbingPoolTreeId_;
     return *this;
 }
 
@@ -32,7 +32,7 @@ TProbingJobManager::TProbingJobManager(
     NLogging::TLogger logger,
     int maxProbingJobCount,
     std::optional<double> probingRatio,
-    std::optional<TString> probingPoolTree)
+    std::optional<std::string> probingPoolTreeId)
     : TCompetitiveJobManagerBase(
         host,
         logger,
@@ -40,7 +40,7 @@ TProbingJobManager::TProbingJobManager(
         EJobCompetitionType::Probing,
         EAbortReason::ProbingCompetitorResultLost)
     , ProbingRatio_(probingRatio)
-    , ProbingPoolTree_(std::move(probingPoolTree))
+    , ProbingPoolTreeId_(std::move(probingPoolTreeId))
     , RandomGenerator_(RandomDevice_())
 { }
 
@@ -126,8 +126,8 @@ std::optional<EAbortReason> TProbingJobManager::ShouldAbortCompletingJob(const T
 
 void TProbingJobManager::UpdatePendingJobCount(TCompositePendingJobCount* pendingJobCount) const
 {
-    if (ProbingPoolTree_) {
-        pendingJobCount->CountByPoolTree[*ProbingPoolTree_] = GetPendingJobCount();
+    if (ProbingPoolTreeId_) {
+        pendingJobCount->CountByPoolTree[*ProbingPoolTreeId_] = GetPendingJobCount();
     }
 }
 
@@ -136,7 +136,7 @@ void TProbingJobManager::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TCompetitiveJobManagerBase>();
 
     PHOENIX_REGISTER_FIELD(1, ProbingRatio_);
-    PHOENIX_REGISTER_FIELD(2, ProbingPoolTree_);
+    PHOENIX_REGISTER_FIELD(2, ProbingPoolTreeId_);
 }
 
 PHOENIX_DEFINE_TYPE(TProbingJobManager);

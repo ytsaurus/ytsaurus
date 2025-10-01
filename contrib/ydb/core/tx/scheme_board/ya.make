@@ -4,7 +4,7 @@ PEERDIR(
     contrib/ydb/library/actors/core
     contrib/ydb/core/base
     contrib/ydb/core/mon
-    contrib/ydb/core/persqueue/partition_key_range
+    contrib/ydb/core/persqueue/public/partition_key_range
     contrib/ydb/core/protos
     contrib/ydb/core/sys_view/common
     contrib/ydb/core/tx/scheme_cache

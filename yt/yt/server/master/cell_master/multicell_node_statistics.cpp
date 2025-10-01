@@ -73,11 +73,9 @@ void TMulticellNodeStatistics::Clear()
 void TMulticellNodeStatistics::Load(TLoadContext& context)
 {
     using NYT::Load;
-    if (context.GetVersion() >= EMasterReign::MulticellStatisticsCollector) {
-        Load(context, LocalCellStatistics_);
-        Load(context, ClusterCellStatisics_);
-        Load(context, MasterCellStatistics_);
-    }
+    Load(context, LocalCellStatistics_);
+    Load(context, ClusterCellStatisics_);
+    Load(context, MasterCellStatistics_);
 }
 
 void TMulticellNodeStatistics::Save(TSaveContext& context) const

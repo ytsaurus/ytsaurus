@@ -56,6 +56,8 @@
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -91,6 +93,18 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr auto& Logger = CypressProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
+const TSerializableAccessControlList UnreachableNodeAcl = {
+    .Entries = {
+        TSerializableAccessControlEntry(
+            ESecurityAction::Allow,
+            /*subjects*/ {EveryoneGroupName},
+            EPermission::Read)
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -370,14 +384,7 @@ protected:
     {
         // TODO(danilalexeev): YT-25988. Maintain effective ACL for unreachable nodes.
         if (IsSnapshot() && std::ssize(ResolveResult_.NodeAncestry) == 1) {
-            return {
-                .Entries = {
-                    TSerializableAccessControlEntry(
-                        ESecurityAction::Allow,
-                        /*subjects*/ {EveryoneGroupName},
-                        EPermission::Read)
-                }
-            };
+            return UnreachableNodeAcl;
         }
 
         return ComputeEffectiveAclForNode(
@@ -451,18 +458,6 @@ protected:
         auto rootstockId = ConvertTo<TNodeId>(NYson::TYsonString(rspGet->value()));
 
         return SequoiaSession_->RemoveRootstock(rootstockId);
-    }
-
-    void AbortSequoiaSessionForLaterForwardingToMaster(
-        std::optional<TSerializableAccessControlList> forwardEffectiveAcl = {})
-    {
-        TForwardToMasterPayload payload;
-        if (forwardEffectiveAcl.has_value()) {
-            payload.EffectiveAcl = ConvertToYsonString(*forwardEffectiveAcl);
-        }
-
-        InvokeResult_ = std::move(payload);
-        SequoiaSession_->Abort();
     }
 
     struct TSubtreeReplacementResult
@@ -674,7 +669,7 @@ protected:
         ValidatePermissionForThis(EPermission::Read);
 
         NYPath::TTokenizer tokenizer(path);
-        std::optional<TString> key;
+        std::optional<std::string> key;
         if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
             tokenizer.Expect(NYPath::ETokenType::Literal);
             key = tokenizer.GetLiteralValue();
@@ -709,7 +704,7 @@ protected:
             // The key is requested by path, and we haven't forwarded request to master.
             // This means that key is special attribute which we have fetched, so we can return it.
             if (!node->Attributes().Contains(key.value())) {
-                THROW_ERROR_EXCEPTION("Attribute %v not found", key.value());
+                THROW_ERROR_EXCEPTION("Attribute %Qv not found", key.value());
             }
 
             auto attributeFragmentPath = TYPath(tokenizer.GetInput());
@@ -1366,23 +1361,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     const auto& externalCellTagAttribute = EInternedAttributeKey::ExternalCellTag.Unintern();
     const auto& revisionAttribute = EInternedAttributeKey::Revision.Unintern();
 
-    auto asyncNode = FetchSingleObject(
+    auto asyncNodeAttributes = FetchSingleObjectAttributes(
         client,
         MakeVersionedNodeId(Id_),
         TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
 
     auto nodeLocked = WaitForFast(asyncLockAcquired)
         .ValueOrThrow();
-    auto node = WaitFor(asyncNode)
+    auto nodeAttributes = WaitFor(asyncNodeAttributes)
         .ValueOrThrow();
 
     auto revision = nodeLocked
-        ? node->Attributes().Get<NHydra::TRevision>(revisionAttribute)
+        ? nodeAttributes->Get<NHydra::TRevision>(revisionAttribute)
         : NHydra::NullRevision;
     auto nativeCellTag = CellTagFromId(Id_);
-    auto externalCellTag = node
-        ->Attributes()
-        .Find<TCellTag>(externalCellTagAttribute)
+    auto externalCellTag = nodeAttributes
+        ->Find<TCellTag>(externalCellTagAttribute)
         .value_or(nativeCellTag);
 
     auto externalTransactionId = externalCellTag == nativeCellTag
@@ -1856,10 +1850,9 @@ private:
             }
         }
 
-        void OnMyKeyedItem(TYPathBuf key) override
+        void OnMyKeyedItem(TStringBuf key) override
         {
-            CurrentPath_.Join(
-                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + key));
+            CurrentPath_.Append(key);
         }
 
         void OnMyBeginMap() override
@@ -2022,13 +2015,11 @@ private:
         std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
         IAttributeDictionaryPtr Attributes_;
 
-        void OnMyKeyedItem(TYPathBuf key) override
+        void OnMyKeyedItem(TStringBuf key) override
         {
             YT_ASSERT(!SubtreeBuilderHolder_.has_value());
 
-            auto subtreeRootPath = PathJoin(
-                Path_,
-                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + key));
+            auto subtreeRootPath = PathJoin(Path_, key);
 
             auto& builder = SubtreeBuilderHolder_.emplace(
                 Session_,
@@ -2418,6 +2409,50 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnreachableNodeProxy
+    : public TNodeProxyBase
+{
+public:
+    TUnreachableNodeProxy(
+        IBootstrap* bootstrap,
+        TSequoiaSessionPtr session,
+        TNodeId id,
+        const TAuthenticationIdentity& identity)
+        : TNodeProxyBase(bootstrap, std::move(session), identity)
+        , Id_(id)
+    { }
+
+private:
+    const TNodeId Id_;
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission)
+    {
+        const auto& userName = request->user();
+        auto permission = FromProto<EPermission>(request->permission());
+        auto columns = request->has_columns()
+            ? std::optional(FromProto<std::vector<std::string>>(request->columns().items()))
+            : std::nullopt;
+        auto vital = YT_OPTIONAL_FROM_PROTO(*request, vital, bool);
+        bool ignoreSafeMode = request->ignore_safe_mode();
+        context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, Vital: %v, IgnoreSafeMode: %v",
+            userName,
+            permission,
+            columns,
+            vital,
+            ignoreSafeMode);
+
+        AbortSequoiaSessionForLaterForwardingToMaster(/*forwardEffectiveAcl*/ UnreachableNodeAcl);
+    }
+
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
+        THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such object %v", Id_);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 INodeProxyPtr CreateNodeProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr session,
@@ -2450,6 +2485,15 @@ INodeProxyPtr CreateNodeProxy(
             std::move(resolvedPrerequisiteRevisions),
             authenticationIdentity);
     }
+}
+
+INodeProxyPtr CreateUnreachableNodeProxy(
+    IBootstrap* bootstrap,
+    TSequoiaSessionPtr session,
+    TUnreachableSequoiaResolveResult resolveResult,
+    const NRpc::TAuthenticationIdentity& authenticationIdentity)
+{
+    return New<TUnreachableNodeProxy>(bootstrap, std::move(session), resolveResult.Id, authenticationIdentity);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

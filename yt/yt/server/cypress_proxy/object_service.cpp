@@ -637,10 +637,10 @@ private:
                     continue;
                 }
             } else {
-                auto [patchedMessage, originError] = WrapRetriableResolveError(index, subresponseMessage);
+                auto [patchedMessage, originalError] = WrapRetriableResolveError(index, subresponseMessage);
                 if (patchedMessage) {
                     YT_LOG_DEBUG(
-                        originError,
+                        originalError,
                         "Possible Sequoia resolve miss encountered; marking it as retriable "
                         "(SubrequestIndex: %v, SequoiaObjectId: %v)",
                         index,
@@ -684,8 +684,8 @@ private:
             .has_value();
     }
 
-    // If resolve miss occurred patched response message and resolve error are
-    // returned. Otherwise, empty array and OK are returned.
+    // If resolve error occurred, patched response message and original resolve
+    // error are returned. Otherwise, empty array and OK are returned.
     std::pair<TSharedRefArray, TError> WrapRetriableResolveError(
         int subrequestIndex,
         const TSharedRefArray& responseMessage)
@@ -701,51 +701,16 @@ private:
             return {};
         }
 
-        auto originError = FromProto<TError>(header.error());
+        auto originalError = FromProto<TError>(header.error());
 
-        auto noSuchObjectError = originError.FindMatching([&] (const TError& error) {
-            if (error.GetCode() != NYTree::EErrorCode::ResolveError) {
-                return false;
-            }
-
-            if (!error.HasAttributes()) {
-                return false;
-            }
-
-            const auto& attributes = error.Attributes();
-            try {
-                if (auto id = attributes.Find<TObjectId>("missing_object_id")) {
-                    return *id == subrequest->ResolvedNodeId;
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
-            }
-
-            return false;
-        });
-
-        // COMPAT(kvk1920): remove after 25.2.
-        if (!noSuchObjectError.has_value()) {
-            auto noSuchObjectErrorMessage = Format("No such object %v", subrequest->ResolvedNodeId);
-            noSuchObjectError = originError.FindMatching([&] (const TError& error) {
-                return
-                    error.GetCode() == NYTree::EErrorCode::ResolveError &&
-                    error.GetMessage() == noSuchObjectErrorMessage;
-            });
-        }
-
-        if (!noSuchObjectError.has_value()) {
+        auto wrappedError = NCypressProxy::WrapRetriableResolveError(originalError, subrequest->ResolvedNodeId);
+        if (wrappedError.IsOK()) {
             return {};
         }
 
-        ToProto(
-            header.mutable_error(),
-            TError(
-                NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                "Object was resolved in Sequoia but missing on master")
-                << originError);
+        ToProto(header.mutable_error(), wrappedError);
 
-        return {CreateErrorResponseMessage(header), std::move(originError)};
+        return {CreateErrorResponseMessage(header), std::move(originalError)};
     }
 
     NRpc::NProto::TResponseHeader ParseResponseHeader(
@@ -788,7 +753,7 @@ private:
      */
     static void PatchRequestAfterResolve(
         TSubrequest* subrequest,
-        const TResolveResult& resolveResult,
+        const TMaybeUnreachableResolveResult& resolveResult,
         const std::vector<TResolvedPrerequisiteRevision>& resolvedPrerequisiteRevisions)
     {
         TStringBuf newPath;
@@ -804,6 +769,11 @@ private:
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
                 newPath = sequoiaResolveResult.UnresolvedSuffix;
+            },
+            [&] (const TUnreachableSequoiaResolveResult& unreachableResolveResult) {
+                subrequest->ResolvedNodeId = unreachableResolveResult.Id;
+
+                newPath = "";
             });
 
         auto& header = *subrequest->RequestHeader;
@@ -840,7 +810,7 @@ private:
 
     void RewriteRequestForForwardingToMaster(
         TSubrequest* subrequest,
-        const TResolveResult& resolveResult,
+        const TMaybeUnreachableResolveResult& resolveResult,
         const TForwardToMasterPayload& payload)
     {
         YT_ASSERT(subrequest->RequestHeader.has_value());
@@ -856,6 +826,8 @@ private:
         if (const auto* sequoiaResolveResult = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
             ypathExt->set_target_path(
                 FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix);
+        } else if (const auto* unreachableResolveResult = std::get_if<TUnreachableSequoiaResolveResult>(&resolveResult)) {
+            ypathExt->set_target_path(FromObjectId(unreachableResolveResult->Id));
         }
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
@@ -895,7 +867,7 @@ private:
         }
 
         TSequoiaSessionPtr session;
-        TResolveResult resolveResult;
+        TMaybeUnreachableResolveResult resolveResult;
         try {
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
@@ -903,10 +875,9 @@ private:
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.
-            resolveResult = ResolvePath(
+            resolveResult = ResolvePathWithUnreachableResultAllowed(
                 session,
                 originalTargetPath,
-                /*pathIsAdditional*/ false,
                 header.service(),
                 header.method());
         } catch (const std::exception& ex) {
@@ -917,7 +888,7 @@ private:
 
         std::vector<TResolvedPrerequisiteRevision> resolvedPrerequisiteRevisions;
         // Otherwise request will be forwarded to master,
-        // where prerequisite revisions will be validated before invokation.
+        // where prerequisite revisions will be validated before invocation.
         if (std::holds_alternative<TSequoiaResolveResult>(resolveResult)) {
             auto resolvedPrerequisiteRevisionsOrError = ResolvePrerequisiteRevisions(header, session, originalTargetPath, prerequisiteRevisions);
             if (!resolvedPrerequisiteRevisionsOrError.IsOK()) {

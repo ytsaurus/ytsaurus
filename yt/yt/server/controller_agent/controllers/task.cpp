@@ -340,7 +340,7 @@ TCompositeNeededResources TTask::GetTotalNeededResources(i64 maxRunnableJobCount
         result.DefaultResources = GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(jobCount.DefaultCount), maxRunnableJobCount);
     }
     for (const auto& [tree, count] : jobCount.CountByPoolTree) {
-        result.ResourcesByPoolTree[tree] = count == 0
+        result.ResourcesByPoolTreeId[tree] = count == 0
             ? TJobResources{}
             : GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(count), maxRunnableJobCount);
     }
@@ -1343,7 +1343,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 {
     TJobFinishedResult result;
 
-    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
+    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTreeIds);
 
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobCompleted(joblet);
@@ -1473,7 +1473,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
 {
     TJobFinishedResult result;
 
-    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
+    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTreeIds);
 
     if (jobSummary.JobExecutionCompleted) {
         TaskHost_->RegisterStderr(joblet, jobSummary);
@@ -1503,7 +1503,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 {
     TJobFinishedResult result;
 
-    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
+    TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTreeIds);
 
     // NB: When job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
     // revival) it may become completed, and you will bite your elbows if you unstage its chunk lists too early (e.g.
@@ -2417,7 +2417,7 @@ void TTask::SetupCallbacks()
     GetJobCounter()->SubscribePendingUpdated(BIND(&TTask::OnPendingJobCountUpdated, MakeWeak(this)));
 }
 
-std::vector<TString> TTask::FindAndBanSlowTentativeTrees()
+std::vector<std::string> TTask::FindAndBanSlowTentativeTrees()
 {
     return TentativeTreeEligibility_.FindAndBanSlowTentativeTrees();
 }

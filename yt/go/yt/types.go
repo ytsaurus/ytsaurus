@@ -442,3 +442,11 @@ const (
 	SortDirectionPast   OperationSortDirection = "past"
 	SortDirectionFuture OperationSortDirection = "future"
 )
+
+type ListQueriesSortOrder string
+
+const (
+	ListQueriesSortOrderCursor     QueryEngine = "cursor"
+	ListQueriesSortOrderAscending  QueryEngine = "ascending"
+	ListQueriesSortOrderDescending QueryEngine = "descending"
+)

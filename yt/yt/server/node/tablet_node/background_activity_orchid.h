@@ -19,7 +19,9 @@ class TBackgroundActivityOrchid final
     using TTaskMap = THashMap<TGuid, TTaskInfoPtr>;
 
 public:
-    explicit TBackgroundActivityOrchid(const TStoreBackgroundActivityOrchidConfigPtr& config);
+    TBackgroundActivityOrchid(
+        const TStoreBackgroundActivityOrchidConfigPtr& config,
+        NProfiling::TProfiler profiler);
 
     void Reconfigure(const TStoreBackgroundActivityOrchidConfigPtr& config);
 
@@ -33,6 +35,8 @@ public:
     void OnTaskFailed(TGuid taskId);
     void OnTaskCompleted(TGuid taskId);
 
+    void OnProfiling();
+
     void Serialize(NYson::IYsonConsumer* consumer) const;
 
 private:
@@ -43,6 +47,8 @@ private:
     std::deque<TTaskInfoPtr> CompletedTasks_;
     int MaxFailedTaskCount_;
     int MaxCompletedTaskCount_;
+
+    NProfiling::TTimeGauge RunningTaskTime_;
 
     void OnTaskFinished(TGuid taskId, std::deque<TTaskInfoPtr>* deque, int maxTaskCount);
 

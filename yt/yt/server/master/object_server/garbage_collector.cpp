@@ -137,19 +137,7 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Zombies_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::GlobalObjectReplicationRespectsTypeHandlers) {
-        auto removalAwaitingCellsSyncObjects = Load<THashSet<TRawObjectPtr<TObject>>>(context);
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        TCellTagList secondaryCellTags(
-            multicellManager->GetSecondaryCellTags().begin(),
-            multicellManager->GetSecondaryCellTags().end());
-        for (auto object : removalAwaitingCellsSyncObjects) {
-            EmplaceOrCrash(RemovalAwaitingCellsSyncObjects_, object, secondaryCellTags);
-        }
-    } else {
-        Load(context, RemovalAwaitingCellsSyncObjects_);
-    }
+    Load(context, RemovalAwaitingCellsSyncObjects_);
 
     YT_VERIFY(EphemeralGhosts_.empty());
 }

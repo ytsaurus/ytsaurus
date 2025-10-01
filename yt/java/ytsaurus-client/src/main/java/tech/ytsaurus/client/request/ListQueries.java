@@ -37,6 +37,8 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
     private final long limit;
     @Nullable
     private final List<String> attributes;
+    @Nullable
+    private final ListQueriesSortOrder sortOrder;
 
     ListQueries(Builder builder) {
         super(builder);
@@ -50,6 +52,7 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
         this.substrFilter = builder.substrFilter;
         this.limit = builder.limit;
         this.attributes = builder.attributes;
+        this.sortOrder = builder.sortOrder;
     }
 
     /**
@@ -75,6 +78,7 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
                 .setSubstrFilter(substrFilter)
                 .setLimit(limit)
                 .setAttributes(attributes)
+                .setSortOrder(sortOrder)
                 .setQueryTrackerStage(queryTrackerStage)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
@@ -121,6 +125,9 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
         if (attributes != null) {
             builder.setAttributes(TAttributeFilter.newBuilder().addAllKeys(attributes).build());
         }
+        if (sortOrder != null) {
+            builder.setSortOrder(sortOrder.getProtoValue());
+        }
     }
 
     /**
@@ -146,6 +153,8 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
         private long limit = 100;
         @Nullable
         private List<String> attributes;
+        @Nullable
+        private ListQueriesSortOrder sortOrder = ListQueriesSortOrder.Cursor;
 
         private Builder() {
         }
@@ -182,7 +191,7 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
         }
 
         /**
-         * Set the sort order for queries by start time.
+         * Set the reading direction by start time.
          * Default value is {@link OperationSortDirection#Past}
          *
          * @return self
@@ -252,6 +261,17 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
          */
         public Builder setAttributes(@Nullable List<String> attributes) {
             this.attributes = attributes;
+            return self();
+        }
+
+        /**
+         * Set the sort order for queries by start time.
+         * Default value is {@link ListQueriesSortOrder#Cursor}
+         *
+         * @return self
+         */
+        public Builder setSortOrder(ListQueriesSortOrder sortOrder) {
+            this.sortOrder = sortOrder;
             return self();
         }
 

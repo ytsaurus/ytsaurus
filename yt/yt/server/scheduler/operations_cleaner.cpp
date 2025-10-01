@@ -139,13 +139,13 @@ namespace NDetail {
 
 using TAlertEventsMap = THashMap<EOperationAlertType, std::deque<TOperationAlertEvent>>;
 
-THashMap<TString, TString> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
+THashMap<std::string, TString> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
 {
     if (!schedulingOptionsNode) {
         return {};
     }
 
-    THashMap<TString, TString> poolTreeToPool;
+    THashMap<std::string, TString> poolTreeToPool;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
         poolTreeToPool.emplace(key, value->AsMap()->GetChildValueOrThrow<TString>("pool"));
     }
@@ -1284,7 +1284,7 @@ private:
                 auto valueWeight = GetDataWeight(value);
                 if (valueWeight > MaxStringValueLength) {
                     YT_LOG_WARNING(
-                        "Operation row violates value data weight, archivation skipped"
+                        "Operation row violates value data weight, archivation skipped "
                         "(OperationId: %v, Key: %v, Weight: %v, WeightLimit: %v)",
                         operationId,
                         nameTable->GetNameOrThrow(value.Id),

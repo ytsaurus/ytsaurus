@@ -57,7 +57,7 @@ public:
     const std::vector<NPolicy::TPreemptedAllocation>& PreemptedAllocations() const override;
 
     void StartAllocation(
-        const TString& treeId,
+        const std::string& treeId,
         TOperationId operationId,
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,

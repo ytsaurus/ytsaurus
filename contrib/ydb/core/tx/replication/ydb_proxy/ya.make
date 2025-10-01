@@ -4,6 +4,8 @@ PEERDIR(
     contrib/ydb/core/base
     contrib/ydb/core/protos
     contrib/ydb/public/sdk/cpp/src/client/driver
+    contrib/ydb/public/sdk/cpp/src/client/iam
+    contrib/ydb/public/sdk/cpp/src/client/iam_private
     contrib/ydb/public/sdk/cpp/src/client/scheme
     contrib/ydb/public/sdk/cpp/src/client/table
     contrib/ydb/public/sdk/cpp/src/client/topic

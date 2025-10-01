@@ -1547,6 +1547,8 @@ class TestGetQueryTrackerInfoBase(TestQueriesYqlSimpleBase):
 
         assert "available_yql_versions" in yql_info
         assert "default_yql_ui_version" in yql_info
+        assert "supported_features" in yql_info
+
         yql_versions = yql_info["available_yql_versions"]
         default_version = yql_info["default_yql_ui_version"]
 
@@ -1575,6 +1577,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
             {
                 "available_yql_versions": ["2025.01",],
                 "default_yql_ui_version": "2025.01",
+                "supported_features": {"declare": True},
             }
 
     @authors("kirsiv40")

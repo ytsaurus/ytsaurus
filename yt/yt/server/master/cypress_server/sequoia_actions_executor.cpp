@@ -1,10 +1,12 @@
 #include "sequoia_actions_executor.h"
 
+#include "config.h"
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/cypress_server/helpers.h>
@@ -19,6 +21,7 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
 namespace NYT::NCypressServer {
@@ -389,6 +392,9 @@ private:
 
         DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
 
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        int maxKeyLength = configManager->GetConfig()->CypressManager->MaxMapNodeKeyLength;
+        ValidateYTreeKey(key, maxKeyLength);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));

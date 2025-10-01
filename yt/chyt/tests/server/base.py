@@ -84,6 +84,7 @@ class Clique(object):
     tvm_secret = None
     sql_udf_path = None
     query_log_table_path = None
+    dictionaries_path = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, export_query_log=False, **kwargs):
         """
@@ -158,6 +159,14 @@ class Clique(object):
         })
         config["yt"]["user_defined_sql_objects_storage"]["path"] = self.sql_udf_path
         config["yt"]["user_defined_sql_objects_storage"]["enabled"] = True
+
+        config["yt"]["dictionary_repository"] = dict()
+        self.dictionaries_path = "//sys/strawberry/chyt/{}/dictionaries".format(self.alias)
+        config["yt"]["dictionary_repository"]["path"] = self.dictionaries_path
+        config["yt"]["dictionary_repository"]["enabled"] = True
+        create("map_node", self.dictionaries_path, recursive=True, ignore_existing=True, attributes={
+            "acl": [ace],
+        })
 
         spec = {"pool": None}
         self.is_tracing = False
@@ -304,7 +313,7 @@ class Clique(object):
             block_rows += statistics["secondary_query_source"]["block_rows"]["sum"]
 
         if exact is not None:
-            assert block_rows == exact
+            assert block_rows == exact, f"Expected {exact} rows count, but get {block_rows}"
         else:
             assert min <= block_rows <= max
 
@@ -381,6 +390,8 @@ class Clique(object):
 
             if self.sql_udf_path:
                 remove(self.sql_udf_path, recursive=True, force=True)
+            if self.dictionaries_path:
+                remove(self.dictionaries_path, recursive=True, force=True)
 
         except YtError as err:
             print_debug("Error while completing clique operation:", err)

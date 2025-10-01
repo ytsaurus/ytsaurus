@@ -11,14 +11,14 @@ using NYT::ToProto;
 
 void ToProto(NProto::TRowLevelAccessControlEntry* protoRowLevelAce, const TRowLevelAccessControlEntry& rowLevelAce)
 {
-    protoRowLevelAce->set_expression(rowLevelAce.Expression);
-    protoRowLevelAce->set_inapplicable_expression_mode(ToProto(rowLevelAce.InapplicableExpressionMode));
+    protoRowLevelAce->set_row_access_predicate(rowLevelAce.RowAccessPredicate);
+    protoRowLevelAce->set_inapplicable_row_access_predicate_mode(ToProto(rowLevelAce.InapplicableRowAccessPredicateMode));
 }
 
 void FromProto(TRowLevelAccessControlEntry* rowLevelAce, const NProto::TRowLevelAccessControlEntry& protoRowLevelAce)
 {
-    rowLevelAce->Expression = protoRowLevelAce.expression();
-    rowLevelAce->InapplicableExpressionMode = FromProto<EInapplicableExpressionMode>(protoRowLevelAce.inapplicable_expression_mode());
+    rowLevelAce->RowAccessPredicate = protoRowLevelAce.row_access_predicate();
+    rowLevelAce->InapplicableRowAccessPredicateMode = FromProto<EInapplicableRowAccessPredicateMode>(protoRowLevelAce.inapplicable_row_access_predicate_mode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -365,9 +365,6 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
-    // COMPAT(cherepashka)
-    bool DropLegacyZookeeperShard_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
@@ -375,7 +372,6 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
-    void OnAfterSnapshotLoaded() override;
 
     void OnRecoveryStarted() override;
     void OnRecoveryComplete() override;
@@ -795,7 +791,7 @@ private:
                         patchedRequestHeader->CopyFrom(context->GetRequestHeader());
                         SetTransactionId(patchedRequestHeader.get(), targetPayload.Transaction->GetId());
                         context->SetRequestHeader(std::move(patchedRequestHeader));
-                        YT_LOG_DEBUG("Request transaction compat applied (OriginalTransacionId: %v, EffectiveTransactionId: %v)",
+                        YT_LOG_DEBUG("Request transaction compat applied (OriginalTransactionId: %v, EffectiveTransactionId: %v)",
                             originalTransactionId,
                             effectiveTransactionId);
                     }
@@ -1182,27 +1178,6 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     InitSchemas();
 
     GarbageCollector_->LoadValues(context);
-
-    DropLegacyZookeeperShard_ = context.GetVersion() < EMasterReign::DropLegacyZookeeperShard;
-}
-
-void TObjectManager::OnAfterSnapshotLoaded()
-{
-    auto dropSchema = [&] (EObjectType schemaType) {
-        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-        auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
-        if (auto* schema = SchemaMap_.Find(schemaId)) {
-            auto& acd = schema->Acd();
-            acd.SetOwner(nullptr);
-            acd.ClearEntries();
-            SchemaMap_.Remove(schemaId);
-        }
-    };
-
-    if (DropLegacyZookeeperShard_) {
-        // ZookeeperShard
-        dropSchema(EObjectType(1400));
-    }
 }
 
 void TObjectManager::Clear()
@@ -1222,8 +1197,6 @@ void TObjectManager::Clear()
 
     CreatedObjects_ = 0;
     DestroyedObjects_ = 0;
-
-    DropLegacyZookeeperShard_ = false;
 
     GarbageCollector_->Clear();
     MutationIdempotizer_->Clear();

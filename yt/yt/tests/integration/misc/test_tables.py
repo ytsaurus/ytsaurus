@@ -2914,8 +2914,8 @@ class TestTables(YTEnvSetup):
             ],
             "acl": [
                 dict(action="allow", subjects=["u"], permissions=["read"]),
-                dict(action="allow", subjects=["u"], permissions=["read"], expression="key in (1, 2)"),
-                dict(action="allow", subjects=["u"], permissions=["read"], expression="key = 6"),
+                dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate="key in (1, 2)"),
+                dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate="key = 6"),
             ]
         })
 

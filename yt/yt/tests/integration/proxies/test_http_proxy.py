@@ -1902,13 +1902,12 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             )
 
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/list_node", content, force=True)
+        set("//tmp/@attr", content, force=True)
 
         rsp = self._execute_command(
             "GET",
             "get",
-            {"path": "//tmp/list_node"},
+            {"path": "//tmp/@attr"},
             user=user,
             output_format=format,
         )
@@ -1918,7 +1917,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
         rsp = self._execute_command(
             "GET",
             "get",
-            {"path": "//tmp/list_node", "output_format": format},
+            {"path": "//tmp/@attr", "output_format": format},
             user=user,
         )
         actual_content = rsp.content

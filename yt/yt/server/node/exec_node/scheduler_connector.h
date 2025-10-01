@@ -22,6 +22,7 @@ struct TSchedulerHeartbeatContext
 {
     THashSet<TAllocationPtr> FinishedAllocations;
     TDuration RequestNewAgentDelay;
+    int Epoch = {};
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerHeartbeatContext)

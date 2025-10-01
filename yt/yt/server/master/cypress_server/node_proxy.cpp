@@ -31,4 +31,3 @@ TIntrusivePtr<const ICypressNodeProxy> ICypressNodeProxy::FromNode(const TIntrus
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-

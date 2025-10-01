@@ -5,7 +5,7 @@
 #include <contrib/ydb/core/base/subdomain.h>
 #include <contrib/ydb/core/blockstore/core/blockstore.h>
 #include <contrib/ydb/core/mind/hive/hive.h>
-#include <contrib/ydb/core/persqueue/config/config.h>
+#include <contrib/ydb/core/persqueue/public/config.h>
 
 namespace {
 

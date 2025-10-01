@@ -1872,8 +1872,6 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
     req->set_enable_key_guarantee(options.EnableKeyGuarantee);
     req->set_enable_cookies(options.EnableCookies);
 
-    req->set_use_new_slicing_implementation_in_unordered_pool(options.UseNewSlicingImplementationInUnorderedPool);
-
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPartitionTablesPtr& rsp) {
@@ -2573,6 +2571,8 @@ TFuture<TListQueriesResult> TClient::ListQueries(
 
     req->set_search_by_token_prefix(options.SearchByTokenPrefix);
     req->set_use_full_text_search(options.UseFullTextSearch);
+    req->set_tutorial_filter(options.TutorialFilter);
+    req->set_sort_order(static_cast<NProto::EListQueriesSortOrder>(options.SortOrder));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspListQueriesPtr& rsp) {
         return TListQueriesResult{

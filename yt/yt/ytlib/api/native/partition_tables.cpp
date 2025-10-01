@@ -99,7 +99,6 @@ void TMultiTablePartitioner::InitializeChunkPool()
         Options_.PartitionMode,
         Options_.DataWeightPerPartition,
         Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
-        Options_.UseNewSlicingImplementationInUnorderedPool,
         Logger);
 }
 
@@ -156,7 +155,9 @@ void TMultiTablePartitioner::CollectInput()
             }
         }
 
-        FixLimitsInOrderedDynamicStore(tableIndex, inputChunks);
+        if (dynamic && !schema->IsSorted()) {
+            FixLimitsInOrderedDynamicStore(tableIndex, inputChunks);
+        }
 
         inputTables.emplace_back(TInputTable{std::move(inputChunks), static_cast<int>(tableIndex)});
 
@@ -178,11 +179,9 @@ void TMultiTablePartitioner::CollectInput()
         YT_LOG_DEBUG("Fetching chunks (Path: %v)", Paths_[inputTable.TableIndex]);
 
         const auto& dataSource = DataSourceDirectory_->DataSources()[inputTable.TableIndex];
-        auto dynamic = dataSource->GetType() == EDataSourceType::VersionedTable;
-        auto sorted = dataSource->Schema()->IsSorted();
 
-        if (dynamic && sorted) {
-            RequestVersionedDataSlices(inputTable);
+        if (dataSource->GetType() == EDataSourceType::VersionedTable) {
+            PrepareVersionedSliceFetcher(inputTable);
         } else {
             AddUnversionedDataSlices(inputTable);
         }
@@ -252,7 +251,7 @@ void TMultiTablePartitioner::AddDataSource(int tableIndex, const TTableSchemaPtr
     auto& dataSource = DataSourceDirectory_->DataSources().emplace_back();
     auto& path = Paths_[tableIndex];
 
-    if (dynamic) {
+    if (dynamic && schema->IsSorted()) {
         dataSource = MakeVersionedDataSource(
             path.GetPath(),
             schema,
@@ -305,7 +304,7 @@ void TMultiTablePartitioner::AddDataSlice(int tableIndex, TLegacyDataSlicePtr da
 struct TMultiTablePartitionerTag
 { };
 
-void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& inputTable)
+void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inputTable)
 {
     const auto& [inputChunks, tableIndex] = inputTable;
     const auto& comparator = GetComparator(tableIndex);
@@ -399,12 +398,8 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
     YT_VERIFY(tableIndex < std::ssize(DataSourceDirectory_->DataSources()));
 
     const auto& dataSource = DataSourceDirectory_->DataSources()[tableIndex];
-    auto dynamic = dataSource->GetType() == EDataSourceType::VersionedTable;
-    auto sorted = dataSource->Schema()->IsSorted();
-
-    if (!dynamic || sorted) {
-        return;
-    }
+    YT_VERIFY(dataSource->GetType() == EDataSourceType::UnversionedTable);
+    YT_VERIFY(!dataSource->Schema()->IsSorted());
 
     std::vector<size_t> dynamicStores;
     THashMap<i64, i64> maxStaticStoreUpperRowIndexForTablet;

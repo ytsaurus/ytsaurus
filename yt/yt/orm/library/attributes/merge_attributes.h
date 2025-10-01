@@ -1,10 +1,12 @@
 #pragma once
 
+#include "public.h"
+
+#include <yt/yt/orm/library/mpl/projection.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 #include <yt/yt/core/yson/consumer.h>
-
-#include <yt/yt/orm/library/mpl/projection.h>
 
 #include <library/cpp/yt/yson_string/string.h>
 
@@ -62,7 +64,8 @@ private:
 NYson::TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
-    EDuplicatePolicy duplicatePolicy = EDuplicatePolicy::PrioritizeColumn);
+    EDuplicatePolicy duplicatePolicy = EDuplicatePolicy::PrioritizeColumn,
+    EMergeAttributesMode mergeAttributesMode = EMergeAttributesMode::Old);
 
 ////////////////////////////////////////////////////////////////////////////////
 

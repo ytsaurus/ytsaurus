@@ -18,7 +18,6 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
     });
 
     auto data = std::vector<std::string> {
-
         "a=1; b=x; k=1; s=1",
         "a=2; b=y; k=1; s=1",
         "a=3; b=z; k=1; s=1",
@@ -57,7 +56,7 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
         {.SyntaxVersion = 2});
 }
 
-TEST_F(TQueryEvaluateTest, OutOfLineBindedValues)
+TEST_F(TQueryEvaluateTest, OutOfLineBoundValues)
 {
     std::string query = R"(
         (sum(SumCost)) AS SumCost_,
@@ -128,7 +127,6 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         });
 
     auto data = std::vector<std::string> {
-
         "a=1; b=x; k=1; s=1",
         "a=2; b=y; k=1; s=1",
         "a=3; b=z; k=1; s=1",

@@ -56,6 +56,7 @@
 #include <Common/Exception.h>
 #include <Common/StringUtils.h>
 #include <Interpreters/ProcessList.h>
+#include <Interpreters/ExternalDictionariesLoader.h>
 #include <IO/HTTPCommon.h>
 
 
@@ -168,6 +169,9 @@ public:
             }
             default:
                 YT_ABORT();
+        }
+        if (Config_->DictionaryRepository->Enabled) {
+            CypressDictionaryConfigRepository_ = New<TCypressDictionaryConfigRepository>(CreateClient(ChytSqlObjectsUserName), Config_->DictionaryRepository);
         }
 
         ClickHouseYtProfiler().AddFuncGauge(
@@ -688,6 +692,42 @@ public:
             .ThrowOnError();
     }
 
+    void ReloadDictionaryGlobally(const std::string& dictionaryName) const
+    {
+        YT_LOG_DEBUG("Reloading dictionary on all instances (DictionaryName: %v)", dictionaryName);
+
+        const auto& externalDictionariesLoader = GetContext()->getExternalDictionariesLoader();
+        externalDictionariesLoader.reloadConfig(TCypressDictionaryConfigRepository::CypressConfigRepositoryName, dictionaryName);
+
+        auto instances = Discovery_->List();
+        using TResponse = NRpc::TTypedClientResponse<TRspReloadDictionary>::TResult;
+        std::vector<TFuture<TResponse>> futures;
+        futures.reserve(instances.size());
+
+        for (auto [instanceId, attributes] : instances) {
+            if (instanceId == ToString(Config_->InstanceId)) {
+                // We have already reloaded dictionary locally.
+                continue;
+            }
+
+            auto channel = ChannelFactory_->CreateChannel(
+                Format("%v:%v", attributes->Get<TString>("host"), attributes->Get<int>("rpc_port")));
+            TClickHouseServiceProxy proxy(channel);
+
+            auto req = proxy.ReloadDictionary();
+            req->set_dictionary_name(dictionaryName);
+
+            futures.push_back(req->Invoke());
+        }
+
+        WaitFor(AllSet(futures))
+            .ThrowOnError();
+    }
+
+    TCypressDictionaryConfigRepositoryPtr GetCypressDictionaryConfigRepository() {
+        return CypressDictionaryConfigRepository_;
+    }
+
 private:
     THost* const Owner_;
     const IInvokerPtr ControlInvoker_;
@@ -725,6 +765,8 @@ private:
     THashMap<TString, int> UnknownInstancePingCounter_;
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
+
+    TCypressDictionaryConfigRepositoryPtr CypressDictionaryConfigRepository_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -1198,6 +1240,15 @@ void THost::SetSqlObjectOnOtherInstances(const TString& objectName, const NClick
 void THost::RemoveSqlObjectOnOtherInstances(const TString& objectName, NHydra::TRevision revision) const
 {
     Impl_->RemoveSqlObjectOnOtherInstances(objectName, revision);
+}
+
+void THost::ReloadDictionaryGlobally(const std::string& dictionaryName) const
+{
+    Impl_->ReloadDictionaryGlobally(dictionaryName);
+}
+
+TCypressDictionaryConfigRepositoryPtr THost::GetCypressDictionaryConfigRepository() {
+    return Impl_->GetCypressDictionaryConfigRepository();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

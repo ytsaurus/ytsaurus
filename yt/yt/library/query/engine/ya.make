@@ -84,6 +84,10 @@ LLVM_BC(
         cardinality_merge_update
         cardinality_merge_merge
         cardinality_merge_finalize
+        cardinality_merge_state_init
+        cardinality_merge_state_update
+        cardinality_merge_state_merge
+        cardinality_merge_state_finalize
 )
 
 LLVM_BC(
@@ -382,7 +386,7 @@ LLVM_BC(
 )
 
 LLVM_BC(
-    udf/abs.cpp
+    udf/math_abs.cpp
     NAME math_abs
     SYMBOLS
         math_abs

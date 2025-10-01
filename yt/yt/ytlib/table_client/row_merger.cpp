@@ -67,13 +67,13 @@ TSchemafulRowMerger::TSchemafulRowMerger(
             continue;
         }
 
-        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
+        if (GetNestedColumnById(NestedColumnsSchema_.KeyColumns, columnId)) {
             AggregateColumnIds_.push_back(columnId);
             hasNestedColumns = true;
             continue;
         }
 
-        if (const auto* ptr = GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
+        if (GetNestedColumnById(NestedColumnsSchema_.ValueColumns, columnId)) {
             AggregateColumnIds_.push_back(columnId);
             hasNestedColumns = true;
             continue;

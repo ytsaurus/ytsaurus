@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/ydb/core/persqueue/partition_key_range/partition_key_range.h>
+#include <contrib/ydb/core/persqueue/public/partition_key_range/partition_key_range.h>
 #include "heartbeat.h"
 #include <contrib/ydb/core/protos/pqconfig.pb.h>
 

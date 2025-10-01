@@ -488,7 +488,7 @@ public:
         , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
         , LayersPath_(NFS::CombinePaths(Config_->Path, LayersName))
         , LayersMetaPath_(NFS::CombinePaths(Config_->Path, LayersMetaName))
-        // If true, location is placed on a YT-specific drive, binded into container from dom0 host,
+        // If true, location is placed on a YT-specific drive, bound into container from dom0 host,
         // so it has absolute path relative to dom0 root.
         // Otherwise, location is placed inside a persistent volume, and should be treated differently.
         // More details here: PORTO-460.

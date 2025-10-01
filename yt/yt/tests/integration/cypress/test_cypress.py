@@ -24,6 +24,8 @@ import yt.yson as yson
 
 from yt_driver_bindings import Driver
 
+import yt_error_codes
+
 from flaky import flaky
 import pytest
 
@@ -157,57 +159,8 @@ class TestCypress(YTEnvSetup):
             with raises_yt_error("Attribute \"key\" cannot be removed"):
                 remove(builtin_path, force=True)
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
-    def test_list(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/list", [1, 2, "some string"])
-        assert get("//tmp/list") == [1, 2, "some string"]
-
-        set("//tmp/list/end", 100)
-        assert get("//tmp/list") == [1, 2, "some string", 100]
-
-        set("//tmp/list/before:0", 200)
-        assert get("//tmp/list") == [200, 1, 2, "some string", 100]
-
-        set("//tmp/list/before:0", 500)
-        assert get("//tmp/list") == [500, 200, 1, 2, "some string", 100]
-
-        set("//tmp/list/after:2", 1000)
-        assert get("//tmp/list") == [500, 200, 1, 1000, 2, "some string", 100]
-
-        set("//tmp/list/3", 777)
-        assert get("//tmp/list") == [500, 200, 1, 777, 2, "some string", 100]
-
-        remove("//tmp/list/4")
-        assert get("//tmp/list") == [500, 200, 1, 777, "some string", 100]
-
-        remove("//tmp/list/4")
-        assert get("//tmp/list") == [500, 200, 1, 777, 100]
-
-        remove("//tmp/list/0")
-        assert get("//tmp/list") == [200, 1, 777, 100]
-
-        set("//tmp/list/end", "last")
-        assert get("//tmp/list") == [200, 1, 777, 100, "last"]
-
-        set("//tmp/list/before:0", "first")
-        assert get("//tmp/list") == ["first", 200, 1, 777, 100, "last"]
-
-        set("//tmp/list/begin", "very_first")
-        assert get("//tmp/list") == ["very_first", "first", 200, 1, 777, 100, "last"]
-
-        assert exists("//tmp/list/0")
-        assert exists("//tmp/list/6")
-        assert exists("//tmp/list/-1")
-        assert exists("//tmp/list/-7")
-        assert not exists("//tmp/list/42")
-        assert not exists("//tmp/list/-42")
-        with raises_yt_error("has no child with index"):
-            get("//tmp/list/42")
-        with raises_yt_error("has no child with index"):
-            get("//tmp/list/-42")
-
+    # COMPAT(babenko): this is essentially the only remaining test
+    # involving forbid_list_node_creation
     @authors("kvk1920")
     @not_implemented_in_sequoia
     def test_list_node_deprecation(self):
@@ -236,8 +189,6 @@ class TestCypress(YTEnvSetup):
     @authors("kvk1920")
     @not_implemented_in_sequoia
     def test_non_recursive_attribute_set(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
-
         create_user("u")
         create("map_node", "//tmp/m1")
 
@@ -283,7 +234,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("ignat", "danilalexeev")
     def test_attributes(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/t", b"<attr=100;mode=rw> {nodes={a=1; b=2}}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
         assert get("//tmp/t/@mode") == "rw"
@@ -493,17 +443,6 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Node //tmp has no child with key \"t\""):
             get("//tmp/t/@ref_counter")
         assert get("//tmp/t1/@ref_counter") == 1
-
-    @authors("ignat")
-    @not_implemented_in_sequoia
-    def test_list_remove_all(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        # remove items from list
-        set("//tmp/list", [10, 20, 30])
-        assert get("//tmp/list/@count") == 3
-        remove("//tmp/list/*")
-        assert get("//tmp/list") == []
-        assert get("//tmp/list/@count") == 0
 
     @authors("ignat")
     def test_attr_remove_all1(self):
@@ -1463,15 +1402,13 @@ class TestCypress(YTEnvSetup):
 
     @authors("ignat", "danilalexeev")
     def test_link7(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
         set("//tmp/t1", 1, tx=tx)
         link("//tmp/t1", "//tmp/l1", tx=tx)
         assert get("//tmp/l1", tx=tx) == 1
 
     @authors("s-v-m", "danilalexeev")
-    def test_link_dst_doesnt_exist(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
+    def test_link_dst_does_not_exist(self):
         tx = start_transaction()
         set("//tmp/t", 1, tx=tx)
         with raises_yt_error("does not exist"):
@@ -1887,11 +1824,10 @@ class TestCypress(YTEnvSetup):
             set("//tmp/test_node/@test_attr", "x" * 301)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_map_node_key_length_limits(self):
         set("//sys/@config/cypress_manager/max_map_node_key_length", 300)
         set("//tmp/" + "a" * 300, 0)
-        with raises_yt_error("is not allowed to contain items with keys longer than"):
+        with raises_yt_error(yt_error_codes.MaxKeyLengthViolation):
             set("//tmp/" + "a" * 301, 0)
 
     @authors("babenko")
@@ -2647,17 +2583,6 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         assert get("//tmp/m/@recursive_resource_usage/node_count", tx=tx) == 11
 
-    @authors("babenko", "shakurov")
-    @not_implemented_in_sequoia
-    def test_recursive_resource_usage_list(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        create("list_node", "//tmp/l")
-        for i in range(10):
-            set("//tmp/l/end", i)
-        assert get("//tmp/l/@recursive_resource_usage/node_count") == 11
-        tx = start_transaction()
-        assert get("//tmp/l/@recursive_resource_usage/node_count", tx=tx) == 11
-
     @authors("aleksandra-zh")
     def test_master_memory_resource_usage(self):
         create("map_node", "//tmp/m")
@@ -2965,25 +2890,10 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/@path") == "//tmp/a"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
-    def test_node_path_list(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/a", [1, 2, 3])
-        assert get("//tmp/a/1/@path") == "//tmp/a/1"
-
-    @authors("babenko")
     def test_node_path_map_in_tx(self):
         tx = start_transaction()
         set("//tmp/a", 123, tx=tx)
         assert get("//tmp/a/@path", tx=tx) == "//tmp/a"
-
-    @authors("babenko")
-    @not_implemented_in_sequoia
-    def test_node_path_list_in_tx(self):
-        tx = start_transaction()
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/a", [1, 2, 3], tx=tx)
-        assert get("//tmp/a/1/@path", tx=tx) == "//tmp/a/1"
 
     @authors("babenko")
     def test_broken_node_path(self):
@@ -2997,7 +2907,6 @@ class TestCypress(YTEnvSetup):
         assert path == f"#{node_id}" or path == "//tmp/a"
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_node_path_with_slash(self):
         set("//tmp/dir", {"my\\t": {}}, force=True)
         assert ls("//tmp/dir") == ["my\\t"]
@@ -4106,7 +4015,6 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/t1")
 
     @authors("abogutskiy")
-    @not_implemented_in_sequoia
     def test_forbidden_erasure_codecs(self):
         create("map_node", "//tmp/ec1", attributes={"erasure_codec": "reed_solomon_6_3"})
 
@@ -4361,6 +4269,15 @@ class TestCypress(YTEnvSetup):
         abort_transaction(tx)
         gc_collect()
         assert not exists(f"#{table_id}")
+
+    @authors("kvk1920")
+    def test_document_lock_revision(self):
+        create("document", "//tmp/doc")
+        set("//tmp/doc", [1, 2, 3])
+        revision = get("//tmp/doc/@revision")
+
+        tx = start_transaction()
+        assert lock("//tmp/doc", tx=tx)["revision"] == revision
 
 
 ##################################################################
@@ -4776,20 +4693,6 @@ class TestCypressForbidSet(YTEnvSetup):
         set("//tmp/doc", {})
         set("//tmp/doc/value", 10)
         assert get("//tmp/doc/value") == 10
-
-    @authors("shakurov")
-    def test_list(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        create("list_node", "//tmp/list")
-        set("//tmp/list/end", 0)
-        set("//tmp/list/0", 1)
-        set("//tmp/list/end", 2)
-        assert get("//tmp/list") == [1, 2]
-
-    @authors("shakurov")
-    def test_list_recursive(self):
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/l", [])
 
     @authors("shakurov")
     def test_scalars(self):

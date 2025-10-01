@@ -666,9 +666,12 @@ public:
         const IVersionedReaderPtr& reader,
         const std::vector<TLegacyOwningKey>& pivotKeys,
         const TLegacyOwningKey& nextTabletPivotKey,
-        TCompactionTask* task)
+        TCompactionTask* task,
+        TDuration testingDelay)
     {
         return DoRun([&] {
+            TDelayedExecutor::WaitForDuration(testingDelay);
+
             auto periodicYielder = CreatePeriodicYielder(TDuration::MilliSeconds(30));
 
             int currentPartitionIndex = 0;
@@ -869,9 +872,13 @@ public:
     }
 
     std::pair<TPartitionCompactionResult, TCompactionSessionFinalizeResult>
-    Run(const IVersionedReaderPtr& reader, TCompactionTask* task)
+    Run(const IVersionedReaderPtr& reader,
+        TCompactionTask* task,
+        TDuration testingDelay)
     {
         return DoRun([&] {
+            TDelayedExecutor::WaitForDuration(testingDelay);
+
             auto writer = CreateWriter();
 
             WaitFor(reader->Open())
@@ -942,9 +949,11 @@ public:
             Config_->MaxConcurrentCompactions,
             Profiler_.Gauge("/running_compactions")))
         , CompactionOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Profiler_.WithTag("activity", "compaction")))
         , PartitioningOrchid_(New<TCompactionOrchid>(
-            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid,
+            Profiler_.WithTag("activity", "partitioning")))
         , OrchidService_(CreateOrchidService())
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -961,6 +970,9 @@ public:
         ScanForCompactions_ = CompactionSemaphore_->IsReady();
         PartitioningCandidates_.clear(); // Though must be clear already.
         CompactionCandidates_.clear(); // Though must be clear already.
+
+        CompactionOrchid_->OnProfiling();
+        PartitioningOrchid_->OnProfiling();
     }
 
     void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) override
@@ -1540,7 +1552,10 @@ private:
             return;
         }
 
-        if (eden->GetState() != EPartitionState::Normal) {
+        const auto& mountConfig = tablet->GetSettings().MountConfig;
+        if (eden->GetState() != EPartitionState::Normal &&
+            !(eden->GetState() == EPartitionState::Compacting && mountConfig->EnableConcurrentEdenPartitioningAndCompaction))
+        {
             YT_LOG_DEBUG("Eden is in improper state, aborting partitioning (EdenState: %v)", eden->GetState());
             logFailure("improper_state")
                 .Item("state").Value(eden->GetState());
@@ -1580,7 +1595,6 @@ private:
         }
 
         std::vector<TLegacyOwningKey> pivotKeys;
-        const auto& mountConfig = tablet->GetSettings().MountConfig;
         for (const auto& partition : tablet->PartitionList()) {
             if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
                 partition->GetState() == EPartitionState::Splitting)
@@ -1596,7 +1610,7 @@ private:
 
         YT_VERIFY(tablet->GetPivotKey() == pivotKeys[0]);
 
-        eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
+        eden->EnterCompactionState(EPartitionState::Partitioning);
 
         IVersionedReaderPtr reader;
         TEdenPartitioningResult partitioningResult;
@@ -1673,7 +1687,8 @@ private:
                     reader,
                     pivotKeys,
                     tablet->GetNextPivotKey(),
-                    task)
+                    task,
+                    mountConfig->Testing.PartitioningDelay)
                 .AsyncVia(GetInvoker(chunkReadOptions.ReadSessionId, /*partition*/ true))
                 .Run();
 
@@ -1808,7 +1823,7 @@ private:
                 partitioningResult.HunkWriter->GetDataStatistics());
         }
 
-        eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
+        eden->ExitCompactionState(EPartitionState::Partitioning);
     }
 
     void DiscardPartitionStores(
@@ -1825,7 +1840,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         const auto& structuredLogger = tablet->GetStructuredLogger();
 
-        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
+        partition->EnterCompactionState(EPartitionState::Compacting);
 
         try {
             for (const auto& store : stores) {
@@ -1880,7 +1895,7 @@ private:
             }
         }
 
-        partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
+        partition->ExitCompactionState(EPartitionState::Compacting);
     }
 
     void CompactPartition(TCompactionTask* task)
@@ -1931,7 +1946,8 @@ private:
                 .Item("trace_id").Value(traceId);
         };
 
-        auto* partition = tablet->GetEden()->GetId() == task->Info->PartitionId
+        bool isEden = tablet->GetEden()->GetId() == task->Info->PartitionId;
+        auto* partition = isEden
             ? tablet->GetEden()
             : tablet->FindPartition(task->Info->PartitionId);
         if (!partition) {
@@ -1940,7 +1956,11 @@ private:
             return;
         }
 
-        if (partition->GetState() != EPartitionState::Normal) {
+        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+        bool enableConcurrentPartitioningAndCompaction = isEden && mountConfig->EnableConcurrentEdenPartitioningAndCompaction;
+        if (partition->GetState() != EPartitionState::Normal &&
+            !(partition->GetState() == EPartitionState::Partitioning && enableConcurrentPartitioningAndCompaction))
+        {
             YT_LOG_DEBUG("Partition is in improper state, aborting compaction (PartitionState: %v)", partition->GetState());
             logFailure("improper_state")
                 .Item("state").Value(partition->GetState());
@@ -1989,7 +2009,7 @@ private:
             partition->GetNextPivotKey(),
             partition->GetId());
 
-        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
+        partition->EnterCompactionState(EPartitionState::Compacting);
 
         IVersionedReaderPtr reader;
         TPartitionCompactionResult compactionResult;
@@ -1999,7 +2019,7 @@ private:
         auto readerProfiler = New<TReaderProfiler>();
 
         chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
-            tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
+            mountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
 
         task->OnStarted();
@@ -2086,7 +2106,8 @@ private:
                     &TPartitionCompactionSession::Run,
                     compactionSession,
                     reader,
-                    task)
+                    task,
+                    mountConfig->Testing.CompactionDelay)
                 .AsyncVia(GetInvoker(chunkReadOptions.ReadSessionId, /*partition*/ false))
                 .Run();
 
@@ -2209,7 +2230,7 @@ private:
                 compactionResult.HunkWriter->GetDataStatistics());
         }
 
-        partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
+        partition->ExitCompactionState(EPartitionState::Compacting);
     }
 
     IVersionedReaderPtr CreateReader(

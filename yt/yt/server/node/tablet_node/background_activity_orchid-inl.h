@@ -14,7 +14,9 @@ namespace NYT::NTabletNode {
 
 template <class TTaskInfo>
 TBackgroundActivityOrchid<TTaskInfo>::TBackgroundActivityOrchid(
-    const TStoreBackgroundActivityOrchidConfigPtr& config)
+    const TStoreBackgroundActivityOrchidConfigPtr& config,
+    NProfiling::TProfiler profiler)
+    : RunningTaskTime_(profiler.TimeGaugeSummary("/running_task_time", NProfiling::ESummaryPolicy::Max))
 {
     Reconfigure(config);
 }
@@ -84,6 +86,25 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskCompleted(TGuid taskId)
 {
     auto guard = Guard(SpinLock_);
     OnTaskFinished(taskId, &CompletedTasks_, MaxCompletedTaskCount_);
+}
+
+template <class TTaskInfo>
+void TBackgroundActivityOrchid<TTaskInfo>::OnProfiling()
+{
+    if (!RunningTaskTime_) {
+        return;
+    }
+
+    auto guard = Guard(SpinLock_);
+
+    auto now = TInstant::Now();
+
+    TDuration maxRunningTaskTime;
+    for (const auto& [_, task] : RunningTasks_) {
+        maxRunningTaskTime = std::max(maxRunningTaskTime, now - task->RuntimeData.StartTime);
+    }
+
+    RunningTaskTime_.Update(maxRunningTaskTime);
 }
 
 template <class TTaskInfo>

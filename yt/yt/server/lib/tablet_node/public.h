@@ -93,12 +93,13 @@ using NTransactionSupervisor::ETransactionState;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EPartitionState,
-    (Normal)             // nothing special is happening
-    (Splitting)          // split mutation is submitted
-    (Merging)            // merge mutation is submitted
-    (Compacting)         // compaction is in progress
-    (Partitioning)       // partitioning is in progress
-    (Sampling)           // sampling is in progress
+    (Normal)                          // nothing special is happening
+    (Splitting)                       // split mutation is submitted
+    (Merging)                         // merge mutation is submitted
+    (Compacting)                      // compaction is in progress
+    (Partitioning)                    // partitioning is in progress
+    (PartitioningAndCompacting)       // concurrent Eden partitioning and compaction are in progress
+    (Sampling)                        // sampling is in progress
 );
 
 DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ETabletState, int,

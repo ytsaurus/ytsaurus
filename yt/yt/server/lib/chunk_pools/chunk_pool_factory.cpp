@@ -212,7 +212,6 @@ IChunkPoolPtr CreateChunkPool(
     ETablePartitionMode partitionMode,
     i64 dataWeightPerPartition,
     std::optional<int> maxPartitionCount,
-    bool useNewSlicingImplementationInUnorderedPool,
     TLogger logger)
 {
     auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, maxPartitionCount);
@@ -239,7 +238,6 @@ IChunkPoolPtr CreateChunkPool(
                     .JobSizeConstraints = jobSizeConstraints,
                     .RowBuffer = New<TRowBuffer>(),
                     .Logger = std::move(logger),
-                    .UseNewSlicingImplementation = useNewSlicingImplementationInUnorderedPool,
                 },
                 TInputStreamDirectory());
 

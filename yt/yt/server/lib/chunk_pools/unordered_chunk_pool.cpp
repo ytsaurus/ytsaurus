@@ -86,7 +86,6 @@ public:
         , FreeCompressedDataSizeCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
-        , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
     {
         Logger = options.Logger;
         ValidateLogger(Logger);
@@ -283,8 +282,8 @@ public:
             if (jobManagerJobCounter->GetPending() == 0) {
                 YT_VERIFY(!FreeStripes_.empty());
 
-                i64 idealDataWeightPerJob = UseNewSlicingImplementation_ ? GetAdjustedDataWeightPerJob() : GetDataWeightPerJobFromJobCounter();
-                i64 idealCompressedDataSizePerJob = UseNewSlicingImplementation_ ? GetAdjustedCompressedDataSizePerJob() : std::numeric_limits<i64>::max();
+                i64 idealDataWeightPerJob = GetAdjustedDataWeightPerJob();
+                i64 idealCompressedDataSizePerJob = GetAdjustedCompressedDataSizePerJob();
 
                 auto jobStub = std::make_unique<TNewJobStub>();
 
@@ -531,8 +530,6 @@ private:
 
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
 
-    bool UseNewSlicingImplementation_ = false;
-
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
     {
@@ -736,8 +733,8 @@ private:
         i64 suspendedJobCount = 0;
 
         if (JobSizeConstraints_->IsExplicitJobCount()) {
-            if (FreeJobCounter_->GetTotal() > 0 || !UseNewSlicingImplementation_) {
-                if (FreeDataWeightCounter_->GetSuspended() == 0 && Finished || !UseNewSlicingImplementation_) {
+            if (FreeJobCounter_->GetTotal() > 0) {
+                if (FreeDataWeightCounter_->GetSuspended() == 0 && Finished) {
                     pendingJobCount = FreeJobCounter_->GetTotal();
                 } else {
                     pendingJobCount = std::min(
@@ -804,37 +801,13 @@ private:
             blockedJobCount = 0;
         }
 
-        if (UseNewSlicingImplementation_) {
-            if (pendingJobCount + blockedJobCount > 0) {
-                YT_VERIFY(!FreeStripes_.empty());
-            }
-
-            FreeJobCounter_->SetPending(pendingJobCount);
-            FreeJobCounter_->SetSuspended(suspendedJobCount);
-            FreeJobCounter_->SetBlocked(blockedJobCount);
-        } else {
-            bool canScheduleJobs = !FreeStripes_.empty();
-
-            // NB(gritukan): YT-14498, if job count is explicit,
-            // last job cannot be scheduled unless all the data is available.
-            if (JobSizeConstraints_->IsExplicitJobCount() &&
-                pendingJobCount == 1 &&
-                FreeDataWeightCounter_->GetSuspended() > 0)
-            {
-                canScheduleJobs = false;
-            }
-
-            if (canScheduleJobs) {
-                // COMPAT(apollo1321): Adding suspendedJobCount is a temporary solution. Should be removed later.
-                FreeJobCounter_->SetPending(pendingJobCount + suspendedJobCount);
-                FreeJobCounter_->SetSuspended(0);
-                FreeJobCounter_->SetBlocked(blockedJobCount);
-            } else {
-                FreeJobCounter_->SetPending(0);
-                FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount + suspendedJobCount);
-                FreeJobCounter_->SetBlocked(0);
-            }
+        if (pendingJobCount + blockedJobCount > 0) {
+            YT_VERIFY(!FreeStripes_.empty());
         }
+
+        FreeJobCounter_->SetPending(pendingJobCount);
+        FreeJobCounter_->SetSuspended(suspendedJobCount);
+        FreeJobCounter_->SetBlocked(blockedJobCount);
     }
 
     void Register(int stripeIndex)
@@ -1000,8 +973,7 @@ private:
 
         if (JobSizeConstraints_->IsExplicitJobCount() && FreeJobCounter_->GetTotal() == 1 && jobStub->GetDataWeight() > idealDataWeightPerJob) {
             // NB(apollo1321): Compressed data size per job is *not* used when explicit job count is set.
-            YT_LOG_WARNING_IF(
-                UseNewSlicingImplementation_,
+            YT_LOG_WARNING(
                 "Last job is bigger than expected (AddedStripesCount: %v, "
                 "JobDataWeight: %v, JobCompressedDataSize: %v, "
                 "IdealDataWeightPerJob: %v, IdealCompressedDataSizePerJob: %v)",
@@ -1073,8 +1045,7 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_,
         .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
 
-    PHOENIX_REGISTER_FIELD(23, UseNewSlicingImplementation_,
-        .SinceVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing));
+    PHOENIX_REGISTER_DELETED_FIELD(23, bool, UseNewSlicingImplementation_, ESnapshotVersion::RemoveOldUnorderedChunkPoolSlicing);
     PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_,
         // COMPAT(apollo1321): Make FreeCompressedDataSizeCounter_ non-null in 25.2.
         .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob));

@@ -172,7 +172,7 @@ public:
     }
 
     void ValidatePoolPermission(
-        const TString& /*treeId*/,
+        const std::string& /*treeId*/,
         NObjectClient::TObjectId /*poolObjectId*/,
         const TString& /*poolName*/,
         const std::string& /*user*/,
@@ -277,7 +277,7 @@ public:
         const NPolicy::ISchedulingHeartbeatContextPtr& context,
         const TJobResources& allocationLimits,
         const TDiskResources& diskResourceLimits,
-        const TString& treeId,
+        const std::string& treeId,
         const TString& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout), (override));
 
@@ -359,7 +359,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& /*treeId*/) const override
+    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<std::string>& /*treeId*/) const override
     {
         return std::nullopt;
     }
@@ -374,15 +374,15 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    std::optional<int> FindSlotIndex(const TString& /*treeId*/) const override
+    std::optional<int> FindSlotIndex(const std::string& /*treeId*/) const override
     {
         return 0;
     }
 
-    void SetSlotIndex(const TString& /*treeId*/, int /*slotIndex*/) override
+    void SetSlotIndex(const std::string& /*treeId*/, int /*slotIndex*/) override
     { }
 
-    void ReleaseSlotIndex(const TString& /*treeId*/) override
+    void ReleaseSlotIndex(const std::string& /*treeId*/) override
     { }
 
     std::string GetAuthenticatedUser() const override
@@ -405,7 +405,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& /*treeId*/) const override
+    TStrategyOperationSpecPtr GetStrategySpecForTree(const std::string& /*treeId*/) const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -440,15 +440,15 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdatePoolAttributes(const TString& /*treeId*/, const TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/) override
+    void UpdatePoolAttributes(const std::string& /*treeId*/, const TOperationPoolTreeAttributes& /*operationPoolTreeAttributes*/) override
     { }
 
-    bool IsTreeErased(const TString& /*treeId*/) const override
+    bool IsTreeErased(const std::string& /*treeId*/) const override
     {
         return false;
     }
 
-    void EraseTrees(const std::vector<TString>& /*treeIds*/) override
+    void EraseTrees(const std::vector<std::string>& /*treeIds*/) override
     { }
 
 private:

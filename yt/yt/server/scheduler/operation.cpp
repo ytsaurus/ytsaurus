@@ -80,7 +80,7 @@ TOperation::TOperation(
     TMutationId mutationId,
     TTransactionId userTransactionId,
     TOperationSpecBasePtr spec,
-    THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
+    THashMap<std::string, TStrategyOperationSpecPtr> customSpecPerTree,
     TYsonString specString,
     TYsonString trimmedAnnotations,
     std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
@@ -164,7 +164,7 @@ TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
     return Spec_;
 }
 
-TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const TString& treeId) const
+TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const std::string& treeId) const
 {
     auto it = CustomSpecPerTree_.find(treeId);
     if (it != CustomSpecPerTree_.end()) {
@@ -252,7 +252,7 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
-std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
+std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<std::string>& treeId) const
 {
     if (State_ != EOperationState::Running) {
         return EUnschedulableReason::IsNotRunning;
@@ -270,7 +270,7 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::op
     } else if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
         // Check needed resources of all trees.
         bool noPendingAllocations = true;
-        for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTree) {
+        for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTreeId) {
             noPendingAllocations = noPendingAllocations && neededResources.GetUserSlots() == 0;
         }
         if (noPendingAllocations) {
@@ -316,13 +316,13 @@ void TOperation::SetStateAndEnqueueEvent(
     ShouldFlush_ = true;
 }
 
-void TOperation::SetSlotIndex(const TString& treeId, int value)
+void TOperation::SetSlotIndex(const std::string& treeId, int value)
 {
     ShouldFlush_ = true;
     SchedulingAttributesPerPoolTree_[treeId].SlotIndex = value;
 }
 
-void TOperation::ReleaseSlotIndex(const TString& treeId)
+void TOperation::ReleaseSlotIndex(const std::string& treeId)
 {
     auto& slotIndex = SchedulingAttributesPerPoolTree_[treeId].SlotIndex;
 
@@ -331,20 +331,20 @@ void TOperation::ReleaseSlotIndex(const TString& treeId)
     slotIndex.reset();
 }
 
-std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
+std::optional<int> TOperation::FindSlotIndex(const std::string& treeId) const
 {
     auto it = SchedulingAttributesPerPoolTree_.find(treeId);
     return it != SchedulingAttributesPerPoolTree_.end() ? it->second.SlotIndex : std::nullopt;
 }
 
-const THashMap<TString, NStrategy::TOperationPoolTreeAttributes>& TOperation::GetSchedulingAttributesPerPoolTree() const
+const THashMap<std::string, NStrategy::TOperationPoolTreeAttributes>& TOperation::GetSchedulingAttributesPerPoolTree() const
 {
     return SchedulingAttributesPerPoolTree_;
 }
 
-THashMap<TString, int> TOperation::GetSlotIndices() const
+THashMap<std::string, int> TOperation::GetSlotIndices() const
 {
-    THashMap<TString, int> treeIdToSlotIndex;
+    THashMap<std::string, int> treeIdToSlotIndex;
     treeIdToSlotIndex.reserve(SchedulingAttributesPerPoolTree_.size());
     for (const auto& [treeId, schedulingInfo] : SchedulingAttributesPerPoolTree_) {
         if (schedulingInfo.SlotIndex) {
@@ -360,7 +360,7 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 }
 
 void TOperation::UpdatePoolAttributes(
-    const TString& treeId,
+    const std::string& treeId,
     const NStrategy::TOperationPoolTreeAttributes& operationPoolTreeAttributes)
 {
     auto& schedulingAttributes = GetOrCrash(SchedulingAttributesPerPoolTree_, treeId);
@@ -506,7 +506,7 @@ TControllerAgentPtr TOperation::GetAgentOrThrow()
     return agent;
 }
 
-bool TOperation::IsTreeErased(const TString& treeId) const
+bool TOperation::IsTreeErased(const std::string& treeId) const
 {
     const auto& erasedTrees = RuntimeParameters_->ErasedTrees;
     return std::find(erasedTrees.begin(), erasedTrees.end(), treeId) != erasedTrees.end();
@@ -517,7 +517,7 @@ bool TOperation::AreAllTreesErased() const
     return RuntimeParameters_->SchedulingOptionsPerPoolTree.empty();
 }
 
-void TOperation::EraseTrees(const std::vector<TString>& treeIds)
+void TOperation::EraseTrees(const std::vector<std::string>& treeIds)
 {
     if (!treeIds.empty()) {
         ShouldFlush_ = true;

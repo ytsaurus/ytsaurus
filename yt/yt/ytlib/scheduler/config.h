@@ -68,8 +68,8 @@ public:
     const TString& GetSpecifiedPoolName() const;
 
 private:
-    TString Pool;
-    std::optional<TString> ParentPool;
+    TString Pool_;
+    std::optional<TString> ParentPool_;
 };
 
 void Deserialize(TPoolName& value, NYTree::INodePtr node);
@@ -449,11 +449,11 @@ struct TStrategyOperationSpec
     //! Operation's job will be scheduled to these pool trees as long as they're
     //! not much slower than those in other (non-tentative) trees.
     //! If TentativePoolTrees is not empty, PoolTrees must not be empty, too.
-    std::optional<THashSet<TString>> TentativePoolTrees;
+    std::optional<THashSet<std::string>> TentativePoolTrees;
 
     //! Probing pool tree to schedule probing jobs in.
     //! Scheduler will occasionally launch probing jobs in this tree.
-    std::optional<TString> ProbingPoolTree;
+    std::optional<std::string> ProbingPoolTree;
 
     //! Enables using default tentative pool trees from scheduler config. It has effect only if TentativePoolTrees is not specified.
     bool UseDefaultTentativePoolTrees;
@@ -1317,9 +1317,6 @@ struct TOperationSpecBase
 
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
-
-    //! COMPAT(apollo1321): remove in 25.2.
-    bool UseNewSlicingImplementationInUnorderedPool;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -2238,7 +2235,7 @@ struct TOperationRuntimeParameters
     TString ControllerAgentTag;
 
     // Erased trees of operation, should be used only for information purposes.
-    std::vector<TString> ErasedTrees;
+    std::vector<std::string> ErasedTrees;
 };
 
 void SerializeHeavyRuntimeParameters(NYTree::TFluentMap fluent, const TOperationRuntimeParameters& parameters);
@@ -2276,7 +2273,7 @@ struct TOperationRuntimeParametersUpdate
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     std::optional<std::string> AcoName;
-    THashMap<TString, TOperationPoolTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
+    THashMap<std::string, TOperationPoolTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;

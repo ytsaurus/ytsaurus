@@ -143,7 +143,8 @@ TCodegenExpression MakeCodegenCaseExpr(
     std::vector<std::pair<size_t, size_t>> whenThenExpressionIds,
     std::optional<size_t> defaultId,
     EValueType resultType,
-    TComparerManagerPtr comparerManager);
+    TComparerManagerPtr comparerManager,
+    bool useCanonicalNullRelations);
 
 TCodegenExpression MakeCodegenLikeExpr(
     size_t textId,
@@ -173,7 +174,7 @@ void MakeCodegenSubqueryWriteOp(
 TCodegenExpression MakeCodegenSubqueryExpr(
     TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,
-    std::vector<size_t> bindedExprIds,
+    std::vector<size_t> boundExprIds,
     size_t slotCount);
 
 size_t MakeCodegenNestedGroupOp(

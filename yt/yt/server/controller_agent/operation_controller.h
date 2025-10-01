@@ -97,7 +97,7 @@ struct TOperationControllerReviveResult
 
     bool RevivedFromSnapshot = false;
     std::vector<TRevivedAllocation> RevivedAllocations;
-    THashSet<TString> RevivedBannedTreeIds;
+    THashSet<std::string> RevivedBannedTreeIds;
     NScheduler::TCompositeNeededResources NeededResources;
     NScheduler::TAllocationGroupResourcesMap GroupedNeededResources;
     NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources;
@@ -232,7 +232,7 @@ struct IOperationControllerHost
     virtual void OnOperationFailed(const TError& error) = 0;
     virtual void OnOperationSuspended(const TError& error) = 0;
     virtual void OnOperationBannedInTentativeTree(
-        const TString& treeId,
+        const std::string& treeId,
         const std::vector<TAllocationId>& allocationIds) = 0;
 
     virtual void ValidateOperationAccess(
