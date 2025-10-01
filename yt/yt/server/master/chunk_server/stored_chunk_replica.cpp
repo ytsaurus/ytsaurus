@@ -101,10 +101,9 @@ EChunkReplicaState TStoredChunkReplicaPtrWithReplicaInfo::GetReplicaState() cons
     return static_cast<EChunkReplicaState>(Value_ & 0x3);
 }
 
-// todo: -> ui8
 int TStoredChunkReplicaPtrWithReplicaInfo::GetReplicaIndex() const
 {
-    return static_cast<int>((Value_ >> (56)) & 0xff);
+    return static_cast<int>((Value_ >> 56) & 0xff);
 }
 
 int TStoredChunkReplicaPtrWithReplicaInfo::GetEffectiveMediumIndex() const
