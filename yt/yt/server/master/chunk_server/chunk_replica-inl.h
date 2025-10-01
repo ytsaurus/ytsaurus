@@ -92,7 +92,7 @@ Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAcces
         (static_cast<uintptr_t>(firstIndex) << 56) |
         (static_cast<uintptr_t>(secondIndex) << 48))
 {
-    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xffff000000000000LL) == 0);
+    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xffff000000000003LL) == 0);
     YT_ASSERT(firstIndex >= 0 && firstIndex <= 0xff);
     YT_ASSERT(secondIndex >= 0 && secondIndex <= 0xff);
     YT_ASSERT(static_cast<uintptr_t>(state) <= 0x3);
