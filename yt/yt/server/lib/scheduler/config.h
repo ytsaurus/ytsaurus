@@ -1032,6 +1032,7 @@ struct TSchedulerConfig
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     int OperationSpecTreeSizeLimit;
+    i64 OperationSpecTooLargeAlertThreshold;
 
     //! Configures the default expiration timeout used when creating temporary
     //! tokens for operations. In a regular scenario the expiration timeout
