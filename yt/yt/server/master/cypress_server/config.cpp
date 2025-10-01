@@ -106,7 +106,7 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("enable_inherit_attributes_during_copy", &TThis::EnableInheritAttributesDuringCopy)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("disable_cypress_node_reachability", &TThis::DisableCypressNodeReachability)
         .Default(false);

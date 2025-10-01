@@ -2330,7 +2330,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
             continue;
         }
 
-        if (currentNode->GetType() != EObjectType::MapNode) {
+        if (currentNode->GetType() != EObjectType::MapNode && currentNode->GetType() != EObjectType::PortalExit) {
             THROW_ERROR_EXCEPTION("Type %Qlv cannot be cross-cell copied", currentNode->GetType());
         }
 
