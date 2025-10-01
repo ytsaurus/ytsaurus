@@ -367,6 +367,31 @@ bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, T
 
             break;
         }
+        case EYtSettingType::Columns: {
+            if (!EnsureTupleSize(*setting, 2, ctx)) {
+                return false;
+            }
+            for (const auto& child : setting->Tail().Children()) {
+                if (!EnsureTupleMinSize(*child, 2U, ctx)) {
+                    return false;
+                }
+                if (!EnsureAtom(child->Head(), ctx)) {
+                    return false;
+                }
+            }
+            break;
+        }
+        case EYtSettingType::OrderBy: {
+            if (!EnsureTupleSize(*setting, 2, ctx)) {
+                return false;
+            }
+            for (const auto& child : setting->Tail().Children()) {
+                if (!(EnsureTupleSize(*child, 2U, ctx) && EnsureTupleOfAtoms(*child, ctx))) {
+                    return false;
+                }
+            }
+            break;
+        }
         case EYtSettingType::StatColumns: {
             if (!EnsureTupleSize(*setting, 2, ctx)) {
                 return false;
@@ -958,7 +983,6 @@ bool ValidateSettings(const TExprNode& settingsNode, EYtSettingTypes accepted, T
             }
             break;
         }
-        case EYtSettingType::Columns:
         case EYtSettingType::Actions:
         case EYtSettingType::PrimaryKey: {
             ctx.AddError(TIssue(ctx.GetPosition(nameNode->Pos()), TStringBuilder()

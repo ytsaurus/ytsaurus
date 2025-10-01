@@ -1757,8 +1757,8 @@ private:
             return TStatus::Error;
         }
 
-        const auto keys = input->ChildPtr(TYtCreateTable::idx_Keys);
-        if (!EnsureTupleOfAtoms(*keys, ctx)) {
+        const auto keys = input->ChildPtr(TYtCreateTable::idx_OrderBy);
+        if (!EnsureTuple(*keys, ctx)) {
             return TStatus::Error;
         }
 
@@ -1790,23 +1790,10 @@ private:
                 }
 
                 if (!next.RowSpec) {
-                    TVector<TString> keys(create.Keys().Size());
-                    std::unordered_set<std::string_view> keysSet(keys.size());
-                    auto ik = keys.begin();
-                    create.Keys().Ref().ForEachChild([&](const TExprNode& node) {
-                        keysSet.emplace(node.Content());
-                        (*ik++) = node.Content();
-                    });
-                    if (keys.size() != keysSet.size()) {
-                        ctx.AddError(TIssue(ctx.GetPosition(create.Keys().Pos()), "Primary key has duplicate columns."));
-                        return TStatus::Error;
-                    }
-
                     TVector<const TItemExprType*> items(create.Columns().Size());
                     auto it = items.begin();
                     create.Columns().Ref().ForEachChild([&](const TExprNode& node) {
-                        const auto type = node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
-                        (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), keysSet.contains(node.Head().Content()) ? RemoveOptionalType(type) : type);
+                        (*it++) = ctx.MakeType<TItemExprType>(node.Head().Content(), node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType());
                     });
 
                     const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
@@ -1814,15 +1801,34 @@ private:
                     next.IsReplaced = true;
 
                     const TYtOutTableInfo outTable(rowType, State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
-                    next.RowSpec = outTable.RowSpec;
-                    if (!keys.empty()) {
-                        next.RowSpec->UniqueKeys = true;
-                        next.RowSpec->SortedBy = std::move(keys);
-                        next.RowSpec->SortDirections.resize(next.RowSpec->SortedBy.size(), true);
-                        next.RowSpec->SortedByTypes.resize(next.RowSpec->SortedBy.size());
-                        std::transform(next.RowSpec->SortedBy.cbegin(), next.RowSpec->SortedBy.cend(), next.RowSpec->SortedByTypes.begin(),
-                            std::bind(&TStructExprType::FindItemType, rowType, std::placeholders::_1));
+
+                    const auto orderBySize = create.OrderBy().Size();
+                    outTable.RowSpec->SortedBy.reserve(orderBySize);
+                    outTable.RowSpec->SortMembers.reserve(orderBySize);
+                    outTable.RowSpec->SortDirections.reserve(orderBySize);
+                    outTable.RowSpec->SortedByTypes.reserve(orderBySize);
+
+                    const bool useNativeDescSort = State_->Configuration->UseNativeDescSort.Get().GetOrElse(DEFAULT_USE_NATIVE_DESC_SORT);
+                    for (auto i = 0U; i < orderBySize; ++i) {
+                        const auto& node = create.OrderBy().Item(i);
+                        if (!EnsureArgsCount(node.Ref(), 2U, ctx)) {
+                            return TStatus::Error;
+                        }
+
+                        outTable.RowSpec->SortedBy.emplace_back(node.Name().StringValue());
+                        outTable.RowSpec->SortMembers.emplace_back(outTable.RowSpec->SortedBy.back());
+                        outTable.RowSpec->SortDirections.emplace_back(!FromString<bool>(node.Value().Cast<TCoAtom>().Value()));
+                        if (!(useNativeDescSort || outTable.RowSpec->SortDirections.back())) {
+                            ctx.AddError(TIssue(ctx.GetPosition(node.Value().Cast().Pos()), TStringBuilder() <<
+                                "Descending order for the `" << node.Name().Value() << "` column is only supported when YT's naive descending sort is enabled."));
+                            return TStatus::Error;
+                        }
+                        outTable.RowSpec->SortedByTypes.emplace_back(rowType->FindItemType(node.Name().Value()));
+                        if (!EnsureComparableKey(node.Name().Pos(), outTable.RowSpec->SortedByTypes.back(), ctx)) {
+                            return TStatus::Error;
+                        }
                     }
+                    next.RowSpec = outTable.RowSpec;
                 }
             }
         }

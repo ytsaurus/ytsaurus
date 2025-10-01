@@ -9,8 +9,7 @@ using namespace NNodes;
 TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::Create(TExprBase node, TExprContext& ctx) const {
     const auto& create = node.Cast<TYtCreateTable>();
     const TYtTableInfo tableInfo(create.Table());
-    const auto& descr = State_->TablesData->GetTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, tableInfo.CommitEpoch);
-    const TYtOutTableInfo outTable(descr.RowType->Cast<TStructExprType>(), State_->Configuration->UseNativeYtTypes.Get().GetOrElse(DEFAULT_USE_NATIVE_YT_TYPES) ? NTCF_ALL : NTCF_NONE);
+    const TYtOutTableInfo outTable(State_->TablesData->GetTable(create.DataSink().Cluster().StringValue(), tableInfo.Name, tableInfo.CommitEpoch).RowSpec);
 
     return Build<TYtPublish>(ctx, create.Pos())
         .World(create.World())

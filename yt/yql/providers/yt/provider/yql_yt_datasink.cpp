@@ -261,11 +261,14 @@ public:
                     << "Expected Void, but got: " << node->Child(3U)->Content()));
                 return {};
             }
+            if (!ValidateSettings(*node->Child(4U), EYtSettingType::Mode | EYtSettingType::Initial | EYtSettingType::Columns | EYtSettingType::OrderBy, ctx)) {
+                return {};
+            }
 
             auto children = node->ChildrenList();
             children.resize(5U);
             children[3U] = NYql::GetSetting(*node->Child(4U), EYtSettingType::Columns)->TailPtr();
-            const auto keys = NYql::GetSetting(*node->Child(4U), EYtSettingType::PrimaryKey);
+            const auto keys = NYql::GetSetting(*node->Child(4U), EYtSettingType::OrderBy);
             children.back() = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
             return ctx.NewCallable(node->Pos(), TYtCreateTable::CallableName(), std::move(children));
         } else {
