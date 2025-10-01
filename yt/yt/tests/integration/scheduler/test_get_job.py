@@ -472,7 +472,6 @@ class TestGetJob(_TestGetJobCommon):
     @authors("omgronny")
     def test_job_archive_ttl(self):
         set("//sys/operations_archive/jobs/@max_data_ttl", 3000)
-        update_controller_agent_config("enable_job_archive_ttl", True)
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
