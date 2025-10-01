@@ -5,10 +5,16 @@ try:
 except ImportError:
     yatest_common = None
 
+import datetime
 import functools
+import hashlib
 import logging
 import os
 import re
+
+LOG_ONCE_BUFF = {}
+MAX_BUFF_LEN = 1000
+BUFF_CLEANING_LEN = 10
 
 
 def set_log_level_from_config(logger):
@@ -126,3 +132,17 @@ else:
 
 def log(level, msg, *args, **kwargs):
     LOGGER.log(level, msg, *args, **kwargs)
+
+
+def log_once(level, msg, *args, **kwargs):
+    if (hash := hashlib.sha256(msg.encode('utf-8')).hexdigest()) not in LOG_ONCE_BUFF.keys():
+        LOGGER.log(level, msg, *args, **kwargs)
+    LOG_ONCE_BUFF[hash] = datetime.datetime.now()
+    if len(LOG_ONCE_BUFF) >= MAX_BUFF_LEN:
+        _clean_log_once_buff()
+
+
+def _clean_log_once_buff():
+    global LOG_ONCE_BUFF
+    cleaning_treshold = sorted(LOG_ONCE_BUFF.values())[BUFF_CLEANING_LEN]
+    LOG_ONCE_BUFF = {key: value for key, value in LOG_ONCE_BUFF.items() if value > cleaning_treshold}
