@@ -108,7 +108,7 @@ namespace {
 TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
-    const TPartitionTags& partitionTags)
+    const std::optional<TPartitionTags>& partitionTags)
 {
     // Download chunk meta.
     std::vector<int> extensionTags{
@@ -156,7 +156,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
@@ -651,7 +651,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -701,7 +701,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {

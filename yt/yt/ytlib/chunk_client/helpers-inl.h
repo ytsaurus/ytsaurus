@@ -83,4 +83,30 @@ TAllyReplicasInfo::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProtoMessage>
+std::optional<TPartitionTags> GetOptionalPartitionTags(const TProtoMessage& message)
+{
+    using NYT::FromProto;
+    if (!message.partition_tags().empty()) {
+        YT_VERIFY(!message.has_partition_tag());
+        return TPartitionTags(FromProto<TPartitionTags::TUnderlying>(message.partition_tags()));
+    }
+    // COMPAT(namorniradnug)
+    if (message.has_partition_tag()) {
+        return TPartitionTags{message.partition_tag()};
+    }
+    return {};
+}
+
+template <class TProtoMessage>
+TPartitionTags GetPartitionTags(const TProtoMessage& message)
+{
+    auto partitionTags = GetOptionalPartitionTags(message);
+    YT_VERIFY(partitionTags);
+    return *std::move(partitionTags);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

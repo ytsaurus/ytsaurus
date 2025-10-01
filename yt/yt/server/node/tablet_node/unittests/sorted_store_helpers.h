@@ -64,7 +64,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& /*options*/,
-        const TPartitionTags& /*partitionTags*/,
+        const std::optional<TPartitionTags>& /*partitionTags*/,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
         return MakeFuture(ChunkData_.Meta);
