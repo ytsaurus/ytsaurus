@@ -185,19 +185,8 @@ private:
             }
         };
 
-        if (tablet->IsPhysicallySorted()) {
-            for (const auto& store : tablet->Eden()->Stores()) {
-                onStore(store.get());
-            }
-            for (const auto& partition : tablet->Partitions()) {
-                for (const auto& store : partition->Stores()) {
-                    onStore(store.get());
-                }
-            }
-        } else {
-            for (const auto& store : tablet->Stores()) {
-                onStore(store.get());
-            }
+        for (const auto& [id, store] : tablet->StoreIdMap()) {
+            onStore(store);
         }
 
         return digest;

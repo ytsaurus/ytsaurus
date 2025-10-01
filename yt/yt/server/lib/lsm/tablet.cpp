@@ -32,6 +32,11 @@ TStore* TTablet::FindActiveStore() const
     return nullptr;
 }
 
+TStore* TTablet::GetStore(TStoreId id) const
+{
+    return GetOrCrash(StoreIdMap_, id);
+}
+
 void TTablet::CopyMetaFrom(const TTablet* tablet)
 {
     Id_ = tablet->Id_;
@@ -74,8 +79,11 @@ void TTablet::Persist(const TStreamPersistenceContext& context)
             partition->SetTablet(this);
             for (auto& store : partition->Stores()) {
                 store->SetTablet(this);
+                EmplaceOrCrash(StoreIdMap_, store->GetId(), store.get());
             }
         };
+
+        StoreIdMap_.clear();
         if (Eden_) {
             onPartition(Eden_);
         }
@@ -84,6 +92,7 @@ void TTablet::Persist(const TStreamPersistenceContext& context)
         }
         for (auto& store : Stores_) {
             store->SetTablet(this);
+            EmplaceOrCrash(StoreIdMap_, store->GetId(), store.get());
         }
     }
 }

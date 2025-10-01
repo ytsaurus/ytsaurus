@@ -1,8 +1,9 @@
 #include "lsm_backend.h"
 
-#include "store_compactor.h"
 #include "partition_balancer.h"
+#include "store_compactor.h"
 #include "store_rotator.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/private.h>
 
@@ -11,6 +12,42 @@ namespace NYT::NLsm {
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = NTabletNode::TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TCompactionRequest::operator<(const TCompactionRequest& other) const
+{
+    auto getOrderingTuple = [] (const TCompactionRequest& request) {
+        return std::tuple(
+            !request.DiscardStores,
+            request.Slack,
+            -request.Effect,
+            -ssize(request.Stores),
+            request.Reason);
+    };
+
+    auto getMinStoreCreationTime = [] (const TCompactionRequest& request) {
+        TInstant minCreationTime = TInstant::Max();
+        for (auto id : request.Stores) {
+            minCreationTime = std::min(minCreationTime, request.Tablet->GetStore(id)->GetCreationTime());
+        }
+
+        return minCreationTime;
+    };
+
+    auto lhsOrderingTuple = getOrderingTuple(*this);
+    auto rhsOrderingTuple = getOrderingTuple(other);
+
+    if (lhsOrderingTuple != rhsOrderingTuple) {
+        return lhsOrderingTuple < rhsOrderingTuple;
+    }
+
+    if (Reason == EStoreCompactionReason::Periodic) {
+        return getMinStoreCreationTime(*this) < getMinStoreCreationTime(other);
+    }
+
+    return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

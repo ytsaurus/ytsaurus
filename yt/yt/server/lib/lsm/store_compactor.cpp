@@ -81,8 +81,8 @@ public:
             std::swap(batch, OverallCompactionRequests_);
         }
 
-        std::sort(batch.Compactions.begin(), batch.Compactions.end(), CompareCompactionRequests);
-        std::sort(batch.Partitionings.begin(), batch.Partitionings.end(), CompareCompactionRequests);
+        std::sort(batch.Compactions.begin(), batch.Compactions.end());
+        std::sort(batch.Partitionings.begin(), batch.Partitionings.end());
         return batch;
     }
 
@@ -847,22 +847,6 @@ private:
         return std::min(
             config->MaxOverlappingStoreCount,
             config->CriticalOverlappingStoreCount.value_or(config->MaxOverlappingStoreCount));
-    }
-
-    static auto GetOrderingTuple(const TCompactionRequest& request)
-    {
-        return std::tuple(
-            !request.DiscardStores,
-            request.Slack,
-            -request.Effect,
-            -ssize(request.Stores));
-    }
-
-    static bool CompareCompactionRequests(
-        const TCompactionRequest& lhs,
-        const TCompactionRequest& rhs)
-    {
-        return GetOrderingTuple(lhs) < GetOrderingTuple(rhs);
     }
 };
 
