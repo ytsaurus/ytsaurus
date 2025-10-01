@@ -2,9 +2,7 @@ JAVA_LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
-IF(JDK_VERSION == "")
-    JDK_VERSION(11)
-ENDIF()
+DEFAULT_JDK_VERSION(11)
 
 LINT(extended)
 
