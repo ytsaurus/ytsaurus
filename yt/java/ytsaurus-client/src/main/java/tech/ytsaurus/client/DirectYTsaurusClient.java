@@ -9,18 +9,20 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientListener;
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 
 /**
- *  YT client with fixed specified RPC proxy address.
- *  This client doesn't support proxy discovering,
- *  so if you need connecting to shared cluster then using {@link YTsaurusClient} is preferred.
- *  <p>
- *      Client supports a few types of address.
- *      1) InetSocketAddress - address of some remote RPC proxy
- *      2) DomainSocketAddress - address of socket file connected with RPC proxy
+ * YT client with fixed specified RPC proxy address.
+ * This client doesn't support proxy discovering,
+ * so if you need connecting to shared cluster then using {@link YTsaurusClient} is preferred.
+ * <p>
+ * Client supports a few types of address.
+ * 1) InetSocketAddress - address of some remote RPC proxy
+ * 2) DomainSocketAddress - address of socket file connected with RPC proxy
  */
 @NonNullApi
 @NonNullFields
@@ -30,14 +32,26 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
 
     DirectYTsaurusClient(Builder builder) {
         super(
-                new DefaultRpcBusClient(builder.busConnector, builder.address, builder.address.toString())
-                        .withAuthentication(builder.auth),
+                createRpcClient(builder),
                 builder.busConnector.executorService(), builder.config, builder.heavyExecutor,
                 builder.serializationResolver
         );
 
         this.busConnector = builder.busConnector;
         this.isBusConnectorOwner = builder.isBusConnectorOwner;
+    }
+
+    private static RpcClient createRpcClient(Builder builder) {
+        RpcClient rpcClient = new DefaultRpcBusClient(builder.busConnector, builder.address, builder.address.toString())
+                .withAuthentication(builder.auth);
+
+        RpcClientListener rpcClientListener = builder.config != null ?
+                builder.config.getRpcOptions().getRpcClientListener() : null;
+        if (rpcClientListener != null) {
+            rpcClient = new RpcClientListenerWrapper(rpcClient, rpcClientListener);
+        }
+
+        return rpcClient;
     }
 
     public static Builder builder() {
@@ -116,6 +130,7 @@ public class DirectYTsaurusClient extends CompoundClientImpl {
         /**
          * Set heavy executor for DirectYTsaurusClient. This is used for deserialization of lookup/select response.
          * By default, ForkJoinPool.commonPool().
+         *
          * @return self
          */
         public Builder setHeavyExecutor(Executor heavyExecutor) {
