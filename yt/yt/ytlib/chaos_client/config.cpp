@@ -6,16 +6,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
-        .Default(true);
-}
+void TChaosResidencyCacheConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 void TChaosResidencyCacheConfig::ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig)
 {
     TAsyncExpiringCacheConfig::ApplyDynamicInplace(dynamicConfig);
-    UpdateYsonStructField(EnableClientMode, dynamicConfig->EnableClientMode);
 }
 
 TChaosResidencyCacheConfigPtr TChaosResidencyCacheConfig::ApplyDynamic(
@@ -29,11 +25,8 @@ TChaosResidencyCacheConfigPtr TChaosResidencyCacheConfig::ApplyDynamic(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChaosResidencyCacheDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
-        .Optional();
-}
+void TChaosResidencyCacheDynamicConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
