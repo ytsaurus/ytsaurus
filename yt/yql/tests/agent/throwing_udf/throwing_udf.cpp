@@ -9,7 +9,7 @@ namespace {
 using namespace NKikimr::NUdf;
 
 SIMPLE_UDF(TParseWithThrow, char*(TAutoMap<char*>, TAutoMap<bool>)) {
-    if (auto needThrow = args[1].Get<bool>()) {
+    if (args[1].Get<bool>()) {
         try {
             ythrow yexception() << "expected exception";
         } catch (...) {
