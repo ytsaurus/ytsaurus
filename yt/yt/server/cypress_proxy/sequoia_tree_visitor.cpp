@@ -1,5 +1,7 @@
 #include "sequoia_tree_visitor.h"
 
+#include "private.h"
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/yson/producer.h>
@@ -11,6 +13,10 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +60,21 @@ private:
             if (nodeIter != NodesWithAttributes_.end()) {
                 nodeIter->second->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
             } else {
-                THROW_ERROR_EXCEPTION("Cannot fetch attributes for node %v", nodeId);
+                // NodesWithAttributes_ come from attribute fetcher, and the
+                // contract is that it may silently omit some nodes (due to a
+                // race between listing the subtree via dyntable and actually
+                // fetching attributes via master). It will never omit the
+                // target (i.e. root) node, though.
+
+                if (currentNodeDepth == 1) {
+                    // This is a bug. If the root hasn't been fetched due to the
+                    // aforementioned race, the whole request should've failed
+                    // with a retriable error, and we shouldn't have gotten here.
+                    YT_LOG_ALERT_AND_THROW("Cannot fetch attributes for node %v", nodeId);
+                }
+
+                // Silently omit the node.
+                return;
             }
         }
 
