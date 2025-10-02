@@ -3,7 +3,7 @@
 #include <yt/yt/library/query/distributed/join_tree.h>
 #include <yt/yt/library/query/distributed/shuffle.h>
 
-#include <yt/yt/library/query/unittests/ql_helpers.h>
+#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
 namespace NYT::NQueryClient {
 namespace {

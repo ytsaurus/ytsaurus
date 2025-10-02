@@ -1,4 +1,4 @@
-#include <yt/yt/library/query/unittests/test_evaluate.h>
+#include <yt/yt/library/query/unittests/evaluate/test_evaluate.h>
 
 namespace NYT::NQueryClient {
 namespace {

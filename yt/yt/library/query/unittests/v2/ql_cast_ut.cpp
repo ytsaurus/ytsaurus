@@ -1,4 +1,4 @@
-#include <yt/yt/library/query/unittests/ql_helpers.h>
+#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/query_client/query_statistics.h>
