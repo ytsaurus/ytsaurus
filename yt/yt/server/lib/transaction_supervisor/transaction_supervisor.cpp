@@ -3385,7 +3385,7 @@ private:
             EpochAutomatonInvoker_,
             BIND(&TTransactionSupervisor::OnParticipantCleanup, MakeWeak(this)),
             ParticipantCleanupPeriod);
-        YT_UNUSED_FUTURE(ParticipantCleanupExecutor_->Stop());
+        ParticipantCleanupExecutor_->Start();
 
         YT_VERIFY(TransientCommitMap_.GetSize() == 0);
         for (auto [transactionId, commit] : PersistentCommitMap_) {
