@@ -455,7 +455,7 @@ void EnrichKeyRange(
 
     // In prefix there are only Fixed, computed columns and Bottom (undefined).
 
-    // Collect here evalutable columns.
+    // Collect here evaluatable columns.
     std::vector<std::pair<size_t, std::optional<TModuloRangeGenerator>>> computedColumns;
     std::vector<ui64> estimations;
 

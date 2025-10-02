@@ -140,8 +140,8 @@ void TTypingCtx::FillFunctionSignatures()
     auto stringType = GetTypeId(EValueType::String);
     auto anyType = GetTypeId(EValueType::Any);
 
-    // Rule. If function has overload for T1 and T2 and threre are casts from null to T1 and T2, then oveloads are ambiguous.
-    // Overload for null must be addeed or implicit casts must be disabled via type paramenters and constraints.
+    // Rule. If function has overload for T1 and T2 and there are casts from null to T1 and T2, then overloads are ambiguous.
+    // Overload for null must be added or implicit casts must be disabled via type parameters and constraints.
 
     // Unary.
     for (const auto& name : {
