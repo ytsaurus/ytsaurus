@@ -22,7 +22,7 @@ class GrafanaSystemTags(enum.Enum):
 
 
 class GrafanaTextboxDashboardParameter:
-    def __init__(self, default_value=None):
+    def __init__(self, default_value=None, default_for_ui=None):
         self.dict = {
             "type": "textbox",
         }
@@ -40,6 +40,8 @@ class GrafanaTextboxDashboardParameter:
                 "skipUrlSync": False,
                 "allFormat": "glob",
             })
+        if default_for_ui is not None:
+            self.dict["default_for_ui"] = default_for_ui
 
 
 ##################################################################
