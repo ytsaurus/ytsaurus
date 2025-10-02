@@ -164,6 +164,7 @@ class _TestGetJobCommon(_TestGetJobBase):
 
         self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None,
                             pool="my_pool", pool_tree="default")
+        assert get_job(None, job_id)["operation_id"] == op.id
 
         @wait_no_assert
         def correct_stderr_size():
@@ -181,6 +182,7 @@ class _TestGetJobCommon(_TestGetJobBase):
         events = job_info["events"]
         assert len(events) > 0
         assert all(field in events[0] for field in ["phase", "state", "time"])
+        assert retry(lambda: get_job(None, job_id))["operation_id"] == op.id
 
         delete_job_from_archive(op.id, job_id)
 
