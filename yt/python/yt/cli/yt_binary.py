@@ -2206,6 +2206,8 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--sort-order", help='sort order. Can be either "ascending" or "descending"')
     parser.add_argument("--limit", type=int, help="output limit")
     parser.add_argument("--offset", type=int, help="offset starting from zero")
+    parser.add_argument("--operation-incarnation", default=None, help="filter jobs by operation incarnation")
+    parser.add_argument("--monitoring-descriptor", default=None, help="filter jobs by monitoring descriptor")
     parser.add_argument("--with-spec", default=None, action="store_true")
     parser.add_argument("--with-stderr", default=None, action="store_true")
     parser.add_argument("--with-fail-context", default=None, action="store_true")
