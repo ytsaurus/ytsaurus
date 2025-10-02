@@ -1,13 +1,19 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
-    authors, print_debug, wait, create, get, set, copy, insert_rows, trim_rows,
+    authors, print_debug, wait, create, remove, get, set, copy, insert_rows, trim_rows,
     alter_table, write_file, read_table, write_table, map, sort, reduce, map_reduce, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, merge, join_reduce,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
     lookup_rows, raises_yt_error, select_rows, generate_uuid)
 
-from yt_type_helpers import make_schema
+from yt_type_helpers import (
+    make_schema,
+    make_column,
+    make_sorted_column,
+    optional_type,
+    list_type,
+)
 
 from yt.test_helpers import assert_items_equal
 from yt.common import YtError
@@ -359,35 +365,70 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
 
-    @authors("ifsmirnov")
+    @authors("ifsmirnov", "sabdenovch")
     def test_bizarre_column_filters(self):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        value_type = list_type("int64")
+        schema = [
+            make_sorted_column("tablet_hash", optional_type("int64"), expression="1"),
+            make_sorted_column("k_1", "string"),
+            make_sorted_column("k_2", "string"),
+            make_column("v_3", "string"),
+            make_column("v_4", "string"),
+            make_column("v_5", value_type, aggregate="nested_key(N)"),
+            make_column("v_6", value_type, aggregate="nested_key(N)"),
+            make_column("v_7", value_type, aggregate="nested_value(N, sum)"),
+            make_column("v_8", value_type, aggregate="nested_value(N, sum)"),
+            make_column("v_9", value_type, aggregate="nested_value(N, sum)"),
+            make_column("v_10", "string"),
+            make_column("v_11", "string"),
+            make_column("v_12", "string"),
+        ]
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "schema": schema,
+            "enable_dynamic_store_read": True,
+            "mount_config": {
+                "row_merger_type": "new"
+            },
+        })
         sync_mount_table("//tmp/t")
 
-        rows = (
-            [{"key": yson.YsonEntity(), "value": "none"}]
-            + [{"key": yson.YsonInt64(i), "value": str(i * i)} for i in range(2)]
-            + [{"key": 100500, "value": yson.YsonEntity()}]
-        )
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
+        def make_value(i, column, store_name):
+            if "aggregate" not in column:
+                return f"{column["name"]}_{i}_{store_name}"
+            else:
+                return [int(column["name"][-1]) * 1000 + i]
+
+        chunk_rows = [{col["name"] : make_value(i, col, "chunk") for col in schema if "expression" not in col} for i in range(100)]
+        insert_rows("//tmp/t", chunk_rows)
+        sync_flush_table("//tmp/t")
+        dynstore_rows = [{col["name"] : make_value(i, col, "dynstore") for col in schema if "expression" not in col} for i in range(0, 200, 2)]
+        insert_rows("//tmp/t", dynstore_rows, aggregate=True)
+        rows = select_rows("* from [//tmp/t] limit 1000000")
 
         def _check(*columns):
             expected = [{column: row[column] for column in columns if column in row} for row in rows]
-            actual = read_table("//tmp/t{" + ",".join(columns) + "}")
+            ypath = "//tmp/t{" + ",".join(columns) + "}"
+            actual = read_table(ypath)
             assert expected == actual
 
-        _check("key")
-        _check("value")
-        _check("key", "key")
-        _check("value", "key")
-        _check("value", "value", "key")
-        _check("value", "key", "value", "key")
+            create("table", "//tmp/o")
+            merge(in_=ypath, out="//tmp/o", mode="ordered")
+            assert expected == read_table("//tmp/o")
+            remove("//tmp/o")
+
+        _check("k_1")
+        _check("v_3")
+        _check("k_1", "k_1")
+        _check("v_3", "k_1")
+        _check("v_4", "v_4", "k_1")
+        _check("v_5", "k_1", "v_5", "k_1")
         _check("oops")
         _check("oops", "yup")
-        _check("oops", "value", "yup")
-        _check("oops", "value", "key")
+        _check("oops", "v_6", "yup")
+        _check("oops", "v_7", "k_1")
+        _check("k_1", "k_2", "v_8", "v_4", "v_9", "v_7", "v_5")
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
