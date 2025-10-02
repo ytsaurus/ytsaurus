@@ -43,7 +43,8 @@ class ChaosTestBase(DynamicTablesBase):
         peer_cluster_names=None,
         meta_cluster_names=[],
         clock_cluster_tag=None,
-        node_tag_filter=None
+        node_tag_filter=None,
+        options=None
     ):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
@@ -52,7 +53,8 @@ class ChaosTestBase(DynamicTablesBase):
             peer_cluster_names,
             meta_cluster_names=meta_cluster_names,
             clock_cluster_tag=clock_cluster_tag,
-            node_tag_filter=node_tag_filter)
+            node_tag_filter=node_tag_filter,
+            options=options)
 
     def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default"):
         if peer_cluster_names is None:
@@ -67,7 +69,8 @@ class ChaosTestBase(DynamicTablesBase):
         peer_cluster_names=None,
         meta_cluster_names=[],
         clock_cluster_tag=None,
-        node_tag_filter=None
+        node_tag_filter=None,
+        chaos_bundle_options=None
     ):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
@@ -76,7 +79,8 @@ class ChaosTestBase(DynamicTablesBase):
             peer_cluster_names=peer_cluster_names,
             meta_cluster_names=meta_cluster_names,
             clock_cluster_tag=clock_cluster_tag,
-            node_tag_filter=node_tag_filter)
+            node_tag_filter=node_tag_filter,
+            options=chaos_bundle_options)
         return self._sync_create_chaos_cell(
             name=name,
             peer_cluster_names=peer_cluster_names,

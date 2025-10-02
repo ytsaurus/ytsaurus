@@ -13,6 +13,7 @@
 # changes in this file.
 
 add_subdirectory(jaeger)
+add_subdirectory(baggage_manager)
 add_subdirectory(example)
 add_subdirectory(unittests)
 

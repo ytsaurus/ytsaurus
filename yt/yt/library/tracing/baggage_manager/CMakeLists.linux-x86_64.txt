@@ -14,15 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(jaeger)
-add_subdirectory(baggage_manager)
-add_subdirectory(example)
-add_subdirectory(unittests)
-
-add_library(yt-library-tracing)
+add_library(library-tracing-baggage_manager)
 
 
-target_compile_options(yt-library-tracing PRIVATE
+target_compile_options(library-tracing-baggage_manager PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -30,18 +25,39 @@ target_compile_options(yt-library-tracing PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_link_libraries(yt-library-tracing PUBLIC
+target_link_libraries(library-tracing-baggage_manager PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-build
-  yt_proto-yt-core
+  yt-library-tracing
 )
 
-target_sources(yt-library-tracing PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/tracer.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/async_queue_trace.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/batch_trace.cpp
+target_sources(library-tracing-baggage_manager PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/baggage_manager/baggage_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/baggage_manager/config.cpp
+)
+
+
+add_global_library_for(library-tracing-baggage_manager.global
+  library-tracing-baggage_manager)
+
+
+target_compile_options(library-tracing-baggage_manager.global PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+)
+
+target_link_libraries(library-tracing-baggage_manager.global PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-library-tracing
+)
+
+target_sources(library-tracing-baggage_manager.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/tracing/baggage_manager/configure_baggage_manager.cpp
 )
 

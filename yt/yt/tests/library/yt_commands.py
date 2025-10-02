@@ -3217,10 +3217,20 @@ def create_chaos_cell_bundle(
     meta_cluster_names=[],
     clock_cluster_tag=None,
     independent_peers=True,
-    node_tag_filter=None
+    node_tag_filter=None,
+    options=None
 ):
     if not clock_cluster_tag:
         clock_cluster_tag = get("//sys/@primary_cell_tag")
+    bundle_options = {
+        "changelog_account": "sys",
+        "snapshot_account": "sys",
+        "peer_count": len(peer_cluster_names),
+        "independent_peers": independent_peers,
+        "clock_cluster_tag": clock_cluster_tag
+    }
+    if options:
+        bundle_options.update(options)
     params_pattern = {
         "type": "chaos_cell_bundle",
         "attributes": {
@@ -3228,13 +3238,7 @@ def create_chaos_cell_bundle(
             "chaos_options": {
                 "peers": [{"alien_cluster": cluster_name} for cluster_name in peer_cluster_names],
             },
-            "options": {
-                "changelog_account": "sys",
-                "snapshot_account": "sys",
-                "peer_count": len(peer_cluster_names),
-                "independent_peers": independent_peers,
-                "clock_cluster_tag": clock_cluster_tag
-            }
+            "options": bundle_options
         }
     }
 

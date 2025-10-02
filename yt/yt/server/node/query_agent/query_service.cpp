@@ -17,6 +17,7 @@
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
 #include <yt/yt/server/node/tablet_node/error_reporting_service_base.h>
+#include <yt/yt/server/node/tablet_node/helpers.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
@@ -105,6 +106,7 @@ using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
+using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
 using namespace NServer;
@@ -702,6 +704,10 @@ private:
 
                 SetErrorManagerContext(tabletSnapshot);
 
+                if (auto* traceContext = TryGetCurrentTraceContext()) {
+                    PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::PullRows, tabletSnapshot);
+                }
+
                 if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
                     THROW_ERROR_EXCEPTION(
                         NTabletClient::EErrorCode::UpstreamReplicaMismatch,
@@ -919,6 +925,10 @@ private:
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
         SetErrorManagerContext(tabletSnapshot);
+
+        if (auto* traceContext = TryGetCurrentTraceContext()) {
+            PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::ReadDynamicStore, tabletSnapshot);
+        }
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1467,6 +1477,10 @@ private:
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
         SetErrorManagerContext(tabletSnapshot);
+
+        if (auto* traceContext = TryGetCurrentTraceContext()) {
+            PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::FetchTableRows, tabletSnapshot);
+        }
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
