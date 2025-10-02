@@ -125,8 +125,7 @@ Nested namespaces are a common practice. Topmost namespace is usually `NYT`, but
 The last line of the namespace repeats the namespace name to make it easier to find the end of the namespace.
 
 ```cpp
-namespace NYT::NChunkPools
-{
+namespace NYT::NChunkPools {
 
 // Something
 
@@ -139,11 +138,12 @@ namespace NYT::NChunkPools
 
 We use separator lines to separate logical blocks of code. The separator line is a line with 80 `/` characters.
 
-The only strict place to always use separator lines is to distinguish the content of a namespace from its surrounding code. The use of separator lines between classes, structs, functions, etc is optional. We never use separator lines within a class, struct or function.
+The only strict place to always use separator lines is to distinguish the content of a namespace from its surrounding code. The use of separator lines between classes, structs, functions, etc is optional. Separator lines are not used between the opening of a namespace and using directives. We never use separator lines within a class, struct or function.
 
 ```cpp
-namespace NYT::NChunkPools
-{
+namespace NYT::NChunkPools {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
