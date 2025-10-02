@@ -1302,19 +1302,19 @@ Value* CodegenLexicographicalCompare(
 
 TCodegenExpression MakeCodegenLiteralExpr(
     int index,
-    bool nullbale,
+    bool nullable,
     EValueType type)
 {
     return [
             index,
-            nullbale,
+            nullable,
             type
         ] (TCGExprContext& builder) {
             return TCGValue::LoadFromRowValues(
                 builder,
                 builder.GetLiterals(),
                 index,
-                nullbale,
+                nullable,
                 false,
                 type,
                 "literal." + Twine(index))

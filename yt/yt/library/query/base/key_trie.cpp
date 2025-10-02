@@ -39,7 +39,7 @@ struct TKeyTrieComparer
 int CompareBound(const TBound& lhs, const TBound& rhs, bool lhsDir, bool rhsDir)
 {
     auto rank = [] (bool direction, bool included) {
-        // <  - (false, fasle)
+        // <  - (false, false)
         // >  - (true, false)
         // <= - (false, true)
         // >= - (true, true)
