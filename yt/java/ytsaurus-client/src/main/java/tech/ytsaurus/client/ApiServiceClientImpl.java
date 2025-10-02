@@ -669,7 +669,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
     ) {
-        // Auto-enable partial result
         request = request.toBuilder().setEnablePartialResult(true).build();
         return lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
@@ -683,7 +682,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
             AbstractLookupRowsRequest<?, ?> request
     ) {
-        // Auto-enable partial result
         request = request.toBuilder().setEnablePartialResult(true).build();
         return lookupRowsImpl(request, response -> {
             UnversionedRowset rowset = ApiServiceUtil.deserializeUnversionedRowset(
@@ -697,7 +695,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             MultiLookupRowsRequest request,
             YTreeRowSerializer<T> serializer
     ) {
-        // Auto-enable partial result for all subrequests
         {
             List<MultiLookupRowsSubrequest> subrequestsWithFlag = new ArrayList<>(request.getSubrequests().size());
             for (var sr : request.getSubrequests()) {
@@ -705,7 +702,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             }
             request = request.toBuilder().setSubrequests(subrequestsWithFlag).build();
         }
-        return multiLookupImpl(request, response -> multiLookupResponseReaderWithPartialResult(
+        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReaderWithPartialResult(
                 response,
                 (rowsetDescriptor, attachments, unavailableKeyIndexes) -> {
                     final ConsumerSourceRet<T> result = ConsumerSource.list();
@@ -718,14 +715,13 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                     );
                     return new LookupRowsResult<>(result.get(), unavailableKeyIndexes);
                 }
-        ));
+        )));
     }
 
     @Override
     public CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
             MultiLookupRowsRequest request
     ) {
-        // Auto-enable partial result for all subrequests
         {
             List<MultiLookupRowsSubrequest> subrequestsWithFlag = new ArrayList<>(request.getSubrequests().size());
             for (var sr : request.getSubrequests()) {
@@ -733,14 +729,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             }
             request = request.toBuilder().setSubrequests(subrequestsWithFlag).build();
         }
-        return multiLookupImpl(request, response -> multiLookupResponseReaderWithPartialResult(
+        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReaderWithPartialResult(
                 response,
                 (rowsetDescriptor, attachments, unavailableKeyIndexes) -> {
                     UnversionedRowset rowset = ApiServiceUtil.deserializeUnversionedRowset(
                             rowsetDescriptor, attachments);
                     return new LookupRowsResult<>(rowset, unavailableKeyIndexes);
                 }
-        ));
+        )));
     }
 
     private <T> List<T> multiLookupResponseReaderWithPartialResult(
@@ -843,13 +839,12 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
             AbstractLookupRowsRequest<?, ?> request
     ) {
-        // Auto-enable partial result
         request = request.toBuilder().setEnablePartialResult(true).build();
-        return versionedLookupRowsImpl(request, response -> {
+        return onStarted(request, versionedLookupRowsImpl(request, response -> {
             VersionedRowset rowset = ApiServiceUtil.deserializeVersionedRowset(
                     response.body().getRowsetDescriptor(), response.attachments());
             return new LookupRowsResult<>(rowset, response.body().getUnavailableKeyIndexesList());
-        });
+        }));
     }
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
