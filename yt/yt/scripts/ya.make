@@ -4,6 +4,7 @@ RECURSE(
     generate_documentation_release_notes
     generate_github_release_notes
     remove_master_unrecognized_options
+    tutorial
 )
 
 IF (NOT OPENSOURCE)
@@ -20,7 +21,6 @@ IF (NOT OPENSOURCE)
         mispick
         used_disk_space
         scrape_cofe_metrics
-        tutorial
         upload_resource
         copy_pool_structure
         dump_operation_input_tables
