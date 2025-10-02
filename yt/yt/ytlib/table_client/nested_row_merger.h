@@ -99,6 +99,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<int> GetMissingNestedKeyColumnsIfNeeded(
+    const TColumnFilter& columnFilter,
+    const TNestedColumnsSchema& nestedSchema);
+
 TColumnFilter EnrichColumnFilter(
     const TColumnFilter& columnFilter,
     const TNestedColumnsSchema& nestedSchema,
