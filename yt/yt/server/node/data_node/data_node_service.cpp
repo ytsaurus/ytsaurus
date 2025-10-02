@@ -1798,6 +1798,7 @@ private:
             netThrottling.Enabled,
             netThrottling.QueueSize);
 
+        //TODO(tea-mur): IO tracking for LookupRows
         context->ReplyFrom(chunkReadSession->Lookup(request->Attachments())
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TSharedRef& result) {
                 response->Attachments().push_back(result);

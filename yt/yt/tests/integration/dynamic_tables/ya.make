@@ -19,6 +19,7 @@ TEST_SRCS(
     test_dynamic_tables.py
     test_dynamic_tables_acl.py
     test_dynamic_tables_hunks.py
+    test_dynamic_tables_io_tracking.py
     test_dynamic_tables_leases.py
     test_dynamic_tables_metadata.py
     test_dynamic_tables_profiling.py

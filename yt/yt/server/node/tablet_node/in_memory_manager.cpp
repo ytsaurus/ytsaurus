@@ -22,6 +22,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -78,6 +80,7 @@ using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTracing;
 
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::NProto::TBlocksExt;
@@ -366,6 +369,9 @@ private:
                 mode,
                 readSessionId);
 
+        auto traceContext = TTraceContext::NewRoot("InMemoryManager");
+        TTraceContextGuard traceContextGuard(traceContext);
+
         YT_LOG_INFO("Preloading in-memory store");
 
         YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
@@ -389,6 +395,8 @@ private:
             storeManager->BackoffStorePreload(store);
             return;
         }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::Preload, tabletSnapshot);
 
         bool failed = false;
         auto readerProfiler = New<TReaderProfiler>();

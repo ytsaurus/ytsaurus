@@ -124,6 +124,7 @@ SRCS(
     tablet_node/error_manager.cpp
     tablet_node/failing_on_rotation_reader.cpp
     tablet_node/hedging_manager_registry.cpp
+    tablet_node/helpers.cpp
     tablet_node/hint_manager.cpp
     tablet_node/hunk_chunk.cpp
     tablet_node/hunk_chunk_sweeper.cpp
@@ -210,6 +211,7 @@ PEERDIR(
     yt/yt/library/containers/cri
     yt/yt/library/gpu
     yt/yt/library/tracing/jaeger
+    yt/yt/library/tracing/baggage_manager
     yt/yt/library/tcmalloc
     yt/yt/library/monitoring
     yt/yt/library/server_program

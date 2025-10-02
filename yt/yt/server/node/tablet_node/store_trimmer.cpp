@@ -15,6 +15,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -359,6 +361,10 @@ private:
         auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId);
         if (!tabletSnapshot) {
             return std::nullopt;
+        }
+
+        if (auto* traceContext = TryGetCurrentTraceContext()) {
+            PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::ReplicationLogTrim, tabletSnapshot);
         }
 
         if (tabletSnapshot->MountRevision != mountRevision) {

@@ -37,6 +37,7 @@ PY_SRCS(
     yt_fast_intermediate_medium_base.py
     yt_gpu_layers_helpers.py
     yt_helpers.py
+    yt_io_tracking_base.py
     yt_master_cell_addition_base.py
     yt_mock_server.py
     yt_operations_archive_helpers.py
