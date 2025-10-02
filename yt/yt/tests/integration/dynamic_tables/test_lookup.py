@@ -1200,6 +1200,38 @@ class TestLookup(TestSortedDynamicTablesBase):
         with raises_yt_error("row-level ACL is present, but is not supported"):
             lookup_rows("//tmp/t", [{"key": 15}], authenticated_user="u")
 
+    @authors("dtorilov")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_alter_from_timestamp_to_any(self, optimize_for):
+        sync_create_cells(1)
+        schema1 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type_v3": "timestamp"},
+        ]
+        schema2 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "any"},
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": optimize_for,
+                "schema": schema1,
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value1": 1733781290151000}], update=True)
+        keys = [{"key": 0}]
+        before = lookup_rows("//tmp/t", keys)[0]
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema2)
+        sync_mount_table("//tmp/t")
+        after = lookup_rows("//tmp/t", keys)[0]
+        assert after == before
+
 
 @pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):

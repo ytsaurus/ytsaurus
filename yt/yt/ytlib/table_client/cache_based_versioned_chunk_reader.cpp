@@ -8,6 +8,7 @@
 #include "schemaless_block_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
+#include "versioned_reader_adapter.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
@@ -467,6 +468,13 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions)
 {
+    auto chunkSchema = chunkMeta->ChunkSchema();
+
+    auto schemaIdMapping = chunkState->ChunkColumnMapping
+        ? chunkState->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
+        : TChunkColumnMapping(chunkState->TableSchema, chunkMeta->ChunkSchema())
+            .BuildVersionedSimpleSchemaIdMapping(columnFilter);
+
     auto createGenericVersionedReader = [&] {
         if (produceAllVersions && !columnFilter.IsUniversal()) {
             THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
@@ -475,7 +483,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         auto underlyingReader = CreateCacheReader(
             chunkId,
             chunkState->BlockCache);
-        return CreateVersionedChunkReader(
+
+        IVersionedReaderPtr reader = CreateVersionedChunkReader(
             columnEvaluatorCache,
             TChunkReaderConfig::GetDefault(),
             std::move(underlyingReader),
@@ -486,6 +495,12 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             columnFilter,
             timestamp,
             produceAllVersions);
+
+        return MaybeWrapWithAnyEncodingAdapter(
+            std::move(reader),
+            chunkState->TableSchema,
+            chunkSchema,
+            schemaIdMapping);
     };
 
     if (produceAllVersions && timestamp != AllCommittedTimestamp) {
@@ -500,7 +515,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             }
 
             YT_VERIFY(chunkState->TableSchema->IsUniqueKeys());
-            return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
+            IVersionedReaderPtr reader = New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkId,
                 chunkState,
                 chunkMeta,
@@ -508,13 +523,19 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 columnFilter,
                 chunkTimestamp,
                 produceAllVersions);
+            reader = MaybeWrapWithAnyEncodingAdapter(
+                std::move(reader),
+                chunkState->TableSchema,
+                chunkSchema,
+                schemaIdMapping);
+            return reader;
         }
 
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
-                return New<TReader>(
+                IVersionedReaderPtr reader = New<TReader>(
                     chunkId,
                     chunkState,
                     chunkMeta,
@@ -522,6 +543,12 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                     columnFilter,
                     timestamp,
                     produceAllVersions);
+                reader = MaybeWrapWithAnyEncodingAdapter(
+                    std::move(reader),
+                    chunkState->TableSchema,
+                    chunkSchema,
+                    schemaIdMapping);
+                return reader;
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -695,6 +722,13 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions)
 {
+    auto chunkSchema = chunkMeta->ChunkSchema();
+
+    auto schemaIdMapping = chunkState->ChunkColumnMapping
+        ? chunkState->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
+        : TChunkColumnMapping(chunkState->TableSchema, chunkMeta->ChunkSchema())
+            .BuildVersionedSimpleSchemaIdMapping(columnFilter);
+
     auto createGenericVersionedReader = [&] {
         if (produceAllVersions && !columnFilter.IsUniversal()) {
             THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
@@ -703,7 +737,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         auto underlyingReader = CreateCacheReader(
             chunkId,
             chunkState->BlockCache);
-        return CreateVersionedChunkReader(
+
+        IVersionedReaderPtr reader = CreateVersionedChunkReader(
             columnEvaluatorCache,
             TChunkReaderConfig::GetDefault(),
             std::move(underlyingReader),
@@ -714,6 +749,12 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             columnFilter,
             timestamp,
             produceAllVersions);
+
+        return MaybeWrapWithAnyEncodingAdapter(
+            std::move(reader),
+            chunkState->TableSchema,
+            chunkSchema,
+            schemaIdMapping);
     };
 
     if (produceAllVersions && timestamp != AllCommittedTimestamp) {
@@ -726,7 +767,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader();
             }
-            return New<TSimpleCacheBasedVersionedRangeChunkReader<THorizontalSchemalessVersionedBlockReader>>(
+            IVersionedReaderPtr reader = New<TSimpleCacheBasedVersionedRangeChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkId,
                 chunkState,
                 chunkMeta,
@@ -734,13 +775,19 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 columnFilter,
                 chunkTimestamp,
                 produceAllVersions);
+            reader = MaybeWrapWithAnyEncodingAdapter(
+                std::move(reader),
+                chunkState->TableSchema,
+                chunkSchema,
+                schemaIdMapping);
+            return reader;
         }
 
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
-                return New<TReader>(
+                IVersionedReaderPtr reader = New<TReader>(
                     chunkId,
                     chunkState,
                     chunkMeta,
@@ -748,6 +795,12 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                     columnFilter,
                     timestamp,
                     produceAllVersions);
+                reader = MaybeWrapWithAnyEncodingAdapter(
+                    std::move(reader),
+                    chunkState->TableSchema,
+                    chunkSchema,
+                    schemaIdMapping);
+                return reader;
             };
 
             switch (chunkMeta->GetChunkFormat()) {

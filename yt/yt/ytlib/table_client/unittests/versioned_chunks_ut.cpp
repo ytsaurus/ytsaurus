@@ -1635,6 +1635,33 @@ protected:
             /*produceAllVersions*/ false);
     }
 
+    void DoAlterValuesToAny()
+    {
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+
+        auto readColumnSchemas = ColumnSchemas_;
+        readColumnSchemas[6].SetSimpleLogicalType(ESimpleLogicalValueType::Any); // Column "v2".
+        readColumnSchemas[7].SetSimpleLogicalType(ESimpleLogicalValueType::Any); // Column "v3".
+        readColumnSchemas[8].SetSimpleLogicalType(ESimpleLogicalValueType::Any); // Column "v4".
+        readColumnSchemas[9].SetSimpleLogicalType(ESimpleLogicalValueType::Any); // Column "v5".
+        readColumnSchemas[10].SetSimpleLogicalType(ESimpleLogicalValueType::Any); // Column "v6".
+        auto readSchema = New<TTableSchema>(std::move(readColumnSchemas));
+
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
+
+        TestRangeReader(
+            InitialRows_,
+            memoryChunkReader,
+            writeSchema,
+            readSchema,
+            MinKey(),
+            MaxKey(),
+            SyncLastCommittedTimestamp,
+            /*produceAllVersions*/ false);
+    }
+
     void DoSingleGroup()
     {
         auto writeColumnSchemas = ColumnSchemas_;
@@ -1780,6 +1807,11 @@ TEST_P(TVersionedChunksHeavyTest, AlterExtraKeyColumns)
 TEST_P(TVersionedChunksHeavyTest, AlterExtraValueColumns)
 {
     DoAlterExtraValueColumns();
+}
+
+TEST_P(TVersionedChunksHeavyTest, AlterValuesToAny)
+{
+    DoAlterValuesToAny();
 }
 
 TEST_P(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)

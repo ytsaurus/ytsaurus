@@ -73,11 +73,13 @@ TCompactVector<TValueSchema, 32> GetValuesSchema(
 
     const auto& schemaColumns = tableSchema.Columns();
     for (const auto& idMapping : valueIdMapping) {
-        auto type = schemaColumns[idMapping.ReaderSchemaIndex].GetWireType();
+        auto& tableType = schemaColumns[idMapping.ReaderSchemaIndex];
+        auto& chunkType = chunkSchema.Columns()[idMapping.ChunkSchemaIndex];
         *valueSchemaData++ = TValueSchema{
-            ui16(idMapping.ReaderSchemaIndex),
-            type,
-            chunkSchema.Columns()[idMapping.ChunkSchemaIndex].Aggregate().has_value(),
+            .Id = static_cast<ui16>(idMapping.ReaderSchemaIndex),
+            .Type = chunkType.GetWireType(),
+            .Aggregate = chunkType.Aggregate().has_value(),
+            .ConvertToAny = (tableType.GetWireType() == EValueType::Any) && (chunkType.GetWireType() != EValueType::Any),
         };
     }
 
@@ -777,7 +779,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         readItemWidth,
         keyColumnIndexes,
         MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, const TValueSchema& valueSchema) {
-            builder->AppendFormat("%v", valueSchema.Type);
+            builder->AppendFormat("(Type: %v, ConvertToAny: %v)", valueSchema.Type, valueSchema.ConvertToAny);
         }),
         preparedChunkMeta->FullNewMeta);
 

@@ -5,6 +5,8 @@
 #endif
 #undef SEGMENT_READERS_INL_H_
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <library/cpp/yt/coding/zig_zag.h>
 
 namespace NYT::NColumnarChunkFormat {
@@ -911,6 +913,34 @@ template <bool Aggregate>
 void TLookupVersionExtractor<Aggregate>::Prefetch(ui32 valueIdx) const
 {
     WriteTimestampIds_.Prefetch(valueIdx);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TUnderlying>
+TAnyEncodingExtractor<TUnderlying>::TAnyEncodingExtractor(TChunkedMemoryPool* memoryPool)
+    : MemoryPool_(memoryPool)
+{ }
+
+template <class TUnderlying>
+void TAnyEncodingExtractor<TUnderlying>::ExtractDict(TUnversionedValue* value, ui32 position) const
+{
+    TUnderlying::ExtractDict(value, position);
+    *value = NTableClient::EncodeUnversionedAnyValue(*value, MemoryPool_);
+}
+
+template <class TUnderlying>
+void TAnyEncodingExtractor<TUnderlying>::ExtractDirect(TUnversionedValue* value, ui32 position) const
+{
+    TUnderlying::ExtractDirect(value, position);
+    *value = NTableClient::EncodeUnversionedAnyValue(*value, MemoryPool_);
+}
+
+template <class TUnderlying>
+void TAnyEncodingExtractor<TUnderlying>::Extract(TUnversionedValue* value, ui32 position) const
+{
+    TUnderlying::Extract(value, position);
+    *value = NTableClient::EncodeUnversionedAnyValue(*value, MemoryPool_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -721,6 +721,69 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TUnderlying>
+class TAnyEncodingExtractor
+    : public TUnderlying
+{
+public:
+    Y_FORCE_INLINE explicit TAnyEncodingExtractor(TChunkedMemoryPool* memoryPool);
+
+    Y_FORCE_INLINE void ExtractDict(TUnversionedValue* value, ui32 position) const;
+    Y_FORCE_INLINE void ExtractDirect(TUnversionedValue* value, ui32 position) const;
+    Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const;
+
+protected:
+    TChunkedMemoryPool* MemoryPool_;
+};
+
+template <EValueType Type, bool ConvertToAny>
+class TMaybeWrapLookupDataExtractor;
+
+template <EValueType Type>
+class TMaybeWrapLookupDataExtractor<Type, false>
+    : public TLookupDataExtractor<Type>
+{
+public:
+    explicit TMaybeWrapLookupDataExtractor(TChunkedMemoryPool* /*memoryPool*/)
+        : TLookupDataExtractor<Type>()
+    { }
+};
+
+template <EValueType Type>
+class TMaybeWrapLookupDataExtractor<Type, true>
+    : public TAnyEncodingExtractor<TLookupDataExtractor<Type>>
+{
+public:
+    explicit TMaybeWrapLookupDataExtractor(TChunkedMemoryPool* memoryPool)
+        : TAnyEncodingExtractor<TLookupDataExtractor<Type>>(memoryPool)
+    { }
+};
+
+template <EValueType Type, bool ConvertToAny>
+class TMaybeWrapScanDataExtractor;
+
+template <EValueType Type>
+class TMaybeWrapScanDataExtractor<Type, false>
+    : public TScanDataExtractor<Type>
+{
+public:
+    explicit TMaybeWrapScanDataExtractor(TChunkedMemoryPool* /*memoryPool*/)
+        : TScanDataExtractor<Type>()
+    { }
+};
+
+template <EValueType Type>
+class TMaybeWrapScanDataExtractor<Type, true>
+    : public TAnyEncodingExtractor<TScanDataExtractor<Type>>
+{
+public:
+    explicit TMaybeWrapScanDataExtractor(TChunkedMemoryPool* memoryPool)
+        : TAnyEncodingExtractor<TScanDataExtractor<Type>>(memoryPool)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NColumnarChunkFormat
 
 #define SEGMENT_READERS_INL_H_
