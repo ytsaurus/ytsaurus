@@ -194,6 +194,7 @@ public:
     UNSUPPORTED_METHOD(TFuture<void>, ResetStateHash, (NObjectClient::TCellId, const TResetStateHashOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, GCCollect, (const TGCCollectOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, KillProcess, (const std::string&, const TKillProcessOptions&));
+    UNSUPPORTED_METHOD(TFuture<TPingNodeResult>, PingNode, (const std::string&, const TPingNodeOptions&));
     UNSUPPORTED_METHOD(TFuture<TString>, WriteCoreDump, (const std::string&, const TWriteCoreDumpOptions&));
     UNSUPPORTED_METHOD(TFuture<TGuid>, WriteLogBarrier, (const std::string&, const TWriteLogBarrierOptions&));
     UNSUPPORTED_METHOD(TFuture<TString>, WriteOperationControllerCoreDump, (NJobTrackerClient::TOperationId, const TWriteOperationControllerCoreDumpOptions&));

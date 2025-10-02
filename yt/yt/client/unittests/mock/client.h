@@ -295,6 +295,11 @@ public:
         const TKillProcessOptions& options),
         (override));
 
+    MOCK_METHOD(TFuture<TPingNodeResult>, PingNode, (
+        const std::string& nodeAddress,
+        const TPingNodeOptions& options),
+        (override));
+
     MOCK_METHOD(TFuture<TString>, WriteCoreDump, (
         const std::string& address,
         const TWriteCoreDumpOptions& options),

@@ -177,6 +177,7 @@ private:
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
             ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+            ChannelFactory_,
             /*authenticator*/ nullptr));
     }
 

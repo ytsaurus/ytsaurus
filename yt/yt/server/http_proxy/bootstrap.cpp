@@ -224,6 +224,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
         ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+        Connection_->GetChannelFactory(),
         /*authenticator*/ nullptr));
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);

@@ -261,6 +261,7 @@ private:
         RpcServer_->RegisterService(NAdmin::CreateAdminService(
             ControlInvoker_,
             coreDumper,
+            Connection_->GetChannelFactory(),
             NativeAuthenticator_));
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
             orchidRoot,
