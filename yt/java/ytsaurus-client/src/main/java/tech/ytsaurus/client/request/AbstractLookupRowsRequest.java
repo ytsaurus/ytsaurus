@@ -91,7 +91,7 @@ public abstract class AbstractLookupRowsRequest<
             public void writeTo(RpcClientRequestBuilder<TReqLookupRows.Builder, ?> builder) {
                 builder.body().setPath(ByteString.copyFromUtf8(getPath()));
                 builder.body().addAllColumns(getLookupColumns());
-                    builder.body().setKeepMissingRows(getKeepMissingRows());
+                builder.body().setKeepMissingRows(getKeepMissingRows());
                 builder.body().setEnablePartialResult(getEnablePartialResult());
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());

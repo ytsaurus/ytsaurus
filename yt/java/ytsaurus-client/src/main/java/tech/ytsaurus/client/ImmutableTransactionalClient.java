@@ -44,11 +44,6 @@ public interface ImmutableTransactionalClient {
             YTreeRowSerializer<T> serializer
     );
 
-    /**
-     * Lookup rows with partial result support.
-     * Returns a LookupRowsResult that contains both the rowset and unavailable key indexes
-     * when enablePartialResult is set to true in the request.
-     */
     <T> CompletableFuture<LookupRowsResult<List<T>>> lookupRowsWithPartialResult(
             AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
@@ -61,9 +56,6 @@ public interface ImmutableTransactionalClient {
         return lookupRowsWithPartialResult(request.build(), serializer);
     }
 
-    /**
-     * Lookup rows with partial result support, returning UnversionedRowset.
-     */
     CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
             AbstractLookupRowsRequest<?, ?> request
     );
@@ -74,11 +66,6 @@ public interface ImmutableTransactionalClient {
         return lookupRowsWithPartialResult(request.build());
     }
 
-    /**
-     * Versioned lookup rows with partial result support.
-     * Returns a LookupRowsResult that contains both the versioned rowset and unavailable key indexes
-     * when enablePartialResult is set to true in the request.
-     */
     CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
             AbstractLookupRowsRequest<?, ?> request
     );
@@ -89,11 +76,6 @@ public interface ImmutableTransactionalClient {
         return versionedLookupRowsWithPartialResult(request.build());
     }
 
-    /**
-     * Multi lookup rows with partial result support.
-     * Returns a list of LookupRowsResult that contains both the rowset and unavailable key indexes
-     * for each subrequest when enablePartialResult is set to true.
-     */
     <T> CompletableFuture<List<LookupRowsResult<List<T>>>> multiLookupRowsWithPartialResult(
             MultiLookupRowsRequest request,
             YTreeRowSerializer<T> serializer
@@ -106,9 +88,6 @@ public interface ImmutableTransactionalClient {
         return multiLookupRowsWithPartialResult(request.build(), serializer);
     }
 
-    /**
-     * Multi lookup rows with partial result support, returning UnversionedRowsets.
-     */
     CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
             MultiLookupRowsRequest request
     );

@@ -118,7 +118,6 @@ public abstract class AbstractLookupRequest<
         sb.append("Path: ").append(path).append("; ");
         sb.append("Schema: ").append(schema).append("; ");
         sb.append("LookupColumns: ").append(lookupColumns).append("; ");
-        sb.append("EnablePartialResult: ").append(enablePartialResult).append("; ");
         super.writeArgumentsLogString(sb);
     }
 
