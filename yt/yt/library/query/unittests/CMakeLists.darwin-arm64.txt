@@ -13,14 +13,15 @@
 # changes in this file.
 
 add_subdirectory(helpers)
+add_subdirectory(evaluate)
 add_subdirectory(udf)
 add_subdirectory(v1)
 add_subdirectory(v2)
 
-add_library(library-query-unittests)
+add_library(library-query-unittests INTERFACE)
 
 
-target_compile_options(library-query-unittests PRIVATE
+target_compile_options(library-query-unittests INTERFACE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -28,11 +29,11 @@ target_compile_options(library-query-unittests PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_include_directories(library-query-unittests PRIVATE
+target_include_directories(library-query-unittests INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
 
-target_link_libraries(library-query-unittests PUBLIC
+target_link_libraries(library-query-unittests INTERFACE
   contrib-libs-cxxsupp
   yutil
   yt-yt-build
@@ -40,6 +41,7 @@ target_link_libraries(library-query-unittests PUBLIC
   library-query-distributed
   library-query-engine
   library-query-engine_api
+  query-unittests-evaluate
   query-unittests-helpers
   query-unittests-udf
   contrib-libs-sparsehash
@@ -47,11 +49,6 @@ target_link_libraries(library-query-unittests PUBLIC
 
 target_link_options(library-query-unittests INTERFACE
   -rdynamic
-)
-
-target_sources(library-query-unittests PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/test_evaluate.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/disable_web_assembly.cpp
 )
 
 
@@ -79,6 +76,7 @@ target_link_libraries(library-query-unittests.global PUBLIC
   library-query-distributed
   library-query-engine
   library-query-engine_api
+  query-unittests-evaluate
   query-unittests-helpers
   query-unittests-udf
   contrib-libs-sparsehash
@@ -89,7 +87,6 @@ target_sources(library-query-unittests.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_distributed_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_query_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_range_inference_ut.cpp

@@ -1,6 +1,7 @@
-#include "test_evaluate.h"
 #include "udf/short_invalid_ir.h"
 #include "udf/long_invalid_ir.h"
+
+#include <yt/yt/library/query/unittests/evaluate/test_evaluate.h>
 
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>

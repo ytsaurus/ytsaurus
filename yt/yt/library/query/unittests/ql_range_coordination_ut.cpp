@@ -1,9 +1,10 @@
-#include <yt/yt/core/test_framework/framework.h>
-#include "ql_helpers.h"
+#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
 #include <yt/yt/core/misc/range_formatters.h>
+
+#include <yt/yt/core/test_framework/framework.h>
 
 #include <util/random/fast.h>
 
