@@ -2516,6 +2516,23 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.execute_command(src_path, dst_path)
 
+    @authors("cherepashka")
+    def test_cross_cell_copy_with_prerequisite_revision(self):
+        source_path = f"{self.SRC}/revision_node"
+        create("table", source_path)
+        revision = get(f"{source_path}/@revision")
+
+        with raises_yt_error("Cross-cell \"copy\"/\"move\" command does not support prerequisite revisions"):
+            self.execute_command(
+                source_path,
+                f"{self.DST}/revision_node",
+                prerequisite_revisions=[
+                    {
+                        "path": source_path,
+                        "revision": revision,
+                    }
+                ])
+
 ################################################################################
 
 
