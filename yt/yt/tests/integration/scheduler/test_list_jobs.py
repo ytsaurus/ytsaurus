@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint,
     release_breakpoint, with_breakpoint, create, get, set, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
-    map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
+    map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla, interrupt_job,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
     make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job, list_operation_events)
@@ -1153,6 +1153,42 @@ class TestListJobs(TestListJobsCommon):
             event_after = list_operation_events(op.id, event_type="incarnation_started", limit=1)
             assert len(event_after) == 1
             assert event_after[0]["incarnation"] == incarnation
+
+    @authors("bystrovserg")
+    def test_list_operation_events_empty_trigger_job_error(self):
+        exit_code = 17
+
+        command = f"""(trap "exit {exit_code}" SIGINT; BREAKPOINT)"""
+
+        op = run_test_vanilla(
+            command=with_breakpoint(command),
+            job_count=3,
+            task_patch={
+                "interruption_signal": "SIGINT",
+                "restart_exit_code": exit_code,
+                "gang_options": {},
+            },
+        )
+        first_job_ids = wait_breakpoint(job_count=3)
+        job_id_to_interrupt = first_job_ids[0]
+
+        interrupt_job(job_id_to_interrupt)
+
+        wait(lambda: get_job(op.id, job_id_to_interrupt).get("interruption_info") is not None)
+
+        for job_id in first_job_ids:
+            release_breakpoint(job_id=job_id)
+
+        wait_breakpoint(job_count=3)
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 2)
+        job_interrupted_incarnation = list_operation_events(op.id, event_type="incarnation_started")[1]
+        assert job_interrupted_incarnation["incarnation_switch_reason"] == "job_interrupted"
+        assert job_interrupted_incarnation["incarnation_switch_info"]["trigger_job_id"] == job_id_to_interrupt
+        assert job_interrupted_incarnation["incarnation_switch_info"].get("trigger_job_error") is None
 
     @authors("bystrovserg")
     def test_from_time_and_to_time_filters(self):
