@@ -244,8 +244,11 @@ public:
 
     TExprNode::TPtr RewriteIO(const TExprNode::TPtr& node, TExprContext& ctx) override {
         YQL_ENSURE(TMaybeNode<TYtWrite>(node).DataSink());
-        auto mode = NYql::GetSetting(*node->Child(4), EYtSettingType::Mode);
-        if (mode && FromString<EYtWriteMode>(mode->Child(1)->Content()) == EYtWriteMode::Drop) {
+        std::optional<EYtWriteMode> mode;
+        if (const auto m = NYql::GetSetting(*node->Child(4), EYtSettingType::Mode)) {
+            mode = FromString<EYtWriteMode>(m->Tail().Content());
+        }
+        if (mode && *mode == EYtWriteMode::Drop) {
             if (!node->Child(3)->IsCallable("Void")) {
                 ctx.AddError(TIssue(ctx.GetPosition(node->Child(3)->Pos()), TStringBuilder()
                     << "Expected Void, but got: " << node->Child(3)->Content()));
@@ -255,7 +258,7 @@ public:
             TExprNode::TListType children = node->ChildrenList();
             children.resize(3);
             return ctx.NewCallable(node->Pos(), TYtDropTable::CallableName(), std::move(children));
-        } else if (mode && FromString<EYtWriteMode>(mode->Child(1U)->Content()) == EYtWriteMode::Create) {
+        } else if (mode && *mode == EYtWriteMode::Create) {
             if (!node->Child(3U)->IsCallable("Void")) {
                 ctx.AddError(TIssue(ctx.GetPosition(node->Child(3U)->Pos()), TStringBuilder()
                     << "Expected Void, but got: " << node->Child(3U)->Content()));
@@ -273,7 +276,7 @@ public:
             return ctx.NewCallable(node->Pos(), TYtCreateTable::CallableName(), std::move(children));
         } else {
             auto res = ctx.RenameNode(*node, TYtWriteTable::CallableName());
-            if ((!mode || FromString<EYtWriteMode>(mode->Child(1)->Content()) == EYtWriteMode::Renew) && NYql::HasSetting(*node->Child(4), EYtSettingType::KeepMeta)) {
+            if ((!mode || *mode == EYtWriteMode::Renew) && NYql::HasSetting(*node->Child(4), EYtSettingType::KeepMeta)) {
                 auto settings = NYql::AddSetting(
                     *NYql::RemoveSettings(*node->Child(4), EYtSettingType::Mode | EYtSettingType::KeepMeta, ctx),
                     EYtSettingType::Mode,
