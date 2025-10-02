@@ -36,11 +36,13 @@ public:
     NCommon::TConfSetting<bool, Static> FiniteStreams;
 
     NCommon::TConfSetting<uint64_t, Static> ControllerCount;
+    NCommon::TConfSetting<double, Static> ControllerCpuLimit;
     NCommon::TConfSetting<NSize::TSize, Static> ControllerMemoryLimit;
     NCommon::TConfSetting<uint64_t, Static> ControllerRpcPort;
     NCommon::TConfSetting<uint64_t, Static> ControllerMonitoringPort;
 
     NCommon::TConfSetting<uint64_t, Static> WorkerCount;
+    NCommon::TConfSetting<double, Static> WorkerCpuLimit;
     NCommon::TConfSetting<NSize::TSize, Static> WorkerMemoryLimit;
     NCommon::TConfSetting<uint64_t, Static> WorkerRpcPort;
     NCommon::TConfSetting<uint64_t, Static> WorkerMonitoringPort;
