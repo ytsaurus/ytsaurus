@@ -1151,7 +1151,10 @@ private:
                             .Do([&] (auto fluent) {
                                 BuildYsonReplicas(fluent.GetConsumer(), chunkManager, chunkId, chunkReplicas);
                             });
-                    }));
+                    })
+                    .AsyncViaGuarded(
+                        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                        TError("Error fetching Sequoia replicas")));
             }
 
             case EInternedAttributeKey::LastSeenReplicas: {
@@ -1203,7 +1206,10 @@ private:
                                 .EndAttributes()
                                 .Value(replica.GetPtr()->GetDefaultAddress());
                         });
-                }));
+                })
+                .AsyncViaGuarded(
+                    Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                    TError("Error fetching Sequoia replicas")));
             }
 
             case EInternedAttributeKey::UnapprovedSequoiaReplicas: {
@@ -1227,7 +1233,10 @@ private:
                                 fluent.Item()
                                     .Value(replica.GetPtr()->GetDefaultAddress());
                             });
-                        }));
+                    })
+                    .AsyncViaGuarded(
+                        Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+                        TError("Error fetching Sequoia replicas")));
             }
 
             default:
