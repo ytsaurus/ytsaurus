@@ -115,7 +115,7 @@ def build_dashboard(rowsets, bundle=False, role=False, host=False, only_paramete
         d.add_parameter(
             "host", "Host", MonitoringLabelDashboardParameter("yt", "host", "Aggr"), backends=["monitoring"]
         )
-        d.add_parameter("pod", "Pod", GrafanaTextboxDashboardParameter(".*"), backends=["grafana"])
+        d.add_parameter("pod", "Pod", GrafanaTextboxDashboardParameter(".*", ".*"), backends=["grafana"])
 
     return d
 
