@@ -19,7 +19,7 @@ func ExampleSysvShmGet() {
 		log.Fatal("sysv shm create failed:", err)
 	}
 
-	// warning: sysv shared memory segments persist even after after a process
+	// warning: sysv shared memory segments persist even after a process
 	// is destroyed, so it's very important to explicitly delete it when you
 	// don't need it anymore.
 	defer func() {
