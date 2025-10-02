@@ -7,6 +7,7 @@ import yaml
 import os
 
 from yt_record_codegen.lib import Field, Manifest
+import yt_record_render
 
 
 ################################################################################
@@ -85,7 +86,8 @@ except ImportError:
             records_text.append(file.read())
 
 for text in records_text:
-    manifest_dict = yaml.safe_load(text)
+    rendered_text = yt_record_render.render(text.decode(), version=None)
+    manifest_dict = yaml.safe_load(rendered_text)
     manifest = from_dict(Manifest, manifest_dict)
     for record in manifest.types:
         name = record.table_name
