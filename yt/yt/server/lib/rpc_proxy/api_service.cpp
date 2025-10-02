@@ -3283,6 +3283,9 @@ private:
             options.Attributes.emplace();
             NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes().keys());
         }
+        if (request->has_monitoring_descriptor()) {
+            options.MonitoringDescriptor = request->monitoring_descriptor();
+        }
 
         options.SortField = FromProto<EJobSortField>(request->sort_field());
         options.SortOrder = FromProto<EJobSortDirection>(request->sort_order());
@@ -3300,7 +3303,7 @@ private:
         context->SetRequestInfo(
             "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
             "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, "
-            "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v",
+            "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v, MonitoringDescriptor: %v",
             operationIdOrAlias,
             options.Type,
             options.State,
@@ -3312,7 +3315,8 @@ private:
             options.WithCompetitors,
             options.WithMonitoringDescriptor,
             options.WithInterruptionInfo,
-            options.Attributes);
+            options.Attributes,
+            options.MonitoringDescriptor);
 
         ExecuteCall(
             context,

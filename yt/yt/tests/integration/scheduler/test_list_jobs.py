@@ -1482,6 +1482,59 @@ class TestListJobs(TestListJobsCommon):
 
         check_job_ranks()
 
+    @authors("bystrovserg")
+    def test_monitoring_filter(self):
+        update_controller_agent_config(
+            "user_job_monitoring/extended_max_monitored_user_jobs_per_operation", 2)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["cpu/user"],
+                },
+            },
+        )
+
+        jobs_before = wait_breakpoint(job_count=2)
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 2)
+
+        jobs_with_monitoring_descriptor = list_jobs(op.id, with_monitoring_decriptor=True)["jobs"]
+        assert len(jobs_with_monitoring_descriptor) == 2
+        job_id1 = jobs_with_monitoring_descriptor[0]["id"]
+        descriptor1 = jobs_with_monitoring_descriptor[0]["monitoring_descriptor"]
+        job_id2 = jobs_with_monitoring_descriptor[1]["id"]
+        descriptor2 = jobs_with_monitoring_descriptor[1]["monitoring_descriptor"]
+
+        assert descriptor1 != descriptor2
+        abort_job(job_id1)
+
+        wait(lambda: len(op.list_jobs()) == 3)
+
+        assert get_job(op.id, job_id2)["monitoring_descriptor"] == descriptor2
+
+        new_job_ids = builtins.set(op.list_jobs()).difference(jobs_before)
+        assert len(new_job_ids) == 1
+        job_id3 = new_job_ids.pop()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id3))
+        assert get_job(op.id, job_id3)["monitoring_descriptor"] == descriptor1
+
+        assert len(op.list_jobs()) == 3
+        assert frozenset([job["id"] for job in list_jobs(op.id, monitoring_descriptor=descriptor1)["jobs"]]) == frozenset([job_id1, job_id3])
+        assert list_jobs(op.id, monitoring_descriptor=descriptor2)["jobs"][0]["id"] == job_id2
+
+        # Wrong descriptor
+        assert len(list_jobs(op.id, monitoring_descriptor="deadbeef")["jobs"]) == 0
+
+        release_breakpoint()
+        op.track()
+
+        assert frozenset([job["id"] for job in list_jobs(op.id, monitoring_descriptor=descriptor1)["jobs"]]) == frozenset([job_id1, job_id3])
+        assert list_jobs(op.id, monitoring_descriptor=descriptor2)["jobs"][0]["id"] == job_id2
+
 
 class TestListJobsAllocation(TestListJobsBase):
     NUM_NODES = 1
