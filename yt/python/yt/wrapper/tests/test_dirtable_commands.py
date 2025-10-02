@@ -5,7 +5,9 @@ from textwrap import dedent
 from .conftest import authors
 from .helpers import TEST_DIR
 
-from yt.wrapper.common import MB
+import yt.wrapper as yt
+
+from yt.wrapper.common import MB, KB
 from yt.wrapper import dirtable_commands
 
 import multiprocessing
@@ -16,9 +18,11 @@ import pytest
 class TestDirtableCommands(object):
     @authors("alkedr")
     def test_dirtable_commands(self, tmpdir):
+        content1 = b"1234" * 5 * KB
+        content2 = b"5678" * 5 * KB
         dir1 = tmpdir.mkdir("dir1")
-        dir1.join("file1").write_binary(b"1234")
-        dir1.mkdir("subdir").join("file2").write_binary(b"5678")
+        dir1.join("file1").write_binary(content1)
+        dir1.mkdir("subdir").join("file2").write_binary(content2)
 
         yt_table = TEST_DIR + "/dirtable1"
 
@@ -26,7 +30,7 @@ class TestDirtableCommands(object):
             directory=str(dir1),
             recursive=True,
             yt_table=yt_table,
-            part_size=4 * MB,
+            part_size=4 * KB,
             process_count=4,
             force=True,
             prepare_for_sky_share=True,
@@ -35,7 +39,8 @@ class TestDirtableCommands(object):
             process_pool_class=multiprocessing.pool.ThreadPool,
         )
 
-        dir1.join("file3").write_binary(b"9")
+        content3 = b"9"
+        dir1.join("file3").write_binary(content3)
         dirtable_commands.append_single_file(
             yt_table=yt_table,
             fs_path=str(dir1.join("file3")),
@@ -51,6 +56,9 @@ class TestDirtableCommands(object):
             client=None,
         )
 
+        part_size = yt.get(yt_table + "/@part_size")
+        yt.remove(yt_table + "/@part_size")
+
         dir2 = tmpdir.mkdir("dir2")
         dirtable_commands.download_directory_from_yt(
             directory=dir2,
@@ -64,11 +72,26 @@ class TestDirtableCommands(object):
             process_pool_class=multiprocessing.pool.ThreadPool,
         )
 
-        assert tmpdir.join("dir2").join("file1").read_binary() == b"1234"
-        assert tmpdir.join("dir2").join("subdir").join("file2").read_binary() == b"5678"
-        assert tmpdir.join("dir2").join("file3").read_binary() == b"9"
+        assert tmpdir.join("dir2").join("file1").read_binary() == content1
+        assert tmpdir.join("dir2").join("subdir").join("file2").read_binary() == content2
+        assert tmpdir.join("dir2").join("file3").read_binary() == content3
 
         dir3 = tmpdir.mkdir("dir3")
+        with pytest.raises(yt.YtError):
+            dirtable_commands.download_directory_from_yt(
+                directory=dir3,
+                yt_table=yt_table,
+                process_count=4,
+                # exact_filenames="file3,file1",
+                exact_filenames=None,
+                filter_by_regexp=re.compile("file1|file3"),
+                exclude_by_regexp=None,
+                client=None,
+                process_pool_class=multiprocessing.pool.ThreadPool,
+            )
+
+        part_size = yt.set(yt_table + "/@part_size", part_size)
+
         dirtable_commands.download_directory_from_yt(
             directory=dir3,
             yt_table=yt_table,
@@ -80,8 +103,8 @@ class TestDirtableCommands(object):
             process_pool_class=multiprocessing.pool.ThreadPool,
         )
 
-        assert tmpdir.join("dir3").join("file1").read_binary() == b"1234"
-        assert tmpdir.join("dir3").join("file3").read_binary() == b"9"
+        assert tmpdir.join("dir3").join("file1").read_binary() == content1
+        assert tmpdir.join("dir3").join("file3").read_binary() == content3
         assert not tmpdir.join("dir3").join("subdir").exists()
 
     @authors("optimus", "denvr")
