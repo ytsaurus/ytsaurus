@@ -454,15 +454,15 @@ items:
         href: admin-guide/components.md
       - name: Установка
         items:
-          - name: Установка {{product-name}}
+          - name: YTsaurus
             href: admin-guide/install-ytsaurus.md
-          - name: Установка CHYT
-            href: admin-guide/chyt.md
-          - name: Установка SPYT
-            href: admin-guide/spyt.md
-          - name: Установка Cron
+          - name: CHYT
+            href: admin-guide/install-chyt.md
+          - name: SPYT
+            href: admin-guide/install-spyt.md
+          - name: Cron
             href: admin-guide/install-cron.md
-          - name: Установка Odin
+          - name: Odin
             href: admin-guide/install-odin.md
       - name: Подготовка спецификации {{product-name}}
         items:

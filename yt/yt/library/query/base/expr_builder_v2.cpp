@@ -11,7 +11,7 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Types (t1, t2) unified to t2 if there is cast t1 -> t2.
-// Types (t1, t2, t3) are not unitified to t3 with casts t1 -> t2 and t2 -> t3 because no direct cast t1 -> t3.
+// Types (t1, t2, t3) are not unified to t3 with casts t1 -> t2 and t2 -> t3 because no direct cast t1 -> t3.
 // Types (t1, t2, t3) unified to t2 with t2 -> t3 and t1 -> t3.
 
 TTypeId UnifyTypes(TStringBuf name, TTypingCtx* typingCtx, TRange<TTypeId> types)
@@ -937,7 +937,7 @@ TConstExpressionPtr TExprBuilderV2::OnTransformOp(
     std::sort(resultTypes.begin(), resultTypes.end());
     resultTypes.erase(std::unique(resultTypes.begin(), resultTypes.end()), resultTypes.end());
 
-    // TODO(lukyan): On error find first occurence of value with no coercion.
+    // TODO(lukyan): On error find first occurrence of value with no coercion.
     auto resultType = TypingCtx_.GetWireType(UnifyTypes("transform", &TypingCtx_, resultTypes));
 
     if (defaultTypedExpr && TypingCtx_.GetTypeId(resultType) != TypingCtx_.GetTypeId(defaultTypedExpr->GetWireType())) {
@@ -1073,7 +1073,7 @@ TConstExpressionPtr TExprBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseEx
     std::sort(resultTypes.begin(), resultTypes.end());
     resultTypes.erase(std::unique(resultTypes.begin(), resultTypes.end()), resultTypes.end());
 
-    // TODO(lukyan): On error find first occurence of value with no coercion.
+    // TODO(lukyan): On error find first occurrence of value with no coercion.
     TTypeId resultType;
     try {
         resultType = UnifyTypes("case", &TypingCtx_, resultTypes);

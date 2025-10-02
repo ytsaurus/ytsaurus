@@ -308,7 +308,7 @@ public:
         NativeGateway_->AddCluster(cluster);
     }
 
-    TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) override {
+    TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) const override {
         return NativeGateway_->GetClusterConnection(std::move(options));
     }
 

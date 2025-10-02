@@ -37,6 +37,9 @@ public:
     using THunkChunkMap = THashMap<NChunkClient::TChunkId, std::unique_ptr<THunkChunk>>;
     DEFINE_BYREF_RW_PROPERTY(THunkChunkMap, HunkChunks);
 
+    using TStoreIdMap = THashMap<TStoreId, TStore*>;
+    DEFINE_BYREF_RW_PROPERTY(TStoreIdMap, StoreIdMap);
+
     // Sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TPartition>>, Partitions);
     DEFINE_BYREF_RW_PROPERTY(std::unique_ptr<TPartition>, Eden);
@@ -52,6 +55,7 @@ public:
     bool IsPhysicallySorted() const;
 
     TStore* FindActiveStore() const;
+    TStore* GetStore(TStoreId id) const;
 
     void CopyMetaFrom(const TTablet* tablet);
 

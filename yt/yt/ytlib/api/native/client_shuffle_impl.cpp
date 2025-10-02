@@ -245,7 +245,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
                 TClientChunkReadOptions(),
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 /*columnFilter*/ {},
-                {partitionIndex});
+                TPartitionTags{partitionIndex});
 
             return New<TShuffleReader>(std::move(reader));
         }))

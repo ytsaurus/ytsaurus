@@ -508,7 +508,7 @@ struct TReferenceProvider
         }
 
         if (!Parent) {
-            THROW_ERROR_EXCEPTION("Cannot resove column with name %Qv", name);
+            THROW_ERROR_EXCEPTION("Cannot resolve column with name %Qv", name);
         }
 
         for (int index = 0; index < std::ssize(BoundReferences); ++index) {

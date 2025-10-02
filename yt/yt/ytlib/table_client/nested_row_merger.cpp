@@ -138,7 +138,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
                     } else if (elementType == EValueType::Double) {
                         aggregateFunction = &AggregateSumDouble;
                     } else {
-                        THROW_ERROR_EXCEPTION("Unsupported nested elemnt type")
+                        THROW_ERROR_EXCEPTION("Unsupported nested element type")
                             << TErrorAttribute("type", elementType);
                     }
                 } else if (nestedColumn->Aggregate == "max") {
@@ -149,7 +149,7 @@ TNestedColumnsSchema GetNestedColumnsSchema(TTableSchemaPtr tableSchema)
                     } else if (elementType == EValueType::Double) {
                         aggregateFunction = &AggregateMaxDouble;
                     } else {
-                        THROW_ERROR_EXCEPTION("Unsupported nested elemnt type")
+                        THROW_ERROR_EXCEPTION("Unsupported nested element type")
                             << TErrorAttribute("type", elementType);
                     }
                 } else {
@@ -661,24 +661,34 @@ TVersionedValue TNestedTableMerger::BuildMergedValueColumn(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void EnrichColumnFilterWithNestedKeys(TColumnFilter::TIndexes* indexes, const TNestedColumnsSchema& nestedSchema)
+std::vector<int> GetMissingNestedKeyColumnsIfNeeded(
+    const TColumnFilter& columnFilter,
+    const TNestedColumnsSchema& nestedSchema)
 {
-    bool hasNestedColumns = false;
-    for (auto id : *indexes) {
-        if (GetNestedColumnById(nestedSchema.KeyColumns, id)) {
-            hasNestedColumns = true;
-        }
+    if (columnFilter.IsUniversal()) {
+        return {};
+    }
 
-        if (GetNestedColumnById(nestedSchema.ValueColumns, id)) {
-            hasNestedColumns = true;
+    THashSet<int> filtered(columnFilter.GetIndexes().begin(), columnFilter.GetIndexes().end());
+    std::vector<int> missingNestedKeyColumns;
+
+    for (const auto& column : nestedSchema.KeyColumns) {
+        if (!filtered.contains(column.Id)) {
+            missingNestedKeyColumns.push_back(column.Id);
         }
     }
 
-    if (hasNestedColumns) {
-        for (auto nestedKeyColumn : nestedSchema.KeyColumns) {
-            indexes->push_back(nestedKeyColumn.Id);
+    if (missingNestedKeyColumns.size() != nestedSchema.KeyColumns.size()) {
+        return missingNestedKeyColumns;
+    }
+
+    for (const auto& column : nestedSchema.ValueColumns) {
+        if (filtered.contains(column.Id)) {
+            return missingNestedKeyColumns;
         }
     }
+
+    return {};
 }
 
 TColumnFilter EnrichColumnFilter(
@@ -692,11 +702,13 @@ TColumnFilter EnrichColumnFilter(
 
     auto indexes = columnFilter.GetIndexes();
 
-    EnrichColumnFilterWithNestedKeys(&indexes, nestedSchema);
+    auto insertedNestedKeyColumns = GetMissingNestedKeyColumnsIfNeeded(columnFilter, nestedSchema);
 
     for (int index = 0; index < requiredKeyColumnCount; ++index) {
         indexes.push_back(index);
     }
+
+    std::move(insertedNestedKeyColumns.begin(), insertedNestedKeyColumns.end(), std::back_inserter(indexes));
 
     std::sort(indexes.begin(), indexes.end());
     indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());

@@ -73,6 +73,7 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     fmrServices->DisableLocalFmrWorker = false;
     fmrServices->YtJobService = NFmr::MakeFileYtJobSerivce();
     fmrServices->YtCoordinatorService = NFmr::MakeFileYtCoordinatorService();
+    fmrServices->NeedToTransformTmpTablePaths = false;
 
     TTempFileHandle discoveryFile;
     TPortManager pm;
@@ -95,7 +96,7 @@ bool RunProgram(const TString& query, const TRunSettings& runSettings) {
     }
     TExprContext::TFreezeGuard freezeGuard(modulesCtx);
 
-    TProgramFactory factory(true, functionRegistry.Get(), 0ULL, dataProvidersInit, "ut");
+    TProgramFactory factory(false, functionRegistry.Get(), 0ULL, dataProvidersInit, "ut");
     factory.SetModules(moduleResolver);
 
     TProgramPtr program = factory.Create("-stdin-", query, "", EHiddenMode::Disable);
@@ -159,6 +160,36 @@ Y_UNIT_TEST_SUITE(FastMapReduceTests) {
         });
         TStringBuf filteredInputData = "{\"key\"=\"800\";};\n"sv;
         auto expected = NYT::NodeToCanonicalYsonString(NYT::NodeFromYsonString(filteredInputData, NYT::NYson::EYsonType::ListFragment));
+        UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
+    }
+    Y_UNIT_TEST(AnonymousTables) {
+        auto query = R"(
+            use plato;
+            PRAGMA DqEngine = 'disable';
+
+            INSERT INTO @anon1 with truncate (
+                SELECT * FROM `Input`
+            );
+
+            COMMIT;
+
+            INSERT INTO @anon2 WITH truncate (
+                SELECT * FROM @anon1
+            );
+
+            COMMIT;
+
+            INSERT INTO `Output` WITH TRUNCATE (
+                SELECT value || '_suffix' AS result FROM @anon2
+            );
+        )";
+        TTempFileHandle outputFile;
+        auto sqlQueryResult = WithTables([&](const auto& tables) {
+            TRunSettings runSettings;
+            runSettings.Tables = tables;
+            UNIT_ASSERT(RunProgram(query, runSettings));
+        });
+        TString expected = "[{\"result\"=\"abc_suffix\"};{\"result\"=\"ddd_suffix\"};{\"result\"=\"q_suffix\"};{\"result\"=\"qzz_suffix\"}]";
         UNIT_ASSERT_NO_DIFF(sqlQueryResult, expected);
     }
 }

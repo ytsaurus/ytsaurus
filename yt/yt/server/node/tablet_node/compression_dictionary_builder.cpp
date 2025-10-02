@@ -15,6 +15,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
@@ -124,8 +126,8 @@ public:
         Logger.AddTag("ReadSessionId: %v",
             chunkReadOptions.ReadSessionId);
 
-        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot(
-            "CompressionDictionaryBuilder"));
+        auto traceContext = TTraceContext::NewRoot("CompressionDictionaryBuilder");
+        TTraceContextGuard traceContextGuard(traceContext);
 
         const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(TabletId_);
@@ -141,6 +143,8 @@ public:
             OnSessionFailed(tablet, /*backoff*/ false);
             return;
         }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::DictionaryBuilding, tabletSnapshot);
 
         std::vector<TSortedChunkStorePtr> stores;
         stores.reserve(StoreIds_.size());

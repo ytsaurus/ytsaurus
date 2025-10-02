@@ -57,7 +57,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     , NameTable_(nameTable)
     , PartitionTags_(std::move(partitionTags))
 {
-    YT_VERIFY(!PartitionTags_.empty());
     // NB(gepardo): Real extraChunkTags will be packed later, in InitializeBlockSequence().
     PackBaggageForChunkReader(TraceContext_, dataSource, TExtraChunkTags{});
 

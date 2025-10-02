@@ -145,7 +145,7 @@ TChunkMeta FilterChunkMetaByPartitionTags(
     const TPartitionTags& partitionTags)
 {
     YT_VERIFY(chunkMeta.type() == static_cast<int>(EChunkType::Table));
-    YT_VERIFY(!partitionTags.empty());
+
     auto filteredChunkMeta = chunkMeta;
 
     auto filteredBlocks = RangeTo<std::vector<TDataBlockMeta>>(

@@ -17,6 +17,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -491,8 +493,8 @@ private:
                 store->GetId());
 
         auto traceId = task->Info->TaskId;
-        TTraceContextGuard traceContextGuard(
-            TTraceContext::NewRoot("StoreFlusher", traceId));
+        auto traceContext = TTraceContext::NewRoot("StoreFlusher", traceId);
+        TTraceContextGuard traceContextGuard(traceContext);
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
@@ -501,6 +503,8 @@ private:
             storeManager->BackoffStoreFlush(store);
             return;
         }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::StoreFlush, tabletSnapshot);
 
         task->OnStarted();
         try {

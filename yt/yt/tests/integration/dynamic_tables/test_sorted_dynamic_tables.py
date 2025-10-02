@@ -14,8 +14,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
-    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node,
-    sort)
+    disable_write_sessions_on_node, set_node_banned, set_nodes_banned, disable_tablet_cells_on_node)
 
 import yt_error_codes
 
@@ -3335,18 +3334,6 @@ class TestDynamicNestedColumns(DynamicTablesBase):
         _check()
 
         sync_flush_table("//tmp/t")
-        _check()
-
-        schema = [{"name": "h", "sort_order": "ascending", "type": "uint64", "expression": "farm_hash(k1)"}] + schema
-        self._create_table("//tmp/t_shuffle", schema)
-        sync_mount_table("//tmp/t_shuffle")
-
-        sort_by = [col["name"] for col in schema if "sort_order" in col]
-        sort(in_=["//tmp/t"], out="//tmp/t_shuffle", sort_by=sort_by, spec={"partition_count": 2})
-        _check("//tmp/t_shuffle")
-        sync_compact_table("//tmp/t_shuffle")
-        _check("//tmp/t_shuffle")
-
         sync_compact_table("//tmp/t")
         _check()
 

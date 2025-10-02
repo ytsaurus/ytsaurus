@@ -19,6 +19,8 @@
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -233,6 +235,10 @@ private:
             if (!alienConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
+            }
+
+            if (auto* traceContext = TryGetCurrentTraceContext()) {
+                PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::Replication, tabletSnapshot);
             }
 
             const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;

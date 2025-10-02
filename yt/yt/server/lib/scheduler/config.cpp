@@ -1281,6 +1281,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
         .Default(std::numeric_limits<int>::max());
 
+    registrar.Parameter("operation_spec_too_large_alert_threshold", &TThis::OperationSpecTooLargeAlertThreshold)
+        .Default(10_MBs);
+
     registrar.Parameter("temporary_operation_token_expiration_timeout", &TThis::TemporaryOperationTokenExpirationTimeout)
         .Default(TDuration::Days(7));
 

@@ -1382,7 +1382,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_job_archive_ttl", &TThis::EnableJobArchiveTtl)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("fail_operation_on_errors_in_live_preview", &TThis::FailOperationOnErrorsInLivePreview)
         .Default(false);

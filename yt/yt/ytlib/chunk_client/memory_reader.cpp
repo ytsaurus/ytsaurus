@@ -66,10 +66,10 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& /*options*/,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        YT_VERIFY(partitionTags.empty());
+        YT_VERIFY(!partitionTags);
         return MakeFuture(New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags)));
     }
 

@@ -24,6 +24,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/server/lib/lsm/hunk_chunk.h>
 #include <yt/yt/server/lib/lsm/tablet.h>
 
@@ -1514,8 +1516,8 @@ private:
         });
 
         auto traceId = task->Info->TaskId;
-        TTraceContextGuard traceContextGuard(
-            TTraceContext::NewRoot("StoreCompactor", traceId));
+        auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
+        TTraceContextGuard traceContextGuard(traceContext);
 
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
@@ -1533,6 +1535,8 @@ private:
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
         }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::Partitioning, tabletSnapshot);
 
         const auto& storeManager = tablet->GetStoreManager();
         const auto& structuredLogger = tablet->GetStructuredLogger();
@@ -1918,8 +1922,8 @@ private:
         });
 
         auto traceId = task->Info->TaskId;
-        TTraceContextGuard traceContextGuard(
-            TTraceContext::NewRoot("StoreCompactor", traceId));
+        auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
+        TTraceContextGuard traceContextGuard(traceContext);
 
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
@@ -1935,6 +1939,8 @@ private:
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
         }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::Compaction, tabletSnapshot);
 
         const auto& storeManager = tablet->GetStoreManager();
         const auto& structuredLogger = tablet->GetStructuredLogger();

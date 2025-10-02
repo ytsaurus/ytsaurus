@@ -4025,6 +4025,11 @@ void TSchedulingPolicy::CheckMinNodeResourceLimits()
             continue;
         }
 
+        // Ignore nodes with disabled jobs.
+        if (state->Descriptor->ResourceLimits.GetUserSlots() == 0) {
+            continue;
+        }
+
         if (!Dominates(state->Descriptor->ResourceLimits, ToJobResources(Config_->MinNodeResourceLimits, TJobResources()))) {
             violatingNodes.push_back(state->Descriptor->GetDefaultAddress());
         }

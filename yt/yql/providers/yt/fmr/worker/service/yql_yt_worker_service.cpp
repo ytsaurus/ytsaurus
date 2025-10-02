@@ -87,7 +87,9 @@ int main(int argc, const char *argv[]) {
         auto fmrYtJobSerivce =  isNative ? MakeYtJobSerivce() : MakeFileYtJobSerivce();
         auto jobLauncher = MakeIntrusive<TFmrUserJobLauncher>(TFmrUserJobLauncherOptions{
             .RunInSeparateProcess = true,
-            .FmrJobBinaryPath = options.FmrJobBinaryPath
+            .FmrJobBinaryPath = options.FmrJobBinaryPath,
+            .TableDataServiceDiscoveryFilePath = options.TableDataServiceDiscoveryFilePath,
+            .GatewayType = underlyingGatewayType
         });
         // TODO - add different job Settings here
         auto func = [options, fmrYtJobSerivce, jobLauncher] (NFmr::TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {

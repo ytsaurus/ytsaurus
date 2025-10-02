@@ -13,6 +13,7 @@ config:
     useIPv4: false
     useIPv6: false
     db:
+      initialize: true
       proxy: "ytsaurus.http.proxy.tech"
       tokenEnvVariable: "YT_TOKEN"
       table: "//sys/odin/checks"

@@ -567,7 +567,7 @@ public:
 
     // Collect according to max estimation.
     // - dividable simple columns and divisors.
-    // - modulo evaluatated columns.
+    // - modulo evaluated columns.
     // - computed columns (evaluated but not modulo columns).
     // Calculate estimation during collection.
 

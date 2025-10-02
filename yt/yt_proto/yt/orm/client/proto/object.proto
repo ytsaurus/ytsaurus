@@ -108,14 +108,6 @@ enum EHashPolicy
     HP_FARM_HASH_PARENT_OR_OBJECT_KEY = 3;
 }
 
-enum EParentKeyStoragePolicy
-{
-    // Use shared parents table (when an object that has a parent).
-    PKSP_PREFIX_WITH_SHARED_PARENTS_TABLE = 0;
-    // Enable separate parents table (when an object that has a parent).
-    PKSP_PREFIX_WITH_SEPARATE_PARENTS_TABLE = 1;
-}
-
 enum EAttributeSensorPolicy
 {
     ASP_NO_SENSOR = 0;
@@ -216,12 +208,13 @@ message TLocalAttributeMigration
 // Next field number 58.
 message TObjectTypeOption
 {
-    reserved 6, 7, 15, 17, 20, 21, 28, 29, 35, 37, 38, 46;
+    reserved 6, 7, 15, 17, 20, 21, 28, 29, 34, 35, 37, 38, 46;
     reserved "use_custom_default_permissions";
     reserved "history_indexed_attributes";
     reserved "history_attributes";
     reserved "default_permissions";
     reserved "default_permissions_attributes";
+    reserved "parent_key_storage_policy";
     reserved "primary_key_data_group";
     reserved "labels_data_group";
     reserved "forbid_parent_removal";
@@ -246,8 +239,6 @@ message TObjectTypeOption
     // - parent's `children_removal_policy_default` ->
     // - global `parent_removal_policy`.
     optional ECascadingRemovalPolicy children_removal_policy_default = 54;
-
-    optional EParentKeyStoragePolicy parent_key_storage_policy = 34;
 
     // Overrides global option.
     optional bool enable_finalizers = 51;
@@ -452,8 +443,6 @@ extend google.protobuf.FileOptions
     repeated TObjectTypeOption extend_object_type = 30036;
     repeated TIndexOption index = 30001;
 
-    optional bool no_parents_hash = 30002;
-
     // Specifies whether tombstones mechanics is enabled or not.
     // Disabled by default.
     // If enabled, stores each object removal within tombstones table and
@@ -492,11 +481,7 @@ extend google.protobuf.FileOptions
     // Use to reevaluate key attributes with zero value forcibly via synonym evaluation mechanism.
     optional bool force_zero_key_evaluation = 30023;
 
-    // Can be overridden per object.
-    optional EParentKeyStoragePolicy parent_key_storage_policy = 30024;
-
     // Do not create or use "parents" table.
-    // The above parent_key_storage_policy must be set to PKSP_PREFIX_WITH_SEPARATE_PARENTS_TABLE everywhere.
     // ParentsTableMode in dynconfig must be DontWriteToCommonTable.
     optional bool no_legacy_parents_table = 30032;
 

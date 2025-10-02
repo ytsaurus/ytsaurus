@@ -622,7 +622,8 @@ public:
     {
         i64 initialDataWeightPerJob = ComputeDataWeightPerJob(dataWeightRatio, compressionRatio, dataSizeHint);
         JobCountByDataWeight_ = ComputeJobCount(initialDataWeightPerJob, InputDataWeight_);
-        JobCountByCompressedDataSize_ = ComputeJobCount(Spec_->CompressedDataSizePerJob.value_or(InfiniteSize), InputCompressedDataSize_);
+        i64 initialCompressedDataSizePerJob = Spec_->CompressedDataSizePerJob.value_or(Spec_->MaxCompressedDataSizePerJob);
+        JobCountByCompressedDataSize_ = ComputeJobCount(initialCompressedDataSizePerJob, InputCompressedDataSize_);
 
         YT_LOG_DEBUG(
             "Merge job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
@@ -717,8 +718,10 @@ private:
             return dataWeightPerJob;
         }
 
+        // If compressed data size per job is set, use MaxDataWeightPerJob directly instead
+        // of computing from heuristics.
         if (Spec_->CompressedDataSizePerJob) {
-            return Spec_->MaxCompressedDataSizePerJob;
+            return Spec_->MaxDataWeightPerJob;
         }
 
         i64 dataWeightPerJob;
@@ -899,15 +902,14 @@ public:
         const TSortOperationSpecBasePtr& spec,
         const TSortOperationOptionsBasePtr& options,
         TLogger logger,
-        i64 inputUncompressedDataSize,
         i64 inputDataWeight,
         i64 inputRowCount,
         double compressionRatio)
         : TJobSizeConstraintsBase(
             inputDataWeight,
-            inputUncompressedDataSize * compressionRatio,
+            inputDataWeight * compressionRatio,
             inputDataWeight,
-            inputUncompressedDataSize * compressionRatio,
+            inputDataWeight * compressionRatio,
             spec,
             options,
             std::move(logger),
@@ -921,51 +923,68 @@ public:
     {
         if (Spec_->PartitionJobCount) {
             JobCountByDataWeight_ = *Spec_->PartitionJobCount;
-        } else if (Spec_->DataWeightPerPartitionJob) {
-            i64 dataWeightPerJob = *Spec_->DataWeightPerPartitionJob;
-            JobCountByDataWeight_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+            JobCountByCompressedDataSize_ = *Spec_->PartitionJobCount;
         } else {
-            // Rationale and details are on the wiki.
-            // https://wiki.yandex-team.ru/yt/design/partitioncount/
-            i64 uncompressedBlockSize = static_cast<i64>(Options_->CompressedBlockSize / compressionRatio);
-            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec_->PartitionJobIO->TableWriter->BlockSize);
+            i64 defaultJobCount = InputDataWeight_ == 0 ? 0 : 1;
 
-            // Just in case compression ratio is very large.
-            uncompressedBlockSize = std::max(i64(1), uncompressedBlockSize);
+            if (Spec_->DataWeightPerPartitionJob) {
+                JobCountByDataWeight_ = DivCeil(InputDataWeight_, *Spec_->DataWeightPerPartitionJob);
+            } else {
+                JobCountByDataWeight_ = defaultJobCount;
+            }
 
-            // Product may not fit into i64.
-            auto partitionJobDataWeight = [&] {
-                double partitionJobDataWeight = sqrt(InputDataWeight_) * sqrt(uncompressedBlockSize);
-                partitionJobDataWeight = std::min(partitionJobDataWeight, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
-                return static_cast<i64>(partitionJobDataWeight);
-            }();
+            if (Spec_->CompressedDataSizePerPartitionJob) {
+                JobCountByCompressedDataSize_ = DivCeil(InputCompressedDataSize_, *Spec_->CompressedDataSizePerPartitionJob);
+            } else {
+                JobCountByCompressedDataSize_ = defaultJobCount;
+            }
 
-            JobCountByDataWeight_ = DivCeil(InputDataWeight_, std::max<i64>(partitionJobDataWeight, 1));
+            if (!Spec_->DataWeightPerPartitionJob && !Spec_->CompressedDataSizePerPartitionJob) {
+                // Rationale and details are on the wiki.
+                // https://wiki.yandex-team.ru/yt/design/partitioncount/
+                i64 uncompressedBlockSize = static_cast<i64>(Options_->CompressedBlockSize / compressionRatio);
+                uncompressedBlockSize = std::min(uncompressedBlockSize, Spec_->PartitionJobIO->TableWriter->BlockSize);
+
+                // Just in case compression ratio is very large.
+                uncompressedBlockSize = std::max(i64(1), uncompressedBlockSize);
+
+                // Product may not fit into i64.
+                auto partitionJobDataWeight = [&] {
+                    double partitionJobDataWeight = sqrt(InputDataWeight_) * sqrt(uncompressedBlockSize);
+                    partitionJobDataWeight = std::min(partitionJobDataWeight, static_cast<double>(Spec_->PartitionJobIO->TableWriter->MaxBufferSize));
+                    return static_cast<i64>(partitionJobDataWeight);
+                }();
+
+                JobCountByDataWeight_ = DivCeil(InputDataWeight_, std::max<i64>(partitionJobDataWeight, 1));
+            }
         }
 
-        YT_VERIFY(JobCountByDataWeight_ >= 0);
-        YT_VERIFY(JobCountByDataWeight_ != 0 || InputDataWeight_ == 0);
+        auto validateAndAdjustJobCount = [&] (i64 jobCount, i64 inputSize, i64 maxSizePerJob) {
+            YT_VERIFY(jobCount > 0 || (jobCount == 0 && inputSize == 0));
+            if (inputSize > 0 && jobCount > 0) {
+                i64 sizePerJob = DivCeil(inputSize, jobCount);
+                if (sizePerJob > maxSizePerJob) {
+                    jobCount = DivCeil(inputSize, maxSizePerJob);
+                }
+            }
+            YT_VERIFY(inputSize >= jobCount);
+            return std::min({jobCount, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
+        };
 
-        if (JobCountByDataWeight_ > 0 && inputUncompressedDataSize / JobCountByDataWeight_ > Spec_->MaxDataWeightPerJob) {
-            // NB(apollo1321): There are no tests for this scenario.
-            // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
-            // unreasonable huge jobs.
-            JobCountByDataWeight_ = DivCeil(inputUncompressedDataSize, 2 * Spec_->MaxDataWeightPerJob);
-        }
-
-        JobCountByDataWeight_ = std::min({JobCountByDataWeight_, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
-        JobCountByCompressedDataSize_ = 0;
+        JobCountByDataWeight_ = validateAndAdjustJobCount(JobCountByDataWeight_, InputDataWeight_, Spec_->MaxDataWeightPerJob);
+        JobCountByCompressedDataSize_ = validateAndAdjustJobCount(JobCountByCompressedDataSize_, InputCompressedDataSize_, Spec_->MaxCompressedDataSizePerJob);
 
         YT_LOG_DEBUG(
             "Partition job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
             "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, PartitionJobCountFromSpec: %v, DataWeightPerPartitionJobFromSpec: %v, "
-            "CompressedBlockSize: %v, TableWriterBlockSize: %v, CompressionRatio: %v)",
+            "CompressedDataSizePerPartitionJobFromSpec: %v, CompressedBlockSize: %v, TableWriterBlockSize: %v, CompressionRatio: %v)",
             JobCountByDataWeight_,
             JobCountByCompressedDataSize_,
             GetDataWeightPerJob(),
             GetCompressedDataSizePerJob(),
             Spec_->PartitionJobCount,
             Spec_->DataWeightPerPartitionJob,
+            Spec_->CompressedDataSizePerPartitionJob,
             Options_->CompressedBlockSize,
             Spec_->PartitionJobIO->TableWriter->BlockSize,
             compressionRatio);
@@ -1007,17 +1026,14 @@ public:
 
     i64 GetCompressedDataSizePerJob() const override
     {
-        return InfiniteSize;
+        return JobCountByCompressedDataSize_ > 0
+            ? DivCeil(InputCompressedDataSize_, JobCountByCompressedDataSize_)
+            : 1;
     }
 
     i64 GetPrimaryCompressedDataSizePerJob() const override
     {
-        return InfiniteSize;
-    }
-
-    i64 GetMaxCompressedDataSizePerJob() const override
-    {
-        return InfiniteSize;
+        YT_ABORT();
     }
 
 private:
@@ -1141,7 +1157,6 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     const TSortOperationSpecBasePtr& spec,
     const TSortOperationOptionsBasePtr& options,
     TLogger logger,
-    i64 inputUncompressedDataSize,
     i64 inputDataWeight,
     i64 inputRowCount,
     double compressionRatio)
@@ -1150,7 +1165,6 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
         spec,
         options,
         std::move(logger),
-        inputUncompressedDataSize,
         inputDataWeight,
         inputRowCount,
         compressionRatio);

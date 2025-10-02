@@ -1188,6 +1188,29 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         wait(lambda: len(old_chunk_ids.intersection(get("//tmp/t/@chunk_ids"))) == 0)
 
+    @authors("tem-shett")
+    def test_consider_store_creation_time_for_periodic_compactions(self):
+        sync_create_cells(1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "backing_store_retention_time": 0
+            },
+            pivot_keys=[[]] + [[i] for i in range(10)]
+        )
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(10)])
+        sync_flush_table("//tmp/t")
+
+        old_chunk_ids = builtins.set(get("//tmp/t/@chunk_ids"))
+
+        set("//tmp/t/@auto_compaction_period", 1)
+        remount_table("//tmp/t")
+
+        wait(lambda: len(old_chunk_ids.intersection(get("//tmp/t/@chunk_ids"))) == 0)
+
 
 ################################################################################
 

@@ -58,7 +58,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
-    TPartitionTags partitionTags = {},
+    std::optional<TPartitionTags> partitionTags = {},
     const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     std::optional<i64> virtualRowIndex = std::nullopt,
     int interruptDescriptorKeyLength = 0);
@@ -76,7 +76,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keys,
-    TPartitionTags partitionTags = {},
+    std::optional<TPartitionTags> partitionTags = {},
     const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
@@ -92,7 +92,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     const std::vector<std::string>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TSharedRange<TLegacyKey>& keyPrefixes,
-    TPartitionTags partitionTags = {},
+    std::optional<TPartitionTags> partitionTags = {},
     const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

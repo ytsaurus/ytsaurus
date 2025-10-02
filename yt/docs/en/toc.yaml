@@ -443,8 +443,18 @@ items:
      items:
        - name: Cluster components
          href: admin-guide/components.md
-       - name: Installating YTsaurus
-         href: admin-guide/install-ytsaurus.md
+       - name: Installating
+         items:
+           - name: YTsaurus
+             href: admin-guide/install-ytsaurus.md
+           - name: CHYT
+             href: admin-guide/install-chyt.md
+           - name: SPYT
+             href: admin-guide/install-spyt.md
+           - name: Cron
+             href: admin-guide/install-cron.md
+           - name: Odin
+             href: admin-guide/install-odin.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description
@@ -453,12 +463,6 @@ items:
             href: admin-guide/locations.md
           - name: Configuring server component logging
             href: admin-guide/logging.md
-       - name: Installating additional components
-         items:
-           - name: CHYT
-             href: admin-guide/chyt.md
-           - name: SPYT
-             href: admin-guide/spyt.md
        - name: Setting up SSO
          href: admin-guide/oauth.md
          when: audience == "public"

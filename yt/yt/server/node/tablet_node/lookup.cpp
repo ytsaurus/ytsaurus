@@ -19,6 +19,8 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -67,6 +69,7 @@ using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTracing;
 using namespace NServer;
 
 using NYT::FromProto;
@@ -1636,6 +1639,11 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
     ValidateTabletRetainedTimestamp(tabletSnapshot, timestamp);
 
     tabletSnapshot->TabletRuntimeData->AccessTime = NProfiling::GetInstant();
+
+    auto traceContext = CreateTraceContextFromCurrent("TabletLookupRequest");
+    TTraceContextGuard traceContextGuard(traceContext);
+
+    PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::LookupRows, tabletSnapshot);
 
     tabletSnapshot->WaitOnLocks(timestamp);
 

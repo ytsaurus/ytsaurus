@@ -240,7 +240,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override;
 
     TFuture<TSharedRef> LookupRows(
@@ -281,7 +281,7 @@ public:
 
     //! Looks for chunk meta in ChunkMetaCache if the cache is enabled.
     TFuture<TRefCountedChunkMetaPtr> FindMetaInCache(
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags,
         const ICachedChunkMeta::TMetaFetchCallback& callback);
 
@@ -3127,7 +3127,7 @@ public:
     TGetMetaSession(
         TReplicationReader* reader,
         const IChunkReader::TGetMetaOptions& options,
-        TPartitionTags partitionTags,
+        std::optional<TPartitionTags> partitionTags,
         const std::optional<std::vector<int>>& extensionTags,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
@@ -3167,7 +3167,7 @@ public:
 
 private:
     const std::optional<i64> MetaSize_;
-    const TPartitionTags PartitionTags_;
+    const std::optional<TPartitionTags> PartitionTags_;
     const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
@@ -3261,7 +3261,7 @@ private:
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
-        ToProto(req->mutable_partition_tags(), PartitionTags_);
+        YT_OPTIONAL_TO_PROTO(req, partition_tags, PartitionTags_);
         YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
@@ -3348,14 +3348,14 @@ private:
 };
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     const std::optional<std::vector<int>>& extensionTags,
     const ICachedChunkMeta::TMetaFetchCallback& callback)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto decodedChunkId = DecodeChunkId(ChunkId_).Id;
-    if (partitionTags.empty() && !IsJournalChunkId(decodedChunkId) && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
+    if (!partitionTags && !IsJournalChunkId(decodedChunkId) && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
         return ChunkMetaCache_->Fetch(
             decodedChunkId,
             extensionTags,
@@ -3367,7 +3367,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
 
 TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     const TGetMetaOptions& options,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     const std::optional<std::vector<int>>& extensionTags)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -3896,7 +3896,7 @@ public:
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags,
+        const std::optional<TPartitionTags>& partitionTags,
         const std::optional<std::vector<int>>& extensionTags) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

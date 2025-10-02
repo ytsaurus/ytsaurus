@@ -308,7 +308,7 @@ Returns the argument with the greatest value.
 Returns the absolute value of a number `x`. The returned value type matches the argument type.
 
 `acos(x) :: double -> double`
-Returns the arccosine of a number `x` (the argument must be in radians). 
+Returns the arccosine of a number `x` (the argument must be in radians).
 
 `asin(x) :: double -> double`
 Returns the arcsine of a number `x` (the argument must be in radians).
@@ -546,24 +546,27 @@ Example:
 ```
 
 #### Working with dates
-UTC timezone is used when rounding
+If the function does not have the _tz suffix, the timezone used in rounding defaults to UTC. Otherwise, the second argument should be the IANA timezone name.
 
-`timestamp_floor_year(t) :: int64 -> int64`
-Get the timestamp of the year (as of 0:00 on January 1) for the specified timestamp.
+`timestamp_floor_year[_tz](t[, tz]) :: int64 [-> string] -> int64`
+Get the timestamp of the year (as of 0:00 on January 1) for the specified timestamp.
 
-`timestamp_floor_month(t) :: int64 -> int64`
+`timestamp_floor_quarter[_tz](t[, tz]) :: int64 [-> string] -> int64`
+Get the timestamp of the quarter (as of 0:00 on January 1, April 1, July 1, or October 1) for the specified timestamp.
+
+`timestamp_floor_month[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Get the timestamp of the month (as of 0:00 on the first day of the month) for the specified timestamp.
 
-`timestamp_floor_week(t) :: int64 -> int64`
+`timestamp_floor_week[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Get the timestamp of the week (as of 0:00 on Monday) for the specified timestamp.
 
-`timestamp_floor_day(t) :: int64 -> int64`
+`timestamp_floor_day[_tz](t[, tz]) :: int64 [-> string] -> int64`
 Get the timestamp of the day (as of 0:00 at the start of the day) for the specified timestamp.
 
-`timestamp_floor_hour(t) :: int64 -> int64`
-Get the timestamp of the hour (0 min 0 sec at the start of the hour) for the specified timestamp.
+`timestamp_floor_hour[_tz](t[, tz]) :: int64 [-> string] -> int64`
+Get the timestamp of the hour (0 min 0 sec at the start of the hour) for the specified timestamp.
 
-`format_timestamp(t, format) :: int64 -> string -> string`
+`format_timestamp[_tz](t[, tz], format) :: int64 [-> string] -> string -> string`
 Formats the time specified in the timestamp according to the provided format string. Uses the same convention as `std::strftime`.
 
 #### Hashing

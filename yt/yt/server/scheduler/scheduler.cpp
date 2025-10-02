@@ -690,6 +690,16 @@ public:
                 TError("\"owners\" field in spec ignored as it was specified simultaneously with \"acl\""));
         }
 
+        if (auto specSize = std::ssize(operation->GetSpecString().AsStringBuf());
+            specSize > Config_->OperationSpecTooLargeAlertThreshold)
+        {
+            operation->SetAlertWithoutArchivation(
+                EOperationAlertType::SpecIsTooLarge,
+                TError("Operation spec is too large")
+                    << TErrorAttribute("spec_size", specSize)
+                    << TErrorAttribute("threshold", Config_->OperationSpecTooLargeAlertThreshold));
+        }
+
         operation->SetStateAndEnqueueEvent(EOperationState::Starting);
 
         auto codicilGuard = operation->MakeCodicilGuard();

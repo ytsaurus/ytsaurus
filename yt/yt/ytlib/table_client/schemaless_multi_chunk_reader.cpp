@@ -108,7 +108,7 @@ namespace {
 TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
-    const TPartitionTags& partitionTags)
+    const std::optional<TPartitionTags>& partitionTags)
 {
     // Download chunk meta.
     std::vector<int> extensionTags{
@@ -156,7 +156,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
@@ -651,7 +651,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -701,7 +701,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
-    const TPartitionTags& partitionTags,
+    const std::optional<TPartitionTags>& partitionTags,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     if (!multiReaderMemoryManager) {
@@ -1035,11 +1035,11 @@ private:
 std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
     const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter,
-    const THashSet<int>& timestampOnlyColumns,
+    const THashSet<int>& omitFromUserColumns,
     const THashSet<int>& timestampColumnIndexes)
 {
     if (columnFilter.IsUniversal()) {
-        YT_VERIFY(timestampOnlyColumns.empty());
+        YT_VERIFY(omitFromUserColumns.empty());
         return std::tuple(schema, columnFilter);
     }
 
@@ -1051,7 +1051,7 @@ std::tuple<TTableSchemaPtr, TColumnFilter> CreateVersionedReadParameters(
     TColumnFilter::TIndexes columnFilterIndexes;
     for (int columnIndex : columnFilter.GetIndexes()) {
         if (columnIndex >= schema->GetKeyColumnCount()) {
-            if (!timestampOnlyColumns.contains(columnIndex)) {
+            if (!omitFromUserColumns.contains(columnIndex)) {
                 columnFilterIndexes.push_back(ssize(columns));
             }
 
@@ -1183,20 +1183,28 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         columnFilter = TColumnFilter(TColumnFilter::TIndexes{transformedIndexes.begin(), transformedIndexes.end()});
     }
 
-    auto nestedSchema = GetNestedColumnsSchema(tableSchema);
-    auto enrichedColumnFilter = EnrichColumnFilter(
-        columnFilter,
-        nestedSchema,
-        tableSchema->GetKeyColumnCount());
+    auto omitFromUserColumns = std::move(timestampOnlyColumns);
 
-    ValidateColumnFilter(enrichedColumnFilter, tableSchema->GetColumnCount());
+    auto nestedSchema = GetNestedColumnsSchema(tableSchema);
+    if (auto insertedNestedKeyColumns = GetMissingNestedKeyColumnsIfNeeded(columnFilter, nestedSchema);
+        !insertedNestedKeyColumns.empty())
+    {
+        for (auto index : insertedNestedKeyColumns) {
+            omitFromUserColumns.insert(index);
+        }
+
+        auto indexes = columnFilter.GetIndexes();
+        std::move(insertedNestedKeyColumns.begin(), insertedNestedKeyColumns.end(), std::back_inserter(indexes));
+        columnFilter = TColumnFilter(std::move(indexes));
+    }
 
     auto [versionedReadSchema, timestampedColumnFilter] = CreateVersionedReadParameters(
         tableSchema,
         columnFilter,
-        timestampOnlyColumns,
+        omitFromUserColumns,
         timestampColumnIndexes);
 
+    ValidateColumnFilter(columnFilter, tableSchema->GetColumnCount());
     ValidateColumnFilter(timestampedColumnFilter, versionedReadSchema->GetColumnCount());
 
     auto [idMapping, timestampColumnMapping] = CreateTimestampedMappings(
@@ -1231,13 +1239,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, ColumnFilter: %v, EnrichedColumnFilter: %v)",
+    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, SystemColumnFilter: %v, TimestampedUserColumnFilter: %v)",
         boundaries,
         MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
         }),
         columnFilter,
-        enrichedColumnFilter);
+        timestampedColumnFilter);
 
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
@@ -1385,7 +1393,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkReadOptions,
         chunkSpecs,
         tableSchema,
-        enrichedColumnFilter,
+        columnFilter,
         timestamp,
         multiReaderMemoryManager,
         createVersionedChunkReader,
@@ -1402,7 +1410,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 config->DynamicStoreReader,
                 chunkReaderHost,
                 chunkReadOptions,
-                enrichedColumnFilter,
+                columnFilter,
                 timestamp,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                     DefaultRemoteDynamicStoreReaderMemoryEstimate),
@@ -1426,7 +1434,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
         timestampColumnMapping,
-        nestedSchema);
+        GetNestedColumnsSchema(versionedReadSchema));
 
     auto schemafulReader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),

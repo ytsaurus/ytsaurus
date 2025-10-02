@@ -7,6 +7,7 @@
 
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
+#include <yt/yt/server/node/tablet_node/helpers.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
@@ -92,6 +93,7 @@
 namespace NYT::NQueryClient {
 
 using namespace NServer;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -451,6 +453,7 @@ public:
 
     TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
     {
+        auto firstTablet = true;
         for (const auto& source : DataSources_) {
             auto type = TypeFromId(source.ObjectId);
             switch (type) {
@@ -461,6 +464,18 @@ public:
                         source.MountRevision,
                         QueryOptions_.TimestampRange.Timestamp,
                         QueryOptions_.SuppressAccessTracking);
+
+                    if (firstTablet) {
+                        firstTablet = false;
+
+                        if (auto* traceContext = TryGetCurrentTraceContext()) {
+                            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(source.ObjectId);
+                            // NB(tea-mur): If you want to pack information about a specific tablet here,
+                            // you need to create a separate trace context per tablet
+                            PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::SelectRows, tabletSnapshot);
+                        }
+                    }
+
                     break;
                 default:
                     THROW_ERROR_EXCEPTION("Unsupported data source type %Qlv",

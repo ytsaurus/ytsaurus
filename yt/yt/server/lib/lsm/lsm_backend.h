@@ -19,6 +19,8 @@ struct TCompactionRequest
     bool DiscardStores = false;
     EStoreCompactionReason Reason = EStoreCompactionReason::None;
     TEnumIndexedArray<EHunkCompactionReason, i64> HunkChunkCountByReason;
+
+    bool operator<(const TCompactionRequest& other) const;
 };
 
 struct TSamplePartitionRequest

@@ -251,7 +251,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto partitionTags = GetPartitionTags(*request);
+        auto partitionTags = GetOptionalPartitionTags(*request);
         auto extensionTags = request->all_extension_tags()
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));

@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -166,7 +167,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
-    const TPartitionTags& partitionTags = {})
+    const std::optional<TPartitionTags>& partitionTags = {})
 {
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader

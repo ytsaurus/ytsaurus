@@ -2,8 +2,9 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     alter_table, authors, print_debug, wait, create, ls, get, set, sync_create_cells,
-    remove, create_pool,
-    read_table, write_table, map, map_reduce, run_test_vanilla, abort_job, get_singular_chunk_id, update_controller_agent_config, set_nodes_banned,
+    remove, create_pool, update_scheduler_config,
+    read_table, write_table, map, map_reduce, run_test_vanilla, run_sleeping_vanilla,
+    abort_job, get_singular_chunk_id, update_controller_agent_config, set_nodes_banned,
     create_test_tables, update_pool_tree_config)
 
 from yt_type_helpers import make_schema
@@ -627,6 +628,20 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)
 
+    @authors("eshcherbin")
+    def test_spec_is_too_large(self):
+        update_scheduler_config("operation_spec_too_large_alert_threshold", 10000)
+
+        op1 = run_sleeping_vanilla(spec={"annotations": {"title": "a" * 1000}})
+
+        wait(lambda: op1.get_running_jobs())
+        wait(lambda: "spec_is_too_large" not in op1.get_alerts())
+
+        op1.abort()
+
+        op2 = run_sleeping_vanilla(spec={"annotations": {"title": "a" * 10000}})
+
+        wait(lambda: "spec_is_too_large" in op2.get_alerts())
 
 ##################################################################
 

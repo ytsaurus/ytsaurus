@@ -8,6 +8,18 @@
 
 Attach a file to the query by URL. For attaching files you can use the built-in functions [FilePath and FileContent](../../builtins/basic.md#filecontent). This `PRAGMA` is a universal alternative to attaching files using built-in mechanisms of web or console clients.
 
+Usage example:
+
+```yql
+-- Attach a file from the Cypress.
+PRAGMA File('file.txt', 'yt://{{production-cluster}}/tmp/my-file.txt');
+
+SELECT "Content of "
+  || FilePath("file.txt")
+  || ":\n"
+  || FileContent("file.txt");
+```
+
 YQL reserves the right to cache files at the URL for an indefinite period, hence, if there is a significant change in the content behind it, we strongly recommend to modify the URL by adding or modifying dummy parameters.
 
 If the token name is specified, its value will be used to access the target system.

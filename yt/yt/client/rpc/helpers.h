@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/client/chunk_client/public.h>
 
 #include <yt/yt/client/misc/workload.h>
@@ -17,9 +15,6 @@ template <class TRequestPtr>
 void SetRequestWorkloadDescriptor(
     const TRequestPtr& request,
     const TWorkloadDescriptor& workloadDescriptor);
-
-template <class TReq>
-NChunkClient::TPartitionTags GetPartitionTags(const TReq& req);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
@@ -21,6 +22,7 @@ import tech.ytsaurus.client.request.ModifyRowsRequest;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.Compression;
+import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth;
@@ -73,26 +75,6 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
 
     @Test
     public void testRpcClientListener() {
-        class Event {
-            final String method;
-            final String service;
-            final boolean isStream;
-            long bytes;
-
-            Event(String method, String service, boolean isStream, long bytes) {
-                this.method = method;
-                this.service = service;
-                this.isStream = isStream;
-                this.bytes = bytes;
-            }
-
-            Event(String method, String service, boolean isStream) {
-                this.method = method;
-                this.service = service;
-                this.isStream = isStream;
-            }
-        }
-
         List<Event> events = Collections.synchronizedList(new ArrayList<>());
 
         var rpcOptions = new RpcOptions()
@@ -160,6 +142,95 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
     }
 
     @Test
+    public void testDirectYTsaurusClientWithRpcClientListener() {
+        List<Event> events = Collections.synchronizedList(new ArrayList<>());
+
+        var rpcOptions = new RpcOptions()
+                .setRpcClientListener((ctx, bytes) -> {
+                    events.add(new Event(ctx.getMethod(), ctx.getService(), ctx.isStream(),
+                            bytes));
+                });
+
+        // Get a working RPC proxy address from the existing YTsaurusClient
+        CompletableFuture<Void> releaseFuture = new CompletableFuture<>();
+        RpcClient rpcClient;
+        try {
+            rpcClient = yt.getClientPool().peekClient(releaseFuture).join();
+        } finally {
+            releaseFuture.complete(null); // Release the client immediately since we only need the address
+        }
+
+        String proxyAddress = rpcClient.getAddressString();
+        if (proxyAddress == null) {
+            throw new RuntimeException("Cannot get proxy address from RPC client");
+        }
+
+        String[] addressParts = proxyAddress.split(":");
+        String proxyHost = addressParts[0];
+        int proxyPort = Integer.parseInt(addressParts[1]);
+
+        final BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0));
+
+        DirectYTsaurusClient directYt = DirectYTsaurusClient.builder()
+                .setSharedBusConnector(connector)
+                .setAddress(new java.net.InetSocketAddress(proxyHost, proxyPort))
+                .setAuth(YTsaurusClientAuth.builder().setUser("root").setToken("").build())
+                .setConfig(YTsaurusClientConfig.builder()
+                        .setRpcOptions(rpcOptions)
+                        .build())
+                .build();
+
+        String path = "//tmp/test_direct_listener_" + UUID.randomUUID();
+        TableSchema schema = new TableSchema.Builder()
+                .addKey("key", ColumnValueType.STRING)
+                .addValue("value", ColumnValueType.STRING)
+                .build();
+
+        directYt.createNode(CreateNode.builder()
+                .setPath(YPath.simple(path))
+                .setType(CypressNodeType.TABLE)
+                .setAttributes(Map.of("schema", schema.toYTree()))
+                .build()).join();
+
+        var writer = directYt.writeTableV2(WriteTable.builder(YTreeMapNode.class)
+                .setPath(YPath.simple(path))
+                .build()).join();
+
+        writer.write(List.of(YTree.mapBuilder().key("key").value("k1").key("value").value("v1").buildMap())).join();
+        writer.finish().join();
+
+        directYt.close();
+        connector.close();
+
+        List<Event> expected = List.of(
+                new Event("CreateNode", "ApiService", false),
+                new Event("StartTransaction", "ApiService", false),
+                new Event("CreateNode", "ApiService", false),
+                new Event("LockNode", "ApiService", false),
+                new Event("GetNode", "ApiService", false),
+                new Event("StartTransaction", "ApiService", false),
+                new Event("WriteTable", "ApiService", false),
+                new Event("WriteTable", "ApiService", true),
+                new Event("CommitTransaction", "ApiService", false),
+                new Event("CommitTransaction", "ApiService", false)
+        );
+
+        int idx = 0;
+        for (Event e : events) {
+            if (idx >= expected.size()) {
+                break;
+            }
+            var exp = expected.get(idx);
+            Assert.assertEquals(exp.method, e.method);
+            Assert.assertEquals(exp.service, e.service);
+            Assert.assertEquals(exp.isStream, e.isStream);
+            Assert.assertTrue(e.bytes > 0);
+            idx++;
+        }
+        Assert.assertEquals("Did not observe expected RPC sequence for DirectYTsaurusClient", expected.size(), idx);
+    }
+
+    @Test
     public void testCompression() {
         String path = "//tmp/test_compression" + UUID.randomUUID().toString();
 
@@ -214,5 +285,25 @@ public class RpcBackendTest extends YTsaurusClientTestBase {
                         "{\"value\"=\"value2\";\"key\"=\"key2\";}]") ||
                         rows.getYTreeRows().toString().equals("[{\"value\"=\"value2\";\"key\"=\"key2\";}, " +
                                 "{\"value\"=\"value1\";\"key\"=\"key1\";}]"));
+    }
+
+    private static class Event {
+        final String method;
+        final String service;
+        final boolean isStream;
+        long bytes;
+
+        Event(String method, String service, boolean isStream, long bytes) {
+            this.method = method;
+            this.service = service;
+            this.isStream = isStream;
+            this.bytes = bytes;
+        }
+
+        Event(String method, String service, boolean isStream) {
+            this.method = method;
+            this.service = service;
+            this.isStream = isStream;
+        }
     }
 }

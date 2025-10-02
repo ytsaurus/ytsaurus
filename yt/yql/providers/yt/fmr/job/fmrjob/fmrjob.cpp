@@ -2,6 +2,7 @@
 #include <yql/essentials/utils/backtrace/backtrace.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
+#include <yt/yql/providers/yt/fmr/process/yql_yt_job_fmr.h>
 
 int main() {
     NYql::NBacktrace::RegisterKikimrFatalActions();
@@ -14,7 +15,7 @@ int main() {
         NYql::NFmr::TFmrUserJob mapJob;
         TFileInput fileStream("fmrjob.bin");
         mapJob.Load(fileStream);
-        mapJob.DoFmrJob();
+        mapJob.DoFmrJob(NYql::NFmr::TFmrUserJobOptions{.WriteStatsToFile = true});
         return 0;
     } catch (...) {
         Cerr << CurrentExceptionMessage() << Endl;

@@ -9,7 +9,6 @@ import sys
 import time
 
 from typing import List, Dict, Tuple
-from copy import deepcopy
 
 from .client import YtClient
 from .config import get_config
@@ -285,19 +284,7 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
         os.makedirs(directory)
 
     with Transaction(attributes={"title": "dirtable download"}, ping=True, client=client) as tx:
-        part_size = get_attribute(yt_table, "part_size", client=client)
         all_files_sizes = get_file_sizes(client, yt_table)
-        all_files_rows = {}
-        cur_row = 0
-        for name in sorted(all_files_sizes.keys()):
-            file_rows = math.ceil(all_files_sizes[name] / part_size)
-            if file_rows == 0:
-                file_rows = 1
-            all_files_rows[name] = {
-                "start_row": cur_row,
-                "end_row": cur_row + file_rows - 1,
-            }
-            cur_row += file_rows
 
         if exact_filenames or filter_by_regexp or exclude_by_regexp:
             filtered_files_sizes = {key: value for key, value in all_files_sizes.items() if check_file_name(key, exact_filenames, filter_by_regexp, exclude_by_regexp)}
@@ -327,6 +314,18 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                 ]
                 logger.debug(f"Total tables: {len(tables)} - split by process count")
             else:
+                all_files_rows = {}
+                part_size = get_attribute(yt_table, "part_size", client=client)
+                cur_row = 0
+                for name in sorted(all_files_sizes.keys()):
+                    file_rows = math.ceil(all_files_sizes[name] / part_size)
+                    if file_rows == 0:
+                        file_rows = 1
+                    all_files_rows[name] = {
+                        "start_row": cur_row,
+                        "end_row": cur_row + file_rows - 1,
+                    }
+                    cur_row += file_rows
                 tables = [
                     TablePath(
                         yt_table,
@@ -335,19 +334,6 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                         client=client
                     ) for name in filtered_files_sizes
                 ]
-                while len(tables) < process_count:
-                    max_table = max(tables, key=lambda i: i.ranges[0]["upper_limit"]["row_index"] - i.ranges[0]["lower_limit"]["row_index"])
-                    max_table_range = max_table.ranges[0]["upper_limit"]["row_index"] - max_table.ranges[0]["lower_limit"]["row_index"]
-                    if max_table_range < 10:
-                        break
-                    tables.remove(max_table)
-                    table1 = deepcopy(max_table)
-                    table1.ranges[0]["upper_limit"]["row_index"] -= max_table_range // 2
-                    tables.append(table1)
-                    table2 = deepcopy(max_table)
-                    table2.ranges[0]["lower_limit"]["row_index"] = table1.ranges[0]["upper_limit"]["row_index"]
-                    tables.append(table2)
-                    logger.debug(f"Split table {max_table!r} to {table1!r} + {table2!r}")
                 logger.debug(f"Total tables: {len(tables)} - split by filtered table")
 
             worker = functools.partial(download_table, directory=directory, client_config=get_config(client), transaction_id=tx.transaction_id)

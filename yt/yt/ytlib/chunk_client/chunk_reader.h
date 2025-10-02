@@ -47,7 +47,7 @@ struct IChunkReader
     //! Asynchronously obtains a meta, possibly filtered by #partitionTags and #extensionTags.
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TGetMetaOptions& options,
-        const TPartitionTags& partitionTags = {},
+        const std::optional<TPartitionTags>& partitionTags = {},
         const std::optional<std::vector<int>>& extensionTags = {}) = 0;
 
     //! Returns the id of the read this reader is assigned to read.

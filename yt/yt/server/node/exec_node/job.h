@@ -220,6 +220,8 @@ public:
 
     void SetHasJobTrace(bool value);
 
+    void AbortJobAfterInterruptionCallFailed(const std::exception& ex);
+
     void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,

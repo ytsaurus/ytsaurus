@@ -90,7 +90,7 @@ public:
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetMeta(
         const NChunkClient::TClientChunkReadOptions& options,
         TFairShareSlotId fairShareSlotId = {},
-        const NChunkClient::TPartitionTags& partitionTags = {});
+        const std::optional<NChunkClient::TPartitionTags>& partitionTags = {});
 
     //! Returns the future indicating the moment when the underlying file is
     //! open and the relevant meta is read.
@@ -142,7 +142,7 @@ private:
         const TReadResponse& readResponse);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
-        const NChunkClient::TPartitionTags& partitionTags,
+        const std::optional<NChunkClient::TPartitionTags>& partitionTags,
         TFairShareSlotId fairShareSlotId);
     NChunkClient::TRefCountedChunkMetaPtr OnMetaRead(
         const TString& metaFileName,

@@ -16,6 +16,7 @@ struct TTableDataServiceWorkerRunOptions {
     ui16 Port;
     TString Host;
     int Verbosity;
+    bool PrintStats = false;
 
     void InitLogger() {
         NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
@@ -40,6 +41,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('h', "host", "Fast map reduce table data service worker host").StoreResult(&options.Host).DefaultValue("localhost");
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
+        opts.AddLongOption('s', "print-stats", "Print stats").Optional().NoArgument().SetFlag(&options.PrintStats);
         opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
@@ -55,7 +57,9 @@ int main(int argc, const char *argv[]) {
         tableDataServiceServer->Start();
 
         while (!isInterrupted) {
-            YQL_CLOG(DEBUG, FastMapReduce) << tableDataService->GetStatistics().GetValueSync();
+            if (options.PrintStats) {
+                YQL_CLOG(DEBUG, FastMapReduce) << tableDataService->GetStatistics().GetValueSync();
+            }
             Sleep(TDuration::Seconds(2));
         }
         tableDataServiceServer->Stop();

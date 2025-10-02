@@ -1798,6 +1798,7 @@ private:
             netThrottling.Enabled,
             netThrottling.QueueSize);
 
+        //TODO(tea-mur): IO tracking for LookupRows
         context->ReplyFrom(chunkReadSession->Lookup(request->Attachments())
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TSharedRef& result) {
                 response->Attachments().push_back(result);
@@ -1822,7 +1823,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto partitionTags = GetPartitionTags(*request);
+        auto partitionTags = GetOptionalPartitionTags(*request);
         auto extensionTags = request->all_extension_tags()
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
@@ -1898,7 +1899,7 @@ private:
 
             ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
 
-            if (!partitionTags.empty()) {
+            if (partitionTags) {
                 const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
                 auto cachedBlockMeta = blockMetaCache->Find(chunkId);
                 if (!cachedBlockMeta) {
@@ -1907,7 +1908,7 @@ private:
                     blockMetaCache->TryInsert(cachedBlockMeta);
                 }
 
-                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTags(*meta, cachedBlockMeta, partitionTags);
+                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTags(*meta, cachedBlockMeta, *partitionTags);
             } else {
                 *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
             }

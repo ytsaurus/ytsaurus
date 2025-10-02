@@ -38,18 +38,6 @@ void SetRequestWorkloadDescriptor(
     ToProto(request->mutable_workload_descriptor(), workloadDescriptor);
 }
 
-template <class TReq>
-NChunkClient::TPartitionTags GetPartitionTags(const TReq& req)
-{
-    using NYT::FromProto;
-    // COMPAT(namorniradnug)
-    if (req.has_partition_tag()) {
-        YT_VERIFY(req.partition_tags().empty());
-        return {req.partition_tag()};
-    }
-    return FromProto<NChunkClient::TPartitionTags>(req.partition_tags());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
