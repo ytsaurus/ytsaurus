@@ -445,7 +445,7 @@ items:
          href: admin-guide/components.md
        - name: Installating
          items:
-           - name: {{product-name}}
+           - name: YTsaurus
              href: admin-guide/install-ytsaurus.md
            - name: CHYT
              href: admin-guide/install-chyt.md
