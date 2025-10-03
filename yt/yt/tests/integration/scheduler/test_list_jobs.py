@@ -1175,16 +1175,14 @@ class TestListJobs(TestListJobsCommon):
         wait_breakpoint(breakpoint_name="a", job_count=1)
         wait_breakpoint(breakpoint_name="b", job_count=1)
 
-        # For running jobs to_time filter uses start_time attribute for comparison
-        # so we expect both jobs to be detected.
+        # Both to_time and from_time filters use start_time for comparison.
         middle_time_before_breakpoint = datetime_to_string(utcnow())
         check_filter(2, from_time=start_time, to_time=middle_time_before_breakpoint)
 
         release_breakpoint(breakpoint_name="a")
         wait(lambda: len(list_jobs(op.id, state="completed")["jobs"]) == 1)
 
-        # Now we expect only running job to be detected.
-        check_filter(1, from_time=start_time, to_time=middle_time_before_breakpoint)
+        check_filter(2, from_time=start_time, to_time=middle_time_before_breakpoint)
 
         middle_time_after_breakpoint = datetime_to_string(utcnow())
         check_filter(2, from_time=start_time, to_time=middle_time_after_breakpoint)
@@ -1195,13 +1193,13 @@ class TestListJobs(TestListJobsCommon):
         end_time = datetime_to_string(utcnow())
 
         check_filter(2, from_time=start_time, to_time=end_time)
-        check_filter(1, from_time=start_time, to_time=middle_time_after_breakpoint)
+        check_filter(2, from_time=start_time, to_time=middle_time_after_breakpoint)
 
         check_filter(2, from_time=start_time)
         check_filter(0, from_time=end_time)
 
         check_filter(0, to_time=start_time)
-        check_filter(1, to_time=middle_time_after_breakpoint)
+        check_filter(2, to_time=middle_time_after_breakpoint)
         check_filter(2, to_time=end_time)
 
     @authors("bystrovserg")
