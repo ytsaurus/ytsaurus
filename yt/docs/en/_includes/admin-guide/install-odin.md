@@ -2,7 +2,7 @@
 
 ## Overview
 
-Odin is a service that provides qualitative monitoring of a {{producer-name}} cluster. For more details, see the [Monitoring](../monitoring#odin) section.
+Odin is a service that provides qualitative monitoring of a {{producer-name}} cluster. For more details, see the [Monitoring](../../admin-guide/monitoring.md#odin) section.
 
 ## Prerequisites
 
@@ -68,6 +68,8 @@ webservice:
 > Verify DNS names of the services: `http-proxies.default.svc.cluster.local` is an example for a `http-proxies` service in the `default` namespace. Use `kubectl get svc -A | grep http-proxies` to confirm your actual service name.
 
 By default, an init job will run to create the necessary tables for storing state. You can disable it by setting `config.odin.db.initialize: false`.
+
+Odin can expose metrics in Prometheus format. Services for monitoring are created by default (you can disable them by setting `metrics.enable`). By default, a ServiceMonitor is not created, but you can enable it by setting `metrics.serviceMonitor.enable`. For more details, see the [Monitoring](../../admin-guide/monitoring.md) section.
 
 ## Installing the Helm Chart
 

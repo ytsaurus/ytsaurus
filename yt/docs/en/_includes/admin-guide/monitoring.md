@@ -2,14 +2,20 @@
 
 ## Setting up Prometheus
 ### Prerequisites
-- [Follow the instructions](https://github.com/prometheus-operator/prometheus-operator#quickstart) to install the Prometheus operator.
+- A running {{product-name}} cluster;
+- Installed Odin [following the instructions](../../admin-guide/install-odin.md);
+- Installed prometheus-operator [following the instructions](https://github.com/prometheus-operator/prometheus-operator#quickstart).
 
-### Launch
-Monitoring services are created by the {{product-name}} operator automatically. To collect metrics, you need to:
-1. Create [ServiceMonitor](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml).
-2. Create a [service account](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml).
-3. Give the account you created a [role](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
-4. [Create Prometheus](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
+### Installation
+
+Services for monitoring are created automatically by the {{product-name}} operator and Odin Helm charts.
+
+To collect metrics do the following:
+1. Create a [ServiceMonitor](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml) for collecting metrics from {{product-name}} components.
+2. Create a ServiceMonitor for collecting Odin metrics by setting `metrics.serviceMonitor.enable: true` in the Helm chart values (it is not created by default).
+3. Create a [service account](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml).
+4. Grant the created account a [role](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
+5. [Create Prometheus](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
 
 ## Monitoring methods and important {{product-name}} metrics
 
