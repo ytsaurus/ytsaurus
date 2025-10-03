@@ -991,28 +991,6 @@ class YtClient(ClientState):
         """
         return client_api.get_current_user(client=self)
 
-    def get_declared_parameters_info(
-            self,
-            query, engine,
-            stage=None, settings=None, format=None):
-        """
-        Get parameters DECLAREd in YQL query. Currently supported only for YQL.
-
-        :param query: text of query to be parsed
-        :type query: str
-        :param engine: query engine, one of "ql", "yql", "chyt", "spyt".
-        :type engine: str
-        :param stage: query tracker stage, defaults to "production"
-        :type stage: str
-        :param settings: a dictionary of settings
-        :type settings: dict or None
-
-        """
-        return client_api.get_declared_parameters_info(
-            query, engine,
-            client=self,
-            stage=stage, settings=settings, format=format)
-
     def get_file_from_cache(
             self,
             md5,
@@ -1261,6 +1239,28 @@ class YtClient(ClientState):
             query_id,
             client=self,
             attributes=attributes, stage=stage, format=format)
+
+    def get_query_declared_parameters_info(
+            self,
+            query, engine,
+            stage=None, settings=None, format=None):
+        """
+        Get parameters DECLAREd in YQL query. Currently supported only for YQL.
+
+        :param query: text of query to be parsed
+        :type query: str
+        :param engine: query engine, one of "ql", "yql", "chyt", "spyt".
+        :type engine: str
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+        :param settings: a dictionary of settings
+        :type settings: dict or None
+
+        """
+        return client_api.get_query_declared_parameters_info(
+            query, engine,
+            client=self,
+            stage=stage, settings=settings, format=format)
 
     def get_query_result(
             self,

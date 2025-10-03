@@ -966,7 +966,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
                 .Item("multiple_aco").Value(true)
                 .Item("new_search").Value(true)
                 .Item("not_indexing").Value(true)
-                .Item("declare").Value(true)
+                .Item("declare_params").Value(true)
                 .Item("tutorials").Value(true)
             .EndMap();
     }
@@ -1016,12 +1016,12 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     };
 }
 
-TGetDeclaredParametersInfoResult TQueryTrackerProxy::GetDeclaredParametersInfo(
-    const TGetDeclaredParametersInfoOptions& options)
+TGetQueryDeclaredParametersInfoResult TQueryTrackerProxy::GetQueryDeclaredParametersInfo(
+    const TGetQueryDeclaredParametersInfoOptions& options)
 {
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
     auto parameters = EngineProviders_.contains(options.Engine) ? EngineProviders_[options.Engine]->GetDeclaredParametersInfo(options.Query, options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap) : EmptyMap;
-    return TGetDeclaredParametersInfoResult{
+    return TGetQueryDeclaredParametersInfoResult{
         .Parameters = parameters,
     };
 }

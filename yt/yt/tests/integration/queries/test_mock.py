@@ -780,8 +780,8 @@ class TestGetQueryTrackerInfo(YTEnvSetup):
         'new_search': True,
         'not_indexing': True,
         'not_indexing_on_proxies': True,
-        'declare': True,
-        'declare_on_proxies': True,
+        'declare_params': True,
+        'declare_params_on_proxies': True,
         'tutorials': True,
         'tutorials_on_proxies': True
     }
@@ -1564,7 +1564,7 @@ class TestGetQueryTrackerInfoRpcProxy(TestGetQueryTrackerInfo):
         'multiple_aco': True,
         'new_search': True,
         'not_indexing': True,
-        'declare': True,
+        'declare_params': True,
         'tutorials': True
     }
 

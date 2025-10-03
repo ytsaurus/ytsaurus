@@ -102,14 +102,14 @@ message TRspGetQueryTrackerInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetDeclaredParametersInfo
+message TReqGetQueryDeclaredParametersInfo
 {
-    required NYT.NApi.NRpcProxy.NProto.TReqGetDeclaredParametersInfo rpc_proxy_request = 1;
+    required NYT.NApi.NRpcProxy.NProto.TReqGetQueryDeclaredParametersInfo rpc_proxy_request = 1;
 }
 
-message TRspGetDeclaredParametersInfo
+message TRspGetQueryDeclaredParametersInfo
 {
-    required NYT.NApi.NRpcProxy.NProto.TRspGetDeclaredParametersInfo rpc_proxy_response = 1;
+    required NYT.NApi.NRpcProxy.NProto.TRspGetQueryDeclaredParametersInfo rpc_proxy_response = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
