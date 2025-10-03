@@ -37,6 +37,7 @@ struct TIndexDescriptor
     NTabletClient::ESecondaryIndexKind Kind;
     std::optional<int> UnfoldedColumnPosition;
     std::optional<int> PredicatePosition;
+    std::vector<int> AggregateColumnPositions;
 };
 
 struct TEvaluatedColumn
@@ -106,6 +107,8 @@ private:
 
     void SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows);
 
+    void InitializeMapping(std::vector<int> tableColumnIds);
+
     TFuture<TSharedRange<TRowModification>> ProduceModificationsForIndex(int index) const;
 
     TFuture<TSharedRange<TRowModification>> ProduceFullSyncModifications(
@@ -121,7 +124,8 @@ private:
         NTableClient::TTableSchemaPtr indexSchema,
         std::optional<int> predicatePosition,
         std::optional<NTableClient::TUnversionedValue> empty,
-        int unfoldedKeyPosition) const;
+        int unfoldedKeyPosition,
+        const std::vector<int>& aggregateColumns) const;
 
     TFuture<TSharedRange<TRowModification>> ProduceUniqueModifications(
         const NYPath::TYPath& uniqueIndexPath,
@@ -176,11 +180,12 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
 
     const auto& tableSchema = TableMountInfo_->Schemas[ETableSchemaKind::Primary];
 
+    std::vector<int> tableColumnIds;
     for (const auto& keyColumn : tableSchema->Columns()) {
         if (!keyColumn.SortOrder()) {
             break;
         }
-        PositionToIdMapping_.push_back(NameTable_->GetId(keyColumn.Name()));
+        tableColumnIds.push_back(NameTable_->GetId(keyColumn.Name()));
     }
 
     CanSkipLookup_ = true;
@@ -249,7 +254,11 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
         for (const auto& column : indexSchema.Columns()) {
             auto id = NameTable_->GetIdOrRegisterName(column.Name());
             if (TableMountInfo_->Schemas[ETableSchemaKind::Primary]->FindColumn(column.Name())) {
-                PositionToIdMapping_.push_back(id);
+                tableColumnIds.push_back(id);
+            }
+            if (column.Aggregate()) {
+                // NB(sabdenovch): Ids will be changed into positions later.
+                descriptor.AggregateColumnPositions.push_back(id);
             }
         }
 
@@ -257,20 +266,17 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
     }
 
     for (const auto& column : evaluatedExpressionsColumns) {
-        PositionToIdMapping_.push_back(NameTable_->GetId(column));
-    }
-    std::sort(PositionToIdMapping_.begin(), PositionToIdMapping_.end());
-    PositionToIdMapping_.erase(
-        std::unique(PositionToIdMapping_.begin(), PositionToIdMapping_.end()),
-        PositionToIdMapping_.end());
-    FirstEvaluatedColumnPosition_ = std::ssize(PositionToIdMapping_);
-    for (const auto& evaluatedColumn : EvaluatedColumnsSchema_) {
-        PositionToIdMapping_.push_back(NameTable_->GetIdOrRegisterName(evaluatedColumn.Name));
+        tableColumnIds.push_back(NameTable_->GetId(column));
     }
 
-    ResultingRowMapping_.assign(static_cast<size_t>(NameTable_->GetSize()), -1);
-    for (int position = 0; position < std::ssize(PositionToIdMapping_); ++position) {
-        ResultingRowMapping_[PositionToIdMapping_[position]] = position;
+    InitializeMapping(tableColumnIds);
+
+    for (auto& descriptor : IndexDescriptors_) {
+        std::vector<int> positions;
+        for (auto id : descriptor.AggregateColumnPositions) {
+            positions.push_back(ResultingRowMapping_[id]);
+        }
+        descriptor.AggregateColumnPositions = std::move(positions);
     }
 
     std::vector<TColumnSchema> resultingColumns;
@@ -334,6 +340,25 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
         .ApplyUnique(BIND([&, this_ = MakeStrong(this)] (TSharedRange<TUnversionedRow>&& result) {
             SetInitialAndResultingRows(result);
         }));
+}
+
+void TSecondaryIndexModifier::InitializeMapping(std::vector<int> tableColumnIds)
+{
+    std::sort(tableColumnIds.begin(), tableColumnIds.end());
+    tableColumnIds.erase(
+        std::unique(tableColumnIds.begin(), tableColumnIds.end()),
+        tableColumnIds.end());
+    FirstEvaluatedColumnPosition_ = std::ssize(tableColumnIds);
+    for (const auto& evaluatedColumn : EvaluatedColumnsSchema_) {
+        tableColumnIds.push_back(NameTable_->GetIdOrRegisterName(evaluatedColumn.Name));
+    }
+
+    PositionToIdMapping_ = std::move(tableColumnIds);
+
+    ResultingRowMapping_.assign(static_cast<size_t>(NameTable_->GetSize()), -1);
+    for (int position = 0; position < std::ssize(PositionToIdMapping_); ++position) {
+        ResultingRowMapping_[PositionToIdMapping_[position]] = position;
+    }
 }
 
 void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows)
@@ -464,7 +489,8 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceModifica
                 std::move(indexSchema),
                 IndexDescriptors_[index].PredicatePosition,
                 std::move(emptyValue),
-                *IndexDescriptors_[index].UnfoldedColumnPosition);
+                *IndexDescriptors_[index].UnfoldedColumnPosition,
+                IndexDescriptors_[index].AggregateColumnPositions);
 
         case ESecondaryIndexKind::Unique:
             return ProduceUniqueModifications(
@@ -535,7 +561,8 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
     TTableSchemaPtr indexSchema,
     std::optional<int> predicatePosition,
     std::optional<TUnversionedValue> empty,
-    int unfoldedColumnPosition) const
+    int unfoldedColumnPosition,
+    const std::vector<int>& aggregatePositions) const
 {
     std::vector<TRowModification> secondaryModifications;
 
@@ -612,8 +639,11 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
         }
     }
 
-    for (const auto& [_, resultingRow] : ResultingRowMap_) {
+    for (auto [_, resultingRow] : ResultingRowMap_) {
         if (resultingRow && IsPredicateGood(predicatePosition, resultingRow)) {
+            for (int position : aggregatePositions) {
+                resultingRow[position].Flags |= EValueFlags::Aggregate;
+            }
             auto permuttedRow = RowBuffer_->CaptureAndPermuteRow(
                 resultingRow,
                 *indexSchema,
@@ -622,6 +652,10 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
                 /*validateDuplicateAndRequiredValueColumns*/ false,
                 /*preserveIds*/ true,
                 empty);
+
+            for (int position : aggregatePositions) {
+                resultingRow[position].Flags = EValueFlags::None;
+            }
 
             unfoldValue(permuttedRow, [&] (TUnversionedRow rowToWrite) {
                 secondaryModifications.push_back(TRowModification{

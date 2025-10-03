@@ -7,6 +7,8 @@
 
 namespace NYT::NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NTableClient;
 using namespace NTabletClient;
 
@@ -268,11 +270,6 @@ private:
         }
 
         for (const auto& indexColumn : IndexTableSchema_.Columns()) {
-            THROW_ERROR_EXCEPTION_IF(indexColumn.Aggregate(),
-                "Index table cannot have aggregate columns, found aggregate column %Qv with function %Qv",
-                indexColumn.Name(),
-                indexColumn.Aggregate());
-
             if (auto* tableColumn = TableSchema_.FindColumn(indexColumn.Name())) {
                 if (indexColumn.Expression()) {
                     THROW_ERROR_EXCEPTION_UNLESS(tableColumn->Expression(),
@@ -297,6 +294,14 @@ private:
 
                 if (!tableColumn->SortOrder()) {
                     LockValidator_.ValidateColumn(*tableColumn);
+                }
+
+                if (indexColumn.Aggregate()) {
+                    THROW_ERROR_EXCEPTION_UNLESS(Kind_ == ESecondaryIndexKind::Unfolding,
+                        "Index table of kind %Qlv cannot have aggregate columns, got %Qv with function %Qv",
+                        Kind_,
+                        indexColumn.Name(),
+                        *indexColumn.Aggregate());
                 }
             } else if (EvaluatedColumnsSchema_ && EvaluatedColumnsSchema_->FindColumn(indexColumn.Name())) {
                 continue;
