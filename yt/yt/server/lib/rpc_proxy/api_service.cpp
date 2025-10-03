@@ -5876,6 +5876,7 @@ private:
         options.EnableTableIndex = request->enable_table_index();
         options.EnableRowIndex = request->enable_row_index();
         options.EnableRangeIndex = request->enable_range_index();
+        options.EnableAnyUnpacking = request->enable_any_unpacking();
         if (request->has_config()) {
             options.Config = ConvertTo<TTableReaderConfigPtr>(TYsonString(request->config()));
         }
