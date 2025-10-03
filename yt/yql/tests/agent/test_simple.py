@@ -686,6 +686,26 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         assert "Failed to read resulting rowset. Try using INSERT INTO to save result" in str(result["error"])
         assert "full_result" not in result
 
+    @authors("a-romanov")
+    @pytest.mark.timeout(180)
+    def test_big_result_with_empty_string_in_yson(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "value", "type": "string"}]
+        })
+
+        value_size = 1024**2
+
+        # 22 MB
+        rows = [{"value": ''.join(['d' for _ in range(value_size)])} for i in range(22)]
+        write_table("//tmp/t", rows)
+
+        expected = [{"value": ''.join(['d' for _ in range(value_size)]), "check": ""}]
+        q = self.start_query("yql", "select value, ('[\"\"]'y).0 as `check` from `//tmp/t`")
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert q.get_result(0)["is_truncated"]
+        assert_items_equal(q.read_result(0)[:1], expected)
+
 
 class TestQueriesYqlAuth(TestQueriesYqlBase):
     DELTA_PROXY_CONFIG = {
