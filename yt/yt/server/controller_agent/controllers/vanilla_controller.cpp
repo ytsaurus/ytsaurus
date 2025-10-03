@@ -1671,6 +1671,11 @@ void TGangOperationController::ReportOperationIncarnationToArchive(const TGangJo
 
 void TGangOperationController::ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData data) const
 {
+    // NB(bystrovserg): We don't want to report an empty error.
+    if (auto& jobError = data.IncarnationSwitchInfo.TriggerJobError; jobError && jobError->IsOK()) {
+        jobError = std::nullopt;
+    }
+
     auto event = TOperationEventReport{
         .OperationId = GetOperationId(),
         .Timestamp = TInstant::Now(),
