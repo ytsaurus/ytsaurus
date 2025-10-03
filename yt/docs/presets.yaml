@@ -12,7 +12,7 @@ default:
     python-yson-version: 0.4.9
     cert-manager-version: v1.17.1
     cron-version: 0.0.3
-    odin-version: 0.0.3
+    odin-version: 0.0.4
 
 public:
   example_cluster: 'cluster_name'
