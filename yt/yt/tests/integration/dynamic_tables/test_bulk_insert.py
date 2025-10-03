@@ -13,7 +13,7 @@ from yt_commands import (
     create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
     disable_write_sessions_on_node, disable_tablet_cells_on_node, get_singular_chunk_id)
 
-from yt_type_helpers import make_schema
+from yt_type_helpers import make_schema, make_column, make_sorted_column, list_type
 import yt_error_codes
 
 from yt.ypath import parse_ypath
@@ -2226,6 +2226,53 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         remount_table(output)
 
         wait(lambda: not exists(f"#{chunk_id}"))
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_input_query_schema_1(self, optimize_for):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t_input", schema=[make_sorted_column("key", "int64"), make_column("value", list_type("int64"))], optimize_for=optimize_for)
+        sync_mount_table("//tmp/t_input")
+        rows = [{"key": 1, "value": [0, 1, 2, 3]}]
+        insert_rows("//tmp/t_input", rows)
+        types = [
+            {"type": "any", "required": False},
+            {"type_v3": {"type_name": "optional", "item": "yson"}, "required": False},
+            {"type_v3": list_type("int64")},
+        ]
+        for index, type_tuple in enumerate(types):
+            value_column = {"name": "value"} | type_tuple
+            create_dynamic_table(f"//tmp/t_output_{index}", schema=[make_sorted_column("key", "int64"), value_column], optimize_for=optimize_for)
+            sync_mount_table(f"//tmp/t_output_{index}")
+            merge(
+                in_="//tmp/t_input",
+                out=f"<schema_modification=unversioned_update;append=%true>//tmp/t_output_{index}",
+                mode="ordered",
+                spec={"input_query": "0u as [$change_type], key, 2u as [$flags:value], value as [$value:value]"})
+            assert_items_equal(select_rows(f"* from [//tmp/t_output_{index}]"), rows)
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_input_query_schema_2(self, optimize_for):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t_input", schema=[make_sorted_column("key", "int64"), make_column("value", list_type("int64"))], optimize_for=optimize_for)
+        sync_mount_table("//tmp/t_input")
+        rows = [{"key": 1, "value": [0, 1, 2, 3]}]
+        insert_rows("//tmp/t_input", rows)
+        types = [
+            {"type_v3": list_type("float")},
+            {"type_v3": list_type("string")},
+        ]
+        for index, type_tuple in enumerate(types):
+            value_column = {"name": "value"} | type_tuple
+            create_dynamic_table(f"//tmp/t_output_{index}", schema=[make_sorted_column("key", "int64"), value_column], optimize_for=optimize_for)
+            sync_mount_table(f"//tmp/t_output_{index}")
+            with raises_yt_error("Error validating column"):
+                merge(
+                    in_="//tmp/t_input",
+                    out=f"<schema_modification=unversioned_update;append=%true>//tmp/t_output_{index}",
+                    mode="ordered",
+                    spec={"input_query": "0u as [$change_type], key, 2u as [$flags:value], value as [$value:value]"})
 
 
 ##################################################################

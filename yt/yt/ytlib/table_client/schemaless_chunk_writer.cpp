@@ -1182,6 +1182,15 @@ protected:
                 }
             }
 
+            if (Options_->CastCompositeToAny) {
+                for (int index = 0; index < std::ssize(Schema_->Columns()); ++index) {
+                    const auto& column = Schema_->Columns()[index];
+                    if (column.GetWireType() == EValueType::Any && mutableRow[index].Type == EValueType::Composite) {
+                        mutableRow[index].Type = EValueType::Any;
+                    }
+                }
+            }
+
             // Now mutableRow contains all values that schema knows about.
             // And we can check types and check that all required fields are set.
             for (int i = 0; i < std::ssize(Schema_->Columns()); ++i) {
