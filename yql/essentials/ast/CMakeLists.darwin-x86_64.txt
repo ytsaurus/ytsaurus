@@ -61,5 +61,6 @@ target_sources(yql-essentials-ast PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/ast/yql_expr_types.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/ast/yql_gc_nodes.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/ast/yql_type_string.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/ast/yql_pos_handle.h
 )
 
