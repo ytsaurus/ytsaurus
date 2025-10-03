@@ -17,6 +17,7 @@ import yt.yson as yson
 
 from copy import deepcopy
 import builtins
+import itertools
 import pytest
 import yt_error_codes
 
@@ -39,12 +40,6 @@ PRIMARY_SCHEMA_WITH_EXTRA_KEY = [
     EXTRA_KEY_COLUMN,
     {"name": "valueA", "type": "int64"},
     {"name": "valueB", "type": "boolean"},
-]
-
-PRIMARY_SCHEMA_WITH_AGGREGATE = [
-    {"name": "key", "type": "int64", "sort_order": "ascending"},
-    {"name": "value", "type": "int64"},
-    {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
 ]
 
 PRIMARY_SCHEMA_WITH_EXPRESSION = [
@@ -734,14 +729,15 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         index_schema = [
             {"name": "tokens", "type": "string", "sort_order": "ascending"},
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": EMPTY_COLUMN_NAME, "type": "int64"}
+            {"name": "count", "type": "int64", "aggregate": "sum"}
         ]
         self._create_basic_tables(
             table_schema=table_schema,
             index_schema=index_schema,
             kind="unfolding",
             mount=True,
-            unfolded_column="tokens"
+            unfolded_column="tokens",
+            evaluated_columns_schema=[{"name": "count", "type": "int64", "expression": "1"}]
         )
 
         def make_row(key, text: str):
@@ -756,6 +752,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             make_row(6, "Phasellus ultrices varius mi, vitae feugiat enim placerat in"),
             make_row(7, "Quisque egestas egestas dui, non mattis urna dapibus eget"),
             make_row(8, "Vivamus eros dolor, maximus vel blandit non, ultricies sit amet est"),
+            make_row(9, " ".join(itertools.repeat("АБЫР", 15))),
         ])
 
         index_table_path = self._get_index_path()
@@ -777,6 +774,18 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         rows = select_rows(query)
         assert builtins.set([3, 4, 7, 8]) == builtins.set([row["key"] for row in rows])
         assert explain_query(query)["query"]["constraints"] != "Constraints: <universe>"
+
+        query = f"[count] as c from [{index_table_path}] where key = 9 and tokens = 'АБЫР'"
+        assert select_rows(query)[0]["c"] == 15
+
+        insert_rows("//tmp/table", [
+            make_row(9, " ".join(itertools.repeat("РЫБА", 3))),
+        ])
+
+        query = f"[count] as c from [{index_table_path}] where key = 9"
+        rows = select_rows(query)
+        assert len(rows) == 1
+        assert rows[0]["c"] == 3
 
 
 ##################################################################
