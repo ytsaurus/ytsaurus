@@ -408,6 +408,7 @@ public:
 
     void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
 
+    const TSpecManagerPtr& GetSpecManager() const;
     TOperationSpecBaseSealedConfigurator ConfigureUpdate();
     void PatchSpec(NYTree::INodePtr newCumulativeSpecPatch, bool dryRun) override;
     std::any CreateSafeAssertionGuard() const final;

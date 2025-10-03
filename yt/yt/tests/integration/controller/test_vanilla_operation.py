@@ -3060,6 +3060,25 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
         response.wait()
         assert not response.is_ok()
 
+    @authors("coteeq")
+    def test_clean_start(self):
+        update_controller_agent_config("enable_snapshot_building", False)
+        op = self._run_vanilla(delay_in_apply=0)
+
+        wait_breakpoint(job_count=2)
+
+        self._set_job_count(op, 3)
+        time.sleep(1)
+        self._restart_controller()
+
+        wait(lambda: len(op.get_running_jobs(verbose=True)) == 3)
+        self.assert_job_states(op, "task", running=3, aborted=0)
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", aborted=0, completed=3)
+
 
 class TestSidecarVanilla(YTEnvSetup):
     ENABLE_MULTIDAEMON = False

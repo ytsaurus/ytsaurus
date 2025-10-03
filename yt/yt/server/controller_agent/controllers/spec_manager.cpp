@@ -10,6 +10,19 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TString FormatPatch(const INodePtr& patch)
+{
+    return patch
+        ? ConvertToYsonString(patch, EYsonFormat::Text).ToString()
+        : TString("<null>");
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSpecManager::TSpecManager(
     ISpecManagerHost* host,
     NScheduler::TOperationSpecBasePtr spec,
@@ -30,6 +43,9 @@ void TSpecManager::InitializeReviving(INodePtr&& cumulativeSpecPatch)
     // But if we were to update spec during revive with clean start, it would complicate things, as
     // code inside update cannot rely on any internal state.
     if (InitialCumulativeSpecPatch_) {
+        YT_LOG_DEBUG(
+            "Setting initial spec patch (InitialPatch: %v)",
+            FormatPatch(InitialCumulativeSpecPatch_));
         auto currentSpec = GetSpec();
         auto newSpec = PatchNode(ConvertToNode(currentSpec), InitialCumulativeSpecPatch_);
         DynamicSpec_.Exchange(Host_->ParseTypedSpec(newSpec));
@@ -43,13 +59,10 @@ void TSpecManager::SetConfigurator(TOperationSpecBaseSealedConfigurator configur
 
 void TSpecManager::ValidateSpecPatch(const INodePtr& newCumulativeSpecPatch) const
 {
-
     YT_LOG_INFO(
         "Validating spec patch (OldPatch: %v, NewPatch: %v)",
-        InitialCumulativeSpecPatch_
-            ? ConvertToYsonString(InitialCumulativeSpecPatch_, EYsonFormat::Text).ToString()
-            : TString("<null>"),
-        ConvertToYsonString(newCumulativeSpecPatch, EYsonFormat::Text));
+        FormatPatch(InitialCumulativeSpecPatch_),
+        FormatPatch(newCumulativeSpecPatch));
 
     YT_VERIFY(UpdateConfigurator_);
 
@@ -98,10 +111,8 @@ void TSpecManager::DoApply(
 {
     YT_LOG_INFO(
         "Applying spec patch (OldPatch: %v, NewPatch: %v)",
-        InitialCumulativeSpecPatch_
-            ? ConvertToYsonString(InitialCumulativeSpecPatch_, EYsonFormat::Text).ToString()
-            : TString("<null>"),
-        ConvertToYsonString(patch, EYsonFormat::Text));
+        FormatPatch(InitialCumulativeSpecPatch_),
+        FormatPatch(patch));
 
     auto newSpec = PatchNode(ConvertToNode(currentSpec), patch);
 
@@ -137,7 +148,7 @@ void TSpecManager::DoApply(
         YT_LOG_ERROR(
             ex,
             "Failed to apply patch (Patch: %v)",
-            ConvertToYsonString(patch, EYsonFormat::Text).ToString());
+            FormatPatch(patch));
         THROW_ERROR_EXCEPTION(
             EErrorCode::ExceptionLeadingToOperationFailure,
             "Failed to apply spec patch")
@@ -146,7 +157,7 @@ void TSpecManager::DoApply(
         Host_->ProcessSafeException(ex);
         YT_LOG_ERROR(
             "Failed to apply patch (Patch: %v)",
-            ConvertToYsonString(patch, EYsonFormat::Text).ToString());
+            FormatPatch(patch));
         THROW_ERROR_EXCEPTION(
             EErrorCode::ExceptionLeadingToOperationFailure,
             "Operation controller crashed while applying spec patch");
