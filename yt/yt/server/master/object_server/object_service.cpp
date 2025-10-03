@@ -1740,6 +1740,11 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        if (InterruptIfCanceled()) {
+            Reschedule<WorkloadType>();
+            return;
+        }
+
         if (!result.IsOK()) {
             Reply(result);
             return;
