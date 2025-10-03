@@ -96,3 +96,17 @@ message TReqSetAttributeOnTransactionCommit
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(h0pless): FixSchemaDivergence.
+message TReqSetTableSchemas
+{
+    message TSetTableSchema
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        required NYT.NProto.TGuid transaction_id = 2;
+        required NYT.NProto.TGuid schema_id = 3;
+    }
+
+    repeated TSetTableSchema subrequests = 1;
+}
+////////////////////////////////////////////////////////////////////////////////
