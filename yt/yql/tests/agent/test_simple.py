@@ -1710,16 +1710,66 @@ class TestsDDL(TestQueriesYqlSimpleBase):
             select * from `//tmp/t4`;
         """, [])
 
-    def test_create_table_with_pk(self, query_tracker, yql_agent):
+    def test_create_table_with_order_by(self, query_tracker, yql_agent):
         self._test_simple_query("""
             create table `//tmp/t5` (
                 key Text,
                 subkey Int32,
-                value Uint64,
-                primary key(key, subkey)
+                value Date,
+                order by(key, subkey)
             );
         """, None)
         self._test_simple_query("""
             $p = process `//tmp/t5`;
-            select FormatType(ListItemType(TypeOf($p))) as type;
-        """, [{'type': "Struct<'key':Utf8,'subkey':Int32,'value':Uint64?>"}])
+            select FormatType(ListItemType(TypeOf($p))) as type, YQL::ConstraintsOf($p) as constraints;
+        """, [{'type': "Struct<'key':Utf8?,'subkey':Int32?,'value':Date?>", 'constraints': """{
+  "Empty":true,
+  "Sorted":
+    [
+      [
+        "key",
+        true
+      ],
+      [
+        "subkey",
+        true
+      ]
+    ]
+}"""
+               }])
+
+    def test_create_table_with_order_by_descending(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            create table `//tmp/t6` (
+                key Text,
+                subkey Int32,
+                value Date,
+                order by(key asc, subkey desc)
+            );
+        """, "is only supported when YT's naive descending sort is enabled")
+        self._test_simple_query("""
+            pragma yt.UseNativeDescSort;
+            create table `//tmp/t6` (
+                key Text,
+                subkey Int32,
+                value Date,
+                order by(key asc, subkey desc)
+            );
+            commit;
+            $p = process `//tmp/t6`;
+            select FormatType(ListItemType(TypeOf($p))) as type, YQL::ConstraintsOf($p) as constraints;
+        """, [{'type': "Struct<'key':Utf8?,'subkey':Int32?,'value':Date?>", 'constraints': """{
+  "Empty":true,
+  "Sorted":
+    [
+      [
+        "key",
+        true
+      ],
+      [
+        "subkey",
+        false
+      ]
+    ]
+}"""
+               }])
