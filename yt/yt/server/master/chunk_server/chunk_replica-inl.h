@@ -10,10 +10,10 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
-template <class T, bool WithReplicaState, int IndexCount, template <typename> class TAccessor>
-struct THash<NYT::NChunkServer::TAugmentedPtr<T, WithReplicaState, IndexCount, TAccessor>>
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <typename> class TAccessor>
+struct THash<NYT::NChunkServer::TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAccessor>>
 {
-    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TAugmentedPtr<T, WithReplicaState, IndexCount, TAccessor> value) const
+    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAccessor> value) const
     {
         return value.GetHash();
     }
@@ -36,134 +36,191 @@ static_assert(
     NChunkClient::ChunkReplicaIndexBound <= (1LL << 5),
     "Replica index must fit into 5 bits.");
 static_assert(
-    NChunkClient::MediumIndexBound <= (1LL << 7),
-    "Medium index must fit into 7 bits.");
-static_assert(
     static_cast<int>(TEnumTraits<EChunkReplicaState>::GetMaxValue()) < (1LL << 3),
     "Chunk replica state must fit into 2 bits.");
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr()
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr()
     : Value_(0)
+    // ExtraIndex_ is zero-initialized in class declaration.
 { }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(T* ptr, int index)
-    requires (!WithReplicaState && IndexCount == 1)
-    : Value_(reinterpret_cast<uintptr_t>(ptr) | (static_cast<uintptr_t>(index) << 56))
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(T* ptr, int index)
+    requires (!WithReplicaState && TotalIndexCount == 1)
 {
+    Value_ = reinterpret_cast<uintptr_t>(ptr);
+
+    if constexpr (CompactIndexCount >= 1) {
+        Value_ |= (static_cast<uintptr_t>(index) << 56);
+        YT_ASSERT(index >= 0 && index <= 0xff);
+    }
+
+    if constexpr (ExtraIndexCount >= 1) {
+        ExtraIndex1_ = index;
+    }
+
+    // Should be true for all cases in practice, so doesn't hurt to check.
     YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
-    YT_ASSERT(index >= 0 && index <= 0xff);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(
     T* ptr,
     int index,
     EChunkReplicaState state)
-    requires (WithReplicaState && IndexCount == 1)
-    : Value_(
-        reinterpret_cast<uintptr_t>(ptr) |
-        static_cast<uintptr_t>(state) |
-        (static_cast<uintptr_t>(index) << 56))
+    requires (WithReplicaState && TotalIndexCount == 1)
 {
+    Value_ = reinterpret_cast<uintptr_t>(ptr) | static_cast<uintptr_t>(state);
+
+    if constexpr (CompactIndexCount >= 1) {
+        Value_ |= (static_cast<uintptr_t>(index) << 56);
+        YT_ASSERT(index >= 0 && index <= 0xff);
+    }
+
+    if constexpr (ExtraIndexCount >= 1) {
+        ExtraIndex1_ = index;
+    }
+
+    // Should be true for all cases in practice, so doesn't hurt to check.
     YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000003LL) == 0);
-    YT_ASSERT(index >= 0 && index <= 0xff);
     YT_ASSERT(static_cast<uintptr_t>(state) <= 0x3);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(
     T* ptr,
     int firstIndex,
     int secondIndex)
-    requires (!WithReplicaState && IndexCount == 2)
-    : Value_(
-        reinterpret_cast<uintptr_t>(ptr) |
-        (static_cast<uintptr_t>(firstIndex) << 56) |
-        (static_cast<uintptr_t>(secondIndex) << 48))
+    requires (!WithReplicaState && TotalIndexCount == 2)
 {
+    Value_ = reinterpret_cast<uintptr_t>(ptr);
+
+    if constexpr (CompactIndexCount >= 1) {
+        Value_ |= (static_cast<uintptr_t>(firstIndex) << 56);
+        YT_ASSERT(firstIndex >= 0 && firstIndex <= 0xff);
+    }
+
+    if constexpr (CompactIndexCount >= 2) {
+        Value_ |= (static_cast<uintptr_t>(secondIndex) << 48);
+        YT_ASSERT(secondIndex >= 0 && secondIndex <= 0xff);
+    }
+
+    if constexpr (ExtraIndexCount >= 1) {
+        // If extra index is requested, it is always the second index.
+        ExtraIndex1_ = secondIndex;
+    }
+
+    // Should be true for all cases in practice, so doesn't hurt to check.
     YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xffff000000000000LL) == 0);
-    YT_ASSERT(firstIndex >= 0 && firstIndex <= 0xff);
-    YT_ASSERT(secondIndex >= 0 && secondIndex <= 0xff);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(
     T* ptr,
     int firstIndex,
     int secondIndex,
     EChunkReplicaState state)
-    requires (WithReplicaState && IndexCount == 2)
-    : Value_(
-        reinterpret_cast<uintptr_t>(ptr) |
-        static_cast<uintptr_t>(state) |
-        (static_cast<uintptr_t>(firstIndex) << 56) |
-        (static_cast<uintptr_t>(secondIndex) << 48))
+    requires (WithReplicaState && TotalIndexCount == 2)
 {
-    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xffff000000000000LL) == 0);
-    YT_ASSERT(firstIndex >= 0 && firstIndex <= 0xff);
-    YT_ASSERT(secondIndex >= 0 && secondIndex <= 0xff);
+    Value_ = reinterpret_cast<uintptr_t>(ptr) | static_cast<uintptr_t>(state);
+
+    if constexpr (CompactIndexCount >= 1) {
+        Value_ |= (static_cast<uintptr_t>(firstIndex) << 56);
+        YT_ASSERT(firstIndex >= 0 && firstIndex <= 0xff);
+    }
+
+    if constexpr (CompactIndexCount >= 2) {
+        Value_ |= (static_cast<uintptr_t>(secondIndex) << 48);
+        YT_ASSERT(secondIndex >= 0 && secondIndex <= 0xff);
+    }
+
+    if constexpr (ExtraIndexCount >= 1) {
+        // If extra index is requested, it is always the second index.
+        ExtraIndex1_ = secondIndex;
+    }
+
+    // Should be true for all cases in practice, so doesn't hurt to check.
+    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xffff000000000003LL) == 0);
     YT_ASSERT(static_cast<uintptr_t>(state) <= 0x3);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
-    TAugmentedPtr<T, true, IndexCount, TAugmentationAccessor> other)
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(
+    TAugmentedPtr<T, true, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> other)
     requires (!WithReplicaState)
     : Value_(other.ToGenericState().Value_)
+    , ExtraIndex1_(other.ExtraIndex1_)
 { }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
-    TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor> other)
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(
+    TAugmentedPtr<T, false, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> other)
     requires WithReplicaState
     : Value_(other.Value_)
+    , ExtraIndex1_(other.ExtraIndex1_)
 { }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::TAugmentedPtr(
-    TAugmentedPtr<T, false, IndexCount, TAugmentationAccessor> other,
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::TAugmentedPtr(
+    TAugmentedPtr<T, false, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> other,
     EChunkReplicaState state)
     requires WithReplicaState
     : Value_(other.Value_ | static_cast<uintptr_t>(state))
+    , ExtraIndex1_(other.ExtraIndex1_)
 { }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE T* TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::GetPtr() const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE T* TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::GetPtr() const
 {
     return reinterpret_cast<T*>(Value_ & 0x0000fffffffffffcLL);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
 template <int Index>
-Y_FORCE_INLINE int TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::GetIndex() const
-    requires (Index <= IndexCount)
+Y_FORCE_INLINE int TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::GetIndex() const
+    requires (Index <= TotalIndexCount)
 {
-    return (Value_ >> (64 - 8 * Index)) & 0xff;
+    if constexpr (Index <= CompactIndexCount) {
+        return (Value_ >> (64 - 8 * Index)) & 0xff;
+    }
+
+    if constexpr (Index == CompactIndexCount + 1) {
+        return ExtraIndex1_;
+    }
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE size_t TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::GetHash() const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE size_t TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::GetHash() const
 {
-    return static_cast<size_t>(Value_);
+    auto result = static_cast<size_t>(Value_);
+
+    if constexpr (ExtraIndexCount >= 1) {
+        HashCombine(result, ExtraIndex1_);
+    }
+
+    return result;
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE EChunkReplicaState TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::GetReplicaState() const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE EChunkReplicaState TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::GetReplicaState() const
     requires WithReplicaState
 {
     return static_cast<EChunkReplicaState>(Value_ & 0x3);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator==(TAugmentedPtr other) const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::operator==(TAugmentedPtr other) const
 {
-    return Value_ == other.Value_;
+    auto result = Value_ == other.Value_;
+    if constexpr (ExtraIndexCount >= 1) {
+        result &= ExtraIndex1_ == other.ExtraIndex1_;
+    }
+    return result;
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator<(TAugmentedPtr other) const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::operator<(TAugmentedPtr other) const
 {
     int thisFirstIndex = GetIndex<1>();
     int otherFirstIndex = other.GetIndex<1>();
@@ -179,7 +236,7 @@ Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentation
         }
     }
 
-    if constexpr (IndexCount == 2) {
+    if constexpr (TotalIndexCount == 2) {
         auto thisSecondIndex = GetIndex<2>();
         auto otherSecondIndex = other.GetIndex<2>();
         if (thisSecondIndex != otherSecondIndex) {
@@ -190,32 +247,33 @@ Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentation
     return GetPtr()->GetId() < other.GetPtr()->GetId();
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator>(TAugmentedPtr other) const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::operator>(TAugmentedPtr other) const
 {
     return other < *this;
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator<=(TAugmentedPtr other) const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::operator<=(TAugmentedPtr other) const
 {
     return !operator>(other);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::operator>=(TAugmentedPtr other) const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE bool TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::operator>=(TAugmentedPtr other) const
 {
     return !operator<(other);
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
 template <class C>
-Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::Save(C& context) const
+Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::Save(C& context) const
+    requires (ExtraIndexCount == 0)
 {
     using NYT::Save;
     Save(context, GetPtr());
     Save<uint8_t>(context, GetIndex<1>());
-    if constexpr (IndexCount == 2) {
+    if constexpr (TotalIndexCount == 2) {
         Save<uint8_t>(context, GetIndex<2>());
     }
     if constexpr (WithReplicaState) {
@@ -223,14 +281,15 @@ Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentation
     }
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
 template <class C>
-Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::Load(C& context)
+Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::Load(C& context)
+    requires (ExtraIndexCount == 0)
 {
     using NYT::Load;
     auto* ptr = Load<T*>(context);
     int firstIndex = Load<uint8_t>(context);
-    if constexpr (IndexCount == 2) {
+    if constexpr (TotalIndexCount == 2) {
         int secondIndex = Load<uint8_t>(context);
         if constexpr (WithReplicaState) {
             auto state = Load<EChunkReplicaState>(context);
@@ -246,16 +305,18 @@ Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentation
     }
 }
 
-template <class T, bool WithReplicaState, int IndexCount, template <class> class TAugmentationAccessor>
-Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor> TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::ToGenericState() const
+template <class T, bool WithReplicaState, int CompactIndexCount, int ExtraIndexCount, template <class> class TAugmentationAccessor>
+Y_FORCE_INLINE TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor> TAugmentedPtr<T, WithReplicaState, CompactIndexCount, ExtraIndexCount, TAugmentationAccessor>::ToGenericState() const
     requires WithReplicaState
 {
-    if constexpr (IndexCount == 1) {
+    if constexpr (TotalIndexCount == 1) {
         return TAugmentedPtr(GetPtr(), GetIndex<1>());
     } else {
         return TAugmentedPtr(GetPtr(), GetIndex<1>(), GetIndex<2>());
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 

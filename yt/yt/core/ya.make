@@ -133,6 +133,7 @@ SRCS(
     misc/adjusted_exponential_moving_average.cpp
     misc/id_generator.cpp
     misc/linear_probe.cpp
+    misc/mex_set.cpp
     misc/memory_usage_tracker.cpp
     misc/relaxed_mpsc_queue.cpp
     misc/origin_attributes.cpp

@@ -1077,6 +1077,16 @@ bool TNode::HasMedium(int mediumIndex) const
     return it != locations.end();
 }
 
+TMediumSet TNode::GetMediumSet() const
+{
+    TMediumSet mediumSet;
+    const auto& locations = DataNodeStatistics_.chunk_locations();
+    for (const auto& location : locations) {
+        mediumSet.insert(location.medium_index());
+    }
+    return mediumSet;
+}
+
 std::optional<double> TNode::GetFillFactor(int mediumIndex) const
 {
     return GetOrDefault(FillFactors_, mediumIndex);
