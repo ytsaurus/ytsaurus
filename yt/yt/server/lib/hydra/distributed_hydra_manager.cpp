@@ -863,7 +863,7 @@ private:
             }
 
             owner->CommitMutation(owner->MakeSystemMutationRequest(ExitReadOnlyMutationType))
-                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                .Subscribe(BIND_NO_PROPAGATE([=] (const TErrorOr<TMutationResponse>& result) {
                     if (!result.IsOK()) {
                         context->Reply(result);
                         return;
