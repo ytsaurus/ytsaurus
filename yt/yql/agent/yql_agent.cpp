@@ -429,7 +429,7 @@ public:
 
         auto supportedFeatures = BuildYsonStringFluently()
             .BeginMap()
-                .Item("declare").Value(true)
+                .Item("declare_params").Value(true)
             .EndMap();
         response.set_supported_features(supportedFeatures.ToString());
 

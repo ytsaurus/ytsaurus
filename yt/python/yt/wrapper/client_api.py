@@ -15,7 +15,7 @@ from .flow_commands import (  # noqa
 from .queue_commands import (  # noqa
     register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations, pull_queue, pull_consumer, pull_queue_consumer,
     advance_consumer, advance_queue_consumer, create_queue_producer_session, remove_queue_producer_session, push_queue_producer)
-from .query_commands import start_query, run_query, abort_query, alter_query, read_query_result, get_query, get_query_result, get_declared_parameters_info, get_query_tracker_info, list_queries  # noqa
+from .query_commands import start_query, run_query, abort_query, alter_query, read_query_result, get_query, get_query_result, get_query_declared_parameters_info, get_query_tracker_info, list_queries  # noqa
 from .run_operation_commands import (  # noqa
     run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce,
     run_join_reduce, run_remote_copy, run_operation)

@@ -53,7 +53,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryDeclaredParametersInfo));
     }
 
 private:
@@ -391,15 +391,15 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetDeclaredParametersInfo)
+    DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryDeclaredParametersInfo)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetDeclaredParametersInfo::GetDescriptor()->field_count() == 4);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetDeclaredParametersInfo::GetDescriptor()->field_count() == 1);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryDeclaredParametersInfo::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryDeclaredParametersInfo::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
-        TGetDeclaredParametersInfoOptions options;
+        TGetQueryDeclaredParametersInfoOptions options;
         if (rpcRequest.has_query_tracker_stage()) {
             options.QueryTrackerStage = rpcRequest.query_tracker_stage();
         }
@@ -410,7 +410,7 @@ private:
         options.Engine = ConvertQueryEngineFromProto(rpcRequest.engine());
         context->SetRequestInfo();
 
-        auto result = QueryTracker_->GetDeclaredParametersInfo(options);
+        auto result = QueryTracker_->GetQueryDeclaredParametersInfo(options);
 
         rpcResponse->set_declared_parameters_info(ToProto(result.Parameters));
 

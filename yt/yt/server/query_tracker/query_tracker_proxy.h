@@ -65,8 +65,8 @@ public:
     NApi::TGetQueryTrackerInfoResult GetQueryTrackerInfo(
         const NApi::TGetQueryTrackerInfoOptions& options);
 
-    NApi::TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
-        const NApi::TGetDeclaredParametersInfoOptions& options);
+    NApi::TGetQueryDeclaredParametersInfoResult GetQueryDeclaredParametersInfo(
+        const NApi::TGetQueryDeclaredParametersInfoOptions& options);
 
 private:
     const NApi::IClientPtr StateClient_;
