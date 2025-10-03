@@ -522,6 +522,7 @@ default_config = {
         # List of commands that use framing (cf. https://ytsaurus.tech/docs/en/user-guide/proxy/http-reference#framing).
         "commands_with_framing": [
             "read_table",
+            "read_file",
             "get_table_columnar_statistics",
             "get_job_input",
             "list_jobs",
