@@ -313,6 +313,12 @@ const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath()
     return path;
 }
 
+const NYPath::TYPath& GetOperationsArchiveJobTracesPath()
+{
+    static const TYPath path = GetOperationsArchivePath() + "/job_traces";
+    return path;
+}
+
 const NYPath::TYPath& GetOperationsArchiveOperationEventsPath()
 {
     static const TYPath path = GetOperationsArchivePath() + "/operation_events";
