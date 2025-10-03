@@ -78,8 +78,6 @@ There are checks of the self-diagnosis messages of the {{product-name}} cluster'
 
 The implementation of these checks can be viewed in [Odin](https://github.com/ytsaurus/ytsaurus/tree/main/yt/odin).
 
-In its current implementation, Odin doesn't support alerts: it can only run checks, save the results to a dynamic table, and display them in the UI.
-
 ### Quantitative monitoring
 
 Quantitative monitoring evaluates metrics collected in the form of time series from various cluster's subsystems. They can be used to assess load and resource consumption trends and pre-empt cluster problems that would be noticeable to the user.
