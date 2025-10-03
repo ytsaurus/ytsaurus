@@ -25,7 +25,7 @@ from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
 from .file_commands import _get_remote_temp_files_directory, _append_default_path_with_user_level
-from .parallel_reader import make_read_parallel_request
+from .parallel_reader import make_read_parallel_request, _slice_row_ranges_for_parallel_read
 from .schema import _SchemaRuntimeCtx, TableSchema, make_dataclass_from_table_schema
 from .stream import ItemStream, _ChunkStream
 from .ypath import TablePath, YPath, ypath_join
@@ -34,7 +34,6 @@ import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
 
-import builtins
 from copy import deepcopy
 from datetime import timedelta
 import enum
@@ -449,35 +448,6 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
     return response
 
 
-def _slice_row_ranges_for_parallel_read(ranges, row_count, data_size, data_size_per_thread):
-    result = []
-    if row_count > 0:
-        row_size = data_size / float(row_count)
-    else:
-        row_size = 1
-
-    rows_per_thread = max(int(data_size_per_thread / row_size), 1)
-    for range in ranges:
-        if "exact" in range:
-            require("row_index" in range["exact"], lambda: YtError('Invalid YPath: "row_index" not found'))
-            lower_limit = range["exact"]["row_index"]
-            upper_limit = lower_limit + 1
-        else:
-            if "lower_limit" in range:
-                require("row_index" in range["lower_limit"], lambda: YtError('Invalid YPath: "row_index" not found'))
-            if "upper_limit" in range:
-                require("row_index" in range["upper_limit"], lambda: YtError('Invalid YPath: "row_index" not found'))
-
-            lower_limit = 0 if "lower_limit" not in range else range["lower_limit"]["row_index"]
-            upper_limit = row_count if "upper_limit" not in range else range["upper_limit"]["row_index"]
-
-        for start in builtins.range(lower_limit, upper_limit, rows_per_thread):
-            end = min(start + rows_per_thread, upper_limit)
-            result.append({"range" : (start, end)})
-
-    return result
-
-
 def _prepare_params_for_parallel_read(params, range):
     params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range["range"][0]},
                                             "upper_limit": {"row_index": range["range"][1]}}]
@@ -808,7 +778,7 @@ def _check_attributes_for_read_table(attributes, table, client):
 def _get_table_attributes(table, client):
     attributes = get(
         table + "/@",
-        attributes=["type", "chunk_count", "compressed_data_size", "dynamic", "row_count", "uncompressed_data_size"],
+        attributes=["type", "chunk_count", "compressed_data_size", "dynamic", "row_count", "replication_factor", "chunk_count", "uncompressed_data_size"],
         client=client)
     return attributes
 
@@ -861,11 +831,14 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                 table.attributes["ranges"] = [
                     {"lower_limit": {"row_index": 0},
                      "upper_limit": {"row_index": attributes["row_count"]}}]
-            ranges = _slice_row_ranges_for_parallel_read(
-                table.attributes["ranges"],
-                attributes["row_count"],
-                attributes["uncompressed_data_size"],
-                get_config(client)["read_parallel"]["data_size_per_thread"])
+            ranges, _ = _slice_row_ranges_for_parallel_read(
+                ranges=table.attributes["ranges"],
+                row_count=attributes["row_count"],
+                chunk_count=attributes["chunk_count"],
+                data_size=attributes["uncompressed_data_size"],
+                replication_factor=attributes["replication_factor"],
+                data_size_per_thread=get_config(client)["read_parallel"]["data_size_per_thread"],
+            )
             response_parameters = get_value(response_parameters, {})
             if not ranges:
                 response_parameters["start_row_index"] = 0
@@ -1229,12 +1202,14 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
                 "upper_limit": {"row_index": attributes["row_count"]},
             }]
 
-        data_size_per_thread = get_config(client)["read_parallel"]["data_size_per_thread"]
-        ranges = _slice_row_ranges_for_parallel_read(
-            table.attributes["ranges"],
-            attributes["row_count"],
-            attributes["uncompressed_data_size"],
-            data_size_per_thread)
+        ranges, data_size_per_thread = _slice_row_ranges_for_parallel_read(
+            ranges=table.attributes["ranges"],
+            row_count=attributes["row_count"],
+            chunk_count=attributes["chunk_count"],
+            data_size=attributes["uncompressed_data_size"],
+            replication_factor=attributes["replication_factor"],
+            data_size_per_thread=get_config(client)["read_parallel"]["data_size_per_thread"],
+        )
 
         range_count = len(ranges)
         result_ranges = []

@@ -236,7 +236,7 @@ class DefaultConfigType(TypedDict, total=False):
 
     class DefaultConfigReadParallelType(TypedDict, total=False):
         max_thread_count: int
-        data_size_per_thread: int
+        data_size_per_thread: Union[int, None]
         enable: bool
 
     read_parallel: DefaultConfigReadParallelType
@@ -844,8 +844,8 @@ default_config = {
     "read_parallel": {
         # Number of threads for reading table.
         "max_thread_count": 10,
-        # Approximate data size per one thread.
-        "data_size_per_thread": 8 * 1024 * 1024,
+        # Approximate data size per one task.
+        "data_size_per_thread": None,
         # Always run read parallel if it is possible.
         "enable": False
     },
