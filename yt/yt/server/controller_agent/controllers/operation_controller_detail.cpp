@@ -8946,6 +8946,11 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     }
 }
 
+const TSpecManagerPtr& TOperationControllerBase::GetSpecManager() const
+{
+    return SpecManager_;
+}
+
 TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 {
     auto configurator = GetOperationSpecBaseConfigurator();
