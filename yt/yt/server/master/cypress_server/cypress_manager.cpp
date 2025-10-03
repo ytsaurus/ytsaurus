@@ -1189,6 +1189,8 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetAttributeOnTransactionCommit, Unretained(this)));
+
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
 
     void Initialize() override
@@ -2753,6 +2755,9 @@ private:
     // COMPAT(danilalexeev): YT-21862.
     bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
 
+    // COMPAT(h0pless): FixSchemaDivergence.
+    bool RecalculateSchemas_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2823,6 +2828,14 @@ private:
         if (context.GetVersion() < EMasterReign::DropLegacyCellMap) {
             DropLegacyCellMapsOnSnapshotLoaded_ = true;
         }
+
+        auto normalClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::AddSchemaRevision &&
+            context.GetVersion() < EMasterReign::FixSchemaDivergence;
+        auto otherClustersNeedSchemaRecalculation = context.GetVersion() >= EMasterReign::Start_25_4 &&
+            context.GetVersion() < EMasterReign::FixSchemaDivergence_25_4;
+        if (normalClustersNeedSchemaRecalculation || otherClustersNeedSchemaRecalculation) {
+            RecalculateSchemas_ = true;
+        }
     }
 
     void Clear() override
@@ -2850,6 +2863,7 @@ private:
         NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
         DropLegacyCellMapsOnSnapshotLoaded_ = false;
+        RecalculateSchemas_ = false;
     }
 
     void SetZeroState() override
@@ -3021,6 +3035,72 @@ private:
 
                 cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
                 // Virtual Cell Map creation is delegated to World Initializer.
+            }
+        }
+
+        // COMPAT(h0pless): FixSchemaDivergence.
+        if (RecalculateSchemas_) {
+            THashMap<TVersionedNodeId, TMasterTableSchemaId> nodeIdToSchemaId;
+            THashMap<TCellTag, std::vector<TVersionedNodeId>> cellTagToNodeIds;
+            for (auto [nodeId, node] : NodeMap_) {
+                if (!node->IsExternal()) {
+                    continue;
+                }
+
+                if (node->IsTrunk() && !IsObjectAlive(node)) {
+                    continue;
+                }
+
+                // Chaos replicated tables are non-externalizeable.
+                if (!IsTableType(node->GetType())) {
+                    continue;
+                }
+
+                auto* table = node->As<TTableNode>();
+                EmplaceOrCrash(nodeIdToSchemaId, table->GetVersionedId(), table->GetSchema()->GetId());
+                cellTagToNodeIds[table->GetExternalCellTag()].push_back(table->GetVersionedId());
+            }
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqSetTableSchemas& req) {
+                YT_LOG_DEBUG("Sending SetTableSchemas request (DestinationCellTag: %v, RequestSize: %v)",
+                    cellTag, req.subrequests_size());
+                multicellManager->PostToMaster(req, cellTag);
+            };
+
+            for (auto& [_, nodeIds] : cellTagToNodeIds) {
+                std::sort(nodeIds.begin(), nodeIds.end());
+            }
+
+            const auto maxBatchSize = 10000;
+            for (auto it : GetSortedIterators(cellTagToNodeIds)) {
+                auto cellTag = it->first;
+                const auto& sortedNodeIds = it->second;
+                YT_LOG_DEBUG("Sending correct schemas (DestinationCellTag: %v, NodeCount: %v)",
+                    cellTag,
+                    std::ssize(sortedNodeIds));
+
+                auto batchSize = 0;
+                NProto::TReqSetTableSchemas req;
+                for (auto nodeId : sortedNodeIds) {
+                    if (batchSize >= maxBatchSize) {
+                        sendRequestAndLog(cellTag, req);
+                        req.clear_subrequests();
+                        batchSize = 0;
+                    }
+
+                    auto* subrequest = req.add_subrequests();
+                    ToProto(subrequest->mutable_node_id(), nodeId.ObjectId);
+                    ToProto(subrequest->mutable_transaction_id(), nodeId.TransactionId);
+
+                    auto schemaId = GetOrCrash(nodeIdToSchemaId, nodeId);
+                    ToProto(subrequest->mutable_schema_id(), schemaId);
+                    ++batchSize;
+                }
+
+                if (batchSize > 0) {
+                    sendRequestAndLog(cellTag, req);
+                }
             }
         }
     }
@@ -4762,6 +4842,56 @@ private:
             auto* currentTransaction = currentNode->GetTransaction();
             currentNode = MergeParticularBranchedNode(currentTransaction, currentNode);
             ForceRemoveAllLocksForNode(currentTransaction, trunkNode);
+        }
+    }
+
+    // COMPAT(h0pless): FixSchemaDivergence.
+    void HydraSetTableSchemas(NProto::TReqSetTableSchemas* request)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        YT_LOG_DEBUG("Correcting schemas (RequestSize: %v)",
+            request->subrequests_size());
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        for (const auto& subrequest : request->subrequests()) {
+            auto nodeId = FromProto<TNodeId>(subrequest.node_id());
+            auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
+            auto schemaId = FromProto<TMasterTableSchemaId>(subrequest.schema_id());
+
+            auto effectiveTransactionId = transactionId;
+            auto transactionType = TypeFromId(transactionId);
+            if (transactionType != EObjectType::UploadTransaction &&
+                transactionType != EObjectType::UploadNestedTransaction)
+            {
+                auto nativeCellTag = CellTagFromId(nodeId);
+                effectiveTransactionId = NTransactionClient::MakeExternalizedTransactionId(transactionId, nativeCellTag);
+            }
+            auto* node = FindNode(TVersionedNodeId{nodeId, effectiveTransactionId});
+
+            if (!node) {
+                // This can happen when a node is still a zombie on the native cell, but was already destroyed on the external.
+                YT_LOG_ALERT("Received SetTableSchemas request for a non-existing node (NodeId: %v, SchemaId: %v)",
+                    TVersionedNodeId{nodeId, effectiveTransactionId},
+                    schemaId);
+                continue;
+            }
+
+            YT_VERIFY(IsTableType(node->GetType()));
+
+            auto* table = node->As<TTableNode>();
+            auto currentSchema = table->GetSchema();
+            auto* expectedSchema = tableManager->FindMasterTableSchema(schemaId);
+
+            if (currentSchema->GetId() != expectedSchema->GetId()) {
+                YT_LOG_ALERT("Resetting potentially broken schema (TableId: %v, CurrentSchemaId: %v, ExpectedSchemaId: %v)",
+                    table->GetVersionedId(),
+                    currentSchema->GetId(),
+                    expectedSchema->GetId());
+
+                YT_VERIFY(IsObjectAlive(expectedSchema));
+                tableManager->SetTableSchema(table, expectedSchema);
+            }
         }
     }
 

@@ -140,12 +140,14 @@ DEFINE_ENUM(EMasterReign,
     ((FixOldestPartMissingChunksRanking)                            (3039))  // grphil
     ((FixLoadingTransactionLeasesStateFromSnapshot)                 (3040))  // kvk1920
     ((FixPrerequisiteLeasesIssuingForMasterCells)                   (3041))  // cherepashka
+    ((FixSchemaDivergence)                                          (3042))  // h0pless
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
     ((SealHunkJournalChunkWithMultipleParents)                      (3102))  // akozhikhov
     ((SequoiaTabletCellBundles)                                     (3103))  // danilalexeev
     ((SequoiaMapKeyLengthLimit)                                     (3104))  // babenko
+    ((FixSchemaDivergence_25_4)                                     (3105))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
