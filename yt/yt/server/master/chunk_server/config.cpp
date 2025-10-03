@@ -442,8 +442,7 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("always_include_unapproved_replicas", &TThis::AlwaysIncludeUnapprovedReplicas)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
