@@ -451,9 +451,9 @@ class TestSchedulingTags(YTEnvSetup):
         )
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "default")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "default")
 
-        create_pool_tree("other", config={"nodes_filter": "tagC"})
+        create_pool_tree("other", config={"node_tag_filter": "tagC"})
 
         wait(lambda: self._get_slots_by_filter("default") == 1)
         wait(lambda: self._get_slots_by_filter("tagC") == 1)
@@ -825,11 +825,11 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
                 set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagB"])
             else:
                 set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagC"])
-        update_pool_tree_config_option(tree="default", option="nodes_filter", value="default")
+        update_pool_tree_config_option(tree="default", option="node_tag_filter", value="default")
 
-        create_pool_tree("empty_tree", config={"nodes_filter": "tagA"})
-        create_pool_tree("busy_tree", config={"nodes_filter": "tagB"})
-        create_pool_tree("small_tree", config={"nodes_filter": "tagC"})
+        create_pool_tree("empty_tree", config={"node_tag_filter": "tagA"})
+        create_pool_tree("busy_tree", config={"node_tag_filter": "tagB"})
+        create_pool_tree("small_tree", config={"node_tag_filter": "tagC"})
 
         create_pool("empty_pool", pool_tree="empty_tree")
         create_pool("busy_pool", pool_tree="busy_tree")

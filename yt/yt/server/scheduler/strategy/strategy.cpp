@@ -269,7 +269,7 @@ public:
             poolTreeControllerSettingsMap->emplace(
                 treeId,
                 TPoolTreeControllerSettings{
-                    .SchedulingTagFilter = tree->GetNodesFilter(),
+                    .SchedulingTagFilter = tree->GetNodeTagFilter(),
                     .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeId)->Tentative,
                     .Probing = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeId)->Probing,
                     .Offloading = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeId)->Offloading,
@@ -976,7 +976,7 @@ public:
             treeSetTopology.reserve(snapshottedTrees.size());
             for (const auto& tree : snapshottedTrees) {
                 tree->FinishFairShareUpdate();
-                treeSetTopology.emplace_back(tree->GetId(), tree->GetConfig()->NodesFilter);
+                treeSetTopology.emplace_back(tree->GetId(), tree->GetConfig()->NodeTagFilter);
             }
 
             if (treeSetTopology != TreeSetTopology_) {
@@ -1716,7 +1716,7 @@ private:
         int treeIndex = InvalidTreeIndex;
         for (int index = 0; index < std::ssize(trees); ++index) {
             const auto& tree = trees[index];
-            if (!tree->GetSnapshottedConfig()->NodesFilter.CanSchedule(nodeTags)) {
+            if (!tree->GetSnapshottedConfig()->NodeTagFilter.CanSchedule(nodeTags)) {
                 continue;
             }
             if (treeIndex != InvalidTreeIndex) {
@@ -1940,7 +1940,7 @@ private:
                 treeIdsToAdd->insert(key);
                 try {
                     auto config = ParsePoolTreeConfig(poolsMap->FindChild(key));
-                    treeIdToFilter->emplace(key, config->NodesFilter);
+                    treeIdToFilter->emplace(key, config->NodeTagFilter);
                 } catch (const std::exception&) {
                     // Do nothing, alert will be set later.
                     continue;
@@ -1957,9 +1957,9 @@ private:
 
             try {
                 auto config = ParsePoolTreeConfig(child);
-                treeIdToFilter->emplace(treeId, config->NodesFilter);
+                treeIdToFilter->emplace(treeId, config->NodeTagFilter);
 
-                if (config->NodesFilter != tree->GetNodesFilter()) {
+                if (config->NodeTagFilter != tree->GetNodeTagFilter()) {
                     treeIdsWithChangedFilter->insert(treeId);
                 }
             } catch (const std::exception&) {
@@ -2155,7 +2155,7 @@ private:
 
         std::vector<std::string> treeIds;
         for (const auto& [treeId, tree] : IdToTree_) {
-            if (tree->GetNodesFilter().CanSchedule(tags)) {
+            if (tree->GetNodeTagFilter().CanSchedule(tags)) {
                 treeIds.push_back(treeId);
             }
         }
@@ -2233,7 +2233,7 @@ private:
         for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
             std::optional<std::string> newTreeId;
             for (const auto& [treeId, tree] : newIdToTree) {
-                if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
+                if (tree->GetNodeTagFilter().CanSchedule(descriptor.Tags)) {
                     YT_VERIFY(!newTreeId);
                     newTreeId = treeId;
                 }
@@ -2330,8 +2330,8 @@ private:
         fluent
             .Item("user_to_ephemeral_pools").Do(BIND(&IPoolTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("config").Value(tree->GetConfig())
-            .Item("resource_limits").Value(Host_->GetResourceLimits(tree->GetNodesFilter()))
-            .Item("resource_usage").Value(Host_->GetResourceUsage(tree->GetNodesFilter()))
+            .Item("resource_limits").Value(Host_->GetResourceLimits(tree->GetNodeTagFilter()))
+            .Item("resource_usage").Value(Host_->GetResourceUsage(tree->GetNodeTagFilter()))
             .Item("node_count").Value(std::ssize(nodeIds))
             .Item("node_addresses").BeginList()
                 .DoFor(nodeIds, [&] (TFluentList fluent, TNodeId nodeId) {

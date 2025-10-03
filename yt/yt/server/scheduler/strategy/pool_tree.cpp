@@ -396,11 +396,11 @@ public:
         }
     }
 
-    const TSchedulingTagFilter& GetNodesFilter() const override
+    const TSchedulingTagFilter& GetNodeTagFilter() const override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        return Config_->NodesFilter;
+        return Config_->NodeTagFilter;
     }
 
     // NB: This function is public for scheduler simulator.
@@ -1777,10 +1777,10 @@ private:
 
                     YT_LOG_DEBUG("Pool tree fair share update started");
 
-                    fairShareUpdateResult.ResourceUsage = StrategyHost_->GetResourceUsage(config->NodesFilter);
-                    fairShareUpdateResult.ResourceLimits = StrategyHost_->GetResourceLimits(config->NodesFilter);
+                    fairShareUpdateResult.ResourceUsage = StrategyHost_->GetResourceUsage(config->NodeTagFilter);
+                    fairShareUpdateResult.ResourceLimits = StrategyHost_->GetResourceLimits(config->NodeTagFilter);
 
-                    auto fairSharePreUpdateContext = CreatePreUpdateContext(now, config->NodesFilter, fairShareUpdateResult.ResourceLimits);
+                    auto fairSharePreUpdateContext = CreatePreUpdateContext(now, config->NodeTagFilter, fairShareUpdateResult.ResourceLimits);
                     rootElement->PreUpdate(&fairSharePreUpdateContext);
                     fairShareUpdateResult.ResourceLimitsByTagFilter = std::move(fairSharePreUpdateContext.ResourceLimitsByTagFilter);
 

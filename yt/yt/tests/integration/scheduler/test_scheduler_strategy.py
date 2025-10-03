@@ -1884,8 +1884,8 @@ class TestSchedulerStuckOperations(YTEnvSetup):
     def test_skip_limiting_ancestor_check_on_node_shortage(self):
         update_scheduler_config("operation_stuck_check", {"safe_timeout": 100000000})
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!custom")
-        create_pool_tree("custom_tree", config={"nodes_filter": "custom"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!custom")
+        create_pool_tree("custom_tree", config={"node_tag_filter": "custom"})
         create_pool("research", pool_tree="custom_tree")
 
         node = ls("//sys/cluster_nodes")[0]
@@ -4253,8 +4253,8 @@ class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestPriorityStrongGuaranteeAdjustment, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
     def _check(self, pools, expected_shares):
         for pool, expected_share in zip(pools, expected_shares):
@@ -4808,8 +4808,8 @@ class TestMinSpareResources(YTEnvSetup):
     def setup_method(self, method):
         super(TestMinSpareResources, self).setup_method(method)
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{}/@user_tags".format(node), ["other"])

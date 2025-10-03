@@ -125,8 +125,8 @@ class TestResourceMetering(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"}])
 
         create_pool_tree("yggdrasil", wait_for_orchid=False)
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        set("//sys/pool_trees/yggdrasil/@config/nodes_filter", "other")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        set("//sys/pool_trees/yggdrasil/@config/node_tag_filter", "other")
 
         nodes = ls("//sys/cluster_nodes")
         for node in nodes[:4]:
