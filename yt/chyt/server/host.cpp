@@ -281,7 +281,7 @@ public:
             .ThrowOnError();
     }
 
-    void ValidateTableReadPermissions(
+    std::vector<THost::TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
         const std::vector<NYPath::TRichYPath>& paths,
         const TString& user)
     {
@@ -293,21 +293,24 @@ public:
                 .User = user,
                 .Permission = EPermission::Read,
                 .Columns = path.GetColumns(),
+                .CallerIsRlsAware = true,
             });
         }
         auto validationResults = WaitFor(PermissionCache_->GetMany(permissionCacheKeys))
             .ValueOrThrow();
 
         std::vector<TError> errors;
+        std::vector<THost::TRowLevelAcl> rowLevelAclPerTable(validationResults.size());
         for (size_t index = 0; index < validationResults.size(); ++index) {
             const auto& validationResult = validationResults[index];
-            PermissionCache_->Set(permissionCacheKeys[index], validationResult);
 
             if (!validationResult.IsOK()) {
                 errors.push_back(validationResult
                     << TErrorAttribute("path", paths[index])
                     << TErrorAttribute("permission", "read")
                     << TErrorAttribute("columns", paths[index].GetColumns()));
+            } else {
+                rowLevelAclPerTable[index] = validationResult.Value().RowLevelAcl;
             }
         }
         if (!errors.empty()) {
@@ -318,6 +321,8 @@ public:
 
             THROW_ERROR_EXCEPTION("Error validating permissions for user %Qv", user) << errors;
         }
+
+        return rowLevelAclPerTable;
     }
 
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
@@ -1057,11 +1062,11 @@ void THost::ValidateCliquePermission(const TString& user, EPermission permission
     return Impl_->ValidateCliquePermission(user, permission);
 }
 
-void THost::ValidateTableReadPermissions(
+std::vector<THost::TRowLevelAcl> THost::ValidateTableReadPermissionsAndGetRowLevelAcl(
     const std::vector<NYPath::TRichYPath>& paths,
     const TString& user)
 {
-    return Impl_->ValidateTableReadPermissions(paths, user);
+    return Impl_->ValidateTableReadPermissionsAndGetRowLevelAcl(paths, user);
 }
 
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(
