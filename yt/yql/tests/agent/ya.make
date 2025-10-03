@@ -17,6 +17,8 @@ DEPENDS(
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
     yql/essentials/udfs/common/python/python3_small
+    yql/essentials/udfs/common/string
+    yql/essentials/udfs/common/yson2
 )
 
 PEERDIR(
