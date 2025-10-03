@@ -1,0 +1,25 @@
+{{- if and .Values.metrics.enable .Values.metrics.serviceMonitor.enable }}
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "odin.fullname" . }}-metrics
+  labels:
+    {{- include "odin.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    yt_metrics: "true"
+spec:
+  selector:
+    matchLabels:
+      yt_odin_metrics: "true"
+  endpoints:
+    - port: metrics
+      path: /prometheus
+      interval: 30s
+      scrapeTimeout: 10s
+      scheme: http
+      honorLabels: true
+
+{{- end }}
