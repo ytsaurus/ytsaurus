@@ -66,13 +66,13 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     def test_basic_sanity(self):
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path()))
 
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
         wait(lambda: exists(scheduler_orchid_pool_tree_path("other")))
         wait(lambda: not get("//sys/scheduler/@alerts"))
 
         # This tree intersects with default pool tree by nodes, should not be added
-        create_pool_tree("other_intersecting", wait_for_orchid=False, config={"nodes_filter": ""})
+        create_pool_tree("other_intersecting", wait_for_orchid=False, config={"node_tag_filter": ""})
         wait(lambda: not exists(scheduler_orchid_pool_tree_path("other_intersecting")))
         wait(lambda: get("//sys/scheduler/@alerts"))
 
@@ -198,7 +198,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other1 & !other2 & !other3")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other1 & !other2 & !other3")
 
         nodes = ls("//sys/cluster_nodes")
         for index, node in enumerate(nodes):
@@ -213,7 +213,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             set(f"//sys/cluster_nodes/{node}/@user_tags", [tag])
             wait(lambda: tag in get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/tags"))
 
-            create_pool_tree(tag, config={"nodes_filter": tag})
+            create_pool_tree(tag, config={"node_tag_filter": tag})
             wait(lambda: tag in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
         ops1 = []
@@ -313,8 +313,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     @authors("asaitgalin", "ignat")
     def test_incorrect_node_tags(self):
-        create_pool_tree("supertree1", config={"nodes_filter": "x|y"})
-        create_pool_tree("supertree2", config={"nodes_filter": "y|z"})
+        create_pool_tree("supertree1", config={"node_tag_filter": "x|y"})
+        create_pool_tree("supertree2", config={"node_tag_filter": "y|z"})
         wait(lambda: "supertree1" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
         wait(lambda: "supertree2" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
@@ -446,8 +446,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1} for iter in range(10)])
 
-        create_pool_tree("other", config={"nodes_filter": "other"})
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
         wait(lambda: "other" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
 
         nodes = ls("//sys/cluster_nodes")
@@ -511,7 +511,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         set("//sys/pool_trees/@default_tree", "default")
         wait(lambda: "other" not in ls(orchid_root))
 
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"node_tag_filter": "other"})
         set("//sys/pool_trees/@default_tree", "other")
         # We actually wait abort here since previous update can actually finish only after abort of all operations.
         wait(lambda: "other" in ls(orchid_root))
@@ -577,7 +577,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         )
         create_pool_tree(
             "custom_pool_tree",
-            config={"nodes_filter": "custom_tag", "max_running_operation_count_per_pool": 180})
+            config={"node_tag_filter": "custom_tag", "max_running_operation_count_per_pool": 180})
 
         def check_dict_is_subdict(dict_, subdict):
             for key, value in subdict.items():
@@ -701,8 +701,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_node_to_tree_map_in_orchid(self):
-        update_pool_tree_config_option("default", "nodes_filter", "!other & !some")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        update_pool_tree_config_option("default", "node_tag_filter", "!other & !some")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
         nodes = ls("//sys/cluster_nodes")
         set("//sys/cluster_nodes/" + nodes[1] + "/@user_tags/end", "other")
@@ -717,7 +717,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
     def test_max_user_file_size(self):
         create_pool_tree(
             "custom",
-            config={"nodes_filter": "custom_tag"})
+            config={"node_tag_filter": "custom_tag"})
         update_controller_agent_config("user_file_limits/max_size", 1000000)
         update_controller_agent_config("user_file_limits_per_tree", {"custom": {"max_size": 500000}})
 
@@ -864,8 +864,8 @@ class TestTentativePoolTrees(YTEnvSetup):
         for node in other_nodes:
             set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
         return other_nodes
 
@@ -1187,8 +1187,8 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
             ["custom_tag", "runnable_tag"],
         )
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "default_tag")
-        create_pool_tree("custom_pool_tree", config={"nodes_filter": "custom_tag"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "default_tag")
+        create_pool_tree("custom_pool_tree", config={"node_tag_filter": "custom_tag"})
 
         create_test_tables()
 
@@ -1279,14 +1279,14 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         update_pool_tree_config(
             "default",
             {
-                "nodes_filter": "default_tag",
+                "node_tag_filter": "default_tag",
                 "node_reconnection_timeout": 1000,
             },
         )
         for tree in ["default", "nirvana", "cloud", "empty"]:
             if tree != "default":
                 create_pool_tree(tree, config={
-                    "nodes_filter": tree + "_tag",
+                    "node_tag_filter": tree + "_tag",
                     "node_reconnection_timeout": 1000
                 })
             if tree != "empty":
@@ -1732,11 +1732,11 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         for node in nodes[:-1]:
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["other"])
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
         create_pool_tree(
             "other",
             config={
-                "nodes_filter": "other",
+                "node_tag_filter": "other",
                 "max_running_operation_count_per_pool": 1,
             },
             wait_for_orchid=True,
@@ -1775,10 +1775,10 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
                 ["tentative"],
             )
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!(normal|tentative)")
-        create_pool_tree("normal", config={"nodes_filter": "normal"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!(normal|tentative)")
+        create_pool_tree("normal", config={"node_tag_filter": "normal"})
         create_pool("pool", pool_tree="normal", attributes={"max_operation_count": 5})
-        create_pool_tree("tentative", config={"nodes_filter": "tentative"})
+        create_pool_tree("tentative", config={"node_tag_filter": "tentative"})
         create_pool("pool", pool_tree="tentative", attributes={"max_operation_count": 3})
 
         pool_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/pool"
@@ -1834,13 +1834,13 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         for op in ops:
             op.abort()
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "")
 
     @authors("eshcherbin")
     def test_erase_trees_with_pool_limit_violations(self):
         create_pool("pool")
 
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"node_tag_filter": "other"})
         create_pool("pool", pool_tree="other", attributes={"max_running_operation_count": 0, "max_operation_count": 0})
 
         with raises_yt_error(yt_error_codes.TooManyOperations):
@@ -1894,7 +1894,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestOperationJobResourceLimitsRestrictions, self).setup_method(method)
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
     @authors("eshcherbin")
     def test_simple(self):
@@ -2344,7 +2344,7 @@ class TestOffloadingPools(YTEnvSetup):
     @authors("renadeen")
     def test_schedule_in_single_tree_with_offloading_when_main_tree_is_empty(self):
         create_pool("some_pool", pool_tree="default")
-        create_pool_tree("main_tree", config={"nodes_filter": "empty"})
+        create_pool_tree("main_tree", config={"node_tag_filter": "empty"})
 
         create_pool(
             "some_pool",
@@ -2415,8 +2415,8 @@ class TestNodeCountProfiling(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_node_count_profiling(self):
-        update_pool_tree_config_option("default", "nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        update_pool_tree_config_option("default", "node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
         profiler = profiler_factory().at_scheduler()
         node_count_gauge = profiler.gauge("scheduler/node_count_per_tree")

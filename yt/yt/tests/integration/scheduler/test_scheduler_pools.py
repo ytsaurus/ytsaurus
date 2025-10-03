@@ -782,9 +782,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_exist_pool_tree_config_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        assert not exists("//sys/pool_trees/my_tree/@config/nodes_filter")
-        set("//sys/pool_trees/my_tree/@config/nodes_filter", "filter")
-        assert exists("//sys/pool_trees/my_tree/@config/nodes_filter")
+        assert not exists("//sys/pool_trees/my_tree/@config/node_tag_filter")
+        set("//sys/pool_trees/my_tree/@config/node_tag_filter", "filter")
+        assert exists("//sys/pool_trees/my_tree/@config/node_tag_filter")
 
         assert not exists("//sys/pool_trees/my_tree/@config/custom_attr")
         set("//sys/pool_trees/my_tree/@config/custom_attr", 10)
@@ -906,8 +906,8 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_set_pooltree_config_overwriting(self):
         create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
 
-        set("//sys/pool_trees/my_tree/@config", {"nodes_filter": "filter"})
-        assert get("//sys/pool_trees/my_tree/@config") == {"nodes_filter": "filter"}
+        set("//sys/pool_trees/my_tree/@config", {"node_tag_filter": "filter"})
+        assert get("//sys/pool_trees/my_tree/@config") == {"node_tag_filter": "filter"}
 
         set("//sys/pool_trees/my_tree/@config", {"inexistent": "value"})
         assert get("//sys/pool_trees/my_tree/@config") == {"inexistent": "value"}
@@ -917,7 +917,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
     def test_remove_pooltree_config(self):
         create_pool_tree("my_tree", wait_for_orchid=False, config={
-            "nodes_filter": "filter",
+            "node_tag_filter": "filter",
             "inexistent": "value"
         })
         remove("//sys/pool_trees/my_tree/@config")

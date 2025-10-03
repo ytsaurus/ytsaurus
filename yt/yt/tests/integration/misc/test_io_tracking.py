@@ -986,9 +986,9 @@ class TestJobIOTracking(TestJobIOTrackingBase):
     def test_pools(self):
         node = ls("//sys/cluster_nodes")[0]
         yt_commands.set("//sys/cluster_nodes/" + node + "/@user_tags/end", "oaken")
-        yt_commands.set("//sys/pool_trees/default/@config/nodes_filter", "!oaken")
+        yt_commands.set("//sys/pool_trees/default/@config/node_tag_filter", "!oaken")
 
-        create_pool_tree("oak", config={"nodes_filter": "oaken"})
+        create_pool_tree("oak", config={"node_tag_filter": "oaken"})
         create_pool("branch", pool_tree="oak")
         create_pool("acorn", pool_tree="oak", parent_name="branch")
 

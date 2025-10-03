@@ -847,8 +847,8 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_node_changes_trees(self):
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other", "main_resource": "gpu"})
 
         op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
         wait(lambda: len(op.get_running_jobs()) == 1)
@@ -1597,11 +1597,11 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     def test_fail_large_gpu_operation_started_in_several_trees(self, allow_single_job):
         other_nodes = list(ls("//sys/cluster_nodes"))[:2]
         update_pool_tree_config("default", {
-            "nodes_filter": "!other",
+            "node_tag_filter": "!other",
             "allow_single_job_large_gpu_operations_in_multiple_trees": allow_single_job,
         })
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other", "main_resource": "gpu"})
         for node in other_nodes:
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
 
@@ -1743,8 +1743,8 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             node_segment = get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), verbose=False)
             module_nodes_by_segment[node_segment].append(node)
 
-        update_pool_tree_config_option("default", "nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
+        update_pool_tree_config_option("default", "node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other", "main_resource": "gpu"})
 
         nodes_to_move = module_nodes_by_segment["default"] + module_nodes_by_segment["large_gpu"] \
             if remove_all_module_nodes \

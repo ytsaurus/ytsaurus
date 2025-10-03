@@ -1515,12 +1515,12 @@ class TestJobRevival(TestJobRevivalBase):
                 result.append((job_id, job_node))
             return result
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
 
         nodes = ls("//sys/cluster_nodes")
         set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        create_pool_tree("other", config={"node_tag_filter": "other"})
         create_pool("my_pool", pool_tree="other")
 
         create_pool("my_pool", pool_tree="default")

@@ -111,7 +111,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         assert len(nodes) > 0
 
         set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
-        set("//sys/pool_trees/default/@config/nodes_filter", "my_tag")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "my_tag")
 
         alert = wait_single_scheduler_alert("nodes_without_pool_tree")
         attributes = alert["attributes"]
@@ -119,7 +119,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         assert len(attributes["node_addresses"]) == 2
         assert attributes["node_count"] == 2
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "")
+        set("//sys/pool_trees/default/@config/node_tag_filter", "")
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
     @authors("ignat")

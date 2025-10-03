@@ -343,7 +343,8 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    registrar.Parameter("nodes_filter", &TThis::NodesFilter)
+    registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
+        .Alias("nodes_filter")
         .Default();
 
     registrar.Parameter("enable_unrecognized_alert", &TThis::EnableUnrecognizedAlert)

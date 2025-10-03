@@ -71,7 +71,7 @@ std::vector<TJobDescription> CreateJobDescriptions(
 TYsonString CreatePoolTreesConfig()
 {
     auto physicalTreeConfig = New<TStrategyTreeConfig>();
-    physicalTreeConfig->NodesFilter = NYTree::ConvertTo<TSchedulingTagFilter>("internal");
+    physicalTreeConfig->NodeTagFilter = NYTree::ConvertTo<TSchedulingTagFilter>("internal");
     physicalTreeConfig->DefaultParentPool = "research";
 
     physicalTreeConfig->FairShareStarvationTimeout = TDuration::Seconds(30);
