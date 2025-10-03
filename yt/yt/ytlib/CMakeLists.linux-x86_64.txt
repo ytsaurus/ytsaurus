@@ -602,6 +602,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
@@ -637,6 +638,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
@@ -1466,6 +1468,32 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.record.cpp
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/cpp.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/templates/h.j2
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/lib/__init__.py
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/yt_record_codegen/bin/__main__.py
+  WORKING_DIRECTORY
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen
+  COMMAND
+  ${Python3_EXECUTABLE}
+  -B
+  -m
+  yt_record_codegen.bin
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_trace.record.cpp
 )
 
 add_custom_command(
