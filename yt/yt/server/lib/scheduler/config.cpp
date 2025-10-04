@@ -1318,8 +1318,6 @@ void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
-    registrar.Parameter("addresses", &TThis::Addresses)
-        .Default();
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()

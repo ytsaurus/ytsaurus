@@ -1057,9 +1057,6 @@ struct TSchedulerBootstrapConfig
 {
     NScheduler::TSchedulerConfigPtr Scheduler;
 
-    //! Known scheduler addresses.
-    NNodeTrackerClient::TNetworkAddressList Addresses;
-
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
