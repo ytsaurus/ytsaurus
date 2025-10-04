@@ -140,6 +140,24 @@ void TGpuDevice::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobResourceLimits::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allocation_cpu_limit", &TThis::AllocationCpuLimit)
+        .Optional();
+    registrar.Parameter("allocation_memory_limit", &TThis::AllocationMemoryLimit)
+        .Optional();
+    registrar.Parameter("allocation_gpu_limit", &TThis::AllocationGpuLimit)
+        .Optional();
+    registrar.Parameter("user_job_container_cpu_limit", &TThis::UserJobContainerCpuLimit)
+        .Optional();
+    registrar.Parameter("user_job_slot_container_memory_limit", &TThis::UserJobSlotContainerMemoryLimit)
+        .Optional();
+    registrar.Parameter("user_job_memory_limit", &TThis::UserJobMemoryLimit)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TExecAttributes::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex)
@@ -154,6 +172,8 @@ void TExecAttributes::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("gpu_devices", &TThis::GpuDevices)
         .Default();
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
