@@ -117,8 +117,6 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
-    registrar.Parameter("addresses", &TThis::Addresses)
-        .Default();
 
     registrar.Parameter("enable_cell_balancer", &TThis::EnableCellBalancer)
         .Default(true);
