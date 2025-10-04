@@ -37,6 +37,7 @@ PEERDIR(
 
 SET(YT_CONFIG_PATCH {init_operations_archive=%true;})
 INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
+ENV(YT_LOG_LEVEL=debug)
 
 REQUIREMENTS(
     cpu:4
