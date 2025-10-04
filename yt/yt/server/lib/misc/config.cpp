@@ -38,6 +38,9 @@ void TServerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
 
+    registrar.Parameter("addresses", &TThis::Addresses)
+        .Default();
+
     registrar.Parameter("rpc_port", &TThis::RpcPort)
         .Default(0)
         .GreaterThanOrEqual(0)

@@ -83,8 +83,6 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("discovery_service", &TThis::DiscoveryService)
         .DefaultNew();
-    registrar.Parameter("addresses", &TThis::Addresses)
-        .Default();
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .GreaterThan(0)
         .Default(8);

@@ -3055,7 +3055,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     auto localDescriptor = Bootstrap_->GetLocalDescriptor();
     proxyInternalConfig->DataCenter = localDescriptor.GetDataCenter();
     proxyInternalConfig->Rack = localDescriptor.GetRack();
-    proxyInternalConfig->Addresses = localDescriptor.Addresses();
+    proxyInternalConfig->LocalAddresses = localDescriptor.Addresses();
 
     proxyInternalConfig->LocalHostName = Bootstrap_->GetLocalHostName();
 

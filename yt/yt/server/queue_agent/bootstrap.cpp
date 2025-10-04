@@ -14,6 +14,8 @@
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -357,7 +359,7 @@ private:
 
         TCypressRegistrarOptions options{
             .RootPath = Format("%v/instances/%v", Config_->DynamicState->Root, ToYPathLiteral(AgentId_)),
-            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, AgentId_}},
+            .OrchidRemoteAddresses = NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort),
             .AttributesOnStart = BuildAttributeDictionaryFluently()
                 .Item("annotations").Value(Config_->CypressAnnotations)
                 .Finish(),

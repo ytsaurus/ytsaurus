@@ -304,8 +304,6 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("dry_run", &TThis::DryRun)
         .DefaultNew();
-    registrar.Parameter("addresses", &TThis::Addresses)
-        .Default();
     registrar.Parameter("tags", &TThis::Tags)
         .Default();
     registrar.Parameter("host_name", &TThis::HostName)
