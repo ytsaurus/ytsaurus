@@ -162,11 +162,11 @@ def build_global_rowset(has_portal_cells, has_chunk_cells):
     full_node_count = node_count("full")
     with_alerts_node_count = node_count("with_alerts")
     job_rates = (MultiSensor(
-            Master("yt.chunk_server.jobs_aborted.rate"),
-            Master("yt.chunk_server.jobs_completed.rate"),
-            Master("yt.chunk_server.jobs_failed.rate"),
-            Master("yt.chunk_server.jobs_started.rate"),
-            Master("yt.chunk_server.misscheduled_jobs.rate"))
+            Master("yt.chunk_server.jobs_aborted.rate").legend_format("{{host}} {{container}} aborted"),
+            Master("yt.chunk_server.jobs_completed.rate").legend_format("{{host}} {{container}} completed"),
+            Master("yt.chunk_server.jobs_failed.rate").legend_format("{{host}} {{container}} failed"),
+            Master("yt.chunk_server.jobs_started.rate").legend_format("{{host}} {{container}} started"),
+            Master("yt.chunk_server.misscheduled_jobs.rate").legend_format("{{host}} {{container}} misscheduled"))
             .stack(False)
             .aggr(MonitoringTag("host"))
             .aggr("cell_tag")
@@ -175,7 +175,8 @@ def build_global_rowset(has_portal_cells, has_chunk_cells):
         .stack(False)
         .aggr(MonitoringTag("host"))
         .aggr("cell_tag")
-        .all("job_type"))
+        .all("job_type")
+        .legend_format("{{host}} {{container}} {{job_type}}"))
     chunk_locations_being_disposed = (Master("yt.node_tracker.chunk_locations_being_disposed")
         .stack(False)
         .all(MonitoringTag("host"))
@@ -196,7 +197,7 @@ def build_global_rowset(has_portal_cells, has_chunk_cells):
         .all(MonitoringTag("host"))
         .all("cell_tag"))
 
-    rowset = Rowset()
+    rowset = Rowset().legend_format("{{host}} {{container}}")
 
     def _get_cell_roles(title, sensor):
         cells = []
@@ -278,7 +279,7 @@ def build_master_global(has_portal_cells, has_chunk_cells):
     return d
 
 def build_local_rowset():
-    rowset = Rowset()
+    rowset = Rowset().legend_format("{{host}} {{container}}")
 
     automaton_action_queue_cumulative_time = (MasterCpu("yt.action_queue.time.cumulative.rate")
         .stack(True)

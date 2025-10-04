@@ -1,4 +1,3 @@
-from .sensor import EmptyCell
 from .serializer import DebugSerializer
 from .taggable import Taggable, SystemFields
 
@@ -93,7 +92,6 @@ class Row(Taggable):
 
     def cell(self, title, sensor, yaxis_label=None, display_legend=None, description=None, colors=None, skip_cell=False):
         if skip_cell:
-            self.cells.append(Cell(title="", sensor=EmptyCell()))
             return self
         self.cells.append(Cell(
             title, sensor, yaxis_label=yaxis_label, display_legend=display_legend,
