@@ -216,6 +216,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                         "max_rows_to_keep": 100000,
                     },
                 },
+                "settings": {
+                    "need_only_distinct": True,
+                },
             }
         }
         query_log_path = root_dir + "/query_log/0"
@@ -229,6 +232,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             arr.append({"a": 1, "b": "a"})
             arr.append({"a": 1, "b": "b"})
             arr.append({"a": 2, "b": "c"})
+            arr.append({"a": None, "b": None})
 
         write_table("//tmp/dictionary_encoded_table", arr)
 
@@ -242,86 +246,81 @@ class TestClickHouseCommon(ClickHouseTestBase):
         for _ in range(1000):
             arr.append({"a": 2, "b": "c"})
 
+        for _ in range(1000):
+            arr.append({"a": None, "b": None})
+
         write_table("//tmp/rle_encoded_table", arr)
 
         with Clique(1, config_patch=patch, export_query_log=True) as clique:
-
             def send_simple_distinct_queries(table_name):
                 # Queries that are optimized by simple distinct optimization.
 
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct a from " + table_name, 2, [{"a": 1}, {"a": 2}]
+                    clique, query_log_path, "select distinct a from " + table_name, 3, [{"a": 1}, {"a": 2}, {"a": None}]
                 )
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct b from " + table_name,
-                    3,
-                    [{"b": "a"}, {"b": "b"}, {"b": "c"}],
+                    4,
+                    [{"b": "a"}, {"b": "b"}, {"b": "c"}, {"b": None}],
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select uniqExact(a) from " + table_name, 2, [{"uniqExact(a)": 2}]
+                    clique, query_log_path, "select uniqExact(a) from " + table_name, 3, [{"uniqExact(a)": 2}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select uniq(a) from " + table_name, 2, [{"uniq(a)": 2}]
+                    clique, query_log_path, "select uniq(a) from " + table_name, 3, [{"uniq(a)": 2}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select uniqCombined(a) from " + table_name, 2, [{"uniqCombined(a)": 2}]
+                    clique, query_log_path, "select uniqCombined(a) from " + table_name, 3, [{"uniqCombined(a)": 2}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(a) from " + table_name, 2, [{"max(a)": 2}]
+                    clique, query_log_path, "select max(b) from " + table_name, 4, [{"max(b)": "c"}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select min(b) from " + table_name, 3, [{"min(b)": "a"}]
+                    clique, query_log_path, "select min(b) from " + table_name, 4, [{"min(b)": "a"}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(a), min(a) from " + table_name, 2, [{"max(a)": 2, "min(a)": 1}]
+                    clique, query_log_path, "select max(b), min(b) from " + table_name, 4, [{"max(b)": "c", "min(b)": "a"}]
                 )
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a, a * a, abs(a) from " + table_name,
-                    2,
-                    [{"a": 1, "multiply(a, a)": 1, "abs(a)": 1}, {"a": 2, "multiply(a, a)": 4, "abs(a)": 2}],
+                    3,
+                    [{"a": 1, "multiply(a, a)": 1, "abs(a)": 1}, {"a": 2, "multiply(a, a)": 4, "abs(a)": 2}, {"a": None, "multiply(a, a)": None, "abs(a)": None}],
                 )
                 self.make_query_and_check_block_rows(
-                    clique,
-                    query_log_path,
-                    "select min(a) * max(a) from " + table_name,
-                    2,
-                    [{"multiply(min(a), max(a))": 2}],
+                    clique, query_log_path, "select max(abs(a)) from " + table_name, 3, [{"max(abs(a))": 2}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(abs(a)) from " + table_name, 2, [{"max(abs(a))": 2}]
+                    clique, query_log_path, "select distinct a from " + table_name + " where a < 2", 3, [{"a": 1}]
                 )
                 self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select distinct a from " + table_name + " where a < 2", 2, [{"a": 1}]
-                )
-                self.make_query_and_check_block_rows(
-                    clique, query_log_path, "select max(a) from " + table_name + " where a < 2", 2, [{"max(a)": 1}]
+                    clique, query_log_path, "select max(b) from " + table_name + " where b < 'c'", 4, [{"max(b)": 'b'}]
                 )
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a from " + table_name + " group by a having a < 2",
-                    2,
+                    3,
                     [{"a": 1}],
                 )
 
                 # Queries that are not optimized by simple distinct optimization.
 
-                assert len(clique.make_query("select a from " + table_name)) == 3000
-                assert len(clique.make_query("select a * a from " + table_name)) == 3000
+                assert len(clique.make_query("select a from " + table_name)) == 4000
+                assert len(clique.make_query("select a * a from " + table_name)) == 4000
                 assert clique.make_query("select count(a) from " + table_name) == [{"count(a)": 3000}]
                 self.make_query_and_check_block_rows(
                     clique,
                     query_log_path,
                     "select distinct a, b from " + table_name,
-                    3000,
-                    [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}],
+                    4000,
+                    [{"a": 1, "b": "a"}, {"a": 1, "b": "b"}, {"a": 2, "b": "c"}, {"a": None, "b": None}],
                 )
 
-                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 3000
+                assert len(clique.make_query("select distinct a * rand() from " + table_name)) == 3001
                 assert clique.make_query("select count(a * rand()) from " + table_name) == [
                     {"count(multiply(a, rand()))": 3000}
                 ]
@@ -333,8 +332,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique,
                 query_log_path,
                 'select distinct a from concatYtTables("//tmp/dictionary_encoded_table", "//tmp/dictionary_encoded_table")',
-                4,
-                [{"a": 1}, {"a": 2}],
+                6,
+                [{"a": 1}, {"a": 2}, {"a": None}],
             )
             assert (
                 clique.make_query(
@@ -345,7 +344,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     on true
                 """
                 )
-                == [{"a": 1}, {"a": 2}]
+                == [{"a": 1}, {"a": 2}, {"a": None}]
             )
 
     @authors("evgenstf")
@@ -503,7 +502,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                         "max_rows_to_keep": 100000,
                     },
                 },
-                "settings": {"execution": {"allow_string_min_max_optimization": True}},
+                "settings": {
+                    "execution": {"allow_string_min_max_optimization": True},
+                    "enable_min_max_optimization": True,
+                },
             }
         }
         query_log_path = root_dir + "/query_log/0"
@@ -515,6 +517,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
         write_table("//tmp/t/1", [{"a": i, "b": str(i), "c": 4 - i} for i in range(5)])
         write_table("//tmp/t/2", [{"a": i, "b": str(i), "c": 4 - i} for i in range(5, 10)])
+
+        write_table("<append=%true>//tmp/t/1", [{"a": None, "b": None, "c": None}])
+        write_table("<append=%true>//tmp/t/2", [{"a": None, "b": None, "c": None}])
 
         with Clique(1, config_patch=patch, export_query_log=True) as clique:
             self.make_query_and_check_block_rows(
@@ -601,7 +606,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             )
 
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a), count(a) from '//tmp/t/1'", 5, [{"min(a)": 0, "count(a)": 5}]
+                clique, query_log_path, "select min(a), count(a) from '//tmp/t/1'", 6, [{"min(a)": 0, "count(a)": 5}]
             )
             self.make_query_and_check_block_rows(
                 clique, query_log_path, "select min(a) from '//tmp/t/1' where a > 0", 5, [{"min(a)": 1}]
@@ -612,14 +617,14 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             settings = {"chyt.execution.allow_string_min_max_optimization": 0}
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 5, [{"max(b)": "4"}], settings
+                clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "4"}], settings
             )
 
             write_table("<append=%true>//tmp/t/1", {"a": 3, "b": "z" * 200, "c": 3})
 
             # Need to full scan because max string is shortened for statistics.
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "z" * 200}]
+                clique, query_log_path, "select max(b) from '//tmp/t/1'", 7, [{"max(b)": "z" * 200}]
             )
 
     @authors("evgenstf")

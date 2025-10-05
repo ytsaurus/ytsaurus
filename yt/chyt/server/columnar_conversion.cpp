@@ -367,6 +367,11 @@ DB::ColumnString::MutablePtr ConvertStringLikeYTColumnToCHColumnImpl(
 
     auto chColumn = DB::ColumnString::create();
 
+    // We can get empty column (example: dictionary encoded null column with simple distinct optimization).
+    if (ytColumn.ValueCount == 0) {
+        return chColumn;
+    }
+
     auto& chOffsets = chColumn->getOffsets();
     chOffsets.resize(ytColumn.ValueCount);
     auto* currentCHOffset = chOffsets.data() - 1;
