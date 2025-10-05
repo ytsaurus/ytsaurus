@@ -154,6 +154,15 @@ void TBootstrap::DoRun()
     {
         auto host = New<THost>(GetControlInvoker(), Config_->GetPorts(), Config_->Yt, Config_->ClusterConnection);
         ClickHouseServer_ = CreateClickHouseServer(host.Get(), Config_->ClickHouse);
+        // We dont need this caches, but they must be initialized to read system.server_settings, delete this when it's fixed in upstream.
+        {
+            auto context = ClickHouseServer_->GetContext();
+            context->setMarkCache("", 0, 0);
+            context->setUncompressedCache("", 0, 0);
+            context->setIndexMarkCache("", 0, 0);
+            context->setIndexUncompressedCache("", 0, 0);
+            context->setMMappedFileCache(0);
+        }
         host->InitSingletones();
 
         // NB: Host_ should be set only after it becomes ready to handle crash signals.
