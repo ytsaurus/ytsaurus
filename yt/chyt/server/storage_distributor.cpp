@@ -546,8 +546,8 @@ private:
         SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
-        SpecTemplate_.QuerySettings->NeedOnlyDistinct = QueryAnalyzer_->NeedOnlyDistinct();
-        SpecTemplate_.QuerySettings->EnableMinMaxOptimization = QueryAnalysisResult_->EnableMinMaxOptimization;
+        SpecTemplate_.QuerySettings->NeedOnlyDistinct &= QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.QuerySettings->EnableMinMaxOptimization &= QueryAnalysisResult_->EnableMinMaxOptimization;
 
         QueryContext_->MergeRuntimeVariables(QueryAnalysisResult_->AnalysisVariables);
         QueryContext_->SetRuntimeVariable(

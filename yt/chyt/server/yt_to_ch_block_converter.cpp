@@ -84,11 +84,20 @@ public:
             for (const auto* ytColumn : batchColumns) {
                 auto id = ytColumn->Id;
                 auto columnIndex = (id < std::ssize(IdToColumnIndex_)) ? IdToColumnIndex_[id] : -1;
+                bool needConsumeNull = false;
                 if (NeedOnlyDistinct_) {
                     if (ytColumn->Rle) {
                         ytColumn = ytColumn->Rle->ValueColumn;
                     }
                     if (ytColumn->Dictionary) {
+                        if (ytColumn->Dictionary->ZeroMeansNull) {
+                            for (const auto& index : ytColumn->GetTypedValues<ui32>()) {
+                                if (index == 0) {
+                                    needConsumeNull = true;
+                                    break;
+                                }
+                            }
+                        }
                         ytColumn = ytColumn->Dictionary->ValueColumn;
                     }
                 }
@@ -96,6 +105,9 @@ public:
                     YT_VERIFY(columnIndex < columnCount);
                     YT_VERIFY(!presentColumnMask[columnIndex]);
                     ColumnConverters_[columnIndex].ConsumeYtColumn(*ytColumn, filterHint);
+                    if (needConsumeNull) {
+                        ColumnConverters_[columnIndex].ConsumeNulls(1);
+                    }
                     presentColumnMask[columnIndex] = true;
                 }
             }
