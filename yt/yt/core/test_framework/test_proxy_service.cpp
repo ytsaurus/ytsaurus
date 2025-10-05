@@ -17,7 +17,9 @@ TTestChannelFactory::TTestChannelFactory(
     , DefaultServices_(std::move(defaultServices))
 { }
 
-IChannelPtr TTestChannelFactory::CreateChannel(const std::string& address)
+IChannelPtr TTestChannelFactory::CreateChannel(
+    const std::string& address,
+    const std::optional<std::string>& /*endpointIdentity*/)
 {
     return New<TTestChannel>(GetOrDefault(AddressToServices_, address, {}), DefaultServices_, address);
 }

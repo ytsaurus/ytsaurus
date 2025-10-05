@@ -137,9 +137,11 @@ public:
         , Timeout_(timeout)
     { }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address, endpointIdentity);
         return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
     }
 
@@ -210,9 +212,11 @@ public:
         , AuthenticationIdentity_(identity)
     { }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address, endpointIdentity);
         return CreateAuthenticatedChannel(underlyingChannel, AuthenticationIdentity_);
     }
 
@@ -281,9 +285,11 @@ public:
         , RealmId_(realmId)
     { }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address, endpointIdentity);
         return CreateRealmChannel(underlyingChannel, RealmId_);
     }
 

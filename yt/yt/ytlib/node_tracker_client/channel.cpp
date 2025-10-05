@@ -25,12 +25,14 @@ public:
     IChannelPtr CreateChannel(const TAddressMap& addresses) override
     {
         const auto& address = GetAddressOrThrow(addresses, Networks_);
-        return CreateChannel(address);
+        return CreateChannel(address, std::nullopt);
     }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
-        return ChannelFactory_->CreateChannel(address);
+        return ChannelFactory_->CreateChannel(address, endpointIdentity);
     }
 
 private:
