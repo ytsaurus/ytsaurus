@@ -692,7 +692,7 @@ void TQueryAnalyzer::ParseQuery()
     }
 
     if (!OnlyAnalyze_) {
-        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
+        QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree->clone());
         QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
     }
 
