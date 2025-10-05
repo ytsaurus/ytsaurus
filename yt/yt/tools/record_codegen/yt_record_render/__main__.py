@@ -1,7 +1,7 @@
 import click
 from pathlib import Path
 
-from . import render  # type: ignore
+from .lib import render  # type: ignore
 
 
 @click.command()
