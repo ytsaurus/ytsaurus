@@ -2,7 +2,7 @@ PY3_LIBRARY()
 
 PEERDIR(
     yt/yt/tools/record_codegen/yt_record_codegen/lib
-    yt/yt/tools/record_codegen/yt_record_render
+    yt/yt/tools/record_codegen/yt_record_render/lib
     library/python/resource
     contrib/python/dacite
     contrib/python/pyaml

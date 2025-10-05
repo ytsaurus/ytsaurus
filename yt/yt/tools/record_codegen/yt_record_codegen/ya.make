@@ -7,7 +7,7 @@ PY_SRCS(
 
 PEERDIR(
     yt/yt/tools/record_codegen/yt_record_codegen/lib
-    yt/yt/tools/record_codegen/yt_record_render
+    yt/yt/tools/record_codegen/yt_record_render/lib
     library/python/resource
     contrib/python/Jinja2
     contrib/python/dacite
