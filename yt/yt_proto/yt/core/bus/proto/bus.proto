@@ -14,4 +14,7 @@ message THandshake
     optional int32 encryption_mode = 3; // EEncryptionMode
 
     optional int32 verification_mode = 4; // EVerificationMode
+
+    // Client verify server identity against known endpoint identity.
+    optional string identity = 5;
 }

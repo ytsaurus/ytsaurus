@@ -28,6 +28,16 @@ TAddressMap GetLocalAddresses(const TNetworkAddressList& addresses, int port)
     return result;
 }
 
+std::optional<std::string> FindDefaultAddress(const NNodeTrackerClient::TNetworkAddressList& addresses, int port)
+{
+    for (const auto& [networkName, networkAddress] : addresses) {
+        if (networkName == DefaultNetworkName) {
+            return BuildServiceAddress(networkAddress, port);
+        }
+    }
+    return std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NServer
