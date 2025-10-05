@@ -1108,6 +1108,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert responses2[1] == responses2[2]
             assert responses != responses2
 
+    @authors("a-dyu")
+    def test_group_by_constant(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/t1", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/t1", [{"i": 1}, {"i": 2}, {"i": 3}])
+            assert clique.make_query("select i as res1, 90 as res2 from '//tmp/t1' group by res1, res2") == [{"res1": 1, "res2": 90}, {"res1": 2, "res2": 90}, {"res1": 3, "res2": 90}]
+
     @authors("dakovalkov")
     def test_ban_nodes(self):
         patch = {
