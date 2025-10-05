@@ -108,6 +108,12 @@ struct TBusConfig
 
     bool EnableLocalBypass;
 
+    //! Abort connection if endpoint and peer identities are known and not match.
+    bool VerifyPeerIdentity;
+
+    //! Identity is exposed to peer for verifying connection consistency.
+    std::optional<std::string> Identity;
+
     // Ssl options.
     EEncryptionMode EncryptionMode;
     EVerificationMode VerificationMode;
@@ -176,8 +182,16 @@ struct TBusClientConfig
     std::optional<std::string> Address;
     std::optional<std::string> UnixDomainSocketPath;
 
-    static TBusClientConfigPtr CreateTcp(const std::string& address);
-    static TBusClientConfigPtr CreateUds(const std::string& socketPath);
+    //! EndpointIdentity defines expected peer identity.
+    //! Connection fails if identities are known and do not match.
+    std::optional<std::string> EndpointIdentity;
+
+    static TBusClientConfigPtr CreateTcp(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity = std::nullopt);
+    static TBusClientConfigPtr CreateUds(
+        const std::string& socketPath,
+        const std::optional<std::string>& endpointIdentity = std::nullopt);
 
     REGISTER_YSON_STRUCT(TBusClientConfig);
 

@@ -740,7 +740,9 @@ class TChannelFactory
     : public IChannelFactory
 {
 public:
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& /*endpointIdentity*/) override
     {
         auto config = New<TChannelConfig>();
         config->Address = address;

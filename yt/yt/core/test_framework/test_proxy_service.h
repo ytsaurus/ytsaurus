@@ -28,7 +28,9 @@ public:
         THashMap<std::string, TRealmIdServiceMap> addressToServices,
         TRealmIdServiceMap defaultServices);
 
-    IChannelPtr CreateChannel(const std::string& address) override;
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override;
 
 private:
     const THashMap<std::string, TRealmIdServiceMap> AddressToServices_;

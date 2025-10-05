@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
 #include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
@@ -62,6 +64,10 @@ void TServerBootstrapConfig::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
             }
             config->BusServer->Port = config->RpcPort;
+        }
+        if (!config->BusServer->Identity && config->BusServer->Port) {
+            // NOTE: At this stage LocalHostName is not defined yet.
+            config->BusServer->Identity = FindDefaultAddress(config->Addresses, *config->BusServer->Port);
         }
     });
 }

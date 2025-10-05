@@ -86,6 +86,7 @@ public:
         const NNet::TNetworkAddress& endpointNetworkAddress,
         const std::optional<std::string>& endpointAddress,
         const std::optional<std::string>& unixDomainSocketPath,
+        const std::optional<std::string>& identity,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller,
         IPacketTranscoderFactory* packetTranscoderFactory,
@@ -195,6 +196,7 @@ private:
     const std::optional<std::string> EndpointAddress_;
     const std::optional<TString> UnixDomainSocketPath_;
     const std::optional<TString> AbstractUnixDomainSocketName_;
+    const std::optional<std::string> Identity_;
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 

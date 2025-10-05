@@ -12,12 +12,15 @@ TStaticChannelFactoryPtr TStaticChannelFactory::Add(const std::string& address, 
     return this;
 }
 
-IChannelPtr TStaticChannelFactory::CreateChannel(const std::string& address)
+IChannelPtr TStaticChannelFactory::CreateChannel(
+    const std::string& address,
+    const std::optional<std::string>& /*endpointIdentity*/)
 {
     auto it = ChannelMap.find(address);
     if (it == ChannelMap.end()) {
         THROW_ERROR_EXCEPTION("Unknown address %Qv", address);
     }
+    // TODO(khlebnikov): Verify peer identity.
     return it->second;
 }
 

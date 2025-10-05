@@ -197,6 +197,7 @@ public:
             TNetworkAddress(),
             Config_->Address,
             Config_->UnixDomainSocketPath,
+            Config_->Identity,
             std::move(handler),
             std::move(poller),
             PacketTranscoderFactory_,
@@ -232,6 +233,7 @@ private:
         return ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("address").Value(endpointDescription)
+                .OptionalItem("endpoint_identity", config->EndpointIdentity)
                 .Item("encryption_mode").Value(config->EncryptionMode)
                 .Item("verification_mode").Value(config->VerificationMode)
             .EndMap());
