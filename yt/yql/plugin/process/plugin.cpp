@@ -181,6 +181,31 @@ public:
         return pluginProcess->Abort(queryId);
     }
 
+    TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TQueryId queryId,
+        TString user,
+        TString queryText,
+        NYson::TYsonString settings,
+        NYson::TYsonString credentials) override
+    {
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
+        if (!pluginProcessOrError.IsOK()) {
+            THROW_ERROR pluginProcessOrError;
+        }
+
+        auto pluginProcess = pluginProcessOrError.Value();
+
+        auto finishQueryGuard = Finally(BIND(&TProcessYqlPlugin::OnQueryFinish, this, queryId, pluginProcess)
+            .Via(Invoker_));
+
+        return pluginProcess->GetDeclaredParametersInfo(
+            queryId,
+            user,
+            queryText,
+            settings,
+            credentials);
+    }
+
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) override
     {
         auto guard = NThreading::WriterGuard(ProcessesLock_);

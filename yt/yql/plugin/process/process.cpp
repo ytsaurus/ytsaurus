@@ -189,6 +189,34 @@ TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
+    TQueryId queryId,
+    TString user,
+    TString queryText,
+    NYson::TYsonString settings,
+    NYson::TYsonString credentials)
+{
+    auto getDeclaredParametersInfoReq = PluginProxy_.GetDeclaredParametersInfo();
+
+    ToProto(getDeclaredParametersInfoReq->mutable_query_id(), queryId);
+    getDeclaredParametersInfoReq->set_user(user);
+    getDeclaredParametersInfoReq->set_query_text(queryText);
+    getDeclaredParametersInfoReq->set_settings(settings.ToString());
+    getDeclaredParametersInfoReq->set_credentials(credentials.ToString());
+
+    auto response = WaitFor(getDeclaredParametersInfoReq->Invoke());
+    if (!response.IsOK()) {
+        YT_LOG_ERROR(response, "Failed to get declared parameters info");
+        THROW_ERROR response;
+    }
+
+    return TGetDeclaredParametersInfoResult{
+        .YsonParameters = response.Value()->yson_parameters()
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template<typename T, typename R>
 T TYqlExecutorProcess::ToErrorResponse(const TFormatString<>& errorMessage, const TErrorOr<R>& response) const {
     TError error = TError(errorMessage)

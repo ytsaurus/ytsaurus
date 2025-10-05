@@ -650,7 +650,7 @@ class TestExecutionModesYql(TestQueriesYqlSimpleBase):
             self._run_simple_query("select * from `//tmp/t1`", settings={"execution_mode": 42})
 
 
-class TestYqlPlugin(TestQueriesYqlBase):
+class TestYqlPlugin(TestQueriesYqlSimpleBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
@@ -1678,6 +1678,7 @@ class TestYqlAgentWithProcesses(TestYqlAgent):
 @authors("staketd")
 class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
     YQL_SUBPROCESSES_COUNT = 8
+
 
 @authors("staketd")
 class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):

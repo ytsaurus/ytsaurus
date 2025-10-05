@@ -47,6 +47,14 @@ public:
         int executeMode) override;
 
 
+    TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TQueryId queryId,
+        TString user,
+        TString queryText,
+        NYson::TYsonString settings,
+        NYson::TYsonString credentials) override;
+
+
     TQueryResult GetProgress(TQueryId queryId) override;
 
     TAbortResult Abort(TQueryId queryId) override;

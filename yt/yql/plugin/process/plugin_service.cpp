@@ -36,15 +36,8 @@ public:
                          .SetInvoker(QueryActionQueue_->GetInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Start));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUsedClusters));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnDynamicConfigChanged));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, Start)
-    {
-        YqlPlugin_->Start();
-        context->Reply();
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, RunQuery)
@@ -125,10 +118,20 @@ public:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, OnDynamicConfigChanged)
+    DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, GetDeclaredParametersInfo)
     {
-        YqlPlugin_->OnDynamicConfigChanged(TYqlPluginDynamicConfig{
-          .GatewaysConfig = TYsonString(request->gateways_config())});
+        auto queryId = FromProto<TQueryId>(request->query_id());
+
+        auto result = YqlPlugin_->GetDeclaredParametersInfo(
+            queryId,
+            request->user(),
+            request->query_text(),
+            TYsonString(request->settings()),
+            TYsonString(request->credentials()));
+
+        if (result.YsonParameters) {
+            response->set_yson_parameters(*result.YsonParameters);
+        }
 
         context->Reply();
     }

@@ -121,6 +121,7 @@ struct IYqlPlugin
     virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) = 0;
 
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TQueryId queryId,
         TString user,
         TString queryText,
         NYson::TYsonString settings,

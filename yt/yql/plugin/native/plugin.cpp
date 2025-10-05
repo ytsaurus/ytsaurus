@@ -694,6 +694,7 @@ public:
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TQueryId /*queryId*/,
         TString user,
         TString queryText,
         TYsonString settingsStr,

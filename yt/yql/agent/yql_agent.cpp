@@ -626,7 +626,8 @@ private:
         YT_LOG_INFO("Invoking YQL plugin GetDeclaredParametersInfo");
 
         try {
-            auto clustersResult = YqlPlugin_->GetUsedClusters(query, settings, {});
+            TQueryId fictionalQueryId = TQueryId::Create();
+            auto clustersResult = YqlPlugin_->GetUsedClusters(fictionalQueryId, query, settings, {});
             if (clustersResult.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
                 THROW_ERROR error;
@@ -649,7 +650,7 @@ private:
                 {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
             };
 
-            const auto result = YqlPlugin_->GetDeclaredParametersInfo(user, query, settings, ConvertToYsonString(credentials));
+            const auto result = YqlPlugin_->GetDeclaredParametersInfo(fictionalQueryId, user, query, settings, ConvertToYsonString(credentials));
             WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
 
             ToProto(response.mutable_declared_parameters_info(), result.YsonParameters.value_or("{}"));

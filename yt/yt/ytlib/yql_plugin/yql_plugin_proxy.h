@@ -15,12 +15,11 @@ public:
     DEFINE_RPC_PROXY(TYqlPluginProxy, TYqlPluginService,
                      .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NProto, Start);
     DEFINE_RPC_PROXY_METHOD(NProto, RunQuery);
     DEFINE_RPC_PROXY_METHOD(NProto, AbortQuery);
     DEFINE_RPC_PROXY_METHOD(NProto, GetQueryProgress);
     DEFINE_RPC_PROXY_METHOD(NProto, GetUsedClusters);
-    DEFINE_RPC_PROXY_METHOD(NProto, OnDynamicConfigChanged);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetDeclaredParametersInfo);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -217,6 +217,7 @@ void BridgeFreeAbortResult(TBridgeAbortResult* result)
 
 TBridgeGetDeclaredParametersInfoResult* BridgeGetDeclaredParametersInfo(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* user,
     const char* queryText,
     const char* settings,
@@ -228,6 +229,7 @@ TBridgeGetDeclaredParametersInfoResult* BridgeGetDeclaredParametersInfo(
     auto* bridgeResult = new TBridgeGetDeclaredParametersInfoResult;
 
     auto result = nativePlugin->GetDeclaredParametersInfo(
+        NYT::TGuid::FromString(queryId),
         TString(user),
         TString(queryText),
         TYsonString(TString(settings, settingsLength)),

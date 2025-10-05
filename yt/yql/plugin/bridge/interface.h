@@ -172,6 +172,7 @@ using TFuncBridgeOnDynamicConfigChanged = void(TBridgeYqlPlugin* plugin, const /
 using TFuncBridgeFreeGetDeclaredParametersInfoResult = void(TBridgeGetDeclaredParametersInfoResult* result);
 using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoResult*(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* user,
     const char* queryText,
     const char* settings,

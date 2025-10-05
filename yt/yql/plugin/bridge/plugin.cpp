@@ -269,6 +269,7 @@ public:
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
+        TQueryId queryId,
         TString user,
         TString queryText,
         NYson::TYsonString settings,
@@ -279,6 +280,7 @@ public:
 
         auto* bridgeQueryResult = BridgeGetDeclaredParametersInfo(
             BridgePlugin_,
+            ToString(queryId).data(),
             user.data(),
             queryText.data(),
             settingsString.data(),

@@ -7,7 +7,6 @@ SRCS(
     dq_gateway_with_offloading.cpp
     dq_manager.cpp
     provider_load.cpp
-    dq_manager.cpp
 )
 
 PEERDIR(

@@ -5,7 +5,7 @@ import "yt/ytlib/yql_client/proto/yql_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRunQuery 
+message TReqRunQuery
 {
     required NYT.NProto.TGuid query_id = 1;
     required string user = 2;
@@ -16,7 +16,7 @@ message TReqRunQuery
     required int64 mode = 7 [default = 2]; // EExecuteMode
 }
 
-message TRspRunQuery 
+message TRspRunQuery
 {
     optional NYT.NYqlClient.NProto.TYqlResponse response = 1;
 }
@@ -29,7 +29,7 @@ message TReqAbortQuery
 }
 
 message TRspAbortQuery
-{ 
+{
     optional bytes error = 1; // YSON
 }
 
@@ -68,20 +68,18 @@ message TRspGetUsedClusters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStart
-{ }
-
-message TRspStart
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqOnDynamicConfigChanged
-{ 
-    required bytes gateways_config = 1; // YSON
+message TReqGetDeclaredParametersInfo
+{
+    required NYT.NProto.TGuid query_id = 1;
+    required string user = 2;
+    required string query_text = 3;
+    required bytes settings = 4; // YSON
+    required bytes credentials = 5; // YSON
 }
 
-message TRspOnDynamicConfigChanged
-{ }
+message TRspGetDeclaredParametersInfo
+{
+    required bytes yson_parameters = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
