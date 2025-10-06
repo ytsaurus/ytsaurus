@@ -55,6 +55,7 @@ target_link_libraries(proto_ast-gen-jsonpath PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  public-issue-protos
   contrib-libs-protobuf
 )
 
