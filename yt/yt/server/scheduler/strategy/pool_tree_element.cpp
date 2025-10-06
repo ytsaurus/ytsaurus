@@ -61,7 +61,7 @@ TPoolTreeElementFixedState::TPoolTreeElementFixedState(
     : TreeConfig_(std::move(treeConfig))
     , StrategyHost_(strategyHost)
     , TreeElementHost_(treeElementHost)
-    , TotalResourceLimits_(strategyHost->GetResourceLimits(TreeConfig_->NodesFilter))
+    , TotalResourceLimits_(strategyHost->GetResourceLimits(TreeConfig_->NodeTagFilter))
     , TreeId_(std::move(treeId))
 { }
 
@@ -568,7 +568,7 @@ TJobResources TPoolTreeElement::ComputeSchedulingTagFilterResourceLimits(TFairSh
         return TJobResources::Infinite();
     }
 
-    auto tagFilter = TreeConfig_->NodesFilter & GetSchedulingTagFilter();
+    auto tagFilter = TreeConfig_->NodeTagFilter & GetSchedulingTagFilter();
 
     auto& resourceLimitsByTagFilter = context->ResourceLimitsByTagFilter;
     auto it = resourceLimitsByTagFilter.find(tagFilter);
@@ -1914,7 +1914,7 @@ void TPoolTreeOperationElement::PreUpdate(TFairSharePreUpdateContext* context)
         auto allocationLimits = GetAdjustedResourceLimits(
             ResourceDemand_,
             TotalResourceLimits_,
-            GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
+            GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodeTagFilter));
         PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
         PersistentAttributes_.LastBestAllocationShareUpdateTime = context->Now;
 

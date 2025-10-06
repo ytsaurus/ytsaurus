@@ -126,32 +126,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosResidencyCompoundCache
-    : public IChaosResidencyCache
-{
-public:
-    TChaosResidencyCompoundCache(
-        IChaosResidencyCachePtr masterCache,
-        IChaosResidencyCachePtr clientCache,
-        TChaosResidencyCacheConfigPtr config);
-
-    TFuture<TCellTag> GetChaosResidency(TObjectId objectId) override;
-    void ForceRefresh(TObjectId objectId, TCellTag cellTag) override;
-    void Clear() override;
-    void UpdateChaosObjectResidency(TObjectId objectId, TCellTag cellTag) override;
-    void RemoveChaosObjectResidency(TObjectId objectId) override;
-    void PingChaosObjectResidency(TObjectId objectId) override;
-    void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
-
-private:
-    const IChaosResidencyCachePtr MasterCache_;
-    const IChaosResidencyCachePtr ClientCache_;
-
-    std::atomic<bool> ActiveCacheIsClient_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChaosResidencyCacheBase::TGetSessionBase
     : public TRefCounted
 {
@@ -554,73 +528,6 @@ TIntrusivePtr<TChaosResidencyCacheBase::TGetSessionBase> TChaosResidencyClientCa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChaosResidencyCompoundCache::TChaosResidencyCompoundCache(
-    IChaosResidencyCachePtr masterCache,
-    IChaosResidencyCachePtr clientCache,
-    TChaosResidencyCacheConfigPtr config)
-    : MasterCache_(std::move(masterCache))
-    , ClientCache_(std::move(clientCache))
-    , ActiveCacheIsClient_(config->EnableClientMode)
-{ }
-
-TFuture<TCellTag> TChaosResidencyCompoundCache::GetChaosResidency(TObjectId objectId)
-{
-    return ActiveCacheIsClient_
-        ? ClientCache_->GetChaosResidency(objectId)
-        : MasterCache_->GetChaosResidency(objectId);
-}
-
-void TChaosResidencyCompoundCache::ForceRefresh(TObjectId objectId, TCellTag cellTag)
-{
-    if (ActiveCacheIsClient_) {
-        ClientCache_->ForceRefresh(objectId, cellTag);
-    } else {
-        MasterCache_->ForceRefresh(objectId, cellTag);
-    }
-}
-
-void TChaosResidencyCompoundCache::Clear()
-{
-    ClientCache_->Clear();
-    MasterCache_->Clear();
-}
-
-void TChaosResidencyCompoundCache::UpdateChaosObjectResidency(
-    TObjectId objectId,
-    TCellTag cellTag)
-{
-    return ActiveCacheIsClient_
-        ? ClientCache_->UpdateChaosObjectResidency(objectId, cellTag)
-        : MasterCache_->UpdateChaosObjectResidency(objectId, cellTag);
-}
-
-void TChaosResidencyCompoundCache::RemoveChaosObjectResidency(TObjectId objectId)
-{
-    if (ActiveCacheIsClient_) {
-        ClientCache_->RemoveChaosObjectResidency(objectId);
-    } else {
-        MasterCache_->RemoveChaosObjectResidency(objectId);
-    }
-}
-
-void TChaosResidencyCompoundCache::PingChaosObjectResidency(TObjectId objectId)
-{
-    if (ActiveCacheIsClient_) {
-        ClientCache_->PingChaosObjectResidency(objectId);
-    } else {
-        MasterCache_->PingChaosObjectResidency(objectId);
-    }
-}
-
-void TChaosResidencyCompoundCache::Reconfigure(TChaosResidencyCacheConfigPtr config)
-{
-    ActiveCacheIsClient_ = config->EnableClientMode;
-    ClientCache_->Reconfigure(config);
-    MasterCache_->Reconfigure(std::move(config));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IChaosResidencyCachePtr CreateChaosResidencyMasterCache(
     TChaosResidencyCacheConfigPtr config,
     IConnectionPtr connection,
@@ -673,17 +580,11 @@ IChaosResidencyCachePtr CreateChaosResidencyCache(
             logger);
     }
 
-    return New<TChaosResidencyCompoundCache>(
-        CreateChaosResidencyMasterCache(
-            config,
-            connection,
-            logger),
-        CreateChaosResidencyClientCache(
-            config,
-            std::move(chaosCacheChannelConfig),
-            std::move(connection),
-            logger),
-        std::move(config));
+    return CreateChaosResidencyClientCache(
+        std::move(config),
+        std::move(chaosCacheChannelConfig),
+        std::move(connection),
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

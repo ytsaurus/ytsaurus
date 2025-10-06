@@ -22,6 +22,7 @@ target_link_libraries(essentials-parser-common PUBLIC
   contrib-libs-cxxsupp
   yutil
   essentials-public-issue
+  essentials-core-issue
 )
 
 target_sources(essentials-parser-common PRIVATE

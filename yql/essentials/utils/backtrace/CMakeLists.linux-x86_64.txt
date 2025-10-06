@@ -36,5 +36,8 @@ target_sources(essentials-utils-backtrace PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/backtrace/symbolize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/backtrace/backtrace_linux.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/backtrace/symbolizer_linux.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/backtrace/backtrace.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/backtrace/backtrace_lib.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/backtrace/symbolizer.h
 )
 

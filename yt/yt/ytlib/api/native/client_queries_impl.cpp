@@ -316,14 +316,13 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
 
-
     auto mergedSupportedFeatures = TYsonString(TString("{}"));
     if (options.Attributes.AdmitsKeySlow("supported_features")) {
         if (auto supportedFeaturesYson = TYsonString(rpcResponse.supported_features()); supportedFeaturesYson) {
             auto supportedFeraturesMap = ConvertToNode(supportedFeaturesYson)->AsMap();
             supportedFeraturesMap->AddChild("new_search_on_proxies", ConvertToNode(true));
             supportedFeraturesMap->AddChild("not_indexing_on_proxies", ConvertToNode(true));
-            supportedFeraturesMap->AddChild("declare_on_proxies", ConvertToNode(true));
+            supportedFeraturesMap->AddChild("declare_params_on_proxies", ConvertToNode(true));
             supportedFeraturesMap->AddChild("tutorials_on_proxies", ConvertToNode(true));
             mergedSupportedFeatures = ConvertToYsonString(supportedFeraturesMap);
         }
@@ -342,12 +341,12 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetDeclaredParametersInfoResult TClient::DoGetDeclaredParametersInfo(const TGetDeclaredParametersInfoOptions& options)
+TGetQueryDeclaredParametersInfoResult TClient::DoGetQueryDeclaredParametersInfo(const TGetQueryDeclaredParametersInfoOptions& options)
 {
     TQueryTrackerServiceProxy proxy(
         Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
 
-    auto req = proxy.GetDeclaredParametersInfo();
+    auto req = proxy.GetQueryDeclaredParametersInfo();
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
@@ -363,7 +362,7 @@ TGetDeclaredParametersInfoResult TClient::DoGetDeclaredParametersInfo(const TGet
         .ValueOrThrow();
     auto rpcResponse = rsp->rpc_proxy_response();
 
-    return TGetDeclaredParametersInfoResult{
+    return TGetQueryDeclaredParametersInfoResult{
         .Parameters = TYsonString(rpcResponse.declared_parameters_info()),
     };
 }

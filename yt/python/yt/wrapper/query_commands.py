@@ -232,7 +232,7 @@ def get_query_tracker_info(attributes=None, stage=None, format=None, client=None
     return make_formatted_request("get_query_tracker_info", params=params, format=format, client=client)
 
 
-def get_declared_parameters_info(query, engine, stage=None, settings=None, format=None, client=None):
+def get_query_declared_parameters_info(query, engine, stage=None, settings=None, format=None, client=None):
     """Get parameters DECLAREd in YQL query. Currently supported only for YQL.
 
     :param query: text of query to be parsed
@@ -252,7 +252,7 @@ def get_declared_parameters_info(query, engine, stage=None, settings=None, forma
     }
     set_param(params, "settings", settings)
 
-    return make_formatted_request("get_declared_parameters_info", params=params, format=format, client=client)
+    return make_formatted_request("get_query_declared_parameters_info", params=params, format=format, client=client)
 
 # Helpers
 

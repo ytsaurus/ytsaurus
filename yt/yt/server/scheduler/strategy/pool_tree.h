@@ -113,7 +113,7 @@ struct IPoolTree
 
     virtual bool UpdateConfig(const TStrategyTreeConfigPtr& config) = 0;
 
-    virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
+    virtual const TSchedulingTagFilter& GetNodeTagFilter() const = 0;
 
     virtual bool HasOperation(TOperationId operationId) const = 0;
     virtual bool HasRunningOperation(TOperationId operationId) const = 0;

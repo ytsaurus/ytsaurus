@@ -991,28 +991,6 @@ class YtClient(ClientState):
         """
         return client_api.get_current_user(client=self)
 
-    def get_declared_parameters_info(
-            self,
-            query, engine,
-            stage=None, settings=None, format=None):
-        """
-        Get parameters DECLAREd in YQL query. Currently supported only for YQL.
-
-        :param query: text of query to be parsed
-        :type query: str
-        :param engine: query engine, one of "ql", "yql", "chyt", "spyt".
-        :type engine: str
-        :param stage: query tracker stage, defaults to "production"
-        :type stage: str
-        :param settings: a dictionary of settings
-        :type settings: dict or None
-
-        """
-        return client_api.get_declared_parameters_info(
-            query, engine,
-            client=self,
-            stage=stage, settings=settings, format=format)
-
     def get_file_from_cache(
             self,
             md5,
@@ -1261,6 +1239,28 @@ class YtClient(ClientState):
             query_id,
             client=self,
             attributes=attributes, stage=stage, format=format)
+
+    def get_query_declared_parameters_info(
+            self,
+            query, engine,
+            stage=None, settings=None, format=None):
+        """
+        Get parameters DECLAREd in YQL query. Currently supported only for YQL.
+
+        :param query: text of query to be parsed
+        :type query: str
+        :param engine: query engine, one of "ql", "yql", "chyt", "spyt".
+        :type engine: str
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+        :param settings: a dictionary of settings
+        :type settings: dict or None
+
+        """
+        return client_api.get_query_declared_parameters_info(
+            query, engine,
+            client=self,
+            stage=stage, settings=settings, format=format)
 
     def get_query_result(
             self,
@@ -1564,7 +1564,7 @@ class YtClient(ClientState):
             sort_field=None, sort_order=None, limit=None, offset=None, with_stderr=None, with_spec=None,
             with_fail_context=None, with_monitoring_descriptor=None, with_interruption_info=None,
             include_cypress=None, include_runtime=None, include_archive=None, data_source=None, attributes=None,
-            format=None):
+            operation_incarnation=None, monitoring_descriptor=None, format=None):
         """
         List jobs of operation.
         """
@@ -1576,7 +1576,8 @@ class YtClient(ClientState):
             offset=offset, with_stderr=with_stderr, with_spec=with_spec, with_fail_context=with_fail_context,
             with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
             include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
-            data_source=data_source, attributes=attributes, format=format)
+            data_source=data_source, attributes=attributes, operation_incarnation=operation_incarnation,
+            monitoring_descriptor=monitoring_descriptor, format=format)
 
     def list_operation_events(
             self,

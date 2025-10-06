@@ -9,7 +9,7 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_helpers import profiler_factory
 
-from yt_queries import get_query_tracker_info, get_declared_parameters_info
+from yt_queries import get_query_tracker_info, get_query_declared_parameters_info
 
 from yt.wrapper import yson, YtError
 
@@ -1577,7 +1577,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersion(TestGetQueryTrackerInfoBase):
             {
                 "available_yql_versions": ["2025.01",],
                 "default_yql_ui_version": "2025.01",
-                "supported_features": {"declare": True},
+                "supported_features": {"declare_params": True},
             }
 
     @authors("kirsiv40")
@@ -1620,10 +1620,10 @@ class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBas
 class TestDeclare(TestQueriesYqlBase):
     @authors("kirsiv40")
     def test_declare(self, query_tracker, yql_agent):
-        assert get_declared_parameters_info("select 1;", "yql") == {}
+        assert get_query_declared_parameters_info("select 1;", "yql") == {}
 
         query_text = "DECLARE $VAR as string;\nselect 1;\nselect $VAR as result"
-        assert get_declared_parameters_info(query_text, "yql") == {'$VAR': 'String'}
+        assert get_query_declared_parameters_info(query_text, "yql") == {'$VAR': 'String'}
 
         query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"}}"})
         query.track()
@@ -1635,7 +1635,7 @@ class TestDeclare(TestQueriesYqlBase):
 
         # a syntactially correct query can still be parsed even if it can't be executed
         query_text = "DECLARE $VAR as Json;\nselect 1;\nselect $VAR as result;select FileContent(\"some-file\");"
-        assert get_declared_parameters_info(query_text, "yql") == {'$VAR': 'Json'}
+        assert get_query_declared_parameters_info(query_text, "yql") == {'$VAR': 'Json'}
 
 
 ##################################################################

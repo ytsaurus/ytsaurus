@@ -1,4 +1,4 @@
-from .common import YtError
+from .common import YtError, require, get_value
 from .config import get_config, get_option
 from .errors import YtChunkUnavailable
 from .format import YtFormatReadError
@@ -11,10 +11,18 @@ from .transaction import Transaction, null_transaction_id, add_transaction_to_ab
 from .thread_pool import ThreadPool
 from .ypath import TablePath
 
+import yt.logger as logger
+
 from yt.common import join_exceptions
 
+import builtins
 import copy
 import threading
+import typing
+
+
+DEFAULT_DATA_SIZE_PER_THREAD = 8 * 1024 * 1024
+DEFAULT_SINGLE_CHUNK_SPLIT = 3
 
 
 class ParallelReadRetrier(Retrier):
@@ -138,3 +146,90 @@ def make_read_parallel_request(command_name, path, ranges, params, prepare_param
         if transaction:
             transaction.abort()
         raise
+
+
+def _prepare_ranges_for_parallel_read(
+    offset: int,
+    length: int,
+    data_size: int,
+    data_size_per_thread: int,
+) -> typing.List[typing.Dict[str, typing.Tuple[int, int]]]:
+    if not data_size_per_thread:
+        data_size_per_thread = DEFAULT_DATA_SIZE_PER_THREAD
+
+    offset = get_value(offset, 0)
+    offset = min(offset, data_size)
+
+    length = get_value(length, data_size)
+    length = min(length, data_size - offset)
+
+    result = []
+    while offset < data_size and length > 0:
+        range_size = min(data_size_per_thread, length)
+        result.append({"range" : (offset, range_size)})
+        offset += range_size
+        length -= range_size
+
+    return result
+
+
+def _slice_row_ranges_for_parallel_read(
+    ranges: typing.List[typing.Mapping],
+    row_count: int,
+    chunk_count: int,
+    data_size: int,
+    replication_factor: int,
+    data_size_per_thread: typing.Union[int, None],
+) -> typing.Tuple[typing.List[typing.Dict[str, typing.Tuple[int, int]]], int]:
+    def _get_ranges(ranges, rows_per_task):
+        result = []
+        for range in ranges:
+            if "exact" in range:
+                require("row_index" in range["exact"], lambda: YtError('Invalid YPath: "row_index" not found'))
+                lower_limit = range["exact"]["row_index"]
+                upper_limit = lower_limit + 1
+            else:
+                if "lower_limit" in range:
+                    require("row_index" in range["lower_limit"], lambda: YtError('Invalid YPath: "row_index" not found'))
+                if "upper_limit" in range:
+                    require("row_index" in range["upper_limit"], lambda: YtError('Invalid YPath: "row_index" not found'))
+
+                lower_limit = 0 if "lower_limit" not in range else range["lower_limit"]["row_index"]
+                upper_limit = row_count if "upper_limit" not in range else range["upper_limit"]["row_index"]
+
+            for start in builtins.range(lower_limit, upper_limit, rows_per_task):
+                end = min(start + rows_per_task, upper_limit)
+                result.append({"range" : (start, end)})
+        return result
+
+    if row_count > 0:
+        row_size = data_size / float(row_count)
+    else:
+        row_size = 1
+
+    if data_size_per_thread:
+        rows_per_task = max(
+            int(data_size_per_thread / row_size),
+            1,
+        )
+        result = _get_ranges(ranges, rows_per_task)
+        logger.debug(f"Parallel read tasks count: {len(result)}, {row_size=}, {rows_per_task=}")
+        return result, rows_per_task * row_size
+    else:
+        if chunk_count > 0 and replication_factor >= 0:
+            data_size_per_thread = int(data_size / (chunk_count * replication_factor))
+        else:
+            data_size_per_thread = data_size
+        rows_per_task_by_table = int(data_size_per_thread / row_size)
+        rows_per_task_by_default = int(DEFAULT_DATA_SIZE_PER_THREAD / row_size)
+        rows_per_task = max(
+            rows_per_task_by_default,
+            rows_per_task_by_table,
+            1,
+        )
+        result = _get_ranges(ranges, rows_per_task)
+        if len(result) == 1 and rows_per_task > DEFAULT_SINGLE_CHUNK_SPLIT:
+            rows_per_task //= DEFAULT_SINGLE_CHUNK_SPLIT
+            result = _get_ranges(ranges, rows_per_task)
+        logger.debug(f"Parallel read tasks count: {len(result)}, {row_size=}, {rows_per_task=} ({rows_per_task_by_default}, {rows_per_task_by_table})")
+        return result, rows_per_task * row_size

@@ -1723,6 +1723,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
+                auto chunkSchema = chunkMeta->ChunkSchema();
+
                 reader = New<TReader>(
                     std::move(config),
                     chunkMeta,
@@ -1738,6 +1740,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     memoryManagerHolder,
                     sessionInvoker,
                     std::move(keyFilterStatistics));
+
+                reader = MaybeWrapWithAnyEncodingAdapter(
+                    std::move(reader),
+                    chunkState->TableSchema,
+                    chunkSchema,
+                    schemaIdMapping);
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -1768,6 +1776,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
             IVersionedReaderPtr unwrappedReader;
             auto createUnwrappedReader = [&] <class TReader> {
+                auto chunkSchema = chunkMeta->ChunkSchema();
+
                 unwrappedReader = New<TReader>(
                     std::move(config),
                     chunkMeta,
@@ -1783,6 +1793,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     timestamp,
                     memoryManagerHolder,
                     sessionInvoker);
+
+                unwrappedReader = MaybeWrapWithAnyEncodingAdapter(
+                    std::move(unwrappedReader),
+                    chunkState->TableSchema,
+                    chunkSchema,
+                    schemaIdMapping);
             };
 
             if (timestamp == AllCommittedTimestamp) {
@@ -1945,6 +1961,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
+                auto chunkSchema = chunkMeta->ChunkSchema();
+
                 reader = New<TReader>(
                     std::move(config),
                     std::move(chunkMeta),
@@ -1959,6 +1977,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     timestamp,
                     produceAllVersions,
                     memoryManagerHolder);
+
+                reader = MaybeWrapWithAnyEncodingAdapter(
+                    std::move(reader),
+                    chunkState->TableSchema,
+                    chunkSchema,
+                    schemaIdMapping);
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -1990,6 +2014,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             int chunkKeyColumnCount = chunkMeta->ChunkSchema()->GetKeyColumnCount();
 
             auto createReader = [&] <class TReader> {
+                auto chunkSchema = chunkMeta->ChunkSchema();
+
                 reader = New<TReader>(
                     std::move(config),
                     std::move(chunkMeta),
@@ -2003,6 +2029,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     schemaIdMapping,
                     timestamp,
                     memoryManagerHolder);
+
+                reader = MaybeWrapWithAnyEncodingAdapter(
+                    std::move(reader),
+                    chunkState->TableSchema,
+                    chunkSchema,
+                    schemaIdMapping);
             };
 
             if (produceAllVersions) {

@@ -339,3 +339,10 @@ webservice:
   service:
     type: ClusterIP
     port: 9002
+
+metrics:
+  enable: true
+  serviceMonitor:
+    enable: false
+    labels:
+      release: kube-prom

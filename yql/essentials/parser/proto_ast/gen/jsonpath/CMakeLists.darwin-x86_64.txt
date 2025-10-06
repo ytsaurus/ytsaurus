@@ -52,6 +52,7 @@ target_include_directories(proto_ast-gen-jsonpath PUBLIC
 target_link_libraries(proto_ast-gen-jsonpath PUBLIC
   contrib-libs-cxxsupp
   yutil
+  public-issue-protos
   contrib-libs-protobuf
 )
 

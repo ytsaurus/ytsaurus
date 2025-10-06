@@ -298,7 +298,7 @@ struct TStrategyTreeConfig
     : virtual public NYTree::TYsonStruct
 {
     // Specifies nodes that are served by this tree.
-    TSchedulingTagFilter NodesFilter;
+    TSchedulingTagFilter NodeTagFilter;
 
     bool EnableUnrecognizedAlert;
 

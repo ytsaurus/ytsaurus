@@ -3060,8 +3060,27 @@ class TestPatchVanillaSpecRestarts(TestPatchVanillaSpecBase):
         response.wait()
         assert not response.is_ok()
 
+    @authors("coteeq")
+    def test_clean_start(self):
+        update_controller_agent_config("enable_snapshot_building", False)
+        op = self._run_vanilla(delay_in_apply=0)
 
-class TestSidecarVanilla(YTEnvSetup):
+        wait_breakpoint(job_count=2)
+
+        self._set_job_count(op, 3)
+        time.sleep(1)
+        self._restart_controller()
+
+        wait(lambda: len(op.get_running_jobs(verbose=True)) == 3)
+        self.assert_job_states(op, "task", running=3, aborted=0)
+
+        release_breakpoint()
+        op.track()
+
+        self.assert_job_states(op, "task", aborted=0, completed=3)
+
+
+class SidecarVanillaBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = False
     NUM_TEST_PARTITIONS = 3
 
@@ -3069,12 +3088,13 @@ class TestSidecarVanilla(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    JOB_ENVIRONMENT_TYPE = "cri"
+    container_user_group_name = None
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "slot_manager": {
                 "job_environment": {
-                    "container_user_group_name": "docker",
+                    "container_user_group_name": container_user_group_name,
                 },
             },
         },
@@ -3086,8 +3106,10 @@ class TestSidecarVanilla(YTEnvSetup):
         }
     }
 
+    def get_docker_image(self):
+        return None
+
     def start_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
-        docker_image = self.Env.yt_config.default_docker_image
         op = vanilla(
             track=False,
             spec={
@@ -3095,11 +3117,11 @@ class TestSidecarVanilla(YTEnvSetup):
                     "master": {
                         "job_count": 1,
                         "command": master_command,
-                        "docker_image": docker_image,
+                        "docker_image": self.get_docker_image(),
                         "sidecars": {
                             "sidecar1": {
                                 "command": sidecar_command,
-                                "docker_image": docker_image,
+                                "docker_image": self.get_docker_image(),
                                 "restart_policy": sidecar_restart_policy,
                             }
                         }
@@ -3115,7 +3137,6 @@ class TestSidecarVanilla(YTEnvSetup):
         Same as start_operation, but this will put sidecar_command into a file, making it possible to write
         a full bash script as the command.
         """
-        docker_image = self.Env.yt_config.default_docker_image
 
         # Prepare a sidecar bash file as it seems to be impossible to just concatenate several commands
         # under "command" section of sidecar definition, so we invoke a bash file.
@@ -3130,14 +3151,14 @@ class TestSidecarVanilla(YTEnvSetup):
                     "master": {
                         "job_count": 1,
                         "command": master_command,
-                        "docker_image": docker_image,
+                        "docker_image": self.get_docker_image(),
                         "files": [
                             sidecar_cmds_file,
                         ],
                         "sidecars": {
                             "sidecar1": {
                                 "command": sidecar_command,
-                                "docker_image": docker_image,
+                                "docker_image": self.get_docker_image(),
                                 "restart_policy": sidecar_restart_policy,
                             }
                         }
@@ -3207,7 +3228,6 @@ class TestSidecarVanilla(YTEnvSetup):
             ]
         )
 
-        docker_image = self.Env.yt_config.default_docker_image
         with pytest.raises(YtError):
             vanilla(
                 track=False,
@@ -3216,10 +3236,10 @@ class TestSidecarVanilla(YTEnvSetup):
                         "master": {
                             "job_count": 1,
                             "command": master_command,
-                            "docker_image": docker_image,
+                            "docker_image": self.get_docker_image(),
                             "sidecars": {
                                 "sidecar1": {
-                                    "docker_image": docker_image,
+                                    "docker_image": self.get_docker_image(),
                                 }
                             }
                         },
@@ -3251,7 +3271,6 @@ class TestSidecarVanilla(YTEnvSetup):
             ]
         )
 
-        docker_image = self.Env.yt_config.default_docker_image
         op = vanilla(
             track=False,
             spec={
@@ -3259,15 +3278,15 @@ class TestSidecarVanilla(YTEnvSetup):
                     "master": {
                         "job_count": 1,
                         "command": master_command,
-                        "docker_image": docker_image,
+                        "docker_image": self.get_docker_image(),
                         "sidecars": {
                             "sidecar1": {
                                 "command": sidecar1_command,
-                                "docker_image": docker_image,
+                                "docker_image": self.get_docker_image(),
                             },
                             "sidecar2": {
                                 "command": sidecar2_command,
-                                "docker_image": docker_image,
+                                "docker_image": self.get_docker_image(),
                             }
                         },
                     },
@@ -3533,6 +3552,9 @@ fi
 
     @authors("pavel-bash")
     def test_mounts(self):
+        if self.USE_PORTO:
+            pytest.skip("Not implemented for porto")
+
         """
         Check that the mounts are indeed shared between the main job and all sidecars; we create a file
         and write some data into it in a sidecar job, then the master job reads the file and outputs
@@ -3561,7 +3583,6 @@ fi
             ]
         )
 
-        docker_image = self.Env.yt_config.default_docker_image
         op = vanilla(
             track=False,
             spec={
@@ -3570,11 +3591,11 @@ fi
                         "job_count": 1,
                         "output_table_paths": [output_table],
                         "command": master_command,
-                        "docker_image": docker_image,
+                        "docker_image": self.get_docker_image(),
                         "sidecars": {
                             "sidecar1": {
                                 "command": sidecar_command,
-                                "docker_image": docker_image,
+                                "docker_image": self.get_docker_image(),
                                 "restart_policy": "fail_on_error",
                             }
                         }
@@ -3603,3 +3624,17 @@ fi
         output_table_contents = read_table(output_table)
         print(output_table_contents)
         assert read_table(output_table) == [{"secret": "sidecar"}]
+
+
+class TestPortoSidecar(SidecarVanillaBase):
+    USE_PORTO = True
+
+
+class TestCriSidecar(SidecarVanillaBase):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    def __init__(self):
+        self.container_user_group_name = "docker"
+
+    def get_docker_image(self):
+        return self.Env.yt_config.default_docker_image

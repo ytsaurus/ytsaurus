@@ -71,6 +71,7 @@
 #include <Storages/StorageMerge.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
+#include <Analyzer/createUniqueAliasesIfNecessary.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -173,7 +174,10 @@ void ValidateReadPermissions(
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
     }
-    queryContext->Host->ValidateTableReadPermissions(tablePathsWithColumns, queryContext->User);
+    auto rowLevelAclPerTable = queryContext->Host->ValidateTableReadPermissionsAndGetRowLevelAcl(tablePathsWithColumns, queryContext->User);
+    for (const auto& [index, table] : SEnumerate(tables)) {
+        table->RowLevelAcl = rowLevelAclPerTable[index];
+    }
 }
 
 TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distributionSeed, bool isDistributedJoin)
@@ -364,10 +368,15 @@ public:
         bool isInsert = SecondaryQueries_[0].Query->as<DB::ASTInsertQuery>();
 
         if (!isInsert) {
+            auto queryTree = QueryInfo_.query_tree->clone();
+            // NB: QueryTree may be some subquery of the initial query.
+            // After processing on the secondary instance, its auxiliary aliases may not match the current ones.
+            // Therefore, for the correct header output, we need to recreate the aliases.
+            DB::createUniqueAliasesIfNecessary(queryTree, Context_);
             blockHeader = DB::InterpreterSelectQueryAnalyzer::getSampleBlock(
-                QueryInfo_.query,
+                queryTree,
                 Context_,
-                DB::SelectQueryOptions(ProcessingStage_));
+                DB::SelectQueryOptions(ProcessingStage_).analyze());
         }
 
         for (size_t index = 0; index < SecondaryQueries_.size(); ++index) {
@@ -540,8 +549,8 @@ private:
         SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
-        SpecTemplate_.QuerySettings->NeedOnlyDistinct = QueryAnalyzer_->NeedOnlyDistinct();
-        SpecTemplate_.QuerySettings->EnableMinMaxOptimization = QueryAnalysisResult_->EnableMinMaxOptimization;
+        SpecTemplate_.QuerySettings->NeedOnlyDistinct &= QueryAnalyzer_->NeedOnlyDistinct();
+        SpecTemplate_.QuerySettings->EnableMinMaxOptimization &= QueryAnalysisResult_->EnableMinMaxOptimization;
 
         QueryContext_->MergeRuntimeVariables(QueryAnalysisResult_->AnalysisVariables);
         QueryContext_->SetRuntimeVariable(

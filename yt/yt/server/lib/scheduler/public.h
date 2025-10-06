@@ -279,6 +279,13 @@ extern const NYPath::TYPath LastMeteringLogTimePath;
 
 inline const TString ProfilingPoolTreeKey{"tree"};
 
+//! This differs from |ProfilingPoolTreeKey|, because in the context of exe_node
+//! it may not be so obvious what `tree` means. So, we try to clarify it with
+//! a more explicit label name.
+inline const TString ExeNodeProfilingPoolTreeKey{"pool_tree"};
+
+inline const TString ExeNodeProfilingUnknownPoolTreeName{"<unknown>"};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};

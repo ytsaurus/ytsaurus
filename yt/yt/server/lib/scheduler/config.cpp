@@ -343,7 +343,8 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
-    registrar.Parameter("nodes_filter", &TThis::NodesFilter)
+    registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
+        .Alias("nodes_filter")
         .Default();
 
     registrar.Parameter("enable_unrecognized_alert", &TThis::EnableUnrecognizedAlert)
@@ -1273,7 +1274,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(62);
+        .Default(63);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

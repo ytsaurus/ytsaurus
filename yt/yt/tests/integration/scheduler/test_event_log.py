@@ -294,10 +294,10 @@ class TestEventLog(YTEnvSetup):
                 set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagA"])
             else:
                 set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagB"])
-        update_pool_tree_config_option(tree="default", option="nodes_filter", value="default")
+        update_pool_tree_config_option(tree="default", option="node_tag_filter", value="default")
 
-        create_pool_tree("treeA", config={"nodes_filter": "tagA"})
-        create_pool_tree("treeB", config={"nodes_filter": "tagB"})
+        create_pool_tree("treeA", config={"node_tag_filter": "tagA"})
+        create_pool_tree("treeB", config={"node_tag_filter": "tagB"})
 
         create_pool("poolA", pool_tree="treeA")
         create_pool("poolB", pool_tree="treeB")

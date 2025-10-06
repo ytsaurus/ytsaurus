@@ -9,6 +9,10 @@ namespace NYT::NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, JobProxyLogger, "JobProxy");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, JobTraceLogger, "JobTrace");
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 constexpr auto RpcServerShutdownTimeout = TDuration::Seconds(5);
 

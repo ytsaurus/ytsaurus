@@ -7,6 +7,8 @@ import yaml
 import os
 import pathlib
 
+import yt_record_render.lib
+
 from .lib import Manifest
 
 
@@ -38,7 +40,8 @@ def main():
     args = parser.parse_args()
 
     with open(args.input) as input_file:
-        manifest_dict = yaml.safe_load(input_file)
+        rendered_file = yt_record_render.lib.render(input_file.read(), version=None)
+        manifest_dict = yaml.safe_load(rendered_file)
         manifest = from_dict(Manifest, manifest_dict)
         output_h = os.path.splitext(args.output_cpp)[0] + ".h"
         manifest.h_path = str(pathlib.Path(output_h).relative_to(args.output_root))

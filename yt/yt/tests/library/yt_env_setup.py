@@ -2012,7 +2012,7 @@ class YTEnvSetup(object):
         cypress_proxy_dynamic_config = self._apply_cypress_proxy_dynamic_config_patches(get_dynamic_cypress_proxy_config(), cluster_index)
 
         default_pool_tree_config = {
-            "nodes_filter": "",
+            "node_tag_filter": "",
             "main_resource": "cpu",
             "min_child_heap_size": 3,
             "batch_operation_scheduling": {

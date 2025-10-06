@@ -60,6 +60,7 @@ YT_PREFIX_BINARIES = [
 ]
 
 YT_TEST_DEPENDENCIES = [
+    "yt/yt/tools/record_codegen/yt_record_render",
     "yt/yt/tools/record_codegen/yt_record_codegen",
 ]
 

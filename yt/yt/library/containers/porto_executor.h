@@ -92,6 +92,7 @@ struct IPortoExecutor
     virtual TFuture<void> StopContainer(const TString& container) = 0;
     virtual TFuture<void> StartContainer(const TString& container) = 0;
     virtual TFuture<void> KillContainer(const TString& container, int signal) = 0;
+    virtual TFuture<void> RespawnContainer(const TString& container) = 0;
 
     virtual TFuture<TString> ConvertPath(const TString& path, const TString& container) = 0;
 

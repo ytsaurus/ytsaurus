@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint,
     release_breakpoint, with_breakpoint, create, get, set, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
-    map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
+    map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla, interrupt_job,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
     make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job, list_operation_events)
@@ -1155,6 +1155,42 @@ class TestListJobs(TestListJobsCommon):
             assert event_after[0]["incarnation"] == incarnation
 
     @authors("bystrovserg")
+    def test_list_operation_events_empty_trigger_job_error(self):
+        exit_code = 17
+
+        command = f"""(trap "exit {exit_code}" SIGINT; BREAKPOINT)"""
+
+        op = run_test_vanilla(
+            command=with_breakpoint(command),
+            job_count=3,
+            task_patch={
+                "interruption_signal": "SIGINT",
+                "restart_exit_code": exit_code,
+                "gang_options": {},
+            },
+        )
+        first_job_ids = wait_breakpoint(job_count=3)
+        job_id_to_interrupt = first_job_ids[0]
+
+        interrupt_job(job_id_to_interrupt)
+
+        wait(lambda: get_job(op.id, job_id_to_interrupt).get("interruption_info") is not None)
+
+        for job_id in first_job_ids:
+            release_breakpoint(job_id=job_id)
+
+        wait_breakpoint(job_count=3)
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 2)
+        job_interrupted_incarnation = list_operation_events(op.id, event_type="incarnation_started")[1]
+        assert job_interrupted_incarnation["incarnation_switch_reason"] == "job_interrupted"
+        assert job_interrupted_incarnation["incarnation_switch_info"]["trigger_job_id"] == job_id_to_interrupt
+        assert job_interrupted_incarnation["incarnation_switch_info"].get("trigger_job_error") is None
+
+    @authors("bystrovserg")
     def test_from_time_and_to_time_filters(self):
         def check_filter(expected_job_count, from_time=None, to_time=None):
             filters = {}
@@ -1445,6 +1481,59 @@ class TestListJobs(TestListJobsCommon):
         op.track()
 
         check_job_ranks()
+
+    @authors("bystrovserg")
+    def test_monitoring_filter(self):
+        update_controller_agent_config(
+            "user_job_monitoring/extended_max_monitored_user_jobs_per_operation", 2)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["cpu/user"],
+                },
+            },
+        )
+
+        jobs_before = wait_breakpoint(job_count=2)
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 2)
+
+        jobs_with_monitoring_descriptor = list_jobs(op.id, with_monitoring_decriptor=True)["jobs"]
+        assert len(jobs_with_monitoring_descriptor) == 2
+        job_id1 = jobs_with_monitoring_descriptor[0]["id"]
+        descriptor1 = jobs_with_monitoring_descriptor[0]["monitoring_descriptor"]
+        job_id2 = jobs_with_monitoring_descriptor[1]["id"]
+        descriptor2 = jobs_with_monitoring_descriptor[1]["monitoring_descriptor"]
+
+        assert descriptor1 != descriptor2
+        abort_job(job_id1)
+
+        wait(lambda: len(op.list_jobs()) == 3)
+
+        assert get_job(op.id, job_id2)["monitoring_descriptor"] == descriptor2
+
+        new_job_ids = builtins.set(op.list_jobs()).difference(jobs_before)
+        assert len(new_job_ids) == 1
+        job_id3 = new_job_ids.pop()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id3))
+        assert get_job(op.id, job_id3)["monitoring_descriptor"] == descriptor1
+
+        assert len(op.list_jobs()) == 3
+        assert frozenset([job["id"] for job in list_jobs(op.id, monitoring_descriptor=descriptor1)["jobs"]]) == frozenset([job_id1, job_id3])
+        assert list_jobs(op.id, monitoring_descriptor=descriptor2)["jobs"][0]["id"] == job_id2
+
+        # Wrong descriptor
+        assert len(list_jobs(op.id, monitoring_descriptor="deadbeef")["jobs"]) == 0
+
+        release_breakpoint()
+        op.track()
+
+        assert frozenset([job["id"] for job in list_jobs(op.id, monitoring_descriptor=descriptor1)["jobs"]]) == frozenset([job_id1, job_id3])
+        assert list_jobs(op.id, monitoring_descriptor=descriptor2)["jobs"][0]["id"] == job_id2
 
 
 class TestListJobsAllocation(TestListJobsBase):

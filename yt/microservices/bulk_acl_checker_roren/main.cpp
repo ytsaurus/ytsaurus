@@ -43,6 +43,7 @@ void AddFullSpecificOpts(NLastGetopt::TOpts& opts)
     opts.AddLongOption("pool");
     opts.AddLongOption("force").NoArgument();
     opts.AddLongOption("memory-limit").DefaultValue(10_GB);
+    opts.AddLongOption("enable-ipv4").NoArgument();
 }
 
 void AddImportSpecificOpts(NLastGetopt::TOpts& opts)

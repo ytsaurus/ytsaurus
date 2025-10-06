@@ -824,7 +824,7 @@ protected:
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-        auto totalResourceLimits = strategyHost->GetResourceLimits(TreeConfig_->NodesFilter);
+        auto totalResourceLimits = strategyHost->GetResourceLimits(TreeConfig_->NodeTagFilter);
 
         TFairSharePreUpdateContext preUpdateContext{
             .Now = now,

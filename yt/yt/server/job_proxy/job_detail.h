@@ -47,6 +47,7 @@ public:
     bool HasInputStatistics() const override;
 
     bool HasJobTrace() const override;
+    void FinalizeJobTrace() override;
 
 protected:
     const IJobHostPtr Host_;

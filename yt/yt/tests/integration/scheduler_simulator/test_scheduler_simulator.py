@@ -294,7 +294,7 @@ pools_config = yson.to_yson_type(
             },
             attributes={
                 "config": {
-                    "nodes_filter": "internal",
+                    "node_tag_filter": "internal",
                     "max_operation_count": 2000,
                     "max_operation_count_per_pool": 50,
                     "max_running_operation_count": 1000,

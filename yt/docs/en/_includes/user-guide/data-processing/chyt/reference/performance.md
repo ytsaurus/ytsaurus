@@ -44,8 +44,8 @@ Reading large tables can bump into any of the query execution points from the li
 ### Erasure coding { #erasure }
 
 Erasure coding is intended for "cold" tables. In erasure coding, data takes up less disk space, but this has a negative impact on the read speed of such data:
-1. Each chunk is divided into 16 (or 9 depending on the coding algorithm) parts, which increases the amount of metainformation (point 1).
-2. Data is stored as a single copy, so parallel reading isn't possible (point 2).
+1. Each chunk is divided into 16 (or 9 depending on the coding algorithm) parts, which increases the amount of metainformation (stage 1).
+2. Data is stored as a single copy, so parallel reading isn't possible (stage 2).
 3. If the disk on the node is loaded, you cannot switch to read data from another node. And since the chunk is divided into 16 parts, the probability that reading at least one of them will freeze greatly increases.
 4. If data is unavailable due to a cluster node failure, it must be restored. This is a rather long and resource-consuming process. (points 2, 4?).
 
@@ -61,9 +61,9 @@ ClickHouse is a column-oriented DBMS, so we highly recommend using columnar stor
 {% endnote %}
 
 Columnar data storage has the following advantages:
-- Converting data into CH format from the {{product-name}} columnar format is many times (if not dozens of times) more efficient than from row-based format (point 6).
-- When columnar storage, only the requested columns will be read during the query. (points 2, 3, and 4).
-- Columnar stored data is better compressed, so it takes up less space (points 2, 3).
+- Converting data into CH format from the {{product-name}} columnar format is many times (if not dozens of times) more efficient than from row-based format (stage 6).
+- When columnar storage, only the requested columns will be read during the query. (stages 2, 3, and 4).
+- Columnar stored data is better compressed, so it takes up less space (stages 2, 3).
 
 {% note info %}
 
@@ -77,9 +77,9 @@ The ordinary change of the `optimize_for/erasure_codec` attributes does not conv
 ClickHouse has indexes and sharding keys for efficient reading. In {{product-name}}, the data storage model is a bit different, there are no usual indexes, but there are sorted tables. Queries on top of sorted tables use the sort key as a primary index (primary key) and the sharding key.
 
 This enables you to:
-- Effectively filter and not read unnecessary data from the disk (point 2).
+- Effectively filter and not read unnecessary data from the disk (stage 2).
 - Make a query, in particular `Sorted Join`, more effectively.
-- Better compress sorted tables so that they take up less space (point 2).
+- Better compress sorted tables so that they take up less space (stage 2).
 
 Select the sort key based on your queries:
 

@@ -8,8 +8,8 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
-    insert_rows, raises_yt_error, select_rows, delete_rows, sorted_dicts, generate_uuid,
+    alter_table, authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
+    insert_rows, raises_yt_error, remount_table, select_rows, delete_rows, sorted_dicts, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
 
@@ -2780,6 +2780,46 @@ class TestQuery(DynamicTablesBase):
 
         with raises_yt_error("row-level ACL is present, but is not supported"):
             select_rows("* from [//tmp/t]", authenticated_user="u")
+
+    @authors("dtorilov")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_alter_uint_to_any(self, optimize_for):
+        sync_create_cells(1)
+
+        table_path = "//tmp/t"
+
+        create(
+            "table",
+            table_path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "k", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "v", "type": "uint64"},
+                ],
+                "optimize_for": optimize_for,
+            },
+        )
+
+        sync_mount_table(table_path)
+        insert_rows(table_path, [{"k": 42, "v": 1733781290151000}])
+        sync_flush_table(table_path)
+        initial_chunk_ids = get(f"{table_path}/@chunk_ids")
+        sync_unmount_table(table_path)
+        alter_table(table_path, schema=[{"name": "k", "type": "uint64", "sort_order": "ascending"}, {"name": "v", "type": "any"}])
+        sync_mount_table(table_path)
+        insert_rows(table_path, [{"k": 42, "v": ["a", "b", 42]}])
+        sync_flush_table(table_path)
+        set(f"{table_path}/@forced_compaction_revision", 1)
+        remount_table(table_path)
+
+        def check():
+            chunk_ids = get(f"{table_path}/@chunk_ids")
+            intersection = builtins.set(chunk_ids[:-1]) & builtins.set(initial_chunk_ids[:-1])
+            return len(intersection) == 0
+
+        wait(check)
+        assert select_rows(f"* from `{table_path}`") == [{'k': 42, 'v': ['a', 'b', 42]}]
 
 
 @pytest.mark.enabled_multidaemon

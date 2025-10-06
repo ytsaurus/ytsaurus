@@ -79,5 +79,13 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_panic.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/yql_paths.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/checkpoint_map.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/fp_bits.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/limiting_allocator.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/line_split.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/prefetch.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/range_walker.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/url_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/utf8.h
 )
 

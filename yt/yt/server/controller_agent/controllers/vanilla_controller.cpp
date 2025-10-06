@@ -59,7 +59,8 @@ public:
         TVanillaTaskSpecPtr spec,
         TString name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+        int jobCount);
 
     //! Used only for persistence.
     TVanillaTask() = default;
@@ -212,7 +213,8 @@ private:
         TVanillaTaskSpecPtr spec,
         TString name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+        int jobCount);
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaController, 0x99fa99ae);
 };
@@ -226,14 +228,15 @@ TVanillaTask::TVanillaTask(
     TVanillaTaskSpecPtr spec,
     TString name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+    int jobCount)
     : TTask(std::move(taskHost), std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
     , VanillaController_(dynamic_cast<TVanillaController*>(TaskHost_))
     , Spec_(std::move(spec))
     , Name_(std::move(name))
     , Logger(TTask::Logger.WithTag("TaskName: %v", Name_))
     , VanillaChunkPool_(CreateVanillaChunkPool(TVanillaChunkPoolOptions{
-        .JobCount = Spec_->JobCount,
+        .JobCount = jobCount,
         .RestartCompletedJobs = Spec_->RestartCompletedJobs,
         .Logger = Logger,
     }))
@@ -481,6 +484,9 @@ void TVanillaController::CustomMaterialize()
 {
     ValidateOperationLimits();
 
+    // Dynamic spec may be more correct in case of clean start.
+    auto dynamicSpec = GetSpecManager()->GetSpec<TVanillaOperationSpec>();
+
     for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
         std::vector<TOutputStreamDescriptorPtr> streamDescriptors;
         int taskIndex = Tasks_.size();
@@ -496,7 +502,8 @@ void TVanillaController::CustomMaterialize()
             taskSpec,
             taskName,
             std::move(streamDescriptors),
-            std::vector<TInputStreamDescriptorPtr>{});
+            std::vector<TInputStreamDescriptorPtr>{},
+            GetOrCrash(dynamicSpec->Tasks, taskName)->JobCount);
         RegisterTask(task);
         FinishTaskInput(task);
 
@@ -692,14 +699,16 @@ TVanillaTaskPtr TVanillaController::CreateTask(
     TVanillaTaskSpecPtr spec,
     TString name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+    int jobCount)
 {
     return New<TVanillaTask>(
         std::move(taskHost),
         std::move(spec),
         std::move(name),
         std::move(outputStreamDescriptors),
-        std::move(inputStreamDescriptors));
+        std::move(inputStreamDescriptors),
+        jobCount);
 }
 
 TOperationSpecBasePtr TVanillaController::ParseTypedSpec(const INodePtr& spec) const
@@ -864,7 +873,8 @@ public:
         TVanillaTaskSpecPtr spec,
         TString name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+        int jobCount);
 
     void TrySwitchToNewOperationIncarnation(
         const TGangJobletPtr& joblet,
@@ -972,7 +982,8 @@ private:
         TVanillaTaskSpecPtr spec,
         TString name,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors) final;
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+        int jobCount) final;
 
     void ReportOperationIncarnationToArchive(const TGangJobletPtr& joblet) const;
     void ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData data) const;
@@ -1118,13 +1129,15 @@ TGangTask::TGangTask(
     TVanillaTaskSpecPtr spec,
     TString name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+    int jobCount)
     : TVanillaTask(
         std::move(taskHost),
         std::move(spec),
         std::move(name),
         std::move(outputStreamDescriptors),
-        std::move(inputStreamDescriptors))
+        std::move(inputStreamDescriptors),
+        jobCount)
     , RankPool_(GetGangSize(), Logger)
 { }
 
@@ -1653,14 +1666,16 @@ TVanillaTaskPtr TGangOperationController::CreateTask(
     TVanillaTaskSpecPtr spec,
     TString name,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
+    int jobCount)
 {
     return New<TGangTask>(
         std::move(taskHost),
         std::move(spec),
         std::move(name),
         std::move(outputStreamDescriptors),
-        std::move(inputStreamDescriptors));
+        std::move(inputStreamDescriptors),
+        jobCount);
 }
 
 void TGangOperationController::ReportOperationIncarnationToArchive(const TGangJobletPtr& joblet) const
@@ -1671,6 +1686,11 @@ void TGangOperationController::ReportOperationIncarnationToArchive(const TGangJo
 
 void TGangOperationController::ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData data) const
 {
+    // NB(bystrovserg): We don't want to report an empty error.
+    if (auto& jobError = data.IncarnationSwitchInfo.TriggerJobError; jobError && jobError->IsOK()) {
+        jobError = std::nullopt;
+    }
+
     auto event = TOperationEventReport{
         .OperationId = GetOperationId(),
         .Timestamp = TInstant::Now(),

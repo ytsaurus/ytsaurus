@@ -858,7 +858,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(ListQueries));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterQuery));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
-        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetQueryDeclaredParametersInfo));
 
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteSession)
             .SetCancelable(true));
@@ -3283,6 +3283,9 @@ private:
             options.Attributes.emplace();
             NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes().keys());
         }
+        if (request->has_monitoring_descriptor()) {
+            options.MonitoringDescriptor = request->monitoring_descriptor();
+        }
 
         options.SortField = FromProto<EJobSortField>(request->sort_field());
         options.SortOrder = FromProto<EJobSortDirection>(request->sort_order());
@@ -3300,7 +3303,7 @@ private:
         context->SetRequestInfo(
             "OperationIdOrAlias: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
             "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v, "
-            "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v",
+            "WithMonitoringDescriptor: %v, WithInterruptionInfo: %v, Attributes: %v, MonitoringDescriptor: %v",
             operationIdOrAlias,
             options.Type,
             options.State,
@@ -3312,7 +3315,8 @@ private:
             options.WithCompetitors,
             options.WithMonitoringDescriptor,
             options.WithInterruptionInfo,
-            options.Attributes);
+            options.Attributes,
+            options.MonitoringDescriptor);
 
         ExecuteCall(
             context,
@@ -3469,7 +3473,7 @@ private:
             options.JobId = FromProto<TJobId>(request->job_id());
         }
         if (request->has_trace_id()) {
-            options.TraceId = FromProto<NScheduler::TJobTraceId>(request->trace_id());
+            options.TraceId = FromProto<NJobTrackerClient::TJobTraceId>(request->trace_id());
         }
         if (request->has_from_event_index()) {
             options.FromEventIndex = request->from_event_index();
@@ -7067,11 +7071,11 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetDeclaredParametersInfo)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQueryDeclaredParametersInfo)
     {
         auto proxy = GetQueryTrackerProxy(context, request);
 
-        auto req = proxy.GetDeclaredParametersInfo();
+        auto req = proxy.GetQueryDeclaredParametersInfo();
         FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("Stage: %v", request->query_tracker_stage());

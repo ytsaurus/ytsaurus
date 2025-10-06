@@ -7,23 +7,11 @@ SRCS(
     GLOBAL ql_computed_columns_ut.cpp
     GLOBAL ql_distributed_ut.cpp
     GLOBAL ql_expressions_ut.cpp
-    GLOBAL ql_helpers.cpp
     GLOBAL ql_misc_ut.cpp
     GLOBAL ql_query_ut.cpp
     GLOBAL ql_range_inference_ut.cpp
     GLOBAL ql_range_coordination_ut.cpp
-    test_evaluate.cpp
 )
-
-IF (OPENSOURCE)
-    SRCS(
-        disable_web_assembly.cpp
-    )
-ELSE()
-    SRCS(
-        enable_web_assembly.cpp
-    )
-ENDIF()
 
 ADDINCL(
     contrib/libs/sparsehash/src
@@ -41,6 +29,7 @@ PEERDIR(
     yt/yt/library/query/distributed
     yt/yt/library/query/engine
     yt/yt/library/query/engine_api
+    yt/yt/library/query/unittests/evaluate
     yt/yt/library/query/unittests/helpers
     yt/yt/library/query/unittests/udf
     contrib/libs/sparsehash

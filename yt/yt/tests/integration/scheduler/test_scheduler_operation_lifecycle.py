@@ -1163,8 +1163,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         wait(lambda: default_tree_aborted_job_profiler.get_job_count_delta() == 1)
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/{}/@user_tags".format(node), ["other"])
         wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="other") + "/resource_limits/cpu", default=None) == 1.0)

@@ -1,4 +1,4 @@
-#include <yt/yt/library/query/unittests/ql_helpers.h>
+#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
 #include <library/cpp/testing/hook/hook.h>
 

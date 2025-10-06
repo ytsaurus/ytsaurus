@@ -530,8 +530,8 @@ class TestPoolMetrics(YTEnvSetup):
         # Set up second tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@config/node_tag_filter", "!other")
+        create_pool_tree("other", config={"node_tag_filter": "other"})
 
         time.sleep(1.0)
 

@@ -9,7 +9,7 @@ from .heavy_commands import make_write_request, make_read_request
 from .cypress_commands import (remove, exists, set_attribute, mkdir, find_free_subpath,
                                create, link, get, set)
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
-from .parallel_reader import make_read_parallel_request
+from .parallel_reader import make_read_parallel_request, _prepare_ranges_for_parallel_read
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
 from .transaction import Transaction
@@ -88,23 +88,6 @@ class LocalFile(object):
     @property
     def attributes(self):
         return self._attributes
-
-
-def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_thread):
-    offset = get_value(offset, 0)
-    offset = min(offset, data_size)
-
-    length = get_value(length, data_size)
-    length = min(length, data_size - offset)
-
-    result = []
-    while offset < data_size and length > 0:
-        range_size = min(data_size_per_thread, length)
-        result.append({"range" : (offset, range_size)})
-        offset += range_size
-        length -= range_size
-
-    return result
 
 
 def _prepare_params_for_parallel_read(params, range):

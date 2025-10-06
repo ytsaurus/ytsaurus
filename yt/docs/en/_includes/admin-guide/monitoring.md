@@ -2,14 +2,20 @@
 
 ## Setting up Prometheus
 ### Prerequisites
-- [Follow the instructions](https://github.com/prometheus-operator/prometheus-operator#quickstart) to install the Prometheus operator.
+- A running {{product-name}} cluster;
+- Installed Odin [following the instructions](../../admin-guide/install-odin.md);
+- Installed prometheus-operator [following the instructions](https://github.com/prometheus-operator/prometheus-operator#quickstart).
 
-### Launch
-Monitoring services are created by the {{product-name}} operator automatically. To collect metrics, you need to:
-1. Create [ServiceMonitor](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml).
-2. Create a [service account](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml).
-3. Give the account you created a [role](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
-4. [Create Prometheus](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
+### Installation
+
+Services for monitoring are created automatically by the {{product-name}} operator and Odin Helm charts.
+
+To collect metrics do the following:
+1. Create a [ServiceMonitor](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml) for collecting metrics from {{product-name}} components.
+2. Create a ServiceMonitor for collecting Odin metrics by setting `metrics.serviceMonitor.enable: true` in the Helm chart values (it is not created by default).
+3. Create a [service account](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml).
+4. Grant the created account a [role](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml).
+5. [Create Prometheus](https://github.com/ytsaurus/ytsaurus-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
 
 ## Monitoring methods and important {{product-name}} metrics
 
@@ -37,10 +43,40 @@ There are checks of the self-diagnosis messages of the {{product-name}} cluster'
 - `lost_vital_chunks`: Checks that the lost_vital_chunks counter is zero at `//sys/lost_vital_chunks/@count`. Learn more about vitality [here](../../user-guide/storage/chunks.md#vitality).
 - `tablet_cells`: Checks that dynamic tables don't have any tablet cells in failed status.
 - `quorum_health`: Checks that all masters are operational and in quorum.
+- `clock_quorum_health` (disabled by default) – checks that all clock servers are running and in quorum.
+- `suspicious_jobs` – checks that there are no jobs on the cluster that are stalling without making progress.
+- `tablet_cell_snapshots` – checks that tablet cell snapshots are being created on time.
+- `scheduler_uptime` – checks that the scheduler is running stably and not reconnecting to the master.
+- `controller_agent_count` – checks that a sufficient number of controller agents are connected.
+- `controller_agent_uptime` – checks that controller agents are running stably and not reconnecting to the scheduler.
+- `operations_snapshots` – checks that snapshots are being regularly built for operations.
+- `operations_count` – checks that the number of operations in Cypress has not grown excessively.
+- `dynamic_table_replication` (disabled by default) – checks that replication for replicated dynamic tables is working in the cluster.
+- `register_watcher` – checks that cluster nodes are running stably and not reconnecting to the master too frequently.
+- `tmp_node_count` – checks that the number of objects in the `//tmp` directories does not exceed a reasonable threshold.
+- `destroyed_replicas_size` – checks that the system is cleaning up replicas of obsolete (deleted) chunks in time.
+- `query_tracker_yql_liveness` – checks the health of YQL queries through Query Tracker.
+- `query_tracker_chyt_liveness` (disabled by default) – checks the health of CHYT queries through Query Tracker.
+- `query_tracker_ql_liveness` (disabled by default) – checks the health of YT QL queries through Query Tracker.
+- `query_tracker_dq_liveness` (disabled by default) – checks the liveness of DQ.
+- `controller_agent_operation_memory_consumption` – checks memory consumption by operations in controller agents.
+- `discovery` (disabled by default) – checks that a sufficient number of discovery server instances are running.
+- `master` – checks that a `get` operation for the Cypress root executes successfully.
+- `medium_balancer_alerts` – checks that the Medium Balancer is running without errors.
+- `oauth_health` – checks that the Odin token is successfully authorized.
+- `operations_archive_tablet_store_preload` – checks that system tables required for the operations archive are successfully preloaded into memory.
+- `proxy` – checks that HTTP proxies for heavy query execution are running and operational.
+- `queue_api` (disabled by default) – creates a queue and a consumer, attempts to write/read data, i.e. checks that the Queue API is functioning correctly.
+- `queue_agent_alerts` (disabled by default) – checks that a sufficient number of Queue Agent instances are running and that there are no alerts on them.
+- `query_tracker_alerts` – checks that a sufficient number of Query Tracker instances are running and that there are no alerts on them.
+- `scheduler` – checks that the scheduler is running (its orchid is available).
+- `scheduler_alerts_jobs_archivation` – checks that there are no errors archiving jobs on nodes.
+- `scheduler_alerts_update_fair_share` – checks that there are enough compute resources to satisfy guarantees.
+- `stuck_missing_part_chunks`, `missing_part_chunks` – check that there are no erasure-coded data parts that have been unavailable for a long time and cannot be restored.
+- `unaware_nodes` (disabled by default) – checks that there are no nodes in the cluster that are not assigned to any rack.
+- `operations_satisfaction` – checks that operations running in the cluster receive their fair share of resources.
 
 The implementation of these checks can be viewed in [Odin](https://github.com/ytsaurus/ytsaurus/tree/main/yt/odin).
-
-In its current implementation, Odin doesn't support alerts: it can only run checks, save the results to a dynamic table, and display them in the UI.
 
 ### Quantitative monitoring
 

@@ -86,7 +86,6 @@ target_sources(restricted-aws-aws-c-common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/json.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/lifo_cache.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linked_hash_table.c
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linux/system_info.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/log_channel.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/log_formatter.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/log_writer.c
@@ -109,6 +108,8 @@ target_sources(restricted-aws-aws-c-common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/xml_parser.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/arch/intel/asm/cpuid.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/arch/intel/cpuid.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linux/file_direct_io.c
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linux/system_info.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/posix/clock.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/posix/condition_variable.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/posix/cross_process_lock.c
@@ -471,14 +472,6 @@ set_property(
 
 set_property(
   SOURCE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linux/system_info.c
-  APPEND
-  PROPERTY
-  COMPILE_OPTIONS
-)
-
-set_property(
-  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/log_channel.c
   APPEND
   PROPERTY
@@ -648,6 +641,22 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/arch/intel/cpuid.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linux/file_direct_io.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-common/source/linux/system_info.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

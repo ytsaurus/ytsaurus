@@ -37,5 +37,14 @@ target_sources(essentials-utils-log PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/log.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/profile.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/tls_backend.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/context.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/format.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/fwd_backend.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/log.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/log_component.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/log_level.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/log_ut.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/profile.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/log/tls_backend.h
 )
 

@@ -1,4 +1,4 @@
-#include "ql_helpers.h"
+#include <yt/yt/library/query/unittests/evaluate/ql_helpers.h>
 
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
