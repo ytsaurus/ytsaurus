@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NSequoiaClient {
@@ -189,20 +191,10 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetSequoiaTablePath(
-    const NApi::NNative::IClientPtr& client,
-    const TSequoiaTablePathDescriptor& tablePathDescriptor)
+NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
 {
-    return GetSequoiaTablePath(client->GetNativeConnection(), tablePathDescriptor);
-}
-
-NYPath::TYPath GetSequoiaTablePath(
-    const NApi::NNative::IConnectionPtr& connection,
-    const TSequoiaTablePathDescriptor& tablePathDescriptor)
-{
-    const auto& rootPath = connection->GetConfig()->SequoiaConnection->SequoiaRootPath;
     const auto* tableDescriptor = ITableDescriptor::Get(tablePathDescriptor.Table);
-    auto path = rootPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
+    auto path = NYPath::YPathJoin(SequoiaRootCypressPath, tableDescriptor->GetTableName());
     if (tablePathDescriptor.MasterCellTag) {
         path += "_" + ToString(tablePathDescriptor.MasterCellTag);
     }

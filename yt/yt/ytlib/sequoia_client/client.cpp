@@ -1,6 +1,7 @@
 #include "client.h"
 
 #include "helpers.h"
+#include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction.h"
 #include "private.h"
@@ -139,11 +140,6 @@ private:
         return GroundClientFuture_.Get().ValueOrThrow();
     }
 
-    NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
-    {
-        return NSequoiaClient::GetSequoiaTablePath(LocalConnection_, tablePathDescriptor);
-    }
-
     TFuture<TUnversionedLookupRowsResult> DoLookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
@@ -244,6 +240,14 @@ ISequoiaClientPtr CreateSequoiaClient(
     NNative::IConnectionPtr localConnection,
     TFuture<NNative::IClientPtr> groundClientFuture)
 {
+    if (config && config->EnableGroundReignValidation) {
+        groundClientFuture = groundClientFuture
+            .Apply(BIND([] (NNative::IClientPtr client) {
+                return ValidateClusterGroundReign(client)
+                    .Apply(BIND([=] { return client; }));
+            }));
+    }
+
     return New<TSequoiaClient>(
         std::move(config),
         std::move(localConnection),

@@ -1345,6 +1345,7 @@ class YTEnvSetup(object):
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,
+                "enable_ground_reign_validation": False,
             },
         })
 
