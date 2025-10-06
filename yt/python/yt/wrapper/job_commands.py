@@ -9,7 +9,7 @@ def list_jobs(operation_id,
               sort_field=None, sort_order=None, limit=None, offset=None,
               with_stderr=None, with_spec=None, with_fail_context=None, with_monitoring_descriptor=None,
               with_interruption_info=None, include_cypress=None, include_runtime=None, include_archive=None,
-              data_source=None, attributes=None, format=None, client=None):
+              data_source=None, attributes=None, operation_incarnation=None, monitoring_descriptor=None, format=None, client=None):
     """List jobs of operation."""
     params = {"operation_id": operation_id}
     set_param(params, "job_type", job_type)
@@ -31,6 +31,8 @@ def list_jobs(operation_id,
     set_param(params, "include_archive", include_archive)
     set_param(params, "attributes", attributes)
     set_param(params, "data_source", data_source)
+    set_param(params, "operation_incarnation", operation_incarnation)
+    set_param(params, "monitoring_descriptor", monitoring_descriptor)
 
     timeout = get_config(client)["operation_info_commands_timeout"]
 

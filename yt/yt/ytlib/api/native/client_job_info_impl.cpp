@@ -1506,6 +1506,10 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
     if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion)) {
         builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
     }
+
+    if (options.MonitoringDescriptor) {
+        builder->AddWhereConjunct(Format("monitoring_descriptor = %Qv", *options.MonitoringDescriptor));
+    }
 }
 
 // Get statistics for jobs.
@@ -2044,7 +2048,8 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.WithInterruptionInfo || *options.WithInterruptionInfo == interruptionInfo.has_value()) &&
             (!options.FromTime || startTime >= *options.FromTime) &&
             (!options.ToTime || startTime <= *options.ToTime) &&
-            (!options.OperationIncarnation || options.OperationIncarnation == operationIncarnation);
+            (!options.OperationIncarnation || options.OperationIncarnation == operationIncarnation) &&
+            (!options.MonitoringDescriptor || options.MonitoringDescriptor == monitoringDescriptor);
     };
 
     ParseJobsFromControllerAgentResponse(
