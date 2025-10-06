@@ -4861,9 +4861,7 @@ private:
 
             auto effectiveTransactionId = transactionId;
             auto transactionType = TypeFromId(transactionId);
-            if (transactionType != EObjectType::UploadTransaction &&
-                transactionType != EObjectType::UploadNestedTransaction)
-            {
+            if (IsCypressTransactionType(transactionType)) {
                 auto nativeCellTag = CellTagFromId(nodeId);
                 effectiveTransactionId = NTransactionClient::MakeExternalizedTransactionId(transactionId, nativeCellTag);
             }
