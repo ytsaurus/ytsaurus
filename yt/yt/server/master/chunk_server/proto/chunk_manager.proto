@@ -80,14 +80,6 @@ message TReqRedistributeConsistentReplicaPlacementTokens
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAddConfirmReplicas
-{
-    required NYT.NProto.TGuid chunk_id = 1;
-    repeated NYT.NChunkClient.NProto.TConfirmChunkReplicaInfo replicas = 2;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqScheduleChunkRequisitionUpdates
 {
     repeated NYT.NProto.TGuid chunk_ids = 1;
