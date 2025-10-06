@@ -1114,8 +1114,10 @@ const TString& GetSingleColumnGroupSpec() {
 
 TExprNode::TPtr GetSetting(const TExprNode& settings, EYtSettingType type) {
     for (auto& setting : settings.Children()) {
-        if (setting->ChildrenSize() != 0 && FromString<EYtSettingType>(setting->Child(0)->Content()) == type) {
-            return setting;
+        if (setting->ChildrenSize() != 0) {
+            if (const auto t = TryFromString<EYtSettingType>(setting->Head().Content()); t && *t == type) {
+                return setting;
+            }
         }
     }
     return nullptr;
