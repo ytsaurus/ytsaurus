@@ -224,6 +224,10 @@ std::vector<NChunkClient::TReadRange> InferReadRange(
     DB::QueryTreeNodePtr filterNode,
     const NTableClient::TTableSchemaPtr& schema)
 {
+    if (!filterNode) {
+        return {};
+    }
+
     auto predicateExpr = ConvertToConstExpression(schema, std::move(filterNode));
     if (!predicateExpr) {
         return {};
