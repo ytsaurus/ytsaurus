@@ -6,6 +6,8 @@
 
 #include <util/string/escape.h>
 
+#include <stack>
+
 namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -991,6 +993,287 @@ NAst::TExpressionPtr BuildBinaryOperationTree(
             NAst::TExpressionList{std::move(rhs)}));
     }
     return expressionQueue.front();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionPtr MakeOrExpression(TObjectsHolder* holder, TSourceLocation sourceLocation, TExpressionPtr lhs, TExpressionPtr rhs)
+{
+    if (auto literalExpr = lhs->As<TLiteralExpression>()) {
+        auto value = literalExpr->Value;
+        if (std::holds_alternative<bool>(value)) {
+            return std::get<bool>(value) ? lhs : rhs;
+        }
+    }
+
+    if (auto literalExpr = rhs->As<TLiteralExpression>()) {
+        auto value = literalExpr->Value;
+        if (std::holds_alternative<bool>(value)) {
+            return std::get<bool>(value) ? rhs : lhs;
+        }
+    }
+
+    return holder->New<TBinaryOpExpression>(
+        sourceLocation,
+        EBinaryOp::Or,
+        TExpressionList{lhs},
+        TExpressionList{rhs});
+}
+
+TExpressionPtr MakeOrExpression(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    TRange<TExpressionPtr> expressions)
+{
+    if (expressions.empty()) {
+        return holder->New<TLiteralExpression>(sourceLocation, false);
+    }
+
+    if (expressions.size() == 1) {
+        return expressions.Front();
+    }
+
+    i64 midIndex = expressions.size() / 2;
+
+    auto lhs = MakeOrExpression(
+        holder,
+        sourceLocation,
+        expressions.Slice(0, midIndex));
+
+    auto rhs = MakeOrExpression(
+        holder,
+        sourceLocation,
+        expressions.Slice(midIndex, expressions.size()));
+
+    return MakeOrExpression(holder, sourceLocation, lhs, rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TLiteralValue> ToLiteralValue(TUnaryOpExpression* expr)
+{
+    TExpressionPtr currentOperandExpr = expr;
+    std::optional<TLiteralExpressionPtr> operandLiteral;
+    std::stack<EUnaryOp> opcodes;
+
+    while (auto* currentUnaryExpression = currentOperandExpr->As<TUnaryOpExpression>()) {
+        if (currentUnaryExpression->Operand.size() != 1) {
+            return std::nullopt;
+        }
+
+        currentOperandExpr = currentUnaryExpression->Operand[0];
+        opcodes.push(currentUnaryExpression->Opcode);
+    }
+
+    if (auto* currentOperandLiteralExpr = currentOperandExpr->As<TLiteralExpression>()) {
+        operandLiteral = currentOperandLiteralExpr;
+    } else {
+        return std::nullopt;
+    }
+
+    auto applyOperator = [] (EUnaryOp opcode, TLiteralValue value) -> std::optional<TLiteralValue> {
+        switch (opcode) {
+            case EUnaryOp::Minus: {
+                if (const auto* data = std::get_if<i64>(&value)) {
+                    return -(*data);
+                } else if (const auto* data = std::get_if<ui64>(&value)) {
+                    return -(*data);
+                } else if (const auto* data = std::get_if<double>(&value)) {
+                    return -(*data);
+                } else {
+                    return std::nullopt;
+                }
+                break;
+            }
+
+            case EUnaryOp::Plus: {
+                if (const auto* data = std::get_if<i64>(&value)) {
+                    return *data;
+                } else if (const auto* data = std::get_if<ui64>(&value)) {
+                    return *data;
+                } else if (const auto* data = std::get_if<double>(&value)) {
+                    return *data;
+                } else {
+                    return std::nullopt;
+                }
+                break;
+            }
+
+            case EUnaryOp::BitNot: {
+                if (const auto* data = std::get_if<i64>(&value)) {
+                    return ~(*data);
+                } else if (const auto* data = std::get_if<ui64>(&value)) {
+                    return ~(*data);
+                } else {
+                    return std::nullopt;
+                }
+                break;
+            }
+
+            case EUnaryOp::Not: {
+                if (const auto* data = std::get_if<bool>(&value)) {
+                    return !(*data);
+                } else {
+                    return std::nullopt;
+                }
+                break;
+            }
+
+            default:
+                return std::nullopt;
+        }
+    };
+
+    auto value = (*operandLiteral)->Value;
+
+    while (!opcodes.empty()) {
+        auto opcode = opcodes.top();
+        opcodes.pop();
+
+        if (auto updatedValue = applyOperator(opcode, value)) {
+            value = *updatedValue;
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    return value;
+}
+
+std::optional<TLiteralValueTuple> ToLiteralValueTuple(const TExpressionTuple& exprTuple)
+{
+    auto literalValueTuple = TLiteralValueTuple();
+    for (auto* expr : exprTuple) {
+        if (auto* unaryOp = expr->As<TUnaryOpExpression>()) {
+            if (auto literal = ToLiteralValue(unaryOp)) {
+                literalValueTuple.push_back(*literal);
+            } else {
+                return std::nullopt;
+            }
+        } else if (auto* literal = expr->As<TLiteralExpression>()) {
+            literalValueTuple.push_back(literal->Value);
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    return literalValueTuple;
+}
+
+std::optional<TLiteralValueRange> ToLiteralValueRange(const TExpressionRange& exprTuple)
+{
+    auto lower = ToLiteralValueTuple(exprTuple.first);
+    auto upper = ToLiteralValueTuple(exprTuple.second);
+    if (!lower.has_value() || !upper.has_value()) {
+        return std::nullopt;
+    }
+    return std::make_pair(*lower, *upper);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionList MakeInExpressionFromExpressionTupleList(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    const TExpressionList& expr,
+    const TExpressionTupleList& expressions)
+{
+    auto inLiterals = TLiteralValueTupleList();
+    auto inExpressions = TExpressionTupleList();
+
+    for (const auto& exprTuple : expressions) {
+        auto literalValueTuple = ToLiteralValueTuple(exprTuple);
+        if (literalValueTuple) {
+            inLiterals.push_back(*literalValueTuple);
+        } else {
+            inExpressions.push_back(exprTuple);
+        }
+    }
+
+    TExpressionPtr resultExpression = holder->New<TLiteralExpression>(sourceLocation, false);
+
+    if (!inLiterals.empty()) {
+        resultExpression = holder->New<TInExpression>(
+            sourceLocation,
+            expr,
+            inLiterals);
+    }
+
+    if (!inExpressions.empty()) {
+        std::vector<TExpressionPtr> eqExpressions;
+        i64 inExpressionsCount = std::ssize(inExpressions);
+        eqExpressions.reserve(inExpressionsCount);
+
+        for (const auto& inExpression : inExpressions) {
+            eqExpressions.push_back(
+                holder->New<TBinaryOpExpression>(
+                    sourceLocation,
+                    EBinaryOp::Equal,
+                    expr,
+                    inExpression));
+        }
+
+        resultExpression = MakeOrExpression(
+            holder,
+            sourceLocation,
+            resultExpression,
+                MakeOrExpression(
+                holder,
+                sourceLocation,
+                TRange(eqExpressions)));
+    }
+
+    return TExpressionList{resultExpression};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionList MakeBetweenExpressionFromExpressionTupleRangeList(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    const TExpressionList& expr,
+    const TExpressionRangeList& expressions)
+{
+    TLiteralValueRangeList literalRanges;
+    literalRanges.reserve(expressions.size());
+
+    for (const auto& range : expressions) {
+        auto literalRange = ToLiteralValueRange(range);
+
+        THROW_ERROR_EXCEPTION_IF(!literalRange, "Expressions are not supported in multiple ranges BETWEEN clause");
+
+        literalRanges.push_back(*literalRange);
+    }
+
+    return MakeExpression<TBetweenExpression>(holder, sourceLocation, expr, literalRanges);
+}
+
+TExpressionList MakeBetweenExpressionFromExpressionTupleRange(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    const TExpressionList& expr,
+    const TExpressionTuple& lower,
+    const TExpressionTuple& upper)
+{
+    auto* lowerExpression = holder->New<TBinaryOpExpression>(
+        sourceLocation,
+        EBinaryOp::GreaterOrEqual,
+        expr,
+        lower);
+
+    auto* upperExpression = holder->New<TBinaryOpExpression>(
+        sourceLocation,
+        EBinaryOp::LessOrEqual,
+        expr,
+        upper);
+
+    auto* resultExpression = holder->New<TBinaryOpExpression>(
+        sourceLocation,
+        EBinaryOp::And,
+        TExpressionList{lowerExpression},
+        TExpressionList{upperExpression});
+
+    return TExpressionList{resultExpression};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

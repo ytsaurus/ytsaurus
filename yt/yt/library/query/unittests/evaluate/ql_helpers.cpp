@@ -74,6 +74,7 @@ TTableSchemaPtr GetSampleTableSchema()
         TColumnSchema("ki", EValueType::Int64),
         TColumnSchema("ku", EValueType::Uint64),
         TColumnSchema("kd", EValueType::Double),
+        TColumnSchema("kb", EValueType::Boolean),
         TColumnSchema("any_key", EValueType::Any),
     });
 }

@@ -187,6 +187,7 @@
 
 %type <TOrderExpressionList> order-expr-list
 %type <TExpressionList> expression
+%type <TExpressionTupleList> expression-tuple-list
 %type <TExpressionList> or-op-expr
 %type <TExpressionList> and-op-expr
 %type <TExpressionList> not-op-expr
@@ -202,6 +203,15 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> atomic-expr-other
+%type <TExpressionList> atomic-expr-common
+%type <TExpressionList> atomic-expr-other-common
+%type <TExpressionList> restricted-additive-op-expr
+%type <TExpressionList> restricted-multiplicative-op-expr
+%type <TExpressionList> restricted-unary-expr
+%type <TExpressionList> restricted-atomic-expr
+%type <TExpressionList> restricted-atomic-expr-other
+%type <TExpressionList> comma-restricted-additive-op-expr
+%type <TExpressionRangeList> restricted-additive-op-expr-range-list
 %type <TExpressionList> comma-expr
 %type <TExpressionList> pseudo-alias-expr
 %type <TExpressionList> pseudo-alias-comma-expr
@@ -217,7 +227,6 @@
 %type <TLiteralValueList> const-list
 %type <TLiteralValueList> const-tuple
 %type <TLiteralValueTupleList> const-tuple-list
-%type <TLiteralValueRangeList> const-range-list
 
 %type <EUnaryOp> unary-op
 
@@ -585,6 +594,18 @@ expression
         }
 ;
 
+expression-tuple-list
+    : expression-tuple-list[as] Comma expression[a]
+        {
+            $$.swap($as);
+            $$.push_back($a);
+        }
+    | expression[a]
+        {
+            $$.push_back($a);
+        }
+;
+
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
@@ -650,42 +671,30 @@ relational-op-expr
         {
             $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
         }
-    | additive-op-expr[expr] KwBetween const-tuple[lower] KwAnd const-tuple[upper]
+    | additive-op-expr[expr] KwBetween restricted-additive-op-expr[lower] KwAnd additive-op-expr[upper]
         {
-            TExpressionList lowerExpr;
-            for (const auto& value : $lower) {
-                lowerExpr.push_back(head->New<TLiteralExpression>(@$, value));
-            }
-
-            TExpressionList upperExpr;
-            for (const auto& value : $upper) {
-                upperExpr.push_back(head->New<TLiteralExpression>(@$, value));
-            }
-
-            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::And,
-                MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::GreaterOrEqual, $expr, lowerExpr),
-                MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::LessOrEqual, $expr, upperExpr));
+            $$ = MakeBetweenExpressionFromExpressionTupleRange(head, @$, $expr, $lower, $upper);
         }
-    | additive-op-expr[expr] KwBetween LeftParenthesis const-range-list[ranges] RightParenthesis
+    | additive-op-expr[expr] KwBetween LeftParenthesis restricted-additive-op-expr-range-list[ranges] RightParenthesis
         {
-            $$ = MakeExpression<TBetweenExpression>(head, @$, $expr, $ranges);
+            $$ = MakeBetweenExpressionFromExpressionTupleRangeList(head, @$, $expr, $ranges);
         }
     | additive-op-expr[expr] KwIn LeftParenthesis RightParenthesis
         {
             $$ = MakeExpression<TLiteralExpression>(head, @$, TLiteralValue(false));
         }
-    | additive-op-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
+    | additive-op-expr[expr] KwIn LeftParenthesis expression-tuple-list[args] RightParenthesis
         {
-            $$ = MakeExpression<TInExpression>(head, @$, $expr, $args);
+            $$ = MakeInExpressionFromExpressionTupleList(head, @$, $expr, $args);
         }
     | additive-op-expr[expr] KwNot KwIn LeftParenthesis RightParenthesis
         {
             $$ = MakeExpression<TLiteralExpression>(head, @$, TLiteralValue(true));
         }
-    | additive-op-expr[expr] KwNot KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
+    | additive-op-expr[expr] KwNot KwIn LeftParenthesis expression-tuple-list[args] RightParenthesis
         {
             $$ = MakeExpression<TUnaryOpExpression>(head, @$, EUnaryOp::Not,
-                MakeExpression<TInExpression>(head, @$, $expr, $args));
+                MakeInExpressionFromExpressionTupleList(head, @$, $expr, $args));
         }
     | bitor-op-expr
         { $$ = $1; }
@@ -768,6 +777,19 @@ shift-op-expr
         { $$ = $1; }
 ;
 
+/*
+ * We have two expression types: additive-op-expr and restricted-additive-op-expr.
+ * Expression restricted-additive-op-expr is a subset of additive-op-expr,
+ * that must be used in some places to avoid shift/reduce conflicts.
+ *
+ * We can't do BETWEEN as "BETWEEN additive-op-expr AND additive-op-expr"
+ * because additive-op-expr may expand to "expression" which can contain AND keyword.
+ * Such expansion will produce conflict with AND operand from BETWEEN expression.
+ * To solve this issue, we introduce restricted-additive-op-expr, which can't contain boolean keywords.
+ *
+ * Common parts of additive-op-expr and restricted-additive-op-expr are placed in 
+ * expressions with postfix "-common"; it's factored out just to eliminate redundant coding.
+ */
 additive-op-expr
     : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
         {
@@ -893,6 +915,13 @@ struct-and-tuple-member-accessor-list-item
 ;
 
 atomic-expr
+    : atomic-expr-common
+        { $$ = $1; }
+    | atomic-expr-other
+        { $$ = $1; }
+;
+
+atomic-expr-common
     : qualified-identifier[identifier]
         {
             $$ = TExpressionList(1, $identifier);
@@ -913,12 +942,9 @@ atomic-expr
         {
             $$ = MakeExpression<TCaseExpression>(head, @$, TNullableExpressionList{}, $whenThenExpressions, $default);
         }
-    | atomic-expr-other
-        { $$ = $1; }
 ;
 
-
-atomic-expr-other
+atomic-expr-other-common
     : Identifier[name] LeftParenthesis RightParenthesis
         {
             $$ = MakeExpression<TFunctionExpression>(head, @$, $name, TExpressionList());
@@ -926,10 +952,6 @@ atomic-expr-other
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
             $$ = MakeExpression<TFunctionExpression>(head, @$, $name, $args);
-        }
-    | LeftParenthesis comma-expr[expr] RightParenthesis
-        {
-            $$ = $expr;
         }
     | LeftParenthesis
         {
@@ -955,6 +977,17 @@ atomic-expr-other
                 @$,
                 "cast_operator",
                 std::move(arguments));
+        }
+;
+
+atomic-expr-other
+    : atomic-expr-other-common[expr]
+        {
+            $$ = $expr;
+        }
+    | LeftParenthesis comma-expr[expr] RightParenthesis
+        {
+            $$ = $expr;
         }
 ;
 
@@ -1075,6 +1108,80 @@ const-tuple
         }
 ;
 
+/*
+ * Expression restricted-additive-op-expr is a subset of additive-op-expr,
+ * that must be used in some places to avoid shift/reduce conflicts.
+ *
+ * Expression restricted-additive-op-expr is used in BETWEEN and we remove
+ * boolean keywords from restricted-additive-op-expr.
+ */
+restricted-additive-op-expr
+    : restricted-additive-op-expr[lhs] additive-op[opcode] restricted-multiplicative-op-expr[rhs]
+        {
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
+        }
+    | restricted-multiplicative-op-expr
+        { $$ = $1; }
+;
+
+restricted-multiplicative-op-expr
+    : restricted-multiplicative-op-expr[lhs] multiplicative-op[opcode] restricted-unary-expr[rhs]
+        {
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
+        }
+    | restricted-unary-expr
+        { $$ = $1; }
+;
+
+restricted-unary-expr
+    : unary-op[opcode] restricted-unary-expr[rhs]
+        {
+            $$ = MakeExpression<TUnaryOpExpression>(head, @$, $opcode, $rhs);
+        }
+    | restricted-atomic-expr
+        { $$ = $1; }
+;
+
+restricted-atomic-expr
+    : atomic-expr-common
+        { $$ = $1; }
+    | restricted-atomic-expr-other
+        { $$ = $1; }
+;
+
+restricted-atomic-expr-other
+    : atomic-expr-other-common[expr]
+        {
+            $$ = $expr;
+        }
+    | LeftParenthesis comma-restricted-additive-op-expr[expr] RightParenthesis
+        {
+            $$ = $expr;
+        }
+;
+
+comma-restricted-additive-op-expr
+    : comma-restricted-additive-op-expr[lhs] Comma restricted-additive-op-expr[rhs]
+        {
+            $$.swap($lhs);
+            $$.insert($$.end(), $rhs.begin(), $rhs.end());
+        }
+    | restricted-additive-op-expr
+        { $$ = $1; }
+;
+
+restricted-additive-op-expr-range-list
+    : restricted-additive-op-expr-range-list[head] Comma restricted-additive-op-expr[a] KwAnd additive-op-expr[b]
+        {
+            $$.swap($head);
+            $$.emplace_back($a, $b);
+        }
+    | restricted-additive-op-expr[a] KwAnd additive-op-expr[b]
+        {
+            $$.emplace_back($a, $b);
+        }
+;
+
 const-tuple-list
     : const-tuple-list[as] Comma const-tuple[a]
         {
@@ -1084,18 +1191,6 @@ const-tuple-list
     | const-tuple[a]
         {
             $$.push_back($a);
-        }
-;
-
-const-range-list
-    : const-range-list[as] Comma const-tuple[a] KwAnd const-tuple[b]
-        {
-            $$.swap($as);
-            $$.emplace_back($a, $b);
-        }
-    | const-tuple[a] KwAnd const-tuple[b]
-        {
-            $$.emplace_back($a, $b);
         }
 ;
 
