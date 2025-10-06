@@ -4870,7 +4870,7 @@ private:
 
         YT_LOG_DEBUG(
             "Chunk lists created (ChunkListIds: %v, TransactionId: %v)",
-            chunkListIds,
+            MakeShrunkFormattableView(chunkListIds, TDefaultFormatter(), 500),
             transaction->GetId());
     }
 
@@ -4956,7 +4956,7 @@ private:
 
         YT_LOG_DEBUG("Chunk trees attached (ParentId: %v, ChildIds: %v, TransactionId: %v)",
             parentId,
-            MakeFormattableView(children, TObjectIdFormatter()),
+            MakeShrunkFormattableView(children, TObjectIdFormatter(), 500),
             transactionId);
     }
 
