@@ -144,6 +144,7 @@ struct IInstance
     virtual void Kill(int signal) = 0;
     virtual void Stop() = 0;
     virtual void Destroy() = 0;
+    virtual void Respawn() = 0;
 
     virtual TResourceUsage GetResourceUsage(
         const std::vector<EStatField>& fields = InstanceStatFields) const = 0;

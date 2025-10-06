@@ -18,6 +18,8 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,6 +98,34 @@ struct IProfiledEnvironment
 };
 
 DEFINE_REFCOUNTED_TYPE(IProfiledEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSidecarEnvironmentBase
+    : public virtual TRefCounted
+{
+public:
+    TSidecarEnvironmentBase(
+        std::string name,
+        NScheduler::TSidecarJobSpecPtr spec,
+        TWeakPtr<IJobProxyEnvironment> jobProxy,
+        std::function<void(TError)> failedSidecarCallback);
+
+    virtual void StartSidecar() = 0;
+    virtual void KillSidecar() = 0;
+    virtual void RestartSidecar() = 0;
+    virtual bool IsAlive() = 0;
+
+protected:
+    virtual void OnSidecarFinished(const TError& sidecarResult);
+
+    TString Name_;
+    NScheduler::TSidecarJobSpecPtr Spec_;
+    TWeakPtr<IJobProxyEnvironment> JobProxy_;
+    std::function<void(TError)> FailedSidecarCallback_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSidecarEnvironmentBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

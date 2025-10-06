@@ -207,6 +207,63 @@ TErrorOr<TJobEnvironmentNetworkStatistics> ExtractJobEnvironmentNetworkStatistic
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSidecarEnvironmentBase::TSidecarEnvironmentBase(
+        std::string name,
+        NScheduler::TSidecarJobSpecPtr spec,
+        TWeakPtr<IJobProxyEnvironment> jobProxy,
+        std::function<void(TError)> failedSidecarCallback)
+    : Name_(std::move(name))
+    , Spec_(std::move(spec))
+    , JobProxy_(std::move(jobProxy))
+    , FailedSidecarCallback_(std::move(failedSidecarCallback))
+{ }
+
+void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
+{
+    switch(Spec_->RestartPolicy) {
+        case ESidecarRestartPolicy::Always:
+            // Restart in any case.
+            RestartSidecar();
+            break;
+        case ESidecarRestartPolicy::OnFailure:
+            // Restart only if sidecar failed.
+            if (sidecarResult.IsOK()) {
+                YT_LOG_DEBUG(
+                    "Not restarting the sidecar (SidecarName: %v)",
+                    Name_);
+            } else {
+                RestartSidecar();
+            }
+            break;
+        case ESidecarRestartPolicy::FailOnError:
+            // Do not restart in case of success, fail the whole job otherwise.
+            if (sidecarResult.IsOK()) {
+                YT_LOG_DEBUG(
+                    "Not restarting the sidecar (SidecarName: %v)",
+                    Name_);
+                break;
+            }
+
+            YT_LOG_DEBUG(
+                "Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
+                Name_,
+                Spec_->RestartPolicy,
+                sidecarResult
+            );
+            auto jobProxy = JobProxy_.Lock();
+            if (jobProxy) {
+                jobProxy->KillSidecars();
+            }
+
+            FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
+                << TErrorAttribute("sidecar_name", Name_)
+                << TErrorAttribute("sidecar_exit_value", sidecarResult));
+            break;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef _linux_
 
 class TPortoUserJobEnvironment
@@ -580,16 +637,88 @@ DEFINE_REFCOUNTED_TYPE(TPortoUserJobEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPortoSidecarEnvironment
+    : public TSidecarEnvironmentBase
+{
+public:
+    TPortoSidecarEnvironment(
+        std::string name,
+        NScheduler::TSidecarJobSpecPtr spec,
+        TWeakPtr<IJobProxyEnvironment> jobProxy,
+        std::function<void(TError)> failedSidecarCallback,
+        IPortoExecutorPtr portoExecutor,
+        std::string jobProxyContainerPath)
+        : TSidecarEnvironmentBase(std::move(name), std::move(spec), std::move(jobProxy), std::move(failedSidecarCallback))
+        , CurrentWorkDirectory_(jobProxyContainerPath + "/" + GetSandboxRelPath(ESandboxKind::User))
+    {
+        Launcher_ = CreatePortoInstanceLauncher(Name_, std::move(portoExecutor));
+        Launcher_->SetCwd(CurrentWorkDirectory_);
+    }
+
+    void StartSidecar() final
+    {
+        Instance_ = WaitFor(Launcher_->Launch("/bin/bash", {"-c", Spec_->Command}, {}))
+            .ValueOrThrow();
+        OnSidecarStarted();
+    }
+
+    void KillSidecar() final
+    {
+        SidecarFinished_.Unsubscribe(FutureSidecarFinishedCallbackCookie_);
+        Instance_->Destroy();
+    }
+
+    void RestartSidecar() final
+    {
+        Instance_->Respawn();
+        OnSidecarStarted();
+    }
+
+    bool IsAlive() final
+    {
+        return !Instance_->Wait().IsSet();
+    }
+
+private:
+    void OnSidecarStarted()
+    {
+        SidecarFinished_ = Instance_->Wait();
+        FutureSidecarFinishedCallbackCookie_ = SidecarFinished_.Subscribe(BIND_NO_PROPAGATE(
+            &TPortoSidecarEnvironment::OnSidecarFinished,
+            MakeStrong(this)
+        ));
+    }
+
+private:
+    IInstancePtr Instance_;
+    IInstanceLauncherPtr Launcher_;
+    TFuture<void> SidecarFinished_;
+    TFutureCallbackCookie FutureSidecarFinishedCallbackCookie_;
+    TString CurrentWorkDirectory_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TPortoSidecarEnvironment)
+DEFINE_REFCOUNTED_TYPE(TPortoSidecarEnvironment)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TPortoJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    TPortoJobProxyEnvironment(TPortoJobEnvironmentConfigPtr config)
+    TPortoJobProxyEnvironment(
+        TPortoJobEnvironmentConfigPtr config,
+        IInvokerPtr invoker,
+        std::string jobProxyContainerPath,
+        std::function<void(TError)> failedSidecarCallback)
         : Config_(std::move(config))
         , PortoExecutor_(CreatePortoExecutor(Config_->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, ResourceUsageUpdatePeriod))
         , SlotContainerName_(*Self_->GetParentName())
+        , Invoker_(std::move(invoker))
+        , JobProxyContainerPath_(jobProxyContainerPath)
+        , FailedSidecarCallback_(std::move(failedSidecarCallback))
     {
         PortoExecutor_->SubscribeFailed(BIND_NO_PROPAGATE(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
     }
@@ -659,14 +788,39 @@ public:
             PortoExecutor_);
     }
 
-    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
     {
-        YT_UNIMPLEMENTED();
+        if (!jobSpecExt.has_user_job_spec()) {
+            return;
+        }
+
+        RunningSidecars_.reserve(jobSpecExt.user_job_spec().sidecars().size());
+        for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
+            auto sidecarSpec = New<TSidecarJobSpec>();
+            FromProto(sidecarSpec.Get(), sidecar);
+
+            auto newSidecar = New<TPortoSidecarEnvironment>(
+                Format("%v/sd-%v-%v", SlotContainerName_, RunningSidecars_.size(), name),
+                sidecarSpec,
+                MakeWeak(this),
+                FailedSidecarCallback_,
+                PortoExecutor_,
+                JobProxyContainerPath_);
+
+            newSidecar->StartSidecar();
+
+            RunningSidecars_.push_back(std::move(newSidecar));
+        }
     }
 
     void KillSidecars() override
     {
-        YT_UNIMPLEMENTED();
+        for (const auto& sidecar : RunningSidecars_) {
+            if (sidecar->IsAlive()) {
+                sidecar->KillSidecar();
+            }
+        }
+        RunningSidecars_.clear();
     }
 
 private:
@@ -675,7 +829,12 @@ private:
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
     const TString SlotContainerName_;
+    const IInvokerPtr Invoker_;
+    const std::string JobProxyContainerPath_;
 
+    std::function<void(TError)> FailedSidecarCallback_;
+
+    TVector<TPortoSidecarEnvironmentPtr> RunningSidecars_;
 
     void OnFatalError(const TError& error)
     {
@@ -1486,7 +1645,11 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     switch (config->JobEnvironment.GetCurrentType()) {
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
-            return New<TPortoJobProxyEnvironment>(config->JobEnvironment.TryGetConcrete<TPortoJobEnvironmentConfig>());
+            return New<TPortoJobProxyEnvironment>(
+                config->JobEnvironment.TryGetConcrete<TPortoJobEnvironmentConfig>(),
+                invoker,
+                jobProxySlotPath,
+                failedSidecarCallback);
 #endif
 
         case EJobEnvironmentType::Simple:
