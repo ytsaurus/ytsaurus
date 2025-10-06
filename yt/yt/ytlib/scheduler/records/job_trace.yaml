@@ -1,7 +1,7 @@
 namespace: NYT::NScheduler::NRecords
 
 types:
-  - type_name: TJobTraceEvent
+  - type_name: TJobTrace
     fields:
       - cpp_name: OperationIdHi
         cpp_type: ui64
@@ -39,18 +39,13 @@ types:
         column_type: Uint64
         sort_order: Ascending
 
-      - cpp_name: EventIndex
-        cpp_type: i64
-        column_name: event_index
+      - cpp_name: ProcessId
+        cpp_type: int
+        column_name: process_id
         column_type: Int64
         sort_order: Ascending
 
-      - cpp_name: Event
+      - cpp_name: State
         cpp_type: std::string
-        column_name: event
+        column_name: state
         column_type: String
-
-      - cpp_name: EventTime
-        cpp_type: i64
-        column_name: event_time
-        column_type: Int64

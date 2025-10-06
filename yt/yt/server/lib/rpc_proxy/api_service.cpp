@@ -3470,7 +3470,7 @@ private:
             options.JobId = FromProto<TJobId>(request->job_id());
         }
         if (request->has_trace_id()) {
-            options.TraceId = FromProto<NScheduler::TJobTraceId>(request->trace_id());
+            options.TraceId = FromProto<NJobTrackerClient::TJobTraceId>(request->trace_id());
         }
         if (request->has_from_event_index()) {
             options.FromEventIndex = request->from_event_index();

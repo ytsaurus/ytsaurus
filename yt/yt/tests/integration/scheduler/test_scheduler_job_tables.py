@@ -13,14 +13,14 @@ from yt_commands import (
     map, reduce, map_reduce, vanilla, run_test_vanilla,
     select_rows, list_jobs, get_job, get_job_trace, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
-    lookup_rows)
+    lookup_rows, print_debug)
 
 import yt_error_codes
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.environment import arcadia_interop
-from yt.common import YtError, uuid_to_parts
-from yt.wrapper.common import uuid_hash_pair
+from yt.common import YtError, uuid_to_parts, parts_to_uuid
+from yt.wrapper.common import uuid_hash_pair, generate_uuid
 
 import binascii
 import itertools
@@ -1620,6 +1620,56 @@ class TestJobTraceEvents(YTEnvSetup):
         }
     }
 
+    class TraceCommandBuilder:
+        def __init__(self):
+            self.commands = []
+            self.current_time = 0.0
+            self.time_step = 1.0
+
+        def _add_command(self, profile):
+            self.commands.append(f"printf '{profile}' > $YT_CUDA_PROFILER_PATH")
+            self.current_time += self.time_step
+
+        def start_trace(self, pid, trace_id):
+            profile = f"{{\"name\": \"ytControlEvent\", \"pid\": {pid}, \"type\": \"trace_started\", \"traceId\": \"{trace_id}\"}}"
+            self._add_command(profile)
+            return self
+
+        def end_trace(self, pid, trace_id):
+            profile = f"{{\"name\": \"ytControlEvent\", \"pid\": {pid}, \"type\": \"trace_finished\", \"traceId\": \"{trace_id}\"}}"
+            self._add_command(profile)
+            return self
+
+        def add_complete_trace(self, pid, trace_id, count):
+            return self.start_trace(pid, trace_id).add_events(pid, count).end_trace(pid, trace_id)
+
+        def drop_trace(self, pid, trace_id):
+            profile = f"{{\"name\": \"ytControlEvent\", \"pid\": {pid}, \"type\": \"trace_dropped\", \"traceId\": \"{trace_id}\"}}"
+            self._add_command(profile)
+            return self
+
+        def breakpoint(self):
+            self.commands.append(with_breakpoint("BREAKPOINT"))
+            return self
+
+        def add_events(self, pid, count=1):
+            for _ in range(count):
+                profile = f"{{\"event\": \"profile\", \"ts\": {self.current_time:.1f}, \"tid\": 1, \"pid\": {pid}}}"
+                self._add_command(profile)
+            return self
+
+        def add_invalid_trace(self, pid, count=1):
+            for _ in range(count):
+                profile = f"{{\"event\": \"profile\", \"ts\": {self.current_time:.1f}, \"pid\": {pid}}}"
+                self._add_command(profile)
+            return self
+
+        def build(self):
+            return ";\n".join(self.commands)
+
+        def __str__(self):
+            return self.build()
+
     def setup_method(self, method):
         super(TestJobTraceEvents, self).setup_method(method)
         sync_create_cells(1)
@@ -1627,8 +1677,10 @@ class TestJobTraceEvents(YTEnvSetup):
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    def _start_vanilla_operation(self, profile, should_sleep=True, write_count=2):
-        write = f"printf '{profile}' > $YT_CUDA_PROFILER_PATH;\n" * write_count
+    def _start_vanilla_operation(self, profile="", should_sleep=True, write_count=2, command=None, job_count=2):
+        write = command
+        if not write:
+            write = f"printf '{profile}' > $YT_CUDA_PROFILER_PATH;\n" * write_count
         command = f"""
             if [[ "$CUDA_INJECTION64_PATH" != "/opt/some/path" ]]; then
                 exit 0;
@@ -1637,24 +1689,56 @@ class TestJobTraceEvents(YTEnvSetup):
                 {write}
             fi
         """
+
         if should_sleep:
             command += "\n sleep 100000"
 
-        spec = {
-            "tasks": {
-                "task": {
-                    "profilers": [{
-                        "binary": "user_job",
-                        "type": "cuda",
-                        "profiling_probability": 1.0,
-                    }],
-                    "job_count": 2,
-                    "command": command,
-                },
-            },
+        print_debug(command)
+        task_patch = {
+            "profilers": [{
+                "binary": "user_job",
+                "type": "cuda",
+                "profiling_probability": 1.0,
+            }],
         }
+        if "BREAKPOINT" in command:
+            command = with_breakpoint(command)
+        return run_test_vanilla(command, task_patch, job_count=job_count)
 
-        return vanilla(track=False, spec=spec)
+    def _get_traces_by_id(self, op_id, job_id, trace_id=None, pid=None):
+        op_id_parts = uuid_to_parts(op_id)
+        job_id_parts = uuid_to_parts(job_id)
+        query = "* from [//sys/operations_archive/job_trace_events]"
+        query += f" WHERE (operation_id_hi, operation_id_lo) = {op_id_parts} AND (job_id_hi, job_id_lo) = {job_id_parts}"
+        if trace_id:
+            trace_id_parts = uuid_to_parts(trace_id)
+            query += f" AND (trace_id_hi, trace_id_lo) = {trace_id_parts}"
+        rows = select_rows(query)
+        if pid:
+            rows = [row for row in rows if f'"pid":{pid}' in row["event"]]
+        return rows
+
+    def _get_job_traces(self, op_id, job_id):
+        op_id_parts = uuid_to_parts(op_id)
+        job_id_parts = uuid_to_parts(job_id)
+        query = "trace_id_hi, trace_id_lo from [//sys/operations_archive/job_traces]"
+        query += f" WHERE (operation_id_hi, operation_id_lo) = {op_id_parts}"
+        query += f" AND (job_id_hi, job_id_lo) = {job_id_parts}"
+        rows = select_rows(query)
+        return [parts_to_uuid(row["trace_id_hi"], row["trace_id_lo"]) for row in rows]
+
+    def _get_trace_state(self, op_id, job_id, trace_id, pid=None):
+        op_id_parts = uuid_to_parts(op_id)
+        job_id_parts = uuid_to_parts(job_id)
+        trace_id_parts = uuid_to_parts(trace_id)
+        query = "state from [//sys/operations_archive/job_traces]"
+        query += f" WHERE (operation_id_hi, operation_id_lo) = {op_id_parts}"
+        query += f" AND (job_id_hi, job_id_lo) = {job_id_parts}"
+        query += f" AND (trace_id_hi, trace_id_lo) = {trace_id_parts}"
+        if pid:
+            query += f" AND process_id = {pid}"
+        rows = select_rows(query)
+        return [row["state"] for row in rows]
 
     @authors("bystrovserg")
     def test_no_profiling(self):
@@ -1663,9 +1747,12 @@ class TestJobTraceEvents(YTEnvSetup):
             command="sleep 0",
             track=True,
         )
+        wait(lambda: len(op.list_jobs()) == 2)
+        job_ids = op.list_jobs()
 
         events = get_job_trace(op.id)
         assert not events
+        assert all([len(self._get_job_traces(op.id, job_id)) == 0 for job_id in job_ids])
 
     @authors("bystrovserg")
     def test_incorrect_event(self):
@@ -1741,6 +1828,124 @@ class TestJobTraceEvents(YTEnvSetup):
             first_job_id = jobs[0]["id"]
             first_job = get_job(op.id, first_job_id)
             check_job(first_job)
+
+    @authors("bystrovserg")
+    def test_start_finish_trace_events_sanity_check(self):
+        trace_id1 = generate_uuid()
+        trace_id2 = generate_uuid()
+        command = self.TraceCommandBuilder() \
+            .start_trace(pid=1, trace_id=trace_id1) \
+            .add_events(pid=1, count=2) \
+            .start_trace(pid=2, trace_id=trace_id1) \
+            .add_events(pid=1, count=1) \
+            .add_events(pid=2, count=5) \
+            .end_trace(pid=1, trace_id=trace_id1) \
+            .end_trace(pid=2, trace_id=trace_id1) \
+            .start_trace(pid=1, trace_id=trace_id2) \
+            .start_trace(pid=2, trace_id=trace_id2) \
+            .add_events(pid=1, count=3) \
+            .drop_trace(pid=1, trace_id=trace_id2) \
+            .add_events(pid=2, count=3) \
+            .end_trace(pid=2, trace_id=trace_id2)
+
+        print_debug(command.build())
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id1)) == 8)
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id2)) == 6)
+
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id1, pid=1)) == 3)
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id1, pid=2)) == 5)
+
+    @authors("bystrovserg")
+    def test_incorrect_and_correct_events(self):
+        trace_id = generate_uuid()
+        command = self.TraceCommandBuilder() \
+            .start_trace(pid=1, trace_id=trace_id) \
+            .add_events(pid=1, count=2) \
+            .add_invalid_trace(pid=1, count=2) \
+            .add_events(pid=1, count=2) \
+            .end_trace(pid=1, trace_id=trace_id)
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+        # NB(bystrovserg): We close IO pipe if recieve invalid event, so here we expect to receive only traces before invalid one.
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id)) == 2)
+
+    @authors("bystrovserg")
+    def test_job_trace_control_event_same_trace_different_time(self):
+        trace_id = generate_uuid()
+        command = self.TraceCommandBuilder() \
+            .add_complete_trace(trace_id=trace_id, pid=1, count=2) \
+            .breakpoint() \
+            .add_complete_trace(trace_id=trace_id, pid=2, count=2)
+
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        job_id = wait_breakpoint()[0]
+        time.sleep(5)
+        release_breakpoint()
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id)) == 4)
+
+    @authors("bystrovserg")
+    def test_job_traces_table_sanity_check(self):
+        trace_id1 = generate_uuid()
+        trace_id2 = generate_uuid()
+        command = self.TraceCommandBuilder() \
+            .start_trace(pid=1, trace_id=trace_id1) \
+            .add_events(pid=1, count=2) \
+            .breakpoint() \
+            .add_events(pid=1, count=1) \
+            .end_trace(pid=1, trace_id=trace_id1) \
+            .start_trace(pid=2, trace_id=trace_id2) \
+            .add_events(pid=2, count=1) \
+            .drop_trace(pid=2, trace_id=trace_id2)
+
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        job_id = wait_breakpoint()[0]
+        wait(lambda: len(self._get_trace_state(op.id, job_id, trace_id1)) == 1)
+        wait(lambda: self._get_trace_state(op.id, job_id, trace_id1)[0] == "started")
+        release_breakpoint()
+        wait(lambda: len(self._get_trace_state(op.id, job_id, trace_id1)) == 1)
+        wait(lambda: self._get_trace_state(op.id, job_id, trace_id1)[0] == "finished")
+
+        wait(lambda: len(self._get_trace_state(op.id, job_id, trace_id2)) == 1)
+        wait(lambda: self._get_trace_state(op.id, job_id, trace_id2)[0] == "dropped")
+
+    @authors("bystrovserg")
+    def test_job_traces_table_no_final_event(self):
+        trace_id1 = generate_uuid()
+        trace_id2 = generate_uuid()
+        command = self.TraceCommandBuilder() \
+            .start_trace(pid=1, trace_id=trace_id1) \
+            .add_events(pid=1, count=3) \
+            .start_trace(pid=1, trace_id=trace_id2) \
+            .add_events(pid=1, count=3) \
+            .end_trace(pid=1, trace_id=trace_id2)
+
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+        wait(lambda: len(self._get_trace_state(op.id, job_id, trace_id1)) == 1)
+        wait(lambda: self._get_trace_state(op.id, job_id, trace_id1)[0] == "orphaned")
+
+    @authors("bystrovserg")
+    def test_job_traces_table_no_control_events(self):
+        command = self.TraceCommandBuilder() \
+            .add_events(pid=1, count=3) \
+            .breakpoint() \
+
+        op = self._start_vanilla_operation(should_sleep=False, command=command.build(), job_count=1)
+        job_id = wait_breakpoint()[0]
+
+        wait(lambda: len(self._get_job_traces(op.id, job_id)) == 1)
+        trace_id = self._get_job_traces(op.id, job_id)[0]
+        print_debug(f"Job proxy generated trace ID {trace_id}")
+
+        wait(lambda: len(self._get_traces_by_id(op.id, job_id, trace_id)) == 3)
+        wait(lambda: self._get_trace_state(op.id, job_id, trace_id)[0] == "started")
+        release_breakpoint()
 
 
 ##################################################################

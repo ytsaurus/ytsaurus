@@ -71,7 +71,7 @@ def table_init_callback(client, table_path):
     if not client.exists(table_path):
         return
 
-    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
+    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids", "job_traces"]:
         set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
     if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
         set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
@@ -1002,6 +1002,31 @@ TRANSFORMS[62] = [
                 "atomicity": "none",
             }),
         use_default_mapper=True,
+    ),
+]
+
+TRANSFORMS[63] = [
+    Conversion(
+        "job_traces",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+                ("trace_id_hi", "uint64"),
+                ("trace_id_lo", "uint64"),
+                ("process_id", "int64"),
+            ], [
+                ("state", "string"),
+            ],
+            default_lock="operations_cleaner",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+                "atomicity": "none",
+            }),
     ),
 ]
 

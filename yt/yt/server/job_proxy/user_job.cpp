@@ -1599,6 +1599,11 @@ private:
         return TraceConsumer_.GetHasTrace();
     }
 
+    void FinalizeJobTrace() override
+    {
+        TraceEventProcessor_->FinishGlobalTrace();
+    }
+
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {
         if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {

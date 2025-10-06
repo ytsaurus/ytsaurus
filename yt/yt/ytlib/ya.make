@@ -709,6 +709,10 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    scheduler/records/job_trace.yaml
+)
+
+GENERATE_YT_RECORD(
     scheduler/records/job_profile.yaml
 )
 

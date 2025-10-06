@@ -227,6 +227,7 @@ struct TJobReporterConfig
     TArchiveHandlerConfigPtr JobFailContextHandler;
     TArchiveHandlerConfigPtr JobProfileHandler;
     TArchiveHandlerConfigPtr JobTraceEventHandler;
+    TArchiveHandlerConfigPtr JobTraceHandler;
 
     std::string User;
     bool ReportStatisticsLz4;

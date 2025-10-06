@@ -180,6 +180,9 @@ bool TJob::HasJobTrace() const
     return false;
 }
 
+void TJob::FinalizeJobTrace()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
