@@ -1366,6 +1366,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
         .Default();
 
+    registrar.Parameter("close_stdout_if_unused", &TThis::CloseStdoutIfUnused)
+        .Default(false);
+
     registrar.Parameter("enable_fixed_user_id", &TThis::EnableFixedUserId)
         .Default(false);
 

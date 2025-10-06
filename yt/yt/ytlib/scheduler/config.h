@@ -1524,6 +1524,8 @@ struct TUserJobSpec
 
     std::optional<TDuration> ArchiveTtl;
 
+    bool CloseStdoutIfUnused;
+
     bool EnableFixedUserId;
 
     //! Map consisting of pairs <sidecar_name, sidecar_spec>.

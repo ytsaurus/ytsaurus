@@ -264,6 +264,8 @@ void TUserJobWriteController::Init(TInstant ioStartTime)
             OutputWriteBlocksOptions_.emplace_back());
 
         Writers_.push_back(CreateProfilingMultiChunkWriter(std::move(writer), ioStartTime));
+
+        YT_LOG_DEBUG("Table writer created (TableIndex: %v)", index);
     }
 
     if (jobSpecExt.user_job_spec().has_stderr_table_spec()) {
@@ -293,6 +295,8 @@ void TUserJobWriteController::Init(TInstant ioStartTime)
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler(),
                 /*writeBlocksOptions*/ {}));
+
+        YT_LOG_DEBUG("Stderr table writer created");
     }
 }
 
