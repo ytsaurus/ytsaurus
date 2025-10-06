@@ -1126,8 +1126,6 @@ class TestJobSlicing(TestJobSlicingBase):
 
     @authors("apollo1321")
     def test_unordered_map_with_job_interruptions(self):
-        # The purpose of this test is to check that
-
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
                 {"name": "col1", "type": "string"},
