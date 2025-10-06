@@ -4647,3 +4647,60 @@ class TestUserJobDebugOptions(YTEnvSetup):
             assert False, "Process not found"
 
         release_breakpoint()
+
+
+##################################################################
+
+
+class TestClosingStdoutSimple(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("pogorelov")
+    def test_closing_stdout_with_output_table(self):
+        output_table = "//tmp/output_table"
+        create("table", output_table, attributes={
+            "replication_factor": 1,
+        })
+
+        vanilla(
+            spec={
+                "tasks": {
+                    "task": {
+                        "job_count": 1,
+                        "output_table_paths": [output_table],
+                        "command": "echo '{key=\"value\"}'",
+                        "close_stdout_if_unused": True,
+                    },
+                },
+            },
+        )
+
+        print_debug("Output is: ", read_table(output_table))
+
+        def start_op(close_stdout):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "task": {
+                            "job_count": 1,
+                            "command": "echo '{key=\"value\"}'",
+                            "close_stdout_if_unused": close_stdout,
+                        },
+                    },
+                },
+            )
+
+        with pytest.raises(YtError, match="User job failed"):
+            start_op(True)
+
+        start_op(False)
+
+
+class TestClosingStdoutPorto(TestClosingStdoutSimple):
+    USE_PORTO = True
+
+
+class TestClosingStdoutCri(TestClosingStdoutSimple):
+    JOB_ENVIRONMENT_TYPE = "cri"
