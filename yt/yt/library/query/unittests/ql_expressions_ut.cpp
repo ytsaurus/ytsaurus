@@ -183,6 +183,27 @@ protected:
                     return false;
                 }
             }
+        } else if (auto inLhs = lhs->As<TBetweenExpression>()) {
+            auto inRhs = rhs->As<TBetweenExpression>();
+
+            if (inRhs == nullptr
+                || inLhs->Ranges.Size() != inRhs->Ranges.Size()
+                || inLhs->Arguments.size() != inRhs->Arguments.size()) {
+                return false;
+            }
+            for (int index = 0; index < std::ssize(inLhs->Ranges); ++index) {
+                auto lhsRange = inLhs->Ranges[index];
+                auto rhsRange = inRhs->Ranges[index];
+
+                if (lhsRange.first != rhsRange.first || lhsRange.second != rhsRange.second) {
+                    return false;
+                }
+            }
+            for (int index = 0; index < std::ssize(inLhs->Arguments); ++index) {
+                if (!Equal(inLhs->Arguments[index], inRhs->Arguments[index])) {
+                    return false;
+                }
+            }
         } else {
             YT_ABORT();
         }
@@ -832,6 +853,65 @@ INSTANTIATE_TEST_SUITE_P(
             "not ((a < 3) and (a >= 2))")
 ));
 
+TRow MakeRow(INodePtr keyPart, TRowBufferPtr buffer, TUnversionedRowBuilder* keyBuilder, int id)
+{
+    keyBuilder->Reset();
+
+    switch (keyPart->GetType()) {
+
+        #define XX(type, cppType) \
+        case ENodeType::type: \
+            keyBuilder->AddValue(Make ## type ## Value<TUnversionedValue>( \
+                keyPart->As ## type()->GetValue(), \
+                id)); \
+            break;
+        ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+        #undef XX
+
+        case ENodeType::List:
+        {
+            auto key = keyPart->AsList();
+            auto keyRowParts = ConvertTo<std::vector<INodePtr>>(key);
+
+            for (int index = 0; index < std::ssize(keyRowParts); ++index) {
+                const auto& keyRowPart = keyRowParts[index];
+
+                switch (keyRowPart->GetType()) {
+
+                    #define XX(type, cppType) \
+                    case ENodeType::type: \
+                        keyBuilder->AddValue(Make ## type ## Value<TUnversionedValue>( \
+                            keyRowPart->As ## type()->GetValue(), \
+                            id)); \
+                        break;
+                    ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+                    #undef XX
+
+                    default:
+                        keyBuilder->AddValue(MakeAnyValue<TUnversionedValue>(
+                            ConvertToYsonString(keyPart).AsStringBuf(),
+                            id));
+                        break;
+                }
+            }
+
+            break;
+        }
+        case ENodeType::Entity:
+            keyBuilder->AddValue(MakeSentinelValue<TUnversionedValue>(
+                keyPart->Attributes().Get<EValueType>("type"),
+                id));
+            break;
+        default:
+            keyBuilder->AddValue(MakeAnyValue<TUnversionedValue>(
+                ConvertToYsonString(keyPart).AsStringBuf(),
+                id));
+            break;
+    }
+
+    return buffer->CaptureRow(keyBuilder->GetRow());
+}
+
 TSharedRange<TRow> MakeRows(TStringBuf yson)
 {
     TUnversionedRowBuilder keyBuilder;
@@ -842,31 +922,38 @@ TSharedRange<TRow> MakeRows(TStringBuf yson)
     std::vector<TRow> rows;
 
     for (int id = 0; id < std::ssize(keyParts); ++id) {
-        keyBuilder.Reset();
-
         const auto& keyPart = keyParts[id];
-        switch (keyPart->GetType()) {
-            #define XX(type, cppType) \
-            case ENodeType::type: \
-                keyBuilder.AddValue(Make ## type ## Value<TUnversionedValue>( \
-                    keyPart->As ## type()->GetValue(), \
-                    id)); \
-                break;
-            ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
-            #undef XX
-            case ENodeType::Entity:
-                keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
-                    keyPart->Attributes().Get<EValueType>("type"),
-                    id));
-                break;
-            default:
-                keyBuilder.AddValue(MakeAnyValue<TUnversionedValue>(
-                    ConvertToYsonString(keyPart).AsStringBuf(),
-                    id));
-                break;
-        }
+        auto row = MakeRow(keyPart, buffer, &keyBuilder, id);
 
-        rows.push_back(buffer->CaptureRow(keyBuilder.GetRow()));
+        rows.push_back(row);
+    }
+
+    return MakeSharedRange(std::move(rows), buffer);
+}
+
+TSharedRange<TRowRange> MakeRowRanges(TStringBuf yson)
+{
+    TUnversionedRowBuilder keyBuilder;
+    auto keyParts = ConvertTo<std::vector<INodePtr>>(
+        TYsonString(yson, EYsonType::ListFragment));
+
+    auto buffer = New<TRowBuffer>();
+    std::vector<TRowRange> rows;
+
+    for (int id = 0; id < std::ssize(keyParts); ++id) {
+        const auto& keyPart = keyParts[id];
+
+        YT_VERIFY(keyPart->GetType() == ENodeType::List);
+
+        auto keyPartPair = ConvertTo<std::vector<INodePtr>>(keyPart->AsList());
+        auto size = std::ssize(keyPartPair);
+
+        YT_VERIFY(size == 2L);
+
+        auto range = TRowRange{
+            MakeRow(keyPartPair[0], buffer, &keyBuilder, id),
+            MakeRow(keyPartPair[1], buffer, &keyBuilder, id)};
+        rows.push_back(range);
     }
 
     return MakeSharedRange(std::move(rows), buffer);
@@ -978,6 +1065,693 @@ INSTANTIATE_TEST_SUITE_P(
                 Make<TReferenceExpression>("ku"),
                 Make<TLiteralExpression>(MakeUint64(61489146912365173llu))),
             "ku = 184467440737095520u / 3")
+));
+
+INSTANTIATE_TEST_SUITE_P(
+    CheckInExpressions,
+    TParseAndPrepareExpressionTest,
+    ::testing::Values(
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TLiteralExpression>(MakeBoolean(true))}),
+                MakeRows("%true; %true; %true")),
+            "%true in (not %false, %true, not (not %true))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("kb")}),
+                MakeRows("%true; %true; %true")),
+            "kb in (not %false, %true, not (not %true))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TInExpression>(
+                    std::initializer_list<TConstExpressionPtr>({
+                        Make<TReferenceExpression>("kb")}),
+                    MakeRows("%true; %true")),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("kb"),
+                    Make<TUnaryOpExpression>(
+                        EUnaryOp::Not,
+                        Make<TReferenceExpression>("kb")))),
+            "kb in (not %false, %true, not kb)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRows("-1;")),
+            "ki in (-1)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRows("-1;")),
+            "ki in (-(-(-1)))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRows("2;")),
+            "ki in (-(~(~(~1))))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRows("-2;-1;3")),
+            "ki in (-1, -2, 3)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Equal,
+                Make<TReferenceExpression>("ki"),
+                New<TBinaryOpExpression>(
+                    EValueType::Int64,
+                    EBinaryOp::Plus,
+                    Make<TReferenceExpression>("ki"),
+                    Make<TLiteralExpression>(MakeInt64(1)))),
+            "ki in (ki + 1)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Equal,
+                Make<TReferenceExpression>("ki"),
+                Make<TUnaryOpExpression>(
+                    EUnaryOp::Minus,
+                    Make<TUnaryOpExpression>(
+                        EUnaryOp::Minus,
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(-1)))))),
+            "ki in (-(-(ki + -1)))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(1)))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(2))))),
+            "ki in (ki + 1, ki + 2)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(1)))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(2)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(3)))))),
+            "ki in (ki + 1, ki + 2, ki + 3)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(1)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(2))))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(3)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(4)))))),
+            "ki in (ki + 1, ki + 2, ki + 3, ki + 4)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(1)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(2))))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(3)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Or,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(4)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(5))))))),
+            "ki in (ki + 1, ki + 2, ki + 3, ki + 4, ki + 5)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TInExpression>(
+                    std::initializer_list<TConstExpressionPtr>({
+                        Make<TReferenceExpression>("ki")}),
+                    MakeRows("1; 3")),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(2))))),
+            "ki in (1, ki + 2, 3)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TInExpression>(
+                    std::initializer_list<TConstExpressionPtr>({
+                        Make<TReferenceExpression>("ki")}),
+                    MakeRows("-3; -1")),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(2))))),
+            "ki in (-1, ki + 2, -3)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TInExpression>(
+                    std::initializer_list<TConstExpressionPtr>({
+                        Make<TReferenceExpression>("ki")}),
+                    MakeRows("1; 3")),
+                New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(2)))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(4)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(5))))))),
+            "ki in (1, ki + 2, 3, ki + 4, ki + 5)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::And,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(1)))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Equal,
+                    Make<TReferenceExpression>("ku"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ku"),
+                        Make<TLiteralExpression>(MakeUint64(1))))),
+            "(ki, ku) in ((ki + 1, ku + 1u))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::And,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(1)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ku"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ku"),
+                            Make<TLiteralExpression>(MakeUint64(1))))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::And,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(2)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ku"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ku"),
+                            Make<TLiteralExpression>(MakeUint64(2)))))),
+            "(ki, ku) in ((ki + 1, ku + 1u), (ki + 2, ku + 2u))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(1)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ku"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ku"),
+                                Make<TLiteralExpression>(MakeUint64(1))))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(2)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ku"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ku"),
+                                Make<TLiteralExpression>(MakeUint64(2))))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(3)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ku"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ku"),
+                                Make<TLiteralExpression>(MakeUint64(3))))))),
+            "(ki, ku) in ((ki + 1, ku + 1u), (ki + 2, ku + 2u), (ki + 3, ku + 3u))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::And,
+                New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(1)))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::And,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("ku"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ku"),
+                            Make<TLiteralExpression>(MakeUint64(1)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Equal,
+                        Make<TReferenceExpression>("kd"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("kd"),
+                            Make<TLiteralExpression>(MakeDouble(1)))))),
+            "(ki, ku, kd) in ((ki + 1, ku + 1u, kd + 1.0))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::Or,
+                New<TInExpression>(
+                    std::initializer_list<TConstExpressionPtr>({
+                        Make<TReferenceExpression>("ki"),
+                        Make<TReferenceExpression>("ku"),
+                        Make<TReferenceExpression>("kd")}),
+                    MakeRows("[1; 1u; 1.0]; [3; 3u; 3.0]")),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::And,
+                    New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(2)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ku"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ku"),
+                                Make<TLiteralExpression>(MakeUint64(2)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("kd"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("kd"),
+                                Make<TLiteralExpression>(MakeDouble(2))))))),
+            "(ki, ku, kd) in ((1, 1u, 1.0), (ki + 2, ku + 2u, kd + 2.0), (3, 3u, 3.0))")
+));
+
+INSTANTIATE_TEST_SUITE_P(
+    CheckBetweenExpressions,
+    TParseAndPrepareExpressionTest,
+    ::testing::Values(
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::And,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::GreaterOrEqual,
+                    Make<TReferenceExpression>("ki"),
+                    Make<TLiteralExpression>(MakeInt64(1))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::LessOrEqual,
+                    Make<TReferenceExpression>("ki"),
+                    Make<TLiteralExpression>(MakeInt64(2)))),
+            "ki between 1 and 2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBetweenExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRowRanges("[1;2];")),
+            "ki between (1 and 2)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBetweenExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki")}),
+                MakeRowRanges("[1;2];[3;4];")),
+            "ki between (1 and 2, 3 and 4)"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBetweenExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki"),
+                    Make<TReferenceExpression>("ku")}),
+                MakeRowRanges("[[1;1u];[2;2u]];[[3;3u];[4;4u]];")),
+            "(ki,ku) between ((1, 1u) and (2, 2u), (3, 3u) and (4, 4u))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBetweenExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TReferenceExpression>("ki"),
+                    Make<TReferenceExpression>("ku")}),
+                MakeRowRanges("[[1;];[2;2u]];[[3;3u];[4;]];")),
+            "(ki,ku) between ((1) and (2, 2u), (3, 3u) and (4))"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::And,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::GreaterOrEqual,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(1)))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::LessOrEqual,
+                    Make<TReferenceExpression>("ki"),
+                    New<TBinaryOpExpression>(
+                        EValueType::Int64,
+                        EBinaryOp::Plus,
+                        Make<TReferenceExpression>("ki"),
+                        Make<TLiteralExpression>(MakeInt64(2))))),
+            "ki between ki + 1 and ki + 2"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            New<TBinaryOpExpression>(
+                EValueType::Boolean,
+                EBinaryOp::And,
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Greater,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(1)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(1)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::GreaterOrEqual,
+                            Make<TReferenceExpression>("ku"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ku"),
+                                Make<TLiteralExpression>(MakeUint64(1)))))),
+                New<TBinaryOpExpression>(
+                    EValueType::Boolean,
+                    EBinaryOp::Or,
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::Less,
+                        Make<TReferenceExpression>("ki"),
+                        New<TBinaryOpExpression>(
+                            EValueType::Int64,
+                            EBinaryOp::Plus,
+                            Make<TReferenceExpression>("ki"),
+                            Make<TLiteralExpression>(MakeInt64(2)))),
+                    New<TBinaryOpExpression>(
+                        EValueType::Boolean,
+                        EBinaryOp::And,
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::Equal,
+                            Make<TReferenceExpression>("ki"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ki"),
+                                Make<TLiteralExpression>(MakeInt64(2)))),
+                        New<TBinaryOpExpression>(
+                            EValueType::Boolean,
+                            EBinaryOp::LessOrEqual,
+                            Make<TReferenceExpression>("ku"),
+                            New<TBinaryOpExpression>(
+                                EValueType::Int64,
+                                EBinaryOp::Plus,
+                                Make<TReferenceExpression>("ku"),
+                                Make<TLiteralExpression>(MakeUint64(2))))))),
+            "(ki, ku) between (ki + 1, ku + 1u) and (ki + 2, ku + 2u)")
 ));
 
 INSTANTIATE_TEST_SUITE_P(
@@ -3085,6 +3859,18 @@ TEST_F(TExpressionErrorTest, ConcatenateOperator)
             EvaluateExpression(expr, "s1=abc;i2=2", schema, &result, buffer);
         }(),
         HasSubstr("Type mismatch in expression"));
+}
+
+TEST_F(TExpressionErrorTest, BetweenOperator)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("u1", EValueType::Uint64),
+        TColumnSchema("u2", EValueType::Uint64)
+    });
+
+    EXPECT_THROW_THAT(
+        ParseAndPrepareExpression("(u1, u2) between ((u1 + 1, u2 + 1) and (u1 + 2, u2 + 2), (u1 + 3, u2 + 3) and (u1 + 3, u2 + 3))", *schema),
+        HasSubstr("Expressions are not supported in multiple ranges BETWEEN clause"));
 }
 
 class TExpressionStrConvTest

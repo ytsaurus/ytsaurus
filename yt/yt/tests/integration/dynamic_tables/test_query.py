@@ -1968,6 +1968,90 @@ class TestQuery(DynamicTablesBase):
             actual = select_rows(query)
             assert expected == actual
 
+    @authors("fomasha")
+    def test_select_with_in_operator_with_expressions(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+            ],
+            [
+                {"a": 0, "b": 1, "c": 2},
+                {"a": 1, "b": 2, "c": 4},
+                {"a": 2, "b": 3, "c": 4},
+                {"a": 3, "b": 4, "c": 4},
+            ],
+            "scan",
+        )
+
+        requests = [
+            (
+                "select a, b from `//tmp/t` where (a, b) in ((b+1, c-1), (b+1, c-2))",
+                []
+            ),
+            (
+                "select a, b from `//tmp/t` where (a, b) in ((b-1, c-1), (b-1, c-2))",
+                [
+                    {"a": 0, "b": 1},
+                    {"a": 1, "b": 2},
+                    {"a": 2, "b": 3},
+                ]
+            )
+        ]
+
+        for query, expected in requests:
+            actual = select_rows(query, expression_builder_version=2)
+            assert expected == actual
+
+    @authors("fomasha")
+    def test_select_with_between_operator_with_expressions(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+            ],
+            [
+                {"a": 0, "b": 1, "c": 2},
+                {"a": 1, "b": 2, "c": 4},
+                {"a": 2, "b": 3, "c": 4},
+                {"a": 3, "b": 4, "c": 4},
+            ],
+            "scan",
+        )
+
+        requests = [
+            (
+                "select a, b from `//tmp/t` where a between b+1 and c-2",
+                []
+            ),
+            (
+                "select a, b from `//tmp/t` where a between b-1 and c-2",
+                [
+                    {"a": 0, "b": 1},
+                    {"a": 1, "b": 2},
+                    {"a": 2, "b": 3},
+                ]
+            ),
+            (
+                "select a, b from `//tmp/t` where (a, b) between (b-1, c-1) and (b, c)",
+                [
+                    {"a": 0, "b": 1},
+                    {"a": 2, "b": 3},
+                    {"a": 3, "b": 4},
+                ]
+            )
+        ]
+
+        for query, expected in requests:
+            actual = select_rows(query, expression_builder_version=2)
+            assert expected == actual
+
     @authors("sabdenovch")
     def test_select_with_canonical_null_relations(self):
         sync_create_cells(1)
