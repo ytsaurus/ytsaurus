@@ -3975,6 +3975,8 @@ class TestChaos(ChaosTestBase):
             ]
         )
 
+        timestamp = generate_timestamp()
+
         assert get(f"#{card2}/@replication_card_collocation_id") == collocation_id
         assert get(f"#{card3}/@replication_card_collocation_id") == collocation_id
         wait(lambda: card2 in get(f"#{collocation_id}/@replication_card_ids"))
@@ -3991,6 +3993,11 @@ class TestChaos(ChaosTestBase):
         alter_replication_card(card1, enable_replicated_table_tracker=True)
         alter_replication_card(card2, enable_replicated_table_tracker=True)
         alter_replication_card(card3, enable_replicated_table_tracker=True)
+
+        # Wait for all replicas to report their states to chaos cell at lease once.
+        for crt, replica_ids in zip([crt1, crt2, crt3], [replica_ids1, replica_ids2, replica_ids3]):
+            for replica_id in replica_ids:
+                wait(lambda: get(f"{crt}/@replicas/{replica_id}/replication_lag_timestamp") > timestamp)
 
         rtt_iteration_count_path = f"{self._get_chaos_cell_orchid_path(dst_cell_id)}/replicated_table_tracker/internal/iteration_count"
 
