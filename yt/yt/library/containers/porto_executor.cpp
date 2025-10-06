@@ -313,6 +313,14 @@ public:
             container);
     }
 
+    TFuture<void> RespawnContainer(const TString& container) override
+    {
+        return ExecutePortoApiAction(
+            &TPortoExecutor::DoRespawnContainer,
+            "RespawnContainer",
+            container);
+    }
+
     TFuture<TString> ConvertPath(const TString& path, const TString& container) override
     {
         return ExecutePortoApiAction(
@@ -734,6 +742,14 @@ private:
         ExecuteApiCall(
             [&] { return Api_->Start(container); },
             "Start",
+            /*idempotent*/ false);
+    }
+
+    void DoRespawnContainer(const TString& container)
+    {
+        ExecuteApiCall(
+            [&] { return Api_->Respawn(container); },
+            "Respawn",
             /*idempotent*/ false);
     }
 

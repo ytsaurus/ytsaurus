@@ -500,6 +500,12 @@ public:
             .ThrowOnError();
     }
 
+    void Respawn() override
+    {
+        WaitFor(Executor_->RespawnContainer(Name_))
+            .ThrowOnError();
+    }
+
     TErrorOr<i64> CalculateCpuUserUsage(
         TErrorOr<i64>& cpuUsage,
         TErrorOr<i64>& cpuSystemUsage) const
