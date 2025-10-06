@@ -113,6 +113,12 @@ jobs:
       - name: Configure ytsaurus (${{ matrix.build-type }})
         if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker || inputs.build-python }}
         run: |
+          mkdir -p ~/.conan2/
+          cat > ~/.conan2/global.conf <<EOF
+          core.net.http:timeout=5
+          core.sources:download_urls=["origin", "https://c3i.jfrog.io/artifactory/conan-center-backup-sources"]
+          EOF
+
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
           cmake \
             -G Ninja \
