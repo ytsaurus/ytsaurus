@@ -7,6 +7,7 @@
 #include "read_plan.h"
 #include "revision_tracker.h"
 #include "table.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -22,8 +23,14 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <Common/Exception.h>
+
 #include <Dictionaries/DictionarySourceFactory.h>
 #include <Dictionaries/DictionaryStructure.h>
+#include <Dictionaries/ExternalQueryBuilder.h>
+
+#include <Interpreters/executeQuery.h>
+#include <Interpreters/Session.h>
+
 #include <QueryPipeline/QueryPipeline.h>
 
 #include <DBPoco/Util/AbstractConfiguration.h>
@@ -46,14 +53,32 @@ public:
         THost* host,
         DB::DictionaryStructure dictionaryStructure,
         TRichYPath path,
-        DB::NamesAndTypesList namesAndTypesList)
+        DB::NamesAndTypesList namesAndTypesList,
+        DB::ContextPtr context)
         : Host_(host)
         , DictionaryStructure_(std::move(dictionaryStructure))
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
         , RevisionTracker_(path.GetPath(), host->GetRootClient())
         , Logger(ClickHouseYtLogger().WithTag("Path: %v", Path_))
-    { }
+        , Context_(context)
+        , QueryBuilder_(std::make_shared<DB::ExternalQueryBuilder>(
+            DictionaryStructure_,
+            /*db*/ "",
+            /*schema*/ "",
+            Path_.GetPath(),
+            /*query_*/ "",
+            /*where_*/ "",
+            DB::IdentifierQuotingStyle::Backticks))
+        , Session_(std::make_shared<DB::Session>(Host_->GetContext(), DB::ClientInfo::Interface::LOCAL))
+    {
+        RegisterNewUser(
+            Host_->GetContext()->getAccessControl(),
+            CacheUserName,
+            Host_->GetUserDefinedDatabaseNames(),
+            Host_->HasUserDefinedSqlObjectStorage());
+        SupportsSelectiveLoad_ = FetchTable()->IsOrderedDynamic();
+    }
 
     DB::QueryPipeline loadAll() override
     {
@@ -61,14 +86,7 @@ public:
 
         YT_LOG_INFO("Reloading dictionary (Revision: %llx)", RevisionTracker_.GetRevision());
 
-        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
-
-        auto table = FetchTables(
-            fakeQueryContext.Get(),
-            {Path_},
-            /*skipUnsuitableNodes*/ false,
-            /*enableDynamicStoreRead*/ true,
-            Logger).front();
+        auto table = FetchTable();
 
         ValidateSchema(*table->Schema);
 
@@ -101,21 +119,23 @@ public:
         return DB::QueryPipeline(DB::Pipe(source));
     }
 
-    DB::QueryPipeline loadIds(const std::vector<UInt64>& /*ids*/) override
+    DB::QueryPipeline loadIds(const std::vector<UInt64>& ids) override
     {
-        THROW_ERROR_EXCEPTION("Method loadIds not supported");
+        TString query = QueryBuilder_->composeLoadIdsQuery(ids);
+        return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
     bool supportsSelectiveLoad() const override
     {
-        return false;
+        return SupportsSelectiveLoad_;
     }
 
     DB::QueryPipeline loadKeys(
-        const DB::Columns& /*keyColumns*/,
-        const std::vector<size_t>& /*requestedRows*/) override
+        const DB::Columns& keyColumns,
+        const std::vector<size_t>& requestedRows) override
     {
-        THROW_ERROR_EXCEPTION("Method loadKeys not supported");
+        TString query = QueryBuilder_->composeLoadKeysQuery(keyColumns, requestedRows, DB::ExternalQueryBuilder::AND_OR_CHAIN);
+        return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
     bool isModified() const override
@@ -130,7 +150,8 @@ public:
             Host_,
             DictionaryStructure_,
             Path_,
-            NamesAndTypesList_);
+            NamesAndTypesList_,
+            Context_);
     }
 
     std::string toString() const override
@@ -140,7 +161,8 @@ public:
 
     DB::QueryPipeline loadUpdatedAll() override
     {
-        THROW_ERROR_EXCEPTION("Method loadUpdatedAll not supported");
+        TString query = QueryBuilder_->composeLoadAllQuery();
+        return DB::executeQuery(query, GetContext(), DB::QueryFlags{.internal = true}).second.pipeline;
     }
 
     bool hasUpdateField() const override
@@ -155,6 +177,10 @@ private:
     DB::NamesAndTypesList NamesAndTypesList_;
     TRevisionTracker RevisionTracker_;
     TLogger Logger;
+    DB::ContextPtr Context_;
+    DB::ExternalQueryBuilderPtr QueryBuilder_;
+    bool SupportsSelectiveLoad_;
+    std::shared_ptr<DB::Session> Session_;
 
     void ValidateSchema(const TTableSchema& schema)
     {
@@ -164,6 +190,32 @@ private:
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
                 << TErrorAttribute("actual_schema", namesAndTypesList.toString());
         }
+    }
+
+    TTablePtr FetchTable() {
+        auto fakeQueryContext = TQueryContext::CreateFake(Host_, Host_->GetRootClient());
+
+        auto table = FetchTables(
+            fakeQueryContext.Get(),
+            {Path_},
+            /*skipUnsuitableNodes*/ false,
+            /*enableDynamicStoreRead*/ true,
+            Logger).front();
+
+        return table;
+    }
+
+    DB::ContextMutablePtr GetContext() {
+        auto context =  PrepareContextForQuery(
+            Session_,
+            CacheUserName,
+            TDuration::Seconds(0),
+            Host_,
+            "ChytDictionarySource");
+        const auto* queryContext = GetQueryContext(context);
+        // We don't want to distribute this query so we set SelectPolicy to local.
+        queryContext->Settings->Execution->SelectPolicy = ESelectPolicy::Local;
+        return context;
     }
 };
 
@@ -176,7 +228,7 @@ void RegisterTableDictionarySource(THost* host)
         const DBPoco::Util::AbstractConfiguration& config,
         const std::string& dictSectionPath,
         DB::Block& sampleBlock,
-        DB::ContextPtr /*context*/,
+        DB::ContextPtr context,
         const std::string& /*default_database*/,
         bool /*checkConfig*/) -> DB::DictionarySourcePtr
     {
@@ -185,7 +237,8 @@ void RegisterTableDictionarySource(THost* host)
             host,
             dictionaryStructure,
             path,
-            sampleBlock.getNamesAndTypesList());
+            sampleBlock.getNamesAndTypesList(),
+            context);
     };
 
     DB::DictionarySourceFactory::instance().registerSource("yt", creator);

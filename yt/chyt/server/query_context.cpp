@@ -124,6 +124,39 @@ TStorageContext::~TStorageContext()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DB::ContextMutablePtr PrepareContextForQuery(
+    std::shared_ptr<DB::Session> session,
+    const std::string& dataBaseUser,
+    TDuration timeout,
+    THost* host,
+    std::string traceContextRoot)
+{
+    session->authenticate(
+        dataBaseUser,
+        /*password*/ "",
+        DBPoco::Net::SocketAddress());
+
+    auto contextForQuery = session->makeQueryContext();
+
+    auto settings = contextForQuery->getSettingsCopy();
+    settings.max_execution_time = DBPoco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
+    contextForQuery->setSettings(settings);
+
+    auto queryId = TQueryId::Create();
+
+    contextForQuery->setInitialUserName(contextForQuery->getClientInfo().current_user);
+    contextForQuery->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
+    contextForQuery->setInitialQueryId(ToString(queryId));
+
+    auto traceContext = NTracing::TTraceContext::NewRoot(traceContextRoot);
+
+    SetupHostContext(host, contextForQuery, queryId, std::move(traceContext));
+
+    return contextForQuery;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryContext::TQueryContext(
     THost* host,
     DB::ContextPtr context,

@@ -16,7 +16,6 @@
 #include <Core/Types.h>
 #include <Interpreters/ClientInfo.h>
 #include <Interpreters/executeQuery.h>
-#include <Interpreters/Session.h>
 #include <Processors/Executors/PullingPipelineExecutor.h>
 
 namespace NYT::NClickHouseServer {
@@ -32,35 +31,6 @@ constinit const auto Logger = ClickHouseYtLogger;
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DB::ContextMutablePtr PrepareContextForQuery(
-    std::shared_ptr<DB::Session> session,
-    const TString& dataBaseUser,
-    TDuration timeout,
-    THost* host)
-{
-    session->authenticate(dataBaseUser,
-        /*password*/ "",
-        DBPoco::Net::SocketAddress());
-
-    auto contextForQuery = session->makeQueryContext();
-
-    auto settings = contextForQuery->getSettingsCopy();
-    settings.max_execution_time = DBPoco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
-    contextForQuery->setSettings(settings);
-
-    auto queryId = TQueryId::Create();
-
-    contextForQuery->setInitialUserName(contextForQuery->getClientInfo().current_user);
-    contextForQuery->setQueryKind(DB::ClientInfo::QueryKind::INITIAL_QUERY);
-    contextForQuery->setInitialQueryId(ToString(queryId));
-
-    auto traceContext = NTracing::TTraceContext::NewRoot("HealthCheckerQuery");
-
-    SetupHostContext(host, contextForQuery, queryId, std::move(traceContext));
-
-    return contextForQuery;
-}
 
 void ValidateQueryResult(DB::BlockIO& blockIO)
 {
@@ -83,7 +53,7 @@ void ValidateQueryResult(DB::BlockIO& blockIO)
 void THealthChecker::ExecuteQuery(const TString& query)
 {
     auto session = std::make_shared<DB::Session>(getContext(), DB::ClientInfo::Interface::TCP);
-    auto context = NDetail::PrepareContextForQuery(session, DatabaseUser_, Config_->Timeout, Host_);
+    auto context = PrepareContextForQuery(session, DatabaseUser_, Config_->Timeout, Host_, "HealthCheckerQuery");
     auto blockIO = DB::executeQuery(query, context, {.internal=true}).second;
     NDetail::ValidateQueryResult(blockIO);
 }

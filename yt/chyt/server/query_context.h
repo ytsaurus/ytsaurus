@@ -27,6 +27,7 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <Interpreters/Context.h>
+#include <Interpreters/Session.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -48,6 +49,15 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TStorageContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::ContextMutablePtr PrepareContextForQuery(
+        std::shared_ptr<DB::Session> session,
+        const std::string& dataBaseUser,
+        TDuration timeout,
+        THost* host,
+        std::string traceContextRoot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
