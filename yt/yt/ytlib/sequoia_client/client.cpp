@@ -77,7 +77,10 @@ public:
         const NTableClient::TColumnFilter& columnFilter,
         NTransactionClient::TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Looking up (Table: %v, Keys: %v, Timestamp: %v)", table, keys, timestamp);
+        YT_LOG_DEBUG("Looking up (Table: %v, Keys: %v, Timestamp: %v)",
+            table,
+            MakeShrunkFormattableView(keys, TDefaultFormatter(), 20),
+            timestamp);
         XX(LookupRows, (table, keys, columnFilter, timestamp))
     }
 
