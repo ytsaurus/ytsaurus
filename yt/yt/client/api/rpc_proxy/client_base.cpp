@@ -830,6 +830,18 @@ TFuture<TDistributedWriteSessionWithCookies> TClientBase::StartDistributedWriteS
         }));
 }
 
+TFuture<void> TClientBase::PingDistributedWriteSession(
+    TSignedDistributedWriteSessionPtr session,
+    const TDistributedWriteSessionPingOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.PingDistributedWriteSession();
+
+    FillRequest(req.Get(), session, options);
+    return req->Invoke().AsVoid();
+}
+
 TFuture<void> TClientBase::FinishDistributedWriteSession(
     const TDistributedWriteSessionWithResults& sessionWithResults,
     const TDistributedWriteSessionFinishOptions& options)
