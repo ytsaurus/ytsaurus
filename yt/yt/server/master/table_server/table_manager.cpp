@@ -293,12 +293,11 @@ public:
     {
         auto originatingNodeSchemaRevision = originatingNode->GetSchemaRevision();
         auto branchedNodeSchemaRevision = branchedNode->GetSchemaRevision();
-        if (originatingNodeSchemaRevision == branchedNodeSchemaRevision) {
-            return;
-        }
-        auto newSchemaRevision = std::max<TRevision>(originatingNodeSchemaRevision, branchedNodeSchemaRevision);
         SetTableSchema(originatingNode, branchedNode->GetSchema());
-        originatingNode->SetSchemaRevision(newSchemaRevision);
+
+        if (originatingNodeSchemaRevision != branchedNodeSchemaRevision) {
+            originatingNode->SetSchemaRevision(branchedNodeSchemaRevision);
+        }
     }
 
     void SetTableSchema(TSchemafulNode* table, TMasterTableSchema* schema) override
