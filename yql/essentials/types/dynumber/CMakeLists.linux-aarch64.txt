@@ -27,5 +27,6 @@ target_link_libraries(essentials-types-dynumber PUBLIC
 target_sources(essentials-types-dynumber PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/types/dynumber/dynumber.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/types/dynumber/cast.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/types/dynumber/dynumber.h
 )
 
