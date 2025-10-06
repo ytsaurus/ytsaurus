@@ -1629,6 +1629,10 @@ class TestInferReadRange(ClickHouseTestBase):
                 {"value": "2, 0"},
                 {"value": "0, 1"},
             ]
+            assert_items_equal(
+                clique.make_query('select key from "//tmp/t"'),
+                [{"key": i} for i in range(chunks_count * rows_per_chunk)]
+            )
 
     @authors("buyval01")
     def test_supported_ranges(self):
