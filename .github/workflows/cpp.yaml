@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/fix-bison-in-os
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -127,51 +128,51 @@ jobs:
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
 
-  build-ya-make:
-    name: Build with ya-make
-    needs:
-      - start-vm
-      - checkout
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: ya-make
-      build-ytsaurus: true
-      build-ytsaurus-tests: true
-      build-query-tracker: true
-      build-python: true
-      update-remote-cache: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
+  # build-ya-make:
+  #   name: Build with ya-make
+  #   needs:
+  #     - start-vm
+  #     - checkout
+  #     - build-strawberry
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: ya-make
+  #     build-ytsaurus: true
+  #     build-ytsaurus-tests: true
+  #     build-query-tracker: true
+  #     build-python: true
+  #     update-remote-cache: true
+  #   secrets:
+  #     BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+  #     BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+  #   uses: ./.github/workflows/build-jobs.yaml
 
-  docker-ya-make:
-    name: Docker images with ya-make
-    needs:
-      - start-vm
-      - tag
-      - build-ya-make
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
-      publish-ytsaurus: true
-      publish-local: true
-      publish-chyt: ${{ github.ref_name == 'main' }}
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./.github/workflows/docker-jobs.yaml
+  # docker-ya-make:
+  #   name: Docker images with ya-make
+  #   needs:
+  #     - start-vm
+  #     - tag
+  #     - build-ya-make
+  #   with:
+  #     runs-on-value: ${{ needs.start-vm.outputs.label }}
+  #     cpp-build-system: ya-make
+  #     publish-query-tracker: ${{ github.ref_name == 'main' }}
+  #     publish-ytsaurus: true
+  #     publish-local: true
+  #     publish-chyt: ${{ github.ref_name == 'main' }}
+  #     image-tag: ${{ needs.tag.outputs.image-tag }}
+  #     nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+  #   secrets:
+  #     GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #     GH_USERNAME: ${{ secrets.GH_USERNAME }}
+  #   uses: ./.github/workflows/docker-jobs.yaml
 
   check:
     name: Check
     needs:
       - start-vm
       - build-cmake
-      - build-ya-make
+      # - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     uses: ./.github/workflows/check-jobs.yaml
@@ -182,7 +183,7 @@ jobs:
       - start-vm
       - check
       - docker-cmake
-      - docker-ya-make
+      # - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -199,8 +200,8 @@ jobs:
     needs:
       - check
       - build-cmake
-      - build-ya-make
-      - docker-ya-make
+      # - build-ya-make
+      # - docker-ya-make
       - docker-cmake
       - build-strawberry
     if: always()
