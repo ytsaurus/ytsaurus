@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from typing import Optional, Tuple, TypedDict, Union, Literal, Dict, List, Any
+from typing import get_type_hints, get_origin, get_args, Optional, Tuple, Type, TypedDict, Union, Literal, Dict, List, Any
 
 from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
@@ -266,7 +266,7 @@ class DefaultConfigType(TypedDict, total=False):
     table_writer: Dict[str, Any]
     user_job_spec_defaults: Dict[str, Any]
     detached: bool
-    prefix: Optional[Any]
+    prefix: Optional[str]
     transaction_timeout: int
     transaction_sleep_period: int
     transaction_use_signal_if_ping_failed: Optional[Any]
@@ -284,7 +284,7 @@ class DefaultConfigType(TypedDict, total=False):
     read_retries: DefaultConfigReadRetriesType
 
     class DefaultConfigWriteRetriesType(DefaultConfigRetriesType, total=False):
-        chunk_size: Optional[Any]
+        chunk_size: Optional[int]
         transaction_id: Optional[Any]
         rows_chunk_size: int
 
@@ -1229,21 +1229,31 @@ def _update_from_env_vars(
     config: VerifiedDict,
     shortcuts: Optional[dict] = None
 ):
-    def _get_var_type(value):
-        var_type = type(value)
+    def _get_var_type(config_value, type_hint_value):
+        var_type = type(config_value)
         # Using int we treat "0" as false, "1" as "true"
         if var_type == bool:
             try:
-                value = int(value)
+                config_value = int(config_value)
             except:  # noqa
                 pass
+
         # None type is treated as str
         if isinstance(None, var_type):
-            var_type = str
+            if type_hint_value:
+                if get_origin(type_hint_value) == Union:
+                    var_type = get_args(type_hint_value)[0]
+
+                if type_hint_value in (int, str, float, bool, list, dict, tuple):
+                    var_type = type_hint_value
+                else:
+                    var_type = str
+            else:
+                var_type = str
         elif var_type == dict or var_type == YsonMap:
             var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}  # noqa
-        elif isinstance(value, RemotePatchableValueBase):
-            var_type = type(value.value)
+        elif isinstance(config_value, RemotePatchableValueBase):
+            var_type = type(config_value.value)
 
         return var_type
 
@@ -1266,6 +1276,14 @@ def _update_from_env_vars(
             d = d.get(k)
         return d
 
+    def _get_type_hints(val):
+        if isinstance(val, Type):
+            return dict((k, _get_type_hints(v)) for k, v in get_type_hints(val).items())
+        else:
+            return val
+
+    config_type_hints = _get_type_hints(DefaultConfigType)
+
     if not shortcuts:
         shortcuts = SHORTCUTS
 
@@ -1282,7 +1300,7 @@ def _update_from_env_vars(
                     return yson.yson_to_json(yson.loads(value.encode()))
                 var_type = parse_proxy_aliases
             else:
-                var_type = _get_var_type(_get(config, name))
+                var_type = _get_var_type(_get(config, name), _get(config_type_hints, name))
             # NB: it is necessary to set boolean variable as 0 or 1.
             if var_type is bool:
                 value = int(value)
