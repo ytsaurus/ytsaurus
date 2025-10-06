@@ -369,8 +369,8 @@ public: \
     IMPLEMENT_METHOD(TGetQueryTrackerInfoResult, GetQueryTrackerInfo, (
         const TGetQueryTrackerInfoOptions& options = {}),
         (options))
-    IMPLEMENT_METHOD(TGetDeclaredParametersInfoResult, GetDeclaredParametersInfo, (
-        const TGetDeclaredParametersInfoOptions& options = {}),
+    IMPLEMENT_METHOD(TGetQueryDeclaredParametersInfoResult, GetQueryDeclaredParametersInfo, (
+        const TGetQueryDeclaredParametersInfoOptions& options = {}),
         (options))
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
