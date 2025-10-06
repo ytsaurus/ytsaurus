@@ -29,5 +29,6 @@ target_link_libraries(essentials-utils-fetch PUBLIC
 
 target_sources(essentials-utils-fetch PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/fetch/fetch.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/fetch/fetch.h
 )
 
