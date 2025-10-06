@@ -160,7 +160,7 @@ struct TSequoiaConnectionConfig
 {
     std::string GroundClusterName;
     TDuration GroundClusterConnectionUpdatePeriod;
-    NYTree::TYPath SequoiaRootPath;
+    bool EnableGroundReignValidation;
     TDuration SequoiaTransactionTimeout;
 
     REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);

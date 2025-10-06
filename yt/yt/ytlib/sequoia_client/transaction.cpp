@@ -595,7 +595,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        auto path = GetSequoiaTablePath(AuthenticatedLocalClient_, session->SequoiaTableDescriptor);
+        auto path = GetSequoiaTablePath(session->SequoiaTableDescriptor);
 
         const auto& tableMountCache = GroundClient_->GetTableMountCache();
         return tableMountCache->GetTableInfo(path)
