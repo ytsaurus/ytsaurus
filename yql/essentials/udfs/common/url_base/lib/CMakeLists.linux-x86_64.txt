@@ -42,5 +42,8 @@ target_sources(common-url_base-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/url_base/lib/url_base_udf.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/url_base/lib/url_parse.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/url_base/lib/url_query.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/url_base/lib/url_base_udf.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/url_base/lib/url_parse.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/url_base/lib/url_query.h
 )
 

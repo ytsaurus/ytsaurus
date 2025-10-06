@@ -31,5 +31,6 @@ target_link_libraries(common-ip_base-lib PUBLIC
 
 target_sources(common-ip_base-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/ip_base/lib/ip_base_udf.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/ip_base/lib/ip_base_udf.h
 )
 

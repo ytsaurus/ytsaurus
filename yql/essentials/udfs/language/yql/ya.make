@@ -8,6 +8,8 @@ YQL_ABI_VERSION(
     0
 )
 
+ENABLE(YQL_STYLE_CPP)
+
 SRCS(
     yql_language_udf.cpp
 )
