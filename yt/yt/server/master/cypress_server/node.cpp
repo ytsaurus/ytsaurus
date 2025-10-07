@@ -251,6 +251,15 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
 {
     TObject::CheckInvariants(bootstrap);
 
+    if (!IsTrunk() &&
+        IsForeign() &&
+        Transaction_ &&
+        IsCypressTransactionType(Transaction_->GetType()))
+    {
+        YT_LOG_ALERT("External node is branched by a non-externalized Cypress Transaction (NodeId: %v)",
+            GetVersionedId());
+    }
+
     // NB: Half-constructed nodes may be abandonded as zombies and violate these invariants.
     if (IsObjectAlive(this)) {
         if (IsSequoia() && IsNative()) {
@@ -258,6 +267,7 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
                 YT_LOG_ALERT("Sequoia node lacks mutable Sequoia properties (NodeId: %v)",
                     GetVersionedId());
             }
+
             if (MutableSequoiaProperties() &&
                !MutableSequoiaProperties()->BeingCreated &&
                !ImmutableSequoiaProperties())
@@ -270,6 +280,7 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
                 YT_LOG_ALERT("Non-sequoia node has mutable Sequoia properties (NodeId: %v)",
                     GetVersionedId());
             }
+
             // TODO(aleksandra-zh): links should not be a special case here
             if (ImmutableSequoiaProperties() && GetType() != EObjectType::Link) {
                 YT_LOG_ALERT("Non-sequoia node has mutable Sequoia properties (NodeId: %v)",
