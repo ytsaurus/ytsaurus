@@ -30,13 +30,13 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/coredumper/public.h>
 

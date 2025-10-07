@@ -142,7 +142,7 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>

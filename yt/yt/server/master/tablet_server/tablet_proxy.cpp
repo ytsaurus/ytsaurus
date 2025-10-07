@@ -19,13 +19,13 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
-#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
-
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_ypath_proxy.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
@@ -213,4 +213,3 @@ IObjectProxyPtr CreateTabletProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

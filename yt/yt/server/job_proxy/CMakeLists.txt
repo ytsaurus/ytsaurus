@@ -31,25 +31,26 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-getopt
-  cpp-yt-phdr_cache
-  cpp-yt-mlock
   ytserver
   server-lib-controller_agent
-  yt-library-containers
-  library-containers-cri
   server-lib-exec_node
   server-lib-rpc_proxy
   server-lib-shell
   server-lib-shuffle_server
   server-lib-user_job
   yt-server-tools
-  yt-library-sparse_coredump
-  library-query-row_comparer
+  yt-library-containers
+  library-containers-cri
+  yt-library-orchid
   library-profiling-solomon
-  library-tracing-jaeger
+  library-query-row_comparer
   yt-library-server_program
   yt-library-signals
+  yt-library-sparse_coredump
+  library-tracing-jaeger
+  cpp-yt-mlock
+  cpp-yt-phdr_cache
+  library-cpp-getopt
 )
 
 target_sources(yt-server-job_proxy PRIVATE

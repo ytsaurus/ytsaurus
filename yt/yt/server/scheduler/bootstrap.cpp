@@ -37,7 +37,7 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 

@@ -35,15 +35,16 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-getopt
-  cpp-yt-phdr_cache
-  yt-library-monitoring
-  yt-library-server_program
+  yt-server-master
   ytserver
   server-lib-cypress_election
-  server-lib-tablet_server
   server-lib-cypress_registrar
-  yt-server-master
+  server-lib-tablet_server
+  yt-library-monitoring
+  yt-library-orchid
+  yt-library-server_program
+  library-cpp-getopt
+  cpp-yt-phdr_cache
 )
 
 target_sources(yt-server-cell_balancer PRIVATE

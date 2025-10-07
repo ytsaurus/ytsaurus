@@ -38,6 +38,7 @@ PEERDIR(
 
     yt/yt/library/monitoring
     yt/yt/library/numeric
+    yt/yt/library/orchid
     yt/yt/library/server_program
 )
 

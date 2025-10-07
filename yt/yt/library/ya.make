@@ -14,38 +14,39 @@ RECURSE(
     disk_manager
     dns_over_rpc
     dynamic_config
-    fusion
-    gpu
-    undumpable
     erasure
     error_skeleton
     formats
     fusion
+    fusion
+    gpu
     heavy_hitters
     heavy_schema_validation
     huggingface_client
     min_hash_digest
     monitoring
     numeric
+    oom
+    orchid
     process
     profiling
     program
-    server_program
-    signals
-    stockpile
     quantile_digest
     query
     random
     re2
     safe_assert
+    server_program
+    signals
     skiff_ext
     sparse_coredump
+    stockpile
     syncmap
     tcmalloc
     tracing
+    undumpable
     vector_hdrf
     web_assembly
-    oom
     xor_filter
 )
 
@@ -54,7 +55,7 @@ IF (NOT OPENSOURCE)
         clickhouse_functions
         di
         named_value
-        ytprof
         s3
+        ytprof
     )
 ENDIF()

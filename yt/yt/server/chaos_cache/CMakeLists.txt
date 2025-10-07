@@ -35,6 +35,7 @@ target_link_libraries(yt-server-chaos_cache PUBLIC
   yutil
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-orchid
   yt-library-server_program
   yt-yt-ytlib
   server-lib-chaos_cache

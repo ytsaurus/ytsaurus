@@ -8,7 +8,7 @@
 
 #include <yt/yt/library/coredumper/public.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>

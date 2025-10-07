@@ -31,23 +31,24 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-client-driver
-  yt-yt-ytlib
-  yt-library-auth_server
-  yt-library-clickhouse_discovery
-  yt-library-dynamic_config
-  yt-library-ytprof
-  yt-library-containers
-  yt-library-server_program
-  library-profiling-solomon
-  library-tracing-jaeger
-  yt-library-monitoring
-  yt-core-https
   ytserver
   server-lib-chunk_pools
   server-lib-cypress_registrar
   server-lib-logging
   server-lib-signature
+  yt-yt-ytlib
+  yt-client-driver
+  yt-library-auth_server
+  yt-library-clickhouse_discovery
+  yt-library-containers
+  yt-library-dynamic_config
+  yt-library-monitoring
+  yt-library-orchid
+  library-profiling-solomon
+  yt-library-server_program
+  library-tracing-jaeger
+  yt-library-ytprof
+  yt-core-https
   library-cpp-cgiparam
   library-cpp-getopt
   cpp-streams-brotli

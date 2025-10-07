@@ -203,18 +203,19 @@ SRCS(
 PEERDIR(
     yt/yt/core/service_discovery/yp
 
-    yt/yt/library/query/engine
-    yt/yt/library/query/row_comparer
-    yt/yt/library/dns_over_rpc/server
-    yt/yt/library/re2
     yt/yt/library/containers
     yt/yt/library/containers/cri
+    yt/yt/library/dns_over_rpc/server
     yt/yt/library/gpu
-    yt/yt/library/tracing/jaeger
-    yt/yt/library/tracing/baggage_manager
-    yt/yt/library/tcmalloc
     yt/yt/library/monitoring
+    yt/yt/library/orchid
+    yt/yt/library/query/engine
+    yt/yt/library/query/row_comparer
+    yt/yt/library/re2
     yt/yt/library/server_program
+    yt/yt/library/tcmalloc
+    yt/yt/library/tracing/baggage_manager
+    yt/yt/library/tracing/jaeger
 
     yt/yt/ytlib/distributed_throttler
 
@@ -223,19 +224,19 @@ PEERDIR(
     yt/yt/server/tools
 
     yt/yt/server/lib
-    yt/yt/server/lib/io
     yt/yt/server/lib/cellar_agent
     yt/yt/server/lib/chaos_node
     yt/yt/server/lib/chunk_server
+    yt/yt/server/lib/distributed_chunk_session_server
     yt/yt/server/lib/exec_node
-    yt/yt/server/lib/tablet_server
     yt/yt/server/lib/hydra
     yt/yt/server/lib/hydra/dry_run
+    yt/yt/server/lib/io
     yt/yt/server/lib/lsm
     yt/yt/server/lib/misc
     yt/yt/server/lib/nbd
     yt/yt/server/lib/rpc
-    yt/yt/server/lib/distributed_chunk_session_server
+    yt/yt/server/lib/tablet_server
 
     # TODO(max42): Eliminate.
     yt/yt/server/lib/controller_agent

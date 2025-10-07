@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -16,4 +16,3 @@ NRpc::IServicePtr CreateOrchidService(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrchid
-

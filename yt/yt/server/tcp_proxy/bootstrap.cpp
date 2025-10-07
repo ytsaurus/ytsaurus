@@ -16,7 +16,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
 

@@ -61,7 +61,6 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -81,6 +80,8 @@
 #include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/client/chunk_client/helpers.h>
+
+#include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>

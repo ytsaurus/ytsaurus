@@ -19,7 +19,9 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/library/orchid/orchid_service.h>
+
+#include <yt/yt/library/signals/signal_registry.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -34,8 +36,6 @@
 #include <yt/yt/core/rpc/bus/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
-
-#include <yt/yt/library/signals/signal_registry.h>
 
 #include <contrib/clickhouse/src/Common/Exception.h>
 

@@ -1,8 +1,7 @@
 #include "orchid_ypath_service.h"
 
 #include "private.h"
-
-#include <yt/yt/ytlib/orchid/orchid_service_proxy.h>
+#include "orchid_service_proxy.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
