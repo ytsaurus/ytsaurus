@@ -1820,7 +1820,7 @@ private:
                         outTable.RowSpec->SortDirections.emplace_back(!FromString<bool>(node.Value().Cast<TCoAtom>().Value()));
                         if (!(useNativeDescSort || outTable.RowSpec->SortDirections.back())) {
                             ctx.AddError(TIssue(ctx.GetPosition(node.Value().Cast().Pos()), TStringBuilder() <<
-                                "Descending order for the `" << node.Name().Value() << "` column is only supported when YT's naive descending sort is enabled."));
+                                "Descending order for the `" << node.Name().Value() << "` column is only supported when YT's native descending sort is enabled."));
                             return TStatus::Error;
                         }
                         outTable.RowSpec->SortedByTypes.emplace_back(rowType->FindItemType(node.Name().Value()));
