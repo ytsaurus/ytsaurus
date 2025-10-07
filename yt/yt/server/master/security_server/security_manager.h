@@ -146,7 +146,7 @@ public:
     virtual void UpdateChunkSchemaMasterMemoryUsage(
         const NChunkServer::TChunk* chunk,
         const NChunkServer::TChunkRequisition& requisition,
-        i64 delta)  = 0;
+        i64 delta) = 0;
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     virtual void UpdateResourceUsage(

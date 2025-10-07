@@ -564,6 +564,7 @@ private:
             ObjectClientLogger(),
             /*profiler*/ {},
             /*authenticator*/ nullptr);
+        //! NB: Don't check for duplicates on emplace to prevent "race" between planned update of master cell directory and scheduled out of band.
         CachingObjectServices_.emplace(cellTag, cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
         CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);

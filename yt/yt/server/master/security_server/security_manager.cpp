@@ -4754,7 +4754,6 @@ DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, UserMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, GroupMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, NetworkProjectMap_);
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TAccountTypeHandler::TAccountTypeHandler(TSecurityManager* owner)
