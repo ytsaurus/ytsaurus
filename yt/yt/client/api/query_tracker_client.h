@@ -184,7 +184,7 @@ struct TGetQueryTrackerInfoResult
     std::optional<NYson::TYsonString> EnginesInfo;
 };
 
-struct TGetDeclaredParametersInfoOptions
+struct TGetQueryDeclaredParametersInfoOptions
     : public TTimeoutOptions
     , public TQueryTrackerOptions
 {
@@ -193,7 +193,7 @@ struct TGetDeclaredParametersInfoOptions
     NQueryTrackerClient::EQueryEngine Engine;
 };
 
-struct TGetDeclaredParametersInfoResult
+struct TGetQueryDeclaredParametersInfoResult
 {
     NYson::TYsonString Parameters;
 };
@@ -235,7 +235,7 @@ struct IQueryTrackerClient
 
     virtual TFuture<TGetQueryTrackerInfoResult> GetQueryTrackerInfo(const TGetQueryTrackerInfoOptions& options = {}) = 0;
 
-    virtual TFuture<TGetDeclaredParametersInfoResult> GetDeclaredParametersInfo(const TGetDeclaredParametersInfoOptions& options = {}) = 0;
+    virtual TFuture<TGetQueryDeclaredParametersInfoResult> GetQueryDeclaredParametersInfo(const TGetQueryDeclaredParametersInfoOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

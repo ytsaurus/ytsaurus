@@ -819,8 +819,8 @@ public:
         const TGetQueryTrackerInfoOptions& options),
         (options))
 
-    DELEGATE_METHOD(TFuture<TGetDeclaredParametersInfoResult>, GetDeclaredParametersInfo, (
-        const TGetDeclaredParametersInfoOptions& options),
+    DELEGATE_METHOD(TFuture<TGetQueryDeclaredParametersInfoResult>, GetQueryDeclaredParametersInfo, (
+        const TGetQueryDeclaredParametersInfoOptions& options),
         (options))
 
     // Bundle Controller
