@@ -689,7 +689,30 @@ private:
             Config_->CompactionBackoffTime;
     }
 
-    static bool IsStoreCompactionForced(const TStore* store)
+    bool IsStoreGradualCompactionNeeded(const TStore* store, const TGradualCompactionConfig& config) const
+    {
+        if (CurrentTime_ < config.StartTime || config.StartTime <= store->GetCreationTime()) {
+            return false;
+        }
+
+        if (CurrentTime_ > config.StartTime + config.Duration) {
+            YT_LOG_DEBUG_IF(store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging,
+                "Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
+                store->GetTablet()->GetLoggingTag(),
+                store->GetId(),
+                config.StartTime,
+                config.Duration,
+                CurrentTime_);
+
+            return true;
+        }
+
+        double hash = ComputeHash(store->GetId());
+
+        return config.StartTime + config.Duration * (hash / std::numeric_limits<size_t>::max()) <= CurrentTime_;
+    }
+
+    static bool IsStoreCompactionForcedByRevision(const TStore* store)
     {
         auto mountConfig = store->GetTablet()->GetMountConfig();
         auto forcedCompactionRevision = std::max(
@@ -705,30 +728,15 @@ private:
         return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 
-    static bool IsStoreGlobalCompactionNeeded(const TStore* store)
+    bool IsStoreCompactionForced(const TStore* store) const
     {
-        const auto& globalConfig = store->GetTablet()->GetMountConfig()->GlobalCompaction;
+        return IsStoreGradualCompactionNeeded(store, store->GetTablet()->GetMountConfig()->ForcedCompaction) ||
+            IsStoreCompactionForcedByRevision(store);
+    }
 
-        auto now = TInstant::Now();
-
-        if (now < globalConfig.StartTime || globalConfig.StartTime <= store->GetCreationTime()) {
-            return false;
-        }
-
-        if (now > globalConfig.StartTime + globalConfig.Duration) {
-            YT_LOG_DEBUG("Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
-                store->GetTablet()->GetLoggingTag(),
-                store->GetId(),
-                globalConfig.StartTime,
-                globalConfig.Duration,
-                now);
-
-            return true;
-        }
-
-        double hash = ComputeHash(store->GetId());
-
-        return globalConfig.StartTime + globalConfig.Duration * (hash / std::numeric_limits<size_t>::max()) <= now;
+    bool IsStoreGlobalCompactionNeeded(const TStore* store) const
+    {
+        return IsStoreGradualCompactionNeeded(store, store->GetTablet()->GetMountConfig()->GlobalCompaction);
     }
 
     bool IsStorePeriodicCompactionNeeded(const TStore* store) const
