@@ -20,6 +20,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/library/clickhouse_discovery
     yt/yt/library/clickhouse_functions
+    yt/yt/library/orchid
     yt/yt/library/monitoring
     yt/yt/library/tracing/jaeger
     yt/yt/library/profiling/perf

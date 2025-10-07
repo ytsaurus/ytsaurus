@@ -25,9 +25,9 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 

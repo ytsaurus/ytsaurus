@@ -32,6 +32,7 @@ PEERDIR(
     library/cpp/yt/mlock
 
     yt/yt/library/dynamic_config
+    yt/yt/library/orchid
     yt/yt/library/server_program
     yt/yt/library/profiling/perf
 

@@ -1,11 +1,11 @@
 #include "helpers.h"
 
-#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
-
 #include <yt/yt/client/queue_client/public.h>
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/helpers.h>
+
+#include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/core/ypath/token.h>
 

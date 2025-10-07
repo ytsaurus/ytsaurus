@@ -22,25 +22,26 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/yt/phdr_cache
-
-    library/cpp/getopt
-
-    yt/yt/library/dynamic_config
-    yt/yt/library/monitoring
-    yt/yt/library/program
-    yt/yt/library/server_program
-
-    yt/yt/client
-    yt/yt/client/federated
-
-    yt/yt/ytlib
-
     yt/yt/server/lib/admin
     yt/yt/server/lib/alert_manager
     yt/yt/server/lib/cypress_election
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/misc
+
+    yt/yt/ytlib
+
+    yt/yt/client
+    yt/yt/client/federated
+
+    yt/yt/library/dynamic_config
+    yt/yt/library/monitoring
+    yt/yt/library/orchid
+    yt/yt/library/program
+    yt/yt/library/server_program
+
+    library/cpp/yt/phdr_cache
+
+    library/cpp/getopt
 )
 
 END()

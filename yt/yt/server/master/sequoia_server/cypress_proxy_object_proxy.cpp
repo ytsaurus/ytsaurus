@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
+#include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/core/rpc/retrying_channel.h>
 

@@ -37,9 +37,10 @@ PEERDIR(
     library/cpp/yt/phdr_cache
 
     yt/yt/library/monitoring
-    yt/yt/library/ytprof
-    yt/yt/library/server_program
+    yt/yt/library/orchid
     yt/yt/library/profiling/solomon
+    yt/yt/library/server_program
+    yt/yt/library/ytprof
 
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools

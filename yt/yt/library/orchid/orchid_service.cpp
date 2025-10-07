@@ -1,8 +1,9 @@
+#include "orchid_service_proxy.h"
 #include "orchid_service.h"
 #include "private.h"
-#include "orchid_service_proxy.h"
 
 #include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -94,4 +95,3 @@ IServicePtr CreateOrchidService(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrchid
-
