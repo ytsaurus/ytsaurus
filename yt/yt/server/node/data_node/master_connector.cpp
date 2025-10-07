@@ -1411,7 +1411,8 @@ private:
         statistics->set_max_write_sessions(Bootstrap_->GetConfig()->DataNode->MaxWriteSessions);
     }
 
-    bool SkipLocationInHeartbeat(const TChunkLocationPtr& location) const {
+    bool SkipLocationInHeartbeat(const TChunkLocationPtr& location) const
+    {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
@@ -1429,7 +1430,6 @@ private:
         }
 
         auto mediumIndex = location->GetMediumDescriptor().Index;
-
         return mediumIndex == GenericMediumIndex;
     }
 

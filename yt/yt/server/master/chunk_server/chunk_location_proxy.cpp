@@ -45,7 +45,7 @@ private:
         }
         if (location->GetState() == EChunkLocationState::Online ||
             location->GetState() == EChunkLocationState::Registered) {
-            THROW_ERROR_EXCEPTION("Location is %v", location->GetState());
+            THROW_ERROR_EXCEPTION("Location is in %Qlv state", location->GetState());
         }
     }
 
