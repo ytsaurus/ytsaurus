@@ -263,6 +263,9 @@ protected:
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
+            if (joblet->CookieGroupInfo.OutputIndex > 0 && jobSpec->HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+                jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->mutable_user_job_spec()->set_is_secondary_distributed(true);
+            }
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
