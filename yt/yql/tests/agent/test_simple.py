@@ -1746,7 +1746,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
                 value Date,
                 order by(key asc, subkey desc)
             );
-        """, "is only supported when YT's naive descending sort is enabled")
+        """, "is only supported when YT's native descending sort is enabled")
         self._test_simple_query("""
             pragma yt.UseNativeDescSort;
             create table `//tmp/t6` (
