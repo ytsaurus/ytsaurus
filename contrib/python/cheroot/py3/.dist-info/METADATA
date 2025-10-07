@@ -1,11 +1,9 @@
 Metadata-Version: 2.1
 Name: cheroot
-Version: 10.0.1
+Version: 11.0.0
 Summary: Highly-optimized, pure-python HTTP server
-Home-page: https://cheroot.cherrypy.dev
-Author: CherryPy Team
-Author-email: team@cherrypy.dev
-License: UNKNOWN
+Author-email: CherryPy Team <team@cherrypy.dev>
+Project-URL: Homepage, https://cheroot.cherrypy.dev
 Project-URL: Chat: Matrix, https://matrix.to/#/#cherrypy-space:matrix.org
 Project-URL: CI: GitHub, https://github.com/cherrypy/cheroot/actions
 Project-URL: Docs: RTD, https://cheroot.cherrypy.dev
@@ -13,7 +11,6 @@ Project-URL: GitHub: issues, https://github.com/cherrypy/cheroot/issues
 Project-URL: GitHub: repo, https://github.com/cherrypy/cheroot
 Project-URL: Tidelift: funding, https://tidelift.com/subscription/pkg/pypi-cheroot?utm_source=pypi-cheroot&utm_medium=referral&utm_campaign=pypi
 Keywords: http,server,ssl,wsgi
-Platform: UNKNOWN
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Environment :: Web Environment
 Classifier: Intended Audience :: Developers
@@ -23,12 +20,12 @@ Classifier: License :: OSI Approved :: BSD License
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.6
-Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: Implementation
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: Jython
@@ -38,12 +35,11 @@ Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
 Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
 Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Server
 Classifier: Typing :: Typed
-Requires-Python: >=3.6
+Requires-Python: >=3.8
 Description-Content-Type: text/x-rst
 License-File: LICENSE.md
 Requires-Dist: more-itertools (>=2.6)
 Requires-Dist: jaraco.functools
-Requires-Dist: importlib-metadata ; python_version < "3.8"
 Provides-Extra: docs
 Requires-Dist: sphinx (>=1.8.2) ; extra == 'docs'
 Requires-Dist: jaraco.packaging (>=3.2) ; extra == 'docs'
@@ -95,7 +91,7 @@ Requires-Dist: sphinxcontrib-apidoc (>=0.3.0) ; extra == 'docs'
    :target: https://gitter.im/cherrypy/cherrypy
 
 .. image:: https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square
-   :target: http://makeapullrequest.com/
+   :target: https://web.archive.org/web/20250306034535/https://makeapullrequest.com/
 
 .. image:: https://app.fossa.io/api/projects/git%2Bgithub.com%2Fcherrypy%2Fcheroot.svg?type=shield
    :target: https://app.fossa.io/projects/git%2Bgithub.com%2Fcherrypy%2Fcheroot?ref=badge_shield
@@ -155,5 +151,3 @@ License
 .. image:: https://app.fossa.io/api/projects/git%2Bgithub.com%2Fcherrypy%2Fcheroot.svg?type=large
    :target: https://app.fossa.io/projects/git%2Bgithub.com%2Fcherrypy%2Fcheroot?ref=badge_large
    :alt: FOSSA Status
-
-

@@ -1,9 +1,9 @@
 """Implementation of the SSL adapter base interface."""
 
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 
 
-class Adapter(metaclass=ABCMeta):
+class Adapter(ABC):
     """Base class for SSL driver library adapters.
 
     Required methods:
@@ -15,8 +15,11 @@ class Adapter(metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(
-            self, certificate, private_key, certificate_chain=None,
-            ciphers=None,
+        self,
+        certificate,
+        private_key,
+        certificate_chain=None,
+        ciphers=None,
     ):
         """Set up certificates, private key ciphers and reset context."""
         self.certificate = certificate

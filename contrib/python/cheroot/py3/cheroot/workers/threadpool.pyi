@@ -25,7 +25,14 @@ class ThreadPool:
     min: Any
     max: Any
     get: Any
-    def __init__(self, server, min: int = ..., max: int = ..., accepted_queue_size: int = ..., accepted_queue_timeout: int = ...) -> None: ...
+    def __init__(
+        self,
+        server,
+        min: int = ...,
+        max: int = ...,
+        accepted_queue_size: int = ...,
+        accepted_queue_timeout: int = ...,
+    ) -> None: ...
     def start(self) -> None: ...
     @property
     def idle(self): ...
