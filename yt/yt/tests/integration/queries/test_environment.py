@@ -613,3 +613,28 @@ class TestMigration(YTEnvSetup):
         assert len(rows_after_migration[0]) == 17
         assert "is_indexed" in rows_after_migration[0]
         assert str(rows_after_migration[0]["is_indexed"]) == "true"
+
+    @authors("mpereskokova")
+    @pytest.mark.timeout(180)
+    def test_is_tutorial_flag_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 19)
+
+        insert_rows("//sys/query_tracker/active_queries", [{"query_id": "test_query_id"}])
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "test_query_id"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_start_time", [{"query_id": "test_query_id", "minus_start_time": 0}])
+        insert_rows("//sys/query_tracker/finished_queries_by_user_and_start_time", [{"user": "user", "query_id": "test_query_id", "minus_start_time": 0}])
+        insert_rows("//sys/query_tracker/finished_queries_by_aco_and_start_time", [{"access_control_object": "aco", "query_id": "test_query_id", "minus_start_time": 0}])
+
+        run_migration(client, 20)
+        for table in ["active_queries", "finished_queries", "finished_queries_by_start_time"]:
+            assert exists(f"//sys/query_tracker/{table}")
+            rows_after_migration = list(select_rows(f"* from [//sys/query_tracker/{table}]"))
+            assert len(rows_after_migration) == 1
+            assert "is_tutorial" in rows_after_migration[0]
+            assert str(rows_after_migration[0]["is_tutorial"]) == "false"

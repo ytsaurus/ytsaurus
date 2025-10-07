@@ -1824,26 +1824,57 @@ FINISHED_QUERIES_TABLE_BY_START_TIME_V20 = TableInfo(
     },
 )
 
+
+def tutorial_mapper(row):
+    row["is_tutorial"] = False
+    yield row
+
+
 TRANSFORMS[20] = [
     Conversion(
         "finished_queries",
+        source="finished_queries",
         table_info=FINISHED_QUERIES_V20,
+        operation="map",
+        operation_args={
+            "binary": tutorial_mapper,
+        }
     ),
     Conversion(
         "active_queries",
+        source="active_queries",
         table_info=ACTIVE_QUERIES_V20,
+        operation="map",
+        operation_args={
+            "binary": tutorial_mapper,
+        }
     ),
     Conversion(
         "finished_queries_by_aco_and_start_time",
+        source="finished_queries_by_aco_and_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_ACO_AND_START_TIME_V20,
+        operation="map",
+        operation_args={
+            "binary": tutorial_mapper,
+        }
     ),
     Conversion(
         "finished_queries_by_user_and_start_time",
+        source="finished_queries_by_user_and_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_USER_AND_START_TIME_V20,
+        operation="map",
+        operation_args={
+            "binary": tutorial_mapper,
+        }
     ),
     Conversion(
         "finished_queries_by_start_time",
+        source="finished_queries_by_start_time",
         table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V20,
+        operation="map",
+        operation_args={
+            "binary": tutorial_mapper,
+        }
     ),
 ]
 
