@@ -376,7 +376,9 @@ private:
 
         // NB: Sequoia replicas always use TAllyReplicasInfo::SequoiaRevision;
         // in case of a tie, consider these to be fresh replicas.
-        if (FreshSeedsRevision_ > seedReplicas.Revision) {
+        if (FreshSeedsRevision_ >= seedReplicas.Revision &&
+            seedReplicas.Revision != TAllyReplicasInfo::SequoiaRevision)
+        {
             return;
         }
 
