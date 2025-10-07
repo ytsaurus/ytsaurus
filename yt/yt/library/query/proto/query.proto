@@ -309,6 +309,7 @@ message TQueryOptions
     optional bool use_order_by_in_join_subqueries = 26; // COMPAT(sabdenovch)
     optional int32 statistics_aggregation = 27; // EStatisticsAggregation
     optional int32 read_from = 28; // NHydra::EPeerKind
+    optional int32 optimization_level = 29; // EOptimizationLevel
 }
 
 message TFeatureFlags

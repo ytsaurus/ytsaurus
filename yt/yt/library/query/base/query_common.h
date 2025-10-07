@@ -167,6 +167,7 @@ struct TQueryBaseOptions
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 
     NCodegen::EExecutionBackend ExecutionBackend = NCodegen::EExecutionBackend::Native;
+    NCodegen::EOptimizationLevel OptimizationLevel = NCodegen::EOptimizationLevel::Default;
 
     bool EnableCodeCache = true;
     bool UseCanonicalNullRelations = false;

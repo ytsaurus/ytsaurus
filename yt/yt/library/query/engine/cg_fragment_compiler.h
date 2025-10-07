@@ -345,7 +345,8 @@ void MakeCodegenWriteOp(
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotIndex,
-    NCodegen::EExecutionBackend executionBackend);
+    NCodegen::EExecutionBackend executionBackend,
+    NCodegen::EOptimizationLevel optimizationLevel);
 
 TCGExpressionImage CodegenStandaloneExpression(
     const TCodegenFragmentInfosPtr& fragmentInfos,

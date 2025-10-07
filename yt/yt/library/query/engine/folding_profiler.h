@@ -38,6 +38,7 @@ TCGQueryGenerator Profile(
     const std::vector<IJoinProfilerPtr>& joinProfilers,
     bool useCanonicalNullRelations = false,
     NCodegen::EExecutionBackend executionBackend = NCodegen::EExecutionBackend::Native,
+    NCodegen::EOptimizationLevel optimizationLevel = NCodegen::EOptimizationLevel::Default,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
     const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get(),
     bool allowUnorderedGroupByWithLimit = true,
