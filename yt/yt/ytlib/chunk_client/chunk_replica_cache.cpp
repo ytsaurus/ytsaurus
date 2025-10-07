@@ -419,7 +419,9 @@ public:
 
             // NB: Sequoia replicas always use TAllyReplicasInfo::SequoiaRevision;
             // in case of a tie, consider these to be fresh replicas.
-            if (oldRevision > replicas.Revision) {
+            if (oldRevision >= replicas.Revision &&
+                replicas.Revision != TAllyReplicasInfo::SequoiaRevision)
+            {
                 return;
             }
 
