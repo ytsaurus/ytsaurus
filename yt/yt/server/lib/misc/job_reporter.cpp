@@ -102,6 +102,8 @@ public:
             Report_.ProbingJobCompetitionId(),
             Report_.ExecAttributes(),
             Report_.JobCookie(),
+            Report_.JobCookieGroupIndex(),
+            Report_.MainJobId(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
@@ -218,6 +220,16 @@ public:
         // COMPAT(bystrovserg)
         if (archiveVersion >= 60) {
             record.GangRank = Report_.GangRank();
+        }
+
+        // COMPAT(faucct)
+        if (archiveVersion >= 62) {
+            record.JobCookieGroupIndex = Report_.JobCookieGroupIndex();
+            if (Report_.MainJobId()) {
+                auto mainJobId = Report_.MainJobId().Underlying();
+                record.MainJobIdHi = mainJobId.Parts64[0];
+                record.MainJobIdLo = mainJobId.Parts64[1];
+            }
         }
 
         return FromRecord(record);
