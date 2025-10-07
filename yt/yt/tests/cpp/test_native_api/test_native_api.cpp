@@ -43,6 +43,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -1757,6 +1758,8 @@ struct TSignatureComponentsTest
     TSignatureGenerationConfigPtr GenerationConfig = New<TSignatureGenerationConfig>();
     TSignatureValidationConfigPtr ValidationConfig = New<TSignatureValidationConfig>();
     TSignatureComponentsConfigPtr Config = New<TSignatureComponentsConfig>();
+    TActionQueuePtr ActionQueue = New<TActionQueue>();
+    IInvokerPtr RotateInvoker = ActionQueue->GetInvoker();
     TSignatureComponentsPtr Components;
     const TOwnerId OwnerId = TOwnerId("test");
 
@@ -1773,7 +1776,7 @@ struct TSignatureComponentsTest
 
 TEST_F(TSignatureComponentsTest, EmptyInit)
 {
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto startRotationFuture = Components->StartRotation();
     auto stopRotationFuture = Components->StopRotation();
     EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.Get().IsOK());
@@ -1790,7 +1793,7 @@ TEST_F(TSignatureComponentsTest, EmptyInit)
 TEST_F(TSignatureComponentsTest, Generation)
 {
     Config->Generation = GenerationConfig;
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
 
     WaitFor(Components->StartRotation())
         .ThrowOnError();
@@ -1807,7 +1810,7 @@ TEST_F(TSignatureComponentsTest, Generation)
 TEST_F(TSignatureComponentsTest, Validation)
 {
     Config->Validation = ValidationConfig;
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
 
     auto validator = Components->GetSignatureValidator();
     auto signature = New<TSignature>();
@@ -1821,7 +1824,7 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
     Config->Generation = GenerationConfig;
     Config->Generation->KeyRotator->KeyRotationOptions.Period = TDuration::MilliSeconds(200);
     Config->Validation = ValidationConfig;
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
 
     WaitFor(Components->StartRotation())
         .ThrowOnError();
@@ -1851,7 +1854,7 @@ TEST_F(TSignatureComponentsTest, DontCrashOnCypressFailure)
 TEST_F(TSignatureComponentsTest, ReconfigureEnableGeneration)
 {
     // Start with empty config.
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto generator = Components->GetSignatureGenerator();
 
     EXPECT_THROW_WITH_SUBSTRING(YT_UNUSED_FUTURE(generator->Sign("test")), "unsupported");
@@ -1872,7 +1875,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureEnableGeneration)
 TEST_F(TSignatureComponentsTest, ReconfigureDisableGeneration)
 {
     Config->Generation = GenerationConfig;
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto generator = Components->GetSignatureGenerator();
 
     WaitFor(Components->StartRotation())
@@ -1893,7 +1896,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureDisableGeneration)
 TEST_F(TSignatureComponentsTest, ReconfigureEnableValidation)
 {
     // Start with an empty config.
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto validator = Components->GetSignatureValidator();
 
     auto signature = New<TSignature>();
@@ -1911,7 +1914,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureEnableValidation)
 TEST_F(TSignatureComponentsTest, ReconfigureDisableValidation)
 {
     Config->Validation = ValidationConfig;
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto validator = Components->GetSignatureValidator();
 
     auto signature = New<TSignature>();
@@ -1929,7 +1932,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureDisableValidation)
 TEST_F(TSignatureComponentsTest, ReconfigureEnableBoth)
 {
     // Start with empty config.
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto generator = Components->GetSignatureGenerator();
     auto validator = Components->GetSignatureValidator();
 
@@ -1948,7 +1951,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureEnableBoth)
 
 TEST_F(TSignatureComponentsTest, ReconfigureMultipleTimes)
 {
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto generator = Components->GetSignatureGenerator();
     auto validator = Components->GetSignatureValidator();
 
@@ -1986,7 +1989,7 @@ TEST_F(TSignatureComponentsTest, ReconfigureWhileRotating)
     // Start with fast rotation.
     GenerationConfig->KeyRotator->KeyRotationOptions.Period= TDuration::MilliSeconds(10);
     Config->Generation = GenerationConfig;
-    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, GetCurrentInvoker());
+    Components = New<TSignatureComponents>(Config, OwnerId, NativeClient, RotateInvoker);
     auto generator = Components->GetSignatureGenerator();
 
     WaitFor(Components->StartRotation())
