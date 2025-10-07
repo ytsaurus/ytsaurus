@@ -1,36 +1,31 @@
 #include <yt/yt/library/query/misc/udf_c_abi.h>
-#include <string.h>
+
+void FirstInit(
+    TExpressionContext* context,
+    TUnversionedValue* result);
+
+void FirstUpdate(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* newValue);
+
+void FirstMerge(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* dstState,
+    TUnversionedValue* state);
+
+void FirstFinalize(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state);
 
 void first_init(
     TExpressionContext* context,
     TUnversionedValue* result)
 {
-    (void)context;
-
-    result->Type = VT_Null;
-}
-
-static void first_iteration(
-    TExpressionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* state,
-    TUnversionedValue* newValue)
-{
-    if (state->Type == VT_Null) {
-        result->Type = newValue->Type;
-        if (newValue->Type == VT_String || newValue->Type == VT_Any || newValue->Type == VT_Composite) {
-            char* permanentData = AllocateBytes(context, newValue->Length);
-            memcpy(permanentData, newValue->Data.String, newValue->Length);
-            result->Length = newValue->Length;
-            result->Data.String = permanentData;
-        } else {
-            result->Data = newValue->Data;
-        }
-    } else {
-        result->Type = state->Type;
-        result->Length = state->Length;
-        result->Data = state->Data;
-    }
+    FirstInit(context, result);
 }
 
 void first_update(
@@ -39,7 +34,7 @@ void first_update(
     TUnversionedValue* state,
     TUnversionedValue* newValue)
 {
-    first_iteration(context, result, state, newValue);
+    FirstUpdate(context, result, state, newValue);
 }
 
 void first_merge(
@@ -48,7 +43,7 @@ void first_merge(
     TUnversionedValue* dstState,
     TUnversionedValue* state)
 {
-    first_iteration(context, result, dstState, state);
+    FirstMerge(context, result, dstState, state);
 }
 
 void first_finalize(
@@ -56,9 +51,5 @@ void first_finalize(
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
-    (void)context;
-
-    result->Type = state->Type;
-    result->Length = state->Length;
-    result->Data = state->Data;
+    FirstFinalize(context, result, state);
 }
