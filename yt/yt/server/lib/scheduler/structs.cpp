@@ -216,6 +216,14 @@ const TJobResources& TCompositeNeededResources::GetNeededResourcesForTree(const 
         : DefaultResources;
 }
 
+void TCompositeNeededResources::VerifyNonNegative() const
+{
+    YT_VERIFY(Dominates(DefaultResources, TJobResources()));
+    for (const auto& [_, resources] : ResourcesByPoolTreeId) {
+        YT_VERIFY(Dominates(resources, TJobResources()));
+    }
+}
+
 void TCompositeNeededResources::Persist(const TStreamPersistenceContext &context)
 {
     using NYT::Persist;
