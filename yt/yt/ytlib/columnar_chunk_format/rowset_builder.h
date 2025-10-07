@@ -27,6 +27,11 @@ struct TValueSchema
     ui16 Id;
     EValueType Type;
     bool Aggregate = false;
+
+    // It is allowed to alter value columns with primitive types to any.
+    // In this case, the expected read schema would be EValueType::Any,
+    // but the chunk schema can still hold primitive types.
+    bool ConvertToAny;
 };
 
 struct IRowsetBuilder

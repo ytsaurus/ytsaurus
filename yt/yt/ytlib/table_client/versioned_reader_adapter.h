@@ -28,4 +28,12 @@ IVersionedReaderPtr CreateTimestampResettingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IVersionedReaderPtr MaybeWrapWithAnyEncodingAdapter(
+    IVersionedReaderPtr underlyingReader,
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema,
+    const std::vector<TColumnIdMapping>& schemaIdMapping);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

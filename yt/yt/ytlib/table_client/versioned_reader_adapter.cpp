@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include "yt/yt/ytlib/table_client/helpers.h"
+
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NTableClient {
@@ -303,6 +305,76 @@ IVersionedReaderPtr CreateTimestampResettingAdapter(
         std::move(underlyingReader),
         timestamp,
         IsTableChunkFormatVersioned(chunkFormat));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TAnyEncodingReaderAdapter)
+
+class TAnyEncodingReaderAdapter
+    : public TVersionedReaderAdapterBase<TVersionedRow, IVersionedReaderPtr>
+{
+public:
+    TAnyEncodingReaderAdapter(
+        IVersionedReaderPtr underlyingReader,
+        TTableSchemaPtr schema)
+        : TVersionedReaderAdapterBase(std::move(underlyingReader))
+        , TargetSchema_(std::move(schema))
+    { }
+
+    TFuture<void> Open() override
+    {
+        return UnderlyingReader_->Open();
+    }
+
+private:
+    const TTableSchemaPtr TargetSchema_;
+
+    TVersionedRow MakeVersionedRow(TVersionedRow row) override
+    {
+        if (!row) {
+            return TVersionedRow();
+        }
+
+        auto result = TMutableVersionedRow::Allocate(&MemoryPool_, row.GetKeyCount(), row.GetValueCount(), row.GetWriteTimestampCount(), row.GetDeleteTimestampCount());
+
+        ::memcpy(result.BeginKeys(), row.BeginKeys(), sizeof(TUnversionedValue) * row.GetKeyCount());
+        ::memcpy(result.BeginValues(), row.BeginValues(), sizeof(TVersionedValue) * row.GetValueCount());
+        ::memcpy(result.BeginWriteTimestamps(), row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
+        ::memcpy(result.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
+
+        for (auto& value : result.Values()) {
+            auto initialAggregateFlags = value.Flags & EValueFlags::Aggregate;
+            value.Flags &= ~EValueFlags::Aggregate;
+            EnsureAnyValueEncoded(&value, *TargetSchema_, &MemoryPool_, true);
+            value.Flags |= initialAggregateFlags;
+        }
+
+        return result;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAnyEncodingReaderAdapter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedReaderPtr MaybeWrapWithAnyEncodingAdapter(
+    IVersionedReaderPtr underlyingReader,
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema,
+    const std::vector<TColumnIdMapping>& schemaIdMapping)
+{
+    for (const auto& idMapping : schemaIdMapping) {
+        auto tableType = tableSchema->Columns()[idMapping.ReaderSchemaIndex].GetWireType();
+        auto chunkType = chunkSchema->Columns()[idMapping.ChunkSchemaIndex].GetWireType();
+        if ((tableType == EValueType::Any) && (chunkType != EValueType::Any)) {
+            return New<TAnyEncodingReaderAdapter>(
+                std::move(underlyingReader),
+                tableSchema);
+        }
+    }
+
+    return underlyingReader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

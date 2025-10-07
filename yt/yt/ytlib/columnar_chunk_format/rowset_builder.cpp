@@ -343,24 +343,30 @@ public:
 template <class TReadItem>
 class TValueColumnBase;
 
-template <class TReadItem, EValueType Type, bool Aggregate, bool ProduceAll>
+template <class TReadItem, EValueType Type, bool Aggregate, bool ProduceAll, bool ConvertToAny>
 class TVersionedValueColumn;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType Type, bool Aggregate>
+template <EValueType Type, bool Aggregate, bool ConvertToAny>
 class TVersionedValueReader
     : public TScanVersionExtractor<Aggregate>
-    , public TScanDataExtractor<Type>
+    , public TMaybeWrapScanDataExtractor<Type, ConvertToAny>
 {
+    using TDataExtractor = TMaybeWrapScanDataExtractor<Type, ConvertToAny>;
+
 public:
     static constexpr bool Aggregate_ = Aggregate;
     static constexpr EValueType Type_ = Type;
 
+    explicit TVersionedValueReader(TChunkedMemoryPool* memoryPool)
+        : TMaybeWrapScanDataExtractor<Type, ConvertToAny>(memoryPool)
+    { }
+
     void Init(const TValueMeta<Type>* meta, const ui64* ptr, TTmpBuffers* tmpBuffers, bool newMeta)
     {
         ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, newMeta);
-        TScanDataExtractor<Type>::InitData(meta, ptr, tmpBuffers, newMeta);
+        TDataExtractor::InitData(meta, ptr, tmpBuffers, newMeta);
     }
 
     void Init(
@@ -372,30 +378,36 @@ public:
         bool newMeta)
     {
         ptr = TScanVersionExtractor<Aggregate>::InitVersion(meta, ptr, spans, batchSize, newMeta);
-        TScanDataExtractor<Type>::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount, newMeta);
+        TDataExtractor::InitData(meta, ptr, spans, batchSize, tmpBuffers, meta->ChunkRowCount, newMeta);
     }
 };
 
-template <EValueType Type, bool Aggregate>
+template <EValueType Type, bool Aggregate, bool ConvertToAny>
 class TVersionedValueLookuper
     : public TLookupVersionExtractor<Aggregate>
-    , public TLookupDataExtractor<Type>
+    , public TMaybeWrapLookupDataExtractor<Type, ConvertToAny>
 {
+    using TDataExtractor = TMaybeWrapLookupDataExtractor<Type, ConvertToAny>;
+
 public:
     static constexpr bool Aggregate_ = Aggregate;
     static constexpr EValueType Type_ = Type;
+
+    explicit TVersionedValueLookuper(TChunkedMemoryPool* memoryPool)
+        : TDataExtractor(memoryPool)
+    { }
 
     template <bool NewMeta>
     Y_FORCE_INLINE void Init(const TValueMeta<Type>* meta, const ui64* ptr)
     {
         ptr = TLookupVersionExtractor<Aggregate>::template InitVersion<NewMeta>(meta, ptr);
-        TLookupDataExtractor<Type>::template InitData<NewMeta>(meta, ptr);
+        TDataExtractor::template InitData<NewMeta>(meta, ptr);
     }
 
     Y_FORCE_INLINE void Prefetch(ui32 valueIdx) const
     {
         TLookupVersionExtractor<Aggregate>::Prefetch(valueIdx);
-        TLookupDataExtractor<Type>::Prefetch(valueIdx);
+        TDataExtractor::Prefetch(valueIdx);
     }
 };
 
@@ -458,11 +470,12 @@ struct TVersionedValueExtractor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType Type, bool Aggregate, bool Direct>
+template <EValueType Type, bool Aggregate, bool Direct, bool ConvertToAny>
 struct TSpecializedVersionedValueLookuper
-    : public TVersionedValueLookuper<Type, Aggregate>
+    : public TVersionedValueLookuper<Type, Aggregate, ConvertToAny>
 {
-    using TBase = TVersionedValueLookuper<Type, Aggregate>;
+    using TBase = TVersionedValueLookuper<Type, Aggregate, ConvertToAny>;
+
     Y_FORCE_INLINE void Extract(TUnversionedValue* value, ui32 position) const
     {
         if constexpr (Direct) {
@@ -600,16 +613,17 @@ protected:
     const bool Aggregate_;
 };
 
-template <EValueType Type, bool Aggregate, bool ProduceAll>
-class TVersionedValueColumn<ui32, Type, Aggregate, ProduceAll>
+template <EValueType Type, bool Aggregate, bool ProduceAll, bool ConvertToAny>
+class TVersionedValueColumn<ui32, Type, Aggregate, ProduceAll, ConvertToAny>
     : public TValueColumnBase<ui32>
-    , public TVersionedValueLookuper<Type, Aggregate>
+    , public TVersionedValueLookuper<Type, Aggregate, ConvertToAny>
 {
 public:
-    using TVersionedValueBase = TVersionedValueLookuper<Type, Aggregate>;
+    using TVersionedValueBase = TVersionedValueLookuper<Type, Aggregate, ConvertToAny>;
 
-    TVersionedValueColumn(const TColumnBase* columnBase)
+    TVersionedValueColumn(const TColumnBase* columnBase, TChunkedMemoryPool* memoryPool)
         : TValueColumnBase<ui32>(columnBase, Aggregate)
+        , TVersionedValueBase(memoryPool)
     { }
 
     ui32 UpdateSegment(ui32 rowIndex, bool newMeta) override
@@ -746,8 +760,8 @@ private:
             return &DoReadValues<TIndexExtractorBase, TVersionedValueBase>;
         } else {
             return meta->Direct
-                ? &DoReadValues<TIndexExtractorBase, TSpecializedVersionedValueLookuper<Type, Aggregate, true>>
-                : &DoReadValues<TIndexExtractorBase, TSpecializedVersionedValueLookuper<Type, Aggregate, false>>;
+                ? &DoReadValues<TIndexExtractorBase, TSpecializedVersionedValueLookuper<Type, Aggregate, true, ConvertToAny>>
+                : &DoReadValues<TIndexExtractorBase, TSpecializedVersionedValueLookuper<Type, Aggregate, false, ConvertToAny>>;
         }
     }
 };
@@ -837,18 +851,19 @@ private:
     }
 };
 
-template <EValueType Type, bool Aggregate, bool ProduceAll>
-class TVersionedValueColumn<TReadSpan, Type, Aggregate, ProduceAll>
+template <EValueType Type, bool Aggregate, bool ProduceAll, bool ConvertToAny>
+class TVersionedValueColumn<TReadSpan, Type, Aggregate, ProduceAll, ConvertToAny>
     : public TValueColumnBase<TReadSpan>
-    , public TVersionedValueReader<Type, Aggregate>
+    , public TVersionedValueReader<Type, Aggregate, ConvertToAny>
 {
 public:
-    using TVersionedValueBase = TVersionedValueReader<Type, Aggregate>;
+    using TVersionedValueBase = TVersionedValueReader<Type, Aggregate, ConvertToAny>;
 
     using TValueColumnBase<TReadSpan>::SkipTo;
 
-    TVersionedValueColumn(const TColumnBase* columnBase)
+    TVersionedValueColumn(const TColumnBase* columnBase, TChunkedMemoryPool* memoryPool)
         : TValueColumnBase<TReadSpan>(columnBase, Aggregate)
+        , TVersionedValueBase(memoryPool)
     { }
 
 #ifdef FULL_UNPACK
@@ -975,7 +990,6 @@ struct TTimestampExtractor<TReadSpan>
         }
         return GetSegmentRowLimit();
     }
-
 };
 
 template <>
@@ -999,7 +1013,6 @@ struct TTimestampExtractor<ui32>
         }
         return GetSegmentRowLimit();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1250,34 +1263,27 @@ public:
     template <EValueType Type>
     struct TCreateVersionedValueColumn
     {
-        template <bool Aggregate>
-        static TValueColumnHolder DoInner(
-            char** memoryArea,
-            const TColumnBase* columnBase,
-            bool produceAll)
+        template <bool Aggregate, bool ProduceAll>
+        static TValueColumnHolder DoWithAggregateAndProduceAll(char** memoryArea, const TColumnBase* columnBase, TChunkedMemoryPool* memoryPool, bool convertToAny)
         {
-            if (produceAll) {
-                return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, true>>(
-                    memoryArea,
-                    columnBase)};
-            } else {
-                return TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, false>>(
-                    memoryArea,
-                    columnBase)};
-            }
+            return convertToAny
+                ? TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, ProduceAll, true>>(memoryArea, columnBase, memoryPool)}
+                : TValueColumnHolder{ConstructObjectInplace<TVersionedValueColumn<TReadItem, Type, Aggregate, ProduceAll, false>>(memoryArea, columnBase, memoryPool)};
         }
 
-        static TValueColumnHolder Do(
-            char** memoryArea,
-            const TColumnBase* columnBase,
-            bool aggregate,
-            bool produceAll)
+        template <bool Aggregate>
+        static TValueColumnHolder DoWithAggregate(char** memoryArea, const TColumnBase* columnBase, TChunkedMemoryPool* memoryPool, bool produceAll, bool convertToAny)
         {
-            if (aggregate) {
-                return DoInner<true>(memoryArea, columnBase, produceAll);
-            } else {
-                return DoInner<false>(memoryArea, columnBase, produceAll);
-            }
+            return produceAll
+                ? DoWithAggregateAndProduceAll<Aggregate, true>(memoryArea, columnBase, memoryPool, convertToAny)
+                : DoWithAggregateAndProduceAll<Aggregate, false>(memoryArea, columnBase, memoryPool, convertToAny);
+        }
+
+        static TValueColumnHolder Do(char** memoryArea, const TColumnBase* columnBase, TChunkedMemoryPool* memoryPool, bool aggregate, bool produceAll, bool convertToAny)
+        {
+            return aggregate
+                ? DoWithAggregate<true>(memoryArea, columnBase, memoryPool, produceAll, convertToAny)
+                : DoWithAggregate<false>(memoryArea, columnBase, memoryPool, produceAll, convertToAny);
         }
     };
 
@@ -1285,10 +1291,14 @@ public:
     static constexpr size_t GetValueColumnMaxSize()
     {
         return std::max({
-            sizeof(TVersionedValueColumn<TReadItem, Type, false, false>),
-            sizeof(TVersionedValueColumn<TReadItem, Type, false, true>),
-            sizeof(TVersionedValueColumn<TReadItem, Type, true, false>),
-            sizeof(TVersionedValueColumn<TReadItem, Type, true, true>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, false, false, false>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, false, false, true>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, false, true, false>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, false, true, true>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, true, false, false>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, true, false, true>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, true, true, false>),
+            sizeof(TVersionedValueColumn<TReadItem, Type, true, true, true>),
         });
     }
 
@@ -1324,7 +1334,7 @@ public:
         EValueType::Composite
     >();
 
-    explicit TRowsetBuilder(TRowsetBuilderParams params, ECreateKeyReadersMode createKeyReadersMode)
+    TRowsetBuilder(const TRowsetBuilderParams& params, ECreateKeyReadersMode createKeyReadersMode)
         : TBase(
             // Init timestamp column.
             params.ColumnInfos.Back(),
@@ -1378,13 +1388,15 @@ public:
         }
 
         ValueColumns_.reserve(std::ssize(params.ValueSchema));
-        for (auto [columnId, type, aggregate] : params.ValueSchema) {
+        for (auto [columnId, type, aggregate, convertToAny] : params.ValueSchema) {
             ValueColumns_.push_back(DispatchByDataType<TCreateVersionedValueColumn>(
                 type,
                 &memoryArea,
                 columnInfoIt++,
+                &MemoryPool_,
                 aggregate,
-                params.ProduceAll));
+                params.ProduceAll,
+                convertToAny));
         }
 
         YT_VERIFY(memoryArea <= ColumnReadersMemoryHolder_.get() + ColumnReadersMemorySize_);
