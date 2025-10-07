@@ -4136,6 +4136,9 @@ private:
         if (request->has_execution_backend()) {
             options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
         }
+        if (request->has_optimization_level()) {
+            options.OptimizationLevel = CheckedEnumCast<EOptimizationLevel>(request->optimization_level());
+        }
         if (request->has_versioned_read_options()) {
             FromProto(&options.VersionedReadOptions, request->versioned_read_options());
         }
