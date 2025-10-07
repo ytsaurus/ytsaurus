@@ -102,6 +102,10 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->CastAnyToComposite = true;
+        if (JobSpecExt_.has_input_query_spec()) {
+            options->ValidateAnyIsValidYson = true;
+            options->CastCompositeToAny = true;
+        }
         auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
         TTableSchemaPtr schema;
