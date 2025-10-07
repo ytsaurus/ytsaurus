@@ -322,7 +322,7 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                NSequoiaClient::SequoiaRootCypressPath,
+                "//sys/sequoia",
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()

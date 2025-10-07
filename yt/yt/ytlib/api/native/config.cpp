@@ -134,8 +134,8 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
         .Default("<invalid>");
     registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
         .Default(TDuration::Seconds(5));
-    registrar.Parameter("enable_ground_reign_validation", &TThis::EnableGroundReignValidation)
-        .Default(true);
+    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
+        .Default("//sys/sequoia");
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
 }
