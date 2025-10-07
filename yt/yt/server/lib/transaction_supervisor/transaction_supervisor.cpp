@@ -2874,7 +2874,7 @@ private:
         }
     }
 
-    void ClearBarriers()
+    void ClearBarriers(TError error = {})
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -2888,12 +2888,16 @@ private:
             Barriers_.clear();
         }
 
+        if (error.IsOK()) {
+            error = TError("Barrier abandoned");
+        }
+
         if (!readyPromises.empty()) {
             NRpc::TDispatcher::Get()
                 ->GetHeavyInvoker()
-                ->Invoke(BIND([readyPromises = std::move(readyPromises)] {
+                ->Invoke(BIND([readyPromises = std::move(readyPromises), error] {
                     for (const auto& promise : readyPromises) {
-                        promise.Set(TError("Barrier abandoned"));
+                        promise.Set(error);
                     }
                 }));
         }
@@ -3417,14 +3421,14 @@ private:
         TransientCommitMap_.Clear();
         ParticipantMap_.clear();
 
-        ClearBarriers();
+        ClearBarriers(error);
     }
 
     void OnStopFollowing() override
     {
         TCompositeAutomatonPart::OnStopFollowing();
 
-        ClearBarriers();
+        ClearBarriers(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
     }
 
 
