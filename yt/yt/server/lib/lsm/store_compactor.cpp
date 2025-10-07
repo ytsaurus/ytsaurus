@@ -613,13 +613,13 @@ private:
 
                 if (compactionReason == EHunkCompactionReason::HunkChunkTooSmall) {
                     smallCandidates.insert(hunkChunk);
-                } else if (finalistIds.insert(hunkChunk->GetId()).second) {
+                } else if (finalistIds.insert(hunkChunk->Id).second) {
                     // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurrence.
                     ++hunkChunkCountByReason[compactionReason];
 
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        hunkChunk->GetId(),
+                        hunkChunk->Id,
                         compactionReason);
                 }
             }
@@ -636,7 +636,7 @@ private:
             sortedSmallCandidates.begin(),
             sortedSmallCandidates.end(),
             [] (const auto& lhs, const auto& rhs) {
-                return lhs->GetTotalHunkLength() < rhs->GetTotalHunkLength();
+                return lhs->TotalHunkLength < rhs->TotalHunkLength;
             });
 
         for (int i = 0; i < ssize(sortedSmallCandidates); ++i) {
@@ -647,7 +647,7 @@ private:
                     break;
                 }
 
-                i64 size = sortedSmallCandidates[j]->GetTotalHunkLength();
+                i64 size = sortedSmallCandidates[j]->TotalHunkLength;
                 if (size > mountConfig->HunkCompactionSizeBase &&
                     totalSize > 0 &&
                     size > totalSize * mountConfig->HunkCompactionSizeRatio)
@@ -664,12 +664,12 @@ private:
                     const auto& candidate = sortedSmallCandidates[i];
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        candidate->GetId(),
+                        candidate->Id,
                         EHunkCompactionReason::HunkChunkTooSmall);
 
                     ++hunkChunkCountByReason[EHunkCompactionReason::HunkChunkTooSmall];
 
-                    InsertOrCrash(finalistIds, candidate->GetId());
+                    InsertOrCrash(finalistIds, candidate->Id);
                     ++i;
                 }
                 break;
@@ -803,15 +803,15 @@ private:
             mountConfig->ForcedCompactionRevision,
             mountConfig->ForcedHunkCompactionRevision);
 
-        return RevisionFromId(hunkChunk->GetId()) <= forcedCompactionRevision.value_or(NHydra::NullRevision);
+        return RevisionFromId(hunkChunk->Id) <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 
     static bool IsHunkCompactionGarbageRatioTooHigh(
         const TTableMountConfigPtr& mountConfig,
         const THunkChunk* hunkChunk)
     {
-        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) /
-            hunkChunk->GetTotalHunkLength();
+        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->ReferencedTotalHunkLength) /
+            hunkChunk->TotalHunkLength;
         return referencedHunkLengthRatio < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
     }
 
@@ -819,7 +819,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const THunkChunk* hunkChunk)
     {
-        return hunkChunk->GetTotalHunkLength() <= mountConfig->MaxHunkCompactionSize;
+        return hunkChunk->TotalHunkLength <= mountConfig->MaxHunkCompactionSize;
     }
 
     static EHunkCompactionReason GetHunkCompactionReason(
