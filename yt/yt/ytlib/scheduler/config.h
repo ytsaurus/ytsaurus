@@ -1953,9 +1953,12 @@ struct TSortOperationSpecBase
     //! Maximum number of child partitions of a partition.
     std::optional<int> MaxPartitionFactor;
 
-    //! Amount of (uncompressed) data to be given to a single partition job.
-    //! It used only to determine partition job count.
+    //! Amount of data weight to be given to a single partition job.
     std::optional<i64> DataWeightPerPartitionJob;
+
+    //! Amount of compressed data size to be given to a single partition job.
+    std::optional<i64> CompressedDataSizePerPartitionJob;
+
     std::optional<int> PartitionJobCount;
 
     //! Data size per shuffle job.

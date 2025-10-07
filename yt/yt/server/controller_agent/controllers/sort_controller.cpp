@@ -2906,7 +2906,6 @@ protected:
             Spec_,
             Options_,
             Logger,
-            EstimatedInputStatistics_->UncompressedDataSize,
             EstimatedInputStatistics_->DataWeight,
             EstimatedInputStatistics_->RowCount,
             EstimatedInputStatistics_->CompressionRatio);
