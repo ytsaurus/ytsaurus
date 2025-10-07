@@ -328,7 +328,8 @@ TFuture<NProto::TReqChunksSamples> TChunksSamples::GetLocalCellUpdate()
         GetLocalSample("//sys/local_parity_missing_chunks"),
         GetLocalOldestPartMissingChunkSample(),
         GetLocalSample("//sys/local_quorum_missing_chunks"),
-        GetLocalSample("//sys/local_inconsistently_placed_chunks")})
+        GetLocalSample("//sys/local_inconsistently_placed_chunks"),
+    })
         .Apply(BIND([cellTag = Bootstrap_->GetMulticellManager()->GetCellTag()] (const std::vector<TErrorOr<TLocalSampleVector>>& samples) {
             NProto::TReqChunksSamples req;
             req.set_cell_tag(ToProto(cellTag));
