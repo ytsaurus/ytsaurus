@@ -120,6 +120,8 @@ using NYT::ToProto;
 
 constinit const auto Logger = ObjectServerLogger;
 static const IObjectTypeHandlerPtr NullTypeHandler;
+static const std::string NullService;
+static const std::string NullMethod;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,22 +271,22 @@ public:
 
     TObject* ResolvePathToLocalObject(
         const TYPath& path,
-        const std::string& service,
-        const std::string& method,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
     TObject* ResolvePathToObject(
         const TYPath& path,
-        const std::string& service,
-        const std::string& method,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
     TObjectId ResolvePathToObjectId(
         const NYPath::TYPath& path,
-        const std::string& service,
-        const std::string& method,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
@@ -1733,15 +1735,15 @@ void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
 
 TObject* TObjectManager::ResolvePathToLocalObject(
     const TYPath& path,
-    const std::string& service,
-    const std::string& method,
+    const std::optional<std::string>& service,
+    const std::optional<std::string>& method,
     TTransaction* transaction,
     const TResolvePathOptions& options)
 {
     TPathResolver resolver(
         Bootstrap_,
-        service,
-        method,
+        service.value_or(NullService),
+        method.value_or(NullMethod),
         path,
         transaction);
 
@@ -1759,15 +1761,15 @@ TObject* TObjectManager::ResolvePathToLocalObject(
 
 TObject* TObjectManager::ResolvePathToObject(
     const TYPath& path,
-    const std::string& service,
-    const std::string& method,
+    const std::optional<std::string>& service,
+    const std::optional<std::string>& method,
     TTransaction* transaction,
     const TResolvePathOptions& options)
 {
     TPathResolver resolver(
         Bootstrap_,
-        service,
-        method,
+        service.value_or(NullService),
+        method.value_or(NullMethod),
         path,
         transaction);
 
@@ -1793,15 +1795,15 @@ TObject* TObjectManager::ResolvePathToObject(
 
 TObjectId TObjectManager::ResolvePathToObjectId(
     const TYPath& path,
-    const std::string& method,
-    const std::string& service,
+    const std::optional<std::string>& method,
+    const std::optional<std::string>& service,
     NTransactionServer::TTransaction* transaction,
     const TResolvePathOptions& options)
 {
     TPathResolver resolver(
         Bootstrap_,
-        service,
-        method,
+        service.value_or(NullService),
+        method.value_or(NullMethod),
         path,
         transaction);
 

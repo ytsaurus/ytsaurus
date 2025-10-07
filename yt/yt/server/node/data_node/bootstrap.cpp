@@ -474,6 +474,8 @@ private:
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -510,8 +512,6 @@ private:
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
         JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
     }
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

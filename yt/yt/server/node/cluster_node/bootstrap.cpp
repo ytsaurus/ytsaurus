@@ -813,6 +813,8 @@ private:
 
     bool Decommissioned_ = false;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
     void DoRun()
     {
         DoInitialize();
@@ -1777,8 +1779,6 @@ private:
 
         return netLimit.value_or(Config_->NetworkBandwidth) * (1. - throttlerFreeBandwidthRatio);
     }
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

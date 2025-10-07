@@ -679,6 +679,8 @@ private:
     IAlienClusterClientCachePtr ReplicatorClientCache_;
     IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -763,8 +765,6 @@ private:
     {
         return OverloadController_;
     }
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
