@@ -29,6 +29,7 @@ struct TWorkerRunOptions {
     TString FmrJobBinaryPath;
     int Verbosity;
     TString UnderlyingGatewayType;
+    TString Host;
     ui16 Port;
 
     void InitLogger() {
@@ -57,10 +58,9 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.AddLongOption('g', "gateway-type", "Type of underlying gateway (native, file)").StoreResult(&options.UnderlyingGatewayType).DefaultValue("native");
+        opts.AddLongOption('h', "host", "Fast map reduce worker server host").StoreResult(&options.Host).DefaultValue("localhost");
         opts.AddLongOption('p', "port", "Worker server port").StoreResult(&options.Port).DefaultValue(7007);
         opts.SetFreeArgsMax(0);
-
-        // TODO (@akozelskikh) - use port value for Http worker server
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
 
@@ -100,7 +100,7 @@ int main(int argc, const char *argv[]) {
         auto jobFactory = MakeFmrJobFactory(settings);
         auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
         worker->Start();
-        TFmrWorkerServerSettings workerServerSettings{.Port=options.Port};
+        TFmrWorkerServerSettings workerServerSettings{.Port=options.Port, .Host = options.Host};
         auto workerServer = MakeFmrWorkerServer(workerServerSettings, worker);
         YQL_CLOG(TRACE, FastMapReduce) << "Fast map reduce worker has started";
         workerServer->Start();
