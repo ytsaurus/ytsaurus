@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, create, read_table, write_table, map, merge, get
 
-from yt_type_helpers import optional_type, list_type, decimal_type
+from yt_type_helpers import optional_type, list_type, struct_type, decimal_type
 
 import pytest
 
@@ -14,6 +14,7 @@ import pandas as pd
 HELLO_WORLD = b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
 GOODBYE_WORLD = b"\xd0\x9f\xd0\xbe\xd0\xba\xd0\xb0, \xd0\xbc\xd0\xb8\xd1\x80!"
 ARROW_FORMAT = yson.YsonString(b"arrow")
+ARROW_FORMAT_COMPLEX_TYPES = yson.YsonString(b"<enable_complex_types=%true>arrow")
 
 
 def serialize_arrow_table(table):
@@ -915,3 +916,79 @@ class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
 
         assert "a" in column_names
         assert parsed_table["a"].to_pylist() == [0, 1, 2, 3, 4, 5]
+
+
+@authors("rp-1")
+@pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+@pytest.mark.enabled_multidaemon
+class TestComplexTypesArrowFormat(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = True
+
+    MAP_CAT_TABLE_DATA = [
+        (
+            struct_type([("a", "int64"), ("b", "string")]),
+            [{"a": 123, "b": "abc"}, {"a": 456, "b": "def"}],
+        ),
+        (
+            list_type("int64"),
+            [[1, 2, 3], [], [4, 5, 6, 7]],
+        ),
+        (
+            optional_type(struct_type([("a", "int64")])),
+            [None, {"a": 123}, None, {"a": 456}],
+        ),
+        (
+            optional_type(optional_type("int64")),
+            [None, [123], [None], [456]],
+        ),
+    ]
+
+    @pytest.mark.parametrize("table_data", MAP_CAT_TABLE_DATA)
+    def test_map_cat(self, optimize_for, table_data):
+        column_type, column_values = table_data
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {
+                        "name": "complex",
+                        "type_v3": column_type,
+                    },
+                ],
+                "optimize_for": optimize_for
+            },
+            force=True,
+        )
+
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "schema": [
+                    {
+                        "name": "complex",
+                        "type_v3": column_type,
+                    },
+                ],
+                "optimize_for": optimize_for
+            },
+            force=True,
+        )
+
+        write_table(
+            "//tmp/t_in",
+            [{"complex": value} for value in column_values]
+        )
+
+        map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat",
+            spec={"mapper": {"input_format": yson.loads(ARROW_FORMAT_COMPLEX_TYPES), "output_format": ARROW_FORMAT}},
+        )
+
+        assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
