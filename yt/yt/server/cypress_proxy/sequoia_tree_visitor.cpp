@@ -41,7 +41,7 @@ public:
 
     void Visit(TNodeId rootId)
     {
-        VisitAny(rootId, /*currentNodeDepth*/ 0);
+        VisitAny(rootId, /*currentNodeDepth*/ 0, /*itemKey*/ std::nullopt);
     }
 
 private:
@@ -51,13 +51,22 @@ private:
     const THashMap<TNodeId, std::vector<TCypressChildDescriptor>> NodeIdToChildren_;
     const THashMap<TNodeId, INodePtr> NodesWithAttributes_;
 
-    void VisitAny(TNodeId nodeId, int currentNodeDepth)
+    void VisitAny(TNodeId nodeId, int currentNodeDepth, std::optional<TStringBuf> itemKey)
     {
         ++currentNodeDepth;
+
+        bool keyWritten = false;
+        auto maybeWriteKey = [&] {
+            if (!keyWritten && itemKey) {
+                keyWritten = true;
+                Consumer_->OnKeyedItem(*itemKey);
+            }
+        };
 
         if (AttributeFilter_ && !AttributeFilter_.IsEmpty()) {
             auto nodeIter = NodesWithAttributes_.find(nodeId);
             if (nodeIter != NodesWithAttributes_.end()) {
+                maybeWriteKey();
                 nodeIter->second->WriteAttributes(Consumer_, AttributeFilter_, /*stable*/ true);
             } else {
                 // NodesWithAttributes_ come from attribute fetcher, and the
@@ -77,6 +86,8 @@ private:
                 return;
             }
         }
+
+        maybeWriteKey();
 
         auto nodeType = TypeFromId(nodeId);
         switch (nodeType) {
@@ -147,8 +158,7 @@ private:
 
         Consumer_->OnBeginMap();
         for (const auto& childDescriptor : children) {
-            Consumer_->OnKeyedItem(childDescriptor.ChildKey);
-            VisitAny(childDescriptor.ChildId, currentNodeDepth);
+            VisitAny(childDescriptor.ChildId, currentNodeDepth, childDescriptor.ChildKey);
         }
         Consumer_->OnEndMap();
     }
