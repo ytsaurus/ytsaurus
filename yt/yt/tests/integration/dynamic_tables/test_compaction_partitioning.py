@@ -1037,6 +1037,37 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         assert compacted == chunk_count
 
+    @authors("tem-shett")
+    def test_forced_compaction(self):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+        self._create_simple_table(
+            "//tmp/t",
+            pivot_keys=[[]] + [[i] for i in range(1, 30)],
+            mount_config={
+                "min_compaction_store_count": 179,
+                "max_compaction_store_count": 180
+            }
+        )
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(30)])
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 1)
+        sync_mount_table("//tmp/t")
+
+        set("//tmp/t/@mount_config/forced_compaction", {"start_time": time() * 1000, "duration": 5000})
+        remount_table("//tmp/t")
+
+        def _get_completed_compactions_count():
+            return get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/completed_task_count")
+
+        wait(lambda: _get_completed_compactions_count() > 0)
+
+        sleep(1)
+        old_completed_compactions_count = _get_completed_compactions_count()
+
+        wait(lambda: _get_completed_compactions_count() > old_completed_compactions_count)
+
     @authors("dave11ar")
     def test_timestamp_digest_disabling(self):
         cell_id = sync_create_cells(1)[0]
