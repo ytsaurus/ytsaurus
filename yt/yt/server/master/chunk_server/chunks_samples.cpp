@@ -173,9 +173,9 @@ void TChunksSamples::FinishUpdate()
 { }
 
 std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::SendLocalSampleRequests(
-        NYPath::TYPath localChunksPath,
-        TAttributeFilter attributeFilter,
-        std::optional<int> limit)
+    const NYPath::TYPath& localChunksPath,
+    TAttributeFilter attributeFilter,
+    std::optional<int> limit)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto channels = chunkManager->GetChunkReplicatorChannels();
@@ -202,7 +202,7 @@ std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> TChunksSamples::S
     return responseFutures;
 }
 
-TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(NYPath::TYPath localChunksPath)
+TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(const NYPath::TYPath& localChunksPath)
 {
     const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
     auto limit = dynamicConfig->MaxChunksSampleSizePerCell;
@@ -211,19 +211,19 @@ TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalSample(NYPat
 
     return AllSet(std::move(responseFutures))
         .ApplyUnique(BIND([limit] (TErrorOr<std::vector<TErrorOr<TRspExecuteBatchPtr>>>&& response) {
-        auto batchResponses = ExtractResponses(std::move(response));
+            auto batchResponses = ExtractResponses(std::move(response));
 
-        std::ranges::sort(batchResponses, [&] (const auto& lhs, const auto& rhs) {
-            if (!lhs) {
-                return false;
-            }
+            std::ranges::sort(batchResponses, [&] (const auto& lhs, const auto& rhs) {
+                if (!lhs) {
+                    return false;
+                }
 
-            if (!rhs) {
-                return true;
-            }
+                if (!rhs) {
+                    return true;
+                }
 
-            return lhs->items_size() > rhs->items_size();
-        });
+                return lhs->items_size() > rhs->items_size();
+            });
 
         int maxResponses = 0;
         if (!batchResponses.empty()) {
@@ -312,7 +312,7 @@ TFuture<TChunksSamples::TLocalSampleVector> TChunksSamples::GetLocalOldestPartMi
         }
 
         TLocalSampleVector keys(partLostChunks.size());
-        std::ranges::transform(partLostChunks, keys.begin(), [](const auto& chunkInfo) {
+        std::ranges::transform(partLostChunks, keys.begin(), [] (const auto& chunkInfo) {
             return chunkInfo.ChunkId;
         });
 

@@ -65,12 +65,12 @@ private:
 
     using TLocalSampleVector = TCompactVector<NCypressClient::TObjectId, TDynamicChunkManagerConfig::DefaultMaxChunksSampleSizePerCell>;
 
-    TFuture<TLocalSampleVector> GetLocalSample(NYPath::TYPath localChunksPath);
+    TFuture<TLocalSampleVector> GetLocalSample(const NYPath::TYPath& localChunksPath);
 
     TFuture<TChunksSamples::TLocalSampleVector> GetLocalOldestPartMissingChunkSample();
 
     std::vector<TFuture<NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr>> SendLocalSampleRequests(
-        NYPath::TYPath localChunksPath,
+        const NYPath::TYPath& localChunksPath,
         NYTree::TAttributeFilter attributeFilter,
         std::optional<int> limit);
 };
