@@ -1298,8 +1298,6 @@ private:
         // Presence of a new account means that user does not want to preserve an old one.
         if (newAccountId) {
             account = securityManager->GetAccountOrThrow(*newAccountId, /*activeLifeStageOnly*/ true);
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ValidateObjectLifeStage(account);
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
