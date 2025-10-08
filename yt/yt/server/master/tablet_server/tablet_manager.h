@@ -129,6 +129,10 @@ struct ITabletManager
     virtual void MakeTableDynamic(NTableServer::TTableNode* table, i64 trimmedRowCount = 0) = 0;
     virtual void MakeTableStatic(NTableServer::TTableNode* table) = 0;
 
+    virtual void SetTableClipTimestamp(
+        NTableServer::TTableNode* table,
+        NTransactionClient::TTimestamp clipTimestamp) = 0;
+
     virtual void AlterTableReplica(
         TTableReplica* replica,
         std::optional<bool> enabled,

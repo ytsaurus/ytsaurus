@@ -164,6 +164,7 @@ message TReqAlter
     optional int32 schema_modification = 4; // ETableSchemaModification
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 5;
     optional NYT.NProto.TGuid schema_id = 6;
+    optional uint64 clip_timestamp = 7;
 }
 
 message TRspAlter

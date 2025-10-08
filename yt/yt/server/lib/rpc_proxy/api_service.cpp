@@ -2662,6 +2662,9 @@ private:
         if (request->has_replication_progress()) {
             options.ReplicationProgress = FromProto<TReplicationProgress>(request->replication_progress());
         }
+        if (request->has_clip_timestamp()) {
+            options.ClipTimestamp = request->clip_timestamp();
+        }
 
         context->SetRequestInfo("Path: %v",
             path);
