@@ -147,19 +147,21 @@ class YtClient(ClientState):
     def abort_operation(
             self,
             operation,
-            reason=None):
+            message=None, reason=None):
         """
         Aborts operation.
 
         Do nothing if operation is in final state.
 
         :param str operation: operation id.
+        :param str message: custom message for abort error.
+        :param str reason: alias for message (deprecated).
 
         """
         return client_api.abort_operation(
             operation,
             client=self,
-            reason=reason)
+            message=message, reason=reason)
 
     def abort_query(
             self,

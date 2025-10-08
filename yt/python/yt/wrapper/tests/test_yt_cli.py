@@ -18,6 +18,7 @@ import yt.wrapper as yt
 from flaky import flaky
 
 import os
+import json
 import pytest
 import random
 import string
@@ -525,7 +526,6 @@ class TestYtBinary(object):
 
     @authors("ilyaibraev")
     def test_execute(self, yt_cli: YtCli):
-        import json
         table_path = "//home/wrapper_test/test_table"
         yt_cli.check_output(["yt", "execute", "create", "{type=table;path=\"" + table_path + "\";output_format=yson}"])
         response = yt_cli.check_output(["yt", "execute", "exists", "{path=\"" + table_path + "\";output_format=json}"]).decode("utf-8").strip()
@@ -570,8 +570,6 @@ class TestYtBinary(object):
 
     @authors("ilyaibraev")
     def test_operation_and_job_commands(self, yt_cli: YtCli):
-        import json
-
         yt_cli.env["YT_TABULAR_DATA_FORMAT"] = "dsv"
         yt_cli.check_output(["yt", "write", "//home/wrapper_test/input_table"], stdin="x=1\n")
         map_op = yt_cli.check_output(
@@ -604,6 +602,17 @@ class TestYtBinary(object):
         assert job_state == "completed"
 
         del yt_cli.env["YT_TABULAR_DATA_FORMAT"]
+
+    @authors("ignat")
+    def test_abort_operation(self, yt_cli: YtCli):
+        op_id = yt_cli.check_output(["yt", "vanilla", "--tasks", "{sample={command=\"sleep 1000\";job_count=1}}", "--async"]).decode("utf-8").strip()
+        yt_cli.check_output(["yt", "abort-op", op_id, "--message", "Test abort"])
+        get_operation_result = json.loads(
+            yt_cli.check_output(["yt", "get-operation", op_id, "--attribute", "state", "--attribute", "result", "--format", "json"])
+        )
+
+        assert get_operation_result["state"] == "aborted"
+        assert "Test abort" in str(get_operation_result["result"])
 
     @authors("ilyaibraev")
     def test_check_permissions(self, yt_cli: YtCli):
