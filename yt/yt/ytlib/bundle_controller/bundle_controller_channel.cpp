@@ -82,7 +82,9 @@ public:
 
                 auto addresses = ConvertTo<TAddressMap>(TYsonString(rsp.Value()->value()));
 
-                auto channel = ChannelFactory_->CreateChannel(GetAddressOrThrow(addresses, Networks_));
+                auto channel = ChannelFactory_->CreateChannel(
+                    GetAddressOrThrow(addresses, Networks_),
+                    FindDefaultAddress(addresses));
                 channel = CreateFailureDetectingChannel(
                     channel,
                     Config_->RpcAcknowledgementTimeout,
