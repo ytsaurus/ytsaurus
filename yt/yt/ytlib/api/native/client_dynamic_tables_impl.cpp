@@ -2360,6 +2360,9 @@ void TClient::DoAlterTable(
     if (options.ReplicationProgress) {
         ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
     }
+    if (options.ClipTimestamp) {
+        req->set_clip_timestamp(*options.ClipTimestamp);
+    }
 
     auto proxy = CreateObjectServiceWriteProxy();
     WaitFor(proxy.Execute(req))

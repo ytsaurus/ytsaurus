@@ -1282,12 +1282,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Alter)
         ThrowNoSuchChild(Path_, unresolvedSuffixTokens.front());
     }
 
-    context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v",
+    context->SetRequestInfo(
+        "Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, ClipTimestamp: %v",
         YT_OPTIONAL_FROM_PROTO(*request, dynamic),
         YT_OPTIONAL_FROM_PROTO(*request, upstream_replica_id, NTabletClient::TTableReplicaId),
         YT_OPTIONAL_FROM_PROTO(*request, schema_modification, NTableClient::ETableSchemaModification),
         YT_OPTIONAL_FROM_PROTO(*request, replication_progress, NChaosClient::TReplicationProgress),
-        YT_OPTIONAL_FROM_PROTO(*request, schema_id, TObjectId));
+        YT_OPTIONAL_FROM_PROTO(*request, schema_id, TObjectId),
+        YT_OPTIONAL_FROM_PROTO(*request, clip_timestamp, TTimestamp));
 
     // Permission validation is handled by master.
     AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());

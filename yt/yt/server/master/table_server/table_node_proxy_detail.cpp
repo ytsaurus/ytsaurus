@@ -105,6 +105,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NTabletServer;
+using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
@@ -2097,6 +2098,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         std::optional<TTableReplicaId> UpstreamReplicaId;
         std::optional<ETableSchemaModification> SchemaModification;
         std::optional<TReplicationProgress> ReplicationProgress;
+        std::optional<TTimestamp> ClipTimestamp;
         TObjectId SchemaId;
     } options;
 
@@ -2126,13 +2128,18 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_schema_id()) {
         options.SchemaId = FromProto<TObjectId>(request->schema_id());
     }
+    if (request->has_clip_timestamp()) {
+        options.ClipTimestamp = FromProto<TTimestamp>(request->clip_timestamp());
+    }
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
+    context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, "
+        "ClipTimestamp: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
         options.Dynamic,
         options.UpstreamReplicaId,
         options.SchemaModification,
         options.ReplicationProgress,
+        options.ClipTimestamp,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
         tableManager->GetHeavyTableSchemaSync(options.Schema));
@@ -2298,6 +2305,21 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
         }
 
+        if (options.ClipTimestamp) {
+            if (!dynamic) {
+                THROW_ERROR_EXCEPTION("Clip timestamp can only be set for dynamic tables");
+            }
+            if (table->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Clip timestamp cannot be set for replicated tables");
+            }
+            if (!table->IsPhysicallySorted()) {
+                THROW_ERROR_EXCEPTION("Clip timestamp can only be set to sorted tables");
+            }
+
+            table->ValidateAllTabletsUnmounted("Cannot set clip timestamp");
+        }
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         const auto& tableManager = Bootstrap_->GetTableManager();
         auto newTableSchema = tableManager->GetHeavyTableSchemaSync(schema);
         auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
@@ -2409,6 +2431,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         ScatterReplicationProgress(table, *options.ReplicationProgress);
     }
 
+    if (options.ClipTimestamp) {
+        tabletManager->SetTableClipTimestamp(table, *options.ClipTimestamp);
+    }
+
     if (table->IsExternal()) {
         auto replicationRequest = TTableYPathProxy::Alter(FromObjectId(GetId()));
         if (request->has_dynamic()) {
@@ -2419,6 +2445,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
         if (request->has_replication_progress()) {
             replicationRequest->mutable_replication_progress()->CopyFrom(request->replication_progress());
+        }
+        if (request->has_clip_timestamp()) {
+            replicationRequest->set_clip_timestamp(request->clip_timestamp());
         }
 
         auto externalCellTag = table->GetExternalCellTag();

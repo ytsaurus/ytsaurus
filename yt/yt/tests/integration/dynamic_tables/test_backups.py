@@ -7,7 +7,7 @@ from yt_commands import (
     get_driver, sync_enable_table_replica, create_table_replica, sync_disable_table_replica,
     sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica,
     write_table, remote_copy, alter_table, copy, move, delete_rows, disable_write_sessions_on_node,
-    create_account)
+    create_account, map)
 
 import yt_error_codes
 
@@ -19,7 +19,7 @@ from yt.test_helpers import are_items_equal
 from yt.common import YtResponseError
 import yt.yson as yson
 from time import time, sleep
-from collections import Counter
+from collections import Counter, defaultdict
 from random import sample, randint
 import builtins
 
@@ -842,6 +842,119 @@ class TestBackups(DynamicTablesBase):
 
         # Should not raise.
         sync_mount_table("//tmp/t")
+
+    @authors("alexelexa")
+    def test_alter_clip_timestamp_to_static_table(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"key": i, "value": "foo"} for i in range(2)])
+        with raises_yt_error():
+            alter_table("//tmp/t", clip_timestamp=generate_timestamp())
+
+    @authors("alexelexa")
+    def test_alter_clip_timestamp(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        modified_row = {"key": 0, "value": "bar"}
+        rows1 = [{"key": i, "value": "foo"} for i in range(2)]
+        rows2 = [{"key": i, "value": "foo"} for i in range(2, 4)]
+        rows = [modified_row] + [{"key": i, "value": "foo"} for i in range(1, 4)]
+        keys = [{"key": i} for i in range(4)]
+
+        first_ts = generate_timestamp()
+
+        def insert_and_bulk_insert(rows_list, i):
+            insert_rows("//tmp/t", [rows_list[0]])
+
+            create("table", f"//tmp/t_input{i}")
+            write_table(f"//tmp/t_input{i}", [rows_list[1]])
+            map(in_=f"//tmp/t_input{i}", out="<append=true>//tmp/t", command="cat")
+
+        sync_mount_table("//tmp/t")
+        insert_and_bulk_insert(rows1, 0)
+        lookup_result1 = lookup_rows("//tmp/t", keys, versioned=True)
+
+        second_ts = generate_timestamp()
+        insert_rows("//tmp/t", [modified_row])
+        insert_and_bulk_insert(rows2, 1)
+
+        lookup_result2 = lookup_rows("//tmp/t", keys, versioned=True)
+
+        sync_unmount_table("//tmp/t")
+
+        copy("//tmp/t", "//tmp/p")
+        sync_mount_table("//tmp/p")
+
+        alter_table("//tmp/t", clip_timestamp=second_ts)
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1)
+        assert_items_equal(select_rows("* from [//tmp/p]"), rows)
+        assert lookup_rows("//tmp/t", keys, versioned=True) == lookup_result1
+        assert lookup_rows("//tmp/p", keys, versioned=True) == lookup_result2
+
+        sync_unmount_table("//tmp/p")
+        alter_table("//tmp/p", clip_timestamp=first_ts)
+        sync_mount_table("//tmp/p")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1)
+        assert select_rows("* from [//tmp/p]") == []
+        assert lookup_rows("//tmp/t", keys, versioned=True) == lookup_result1
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", clip_timestamp=first_ts)
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [])
+        assert lookup_rows("//tmp/t", keys, versioned=True) == []
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", clip_timestamp=second_ts)
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [])
+        assert lookup_rows("//tmp/t", keys, versioned=True) == []
+
+    @authors("alexelexa")
+    def test_alter_clip_timestamp_many_inserts(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "foo"} for i in range(2)])
+
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "foo"} for i in range(2, 4)])
+        insert_rows("//tmp/t", [{"key": i, "value": "foo"} for i in range(4, 6)])
+        ts = generate_timestamp()
+        insert_rows("//tmp/t", [{"key": i, "value": "foo"} for i in range(6, 8)])
+
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "foo"} for i in range(8, 10)])
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", clip_timestamp=ts)
+
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_ids = get("#" + chunk_list_id + "/@child_ids")
+        child_ids = get("#" + tablet_chunk_list_ids[0] + "/@child_ids")
+
+        children = defaultdict(list)
+        for child_id in child_ids:
+            type = child_id.split("-")[2][-4:].lstrip("0")
+            children[type].append(child_id)
+
+        assert builtins.set(children.keys()) == {"64", "7b"}
+        for type, chunks in children.items():
+            assert len(chunks) == 1
+
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": i, "value": "foo"} for i in range(6)])
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(10)]) == [{"key": i, "value": "foo"} for i in range(6)]
+
 
 ##################################################################
 

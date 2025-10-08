@@ -1113,15 +1113,16 @@ public:
         }
     }
 
-    void WrapWithBackupChunkViews(TTablet* tablet, TTimestamp maxClipTimestamp) override
+    void WrapWithClipTimestampChunkViews(TTablet* tablet, TTimestamp maxClipTimestamp, bool isBackup) override
     {
         YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
         if (!maxClipTimestamp) {
             YT_LOG_ALERT(
-                "Attempted to clip backup table by null timestamp (TableId: %v, TabletId: %v)",
+                "Attempted to clip table by null timestamp (TableId: %v, TabletId: %v, IsBackup: %v)",
                 tablet->GetTable()->GetId(),
-                tablet->GetId());
+                tablet->GetId(),
+                isBackup);
         }
 
         bool needFlatten = false;
@@ -1183,6 +1184,8 @@ public:
             }
 
             storesToDetach.push_back(store);
+
+            YT_VERIFY(isBackup || !IsDynamicTabletStoreType(store->GetType()));
 
             if (IsDynamicTabletStoreType(store->GetType()) &&
                 !tablet->BackupCutoffDescriptor()->DynamicStoreIdsToKeep.contains(store->GetId()))

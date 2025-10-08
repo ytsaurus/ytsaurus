@@ -148,6 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaTabletCellBundles)                                     (3103))  // danilalexeev
     ((SequoiaMapKeyLengthLimit)                                     (3104))  // babenko
     ((FixSchemaDivergence_25_4)                                     (3105))  // h0pless
+    ((SetClipTimestampInAlter)                                      (3106))  // alexelexa
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

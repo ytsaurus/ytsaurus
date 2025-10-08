@@ -2287,6 +2287,23 @@ public:
             table->GetId());
     }
 
+    void SetTableClipTimestamp(TTableNode* table, TTimestamp clipTimestamp) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(table->IsTrunk());
+
+        if (table->IsExternal()) {
+            return;
+        }
+
+        for (auto tabletBase : table->Tablets()) {
+            TabletChunkManager_->WrapWithClipTimestampChunkViews(
+                tabletBase->As<TTablet>(),
+                clipTimestamp,
+                /*isBackup*/ false);
+        }
+    }
+
     void LockDynamicTable(
         TTableNode* table,
         TTransaction* transaction,
