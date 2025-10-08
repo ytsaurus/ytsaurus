@@ -1,6 +1,7 @@
 #include "client.h"
 
 #include "helpers.h"
+#include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction.h"
 #include "private.h"
@@ -244,6 +245,14 @@ ISequoiaClientPtr CreateSequoiaClient(
     NNative::IConnectionPtr localConnection,
     TFuture<NNative::IClientPtr> groundClientFuture)
 {
+    if (config && config->EnableGroundReignValidation) {
+        groundClientFuture = groundClientFuture
+            .Apply(BIND([=] (NNative::IClientPtr client) {
+                return ValidateClusterGroundReign(client, config->SequoiaRootPath)
+                    .Apply(BIND([=] { return client; }));
+            }));
+    }
+
     return New<TSequoiaClient>(
         std::move(config),
         std::move(localConnection),

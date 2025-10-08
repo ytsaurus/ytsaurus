@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NSequoiaClient {
@@ -20,6 +22,23 @@ DEFINE_ENUM(ESequoiaReign,
 static_assert(TEnumTraits<ESequoiaReign>::IsMonotonic, "Sequoia reign enum is not monotonic");
 
 ESequoiaReign GetCurrentSequoiaReign() noexcept;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EGroundReign,
+    ((Unknown)          (0))
+    ((InitialVersion)   (1))
+);
+
+static_assert(TEnumTraits<EGroundReign>::IsMonotonic, "Ground reign enum is not monotonic");
+
+EGroundReign GetCurrentGroundReign();
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> ValidateClusterGroundReign(
+    const NApi::NNative::IClientPtr& client,
+    const NYTree::TYPath& rootPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
