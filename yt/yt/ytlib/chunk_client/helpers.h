@@ -311,6 +311,7 @@ struct TAllyReplicasInfo
     NHydra::TRevision Revision = NHydra::NullRevision;
     static constexpr NHydra::TRevision SequoiaRevision = std::numeric_limits<NHydra::TRevision>::max();
 
+    bool operator==(const TAllyReplicasInfo& other) const = default;
     Y_FORCE_INLINE explicit operator bool() const;
 
     static TAllyReplicasInfo FromChunkReplicas(
