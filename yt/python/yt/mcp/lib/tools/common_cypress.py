@@ -2,7 +2,7 @@ from .helpers import YTToolBase
 
 
 class CommonCypress(YTToolBase):
-    METHODS = set(["get_table_schema"])
+    METHODS = set(["get_table_schema", "read_table"])
 
     def get_tool_description(self):
         return (
@@ -54,7 +54,7 @@ A tool for common cypress method.
         return [
             {
                 "name": "get_table_schema",
-                "description": "A tool for getting table schema. Schema stored in \"value\" field, field \"attributes\" has schema flags \"strict\" and \"unique_keys\"",
+                "description": "A tool for getting table schema. Schema stored in \"value\" field, field \"attributes\" has schema flags \"strict\" and \"unique_keys\". Data size can by large",
                 "input": [
                     {"name": "cluster"},
                     {
@@ -64,6 +64,22 @@ A tool for common cypress method.
                     },
                     {
                         "name": "table_path",
+                        "description": "Path to table",
+                    },
+                ]
+            },
+            {
+                "name": "read_table",
+                "description": "A tool for getting whole table content. Data size can by large.",
+                "input": [
+                    {"name": "cluster"},
+                    {
+                        "name": "method",
+                        "description": "Method to call. Should be set to \"read_table\".",
+                        # "default": "PydanticUndefined",
+                    },
+                    {
+                        "name": "table",
                         "description": "Path to table",
                     },
                 ]

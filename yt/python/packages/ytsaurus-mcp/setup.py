@@ -24,10 +24,10 @@ def main():
         author="YTsaurus",
         author_email="dev@ytsaurus.tech",
         license="Apache 2.0",
-        description="MCP server for YT client.",
+        description="MCP server for YTsaurus client.",
         keywords="yt ytsaurus mcp server python client",
 
-        long_description="Implements some YT methods via MCP",
+        long_description="Implements some YTsaurus methods via MCP",
 
         install_requires=[
             "mcp >= 1.7.1",
