@@ -382,3 +382,35 @@ class TestClickHouseSchema(ClickHouseTestBase):
             ]
 
             assert clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a") == [{"a": 1.0}, {"a": 2.0}]
+
+    @authors("denmogilevec")
+    def test_int_lists(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type_v3":
+                                                            {"type_name": "list", "item": "int64"}}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type_v3":
+                                                            {"type_name": "list", "item":
+                                                             {"type_name": "optional", "item": "int32"}}}]})
+        write_table("//tmp/t1", [{"a": [1234]}])
+        write_table("//tmp/t2", [{"a": [1000]}])
+
+        with Clique(1) as clique:
+            assert self._strip_description(clique.make_query('describe concatYtTables("//tmp/t1", "//tmp/t2")')) == [
+                {'name': 'a', 'type': 'Array(Nullable(Int64))'},
+            ]
+
+            assert clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a") == [{'a': [1000]}, {'a': [1234]}]
+
+    @authors("denmogilevec")
+    def test_concat_any_and_int(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", 'type_v3':
+                                                            {'type_name': 'optional', 'item': 'yson'}}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", 'type_v3':
+                                                            {'type_name': 'optional', 'item': 'int32'}}]})
+        x = 12345
+        write_table("//tmp/t2", [{"a": x}])
+        with Clique(1) as clique:
+            assert self._strip_description(clique.make_query('describe concatYtTables("//tmp/t1", "//tmp/t2")')) == [
+                {'name': 'a', 'type': 'Nullable(String)'},
+            ]
+            result = clique.make_query("select a from concatYtTables('//tmp/t1', '//tmp/t2') order by a", format="TabSeparatedRaw")
+            assert yson.dumps(x, yson_format='binary') == result.content[:-1]

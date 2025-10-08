@@ -7,6 +7,7 @@
 #include <yt/yt/client/table_client/logical_type.h>
 
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
+#include <yt/yt/client/complex_types/merge_complex_types.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -107,12 +108,10 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
                 commonType = MakeNullableIfNot(std::move(commonType));
             }
 
-            // Making columnType Nullable helps to handle some cases when types are incompatible,
-            // but despite this they have a supertype (e.g. int64 and optional<int32>, supertype is optional<int64>).
-            // TODO(dakovalkov): This is not a silver bullet and it will not work in more complex cases (e.g. list<int64> and list<optional<32>>)
-            // For proper type handing we need a GetLeastSupertype function, but its implementations is not trivial.
-            if (commonType->IsNullable()) {
-                columnType = MakeNullableIfNot(std::move(columnType));
+            try {
+                columnType = MergeTypes(columnType, commonType);
+            } catch (...) {
+                // We will handle type missmatch on the second pass.
             }
 
             // Update commonType if current column type is more general (e.g. i32 -> i64).
