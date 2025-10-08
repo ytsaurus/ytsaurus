@@ -787,7 +787,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31058.
+// Next field 31059.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -941,6 +941,9 @@ extend google.protobuf.FieldOptions
 
     // Ignored in source protos. Set by codegen to mark key fields of references.
     optional bool referenced = 31056;
+
+    // Allow to use the same counter in difference counting references.
+    optional bool is_multiple_referencable = 31058;
 }
 
 // Next field 32016.
