@@ -109,7 +109,7 @@ struct TQueueConsumerRegistrationManagerProfilingCounters
     TCounter ListAllRegistrationsRequestCount;
 
     TQueueConsumerRegistrationManagerProfilingCounters(const TProfiler& profiler)
-        : ListAllRegistrationsRequestCount(profiler.Counter("list_all_registrations_request_count"))
+        : ListAllRegistrationsRequestCount(profiler.Counter("/list_all_registrations_request_count"))
     { }
 };
 
