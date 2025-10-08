@@ -38,5 +38,19 @@ target_sources(public-udf-arrow PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_item_comparator.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_type_helper.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/memory_pool.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/args_dechunker.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/bit_util.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_io_buffer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_item.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_item_comparator.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_item_hasher.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_reader.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/block_type_helper.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/defs.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/dispatch_traits.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/memory_pool.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/udf_arrow_helpers.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/arrow/util.h
 )
 

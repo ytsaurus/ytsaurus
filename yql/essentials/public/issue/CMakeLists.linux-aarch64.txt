@@ -44,6 +44,13 @@ target_sources(essentials-public-issue PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_manager.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_utils.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_warning.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_id.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_manager.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_message.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_message_impl.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_issue_utils.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/issue/yql_warning.h
 )
 
 
