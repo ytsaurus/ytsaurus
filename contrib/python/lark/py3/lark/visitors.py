@@ -333,7 +333,7 @@ class Transformer_NonRecursive(Transformer[_Leaf_T, _Return_T]):
         return cast(_Return_T, result)
 
 
-class Transformer_InPlaceRecursive(Transformer):
+class Transformer_InPlaceRecursive(Transformer[_Leaf_T, _Return_T]):
     "Same as Transformer, recursive, but changes the tree in-place instead of returning new instances"
     def _transform_tree(self, tree):
         tree.children = list(self._transform_children(tree.children))
@@ -511,19 +511,19 @@ def _vargs_tree(f, data, children, meta):
 
 
 def v_args(inline: bool = False, meta: bool = False, tree: bool = False, wrapper: Optional[Callable] = None) -> Callable[[_DECORATED], _DECORATED]:
-    """A convenience decorator factory for modifying the behavior of user-supplied visitor methods.
+    """A convenience decorator factory for modifying the behavior of user-supplied callback methods of ``Transformer`` classes.
 
-    By default, callback methods of transformers/visitors accept one argument - a list of the node's children.
+    By default, transformer callback methods accept one argument - a list of the node's children.
 
-    ``v_args`` can modify this behavior. When used on a transformer/visitor class definition,
-    it applies to all the callback methods inside it.
+    ``v_args`` can modify this behavior. When used on a ``Transformer`` class definition, it applies to
+    all the callback methods inside it.
 
     ``v_args`` can be applied to a single method, or to an entire class. When applied to both,
     the options given to the method take precedence.
 
     Parameters:
         inline (bool, optional): Children are provided as ``*args`` instead of a list argument (not recommended for very long lists).
-        meta (bool, optional): Provides two arguments: ``meta`` and ``children`` (instead of just the latter)
+        meta (bool, optional): Provides two arguments: ``meta`` and ``children`` (instead of just the latter); ``meta`` isn't available for transformers supplied to Lark using the ``transformer`` parameter (aka internal transformers).
         tree (bool, optional): Provides the entire tree as the argument, instead of the children.
         wrapper (function, optional): Provide a function to decorate all methods.
 

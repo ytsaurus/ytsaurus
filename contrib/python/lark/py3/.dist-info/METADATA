@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: lark
-Version: 1.2.2
+Version: 1.3.0
 Summary: a modern parsing library
 Author-email: Erez Shinan <erezshin@gmail.com>
 License: MIT
@@ -17,14 +17,15 @@ Classifier: License :: OSI Approved :: MIT License
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Provides-Extra: atomic_cache
-Requires-Dist: atomicwrites ; extra == 'atomic_cache'
-Provides-Extra: interegular
-Requires-Dist: interegular <0.4.0,>=0.3.1 ; extra == 'interegular'
-Provides-Extra: nearley
-Requires-Dist: js2py ; extra == 'nearley'
 Provides-Extra: regex
-Requires-Dist: regex ; extra == 'regex'
+Requires-Dist: regex; extra == "regex"
+Provides-Extra: nearley
+Requires-Dist: js2py; extra == "nearley"
+Provides-Extra: atomic-cache
+Requires-Dist: atomicwrites; extra == "atomic-cache"
+Provides-Extra: interegular
+Requires-Dist: interegular<0.4.0,>=0.3.1; extra == "interegular"
+Dynamic: license-file
 
 Lark is a modern general-purpose parsing library for Python.
 With Lark, you can parse any context-free grammar, efficiently, with very little code.
