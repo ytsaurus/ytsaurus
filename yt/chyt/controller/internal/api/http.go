@@ -134,17 +134,17 @@ func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l lo
 	}
 }
 
-func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
+func reply(w http.ResponseWriter, status int, rsp any, l log.Logger) {
 	format, err := getFormatFromContentTypeHeader(w.Header().Get("Content-Type"))
 	if err != nil {
-		a.L.Error("failed to get output format", log.Error(err))
+		l.Error("failed to get output format", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	body, err := Marshal(rsp, format)
 	if err != nil {
-		a.L.Error("failed to marshal response", log.Error(err))
+		l.Error("failed to marshal response", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -152,7 +152,7 @@ func (a HTTPAPI) reply(w http.ResponseWriter, status int, rsp any) {
 	w.WriteHeader(status)
 	_, err = w.Write(body)
 	if err != nil {
-		a.L.Error("failed to write response body", log.Error(err))
+		l.Error("failed to write response body", log.Error(err))
 	}
 }
 
@@ -168,16 +168,16 @@ func (a HTTPAPI) ReplyWithError(w http.ResponseWriter, err error) {
 		Error:   yterrors.FromError(err).(*yterrors.Error),
 		ToPrint: err.Error(),
 	}
-	a.reply(w, http.StatusBadRequest, apiError)
+	reply(w, http.StatusBadRequest, apiError, a.L)
 }
 
 func (a HTTPAPI) ReplyOK(w http.ResponseWriter, result any) {
 	if result == nil {
-		a.reply(w, http.StatusOK, struct{}{})
+		reply(w, http.StatusOK, struct{}{}, a.L)
 	} else {
-		a.reply(w, http.StatusOK, map[string]any{
+		reply(w, http.StatusOK, map[string]any{
 			"result": result,
-		})
+		}, a.L)
 	}
 }
 
@@ -194,23 +194,22 @@ const (
 )
 
 type CmdParameter struct {
-	Name        string                 `yson:"name"`
-	Aliases     []string               `yson:"aliases,omitempty"`
-	Type        ParamType              `yson:"type"`
-	Required    bool                   `yson:"required"`
-	Action      string                 `yson:"action,omitempty"`
-	Description string                 `yson:"description,omitempty"`
-	EnvVariable string                 `yson:"env_variable,omitempty"`
-	Validator   func(any) error        `yson:"-"`
-	Transformer func(any) (any, error) `yson:"-"`
+	Name        string                 `yson:"name" json:"name"`
+	Aliases     []string               `yson:"aliases,omitempty" json:"aliases,omitempty"`
+	Type        ParamType              `yson:"type" json:"type"`
+	Required    bool                   `yson:"required" json:"required"`
+	Action      string                 `yson:"action,omitempty" json:"action,omitempty"`
+	Description string                 `yson:"description,omitempty" json:"description,omitempty"`
+	EnvVariable string                 `yson:"env_variable,omitempty" json:"env_variable,omitempty"`
+	Validator   func(any) error        `yson:"-" json:"-"`
+	Transformer func(any) (any, error) `yson:"-" json:"-"`
 
 	// Element* fields describe an element of the parameter if the parameter is of an array type.
 	// They are used in CLI to specify an array by repetition of an element option.
-
-	ElementName        string    `yson:"element_name,omitempty"`
-	ElementType        ParamType `yson:"element_type,omitempty"`
-	ElementAliases     []string  `yson:"element_aliases,omitempty"`
-	ElementDescription string    `yson:"element_description,omitempty"`
+	ElementName        string    `yson:"element_name,omitempty" json:"element_name,omitempty"`
+	ElementType        ParamType `yson:"element_type,omitempty" json:"element_type,omitempty"`
+	ElementAliases     []string  `yson:"element_aliases,omitempty" json:"element_aliases,omitempty"`
+	ElementDescription string    `yson:"element_description,omitempty" json:"element_description,omitempty"`
 }
 
 func (c *CmdParameter) ActionOrDefault() string {
@@ -236,10 +235,10 @@ func (c CmdParameter) AsRequired() CmdParameter {
 type HandlerFunc func(api HTTPAPI, w http.ResponseWriter, r *http.Request, params map[string]any)
 
 type CmdDescriptor struct {
-	Name        string         `yson:"name"`
-	Parameters  []CmdParameter `yson:"parameters"`
-	Description string         `yson:"description,omitempty"`
-	Handler     HandlerFunc    `yson:"-"`
+	Name        string         `yson:"name" json:"name"`
+	Parameters  []CmdParameter `yson:"parameters" json:"parameters"`
+	Description string         `yson:"description,omitempty" json:"description,omitempty"`
+	Handler     HandlerFunc    `yson:"-" json:"-"`
 }
 
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {
@@ -414,14 +413,17 @@ func HandlePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandleDescribe(w http.ResponseWriter, r *http.Request, commands []CmdDescriptor, clusters []string) {
-	body, err := yson.Marshal(map[string]any{
+func HandleDescribe(w http.ResponseWriter, r *http.Request, commands []CmdDescriptor, clusters []string, l log.Logger) {
+	rsp := map[string]any{
 		"clusters": clusters,
 		"commands": commands,
-	})
-	if err != nil {
-		panic(err)
 	}
-	w.Header()["Content-Type"] = []string{"application/yson"}
-	_, _ = w.Write(body)
+	acceptType, err := handleFormatNegotiation(r.Header.Get("Accept"))
+	if err != nil {
+		l.Error("failed to get accept format", log.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header()["Content-Type"] = []string{"application/" + string(acceptType)}
+	reply(w, http.StatusOK, rsp, l)
 }
