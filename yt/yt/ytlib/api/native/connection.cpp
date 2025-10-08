@@ -306,6 +306,7 @@ public:
             config->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
+            Profiler_.WithPrefix("/queue_consumer_registration_manager"),
             Logger);
 
         PermissionCache_ = New<TPermissionCache>(

@@ -36,10 +36,10 @@ void TSpeculativeJobManager::OnJobScheduled(const TJobletPtr& joblet)
     TCompetitiveJobManagerBase::OnJobScheduled(joblet);
 }
 
-void TSpeculativeJobManager::OnJobCompleted(const TJobletPtr& joblet)
+bool TSpeculativeJobManager::OnJobCompleted(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
-        return;
+        return true;
     }
 
     OnJobFinished(joblet);
@@ -53,6 +53,7 @@ void TSpeculativeJobManager::OnJobCompleted(const TJobletPtr& joblet)
             Host_->AsyncAbortJob(competitor, abortReason);
         }
     }
+    return true;
 }
 
 bool TSpeculativeJobManager::OnUnsuccessfulJobFinish(

@@ -21,9 +21,9 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
-
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>

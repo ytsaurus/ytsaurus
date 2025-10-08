@@ -36,6 +36,7 @@ target_link_libraries(yt-server-master_cache PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-library-dynamic_config
+  yt-library-orchid
   yt-library-server_program
   yt-yt-ytlib
   ytserver

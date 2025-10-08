@@ -356,6 +356,55 @@ func TestHTTPAPIDescribeAndPing(t *testing.T) {
 	require.True(t, deletePresent)
 }
 
+type UnmarshalFunc func([]byte, any) error
+
+func CommonTestDescribe(t *testing.T, acceptHeader *string, unmarshalFunc UnmarshalFunc) {
+	t.Parallel()
+
+	_, c := helpers.PrepareSleepAPI(t)
+
+	rsp, err := http.Get(c.Endpoint + "/ping")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, rsp.StatusCode)
+
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", c.Endpoint+"/describe", nil)
+	require.NoError(t, err)
+	if acceptHeader != nil {
+		req.Header.Set("Accept", *acceptHeader)
+	}
+	rsp, err = client.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, rsp.StatusCode)
+
+	body, err := io.ReadAll(rsp.Body)
+	require.NoError(t, err)
+
+	var description map[string]any
+	if unmarshalFunc != nil {
+		err = unmarshalFunc(body, &description)
+	} else {
+		err = yson.Unmarshal(body, &description)
+	}
+	require.NoError(t, err)
+
+	require.Equal(t, []any{c.Proxy, "test_location_alias"}, description["clusters"])
+}
+
+func TestDescribeWithJSONAccept(t *testing.T) {
+	applicationJson := "application/json"
+	CommonTestDescribe(t, &applicationJson, json.Unmarshal)
+}
+
+func TestDescribeWithYSONAccept(t *testing.T) {
+	applicationYson := "application/yson"
+	CommonTestDescribe(t, &applicationYson, yson.Unmarshal)
+}
+
+func TestDescribeWithNoAccept(t *testing.T) {
+	CommonTestDescribe(t, nil, nil)
+}
+
 func TestHTTPAPIList(t *testing.T) {
 	t.Parallel()
 

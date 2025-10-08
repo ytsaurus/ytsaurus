@@ -28,6 +28,51 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 ##################################################################
 
 
+class QueueConsumerRegistration:
+    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None):
+        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path)
+        self.value = (vital, partitions)
+
+    def __eq__(self, other):
+        return (self.key, self.value) == (other.key, other.value)
+
+    def __str__(self):
+        return str((self.key, self.value))
+
+    def __repr__(self):
+        return str(self)
+
+    def __hash__(self):
+        return hash(self.key + self.value)
+
+    @staticmethod
+    def _normalize_partitions(partitions):
+        if partitions is None:
+            return partitions
+        if partitions == YsonEntity():
+            return None
+        return tuple(partitions)
+
+    @classmethod
+    def from_select(cls, r):
+        return cls(r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"],
+                   cls._normalize_partitions(r["partitions"]))
+
+    @classmethod
+    def from_orchid(cls, r):
+        return cls(*r["queue"].split(":"), *r["consumer"].split(":"), r["vital"],
+                   cls._normalize_partitions(r["partitions"]))
+
+    @classmethod
+    def from_list_registrations(cls, r):
+        return cls(r["queue_path"].attributes["cluster"], str(r["queue_path"]),
+                   r["consumer_path"].attributes["cluster"], str(r["consumer_path"]),
+                   r["vital"], cls._normalize_partitions(r["partitions"]))
+
+
+##################################################################
+
+
 # TODO(apachee): Simplify code for get_xxx method by generating them from
 # field names (and maybe post-processing functions).
 
@@ -670,7 +715,82 @@ class QueueStaticExportHelpers(ABC):
 ##################################################################
 
 
-class TestQueueAgentBase(YTEnvSetup):
+class QueueConsumerRegistrationManagerBase(YTEnvSetup):
+    DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG = {
+        "disable_list_all_registrations": True,
+    }
+
+    _QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_FIELD_LIST = {
+        "disable_list_all_registrations",
+        "state_write_path",
+        "state_read_path",
+        "replicated_table_mapping_read_path",
+        "bypass_caching",
+        "cache_refresh_period",
+        "configuration_refresh_period",
+        "user",
+        "resolve_symlinks",
+        "resolve_replicas",
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super().setup_class()
+
+        cls._apply_registration_table_config(cls.DELTA_QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG)
+
+    @classmethod
+    def _apply_registration_manager_dynamic_config_patch(cls, patch, cluster):
+        patch = {k: v for k, v in patch.items() if k in cls._QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_FIELD_LIST}
+
+        driver = get_driver(cluster=cluster)
+        config_path = f"//sys/clusters/{cluster}/queue_agent/queue_consumer_registration_manager"
+
+        config = get(config_path, driver=driver)
+        update_inplace(config, patch)
+        print_debug("Setting dynamic config", config)
+        set(config_path, config, driver=driver)
+
+        def config_updated():
+            for proxy in get("//sys/rpc_proxies", driver=driver).keys():
+                orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
+                effective_config = get(f"{orchid_path}/effective_config", driver=driver)
+                if update(effective_config, config) != effective_config:
+                    print_debug(f"Configs differ: {update(effective_config, config)} and {effective_config}")
+                    return False
+
+            return True
+
+        wait(config_updated)
+
+    @classmethod
+    def _apply_registration_table_config(cls, patch):
+        patch.update({
+            "cache_refresh_period": 250,
+            "configuration_refresh_period": 500,
+        })
+
+        patch = {k: v for k, v in patch.items() if k in cls._QUEUE_CONSUMER_REGISTRATION_MANAGER_CONFIG_FIELD_LIST}
+
+        print_debug(f"Applying config patch {patch} to queue consumer registration manager dynamic config")
+
+        for cluster in cls.get_cluster_names():
+            cls._apply_registration_manager_dynamic_config_patch(patch, cluster)
+
+    @staticmethod
+    def _list_all_registrations(driver=None):
+        if not driver:
+            driver = get_driver()
+        cluster_name = get("//sys/@cluster_name", driver=driver)
+        config = get(f"//sys/clusters/{cluster_name}/queue_agent/queue_consumer_registration_manager", driver=driver)
+        registration_table_path = config["state_read_path"]
+        return [QueueConsumerRegistration.from_select(r) for r in select_rows(f"* FROM [{registration_table_path}]")]
+
+
+##################################################################
+
+
+class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
     # NB(apachee): Create Queue Agent instances only on primary cluster
     NUM_QUEUE_AGENTS_PRIMARY = 1
     NUM_QUEUE_AGENTS = 0

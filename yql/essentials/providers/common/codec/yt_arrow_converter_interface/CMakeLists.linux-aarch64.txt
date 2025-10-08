@@ -27,3 +27,8 @@ target_link_libraries(common-codec-yt_arrow_converter_interface INTERFACE
   public-udf-arrow
 )
 
+target_sources(common-codec-yt_arrow_converter_interface INTERFACE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/codec/yt_arrow_converter_interface/yt_arrow_converter.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/providers/common/codec/yt_arrow_converter_interface/yt_arrow_converter_details.h
+)
+

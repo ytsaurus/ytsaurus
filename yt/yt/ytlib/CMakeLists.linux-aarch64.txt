@@ -88,15 +88,16 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-min_hash_digest
   yt-client-logging
   yt-library-formats
+  yt-library-orchid
+  library-profiling-solomon
+  yt-library-program
   library-query-base
   library-query-engine
   library-query-engine_api
   library-query-row_comparer_api
   library-query-secondary_index
-  library-web_assembly-api
-  library-profiling-solomon
-  yt-library-program
   yt-library-vector_hdrf
+  library-web_assembly-api
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client
@@ -161,7 +162,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/user_directory.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
@@ -437,8 +437,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/orchid/orchid_ypath_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/explain.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_client/functions_cache.cpp
@@ -704,7 +702,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/object_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/user_directory.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/orchid/proto/orchid_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
@@ -1820,15 +1817,16 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-min_hash_digest
   yt-client-logging
   yt-library-formats
+  yt-library-orchid
+  library-profiling-solomon
+  yt-library-program
   library-query-base
   library-query-engine
   library-query-engine_api
   library-query-row_comparer_api
   library-query-secondary_index
-  library-web_assembly-api
-  library-profiling-solomon
-  yt-library-program
   yt-library-vector_hdrf
+  library-web_assembly-api
   yt-ytlib-discovery_client
   yt-ytlib-query_tracker_client
   yt_proto-yt-client

@@ -26,11 +26,11 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>

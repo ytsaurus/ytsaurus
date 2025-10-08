@@ -37,6 +37,7 @@ target_link_libraries(yt-server-tcp_proxy PUBLIC
   server-lib-misc
   yt-yt-ytlib
   yt-library-dynamic_config
+  yt-library-orchid
   yt-library-program
   yt-library-server_program
   library-cpp-getopt

@@ -94,6 +94,8 @@ class YTToolRunnerMCP:
         return data
 
     def return_structured(self, data):
+        if isinstance(data, yt.format.RowsIterator):
+            data = list(data)
         return TextContent(type="text", text=json.dumps(self._simplify_structured(data)))
 
     def _add_tool_to_mcp(self, mcp: FastMCP, tool: "yt.mcp.lib.tools.helpers.YTToolBase"):

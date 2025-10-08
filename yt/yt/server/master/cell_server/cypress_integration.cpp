@@ -16,9 +16,9 @@
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
-#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
-
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/yt/library/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

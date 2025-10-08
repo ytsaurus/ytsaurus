@@ -72,6 +72,7 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/nonblocking_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/parallel_runner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/periodic_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/periodic_yielder_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/profiled_fair_share_invoker_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/propagating_storage_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/quantized_executor_ut.cpp
@@ -79,8 +80,8 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/scheduler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/suspendable_action_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_affinity_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_pool_poller_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/thread_pool_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/throughput_throttler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/two_level_fair_share_thread_pool_ut.cpp
 )

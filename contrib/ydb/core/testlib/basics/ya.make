@@ -31,6 +31,7 @@ PEERDIR(
     contrib/ydb/core/util
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/public/udf/service/exception_policy
+    contrib/ydb/library/keys
     contrib/ydb/services/kesus
     contrib/ydb/services/persqueue_cluster_discovery
     contrib/ydb/services/ydb

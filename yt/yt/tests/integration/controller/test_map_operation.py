@@ -8,7 +8,7 @@ from yt_commands import (
     authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
-    map, merge, sort, interrupt_job, get_first_chunk_id,
+    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
@@ -1887,6 +1887,124 @@ print(json.dumps(input))
         )
 
         assert len(op.list_jobs()) == 10
+
+    @authors("faucct")
+    def test_distributed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        with pytest.raises(YtError, match="User job failed"):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then exit 1; fi',
+                spec={"mapper": {"cookie_group_size": 2, "close_stdout_if_unused": True}},
+            )
+        with pytest.raises(YtError, match="echo"):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi',
+                spec={"mapper": {"cookie_group_size": 2, "close_stdout_if_unused": True}},
+            )
+        map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            spec={"mapper": {"cookie_group_size": 2, "close_stdout_if_unused": True}},
+        )
+
+        res = read_table("//tmp/t2")
+        assert res == [{"a": "b"}]
+
+    @authors("faucct")
+    def test_distributed_aborting(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            spec={"mapper": {"cookie_group_size": 2}},
+        )
+        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
+        wait_breakpoint(job_count=2)[0]
+        assert op.get_job_count("aborted") == 2
+        assert read_table("//tmp/t2") == []
+        release_breakpoint()
+        op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("faucct")
+    def test_distributed_interrupting(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            spec={"mapper": {"cookie_group_size": 2}},
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        main_job_id = get_job(op.id, job_ids[0], attributes=["main_job_id"])["main_job_id"]
+        with pytest.raises(YtError, match="Error interrupting job"):
+            interrupt_job(({*job_ids} - {main_job_id}).pop())
+        interrupt_job(main_job_id)
+        release_breakpoint()
+        op.track()
+        assert op.get_job_count("aborted") == 0
+
+    @authors("faucct")
+    def test_distributed_with_secondary_job_hang(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """
+                BREAKPOINT
+                if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi
+                """
+            ),
+            spec={"mapper": {"cookie_group_size": 2}},
+            track=False,
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        main_job_id = get_job(op.id, job_ids[0], attributes=["main_job_id"])["main_job_id"]
+        release_breakpoint(job_id=main_job_id)
+        op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+    @authors("faucct")
+    def test_distributed_with_secondary_job_fail_and_operation_completion(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif (( "$YT_JOB_INDEX" < 2 )); then exit 1; fi"""
+            ),
+            spec={"mapper": {"cookie_group_size": 2}, "max_failed_job_count": 2},
+            track=False,
+        )
+        first_incarnation = wait_breakpoint(job_count=2)
+        main_job_id = get_job(op.id, first_incarnation[0], attributes=["main_job_id"])["main_job_id"]
+        secondary_job_id, = {*first_incarnation} - {main_job_id}
+        release_breakpoint(job_id=secondary_job_id)
+        wait(lambda: get_job(op.id, secondary_job_id)["state"] == "failed", ignore_exceptions=True)
+        wait_breakpoint(job_count=2)
+        release_breakpoint()
+        op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):

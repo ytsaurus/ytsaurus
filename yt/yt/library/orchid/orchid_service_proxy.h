@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/orchid/proto/orchid_service.pb.h>
+#include <yt/yt/library/orchid/proto/orchid_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

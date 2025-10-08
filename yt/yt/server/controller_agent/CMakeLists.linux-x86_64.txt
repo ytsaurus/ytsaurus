@@ -34,9 +34,10 @@ target_link_libraries(yt-server-controller_agent PUBLIC
   yutil
   cpp-yt-phdr_cache
   yt-library-monitoring
-  yt-library-ytprof
-  yt-library-server_program
+  yt-library-orchid
   library-profiling-solomon
+  yt-library-server_program
+  yt-library-ytprof
   ytserver
   server-lib-chunk_pools
   server-lib-scheduler

@@ -204,6 +204,7 @@ struct TCustomTableMountConfig
     double CompactionDataSizeRatio;
 
     TGradualCompactionConfig GlobalCompaction;
+    TGradualCompactionConfig ForcedCompaction;
 
     NConcurrency::TThroughputThrottlerConfigPtr PartitioningThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr CompactionThrottler;

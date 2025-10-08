@@ -11,12 +11,16 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/getopt
-    library/cpp/yt/phdr_cache
-    yt/yt/library/server_program
-    yt/yt/ytlib
     yt/yt/server/lib
     yt/yt/server/lib/discovery_server
+
+    yt/yt/ytlib
+
+    yt/yt/library/orchid
+    yt/yt/library/server_program
+
+    library/cpp/getopt
+    library/cpp/yt/phdr_cache
 )
 
 END()

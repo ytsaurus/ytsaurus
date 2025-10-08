@@ -142,7 +142,7 @@
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -812,6 +812,8 @@ private:
     NTabletNode::IBootstrapPtr TabletNodeBootstrap_;
 
     bool Decommissioned_ = false;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void DoRun()
     {
@@ -1777,8 +1779,6 @@ private:
 
         return netLimit.value_or(Config_->NetworkBandwidth) * (1. - throttlerFreeBandwidthRatio);
     }
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

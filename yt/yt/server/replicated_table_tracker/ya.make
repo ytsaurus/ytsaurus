@@ -19,8 +19,9 @@ PEERDIR(
     yt/yt/server/lib/tablet_server
 
     yt/yt/library/dynamic_config
-    yt/yt/library/server_program
     yt/yt/library/monitoring
+    yt/yt/library/orchid
+    yt/yt/library/server_program
 
     yt/yt/ytlib
     yt/yt/core

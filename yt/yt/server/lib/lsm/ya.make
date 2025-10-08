@@ -4,7 +4,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     helpers.cpp
-    hunk_chunk.cpp
     lsm_backend.cpp
     partition.cpp
     partition_balancer.cpp

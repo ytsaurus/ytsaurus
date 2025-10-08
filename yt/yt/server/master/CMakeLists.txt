@@ -52,6 +52,7 @@ target_link_libraries(yt-server-master PUBLIC
   cpp-containers-absl_flat_hash
   library-cpp-getopt
   cpp-yt-phdr_cache
+  yt-library-orchid
   yt-library-server_program
   yt-library-monitoring
   yt-ytlib-distributed_throttler

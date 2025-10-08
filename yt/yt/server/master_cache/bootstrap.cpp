@@ -31,14 +31,14 @@
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 

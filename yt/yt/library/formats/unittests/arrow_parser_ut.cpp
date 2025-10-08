@@ -2,6 +2,7 @@
 
 #include <yt/yt/tests/cpp/library/row_helpers.h>
 
+#include <yt/yt/library/formats/arrow_metadata_constants.h>
 #include <yt/yt/library/formats/arrow_parser.h>
 
 #include <yt/yt/client/formats/config.h>
@@ -304,6 +305,41 @@ std::string MakeStructArrow(const std::vector<std::string>& stringData, const st
 
     auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
 
+    return MakeOutputFromRecordBatch(recordBatch);
+}
+
+std::string MakeEmptyStructArrow(int rowCount, bool add_metadata)
+{
+    auto nullBuilder = std::make_shared<arrow20::NullBuilder>();
+
+    std::shared_ptr<arrow20::KeyValueMetadata> metadata;
+    if (add_metadata) {
+        metadata = std::make_shared<arrow20::KeyValueMetadata>(
+            std::vector{YtTypeMetadataKey},
+            std::vector{YtTypeMetadataValueEmptyStruct});
+    }
+
+    arrow20::FieldVector fieldVector = {arrow20::field(/*name*/ "", arrow20::null())};
+    auto structType = arrow20::struct_(fieldVector);
+
+    auto structBuilder = std::make_shared<arrow20::StructBuilder>(
+        structType,
+        arrow20::default_memory_pool(),
+        std::vector<std::shared_ptr<arrow20::ArrayBuilder>>{nullBuilder});
+
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        Verify(nullBuilder->AppendNull());
+        Verify(structBuilder->Append(true));
+    }
+
+    auto structArray = structBuilder->Finish().ValueOrDie();
+
+    auto arrowSchema = arrow20::schema({
+        arrow20::field("struct", structType, /*nullable*/ false, metadata),
+    });
+
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {structArray};
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, columns[0]->length(), columns);
     return MakeOutputFromRecordBatch(recordBatch);
 }
 
@@ -1239,6 +1275,48 @@ TEST(TArrowParserTest, BlockingInput)
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "integer")), 1);
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(1, "integer")), 2);
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
+}
+
+TEST(TArrowParserTest, EmptyStruct)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("struct", StructLogicalType({})),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    int rowCount = 5;
+    auto data = MakeEmptyStructArrow(rowCount, true);
+
+    parser->Read(data);
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), rowCount);
+
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        ASSERT_EQ(collectedRows.GetRowValue(rowIndex, "struct").AsString(), "[]");
+    }
+}
+
+TEST(TArrowParserTest, InvalidEmptyStruct)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("struct", StructLogicalType({})),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    int rowCount = 5;
+    auto data = MakeEmptyStructArrow(rowCount, false);
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        parser->Read(data),
+        std::exception,
+        "YT \"struct\" type has no fields, but no metadata found with the key");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

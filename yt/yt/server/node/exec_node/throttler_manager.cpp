@@ -332,7 +332,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
         }
 
         if (!MasterConnected_) {
-            YT_LOG_DEBUG("Skip updating cluster throttlers config since master is diconnected");
+            YT_LOG_DEBUG("Skip updating cluster throttlers config since master is disconnected");
             return;
         }
 

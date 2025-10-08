@@ -360,11 +360,6 @@ SRCS(
     object_client/proto/object_ypath.proto
     object_client/proto/user_directory.proto
 
-    orchid/orchid_service.cpp
-    orchid/orchid_ypath_service.cpp
-
-    orchid/proto/orchid_service.proto
-
     query_client/executor.cpp
     query_client/explain.cpp
     query_client/functions_cache.cpp
@@ -795,15 +790,16 @@ PEERDIR(
     yt/yt/client
     yt/yt/client/logging
     yt/yt/library/formats
+    yt/yt/library/orchid
+    yt/yt/library/profiling/solomon
+    yt/yt/library/program
     yt/yt/library/query/base
     yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/query/secondary_index
-    yt/yt/library/web_assembly/api
-    yt/yt/library/profiling/solomon
-    yt/yt/library/program
     yt/yt/library/vector_hdrf
+    yt/yt/library/web_assembly/api
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client
     yt/yt_proto/yt/client

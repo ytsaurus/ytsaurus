@@ -81,6 +81,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PrimaryCompressedDataSizePerJob)       (302001))
     ((RemoveOldOrderedChunkPoolSlicing)      (302002))
     ((RemoveOldUnorderedChunkPoolSlicing)    (302003))
+    ((DistributedJobManagers)                (302004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

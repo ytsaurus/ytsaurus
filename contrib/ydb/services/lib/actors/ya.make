@@ -12,6 +12,7 @@ PEERDIR(
     contrib/ydb/core/metering
     contrib/ydb/core/mind
     contrib/ydb/core/protos
+    contrib/ydb/core/util
     contrib/ydb/public/sdk/cpp/src/library/persqueue/obfuscate
     contrib/ydb/library/persqueue/topic_parser
     contrib/ydb/public/api/grpc

@@ -1,12 +1,7 @@
 # stockpile
 
-При приближении к лимиту памяти в memory cgroup, linux запускает механизм direct reclaim,
-чтобы освободить свободную память. По опыту YT, direct reclaim очень сильно замедляет работу
-всего процесса.
+As the memory limit in cgroup approaches, Linux triggers the direct reclaim mechanism to free up available memory. However, according to YT's experience, direct reclaim significantly slows down the entire process.
 
-Проблема возникает не только, когда память занята анонимными страницами. 50% памяти контейнера
-может быть занято не dirty страницами page cache, но проблема всёравно будет проявляться. Например,
-если процесс активно читает файлы с диска без O_DIRECT, вся память очень быстро будет забита.
+The problem does not only arise when memory is occupied by anonymous pages. 50% of a container's memory can be occupied by non-dirty pages in page cache, and the issue will still manifest. For example, if a process actively reads files from disk without O_DIRECT, memory fills up very quickly.
 
-Чтобы бороться с этой проблемой, в яндексовом ядре добавлена ручка `madvise(MADV_STOCKPILE)`.
-Больше подробностей в https://st.yandex-team.ru/KERNEL-186
+To overcome this problem, a hook `madvise(MADV_STOCKPILE)` has been added to the Yandex kernel. More details are available at https://ytsaurus.tech/internal/N2larTtt7Kzty9

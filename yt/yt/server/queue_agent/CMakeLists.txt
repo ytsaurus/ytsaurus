@@ -31,20 +31,21 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-phdr_cache
-  library-cpp-getopt
-  yt-library-dynamic_config
-  yt-library-monitoring
-  yt-library-program
-  yt-library-server_program
-  yt-yt-client
-  yt-client-federated
-  yt-yt-ytlib
   server-lib-admin
   server-lib-alert_manager
   server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
+  yt-yt-ytlib
+  yt-yt-client
+  yt-client-federated
+  yt-library-dynamic_config
+  yt-library-monitoring
+  yt-library-orchid
+  yt-library-program
+  yt-library-server_program
+  cpp-yt-phdr_cache
+  library-cpp-getopt
 )
 
 target_sources(yt-server-queue_agent PRIVATE

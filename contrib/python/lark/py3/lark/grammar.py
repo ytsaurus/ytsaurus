@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, ClassVar, Sequence
+from typing import Any, Dict, Optional, Tuple, ClassVar, Sequence
 
 from .utils import Serialize
 
@@ -16,7 +16,8 @@ class Symbol(Serialize):
         self.name = name
 
     def __eq__(self, other):
-        assert isinstance(other, Symbol), other
+        if not isinstance(other, Symbol):
+            return NotImplemented
         return self.is_term == other.is_term and self.name == other.name
 
     def __ne__(self, other):
@@ -39,7 +40,7 @@ class Terminal(Symbol):
 
     is_term: ClassVar[bool] = True
 
-    def __init__(self, name, filter_out=False):
+    def __init__(self, name: str, filter_out: bool = False) -> None:
         self.name = name
         self.filter_out = filter_out
 
@@ -55,6 +56,11 @@ class NonTerminal(Symbol):
     __serialize_fields__ = 'name',
 
     is_term: ClassVar[bool] = False
+
+    def serialize(self, memo=None) -> Dict[str, Any]:
+        # TODO this is here because self.name can be a Token instance.
+        #      remove this function when the issue is fixed. (backwards-incompatible)
+        return {'name': str(self.name), '__type__': 'NonTerminal'}
 
 
 class RuleOptions(Serialize):
