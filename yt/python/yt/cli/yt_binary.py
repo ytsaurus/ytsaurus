@@ -1777,7 +1777,7 @@ def operation_id_args(parser, **kwargs):
 
 def add_abort_op_parser(add_parser):
     parser = add_parser("abort-op", yt.abort_operation)
-    parser.add_argument("--reason", help="abort reason")
+    parser.add_argument("--message", "--reason", dest="message", help="abort reason message")
     operation_id_args(parser)
 
 
