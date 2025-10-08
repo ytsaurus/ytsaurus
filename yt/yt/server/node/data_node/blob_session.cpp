@@ -892,7 +892,9 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
         ->GetClient()
         ->GetNativeConnection()
         ->GetChannelFactory();
-    auto channel = channelFactory->CreateChannel(targetDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks()));
+    auto channel = channelFactory->CreateChannel(
+        targetDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks()),
+        targetDescriptor.GetDefaultAddress());
     TDataNodeServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(requestTimeout);
 

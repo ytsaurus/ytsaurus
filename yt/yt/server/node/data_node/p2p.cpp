@@ -655,9 +655,11 @@ void TP2PDistributor::DistributeBlocks()
         }
 
         auto destinationAddress = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
+        auto destinationIdentity = nodeDescriptor->GetDefaultAddress();
         auto future = BIND([
             hotBlocks = std::move(hotBlocks),
             destinationAddress,
+            destinationIdentity,
             currentTick,
             config,
             this,
@@ -670,7 +672,7 @@ void TP2PDistributor::DistributeBlocks()
 
             auto selfNodeId = Bootstrap_->GetNodeId();
 
-            auto channel = channelFactory->CreateChannel(destinationAddress);
+            auto channel = channelFactory->CreateChannel(destinationAddress, destinationIdentity);
 
             TDataNodeServiceProxy proxy(std::move(channel));
             proxy.SetDefaultTimeout(config->RequestTimeout);
