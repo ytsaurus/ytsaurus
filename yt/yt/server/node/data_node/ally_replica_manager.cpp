@@ -643,7 +643,7 @@ private:
 
                 try {
                     const auto& address = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-                    channel = channelFactory->CreateChannel(address);
+                    channel = channelFactory->CreateChannel(address, nodeDescriptor->GetDefaultAddress());
                 } catch (const std::exception& ex) {
                     YT_LOG_WARNING(ex, "Failed to create channel to node (Address: %v)",
                         nodeDescriptor->GetDefaultAddress());
