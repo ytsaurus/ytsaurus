@@ -470,7 +470,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
         .Alias("job_interrupt_timeout")
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::AllocationGracefulPreemptionTimeout)
         .Alias("job_graceful_interrupt_timeout")
