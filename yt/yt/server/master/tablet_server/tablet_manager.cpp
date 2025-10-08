@@ -4226,8 +4226,16 @@ private:
 
             if (WeakRefTableReplicas_ && tabletBase->GetType() == EObjectType::Tablet) {
                 auto* tablet = tabletBase->As<TTablet>();
-                for (const auto& [replica, _] : tablet->Replicas()) {
+                auto replicas = std::exchange(tablet->Replicas(), {});
+                for (auto&& [replica, replicaInfo] : replicas) {
+                    if (replica->GetObjectRefCounter() == 0) {
+                        YT_LOG_ALERT("Skipped dead table replica (TabletId: %v, ReplicaId: %v)",
+                            tablet->GetId(),
+                            replica->GetId());
+                        continue;
+                    }
                     Bootstrap_->GetObjectManager()->WeakRefObject(replica.Get());
+                    tablet->Replicas().emplace(replica.Get(), std::move(replicaInfo));
                 }
             }
         }
