@@ -365,7 +365,7 @@ public:
         bool isInsert = SecondaryQueries_[0].Query->as<DB::ASTInsertQuery>();
 
         if (!isInsert) {
-            auto queryTree = QueryInfo_.query_tree->clone();
+            auto queryTree = QueryAnalyzer_->GetParsedQueryTree();
             // NB: QueryTree may be some subquery of the initial query.
             // After processing on the secondary instance, its auxiliary aliases may not match the current ones.
             // Therefore, for the correct header output, we need to recreate the aliases.

@@ -1966,6 +1966,40 @@ class TestClickHouseCommon(ClickHouseTestBase):
                      'order by (t1.val)')
             assert clique.make_query(query) == [{"res": 3}, {"res": 5}]
 
+    @authors("buyval01")
+    def test_complex_secondary_query_headers(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [{"name": "val", "type": "int64"}]},
+        )
+        write_table("//tmp/t", [{"val": 1}, {"val": 2}, {"val": 3},])
+
+        with Clique(2) as clique:
+            query = '''
+                SELECT if(0,
+                        multiIf(t1.val % 2 = 0, 'even', t1.val % 2 = 1, 'odd', 'strage'),
+                        'false'
+                    ) as res
+                FROM "//tmp/t" AS t1
+            '''
+            assert clique.make_query(query) == [{"res": "false"}, {"res": "false"}, {"res": "false"}]
+
+            # After analyzer pass the t3.val identifier in multiIf will be resolved to __table4.val.
+            # But after table expressions are materialized in global joins, it will become __table3.val.
+            # This may lead to header inconsistencies and NOT_FOUND_COLUMN_IN_BLOCK error.
+            query = '''
+                SELECT sum(multiIf(t3.val IN (1, 3), 1, t3.val = 2, 2, 0)) as res
+                FROM "//tmp/t" as t1 GLOBAL LEFT JOIN
+                (select * from "//tmp/t") as t2
+                ON t1.val = t2.val + 1
+
+                GLOBAL LEFT JOIN
+                (select * from "//tmp/t") as t3
+                ON t1.val = t3.val
+            '''
+            assert clique.make_query(query) == [{"res": 4}]
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")
