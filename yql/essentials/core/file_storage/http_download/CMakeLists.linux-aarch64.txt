@@ -36,5 +36,6 @@ target_link_libraries(core-file_storage-http_download PUBLIC
 
 target_sources(core-file_storage-http_download PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/http_download/http_download.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/http_download/http_download.h
 )
 

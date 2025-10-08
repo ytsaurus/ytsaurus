@@ -28,5 +28,7 @@ target_link_libraries(core-file_storage-download PUBLIC
 target_sources(core-file_storage-download PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/download/download_config.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/download/download_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/download/download_config.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/download/download_stream.h
 )
 
