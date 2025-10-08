@@ -66,6 +66,7 @@ IQueueConsumerRegistrationManagerPtr CreateQueueConsumerRegistrationManager(
     TQueueConsumerRegistrationManagerConfigPtr config,
     NApi::NNative::IConnection* connection,
     IInvokerPtr invoker,
+    const NProfiling::TProfiler& profiler,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,6 +21,7 @@ namespace NYT::NQueueClient {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NTabletClient;
 using namespace NThreading;
@@ -103,6 +104,17 @@ std::string NormalizeClusterName(TStringBuf clusterName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueueConsumerRegistrationManagerProfilingCounters
+{
+    TCounter ListAllRegistrationsRequestCount;
+
+    TQueueConsumerRegistrationManagerProfilingCounters(const TProfiler& profiler)
+        : ListAllRegistrationsRequestCount(profiler.Counter("list_all_registrations_request_count"))
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +127,7 @@ public:
         TQueueConsumerRegistrationManagerConfigPtr config,
         NApi::NNative::IConnection* connection,
         IInvokerPtr invoker,
+        const NProfiling::TProfiler& profiler,
         const NLogging::TLogger& logger)
         : Config_(std::move(config))
         , Connection_(connection)
@@ -128,6 +141,7 @@ public:
             Invoker_,
             BIND(&TQueueConsumerRegistrationManager::RefreshCache, MakeWeak(this)),
             Config_->CacheRefreshPeriod))
+        , ProfilingCounters_(profiler)
         , Logger(logger)
         , DynamicConfig_(Config_)
     { }
@@ -140,7 +154,7 @@ public:
         ConfigurationRefreshExecutor_->Start();
         CacheRefreshExecutor_->Start();
     }
-    
+
     void StopSync() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -197,6 +211,17 @@ public:
 
         if (config->BypassCaching) {
             RefreshCache();
+        }
+
+        // NB(apachee): This provides better diagnostics for finding bad requests.
+        if (!queue && !consumer) {
+            ProfilingCounters_.ListAllRegistrationsRequestCount.Increment();
+            YT_LOG_DEBUG("List registrations request with both queue and consumer paths missing");
+
+            THROW_ERROR_EXCEPTION_IF(
+                config->DisableListAllRegistrations,
+                "Listing all registrations is disabled by current cluster configuration "
+                "and will be disabled entirely in the near future");
         }
 
         // NB: We want to return an empty list if the provided queue/consumer does not exist,
@@ -318,6 +343,7 @@ private:
     const std::optional<std::string> ClusterName_;
     const NConcurrency::TPeriodicExecutorPtr ConfigurationRefreshExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CacheRefreshExecutor_;
+    TQueueConsumerRegistrationManagerProfilingCounters ProfilingCounters_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigurationSpinLock_);
@@ -634,12 +660,14 @@ IQueueConsumerRegistrationManagerPtr CreateQueueConsumerRegistrationManager(
     TQueueConsumerRegistrationManagerConfigPtr config,
     NApi::NNative::IConnection* connection,
     IInvokerPtr invoker,
+    const NProfiling::TProfiler& profiler,
     const NLogging::TLogger& logger)
 {
     return New<TQueueConsumerRegistrationManager>(
         std::move(config),
         connection,
         std::move(invoker),
+        profiler,
         logger);
 }
 

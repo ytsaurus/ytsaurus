@@ -1,10 +1,11 @@
-from yt_queue_agent_test_base import (TestQueueAgentBase, ReplicatedObjectBase, CypressSynchronizerOrchid)
-
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
                          list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
                          start_transaction)
+
+from yt_queue_agent_test_base import (QueueConsumerRegistration, TestQueueAgentBase, ReplicatedObjectBase,
+                                      CypressSynchronizerOrchid, QueueConsumerRegistrationManagerBase)
 
 from yt_env_setup import (
     Restarter,
@@ -15,7 +16,7 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 import yt_error_codes
 
-from yt.common import update_inplace, update, YtError
+from yt.common import update, YtError
 from yt.yson import YsonEntity
 from yt.ypath import parse_ypath
 
@@ -23,49 +24,7 @@ import builtins
 import pytest
 
 
-class QueueConsumerRegistration:
-    def __init__(self, queue_cluster, queue_path, consumer_cluster, consumer_path, vital, partitions=None):
-        self.key = (queue_cluster, queue_path, consumer_cluster, consumer_path)
-        self.value = (vital, partitions)
-
-    def __eq__(self, other):
-        return (self.key, self.value) == (other.key, other.value)
-
-    def __str__(self):
-        return str((self.key, self.value))
-
-    def __repr__(self):
-        return str(self)
-
-    def __hash__(self):
-        return hash(self.key + self.value)
-
-    @staticmethod
-    def _normalize_partitions(partitions):
-        if partitions is None:
-            return partitions
-        if partitions == YsonEntity():
-            return None
-        return tuple(partitions)
-
-    @classmethod
-    def from_select(cls, r):
-        return cls(r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"],
-                   cls._normalize_partitions(r["partitions"]))
-
-    @classmethod
-    def from_orchid(cls, r):
-        return cls(*r["queue"].split(":"), *r["consumer"].split(":"), r["vital"],
-                   cls._normalize_partitions(r["partitions"]))
-
-    @classmethod
-    def from_list_registrations(cls, r):
-        return cls(r["queue_path"].attributes["cluster"], str(r["queue_path"]),
-                   r["consumer_path"].attributes["cluster"], str(r["consumer_path"]),
-                   r["vital"], cls._normalize_partitions(r["partitions"]))
-
-
-class TestQueueConsumerApiBase(ReplicatedObjectBase):
+class TestQueueConsumerApiBase(QueueConsumerRegistrationManagerBase, ReplicatedObjectBase):
     def _get_drivers(self, clusters=None):
         if clusters is None:
             clusters = self.get_cluster_names()
@@ -179,42 +138,6 @@ class TestQueueConsumerApiBase(ReplicatedObjectBase):
             "write_availability_clusters": {cluster},
         }
 
-    @staticmethod
-    def _apply_registration_manager_dynamic_config_patch(patch, cluster):
-        driver = get_driver(cluster=cluster)
-        config_path = f"//sys/clusters/{cluster}/queue_agent/queue_consumer_registration_manager"
-
-        config = get(config_path, driver=driver)
-        update_inplace(config, patch)
-        print_debug("Setting dynamic config", config)
-        set(config_path, config, driver=driver)
-
-        def config_updated():
-            for proxy in get("//sys/rpc_proxies", driver=driver).keys():
-                orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
-                effective_config = get(f"{orchid_path}/effective_config", driver=driver)
-                if update(effective_config, config) != effective_config:
-                    print_debug(f"Configs differ: {update(effective_config, config)} and {effective_config}")
-                    return False
-
-            return True
-
-        wait(config_updated)
-
-    def _apply_registration_table_config(self, config):
-        config_patch = {
-            "state_write_path": config["state_write_path"],
-            "state_read_path": config["state_read_path"],
-            "bypass_caching": config.get("bypass_caching", False),
-            "cache_refresh_period": 250,
-            "configuration_refresh_period": 500,
-        }
-        if "replicated_table_mapping_read_path" in config:
-            config_patch["replicated_table_mapping_read_path"] = config["replicated_table_mapping_read_path"]
-
-        for cluster in self.get_cluster_names():
-            self._apply_registration_manager_dynamic_config_patch(config_patch, cluster)
-
 
 class TestConsumerRegistrations(TestQueueConsumerApiBase):
     NUM_TEST_PARTITIONS = 4
@@ -237,7 +160,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     def listed_registrations_are_equal(listed_registrations, expected_registrations):
         expected_registrations = {r if isinstance(r, QueueConsumerRegistration) else QueueConsumerRegistration(*r)
                                   for r in expected_registrations}
-        actual_registrations = {QueueConsumerRegistration.from_list_registrations(r) for r in listed_registrations}
+        actual_registrations = {r if isinstance(r, QueueConsumerRegistration) else QueueConsumerRegistration.from_list_registrations(r) for r in listed_registrations}
 
         if actual_registrations != expected_registrations:
             print_debug(f"Listed registrations differ: {actual_registrations} and {expected_registrations}")
@@ -247,9 +170,6 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
     @staticmethod
     def _cached_registrations_are(expected_registrations, driver):
-        TestConsumerRegistrations.listed_registrations_are_equal(
-            list_queue_consumer_registrations(driver=driver), expected_registrations)
-
         for proxy in get("//sys/rpc_proxies", driver=driver).keys():
             orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/cluster_connection/queue_consumer_registration_manager"
             orchid_registrations = {
@@ -473,7 +393,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         ))
 
         wait(lambda: self.listed_registrations_are_equal(
-            list_queue_consumer_registrations(),
+            self._list_all_registrations(),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
                 ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
@@ -521,7 +441,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         unregister_queue_consumer("//tmp/q1", "//tmp/c2")
         unregister_queue_consumer("//tmp/q2", "//tmp/c1")
 
-        wait(lambda: self.listed_registrations_are_equal(list_queue_consumer_registrations(), []))
+        wait(lambda: self.listed_registrations_are_equal(self._list_all_registrations(), []))
 
     @authors("cherepashka", "nadya73")
     @pytest.mark.parametrize("create_registration_table", [
@@ -577,7 +497,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         ))
 
         wait(lambda: self.listed_registrations_are_equal(
-            list_queue_consumer_registrations(),
+            self._list_all_registrations(),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
                 ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
@@ -594,7 +514,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         unregister_queue_consumer("//tmp/q1-link", "//tmp/c2-link")
         unregister_queue_consumer("//tmp/q2-link", "//tmp/c1-link")
 
-        wait(lambda: self.listed_registrations_are_equal(list_queue_consumer_registrations(), []))
+        wait(lambda: self.listed_registrations_are_equal(self._list_all_registrations(), []))
 
     def _restart_service(self, service):
         for env in [self.Env] + self.remote_envs:
@@ -778,7 +698,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         register_queue_consumer("<cluster=cluster.yt.yandex.net>//tmp/q1",  "<cluster=cluster.yt.yandex.net>//tmp/c1", vital=True)
 
         wait(lambda: self.listed_registrations_are_equal(
-            list_queue_consumer_registrations(),
+            self._list_all_registrations(),
             [
                 ("cluster", "//tmp/q1", "cluster", "//tmp/c1", True),
             ]
@@ -818,8 +738,13 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         unregister_queue_consumer(f"{queue_cluster}://tmp/q-link", f"{consumer_cluster}://tmp/c-link")
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
+    @authors("apachee")
+    def test_list_all_registrations_disabled(self):
+        with raises_yt_error("Listing all registrations is disabled by current cluster configuration"):
+            list_queue_consumer_registrations()
 
-class TestDataApiBase(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgentBase):
+
+class TestDataApiBase(TestQueueConsumerApiBase, TestQueueAgentBase):
     DO_PREPARE_TABLES_ON_SETUP = False
 
     def setup_method(self, method):
