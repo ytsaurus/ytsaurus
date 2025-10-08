@@ -458,8 +458,9 @@ void ConvertSequence(
     consumer->OnBeginList();
     bool endList = false;
     for (const auto& converter : converters) {
-        if (!endList)
+        if (!endList) {
             endList = EYsonItemType::EndList == cursor->GetCurrent().GetType();
+        }
         if (endList) {
             consumer->OnEntity();
         } else {
