@@ -544,7 +544,7 @@ void TBlobChunkBase::DoReadSession(
     DoReadBlockSet(session);
 }
 
-std::pair<int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>> TBlobChunkBase::FindLastEntryWithinReadGap(
+std::tuple<int, int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>> TBlobChunkBase::FindLastEntryWithinReadGap(
     const TReadBlockSetSessionPtr& session,
     int beginEntryIndex)
 {
@@ -568,7 +568,7 @@ std::pair<int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>>
         YT_VERIFY(readGapSize >= 0);
 
         if (readGapSize > Location_->GetCoalescedReadMaxGapSize()) {
-            YT_LOG_TRACE("Stopping run due to large gap ("
+            YT_LOG_DEBUG("Stopping run due to large gap ("
                 "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
                 "GapBlockCount: %v, GapSize: %v)",
                 FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex + 1),
@@ -578,7 +578,7 @@ std::pair<int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>>
                 readGapSize);
             break;
         } else if (readGapSize > 0) {
-            YT_LOG_TRACE("Coalesced read gap ("
+            YT_LOG_DEBUG("Coalesced read gap ("
                 "GapBlocks: %v, GapBlockOffsets: [%v,%v), "
                 "GapBlockCount: %v, GapSize: %v)",
                 FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex),
@@ -606,7 +606,7 @@ std::pair<int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockEntry>>
         ++endEntryIndex;
     }
 
-    return {endEntryIndex, std::move(blockIndexToEntry)};
+    return {previousEntry->BlockIndex, endEntryIndex, std::move(blockIndexToEntry)};
 }
 
 void TBlobChunkBase::DoReadBlockSet(
@@ -645,7 +645,6 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
 
     YT_VERIFY(readBlocksRequest.FirstBlockIndex >= 0);
     YT_VERIFY(readBlocksRequest.BlocksToRead > 0);
-    YT_VERIFY(readBlocksRequest.BlocksToRead >= readBlocksRequest.EndEntryIndex - readBlocksRequest.BeginEntryIndex);
 
     auto reader = GetReader();
 
@@ -669,6 +668,17 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
             readBlocksRequest.EndEntryIndex,
             Passed(std::move(readBlocksRequest.BlockIndexToEntry)))
             .AsyncVia(session->Invoker));
+}
+
+i64 TBlobChunkBase::CalculateAdditionalMemory(const TReadBlocksRequest& request)
+{
+    i64 additionalMemory = 0;
+
+    for (const auto& [blockIndex, entry] : request.BlockIndexToEntry) {
+        additionalMemory += entry.EndOffset - entry.BeginOffset;
+    }
+
+    return additionalMemory;
 }
 
 void TBlobChunkBase::DoReadBlockSetSequentially(
@@ -699,6 +709,13 @@ void TBlobChunkBase::DoReadBlockSetSequentially(
     }
 
     auto& currentRequest = requests[currentRequestIndex];
+
+    session->LocationMemoryGuard.Transform([additionalMemory = CalculateAdditionalMemory(currentRequest)] (TLocationMemoryGuard& guard) {
+        if (guard) {
+            guard.IncreaseSize(additionalMemory);
+        }
+    });
+
     YT_UNUSED_FUTURE(ReadBlocks(session, std::move(currentRequest))
         .Apply(
             BIND(&TBlobChunkBase::DoReadBlockSetSequentially, MakeStrong(this), session, Passed(std::move(requests)), currentRequestIndex + 1)
@@ -716,6 +733,18 @@ void TBlobChunkBase::DoReadBlockSetInParallel(
     for (auto& readBlocksRequest : requests) {
         readRequests.push_back(ReadBlocks(session, std::move(readBlocksRequest)));
     }
+
+    i64 additionalMemory = 0;
+
+    for (const auto& currentRequest : requests) {
+        additionalMemory += CalculateAdditionalMemory(currentRequest);
+    }
+
+    session->LocationMemoryGuard.Transform([additionalMemory] (TLocationMemoryGuard& guard) {
+        if (guard) {
+            guard.IncreaseSize(additionalMemory);
+        }
+    });
 
     session->DiskFetchPromise.TrySetFrom(AllSucceeded(readRequests));
 }
@@ -763,23 +792,8 @@ std::optional<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::NextReadBlocks
 
     // Extract the maximum run of block. Blocks should be contiguous or at least have pretty small gap between them
     // (if gap is small enough, coalesced read including gap blocks is more efficient than making two separate runs).
-    auto [endEntryIndex, blockIndexToEntry] = FindLastEntryWithinReadGap(session, beginEntryIndex);
-    YT_VERIFY(endEntryIndex <= session->EntryCount && endEntryIndex > beginEntryIndex);
-
-    i64 additionalMemory = 0;
-
-    for (auto& [blockIndex, entry] : blockIndexToEntry) {
-        additionalMemory += entry.EndOffset - entry.BeginOffset;
-    }
-
-    session->LocationMemoryGuard.Transform([additionalMemory] (TLocationMemoryGuard& guard) {
-        if (guard) {
-            guard.IncreaseSize(additionalMemory);
-        }
-    });
-
-    const auto lastBlockIndex = session->Entries[endEntryIndex - 1].BlockIndex;
-    YT_VERIFY(lastBlockIndex >= firstBlockIndex);
+    auto [lastBlockIndex, endEntryIndex, blockIndexToEntry] = FindLastEntryWithinReadGap(session, beginEntryIndex);
+    YT_VERIFY(endEntryIndex <= session->EntryCount && endEntryIndex > beginEntryIndex && lastBlockIndex >= firstBlockIndex);
 
     const int blocksToRead = lastBlockIndex - firstBlockIndex + 1;
     return TReadBlocksRequest{

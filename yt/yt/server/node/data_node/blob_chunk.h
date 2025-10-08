@@ -131,12 +131,14 @@ private:
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
-    std::pair<int, THashMap<int, TReadBlockSetSession::TBlockEntry>> FindLastEntryWithinReadGap(
+    std::tuple<int, int, THashMap<int, TReadBlockSetSession::TBlockEntry>> FindLastEntryWithinReadGap(
         const TReadBlockSetSessionPtr& session,
         int beginEntryIndex);
 
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session);
+
+    i64 CalculateAdditionalMemory(const TReadBlocksRequest& request);
 
     void DoReadBlockSetSequentially(
         const TReadBlockSetSessionPtr& session,
