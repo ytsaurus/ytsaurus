@@ -135,6 +135,8 @@ struct TCompositeNeededResources
 
     const TJobResources& GetNeededResourcesForTree(const std::string& treeId) const;
 
+    void VerifyNonNegative() const;
+
     void Persist(const TStreamPersistenceContext& context);
 };
 

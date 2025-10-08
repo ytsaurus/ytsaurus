@@ -5309,6 +5309,8 @@ void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededRes
     } else {
         CachedNeededResources_ = CachedNeededResources_ + resourcesDelta;
     }
+
+    CachedNeededResources_.VerifyNonNegative();
 }
 
 void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const TDiskQuota& delta)
