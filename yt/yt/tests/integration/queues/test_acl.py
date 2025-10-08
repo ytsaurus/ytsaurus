@@ -2,13 +2,15 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, get, set, create, raises_yt_error, create_user, check_permission)
 
+from yt_queue_agent_test_base import QueueConsumerRegistrationManagerBase
+
 import pytest
 
 ##################################################################
 
 
 @pytest.mark.enabled_multidaemon
-class TestRegisterQueueConsumerPermission(YTEnvSetup):
+class TestRegisterQueueConsumerPermission(QueueConsumerRegistrationManagerBase, YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
     @authors("nadya73", "max42")

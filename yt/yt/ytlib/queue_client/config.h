@@ -92,6 +92,10 @@ struct TQueueConsumerRegistrationManagerConfig
     //! If true, replicas found in the replicated table mapping cache will be resolved to their corresponding replicated table objects.
     bool ResolveReplicas;
 
+    //! If true, then listing registrations without specifing both queue and consumer (i.e. listing all registrations) results in an error.
+    //! By default, keeps the old behavior of allowing such requests.
+    bool DisableListAllRegistrations;
+
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 
     static void Register(TRegistrar registrar);

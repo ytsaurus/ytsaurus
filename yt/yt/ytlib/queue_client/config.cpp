@@ -48,6 +48,8 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("resolve_replicas", &TThis::ResolveReplicas)
         .Default(false);
+    registrar.Parameter("disable_list_all_registrations", &TThis::DisableListAllRegistrations)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
