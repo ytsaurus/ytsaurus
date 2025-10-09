@@ -62,6 +62,7 @@ target_sources(contrib-libs-ngtcp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_objalloc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_opl.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_path.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_pcg.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_pkt.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_pmtud.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_ppe.c
@@ -69,6 +70,7 @@ target_sources(contrib-libs-ngtcp2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_pv.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_qlog.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_range.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_ratelim.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_ringbuf.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_rob.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_rst.c
@@ -270,6 +272,14 @@ set_property(
 
 set_property(
   SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_pcg.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_pkt.c
   APPEND
   PROPERTY
@@ -319,6 +329,14 @@ set_property(
 set_property(
   SOURCE
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_range.c
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+)
+
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/lib/ngtcp2_ratelim.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
