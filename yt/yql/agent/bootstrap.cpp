@@ -22,6 +22,7 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
+#include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/library/orchid/orchid_service.h>
 
@@ -157,6 +158,7 @@ void TBootstrap::DoRun()
     DynamicConfigManager_->Start();
 
     YqlAgent_ = CreateYqlAgent(
+        this,
         Config_,
         Config_->YqlAgent,
         DynamicConfigManager_->GetConfig()->YqlAgent,
@@ -191,7 +193,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/yql_agent",
-        YqlAgent_->GetOrchidNode());
+        CreateVirtualNode(YqlAgent_->CreateOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "yql_agent");
@@ -313,6 +315,11 @@ void TBootstrap::OnDynamicConfigChanged(
         "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
+}
+
+const NApi::NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConfig() const
+{
+    return Config_->ClusterConnection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
