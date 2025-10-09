@@ -176,6 +176,7 @@ ARG SOURCE_ROOT=/ytsaurus
 RUN mkdir -p ${SOURCE_ROOT}
 COPY ./yt/python ${SOURCE_ROOT}/yt/python
 COPY ./yt/yt/python ${SOURCE_ROOT}/yt/yt/python
+COPY ./yt/yt/tools ${SOURCE_ROOT}/yt/yt/tools
 COPY ./certs/cacert.pem ${SOURCE_ROOT}/certs/cacert.pem
 
 ARG BUILD_ROOT=/tmp
@@ -188,6 +189,12 @@ COPY ./artifacts/libdriver_rpc_lib.so ${BUILD_ROOT}/yt/yt/python/driver/rpc_shar
 RUN python3.11 -m venv package-env
 RUN . package-env/bin/activate; \
     ${SOURCE_ROOT}/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path ${SOURCE_ROOT} --ytsaurus-build-path ${BUILD_ROOT} --apply-auditwheel
+
+##########################################################################################
+
+FROM scratch AS ytsaurus-python-packages
+
+COPY --from=build-ytsaurus-python-binaries /tmp/ytsaurus_python/ytsaurus_*_dist/*.whl /
 
 ##########################################################################################
 

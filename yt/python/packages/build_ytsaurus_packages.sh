@@ -1,6 +1,10 @@
 #!/bin/bash -ex
 
-pip3 install wheel auditwheel patchelf
+rm -f venv
+python3 -m venv venv
+. venv/bin/activate
+
+pip3 install setuptools wheel auditwheel patchelf
 
 script_name=$0
 ytsaurus_source_path="."
@@ -14,7 +18,7 @@ print_usage() {
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver)]
+                    [--ytsaurus-package-name some-ytsaurus-package-name (default: all packages will be build) (values: ytsaurus-client, ytsaurus-yson, ytsaurus-local, ytsaurus-native-driver, ytsaurus-rpc-driver)]
                     [--not-prepare-bindings-libraries]
                     [--apply-auditwheel]
 EOF
@@ -63,7 +67,7 @@ ytsaurus_python=$(realpath "${ytsaurus_build_path}/ytsaurus_python")
 
 mkdir -p ${ytsaurus_python}
 cd ${ytsaurus_source_path}
-pip3 install -e yt/python/packages
+# pip3 install -e yt/python/packages
 
 $ytsaurus_source_path/yt/python/packages/yt_setup/generate_python_proto.py \
     --source-root ${ytsaurus_source_path} \
@@ -74,7 +78,7 @@ cd $ytsaurus_source_path/yt/python/packages
 
 bindings_library_option=""
 if [[ ${ytsaurus_package_name} == "" ]]; then
-    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver")
+    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver" "ytsaurus-rpc-driver")
     prepare_bindings_libraries=true
  else
     packages=("${ytsaurus_package_name}")
@@ -106,7 +110,7 @@ python3 -m yt_setup.prepare_python_modules \
 cd ${ytsaurus_python}
 
 if [[ ${ytsaurus_package_name} == "" ]]; then
-    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver")
+    packages=("ytsaurus-client" "ytsaurus-yson" "ytsaurus-local" "ytsaurus-native-driver" "ytsaurus-rpc-driver")
 else
     packages=("${ytsaurus_package_name}")
 fi
