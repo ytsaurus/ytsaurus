@@ -382,7 +382,7 @@ public:
         i64 ReadMemoryLimit = 128_GB;
         i64 LegacyWriteMemoryLimit = 128_GB;
         bool ChooseLocationBasedOnIOWeight = false;
-        std::vector<double> IoWeights = {1.};
+        std::vector<double> IOWeights = {1.};
         std::vector<int> SessionCountLimits = {1024};
     };
 
@@ -392,7 +392,8 @@ public:
         : TestParams_(testParams)
     { }
 
-    TStoreLocationConfigPtr GenerateStoreLocationConfig(double ioWeight, int sessionCountLimit) {
+    TStoreLocationConfigPtr GenerateStoreLocationConfig(double ioWeight, int sessionCountLimit)
+    {
         auto storeLocationConfig = New<TStoreLocationConfig>();
         storeLocationConfig->Path = Format("/tmp/locations/%v/chunk_store", GenerateRandomString(5, Generator_));
         storeLocationConfig->IOEngineType = NIO::EIOEngineType::ThreadPool;
@@ -455,7 +456,7 @@ public:
             }
         }
 
-        for (const auto& [ioWeight, sessionCountLimit] : Zip(TestParams_.IoWeights, TestParams_.SessionCountLimits)) {
+        for (const auto& [ioWeight, sessionCountLimit] : Zip(TestParams_.IOWeights, TestParams_.SessionCountLimits)) {
             bootstrapConfig->DataNode->StoreLocations.push_back(GenerateStoreLocationConfig(ioWeight, sessionCountLimit));
         }
 
@@ -808,26 +809,26 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TIoWeightTestCase
+struct TIOWeightTestCase
 {
-    std::vector<double> IoWeights = {1., 1.};
+    std::vector<double> IOWeights = {1., 1.};
     std::vector<int> SessionCountLimits = {128, 128};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIoWeightTest
+class TIOWeightTest
     : public TDataNodeTest
-    , public ::testing::WithParamInterface<TIoWeightTestCase>
+    , public ::testing::WithParamInterface<TIOWeightTestCase>
 {
 public:
-    TIoWeightTest()
+    TIOWeightTest()
         : TDataNodeTest(
             TDataNodeTest::TDataNodeTestParams {
                 .ReadThreadCount = 4,
                 .WriteThreadCount = 4,
                 .ChooseLocationBasedOnIOWeight = true,
-                .IoWeights = GetParam().IoWeights,
+                .IOWeights = GetParam().IOWeights,
                 .SessionCountLimits = GetParam().SessionCountLimits,
             })
     { }
@@ -835,9 +836,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
+TEST_P(TIOWeightTest, GetBlocksByOneDiskIORequestTest)
 {
-    auto& ioWeights = GetParam().IoWeights;
+    auto& ioWeights = GetParam().IOWeights;
     auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
 
     YT_VERIFY(std::ssize(ioWeights) == std::ssize(locations));
@@ -845,7 +846,7 @@ TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
     std::vector<TFuture<void>> futures;
     futures.resize(256);
 
-    for (auto& future: futures) {
+    for (auto& future : futures) {
         TSessionId sessionId(MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)), GenericMediumIndex);
         future = BIND(&TDataNodeTest::FillWithRandomBlocks, this, sessionId, 1, 1_KB, false)
             .AsyncVia(GetActionQueue()->GetInvoker())
@@ -853,14 +854,14 @@ TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
             .AsVoid();
     }
 
-    for (auto& future : futures) {
+    for (const auto& future : futures) {
         future.Wait();
     }
 
     std::vector<double> usedSpaces;
     usedSpaces.reserve(std::ssize(locations));
 
-    for (auto& location : locations) {
+    for (const auto& location : locations) {
         usedSpaces.push_back(location->GetUsedSpace());
     }
 
@@ -871,25 +872,24 @@ TEST_P(TIoWeightTest, GetBlocksByOneDiskIORequestTest)
     EXPECT_EQ(sortedUsedSpaces, usedSpaces);
 }
 
-
 INSTANTIATE_TEST_SUITE_P(
-    TIoWeightTest,
-    TIoWeightTest,
+    TIOWeightTest,
+    TIOWeightTest,
     ::testing::Values(
-        TIoWeightTestCase{
-            .IoWeights = {0.0001, 0.001, 0.01, 0.1, 1.},
+        TIOWeightTestCase{
+            .IOWeights = {0.0001, 0.001, 0.01, 0.1, 1.},
             .SessionCountLimits = {1024, 1024, 1024, 1024, 1024},
         },
-        TIoWeightTestCase{
-            .IoWeights = {0.2, 0.5},
+        TIOWeightTestCase{
+            .IOWeights = {0.2, 0.5},
             .SessionCountLimits = {256, 256},
         },
-        TIoWeightTestCase{
-            .IoWeights = {0.2, 0.6, 1.5},
+        TIOWeightTestCase{
+            .IOWeights = {0.2, 0.6, 1.5},
             .SessionCountLimits = {128, 128, 128},
         },
-        TIoWeightTestCase{
-            .IoWeights = {1., 1.},
+        TIOWeightTestCase{
+            .IOWeights = {1., 1.},
             .SessionCountLimits = {16, 256},
         }
     )

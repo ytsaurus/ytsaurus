@@ -49,13 +49,12 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(IHugePageAllocator)
+DECLARE_REFCOUNTED_STRUCT(IHugePageAllocator)
 
-class IHugePageAllocator
+struct IHugePageAllocator
     : public TRefCounted
 {
-public:
-    virtual TErrorOr<TMutableRef> AllocateHugePageBlob(int pages, const IHugePageManager& hugePageManager) = 0;
+    virtual TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) = 0;
     virtual void DeallocateHugePageBlob(TMutableRef hugePageBlob) = 0;
 };
 
@@ -235,19 +234,19 @@ public:
         });
     }
 
-    TErrorOr<TMutableRef> AllocateHugePageBlob(int pages, const IHugePageManager& hugePageManager) override {
+    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override {
         auto usedHugePageCount = hugePageManager.GetUsedHugePageCount();
         auto hugePageSize = hugePageManager.GetHugePageSize();
-        if (usedHugePageCount + pages > HugePageCount_) {
-            return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_pages", pages)
-                << TErrorAttribute("available_huge_pages", HugePageCount_)
-                << TErrorAttribute("used_huge_pages", usedHugePageCount);
+        if (usedHugePageCount + pageCount > HugePageCount_) {
+            return TError("Not enough huge page_count")
+                << TErrorAttribute("requested_huge_page_count", pageCount)
+                << TErrorAttribute("available_huge_page_count", HugePageCount_)
+                << TErrorAttribute("used_huge_page_count", usedHugePageCount);
         }
 #ifdef _linux_
         void* page = mmap(
             nullptr,
-            pages * hugePageSize,
+            pageCount * hugePageSize,
             PROT_WRITE | PROT_READ,
             MAP_ANON | MAP_PRIVATE | MAP_HUGETLB,
             0,
@@ -261,7 +260,7 @@ public:
         YT_UNIMPLEMENTED();
 #endif
 
-        return TMutableRef(page, pages * hugePageSize);
+        return TMutableRef(page, pageCount * hugePageSize);
     }
 
     void DeallocateHugePageBlob(TMutableRef hugePageBlob) override {
@@ -293,24 +292,24 @@ class TTransparentHugePageAllocator
     : public IHugePageAllocator
 {
 public:
-    TErrorOr<TMutableRef> AllocateHugePageBlob(int pages, const IHugePageManager& hugePageManager) override {
+    TErrorOr<TMutableRef> AllocateHugePageBlob(int pageCount, const IHugePageManager& hugePageManager) override {
         auto hugePageSize = hugePageManager.GetHugePageSize();
         auto freeHugePageMemory = GetFreeHugePageMemory(hugePageManager);
-        if (freeHugePageMemory < pages * hugePageSize) {
-            return TError("Not enough huge pages")
-                << TErrorAttribute("requested_huge_pages", pages)
+        if (freeHugePageMemory < pageCount * hugePageSize) {
+            return TError("Not enough huge page_count")
+                << TErrorAttribute("requested_huge_page_count", pageCount)
                 << TErrorAttribute("available_huge_page_memory", freeHugePageMemory)
                 << TErrorAttribute("used_huge_page_memory", GetHugePageMemory(hugePageManager));
         }
 #ifdef _linux_
-        void* page = ::aligned_malloc(pages * hugePageSize, hugePageSize);
+        void* page = ::aligned_malloc(pageCount * hugePageSize, hugePageSize);
 
         if (!page) {
             return TError("Failed to allocate aligned huge page")
                 << TSystemError();
         }
 
-        if (::madvise(page, pages * hugePageSize, MADV_HUGEPAGE) != 0) {
+        if (::madvise(page, pageCount * hugePageSize, MADV_HUGEPAGE) != 0) {
             return TError("Failed to mark memory MADV_HUGEPAGE")
                 << TSystemError(errno);
         }
@@ -318,7 +317,7 @@ public:
         YT_UNIMPLEMENTED();
 #endif
 
-        return TMutableRef(page, pages * hugePageSize);
+        return TMutableRef(page, pageCount * hugePageSize);
     }
 
     void DeallocateHugePageBlob(TMutableRef hugePageBlob) override {
