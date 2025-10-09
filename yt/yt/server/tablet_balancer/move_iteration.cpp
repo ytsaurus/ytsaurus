@@ -98,11 +98,6 @@ protected:
     const TBundleStatePtr Bundle_;
     const TTabletBalancingGroupConfigPtr GroupConfig_;
     const TTabletBalancerDynamicConfigPtr DynamicConfig_;
-
-    TTableProfilingCounters& GetProfilingCounters(const TTable* table)
-    {
-        return Bundle_->GetProfilingCounters(table, GroupName_);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,9 +144,9 @@ public:
         return subtypeName;
     }
 
-    void UpdateProfilingCounters(const TTable* table) override
+    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
     {
-        GetProfilingCounters(table).OrdinaryMoves.Increment(1);
+        profilingCounters.OrdinaryMoves.Increment(1);
     }
 };
 
@@ -200,9 +195,9 @@ public:
         return subtypeName;
     }
 
-    void UpdateProfilingCounters(const TTable* table) override
+    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
     {
-        GetProfilingCounters(table).InMemoryMoves.Increment(1);
+        profilingCounters.InMemoryMoves.Increment(1);
     }
 };
 
@@ -299,9 +294,9 @@ public:
         return GroupConfig_->Parameterized->ReplicaClusters.empty();
     }
 
-    void UpdateProfilingCounters(const TTable* table) override
+    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
     {
-        GetProfilingCounters(table).ParameterizedMoves.Increment(1);
+        profilingCounters.ParameterizedMoves.Increment(1);
     }
 };
 
@@ -405,9 +400,9 @@ public:
         return !GroupConfig_->Parameterized->ReplicaClusters.empty();
     }
 
-    void UpdateProfilingCounters(const TTable* table) override
+    void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) override
     {
-        GetProfilingCounters(table).ReplicaMoves.Increment(1);
+        profilingCounters.ReplicaMoves.Increment(1);
     }
 
 private:

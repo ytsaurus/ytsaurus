@@ -17,7 +17,7 @@ struct IMoveIteration
 
     virtual TFuture<std::vector<TMoveDescriptor>> ReassignTablets(const IInvokerPtr& invoker) = 0;
 
-    virtual void UpdateProfilingCounters(const TTable* table) = 0;
+    virtual void UpdateProfilingCounters(TTableProfilingCounters& profilingCounters) = 0;
 
     virtual bool IsGroupBalancingEnabled() const = 0;
     virtual void LogDisabledBalancing() const = 0;

@@ -19,23 +19,6 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableProfilingCounters
-{
-    TString GroupName;
-    NProfiling::TCounter InMemoryMoves;
-    NProfiling::TCounter OrdinaryMoves;
-    NProfiling::TCounter TabletMerges;
-    NProfiling::TCounter TabletSplits;
-    NProfiling::TCounter NonTrivialReshards;
-    NProfiling::TCounter ParameterizedMoves;
-    NProfiling::TCounter ReplicaMoves;
-    NProfiling::TCounter ParameterizedReshardMerges;
-    NProfiling::TCounter ParameterizedReshardSplits;
-    NProfiling::TCounter ReplicaMerges;
-    NProfiling::TCounter ReplicaSplits;
-    NProfiling::TCounter ReplicaNonTrivialReshards;
-};
-
 struct TBundleProfilingCounters
     : public TRefCounted
 {
@@ -56,13 +39,11 @@ class TBundleState
 {
 public:
     using TTabletMap = THashMap<TTabletId, TTabletPtr>;
-    using TTableProfilingCounterMap = THashMap<TTableId, TTableProfilingCounters>;
     using TPerClusterPerformanceCountersTableSchemas = THashMap<TClusterName, NQueryClient::TTableSchemaPtr>;
 
     DEFINE_BYREF_RO_PROPERTY(TTabletMap, Tablets);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
     DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle);
-    DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
     DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, PerformanceCountersKeys);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LastReplicaBalancingFetchFailed, false);
