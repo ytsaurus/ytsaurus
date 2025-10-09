@@ -49,6 +49,12 @@ target_sources(minikql-jsonpath-parser PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/parser.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/parse_double.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/type_check.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/ast_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/ast_nodes.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/binary.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/parse_double.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/parser.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/parser/type_check.h
 )
 
 

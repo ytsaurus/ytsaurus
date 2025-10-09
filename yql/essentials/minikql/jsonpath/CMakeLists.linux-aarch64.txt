@@ -47,5 +47,8 @@ target_sources(essentials-minikql-jsonpath PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/executor.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/jsonpath.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/value.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/executor.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/jsonpath.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/value.h
 )
 

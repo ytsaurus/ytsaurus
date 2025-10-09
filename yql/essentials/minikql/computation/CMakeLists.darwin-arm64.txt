@@ -47,5 +47,38 @@ target_sources(essentials-minikql-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_value_builder.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_pattern_cache.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/presort.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_block_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_block_impl.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_block_item.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_block_reader.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_block_transport.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_block_trimmer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_list_adapter.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_codegen_common.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_graph_saveload.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_holders.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_holders_codegen.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_impl.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_list.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_pack.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_node_pack_impl.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_computation_pattern_cache.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_custom_list.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_datum_validate.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_key_payload_value_lru_cache.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_method_address_helper.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_optional_usage_mask.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_spiller.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_spiller_adapter.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_spiller_factory.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_validate.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_validate_impl.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_value_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mkql_vector_spiller_adapter.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mock_spiller_factory_ut.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/mock_spiller_ut.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/presort.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/computation/presort_impl.h
 )
 

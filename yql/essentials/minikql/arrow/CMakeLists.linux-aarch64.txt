@@ -33,5 +33,9 @@ target_link_libraries(essentials-minikql-arrow PUBLIC
 target_sources(essentials-minikql-arrow PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/arrow/arrow_util.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/arrow/mkql_functions.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/arrow/arrow_defs.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/arrow/arrow_util.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/arrow/mkql_bit_utils.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/arrow/mkql_functions.h
 )
 

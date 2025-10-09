@@ -38,5 +38,12 @@ target_sources(essentials-minikql-dom PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/make.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/peel.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/hash.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/convert.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/hash.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/json.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/make.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/node.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/peel.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/dom/yson.h
 )
 
