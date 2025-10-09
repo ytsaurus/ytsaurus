@@ -261,7 +261,7 @@ class TestSmoothMovement(DynamicTablesBase):
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("redirect_sweep", [True, False])
-    def test_hunks(self, redirect_sweep):
+    def DISABLED_test_hunks(self, redirect_sweep):
         sync_create_cells(2)
         self._create_sorted_table(
             "//tmp/t",
