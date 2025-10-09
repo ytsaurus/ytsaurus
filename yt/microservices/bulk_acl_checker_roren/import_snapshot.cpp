@@ -1,27 +1,38 @@
-#include <yt/microservices/bulk_acl_checker_roren/import_snapshot.h>
-#include <yt/microservices/bulk_acl_checker_roren/data.pb.h>
-
-#include <yt/cpp/mapreduce/interface/client.h>
-#include <yt/cpp/roren/interface/roren.h>
-#include <yt/cpp/roren/yt/yt.h>
-#include <yt/yt/client/api/rpc_proxy/connection.h>
-#include <yt/yt/client/hedging/options.h>
-#include <yt/yt/client/hedging/rpc.h>
-#include <yt/yt/core/concurrency/scheduler_api.h>
-#include <yt/yt/core/https/client.h>
-#include <yt/yt/core/https/config.h>
-#include <yt/yt/library/auth/auth.h>
-#include <yt/yt/library/named_value/named_value.h>
+#include <iomanip>
 
 #include <library/cpp/iterator/zip.h>
 
+#include <optional>
+
+#include <sstream>
+
 #include <util/generic/algorithm.h>
 #include <util/generic/size_literals.h>
+
 #include <util/system/env.h>
 
-#include <iomanip>
-#include <optional>
-#include <sstream>
+#include <yt/cpp/mapreduce/interface/client.h>
+
+#include <yt/cpp/roren/interface/roren.h>
+
+#include <yt/cpp/roren/yt/yt.h>
+
+#include <yt/microservices/bulk_acl_checker_roren/data.pb.h>
+#include <yt/microservices/bulk_acl_checker_roren/import_snapshot.h>
+
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+
+#include <yt/yt/client/hedging/options.h>
+#include <yt/yt/client/hedging/rpc.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/https/client.h>
+#include <yt/yt/core/https/config.h>
+
+#include <yt/yt/library/auth/auth.h>
+
+#include <yt/yt/library/named_value/named_value.h>
 
 using namespace NYT;
 using namespace NRoren;
@@ -554,12 +565,6 @@ void TImportSnapshotsMain::ParseArgs(int argc, const char** argv)
     Options_.Pool = r.Has("pool") ? r.Get("pool") : std::optional<TString>{};
     Options_.Force = r.Has("force");
     Options_.MemoryLimit = FromString<size_t>(r.Get("memory-limit"));
-
-    if (r.Has("enable-ipv4")) {
-        auto resolverConfig = NYT::New<NYT::NNet::TAddressResolverConfig>();
-        resolverConfig->EnableIPv4 = true;
-        NYT::NNet::TAddressResolver::Get()->Configure(resolverConfig);
-    }
 }
 
 int TImportSnapshotsMain::ImportSnapshots()

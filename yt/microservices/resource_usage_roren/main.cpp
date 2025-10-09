@@ -1,12 +1,18 @@
 #include <library/cpp/yt/logging/logger.h>
+
+#include <util/system/env.h>
+
 #include <yt/cpp/mapreduce/interface/logging/logger.h>
+
 #include <yt/microservices/resource_usage_roren/import_snapshot.h>
 #include <yt/microservices/resource_usage_roren/remove_excessive.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/library/auth/auth.h>
 
-#include <util/system/env.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/config.h>
+
+#include <yt/yt/library/auth/auth.h>
 
 static NYT::NLogging::TLogger Logger("resource_usage_roren");
 
@@ -15,6 +21,9 @@ const THashSet<TString> COMMANDS = {"remove-excessive", "import-snapshot"};
 int main(int argc, const char** argv)
 try {
     NYT::TConfig::Get()->LogLevel = "info";
+    auto resolverConfig = NYT::New<NYT::NNet::TAddressResolverConfig>();
+    resolverConfig->EnableIPv4 = true;
+    NYT::NNet::TAddressResolver::Get()->Configure(resolverConfig);
     NYT::Initialize(argc, argv);
 
     if (argc < 2 || !COMMANDS.contains(argv[1])) {
