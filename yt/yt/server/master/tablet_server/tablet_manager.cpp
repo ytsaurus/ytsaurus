@@ -2287,6 +2287,23 @@ public:
             table->GetId());
     }
 
+    void SetTableClipTimestamp(TTableNode* table, TTimestamp clipTimestamp) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(table->IsTrunk());
+
+        if (table->IsExternal()) {
+            return;
+        }
+
+        for (auto tabletBase : table->Tablets()) {
+            TabletChunkManager_->WrapWithClipTimestampChunkViews(
+                tabletBase->As<TTablet>(),
+                clipTimestamp,
+                /*isBackup*/ false);
+        }
+    }
+
     void LockDynamicTable(
         TTableNode* table,
         TTransaction* transaction,
@@ -4249,8 +4266,16 @@ private:
 
             if (WeakRefTableReplicas_ && tabletBase->GetType() == EObjectType::Tablet) {
                 auto* tablet = tabletBase->As<TTablet>();
-                for (const auto& [replica, _] : tablet->Replicas()) {
+                auto replicas = std::exchange(tablet->Replicas(), {});
+                for (auto&& [replica, replicaInfo] : replicas) {
+                    if (replica->GetObjectRefCounter() == 0) {
+                        YT_LOG_ALERT("Skipped dead table replica (TabletId: %v, ReplicaId: %v)",
+                            tablet->GetId(),
+                            replica->GetId());
+                        continue;
+                    }
                     Bootstrap_->GetObjectManager()->WeakRefObject(replica.Get());
+                    tablet->Replicas().emplace(replica.Get(), std::move(replicaInfo));
                 }
             }
         }

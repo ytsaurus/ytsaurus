@@ -1,17 +1,18 @@
 """Pytest fixtures and other helpers for doing testing by end-users."""
 
-from contextlib import closing, contextmanager
 import errno
+import http.client
 import socket
 import threading
 import time
-import http.client
+from contextlib import closing, contextmanager
 
 import pytest
 
 import cheroot.server
-from cheroot.test import webtest
 import cheroot.wsgi
+from cheroot.test import webtest
+
 
 EPHEMERAL_PORT = 0
 NO_INTERFACE = None  # Using this or '' will cause an exception
@@ -107,25 +108,28 @@ class _TestClient:
         self._http_connection = self.get_connection()
 
     def get_connection(self):
-        name = '{interface}:{port}'.format(
-            interface=self._interface,
-            port=self._port,
-        )
+        name = f'{self._interface}:{self._port}'
         conn_cls = (
             http.client.HTTPConnection
-            if self.server_instance.ssl_adapter is None else
-            http.client.HTTPSConnection
+            if self.server_instance.ssl_adapter is None
+            else http.client.HTTPSConnection
         )
         return conn_cls(name)
 
     def request(
-        self, uri, method='GET', headers=None, http_conn=None,
+        self,
+        uri,
+        method='GET',
+        headers=None,
+        http_conn=None,
         protocol='HTTP/1.1',
     ):
         return webtest.openURL(
-            uri, method=method,
+            uri,
+            method=method,
             headers=headers,
-            host=self._host, port=self._port,
+            host=self._host,
+            port=self._port,
             http_conn=http_conn or self._http_connection,
             protocol=protocol,
         )

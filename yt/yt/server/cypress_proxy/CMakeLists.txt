@@ -33,6 +33,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   library-cpp-iterator
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-orchid
   yt-library-server_program
   yt-yt-ytlib
   server-lib-admin

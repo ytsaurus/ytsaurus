@@ -29,5 +29,7 @@ target_link_libraries(core-url_lister-interface PUBLIC
 target_sources(core-url_lister-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/url_lister/interface/url_lister.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/url_lister/interface/url_lister_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/url_lister/interface/url_lister.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/url_lister/interface/url_lister_manager.h
 )
 

@@ -12,6 +12,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/library/orchid
     yt/yt/library/server_program
     yt/yt/library/monitoring
     yt/yt/library/profiling/solomon

@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated, utcnow
+from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated, utcnow, get_value
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .constants import LOCAL_MODE_URL_PATTERN
@@ -55,17 +55,19 @@ class OperationInfoRetrier(Retrier):
 # Public functions
 
 
-def abort_operation(operation, reason=None, client=None):
+def abort_operation(operation, message=None, reason=None, client=None):
     """Aborts operation.
 
     Do nothing if operation is in final state.
 
     :param str operation: operation id.
+    :param str message: custom message for abort error.
+    :param str reason: alias for message (deprecated).
     """
     if get_operation_state(operation, client=client).is_finished():
         return
     params = {"operation_id": operation}
-    set_param(params, "abort_reason", reason)
+    set_param(params, "abort_message", get_value(message, reason))
     command_name = "abort_operation" if get_api_version(client) == "v4" else "abort_op"
     make_request(command_name, params, client=client)
 

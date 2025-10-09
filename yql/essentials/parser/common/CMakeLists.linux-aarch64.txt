@@ -27,5 +27,7 @@ target_link_libraries(essentials-parser-common PUBLIC
 
 target_sources(essentials-parser-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/error.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/error.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/issue.h
 )
 

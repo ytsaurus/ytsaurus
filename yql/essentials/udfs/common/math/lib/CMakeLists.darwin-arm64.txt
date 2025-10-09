@@ -22,5 +22,7 @@ target_link_libraries(common-math-lib PUBLIC
 
 target_sources(common-math-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/math/lib/erfinv.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/math/lib/erfinv.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/math/lib/round.h
 )
 

@@ -77,7 +77,15 @@ using TLiteralValue = std::variant<
 using TLiteralValueList = std::vector<TLiteralValue>;
 using TLiteralValueTuple = std::vector<TLiteralValue>;
 using TLiteralValueTupleList = std::vector<TLiteralValueTuple>;
-using TLiteralValueRangeList = std::vector<std::pair<TLiteralValueTuple, TLiteralValueTuple>>;
+using TLiteralValueRange = std::pair<TLiteralValueTuple, TLiteralValueTuple>;
+using TLiteralValueRangeList = std::vector<TLiteralValueRange>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TExpressionTuple = std::vector<TExpressionPtr>;
+using TExpressionTupleList = std::vector<TExpressionTuple>;
+using TExpressionRange = std::pair<TExpressionTuple, TExpressionTuple>;
+using TExpressionRangeList = std::vector<TExpressionRange>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -625,6 +633,29 @@ NAst::TExpressionPtr BuildBinaryOperationTree(
     TObjectsHolder* holder,
     std::vector<NAst::TExpressionPtr> leaves,
     EBinaryOp opCode);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionList MakeInExpressionFromExpressionTupleList(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    const TExpressionList& expr,
+    const TExpressionTupleList& expressions);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExpressionList MakeBetweenExpressionFromExpressionTupleRangeList(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    const TExpressionList& expr,
+    const TExpressionRangeList& expressions);
+
+TExpressionList MakeBetweenExpressionFromExpressionTupleRange(
+    TObjectsHolder* holder,
+    const TSourceLocation& sourceLocation,
+    const TExpressionList& expr,
+    const TExpressionTuple& lower,
+    const TExpressionTuple& upper);
 
 ////////////////////////////////////////////////////////////////////////////////
 

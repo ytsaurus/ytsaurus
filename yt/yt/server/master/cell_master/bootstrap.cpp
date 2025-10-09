@@ -152,9 +152,9 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/discovery_client/config.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 

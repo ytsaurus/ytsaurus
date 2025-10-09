@@ -273,6 +273,10 @@ dashboards = {
         "func": flow.build_flow_message_transfering,
         "monitoring": {},
     },
+    "flow-state-cache": {
+        "func": flow.build_flow_state_cache,
+        "monitoring": {},
+    },
     "queue-metrics": {
         "func": queue_and_consumer_metrics.build_queue_metrics,
         "monitoring": {

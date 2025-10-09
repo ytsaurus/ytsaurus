@@ -17,7 +17,10 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
+#include <util/folder/iterator.h>
 #include <util/system/thread.h>
+
+#include <ranges>
 
 #include <sys/ioctl.h>
 
@@ -43,9 +46,63 @@ private:
     TFile ExecutorStderr_;
     TString JobId_;
 
+    std::vector<int> GetReservedDescriptors()
+    {
+        auto config = GetConfig();
+        std::vector<int> reservedDescriptors;
+        reservedDescriptors.push_back(STDOUT_FILENO);
+        if (config->Pty) {
+            reservedDescriptors.push_back(*config->Pty);
+        }
+        for (const auto& pipe : config->Pipes) {
+            auto streamFd = pipe->FD;
+            reservedDescriptors.push_back(streamFd);
+        }
+        return reservedDescriptors;
+    }
+
     void DoRun() final
     {
         RunMixinCallbacks();
+
+        auto config = GetConfig();
+
+        JobId_ = config->JobId;
+
+        try {
+            OpenExecutorStderr(GetReservedDescriptors());
+        } catch (const std::exception& ex) {
+            Exit(ToUnderlying(EProgramExitCode::ExecutorStderrOpenError));
+        }
+
+        std::vector<TString> logs;
+
+        {
+            std::vector<int> fdsToLeave;
+            if (config->Pty) {
+                fdsToLeave.push_back(*config->Pty);
+            }
+            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::Leave) {
+                fdsToLeave.push_back(STDOUT_FILENO);
+            }
+            fdsToLeave.push_back(ExecutorStderr_.GetHandle());
+            try {
+                auto closedDescriptors = CloseAllDescriptors(fdsToLeave);
+            } catch (const std::exception& ex) {
+                LogToStderr(Format("Failed to close descriptors: %v", ex.what()));
+                throw;
+            }
+        }
+
+        try {
+            if (config->StdoutUnusedAction == NUserJob::EStdoutUnusedAction::RedirrectToDevNull) {
+                TFile devNull("/dev/null", EOpenModeFlag::WrOnly);
+                SafeDup2(devNull.GetHandle(), STDOUT_FILENO);
+            }
+        } catch (const std::exception& ex) {
+            LogToStderr(Format("Failed to redirect stdout: %v", ex.what()));
+            throw;
+        }
 
         ConfigureUids();
         ConfigureCrashHandler();
@@ -55,10 +112,6 @@ private:
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
         NLogging::TLogManager::Get()->Shutdown();
-
-        auto config = GetConfig();
-
-        JobId_ = config->JobId;
 
         if (config->Uid > 0) {
             SetUid(config->Uid);
@@ -110,12 +163,6 @@ private:
             executorError = ex;
         }
 
-        try {
-            OpenExecutorStderr();
-        } catch (const std::exception& ex) {
-            Exit(ToUnderlying(EProgramExitCode::ExecutorStderrOpenError));
-        }
-
         if (!executorError.IsOK()) {
             LogToStderr(Format("Failed to prepare pipes, unexpected executor error\n%v\n", executorError));
             Exit(ToUnderlying(EProgramExitCode::ExecutorError));
@@ -133,7 +180,6 @@ private:
         }
 
         if (config->Pty) {
-            CloseAllDescriptors({*config->Pty});
             if (HandleEintr(setsid) == -1) {
                 THROW_ERROR_EXCEPTION("Failed to create a new session") << TError::FromSystem();
             }
@@ -206,13 +252,28 @@ private:
         ExecutorStderr_.Flush();
     }
 
-    void OpenExecutorStderr()
+    void OpenExecutorStderr(const std::vector<int>& reservedFds)
     {
         NFS::MakeDirRecursive(NFS::GetDirectoryName(GetConfig()->StderrPath));
 
-        ExecutorStderr_ = TFile(
+        std::vector<TFile> tmpFiles;
+        tmpFiles.push_back(TFile(
             GetConfig()->StderrPath,
-            EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways);
+            EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways));
+
+        // NB(pogorelov): We are trying to open stderr on non-reserved descriptor.
+        while (std::ranges::find_if(reservedFds, [&] (int arg) { return arg == tmpFiles.back().GetHandle(); }) != end(reservedFds)) {
+            try {
+                tmpFiles.push_back(tmpFiles.back().Duplicate());
+            } catch (const std::exception& ex) {
+                auto errorStr = Format("Stderr file duplicate failed: %v", ex.what());
+                tmpFiles.back().Write(errorStr.c_str(), errorStr.size());
+                tmpFiles.back().Flush();
+                Exit(ToUnderlying(EProgramExitCode::ExecutorStderrDuplicateError));
+            }
+        }
+
+        ExecutorStderr_ = std::move(tmpFiles.back());
     }
 };
 

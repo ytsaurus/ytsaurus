@@ -456,10 +456,10 @@ class Migration(object):
             transform_begin -= 1
 
         new_tables = set()
-        temporary_tables = []
         for version in range(transform_begin, transform_end + 1):
             logging.info("Transforming to version %d", version)
             swap_tasks = []
+            temporary_tables = []
             if version in self.transforms:
                 for conversion in self.transforms[version]:
                     if conversion.operation == "mount":

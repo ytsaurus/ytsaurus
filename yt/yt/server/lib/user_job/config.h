@@ -31,6 +31,12 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EStdoutUnusedAction,
+    (Leave)
+    (Close)
+    (RedirrectToDevNull)
+);
+
 struct TUserJobExecutorConfig
     : public NYTree::TYsonStruct
 {
@@ -58,6 +64,8 @@ struct TUserJobExecutorConfig
 
     //! Config of the connection between user job executor and job proxy.
     NUserJob::TUserJobSynchronizerConnectionConfigPtr UserJobSynchronizerConnectionConfig;
+
+    EStdoutUnusedAction StdoutUnusedAction;
 
     REGISTER_YSON_STRUCT(TUserJobExecutorConfig);
 

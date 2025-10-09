@@ -41,7 +41,7 @@
    :target: https://gitter.im/cherrypy/cherrypy
 
 .. image:: https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square
-   :target: http://makeapullrequest.com/
+   :target: https://web.archive.org/web/20250306034535/https://makeapullrequest.com/
 
 .. image:: https://app.fossa.io/api/projects/git%2Bgithub.com%2Fcherrypy%2Fcheroot.svg?type=shield
    :target: https://app.fossa.io/projects/git%2Bgithub.com%2Fcherrypy%2Fcheroot?ref=badge_shield

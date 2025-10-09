@@ -393,15 +393,30 @@ public:
 
         auto now = TInstant::Now();
 
+        // Make sure the order of replicas does not matter; see the check below.
+        auto canonicalReplicas = replicas;
+        std::ranges::sort(canonicalReplicas.Replicas);
+
         auto update = [&] (TEntry* entry) {
-            entry->Promise = MakePromise(replicas);
-            entry->Future = entry->Promise.ToFuture().ToUncancelable();
             entry->LastAccessTime = now;
+
+            // TEntry::Future is being used as a key in #DiscardReplicas; see YT-26345.
+            // Try to preserve it as long as the replica set remains same.
+            if (entry->Future &&
+                entry->Future.IsSet() &&
+                entry->Future.Get().IsOK() &&
+                entry->Future.Get().Value() == canonicalReplicas)
+            {
+                return;
+            }
+
+            entry->Promise = MakePromise(canonicalReplicas);
+            entry->Future = entry->Promise.ToFuture().ToUncancelable();
 
             YT_LOG_DEBUG("Chunk replicas updated (ChunkId: %v, Replicas: %v, Revision: %x)",
                 chunkId,
-                MakeFormattableView(replicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
-                replicas.Revision);
+                MakeFormattableView(canonicalReplicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
+                canonicalReplicas.Revision);
 
             UpdatesCounter_.Increment();
         };
@@ -418,7 +433,9 @@ public:
 
             // NB: Sequoia replicas always use TAllyReplicasInfo::SequoiaRevision;
             // in case of a tie, consider these to be fresh replicas.
-            if (oldRevision > replicas.Revision) {
+            if (oldRevision >= canonicalReplicas.Revision &&
+                canonicalReplicas.Revision != TAllyReplicasInfo::SequoiaRevision)
+            {
                 return;
             }
 

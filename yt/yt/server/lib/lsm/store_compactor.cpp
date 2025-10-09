@@ -613,13 +613,13 @@ private:
 
                 if (compactionReason == EHunkCompactionReason::HunkChunkTooSmall) {
                     smallCandidates.insert(hunkChunk);
-                } else if (finalistIds.insert(hunkChunk->GetId()).second) {
+                } else if (finalistIds.insert(hunkChunk->Id).second) {
                     // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurrence.
                     ++hunkChunkCountByReason[compactionReason];
 
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        hunkChunk->GetId(),
+                        hunkChunk->Id,
                         compactionReason);
                 }
             }
@@ -636,7 +636,7 @@ private:
             sortedSmallCandidates.begin(),
             sortedSmallCandidates.end(),
             [] (const auto& lhs, const auto& rhs) {
-                return lhs->GetTotalHunkLength() < rhs->GetTotalHunkLength();
+                return lhs->TotalHunkLength < rhs->TotalHunkLength;
             });
 
         for (int i = 0; i < ssize(sortedSmallCandidates); ++i) {
@@ -647,7 +647,7 @@ private:
                     break;
                 }
 
-                i64 size = sortedSmallCandidates[j]->GetTotalHunkLength();
+                i64 size = sortedSmallCandidates[j]->TotalHunkLength;
                 if (size > mountConfig->HunkCompactionSizeBase &&
                     totalSize > 0 &&
                     size > totalSize * mountConfig->HunkCompactionSizeRatio)
@@ -664,12 +664,12 @@ private:
                     const auto& candidate = sortedSmallCandidates[i];
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        candidate->GetId(),
+                        candidate->Id,
                         EHunkCompactionReason::HunkChunkTooSmall);
 
                     ++hunkChunkCountByReason[EHunkCompactionReason::HunkChunkTooSmall];
 
-                    InsertOrCrash(finalistIds, candidate->GetId());
+                    InsertOrCrash(finalistIds, candidate->Id);
                     ++i;
                 }
                 break;
@@ -689,7 +689,30 @@ private:
             Config_->CompactionBackoffTime;
     }
 
-    static bool IsStoreCompactionForced(const TStore* store)
+    bool IsStoreGradualCompactionNeeded(const TStore* store, const TGradualCompactionConfig& config) const
+    {
+        if (CurrentTime_ < config.StartTime || config.StartTime <= store->GetCreationTime()) {
+            return false;
+        }
+
+        if (CurrentTime_ > config.StartTime + config.Duration) {
+            YT_LOG_DEBUG_IF(store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging,
+                "Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
+                store->GetTablet()->GetLoggingTag(),
+                store->GetId(),
+                config.StartTime,
+                config.Duration,
+                CurrentTime_);
+
+            return true;
+        }
+
+        double hash = ComputeHash(store->GetId());
+
+        return config.StartTime + config.Duration * (hash / std::numeric_limits<size_t>::max()) <= CurrentTime_;
+    }
+
+    static bool IsStoreCompactionForcedByRevision(const TStore* store)
     {
         auto mountConfig = store->GetTablet()->GetMountConfig();
         auto forcedCompactionRevision = std::max(
@@ -705,30 +728,15 @@ private:
         return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 
-    static bool IsStoreGlobalCompactionNeeded(const TStore* store)
+    bool IsStoreCompactionForced(const TStore* store) const
     {
-        const auto& globalConfig = store->GetTablet()->GetMountConfig()->GlobalCompaction;
+        return IsStoreGradualCompactionNeeded(store, store->GetTablet()->GetMountConfig()->ForcedCompaction) ||
+            IsStoreCompactionForcedByRevision(store);
+    }
 
-        auto now = TInstant::Now();
-
-        if (now < globalConfig.StartTime || globalConfig.StartTime <= store->GetCreationTime()) {
-            return false;
-        }
-
-        if (now > globalConfig.StartTime + globalConfig.Duration) {
-            YT_LOG_DEBUG("Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
-                store->GetTablet()->GetLoggingTag(),
-                store->GetId(),
-                globalConfig.StartTime,
-                globalConfig.Duration,
-                now);
-
-            return true;
-        }
-
-        double hash = ComputeHash(store->GetId());
-
-        return globalConfig.StartTime + globalConfig.Duration * (hash / std::numeric_limits<size_t>::max()) <= now;
+    bool IsStoreGlobalCompactionNeeded(const TStore* store) const
+    {
+        return IsStoreGradualCompactionNeeded(store, store->GetTablet()->GetMountConfig()->GlobalCompaction);
     }
 
     bool IsStorePeriodicCompactionNeeded(const TStore* store) const
@@ -803,15 +811,15 @@ private:
             mountConfig->ForcedCompactionRevision,
             mountConfig->ForcedHunkCompactionRevision);
 
-        return RevisionFromId(hunkChunk->GetId()) <= forcedCompactionRevision.value_or(NHydra::NullRevision);
+        return RevisionFromId(hunkChunk->Id) <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 
     static bool IsHunkCompactionGarbageRatioTooHigh(
         const TTableMountConfigPtr& mountConfig,
         const THunkChunk* hunkChunk)
     {
-        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) /
-            hunkChunk->GetTotalHunkLength();
+        auto referencedHunkLengthRatio = static_cast<double>(hunkChunk->ReferencedTotalHunkLength) /
+            hunkChunk->TotalHunkLength;
         return referencedHunkLengthRatio < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
     }
 
@@ -819,7 +827,7 @@ private:
         const TTableMountConfigPtr& mountConfig,
         const THunkChunk* hunkChunk)
     {
-        return hunkChunk->GetTotalHunkLength() <= mountConfig->MaxHunkCompactionSize;
+        return hunkChunk->TotalHunkLength <= mountConfig->MaxHunkCompactionSize;
     }
 
     static EHunkCompactionReason GetHunkCompactionReason(

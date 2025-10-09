@@ -470,7 +470,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allocation_preemption_timeout", &TThis::AllocationPreemptionTimeout)
         .Alias("job_interrupt_timeout")
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("allocation_graceful_preemption_timeout", &TThis::AllocationGracefulPreemptionTimeout)
         .Alias("job_graceful_interrupt_timeout")
@@ -1274,7 +1274,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(63);
+        .Default(64);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

@@ -1628,6 +1628,7 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.ExecutionBackend = config->UseWebAssembly
         ? options.ExecutionBackend.value_or(EExecutionBackend::Native)
         : EExecutionBackend::Native;
+    queryOptions.OptimizationLevel = options.OptimizationLevel.value_or(EOptimizationLevel::Default);
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.MinRowCountPerSubquery = options.MinRowCountPerSubquery;
@@ -2358,6 +2359,9 @@ void TClient::DoAlterTable(
     }
     if (options.ReplicationProgress) {
         ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
+    }
+    if (options.ClipTimestamp) {
+        req->set_clip_timestamp(*options.ClipTimestamp);
     }
 
     auto proxy = CreateObjectServiceWriteProxy();

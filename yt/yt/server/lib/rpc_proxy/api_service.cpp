@@ -2662,6 +2662,9 @@ private:
         if (request->has_replication_progress()) {
             options.ReplicationProgress = FromProto<TReplicationProgress>(request->replication_progress());
         }
+        if (request->has_clip_timestamp()) {
+            options.ClipTimestamp = request->clip_timestamp();
+        }
 
         context->SetRequestInfo("Path: %v",
             path);
@@ -3254,6 +3257,9 @@ private:
         }
         if (request->has_with_competitors()) {
             options.WithCompetitors = request->with_competitors();
+        }
+        if (request->has_main_job_id()) {
+            options.MainJobId = FromProto<TJobId>(request->main_job_id());
         }
         if (request->has_job_competition_id()) {
             options.JobCompetitionId = FromProto<TJobId>(request->job_competition_id());
@@ -4132,6 +4138,9 @@ private:
         }
         if (request->has_execution_backend()) {
             options.ExecutionBackend = CheckedEnumCast<EExecutionBackend>(request->execution_backend());
+        }
+        if (request->has_optimization_level()) {
+            options.OptimizationLevel = CheckedEnumCast<EOptimizationLevel>(request->optimization_level());
         }
         if (request->has_versioned_read_options()) {
             FromProto(&options.VersionedReadOptions, request->versioned_read_options());

@@ -33,12 +33,13 @@ target_link_libraries(yt-server-discovery_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-getopt
-  cpp-yt-phdr_cache
-  yt-library-server_program
-  yt-yt-ytlib
   ytserver
   server-lib-discovery_server
+  yt-yt-ytlib
+  yt-library-orchid
+  yt-library-server_program
+  library-cpp-getopt
+  cpp-yt-phdr_cache
 )
 
 target_sources(yt-server-discovery_server PRIVATE

@@ -139,14 +139,14 @@ public:
 
     virtual TCypressNode* ResolvePathToTrunkNode(
         const NYPath::TYPath& path,
-        const std::string& service = "",
-        const std::string& method = "",
+        const std::optional<std::string>& service = std::nullopt,
+        const std::optional<std::string>& method = std::nullopt,
         NTransactionServer::TTransaction* transaction = nullptr) = 0;
 
     virtual ICypressNodeProxyPtr ResolvePathToNodeProxy(
         const NYPath::TYPath& path,
-        const std::string& service = "",
-        const std::string& method = "",
+        const std::optional<std::string>& service = std::nullopt,
+        const std::optional<std::string>& method = std::nullopt,
         NTransactionServer::TTransaction* transaction = nullptr) = 0;
 
     //! Resolves a path.
@@ -155,8 +155,8 @@ public:
     //! Throws if the path leads to a missing object.
     virtual ICypressNodeProxyPtr TryResolvePathToNodeProxy(
         const NYPath::TYPath& path,
-        const std::string& service =  "",
-        const std::string& method = "",
+        const std::optional<std::string>& service =  std::nullopt,
+        const std::optional<std::string>& method = std::nullopt,
         NTransactionServer::TTransaction* transaction = nullptr) = 0;
 
     //! Similar to |FindNode| provided by |DECLARE_ENTITY_MAP_ACCESSORS| but

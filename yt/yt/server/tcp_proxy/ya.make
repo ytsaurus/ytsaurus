@@ -20,6 +20,7 @@ PEERDIR(
     yt/yt/ytlib
 
     yt/yt/library/dynamic_config
+    yt/yt/library/orchid
     yt/yt/library/program
     yt/yt/library/server_program
 

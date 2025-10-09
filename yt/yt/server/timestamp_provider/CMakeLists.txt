@@ -34,7 +34,7 @@ target_link_libraries(yt-server-timestamp_provider PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
-  yt-yt-ytlib
+  yt-library-orchid
   yt-library-program
   yt-library-server_program
   ytserver

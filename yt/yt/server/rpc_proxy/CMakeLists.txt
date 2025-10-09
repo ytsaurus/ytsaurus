@@ -33,17 +33,18 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   yutil
   ytserver
   server-lib-chunk_pools
-  server-lib-rpc_proxy
   server-lib-cypress_registrar
+  server-lib-rpc_proxy
   server-lib-shuffle_server
   yt-yt-ytlib
   yt-client-arrow
   core-rpc-grpc
   yt-library-auth_server
   yt-library-dynamic_config
-  yt-library-server_program
   yt-library-monitoring
+  yt-library-orchid
   library-profiling-solomon
+  yt-library-server_program
   library-tracing-jaeger
   cpp-yt-phdr_cache
   library-cpp-getopt

@@ -581,7 +581,7 @@ func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.Controller
 	r := chi.NewRouter()
 	r.Get("/ping", HandlePing)
 	r.Get("/describe", func(w http.ResponseWriter, r *http.Request) {
-		HandleDescribe(w, r, commands, clusters)
+		HandleDescribe(w, r, commands, clusters, l)
 	})
 
 	for _, clusterInfo := range cfg.ClusterInfos {

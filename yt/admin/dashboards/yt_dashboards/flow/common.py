@@ -35,7 +35,8 @@ def build_versions():
             "controller",
             "worker",
             "computation",
-            "message-transfering"
+            "message-transfering",
+            "state-cache"
         ]
     ]
     description_text = "\n".join(description_rows)

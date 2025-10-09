@@ -74,5 +74,8 @@ target_sources(essentials-public-udf PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_value_builder.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_value_inl.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_version.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/sanitizer_utils.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_string_ref.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/udf/udf_terminator.h
 )
 

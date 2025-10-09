@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_A
 from yt_commands import (
     authors, execute_command, extract_statistic_v2, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config, update_scheduler_config,
-    create, ls, exists, sorted_dicts, create_pool,
+    create, ls, exists, sorted_dicts, create_pool, get_job, list_jobs,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
     patch_op_spec, create_tmpdir)
@@ -468,6 +468,75 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
+    @authors("faucct")
+    def test_distributed(self):
+        op = run_test_vanilla(
+            with_breakpoint("echo YT_JOB_COOKIE_GROUP_INDEX $YT_JOB_COOKIE_GROUP_INDEX 1>&2; env 1>&2; BREAKPOINT"),
+            task_patch={"cookie_group_size": 2}, job_count=1,
+        )
+        job_ids = wait_breakpoint(job_count=2)
+        main_job_id = list_jobs(op.id, attributes=["main_job_id"])["jobs"][0]["main_job_id"]
+
+        jobs = [
+            get_job(op.id, job_id, attributes=["job_id", "job_cookie_group_index", "main_job_id"])
+            for job_id in job_ids
+        ]
+        jobs = sorted(jobs, key=lambda job: job["job_cookie_group_index"])
+        assert [0, 1] == [job["job_cookie_group_index"] for job in jobs]
+        assert main_job_id == jobs[0]["job_id"]
+        assert {main_job_id} == {job["main_job_id"] for job in jobs}
+
+        jobs = list_jobs(
+            op.id, attributes=["job_id", "job_cookie_group_index", "main_job_id"],
+            main_job_id=main_job_id,
+        )["jobs"]
+        jobs = sorted(jobs, key=lambda job: job["job_cookie_group_index"])
+        assert [0, 1] == [job["job_cookie_group_index"] for job in jobs]
+        assert main_job_id == jobs[0]["id"]
+        assert {main_job_id} == {job["main_job_id"] for job in jobs}
+
+        assert [] == list_jobs(
+            op.id, attributes=["job_id", "job_cookie_group_index", "main_job_id"],
+            main_job_id=(set(job_ids) - {main_job_id}).pop(),
+        )["jobs"]
+
+        release_breakpoint()
+        op.track()
+
+    @authors("faucct")
+    def test_table_output_distributed(self):
+        create("table", "//tmp/t")
+        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "output_table_paths": ["//tmp/t"],
+                            "format": "yson",
+                            "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then sleep infinity; else echo "{foo=bar}"; fi""",
+                            "cookie_group_size": 2,
+                            "close_stdout_if_unused": True,
+                        },
+                    },
+                }
+            )
+        vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "output_table_paths": ["//tmp/t"],
+                        "format": "yson",
+                        "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then echo '{a=1}'; fi""",
+                        "cookie_group_size": 2,
+                        "close_stdout_if_unused": True,
+                    },
+                }
+            }
+        )
+        assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}]
+
     @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
         create("table", "//tmp/t")
@@ -850,6 +919,53 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
         wait(lambda: incarnation_switch_counter.get() == 0)
         wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
+
+    @authors("faucct")
+    def test_revive_before_distributed_jobs_scheduled(self):
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+
+        sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=2)
+        wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 2)
+
+        # Will not start jobs while sleeping_op is running.
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={"cookie_group_size": 3},
+            spec={"pool": "fake_pool"},
+        )
+
+        wait(lambda: len(get(_get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 1)
+
+        op.wait_for_fresh_snapshot()
+
+        wait(lambda: started_job_profiler.get_job_count_delta() == 3)
+
+        aborted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "cookie_group_disbanded"},
+        )
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            sleeping_op.abort()
+
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        wait_breakpoint(job_count=3)
+        assert op.get_job_count("aborted") == 1
+        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+        release_breakpoint()
+
+        op.track()
+
+        assert started_job_profiler.get() == 3
 
 
 ##################################################################
@@ -1868,6 +1984,23 @@ class TestGangOperations(YTEnvSetup):
         op.wait_for_state("failed")
 
         assert restarted_job_profiler.get_job_count_delta() == 0
+
+    @authors("faucct")
+    def test_gang_operation_with_cookie_group_size(self):
+        with pytest.raises(YtError, match='Operation with a non-singular "cookie_group_size" can not have tasks with configured "gang_options"'):
+            vanilla(
+                track=False,
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": ";",
+                            "gang_options": {},
+                            "cookie_group_size": 2,
+                        },
+                    },
+                },
+            )
 
     @authors("pogorelov")
     def test_gang_operation_with_fail_on_job_restart(self):

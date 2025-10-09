@@ -22,5 +22,6 @@ target_link_libraries(essentials-core-pg_settings PUBLIC
 
 target_sources(essentials-core-pg_settings PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/pg_settings/guc_settings.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/pg_settings/guc_settings.h
 )
 

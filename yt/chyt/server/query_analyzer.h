@@ -117,6 +117,10 @@ public:
     //! Prepare method should be called before Analyze.
     TQueryAnalysisResult Analyze() const;
 
+    //! TQueryAnalyzer materializes global joins when parsing query tree from SelectQueryInfo.
+    //! For further processing, it may be useful to get the resulting query tree.
+    DB::QueryTreeNodePtr GetParsedQueryTree() const;
+
     bool HasJoinWithTwoTables() const;
     bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;

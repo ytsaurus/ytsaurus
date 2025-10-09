@@ -35,5 +35,6 @@ target_link_libraries(common-compress_base-lib PUBLIC
 
 target_sources(common-compress_base-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/compress_base/lib/compress_base_udf.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/compress_base/lib/compress_base_udf.h
 )
 

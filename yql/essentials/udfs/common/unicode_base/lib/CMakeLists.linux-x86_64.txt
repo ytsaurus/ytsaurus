@@ -38,5 +38,6 @@ target_link_libraries(common-unicode_base-lib PUBLIC
 
 target_sources(common-unicode_base-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/unicode_base/lib/unicode_base_udf.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/udfs/common/unicode_base/lib/unicode_base_udf.h
 )
 

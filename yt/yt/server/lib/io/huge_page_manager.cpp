@@ -378,7 +378,7 @@ public:
 
     i64 GetHugePageMemoryLimit() const override
     {
-        return HugePageManager_.Acquire()->GetHugePageSize();
+        return HugePageManager_.Acquire()->GetHugePageMemoryLimit();
     }
 
     i64 GetHugePageSize() const override

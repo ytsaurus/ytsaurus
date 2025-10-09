@@ -1,6 +1,7 @@
 #include "client.h"
 
 #include "helpers.h"
+#include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction.h"
 #include "private.h"
@@ -77,7 +78,10 @@ public:
         const NTableClient::TColumnFilter& columnFilter,
         NTransactionClient::TTimestamp timestamp) override
     {
-        YT_LOG_DEBUG("Looking up (Table: %v, Keys: %v, Timestamp: %v)", table, keys, timestamp);
+        YT_LOG_DEBUG("Looking up (Table: %v, Keys: %v, Timestamp: %v)",
+            table,
+            MakeShrunkFormattableView(keys, TDefaultFormatter(), 20),
+            timestamp);
         XX(LookupRows, (table, keys, columnFilter, timestamp))
     }
 
@@ -241,6 +245,14 @@ ISequoiaClientPtr CreateSequoiaClient(
     NNative::IConnectionPtr localConnection,
     TFuture<NNative::IClientPtr> groundClientFuture)
 {
+    if (config && config->EnableGroundReignValidation) {
+        groundClientFuture = groundClientFuture
+            .Apply(BIND([=] (NNative::IClientPtr client) {
+                return ValidateClusterGroundReign(client, config->SequoiaRootPath)
+                    .Apply(BIND([=] { return client; }));
+            }));
+    }
+
     return New<TSequoiaClient>(
         std::move(config),
         std::move(localConnection),

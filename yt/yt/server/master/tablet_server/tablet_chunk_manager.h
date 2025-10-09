@@ -73,9 +73,10 @@ struct ITabletChunkManager
         const std::vector<NChunkServer::TChunkTreeRawPtr>& chunkTrees,
         NChunkServer::EChunkDetachPolicy policy) = 0;
 
-    virtual void WrapWithBackupChunkViews(
+    virtual void WrapWithClipTimestampChunkViews(
         TTablet* tablet,
-        NTransactionClient::TTimestamp maxClipTimestamp) = 0;
+        NTransactionClient::TTimestamp maxClipTimestamp,
+        bool isBackup) = 0;
 
     virtual TError PromoteFlushedDynamicStores(TTablet* tablet) = 0;
 

@@ -52,36 +52,37 @@ target_link_libraries(yt-server-node PUBLIC
   contrib-libs-cxxsupp
   yutil
   core-service_discovery-yp
-  library-query-engine
-  library-query-row_comparer
-  library-dns_over_rpc-server
-  yt-library-re2
   yt-library-containers
   library-containers-cri
+  library-dns_over_rpc-server
   yt-library-gpu
-  library-tracing-jaeger
-  library-tracing-baggage_manager
-  yt-library-tcmalloc
   yt-library-monitoring
+  yt-library-orchid
+  library-query-engine
+  library-query-row_comparer
+  yt-library-re2
   yt-library-server_program
+  yt-library-tcmalloc
+  library-tracing-baggage_manager
+  library-tracing-jaeger
   yt-ytlib-distributed_throttler
   server-node-cellar_node
   server-node-chaos_node
   yt-server-tools
   ytserver
-  server-lib-io
   server-lib-cellar_agent
   server-lib-chaos_node
   server-lib-chunk_server
+  server-lib-distributed_chunk_session_server
   server-lib-exec_node
-  server-lib-tablet_server
   server-lib-hydra
   lib-hydra-dry_run
+  server-lib-io
   server-lib-lsm
   server-lib-misc
   server-lib-nbd
   server-lib-rpc
-  server-lib-distributed_chunk_session_server
+  server-lib-tablet_server
   server-lib-controller_agent
   library-cpp-getopt
   cpp-containers-bitset

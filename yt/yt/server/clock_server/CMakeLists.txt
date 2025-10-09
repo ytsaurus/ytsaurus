@@ -29,6 +29,7 @@ target_link_libraries(yt-server-clock_server PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-library-orchid
   yt-library-server_program
   yt-library-monitoring
   library-profiling-solomon

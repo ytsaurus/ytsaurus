@@ -35,9 +35,9 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/coredumper/public.h>
 

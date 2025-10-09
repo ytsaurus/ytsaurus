@@ -1625,7 +1625,11 @@ public:
         return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction(), pathRootType);
     }
 
-    TCypressNode* ResolvePathToTrunkNode(const TYPath& path, const std::string& service, const std::string& method, TTransaction* transaction) override
+    TCypressNode* ResolvePathToTrunkNode(
+        const TYPath& path,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
+        TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->ResolvePathToLocalObject(
@@ -1647,13 +1651,21 @@ public:
         return object->As<TCypressNode>();
     }
 
-    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, const std::string& service, const std::string& method, TTransaction* transaction) override
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(
+        const TYPath& path,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
+        TTransaction* transaction) override
     {
         auto* trunkNode = ResolvePathToTrunkNode(path, service, method, transaction);
         return GetNodeProxy(trunkNode, transaction);
     }
 
-    ICypressNodeProxyPtr TryResolvePathToNodeProxy(const TYPath& path, const std::string& service, const std::string& method, TTransaction* transaction) override
+    ICypressNodeProxyPtr TryResolvePathToNodeProxy(
+        const TYPath& path,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
+        TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->ResolvePathToObject(
@@ -4861,9 +4873,7 @@ private:
 
             auto effectiveTransactionId = transactionId;
             auto transactionType = TypeFromId(transactionId);
-            if (transactionType != EObjectType::UploadTransaction &&
-                transactionType != EObjectType::UploadNestedTransaction)
-            {
+            if (IsCypressTransactionType(transactionType)) {
                 auto nativeCellTag = CellTagFromId(nodeId);
                 effectiveTransactionId = NTransactionClient::MakeExternalizedTransactionId(transactionId, nativeCellTag);
             }

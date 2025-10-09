@@ -7,8 +7,9 @@ from yt.mcp.lib.tools.admin import GetProxy
 from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
 from yt.mcp.lib.tools.common_cypress import CommonCypress
 
-import logging
 import argparse
+import itertools
+import logging
 
 
 def get_app_args():
@@ -19,6 +20,11 @@ def get_app_args():
     parser.add_argument("--log-file", type=str, default=None)
     parser.add_argument("--log-level", type=str, default="ERROR", choices=["INFO", "ERROR", "DEBUG"])
     parser.add_argument("--yt-token-file", type=str, default=None, help="Path to yt auth token")
+
+    parser.add_argument("--show-tools", action="store_true", default=False, help="Show tools and exit")
+    parser.add_argument("--tools-common", action="store_const", const="common", default=None, help="Enable common tools")
+    parser.add_argument("--tools-account", action="store_const", const="account", default=None, help="Enable account tools")
+    parser.add_argument("--tools-admin", action="store_const", const="admin", default=None, help="Enable admin tools")
 
     args = parser.parse_args()
 
@@ -40,8 +46,8 @@ def main():
         token_file=app_args.yt_token_file,
     )
 
-    mcp_runner.attach_tools(
-        [
+    tools_groups = {
+        "common": [
             # list_dir
             ListDir(),
             Search(),
@@ -49,15 +55,34 @@ def main():
             GetAttributes(),
             # check_is_paths_exists
             CheckIsPathsExists(),
-            # admin
-            GetProxy(),
+            # common_cypress
+            CommonCypress(),
+        ],
+        "account": [
             # account
             CheckPermissions(),
             AccountProperty(),
-            # common_cypress
-            CommonCypress(),
-        ]
-    )
+        ],
+        "admin": [
+            # admin
+            GetProxy(),
+        ],
+    }
+
+    tools = []
+    for group in [app_args.tools_common, app_args.tools_account, app_args.tools_admin]:
+        if group:
+            tools.extend(tools_groups[group])
+    if not tools:
+        tools.extend(list(itertools.chain(*tools_groups.values())))
+
+    mcp_runner.attach_tools(tools)
+
+    if app_args.show_tools:
+        print("Tools:")
+        for tool in mcp_runner._tools:
+            print(f"- {tool._get_tool_description()[0].name} ({tool.__class__.__name__})")
+        exit()
 
     mcp_runner.start(
         transport=app_args.server_transport,

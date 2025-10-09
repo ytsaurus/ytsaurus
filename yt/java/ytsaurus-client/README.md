@@ -1,4 +1,2 @@
-ytsaurus-client - Библиотека для работы с YTsaurus через RPC
+ytsaurus-client - Library for working with YTsaurus via RPC
 ======
-
-

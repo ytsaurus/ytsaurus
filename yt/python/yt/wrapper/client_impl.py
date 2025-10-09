@@ -147,19 +147,21 @@ class YtClient(ClientState):
     def abort_operation(
             self,
             operation,
-            reason=None):
+            message=None, reason=None):
         """
         Aborts operation.
 
         Do nothing if operation is in final state.
 
         :param str operation: operation id.
+        :param str message: custom message for abort error.
+        :param str reason: alias for message (deprecated).
 
         """
         return client_api.abort_operation(
             operation,
             client=self,
-            reason=reason)
+            message=message, reason=reason)
 
     def abort_query(
             self,
@@ -336,7 +338,8 @@ class YtClient(ClientState):
     def alter_table(
             self,
             path,
-            schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, replication_progress=None):
+            schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, replication_progress=None,
+            clip_timestamp=None):
         """
         Performs schema and other table meta information modifications.
         Applicable to static and dynamic tables.
@@ -348,13 +351,14 @@ class YtClient(ClientState):
         :param bool dynamic: dynamic
         :param str upstream_replica_id: upstream_replica_id
         :param dict replication_progress: replication progress for chaos dynamic table
+        :param int clip_timestamp: new clip_timestamp to set on table
 
         """
         return client_api.alter_table(
             path,
             client=self,
             schema=schema, schema_id=schema_id, dynamic=dynamic, upstream_replica_id=upstream_replica_id,
-            replication_progress=replication_progress)
+            replication_progress=replication_progress, clip_timestamp=clip_timestamp)
 
     def alter_table_replica(
             self,

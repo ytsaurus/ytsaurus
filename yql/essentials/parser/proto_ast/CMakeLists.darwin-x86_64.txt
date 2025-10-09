@@ -25,3 +25,7 @@ target_link_libraries(essentials-parser-proto_ast INTERFACE
   essentials-parser-common
 )
 
+target_sources(essentials-parser-proto_ast INTERFACE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/common.h
+)
+

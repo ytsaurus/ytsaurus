@@ -204,8 +204,8 @@ struct IObjectManager
     //! Handles paths to versioned and most unversioned local objects.
     virtual TObject* ResolvePathToLocalObject(
         const NYPath::TYPath& path,
-        const std::string& service,
-        const std::string& method,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;
 
@@ -215,15 +215,15 @@ struct IObjectManager
     //! If the path fails to resolve (i.e. leads to a missing object), throws.
     virtual TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
-        const std::string& service,
-        const std::string& method,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;
 
     virtual TObjectId ResolvePathToObjectId(
         const NYPath::TYPath& path,
-        const std::string& service,
-        const std::string& method,
+        const std::optional<std::string>& service,
+        const std::optional<std::string>& method,
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;
 

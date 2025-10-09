@@ -32,6 +32,7 @@ target_link_libraries(yt-server-tablet_balancer PUBLIC
   cpp-yt-phdr_cache
   library-cpp-getopt
   yt-library-dynamic_config
+  yt-library-orchid
   yt-library-server_program
   yt-library-monitoring
   yt-yt-ytlib

@@ -605,7 +605,10 @@ private:
             switch (table->GetBackupMode()) {
                 case EBackupMode::Sorted:
                 case EBackupMode::SortedSyncReplica:
-                    tabletChunkManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
+                    tabletChunkManager->WrapWithClipTimestampChunkViews(
+                        tablet,
+                        table->GetBackupCheckpointTimestamp(),
+                        /*isBackup*/ true);
                     break;
 
                 case EBackupMode::SortedAsyncReplica: {

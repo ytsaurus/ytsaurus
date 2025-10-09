@@ -20,6 +20,7 @@ PEERDIR(
     library/cpp/yt/phdr_cache
 
     yt/yt/library/dynamic_config
+    yt/yt/library/orchid
     yt/yt/library/server_program
 
     yt/yt/ytlib

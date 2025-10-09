@@ -213,7 +213,7 @@ class TestOperations(object):
         check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
         yt.run_sort(table, sort_by=["x"])
         with pytest.raises(yt.YtError):
-            yt.run_reduce("cat", table, [], reduce_by=["x"])
+            yt.run_reduce("cat", table, [], reduce_by=["x"], spec={"reducer": {"close_stdout_if_unused": True}})
 
         yt.run_reduce("cat", table, table, reduce_by=["x"])
         check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(table))

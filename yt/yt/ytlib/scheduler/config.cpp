@@ -1313,6 +1313,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_gpu_check", &TThis::EnableGpuCheck)
         .Default(false);
+    registrar.Parameter("cookie_group_size", &TThis::CookieGroupSize)
+        .Default(1)
+        .GreaterThan(0);
     registrar.Parameter("job_speculation_timeout", &TThis::JobSpeculationTimeout)
         .Default()
         .GreaterThan(TDuration::Zero());
@@ -1365,6 +1368,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("archive_ttl", &TThis::ArchiveTtl)
         .Default();
+
+    registrar.Parameter("close_stdout_if_unused", &TThis::CloseStdoutIfUnused)
+        .Default(false);
 
     registrar.Parameter("enable_fixed_user_id", &TThis::EnableFixedUserId)
         .Default(false);
@@ -2353,6 +2359,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
+        TStringBuf distributedTaskName;
         TStringBuf taskWithGangOptionsName;
         TStringBuf taskWithFailOnJobRestartName;
         TStringBuf taskWithOutputTableName;
@@ -2368,6 +2375,9 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
 
+            if (taskSpec->CookieGroupSize > 1) {
+                distributedTaskName = taskName;
+            }
             if (taskSpec->GangOptions) {
                 taskWithGangOptionsName = taskName;
             }
@@ -2382,6 +2392,11 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             }
         }
 
+        if (taskWithGangOptionsName && distributedTaskName) {
+            THROW_ERROR_EXCEPTION(
+                "Operation with a non-singular \"cookie_group_size\" can not have tasks with configured \"gang_options\"")
+                << TErrorAttribute("task_with_gang_options_name", taskWithGangOptionsName);
+        }
         if (taskWithGangOptionsName && spec->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION(
                 "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_options\"")

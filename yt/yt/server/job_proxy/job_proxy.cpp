@@ -55,11 +55,11 @@
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/library/orchid/orchid_service.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/public.h>

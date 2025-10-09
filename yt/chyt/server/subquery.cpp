@@ -272,7 +272,7 @@ private:
                     }
                     return true;
                 };
-                if (!checkValues(TableStatistics_->ColumnMinValues) || !checkValues(TableStatistics_->ColumnMaxValues)) {
+                if (!TableStatistics_->HasValueStatistics() || !checkValues(TableStatistics_->ColumnMinValues) || !checkValues(TableStatistics_->ColumnMaxValues)) {
                     TableStatistics_ = std::nullopt;
                 }
             }

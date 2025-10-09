@@ -28,6 +28,7 @@ using namespace NConcurrency;
 
 using NCodegen::TCGModule;
 using NCodegen::EExecutionBackend;
+using NCodegen::EOptimizationLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Operator helpers
@@ -4292,9 +4293,10 @@ std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModul
 TCGQueryImage CodegenQuery(
     const TCodegenSource* codegenSource,
     size_t slotCount,
-    EExecutionBackend executionBackend)
+    EExecutionBackend executionBackend,
+    NCodegen::EOptimizationLevel optimizationLevel)
 {
-    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend);
+    auto cgModule = TCGModule::Create(GetQueryRoutineRegistry(executionBackend), executionBackend, optimizationLevel);
     const auto entryFunctionName = std::string("EvaluateQuery");
 
     auto* queryFunction = MakeFunction<TCGPIQuerySignature>(cgModule, entryFunctionName.c_str(), [&] (

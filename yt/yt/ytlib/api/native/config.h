@@ -160,6 +160,7 @@ struct TSequoiaConnectionConfig
 {
     std::string GroundClusterName;
     TDuration GroundClusterConnectionUpdatePeriod;
+    bool EnableGroundReignValidation;
     NYTree::TYPath SequoiaRootPath;
     TDuration SequoiaTransactionTimeout;
 

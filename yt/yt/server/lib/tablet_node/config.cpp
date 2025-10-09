@@ -212,6 +212,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("global_compaction", &TThis::GlobalCompaction)
         .Default();
+    registrar.Parameter("forced_compaction", &TThis::ForcedCompaction)
+        .Default();
 
     registrar.Parameter("flush_throttler", &TThis::FlushThrottler)
         .DefaultNew();

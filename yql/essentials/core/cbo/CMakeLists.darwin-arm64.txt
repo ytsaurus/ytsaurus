@@ -32,6 +32,8 @@ target_sources(essentials-core-cbo PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/cbo/cbo_optimizer_new.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/cbo/cbo_interesting_orderings.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/cbo/cbo_hints.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/cbo/cbo_interesting_orderings.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/cbo/cbo_optimizer_new.h
 )
 
 

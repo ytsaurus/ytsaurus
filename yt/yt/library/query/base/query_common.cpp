@@ -15,6 +15,7 @@ using NYT::FromProto;
 using namespace NHydra;
 
 using NCodegen::EExecutionBackend;
+using NCodegen::EOptimizationLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,6 +331,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_adaptive_ordered_schemaful_reader(original.AdaptiveOrderedSchemafulReader);
     serialized->set_use_canonical_null_relations(original.UseCanonicalNullRelations);
     serialized->set_execution_backend(ToProto(original.ExecutionBackend));
+    serialized->set_optimization_level(ToProto(original.OptimizationLevel));
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
@@ -404,6 +406,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_execution_backend()) {
         original->ExecutionBackend = static_cast<EExecutionBackend>(serialized.execution_backend());
+    }
+    if (serialized.has_optimization_level()) {
+        original->OptimizationLevel = static_cast<EOptimizationLevel>(serialized.optimization_level());
     }
     if (serialized.has_use_lookup_cache()) {
         original->UseLookupCache = serialized.use_lookup_cache();

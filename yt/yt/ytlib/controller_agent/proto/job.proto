@@ -353,6 +353,10 @@ message TUserJobSpec
     // COMPAT(krasovav)
     // Enable EJobPhase::CachingArtifacts in job
     optional bool enable_caching_artifacts_phase = 86 [default = false];
+
+    optional bool is_secondary_distributed = 87;
+
+    optional bool close_stdout_if_unused = 88;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

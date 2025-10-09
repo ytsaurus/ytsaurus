@@ -25,5 +25,6 @@ target_sources(essentials-public-decimal PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/decimal/yql_decimal_serialize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/decimal/yql_decimal.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/decimal/yql_decimal_serialize.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/decimal/yql_wide_int.h
 )
 

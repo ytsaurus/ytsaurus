@@ -1070,7 +1070,7 @@ def is_sorted(table, client=None):
 
 
 def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replica_id=None,
-                replication_progress=None, client=None):
+                replication_progress=None, clip_timestamp=None, client=None):
     """Performs schema and other table meta information modifications.
        Applicable to static and dynamic tables.
 
@@ -1081,6 +1081,7 @@ def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replic
     :param bool dynamic: dynamic
     :param str upstream_replica_id: upstream_replica_id
     :param dict replication_progress: replication progress for chaos dynamic table
+    :param int clip_timestamp: new clip_timestamp to set on table
     """
 
     params = {"path": TablePath(path, client=client)}
@@ -1089,6 +1090,7 @@ def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replic
     set_param(params, "dynamic", dynamic)
     set_param(params, "upstream_replica_id", upstream_replica_id)
     set_param(params, "replication_progress", replication_progress)
+    set_param(params, "clip_timestamp", clip_timestamp)
 
     return make_request("alter_table", params, client=client)
 

@@ -1138,6 +1138,11 @@ void TQueryAnalyzer::ParseQuery()
         CrossJoin_);
 }
 
+DB::QueryTreeNodePtr TQueryAnalyzer::GetParsedQueryTree() const
+{
+    return QueryInfo_.query_tree->clone();
+}
+
 DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
 {
     if (!Prepared_) {
@@ -1442,10 +1447,9 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
             keyCondition.emplace(filterActionsDAG.get(), getContext(), schema->GetKeyColumns(), primaryKeyExpression);
 
-            if (settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1) {
-                YT_LOG_DEBUG("Inferring read ranges for %v table", storage->GetTables());
+            if (settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere()) {
                 result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
-                YT_LOG_DEBUG("Inferred range: %v", result.KeyReadRanges);
+                YT_LOG_DEBUG("Inferred %Qv read range for %v table", result.KeyReadRanges, storage->GetTables());
             }
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));

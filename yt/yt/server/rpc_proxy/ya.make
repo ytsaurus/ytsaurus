@@ -16,8 +16,8 @@ SRCS(
 PEERDIR(
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools
-    yt/yt/server/lib/rpc_proxy
     yt/yt/server/lib/cypress_registrar
+    yt/yt/server/lib/rpc_proxy
     yt/yt/server/lib/shuffle_server
 
     yt/yt/ytlib
@@ -28,9 +28,10 @@ PEERDIR(
 
     yt/yt/library/auth_server
     yt/yt/library/dynamic_config
-    yt/yt/library/server_program
     yt/yt/library/monitoring
+    yt/yt/library/orchid
     yt/yt/library/profiling/solomon
+    yt/yt/library/server_program
     yt/yt/library/tracing/jaeger
 
     library/cpp/yt/phdr_cache

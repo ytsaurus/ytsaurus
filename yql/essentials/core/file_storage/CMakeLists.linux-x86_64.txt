@@ -52,5 +52,6 @@ target_sources(essentials-core-file_storage PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/sized_cache.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/storage.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/url_meta.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/file_storage/file_storage_decorator.h
 )
 

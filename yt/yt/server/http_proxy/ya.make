@@ -29,23 +29,29 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/client/driver
-    yt/yt/ytlib
-    yt/yt/library/auth_server
-    yt/yt/library/clickhouse_discovery
-    yt/yt/library/dynamic_config
-    yt/yt/library/ytprof
-    yt/yt/library/containers
-    yt/yt/library/server_program
-    yt/yt/library/profiling/solomon
-    yt/yt/library/tracing/jaeger
-    yt/yt/library/monitoring
-    yt/yt/core/https
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools
     yt/yt/server/lib/cypress_registrar
     yt/yt/server/lib/logging
     yt/yt/server/lib/signature
+
+    yt/yt/ytlib
+
+    yt/yt/client/driver
+
+    yt/yt/library/auth_server
+    yt/yt/library/clickhouse_discovery
+    yt/yt/library/containers
+    yt/yt/library/dynamic_config
+    yt/yt/library/monitoring
+    yt/yt/library/orchid
+    yt/yt/library/profiling/solomon
+    yt/yt/library/server_program
+    yt/yt/library/tracing/jaeger
+    yt/yt/library/ytprof
+
+    yt/yt/core/https
+
     library/cpp/cgiparam
     library/cpp/getopt
     library/cpp/streams/brotli
