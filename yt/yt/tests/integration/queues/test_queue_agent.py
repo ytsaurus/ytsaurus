@@ -1678,26 +1678,27 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("max42", "nadya73")
     def test_queue_attributes(self):
-        self._create_queue("//tmp/q")
-        sync_mount_table("//tmp/q")
+        queue_path = self.create_queue_path()
+        self._create_queue(queue_path)
+        sync_mount_table(queue_path)
 
-        assert get("//tmp/q/@queue_agent_stage") == "production"
+        assert get(f"{queue_path}/@queue_agent_stage") == "production"
 
         # Before queue is registered, queue agent backed attributes would throw resolution error.
         with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
-            get("//tmp/q/@queue_status")
+            get(f"{queue_path}/@queue_status")
 
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
+                    [{"cluster": "primary", "path": queue_path, "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}])
 
         # Wait for queue status to become available.
-        wait(lambda: get("//tmp/q/@queue_status/partition_count") == 1, ignore_exceptions=True)
+        wait(lambda: get(f"{queue_path}/@queue_status/partition_count") == 1, ignore_exceptions=True)
 
         # Check the zeroth partition.
 
         def check_partition():
-            partitions = get("//tmp/q/@queue_partitions")
+            partitions = get(f"{queue_path}/@queue_partitions")
             if len(partitions) == 1:
                 assert partitions[0]["available_row_count"] == 0
                 return True
@@ -1706,7 +1707,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         wait(check_partition)
 
         # Check that queue attributes are opaque.
-        full_attributes = get("//tmp/q/@")
+        full_attributes = get(f"{queue_path}/@")
         for attribute in ("queue_status", "queue_partitions"):
             assert full_attributes[attribute] == YsonEntity()
 
