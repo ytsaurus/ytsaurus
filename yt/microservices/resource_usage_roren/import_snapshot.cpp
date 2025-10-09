@@ -1047,7 +1047,6 @@ void ImportSnapshotMain(int argc, const char** argv)
     opts.AddLongOption("force").NoArgument();
     opts.AddLongOption("cluster-to-lookup"); // This is only needed for testing
     opts.AddLongOption("memory-limit").DefaultValue(8_GB);
-    opts.AddLongOption("enable-ipv4").NoArgument();
 
     NLastGetopt::TOptsParseResult r(&opts, argc, argv);
 
@@ -1071,13 +1070,6 @@ void ImportSnapshotMain(int argc, const char** argv)
     bool force = r.Has("force");
     TString clusterToLookup = r.GetOrElse("cluster-to-lookup", cluster); // This is only needed for testing
     i64 memoryLimit = FromString<i64>(r.Get("memory-limit"));
-    bool enableIPv4 = r.Has("enable-ipv4");
-
-    if (enableIPv4) {
-        auto resolverConfig = NYT::New<NYT::NNet::TAddressResolverConfig>();
-        resolverConfig->EnableIPv4 = true;
-        NYT::NNet::TAddressResolver::Get()->Configure(resolverConfig);
-    }
 
     NYT::TConfig::Get()->Token = LoadResourceUsageToken();
 
