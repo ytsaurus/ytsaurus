@@ -839,6 +839,8 @@ private:
             return;
         }
 
+        MaybeDelay(Config_->TestingOptions->MasterConnectionDelay);
+
         TForbidContextSwitchGuard contextSwitchGuard;
 
         State_.store(EMasterConnectorState::Connected);
