@@ -35,6 +35,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto TransactionCommitLocalWaitTime = TDuration::MilliSeconds(100);
+static constexpr auto TransactionCommitTotalWaitTime = TDuration::Minutes(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THunkTabletScanner
     : public IHunkTabletScanner
 {
@@ -89,9 +94,10 @@ private:
             YT_LOG_DEBUG("Scanning hunk tablet");
 
             try {
+                CheckNoTransactionLock();
                 MaybeAllocateStores();
                 MaybeRotateActiveStore();
-                MaybeMarkStoresAsSealable();
+                MarkPassiveStoresAsSealable();
                 MaybeRemoveStores();
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to scan hunk tablet")
@@ -107,6 +113,15 @@ private:
         THunkTablet* const Tablet_;
 
         const NLogging::TLogger Logger;
+
+        void CheckNoTransactionLock()
+        {
+            // NB: It may happen if cell recovered but some 2PC started on previous iteration has not finished yet.
+            if (auto transactionId = Tablet_->GetLockTransactionId()) {
+                THROW_ERROR_EXCEPTION("Tablet is already locked by transaction")
+                    << TErrorAttribute("transaction_id", transactionId);
+            }
+        }
 
         void MaybeAllocateStores()
         {
@@ -198,7 +213,7 @@ private:
             }
         }
 
-        void MaybeMarkStoresAsSealable()
+        void MarkPassiveStoresAsSealable()
         {
             std::vector<TStoreId> storeIdsToMarkSealable;
             for (const auto& store : Tablet_->PassiveStores()) {
@@ -295,12 +310,40 @@ private:
 
         void CommitTransaction(const NApi::NNative::ITransactionPtr& transaction)
         {
+            YT_VERIFY(!Tablet_->GetLockTransactionId());
+
             NApi::TTransactionCommitOptions commitOptions{
-                .CoordinatorCommitMode = NApi::ETransactionCoordinatorCommitMode::Lazy,
                 .GeneratePrepareTimestamp = false,
             };
             WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
+
+            YT_LOG_DEBUG("Will wait for transaction to unlock tablet (TransactionId: %v)",
+                transaction->GetId());
+
+            auto waitStartInstant = TInstant::Now();
+
+            // NB: Because of eager commit mode we have to ensure local state has actually changed after transaction commit.
+            while (TInstant::Now() - waitStartInstant < TransactionCommitTotalWaitTime) {
+                auto lockTransactionId = Tablet_->GetLockTransactionId();
+                if (lockTransactionId == transaction->GetId()) {
+                    TDelayedExecutor::WaitForDuration(TransactionCommitLocalWaitTime);
+                } else if (lockTransactionId) {
+                    auto error = TError("Hunk tablet scanner encountered lock from unexpected transaction")
+                        << TErrorAttribute("expected_transaction_id", transaction->GetId())
+                        << TErrorAttribute("actual_transaction_id", lockTransactionId);
+                    YT_LOG_ALERT(error);
+                    THROW_ERROR_EXCEPTION(error);
+                } else {
+                    YT_LOG_DEBUG("Finished waiting for transaction to unlock tablet");
+                    return;
+                }
+            }
+
+            auto error = TError("Transaction commit wait failed")
+                << TErrorAttribute("transaction_id", transaction->GetId());
+            YT_LOG_ALERT(error);
+            THROW_ERROR_EXCEPTION(error);
         }
 
         void AllocateStores(int storeCount)
@@ -377,7 +420,8 @@ private:
 
                 futures.push_back(req->Invoke());
             }
-            auto rspsOrError = WaitFor(AllSucceeded(futures));
+
+            auto rspsOrError = WaitFor(AllSucceeded(std::move(futures)));
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspsOrError,
                 "Error creating chunks");
