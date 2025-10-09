@@ -11,12 +11,20 @@ from copy import deepcopy
 ################################################################################
 
 
-def _replicated_tables_filter_callback(client, table_path):
+def _replicated_table_filter_callback(client, table_path):
     """
-    Filters out replicated tables.
+    Filters out replicated tables and replicas.
     """
+    if not client.exists(table_path):
+        return True
+
+    table_type = client.get("{}/@type".format(table_path))
+
+    if table_type != "table":
+        return False
+
     upstream_replica_id = client.get("{}/@upstream_replica_id".format(table_path))
-    return upstream_replica_id != "0-0-0-0"
+    return upstream_replica_id == "0-0-0-0"
 
 
 DEFAULT_TABLET_CELL_BUNDLE = "default"
@@ -131,7 +139,7 @@ INITIAL_VERSION = 0
 TRANSFORMS = {}
 ACTIONS = {}
 
-# NB(apachee): Don't forget to add _replicated_tables_filter_callback as filter_callback
+# NB(apachee): Don't forget to add _replicated_table_filter_callback as filter_callback
 # for all conversions on tables, which might be replicated in some environments such as
 # consumer_registrations or replicated_table_mapping.
 
@@ -264,7 +272,7 @@ TRANSFORMS[3] = [
             optimize_for="lookup",
             attributes=DEFAULT_TABLE_ATTRIBUTES,
         ),
-        filter_callback=_replicated_tables_filter_callback,
+        filter_callback=_replicated_table_filter_callback,
     ),
     Conversion(
         "replicated_table_mapping",
@@ -282,7 +290,7 @@ TRANSFORMS[3] = [
             optimize_for="lookup",
             attributes=DEFAULT_TABLE_ATTRIBUTES,
         ),
-        filter_callback=_replicated_tables_filter_callback,
+        filter_callback=_replicated_table_filter_callback,
     ),
 ]
 

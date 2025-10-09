@@ -3,9 +3,9 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, QueueStaticExport
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
-from yt.environment.init_queue_agent_state import run_migration, prepare_migration
+from yt.environment.init_queue_agent_state import run_migration, prepare_migration, INITIAL_VERSION as QUEUE_AGENT_STATE_INITIAL_VERSION
 
-from yt_commands import (authors, commit_transaction, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (authors, commit_transaction, create_table_replica, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
@@ -5811,3 +5811,57 @@ class TestMigration(YTEnvSetup):
         )
 
         self._check_table_schemas(self.QUEUE_AGENT_STATE_ROOT, migration)
+
+    FAKE_REPLICATED_TABLE_MAPPING_SCHEMA = [
+        {"name": "cluster", "type": "string", "sort_order": "ascending", "required": True},
+        {"name": "path", "type": "string", "sort_order": "ascending", "required": True},
+        {"name": "random_value_column", "type": "int64"},
+    ]
+
+    @staticmethod
+    def _create_replicated_table_mapping_rt():
+        create("replicated_table", f"{TestMigration.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", attributes={
+            "dynamic": True,
+            "schema": TestMigration.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA,
+        })
+
+    @staticmethod
+    def _create_replicated_table_mapping_replica():
+        create("replicated_table", f"{TestMigration.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping_rt", attributes={
+            "dynamic": True,
+            "schema": TestMigration.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA,
+        })
+        replica_id = create_table_replica(f"{TestMigration.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping_rt", "primary", f"{TestMigration.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping")
+        create("table", f"{TestMigration.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", attributes={
+            "dynamic": True,
+            "schema": TestMigration.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA,
+            "upstream_replica_id": replica_id,
+        })
+
+    @authors("apachee")
+    @pytest.mark.parametrize("create_replicated_table_mapping", [
+        _create_replicated_table_mapping_rt,
+        _create_replicated_table_mapping_replica,
+    ])
+    def test_replicated_table_filter_callback(self, create_replicated_table_mapping):
+        create("map_node", self.QUEUE_AGENT_STATE_ROOT)
+
+        client = self.Env.create_native_client()
+        migration = prepare_migration(client)
+        run_migration(
+            client=client,
+            root=self.QUEUE_AGENT_STATE_ROOT,
+            target_version=QUEUE_AGENT_STATE_INITIAL_VERSION,
+            migration=migration,
+        )
+
+        remove(f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", force=True)
+        create_replicated_table_mapping()
+
+        run_migration(
+            client=client,
+            root=self.QUEUE_AGENT_STATE_ROOT,
+            migration=migration,
+        )
+
+        self._check_table_schema(f"{self.QUEUE_AGENT_STATE_ROOT}/replicated_table_mapping", self.FAKE_REPLICATED_TABLE_MAPPING_SCHEMA)
