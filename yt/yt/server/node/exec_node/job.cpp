@@ -29,6 +29,8 @@
 
 #include <yt/yt/library/containers/cri/config.h>
 
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
@@ -1408,6 +1410,8 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
 
     auto statistics = ConvertTo<TStatistics>(statisticsYson);
     GetTimeStatistics().AddSamplesTo(&statistics);
+
+    EnrichStatisticsWithCpuReserve(&statistics);
 
     if (auto gpuSlots = GetGpuSlots(); !std::empty(gpuSlots)) {
         EnrichStatisticsWithGpuInfo(&statistics, gpuSlots);
@@ -3893,9 +3897,43 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
 }
 
+void TJob::EnrichStatisticsWithCpuReserve(TStatistics* statistics)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    i64 cpuReserveMillicores = 0;
+    i64 vcpuReserveMillicores = 0;
+
+    if (JobSpec_.has_resource_limits()) {
+        const auto& resourceLimits = JobSpec_.resource_limits();
+
+        if (resourceLimits.has_cpu()) {
+            cpuReserveMillicores = static_cast<i64>(
+                NVectorHdrf::TCpuResource(resourceLimits.cpu()).GetUnderlyingValue() * 10);
+        }
+
+        if (resourceLimits.has_vcpu()) {
+            vcpuReserveMillicores = static_cast<i64>(
+                NVectorHdrf::TCpuResource(resourceLimits.vcpu()).GetUnderlyingValue() * 10);
+        }
+    }
+
+    statistics->AddSample("/user_job/cpu_reserve_millicores"_SP, cpuReserveMillicores);
+    statistics->AddSample("/user_job/vcpu_reserve_millicores"_SP, vcpuReserveMillicores);
+}
+
 void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vector<TGpuSlotPtr>& gpuSlots)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    i64 gpuReserve = 0;
+    if (JobSpec_.has_resource_limits()) {
+        const auto& resourceLimits = JobSpec_.resource_limits();
+        if (resourceLimits.has_gpu()) {
+            gpuReserve = static_cast<i64>(resourceLimits.gpu());
+        }
+    }
+    statistics->AddSample("/user_job/gpu_reserve"_SP, gpuReserve);
 
     TGpuStatistics aggregatedGpuStatistics;
     i64 totalGpuMemory = 0;

@@ -588,6 +588,7 @@ private:
 
     bool IsFatalError(const TError& error);
 
+    void EnrichStatisticsWithCpuReserve(TStatistics* statistics);
     void EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vector<TGpuSlotPtr>& gpuSlots);
     void EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics);
     void EnrichStatisticsWithDiskInfo(TStatistics* statistics);

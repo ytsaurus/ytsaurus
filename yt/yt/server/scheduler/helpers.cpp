@@ -282,6 +282,9 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/max_memory", "Maximum amount of memory used by the user job during execution, excluding tmpfs", "bytes"},
         {"user_job/memory_limit", "Memory limit from operation specification", "bytes"},
         {"user_job/memory_reserve", "Amount of memory guaranteed to the user job at the time of start", "bytes"},
+        {"user_job/cpu_reserve_millicores", "Amount of CPU guaranteed to the user job at the time of start", "milli-cores"},
+        {"user_job/vcpu_reserve_millicores", "Amount of virtual CPU guaranteed to the user job at the time of start", "milli-cores"},
+        {"user_job/gpu_reserve", "Amount of GPU guaranteed to the user job at the time of start", "pieces"},
         {"user_job/memory_reserve_factor_x10000", "Internal statistics", ""},
         {"user_job/woodpecker", "Not used", ""},
 
