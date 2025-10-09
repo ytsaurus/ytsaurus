@@ -836,6 +836,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("random_master_disconnection_max_backoff", &TThis::RandomMasterDisconnectionMaxBackoff)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter("master_connection_delay", &TThis::MasterConnectionDelay)
+        .Default();
     registrar.Parameter("master_disconnect_delay", &TThis::MasterDisconnectDelay)
         .Default();
     registrar.Parameter("handle_orphaned_operations_delay", &TThis::HandleOrphanedOperationsDelay)
