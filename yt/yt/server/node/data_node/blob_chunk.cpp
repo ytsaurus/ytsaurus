@@ -504,8 +504,8 @@ void TBlobChunkBase::DoReadSession(
     if (!memoryGuardOrError.IsOK()) {
         YT_LOG_DEBUG("Read session aborted due to memory pressure");
         Location_->ReportThrottledRead();
-        auto error = TError("Read session aborted due to memory pressure");
 
+        auto error = TError("Read session aborted due to memory pressure");
         for (auto i = 0; i < session->EntryCount; ++i) {
             if (!session->Entries[i].Cached && session->Entries[i].Cookie) {
                 session->Entries[i].Cookie->SetBlock(error);
@@ -549,7 +549,7 @@ std::tuple<int, int, THashMap<int, TBlobChunkBase::TReadBlockSetSession::TBlockE
     int beginEntryIndex)
 {
     int endEntryIndex = beginEntryIndex + 1;
-    const TReadBlockSetSession::TBlockEntry* previousEntry = &session->Entries[beginEntryIndex];
+    const auto* previousEntry = &session->Entries[beginEntryIndex];
 
     const auto& blocksExt = session->BlocksExt;
     const auto& blockCache = session->Options.BlockCache;
@@ -976,11 +976,10 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         auto longLiveReadSessionThreshold = dynamicLongLiveReadSessionThreshold.value_or(Context_->DataNodeConfig->LongLiveReadSessionThreshold);
 
         session->SessionAliveCheckFuture = TDelayedExecutor::MakeDelayed(longLiveReadSessionThreshold)
-            .Apply(BIND([sessionWptr = MakeWeak(session), chunkId = GetId()] (const TError& error) {
+            .Apply(BIND([weakSession = MakeWeak(session), chunkId = GetId()] (const TError& error) {
                 if (error.IsOK()) {
-                    if (auto session = sessionWptr.Lock()) {
-                        YT_LOG_ALERT_IF(
-                            !sessionWptr.IsExpired(),
+                    if (auto session = weakSession.Lock()) {
+                        YT_LOG_ALERT(
                             "Long live read session ("
                             "ChunkId: %v, FutureCount: %v, "
                             "DiskPromiseIsSet: %v, DiskPromiseCanceled: %v, "
@@ -996,17 +995,11 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                             session->SessionPromise.IsCanceled(),
                             session->Finished,
                             session->ChunkReadGuard->GetChunk()->GetReadLockCounter());
-                    } else {
-                        YT_LOG_ALERT_IF(
-                            !sessionWptr.IsExpired(),
-                            "Long live read session (ChunkId: %v)",
-                            chunkId);
                     }
                 } else {
-                    YT_LOG_DEBUG(
-                        "Session completed before timeout (ChunkId: %v): %v",
-                        chunkId,
-                        error);
+                    YT_LOG_DEBUG(error,
+                        "Session completed before timeout (ChunkId: %v)",
+                        chunkId);
                 }
             }));
     } catch (const std::exception& ex) {
