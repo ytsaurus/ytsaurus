@@ -471,12 +471,19 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                         continue;
                     }
 
-                    YT_VERIFY(branchedChunkList->Children().size() == 2);
-                    auto deltaChunkList = branchedChunkList->Children()[1];
+                    YT_VERIFY(branchedChunkList->Children().size() <= 2);
+                    TChunkTreeRawPtr deltaChunkList;
+                    if (branchedChunkList->Children().size() <= 1) {
+                        YT_LOG_ALERT("Too few children in branched chunk list (NodeId: %v, BranchedChunkListId: %v, Count: %v)",
+                            originatingNode->GetId(),
+                            branchedChunkList->GetId(),
+                            branchedChunkList->Children().size());
+                    } else {
+                        deltaChunkList = branchedChunkList->Children()[1];
+                    }
 
                     auto* newOriginatingChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
 
-                    originatingChunkList->RemoveOwningNode(originatingNode);
                     newOriginatingChunkList->AddOwningNode(originatingNode);
                     originatingNode->SetChunkList(contentType, newOriginatingChunkList);
 
@@ -486,13 +493,22 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                         chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList->Children()[0]});
                         auto* newDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
                         chunkManager->AttachToChunkList(newOriginatingChunkList, {newDeltaChunkList});
-                        chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1], deltaChunkList});
+
+                        if (deltaChunkList) {
+                            chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1], deltaChunkList});
+                        } else {
+                            chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1]});
+                        }
                     } else {
                         YT_VERIFY(originatingChunkList->GetKind() == EChunkListKind::Static);
 
-                        chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, deltaChunkList});
+                        if (deltaChunkList) {
+                            chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, deltaChunkList});
+                        } else {
+                            chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList});
+                        }
 
-                        if (requisitionUpdateNeeded) {
+                        if (requisitionUpdateNeeded && deltaChunkList) {
                             chunkManager->ScheduleChunkRequisitionUpdate(deltaChunkList);
                         }
                     }
