@@ -1,4 +1,4 @@
-      subroutine sproot(t,n,c,nc,zero,mest,m,ier)
+      recursive subroutine sproot(t,n,c,nc,zero,mest,m,ier)
       implicit none
 c  subroutine sproot finds the zeros of a cubic spline s(x),which is
 c  given in its normalized b-spline representation.

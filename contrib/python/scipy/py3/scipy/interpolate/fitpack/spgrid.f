@@ -1,4 +1,4 @@
-      subroutine spgrid(iopt,ider,mu,u,mv,v,r,r0,r1,s,
+      recursive subroutine spgrid(iopt,ider,mu,u,mv,v,r,r0,r1,s,
      * nuest,nvest,nu,tu,nv,tv,c,fp,wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  given the function values r(i,j) on the latitude-longitude grid

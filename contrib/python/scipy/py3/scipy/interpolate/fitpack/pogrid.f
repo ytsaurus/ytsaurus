@@ -1,4 +1,4 @@
-      subroutine pogrid(iopt,ider,mu,u,mv,v,z,z0,r,s,
+      recursive subroutine pogrid(iopt,ider,mu,u,mv,v,z,z0,r,s,
      * nuest,nvest,nu,tu,nv,tv,c,fp,wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  subroutine pogrid fits a function f(x,y) to a set of data points

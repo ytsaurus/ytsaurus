@@ -1,4 +1,4 @@
-      subroutine curfit(iopt,m,x,y,w,xb,xe,k,s,nest,n,
+      recursive subroutine curfit(iopt,m,x,y,w,xb,xe,k,s,nest,n,
      *   t,c,fp,wrk,lwrk,iwrk,ier)
       implicit none
 c  given the set of data points (x(i),y(i)) and the set of positive

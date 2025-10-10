@@ -1,4 +1,4 @@
-      subroutine fpopdi(ifsu,ifsv,ifbu,ifbv,u,mu,v,mv,z,
+      recursive subroutine fpopdi(ifsu,ifsv,ifbu,ifbv,u,mu,v,mv,z,
      * mz,z0,dz,iopt,ider,tu,nu,tv,nv,nuest,nvest,p,step,c,nc,fp,
      * fpu,fpv,nru,nrv,wrk,lwrk)
       implicit none

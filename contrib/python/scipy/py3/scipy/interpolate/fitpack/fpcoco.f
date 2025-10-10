@@ -1,4 +1,4 @@
-      subroutine fpcoco(iopt,m,x,y,w,v,s,nest,maxtr,maxbin,
+      recursive subroutine fpcoco(iopt,m,x,y,w,v,s,nest,maxtr,maxbin,
      *   n,t,c,sq,sx,bind,e,wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  ..scalar arguments..

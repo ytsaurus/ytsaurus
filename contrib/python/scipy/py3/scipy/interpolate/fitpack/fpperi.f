@@ -1,4 +1,4 @@
-      subroutine fpperi(iopt,x,y,w,m,k,s,nest,tol,maxit,
+      recursive subroutine fpperi(iopt,x,y,w,m,k,s,nest,tol,maxit,
      *   k1,k2,n,t,c,fp,fpint,z,a1,a2,b,g1,g2,q,nrdata,ier)
       implicit none
 c  ..

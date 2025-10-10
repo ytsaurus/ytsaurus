@@ -1,4 +1,4 @@
-      subroutine fpadno(maxtr,up,left,right,info,count,
+      recursive subroutine fpadno(maxtr,up,left,right,info,count,
      *   merk,jbind,n1,ier)
       implicit none
 c  subroutine fpadno adds a branch of length n1 to the triply linked

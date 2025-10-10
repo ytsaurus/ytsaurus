@@ -1,4 +1,4 @@
-      subroutine fporde(x,y,m,kx,ky,tx,nx,ty,ny,nummer,
+      recursive subroutine fporde(x,y,m,kx,ky,tx,nx,ty,ny,nummer,
      *   index,nreg)
 c  subroutine fporde sorts the data points (x(i),y(i)),i=1,2,...,m
 c  according to the panel tx(l)<=x<tx(l+1),ty(k)<=y<ty(k+1), they belong
