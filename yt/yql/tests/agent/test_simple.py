@@ -1705,6 +1705,12 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
         self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
 
+    def test_error_write_and_create(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            insert into `//tmp/t0` (xyz) values ("one"u),("two"u);
+            create table `//tmp/t0` (xyz Text);
+        """, "already exists.")
+
     def test_error_create_and_drop(self, query_tracker, yql_agent):
         self._test_simple_query_error("""
             create table `//tmp/ttt` (xyz Text);
