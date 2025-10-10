@@ -95,7 +95,7 @@ class TestHunkStorage(YTEnvSetup):
         wait(lambda: not exists("#{}".format(root_chunk_list_id)))
         wait(lambda: not exists("#{}".format(tablet_chunk_list_id)))
 
-    @authors("gritukan")
+    @authors("gritukan", "akozhikhov")
     def test_mount_unmount(self):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
