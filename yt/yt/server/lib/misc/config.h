@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
@@ -24,6 +26,10 @@ struct TServerBootstrapConfig
 {
     NBus::TBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
+
+    //! Known server addresses (without ports) in various networks.
+    //! Defaults: for "default" network - local FQDN.
+    NNodeTrackerClient::TNetworkAddressList Addresses;
 
     int RpcPort;
     int TvmOnlyRpcPort;

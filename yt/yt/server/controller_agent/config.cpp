@@ -1470,8 +1470,6 @@ void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("controller_agent", &TThis::ControllerAgent)
         .DefaultNew();
-    registrar.Parameter("addresses", &TThis::Addresses)
-        .Default();
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()

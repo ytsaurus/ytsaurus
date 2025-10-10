@@ -530,7 +530,9 @@ template TObjectServiceProxy TClient::CreateWriteProxy<TObjectServiceProxy>(TCel
 NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor)
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
-    return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
+    return ChannelFactory_->CreateChannel(
+        primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()),
+        primaryPeerDescriptor.GetDefaultAddress());
 }
 
 IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)

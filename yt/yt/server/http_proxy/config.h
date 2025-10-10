@@ -15,8 +15,6 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
@@ -311,9 +309,6 @@ struct TProxyBootstrapConfig
     NHttps::TServerConfigPtr TvmOnlyHttpsServer;
     NHttp::TServerConfigPtr ChytHttpServer;
     NHttps::TServerConfigPtr ChytHttpsServer;
-
-    //! Known HTTP proxy addresses.
-    NNodeTrackerClient::TNetworkAddressList Addresses;
 
     NDriver::TDriverConfigPtr Driver;
 

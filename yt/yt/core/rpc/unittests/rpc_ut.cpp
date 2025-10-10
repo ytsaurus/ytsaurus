@@ -1591,7 +1591,9 @@ TEST(TCachingChannelFactoryTest, IdleChannels)
         : public IChannelFactory
     {
     public:
-        IChannelPtr CreateChannel(const std::string& /*address*/) override
+        IChannelPtr CreateChannel(
+            const std::string& /*address*/,
+            const std::optional<std::string>& /*endpointIdentity*/) override
         {
             return CreateLocalChannel(Server_);
         }

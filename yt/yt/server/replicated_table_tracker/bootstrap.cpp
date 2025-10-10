@@ -15,6 +15,8 @@
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/lib/tablet_server/config.h>
 
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
@@ -274,7 +276,7 @@ private:
     {
         TCypressRegistrarOptions options{
             .RootPath = Format("//sys/replicated_table_tracker/instances/%v", NYPath::ToYPathLiteral(LocalAddress_)),
-            .OrchidRemoteAddresses = NNodeTrackerClient::TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}},
+            .OrchidRemoteAddresses = NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort),
         };
 
         auto registrar = CreateCypressRegistrar(

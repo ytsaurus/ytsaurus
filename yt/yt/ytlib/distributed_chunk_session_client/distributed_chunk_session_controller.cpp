@@ -187,7 +187,9 @@ private:
         const auto& networks = Client_->GetNativeConnection()->GetNetworks();
         for (auto& target : targets) {
             auto descriptor = nodeDirectory->GetDescriptor(target);
-            auto channel = channelFactory->CreateChannel(descriptor.GetAddressOrThrow(networks));
+            auto channel = channelFactory->CreateChannel(
+                descriptor.GetAddressOrThrow(networks),
+                descriptor.GetDefaultAddress());
             Nodes_.emplace_back(
                 std::move(descriptor),
                 std::move(channel),

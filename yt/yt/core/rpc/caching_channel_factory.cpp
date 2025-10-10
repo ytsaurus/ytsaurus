@@ -96,11 +96,14 @@ public:
         ExpirationExecutor_->Start();
     }
 
-    IChannelPtr CreateChannel(const std::string& address) override
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity) override
     {
         return DoCreateChannel(
             address,
-            [&] { return UnderlyingFactory_->CreateChannel(address); });
+            endpointIdentity,
+            [&] { return UnderlyingFactory_->CreateChannel(address, endpointIdentity); });
     }
 
     void EvictChannel(const std::string& address, IChannel* evictableChannel)
@@ -138,7 +141,10 @@ private:
     std::vector<TTtlItem> TtlCheckQueue_;
 
     template <class TFactory>
-    IChannelPtr DoCreateChannel(const std::string& address, const TFactory& factory)
+    IChannelPtr DoCreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& /*endpointIdentity*/,
+        const TFactory& factory)
     {
         {
             auto readerGuard = ReaderGuard(SpinLock_);
@@ -146,6 +152,7 @@ private:
             if (auto it = StrongChannelMap_.find(address)) {
                 auto channel = it->second;
                 channel->Touch();
+                // TODO(khlebnikov): Verify endpoint identity.
                 return channel;
             }
 
