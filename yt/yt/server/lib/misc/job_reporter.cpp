@@ -223,7 +223,7 @@ public:
         }
 
         // COMPAT(faucct)
-        if (archiveVersion >= 62) {
+        if (archiveVersion >= 64) {
             record.JobCookieGroupIndex = Report_.JobCookieGroupIndex();
             if (Report_.MainJobId()) {
                 auto mainJobId = Report_.MainJobId().Underlying();
