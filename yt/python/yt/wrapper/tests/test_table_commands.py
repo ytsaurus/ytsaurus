@@ -676,6 +676,64 @@ class TestTableCommandsWithAuthorization(object):
         result = client.read_table(table+"{b,c}")
         assert list(result) == [{"c": "c"}, {"c": "c_new"},]
 
+    @authors("coteeq")
+    def test_omit_rows(self):
+        table = TEST_DIR + "/table_columns"
+        yt.create("user", attributes={"name": "user1"})
+        wait(lambda: yt.get("//sys/users/user1/@life_stage") == "creation_committed")
+        yt.set("//sys/tokens/sometoken", "user1")
+        yt.create(
+            "table",
+            table,
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "string"},
+                ],
+                "acl": [
+                    {
+                        "action": "allow",
+                        "subjects": ["user1"],
+                        "permissions": ["read"],
+                        "row_access_predicate": "key in (3, 4)"
+                    },
+                    {
+                        "action": "allow",
+                        "subjects": ["user1"],
+                        "permissions": ["read"],
+                    },
+                ],
+            },
+        )
+
+        yt.write_table(
+            table,
+            [
+                {"key": i, "value": str(i)}
+                for i in range(5)
+            ]
+        )
+
+        available_rows = [
+            {"key": i, "value": str(i)}
+            for i in (3, 4)
+        ]
+
+        client_config = deepcopy(yt.config.config)
+        client_config.update({"token": "sometoken", "enable_token": True})
+        client = yt.YtClient(config=client_config)
+        assert client.get_user_name() == "user1"
+        with pytest.raises(yt.YtResponseError) as ex_info:
+            client.read_table(table)
+        assert "Error getting basic attributes of user objects" in ex_info.value.error["message"]
+
+        result = client.read_table(table, omit_inaccessible_rows=True)
+        assert list(result) == available_rows
+
+        client.config["read_omit_inaccessible_rows"] = True
+        result = client.read_table(table)
+        assert list(result) == available_rows
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsControlAttributes(object):
