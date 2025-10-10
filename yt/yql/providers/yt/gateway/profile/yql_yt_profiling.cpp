@@ -196,6 +196,12 @@ public:
         return Slave_->GetTableFilePath(std::move(options));
     }
 
+
+    TFuture<TLayersSnapshotResult> SnapshotLayers(TSnapshotLayersOptions&& options) final {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->SnapshotLayers(std::move(options));
+    }
+
 private:
     IYtGateway::TPtr Slave_;
 };
