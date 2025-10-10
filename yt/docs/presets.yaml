@@ -26,4 +26,3 @@ public:
           package: '"project.package", "/path/to/package"'
           package-var: '"project.package", "{$_path}/to/package"'
           error-code-list: https://github.com/ytsaurus/ytsaurus/blob/main/yql/essentials/core/issue/protos/issue_id.proto
-
