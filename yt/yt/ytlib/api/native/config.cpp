@@ -484,7 +484,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("object_life_stage_check_period", &TThis::ObjectLifeStageCheckPeriod)
-        .Default(TDuration::MilliSeconds(100));
+        .Default(TDuration::MilliSeconds(500));
     registrar.Parameter("object_life_stage_check_retry_count", &TThis::ObjectLifeStageCheckRetryCount)
         .GreaterThan(0)
         .Default(100);
