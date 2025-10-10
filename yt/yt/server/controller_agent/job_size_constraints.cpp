@@ -1026,9 +1026,15 @@ public:
 
     i64 GetCompressedDataSizePerJob() const override
     {
+        i64 defaultCompressedDataSizePerJob = 1;
+        if (InputCompressedDataSize_ > 0) {
+            // COMPAT(apollo1321): Remove in 25.4 release.
+            defaultCompressedDataSizePerJob = InfiniteCount;
+        }
+
         return JobCountByCompressedDataSize_ > 0
             ? DivCeil(InputCompressedDataSize_, JobCountByCompressedDataSize_)
-            : 1;
+            : defaultCompressedDataSizePerJob;
     }
 
     i64 GetPrimaryCompressedDataSizePerJob() const override
