@@ -51,12 +51,15 @@ public:
     NCommon::TConfSetting<TDuration, Static> YtTtl;
 
 public:
+    TString GetRuntimeCluster() const;
     TString GetPipelinePath() const;
     TString GetYtConsumerPath() const;
     bool GetYtConsumerVital() const;
     TString GetYtProducerPath() const;
 
 protected:
+    NCommon::TConfSetting<TString, Static> RuntimeCluster;
+
     NCommon::TConfSetting<TString, Static> PipelineDirectory;
     NCommon::TConfSetting<TString, Static> PipelineName;
     NCommon::TConfSetting<TString, Static> PipelinePath;
