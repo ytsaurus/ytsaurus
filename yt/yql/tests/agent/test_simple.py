@@ -1705,6 +1705,12 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
         self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
 
+    def test_error_double_create(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            create table `//tmp/t0` (xyz Text);
+            create table `//tmp/t0` (xyz Text);
+        """, "already exists.")
+
     def test_error_write_and_create(self, query_tracker, yql_agent):
         self._test_simple_query_error("""
             insert into `//tmp/t0` (xyz) values ("one"u),("two"u);
@@ -1730,6 +1736,13 @@ class TestsDDL(TestQueriesYqlSimpleBase):
             commit;
             select * from `//tmp/t4`;
         """, [])
+
+    def test_create_and_write(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t7` (xyz Text);
+            insert into `//tmp/t7` (xyz) values ("one"u),("two"u);
+        """, None)
+        self._test_simple_query("select * from `//tmp/t7`", [{'xyz': "one"}, {'xyz': "two"}])
 
     def test_create_table_with_order_by(self, query_tracker, yql_agent):
         self._test_simple_query("""
