@@ -37,6 +37,7 @@ PEERDIR(
     yt/odin/checks/lib/system_quotas
     yt/odin/checks/lib/tablet_cells
     yt/odin/checks/lib/tablet_cell_helpers
+    yt/python/yt
     yt/python/yt/environment/arcadia_interop
     yt/python/yt/environment
 )
