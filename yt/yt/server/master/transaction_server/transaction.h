@@ -56,6 +56,8 @@ public:
     // NB: Erasure of node obtained with |GetAnyNode()| is a bit faster.
     void EraseOrCrash(NCypressServer::TCypressNode* node);
 
+    bool Contains(NCypressServer::TCypressNode* node) const;
+
     void Persist(const NCellMaster::TPersistenceContext& context);
 
 private:

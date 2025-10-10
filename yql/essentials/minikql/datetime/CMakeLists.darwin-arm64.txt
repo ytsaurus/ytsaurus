@@ -27,5 +27,7 @@ target_link_libraries(essentials-minikql-datetime PUBLIC
 
 target_sources(essentials-minikql-datetime PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/datetime/datetime.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/datetime/datetime.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/datetime/datetime64.h
 )
 

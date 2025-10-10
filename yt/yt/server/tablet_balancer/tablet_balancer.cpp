@@ -1289,7 +1289,7 @@ void TTabletBalancer::ExecuteReshardIteration(
 
             reshardIteration->UpdateProfilingCounters(
                 table,
-                bundleState->GetProfilingCounters(table, reshardIteration->GetGroupName()),
+                TableRegistry_->GetProfilingCounters(table, reshardIteration->GetGroupName()),
                 descriptor);
         }
     }
@@ -1337,7 +1337,8 @@ void TTabletBalancer::ExecuteMoveIteration(const IMoveIterationPtr& moveIteratio
 
             auto tablet = GetOrCrash(moveIteration->GetBundle()->Tablets(), descriptor.TabletId);
 
-            moveIteration->UpdateProfilingCounters(tablet->Table);
+            moveIteration->UpdateProfilingCounters(
+                TableRegistry_->GetProfilingCounters(tablet->Table, moveIteration->GetGroupName()));
 
             ++actionCount;
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v, TablePath: %v, CorrelationId: %v)",

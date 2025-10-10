@@ -6,19 +6,21 @@
 #include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_compute.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_read_actor.h>
-#include <contrib/ydb/core/kqp/runtime/kqp_write_actor.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_read_table.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_sequencer_factory.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_stream_lookup_factory.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_vector_actor.h>
-#include <contrib/ydb/library/yql/providers/generic/actors/yql_generic_provider_factories.h>
+#include <contrib/ydb/core/kqp/runtime/kqp_write_actor.h>
 #include <contrib/ydb/library/formats/arrow/protos/ssa.pb.h>
-#include <contrib/ydb/library/yql/dq/proto/dq_tasks.pb.h>
-#include <contrib/ydb/library/yql/providers/solomon/actors/dq_solomon_read_actor.h>
-#include <contrib/ydb/library/yql/providers/pq/async_io/dq_pq_read_actor.h>
-#include <contrib/ydb/library/yql/providers/pq/async_io/dq_pq_write_actor.h>
+#include <contrib/ydb/library/yql/dq/actors/input_transforms/dq_input_transform_lookup_factory.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_block_hash_join.h>
 #include <contrib/ydb/library/yql/dq/comp_nodes/dq_hash_combine.h>
+#include <contrib/ydb/library/yql/dq/proto/dq_tasks.pb.h>
+#include <contrib/ydb/library/yql/providers/generic/actors/yql_generic_provider_factories.h>
+#include <contrib/ydb/library/yql/providers/pq/async_io/dq_pq_read_actor.h>
+#include <contrib/ydb/library/yql/providers/pq/async_io/dq_pq_write_actor.h>
+#include <contrib/ydb/library/yql/providers/solomon/actors/dq_solomon_read_actor.h>
+#include <contrib/ydb/library/yql/providers/solomon/actors/dq_solomon_write_actor.h>
 
 namespace NKikimr {
 namespace NMiniKQL {
@@ -90,6 +92,7 @@ NYql::NDq::IDqAsyncIoFactory::TPtr CreateKqpAsyncIoFactory(
     RegisterKqpWriteActor(*factory, counters);
     RegisterSequencerActorFactory(*factory, counters);
     RegisterKqpVectorResolveActor(*factory, counters);
+    NYql::NDq::RegisterDqInputTransformLookupActorFactory(*factory);
 
     if (federatedQuerySetup) {
         auto s3HttpRetryPolicy = NYql::GetHTTPDefaultRetryPolicy(NYql::THttpRetryPolicyOptions{.RetriedCurlCodes = NYql::FqRetriedCurlCodes()});
@@ -101,6 +104,7 @@ NYql::NDq::IDqAsyncIoFactory::TPtr CreateKqpAsyncIoFactory(
         }
 
         NYql::NDq::RegisterDQSolomonReadActorFactory(*factory, federatedQuerySetup->CredentialsFactory);
+        NYql::NDq::RegisterDQSolomonWriteActorFactory(*factory, federatedQuerySetup->CredentialsFactory);
         NYql::NDq::RegisterDqPqReadActorFactory(*factory, *federatedQuerySetup->Driver, federatedQuerySetup->CredentialsFactory, federatedQuerySetup->PqGateway, nullptr);
         NYql::NDq::RegisterDqPqWriteActorFactory(*factory, *federatedQuerySetup->Driver, federatedQuerySetup->CredentialsFactory, federatedQuerySetup->PqGateway, nullptr);
     }

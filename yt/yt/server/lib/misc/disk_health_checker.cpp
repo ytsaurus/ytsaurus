@@ -97,8 +97,8 @@ void TDiskHealthChecker::RunCheckWithRetries()
         try {
             RunCheckWithTimeout();
             return;
-        } catch (const TErrorException& ex) {
-            lastError = ex.Error();
+        } catch (const std::exception& ex) {
+            lastError = TError(ex);
         }
     }
 

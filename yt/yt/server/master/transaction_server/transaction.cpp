@@ -91,6 +91,11 @@ void TBranchedNodeSet::EraseOrCrash(TCypressNode* node)
     NodeToIndex_.erase(it);
 }
 
+bool TBranchedNodeSet::Contains(TCypressNode* node) const
+{
+    return NodeToIndex_.contains(node);
+}
+
 void TBranchedNodeSet::Persist(const NCellMaster::TPersistenceContext& context)
 {
     NYT::Persist(context, Nodes_);

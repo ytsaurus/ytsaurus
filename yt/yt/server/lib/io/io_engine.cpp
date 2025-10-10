@@ -1000,8 +1000,7 @@ private:
         return TRequestSlicer(
             config->DesiredRequestSize,
             config->MinRequestSize,
-            config->EnableSlicing
-        );
+            config->EnableSlicing);
     }
 
     void DoReconfigure(const NYTree::INodePtr& node) override
@@ -1418,8 +1417,7 @@ private:
         return TIORequestSlicer(
             config->DesiredRequestSize,
             config->MinRequestSize,
-            config->EnableSlicing
-        );
+            config->EnableSlicing);
     }
 
     template <class TResponse>

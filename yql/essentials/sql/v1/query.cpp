@@ -3334,6 +3334,11 @@ public:
                                                            BuildQuotedAtom(Pos_, "CostBasedOptimizer"), BuildQuotedAtom(Pos_, ctx.CostBasedOptimizer))));
                 }
 
+                if (ctx.CostBasedOptimizerVersion) {
+                    currentWorlds->Add(Y("let", "world", Y(TString(ConfigureName), "world", configSource,
+                                                           BuildQuotedAtom(Pos_, "CostBasedOptimizerVersion"), BuildQuotedAtom(Pos_, ToString(*ctx.CostBasedOptimizerVersion)))));
+                }
+
                 if (ctx.JsonQueryReturnsJsonDocument.Defined()) {
                     TString pragmaName = "DisableJsonQueryReturnsJsonDocument";
                     if (*ctx.JsonQueryReturnsJsonDocument) {

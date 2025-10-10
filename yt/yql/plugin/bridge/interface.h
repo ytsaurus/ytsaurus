@@ -51,6 +51,8 @@ struct TBridgeYqlPluginOptions
     size_t LibrariesLength = 0;
 
     const char* MaxYqlLangVersion = nullptr;
+
+    bool StartDqManager = false;
 };
 
 // Opaque type representing a YQL plugin.
@@ -157,6 +159,7 @@ using TFuncBridgeRun = TBridgeQueryResult*(
     int credentialsLength);
 using TFuncBridgeGetUsedClusters = TBridgeClustersResult*(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* queryText,
     const char* settings,
     int settingsLength,
@@ -169,6 +172,7 @@ using TFuncBridgeOnDynamicConfigChanged = void(TBridgeYqlPlugin* plugin, const /
 using TFuncBridgeFreeGetDeclaredParametersInfoResult = void(TBridgeGetDeclaredParametersInfoResult* result);
 using TFuncBridgeGetDeclaredParametersInfo = TBridgeGetDeclaredParametersInfoResult*(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* user,
     const char* queryText,
     const char* settings,

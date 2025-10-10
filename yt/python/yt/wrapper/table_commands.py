@@ -784,7 +784,7 @@ def _get_table_attributes(table, client):
 
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
-               raw=None, response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None, client=None):
+               raw=None, response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None, omit_inaccessible_rows=None, client=None):
     """Reads rows from table and parse (optionally).
 
     :param table: table to read.
@@ -822,6 +822,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     set_param(params, "unordered", unordered)
 
     set_param(params, "omit_inaccessible_columns", get_value(omit_inaccessible_columns,  get_config(client)["read_omit_inaccessible_columns"]), bool)
+    set_param(params, "omit_inaccessible_rows", get_value(omit_inaccessible_rows,  get_config(client)["read_omit_inaccessible_rows"]), bool)
 
     enable_read_parallel = get_value(enable_read_parallel, get_config(client)["read_parallel"]["enable"])
 

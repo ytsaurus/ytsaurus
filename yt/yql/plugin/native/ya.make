@@ -77,7 +77,6 @@ PEERDIR(
     contrib/ydb/library/yql/providers/yt/dq_task_preprocessor
 
     yt/yql/plugin
-
 )
 
 IF (NOT OPENSOURCE)

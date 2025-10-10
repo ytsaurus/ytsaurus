@@ -670,9 +670,7 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto evaluator = IOWeightEvaluator_.Acquire();
-
-    if (evaluator) {
+    if (auto evaluator = IOWeightEvaluator_.Acquire(); evaluator) {
         auto value = EvaluateIOWeight(evaluator);
         return value.ValueOrDefault(1.);
     } else {

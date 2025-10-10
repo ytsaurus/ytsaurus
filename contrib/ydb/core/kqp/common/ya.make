@@ -27,31 +27,34 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/json/writer
+    library/cpp/lwtrace
+    library/cpp/protobuf/json
     contrib/ydb/core/base
     contrib/ydb/core/engine
-    contrib/ydb/core/protos
-    contrib/ydb/core/scheme
-    contrib/ydb/core/kqp/expr_nodes
-    contrib/ydb/core/kqp/common/simple
+    contrib/ydb/core/grpc_services/cancelation
     contrib/ydb/core/kqp/common/compilation
     contrib/ydb/core/kqp/common/events
     contrib/ydb/core/kqp/common/shutdown
+    contrib/ydb/core/kqp/common/simple
+    contrib/ydb/core/kqp/expr_nodes
     contrib/ydb/core/kqp/provider
+    contrib/ydb/core/protos
+    contrib/ydb/core/scheme
     contrib/ydb/core/tx/long_tx_service/public
     contrib/ydb/core/tx/sharding
-    contrib/ydb/library/yql/dq/expr_nodes
     contrib/ydb/library/aclib
-    yql/essentials/core/issue
-    yql/essentials/core/services
     contrib/ydb/library/yql/dq/actors
     contrib/ydb/library/yql/dq/common
-    yql/essentials/core/dq_integration
-    yql/essentials/parser/pg_wrapper/interface
+    contrib/ydb/library/yql/dq/expr_nodes
+    contrib/ydb/public/api/protos
     contrib/ydb/public/sdk/cpp/src/library/operation_id
     contrib/ydb/public/sdk/cpp/src/library/operation_id/protos
-    contrib/ydb/core/grpc_services/cancelation
-    library/cpp/lwtrace
-    #library/cpp/lwtrace/protos
+    yql/essentials/core/dq_integration
+    yql/essentials/core/issue
+    yql/essentials/core/services
+    yql/essentials/parser/pg_wrapper/interface
+    yql/essentials/public/issue
 )
 
 YQL_LAST_ABI_VERSION()

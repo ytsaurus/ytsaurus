@@ -614,6 +614,9 @@ struct TTestingOptions
     bool EnableRandomMasterDisconnection;
     TDuration RandomMasterDisconnectionMaxBackoff;
 
+    // Testing option that enables sleeping during master connect.
+    TDelayConfigPtr MasterConnectionDelay;
+
     // Testing option that enables sleeping during master disconnect.
     std::optional<TDuration> MasterDisconnectDelay;
 

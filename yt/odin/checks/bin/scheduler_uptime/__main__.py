@@ -14,8 +14,9 @@ def run_check_impl(yt_client, logger, options, states):
         new_scheduler_service_info = yt_client.get("//sys/scheduler/orchid/scheduler/service")
 
         if is_zero_time_string(new_scheduler_service_info["last_connection_time"]):
-            logger.info("Scheduler has disconnected and is not connected now")
-            return states.UNAVAILABLE_STATE, "Scheduler has disconnected and is not connected now"
+            message = "Scheduler has disconnected and is reconnecting now"
+            logger.info(message)
+            return states.PARTIALLY_AVAILABLE_STATE, message
 
     except yt.YtError as err:
         if err.is_resolve_error():

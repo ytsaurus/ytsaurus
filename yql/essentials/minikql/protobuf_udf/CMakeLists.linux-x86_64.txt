@@ -40,5 +40,9 @@ target_sources(essentials-minikql-protobuf_udf PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/module.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/type_builder.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/value_builder.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/module.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/proto_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/type_builder.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/protobuf_udf/value_builder.h
 )
 

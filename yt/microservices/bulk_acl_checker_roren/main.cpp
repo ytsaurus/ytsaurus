@@ -1,20 +1,29 @@
-#include <yt/microservices/bulk_acl_checker_roren/import_snapshot.h>
-#include <yt/microservices/bulk_acl_checker_roren/remove_excessive.h>
-#include <yt/microservices/bulk_acl_checker_roren/full.h>
-
-#include <yt/cpp/mapreduce/interface/init.h>
-#include <yt/cpp/mapreduce/interface/config.h>
-#include <yt/cpp/mapreduce/interface/logging/logger.h>
-#include <yt/yt/core/https/client.h>
-#include <yt/yt/core/https/config.h>
-#include <yt/yt/library/auth/auth.h>
-#include <yt/yt/library/named_value/named_value.h>
+#include <library/cpp/getopt/last_getopt.h>
 
 #include <library/cpp/getopt/small/modchooser.h>
-#include <library/cpp/getopt/last_getopt.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 #include <util/system/env.h>
+
+#include <yt/cpp/mapreduce/interface/config.h>
+#include <yt/cpp/mapreduce/interface/init.h>
+
+#include <yt/cpp/mapreduce/interface/logging/logger.h>
+
+#include <yt/microservices/bulk_acl_checker_roren/full.h>
+#include <yt/microservices/bulk_acl_checker_roren/import_snapshot.h>
+#include <yt/microservices/bulk_acl_checker_roren/remove_excessive.h>
+
+#include <yt/yt/core/https/client.h>
+#include <yt/yt/core/https/config.h>
+
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/config.h>
+
+#include <yt/yt/library/auth/auth.h>
+
+#include <yt/yt/library/named_value/named_value.h>
 
 const std::vector<TString> ALLOWED_COMMANDS = {"import-snapshot", "remove-excessive", "full", "-h", "--help"};
 
@@ -43,7 +52,6 @@ void AddFullSpecificOpts(NLastGetopt::TOpts& opts)
     opts.AddLongOption("pool");
     opts.AddLongOption("force").NoArgument();
     opts.AddLongOption("memory-limit").DefaultValue(10_GB);
-    opts.AddLongOption("enable-ipv4").NoArgument();
 }
 
 void AddImportSpecificOpts(NLastGetopt::TOpts& opts)
@@ -53,7 +61,6 @@ void AddImportSpecificOpts(NLastGetopt::TOpts& opts)
     opts.AddLongOption("pool");
     opts.AddLongOption("force").NoArgument();
     opts.AddLongOption("memory-limit").DefaultValue(10_GB);
-    opts.AddLongOption("enable-ipv4").NoArgument();
 }
 
 void AddRemoveSpecificOpts(NLastGetopt::TOpts& opts)
@@ -88,6 +95,9 @@ NLastGetopt::TOpts CreateFullOpts()
 int main(int argc, const char** argv)
 try {
     NYT::TConfig::Get()->LogLevel = "info";
+    auto resolverConfig = NYT::New<NYT::NNet::TAddressResolverConfig>();
+    resolverConfig->EnableIPv4 = true;
+    NYT::NNet::TAddressResolver::Get()->Configure(resolverConfig);
     NYT::Initialize(argc, argv);
 
     NYT::TConfig::Get()->Token = LoadBulkAclCheckerToken();

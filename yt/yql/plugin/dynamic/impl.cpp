@@ -47,6 +47,7 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .UIOrigin = TString(bridgeOptions->UIOrigin),
         .LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend)),
         .MaxYqlLangVersion = bridgeOptions->MaxYqlLangVersion,
+        .StartDqManager = bridgeOptions->StartDqManager,
     };
     auto nativePlugin = CreateYqlPlugin(std::move(options));
     return nativePlugin.release();
@@ -103,6 +104,7 @@ void FillString(const char*& str, ssize_t& strLength, const std::optional<TStrin
 
 TBridgeClustersResult* BridgeGetUsedClusters(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* queryText,
     const char* settings,
     int settingsLength,
@@ -125,6 +127,7 @@ TBridgeClustersResult* BridgeGetUsedClusters(
     }
 
     auto result = nativePlugin->GetUsedClusters(
+        NYT::TGuid::FromString(queryId),
         TString(queryText),
         settings ? TYsonString(TString(settings, settingsLength)) : EmptyMap,
         files);
@@ -214,6 +217,7 @@ void BridgeFreeAbortResult(TBridgeAbortResult* result)
 
 TBridgeGetDeclaredParametersInfoResult* BridgeGetDeclaredParametersInfo(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* user,
     const char* queryText,
     const char* settings,
@@ -225,6 +229,7 @@ TBridgeGetDeclaredParametersInfoResult* BridgeGetDeclaredParametersInfo(
     auto* bridgeResult = new TBridgeGetDeclaredParametersInfoResult;
 
     auto result = nativePlugin->GetDeclaredParametersInfo(
+        NYT::TGuid::FromString(queryId),
         TString(user),
         TString(queryText),
         TYsonString(TString(settings, settingsLength)),

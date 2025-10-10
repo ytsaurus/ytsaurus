@@ -663,7 +663,6 @@ void TBundleState::DoFetchStatistics(
     }
 
     DropMissingKeys(Tablets_, tabletIds);
-    DropMissingKeys(ProfilingCounters_, finalTableIds);
 
     Bundle_->NodeStatistics.clear();
 
@@ -1325,60 +1324,6 @@ void TBundleState::FillPerformanceCounters(
             }
         }
     }
-}
-
-TTableProfilingCounters& TBundleState::GetProfilingCounters(
-    const TTable* table,
-    const TString& groupName)
-{
-    auto it = ProfilingCounters_.find(table->Id);
-    if (it == ProfilingCounters_.end()) {
-        auto profilingCounters = InitializeProfilingCounters(table, groupName);
-        return EmplaceOrCrash(
-            ProfilingCounters_,
-            table->Id,
-            std::move(profilingCounters))->second;
-    }
-
-    if (it->second.GroupName != groupName) {
-        it->second = InitializeProfilingCounters(table, groupName);
-    }
-
-    return it->second;
-}
-
-TTableProfilingCounters TBundleState::InitializeProfilingCounters(
-    const TTable* table,
-    const TString& groupName) const
-{
-    TTableProfilingCounters profilingCounters{.GroupName = groupName};
-    auto profiler = Profiler_
-        .WithSparse()
-        .WithTag("group", groupName)
-        .WithTag("table_path", table->Path);
-
-    profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
-    profilingCounters.OrdinaryMoves = profiler.Counter("/tablet_balancer/ordinary_moves");
-
-    profilingCounters.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
-    profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
-    profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
-
-    profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
-
-    profilingCounters.ReplicaMoves = profiler.Counter("/tablet_balancer/parameterized_replica_moves");
-
-    profilingCounters.ParameterizedReshardMerges = profiler.Counter(
-        "/tablet_balancer/parameterized_reshard_merges");
-    profilingCounters.ParameterizedReshardSplits = profiler.Counter(
-        "/tablet_balancer/parameterized_reshard_splits");
-
-    profilingCounters.ReplicaMerges = profiler.Counter("/tablet_balancer/replica_merges");
-    profilingCounters.ReplicaSplits = profiler.Counter("/tablet_balancer/replica_splits");
-    profilingCounters.ReplicaNonTrivialReshards = profiler.Counter(
-        "/tablet_balancer/replica_non_trivial_reshards");
-
-    return profilingCounters;
 }
 
 void TBundleState::SetTableStatistics(
