@@ -1281,6 +1281,11 @@ public:
         }
 
         if (!Params_.PkColumns.empty()) {
+            if (Table_.Service == YtProviderName) {
+                ctx.Error() << "PRIMARY KEY is not supported for " << YtProviderName << " provider.";
+                return false;
+            }
+
             auto primaryKey = Y();
             for (auto& col : Params_.PkColumns) {
                 primaryKey = L(primaryKey, BuildQuotedAtom(col.Pos, col.Name));
@@ -1293,6 +1298,11 @@ public:
         }
 
         if (!Params_.PartitionByColumns.empty()) {
+            if (Table_.Service == YtProviderName) {
+                ctx.Error() << "PARTITION BY is not supported for " << YtProviderName << " provider.";
+                return false;
+            }
+
             auto partitionBy = Y();
             for (auto& col : Params_.PartitionByColumns) {
                 partitionBy = L(partitionBy, BuildQuotedAtom(col.Pos, col.Name));

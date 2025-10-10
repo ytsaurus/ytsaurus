@@ -133,7 +133,6 @@ enum class EYtSettingType: ui64 {
     // Create, Alter
     Columns                  /* "columns"*/,
     Actions                  /* "actions"*/,
-    PrimaryKey               /* "primarykey","primary_key" */,
     OrderBy                  /* "orderby","order_by" */,
 
     LAST
