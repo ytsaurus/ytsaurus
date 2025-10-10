@@ -159,7 +159,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
             repository-url: https://test.pypi.org/legacy/
-            password: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
   prod_release:
     name: Run release PyPi
@@ -199,8 +198,6 @@ jobs:
 
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-            password: ${{ secrets.PYPI_API_TOKEN }}
 
   stop-vm:
     name: Stop VM
