@@ -404,7 +404,8 @@
             "Match": {"Type": "Callable", "Name": "YtCreateTable!"},
             "Children": [
                 {"Index": 3, "Name": "Columns", "Type": "TExprList"},
-                {"Index": 4, "Name": "OrderBy", "Type": "TCoNameValueTupleList"}
+                {"Index": 4, "Name": "OrderBy", "Type": "TCoNameValueTupleList"},
+                {"Index": 5, "Name": "Settings", "Type": "TCoNameValueTupleList"}
             ]
         },
         {

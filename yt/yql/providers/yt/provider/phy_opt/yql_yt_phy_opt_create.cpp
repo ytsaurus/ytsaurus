@@ -27,9 +27,7 @@ TMaybeNode<TExprBase> TYtPhysicalOptProposalTransformer::Create(TExprBase node, 
                 .Build()
             .Build()
         .Publish(create.Table())
-        .Settings()
-            .Add().Name().Value("initial", TNodeFlags::Default).Build().Build()
-            .Build()
+        .Settings(create.Settings())
         .Done();
 }
 

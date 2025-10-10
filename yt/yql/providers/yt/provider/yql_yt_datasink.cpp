@@ -264,15 +264,14 @@ public:
                     << "Expected Void, but got: " << node->Child(3U)->Content()));
                 return {};
             }
-            if (!ValidateSettings(*node->Child(4U), EYtSettingType::Mode | EYtSettingType::Initial | EYtSettingType::Columns | EYtSettingType::OrderBy, ctx)) {
-                return {};
-            }
 
             auto children = node->ChildrenList();
-            children.resize(5U);
-            children[3U] = NYql::GetSetting(*node->Child(4U), EYtSettingType::Columns)->TailPtr();
-            const auto keys = NYql::GetSetting(*node->Child(4U), EYtSettingType::OrderBy);
-            children.back() = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
+            children.resize(6U);
+            const auto settings = node->Child(4U);
+            children[3U] = NYql::GetSetting(*settings, EYtSettingType::Columns)->TailPtr();
+            const auto keys = NYql::GetSetting(*settings, EYtSettingType::OrderBy);
+            children[4U] = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
+            children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Columns | EYtSettingType::OrderBy | EYtSettingType::Mode, ctx);
             return ctx.NewCallable(node->Pos(), TYtCreateTable::CallableName(), std::move(children));
         } else {
             auto res = ctx.RenameNode(*node, TYtWriteTable::CallableName());
