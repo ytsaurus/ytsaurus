@@ -260,11 +260,13 @@ private:
         #define XX(CamelCase, snake_case) \
             inheritableAttributesInfo->add_inheritable_attribute_keys(#snake_case);
         FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+        XX(Account, account)
         #undef XX
 
         #define XX(CamelCase, snake_case) \
             inheritableAttributesInfo->add_inheritable_during_copy_attribute_keys(#snake_case);
         FOR_EACH_INHERITABLE_DURING_COPY_ATTRIBUTE(XX)
+        XX(Account, account)
         #undef XX
     }
 };
