@@ -404,7 +404,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert exists("//sys/accounts/1337-th15-15_F1N3")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_account_attr1(self):
         set("//tmp/a", {})
         assert get("//tmp/a/@account") == "tmp"
@@ -427,7 +426,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//tmp/b/y/@account") == "tmp"
 
     @authors("ignat", "shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_account_attr4(self):
         create_account("max")
         assert self._get_account_node_count("max") == 0
@@ -488,7 +486,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: not exists("//sys/accounts/max"))
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_file1(self):
         wait(lambda: get_account_disk_space("tmp") == 0)
 
@@ -513,7 +510,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_disk_space("tmp") == 0)
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_file2(self):
         self._wait_for_tmp_account_usage()
 
@@ -569,7 +565,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_disk_space("max") == space * 2)
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_table1(self):
         self._wait_for_tmp_account_usage()
         node_count = self._get_account_node_count("tmp")
@@ -583,7 +578,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert self._get_account_chunk_count("tmp") == 1
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_table2(self):
         self._wait_for_tmp_account_usage()
 
@@ -613,7 +607,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_committed_disk_space("tmp") == last_space)
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_table3(self):
         self._wait_for_tmp_account_usage()
 
@@ -640,7 +633,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_disk_space("tmp") == space2)
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_table4(self):
         wait(lambda: get_account_disk_space("tmp") == 0)
 
@@ -655,7 +647,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_disk_space("tmp") == 0)
 
     @authors("ignat", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_table5(self):
         self._wait_for_tmp_account_usage()
         tmp_node_count = self._get_account_node_count("tmp")
@@ -693,7 +684,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get_account_disk_space("max") == 0
 
     @authors("sandello", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_table6(self):
         self._wait_for_tmp_account_usage()
 
@@ -1018,7 +1008,6 @@ class TestAccounts(AccountsTestSuiteBase):
             set("//tmp/t/@primary_medium", "ssd")
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_committed_usage(self):
         self._wait_for_tmp_account_usage()
         assert get_account_committed_disk_space("tmp") == 0
@@ -1042,7 +1031,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: get_account_committed_disk_space("tmp") == space * 2)
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_nested_tx_uncommitted_usage(self):
         self._wait_for_tmp_account_usage()
 
@@ -1485,7 +1473,6 @@ class TestAccounts(AccountsTestSuiteBase):
             set("//sys/accounts/a1/@name", "a2")
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_set_account_fail_yt_6207(self):
         self._wait_for_tmp_account_usage()
 
@@ -1517,7 +1504,6 @@ class TestAccounts(AccountsTestSuiteBase):
         )
 
     @authors("babenko", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_change_account_with_snapshot_lock(self):
         self._wait_for_tmp_account_usage()
 
@@ -1990,7 +1976,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert not exists("//sys/accounts/y")
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_requisitions(self):
         create_domestic_medium("hdd6")
         create_account("a")
