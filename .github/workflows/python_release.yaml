@@ -128,7 +128,7 @@ jobs:
     if: ${{ needs.build.outputs.release_type == 'test' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     permissions:
-      id-token: true
+      id-token: write
     steps:
       - name: Publish pydoc
         uses: yc-actions/yc-obj-storage-upload@v1
@@ -171,7 +171,7 @@ jobs:
     if: ${{ needs.build.outputs.release_type == 'prod' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     permissions:
-      id-token: true
+      id-token: write
     steps:
       - name: Publish pydoc
         uses: yc-actions/yc-obj-storage-upload@v1
