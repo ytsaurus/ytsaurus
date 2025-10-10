@@ -316,6 +316,10 @@ public:
         return NativeGateway_->GetTableFilePath(std::move(options));
     }
 
+    TFuture<TLayersSnapshotResult> SnapshotLayers(TSnapshotLayersOptions&& options) final {
+        return NativeGateway_->SnapshotLayers(std::move(options));
+    }
+
 private:
     NFile::TYtFileServices::TPtr FileServices_;
     IYtGateway::TPtr FileGateway_;
