@@ -25,5 +25,10 @@ target_link_libraries(essentials-core-layers PUBLIC
 
 target_sources(essentials-core-layers PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/layers/layers.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/layers/layers.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/layers/layers_fwd.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/layers/layers_integration.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/layers/remote_layer_provider.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/layers/utils.h
 )
 

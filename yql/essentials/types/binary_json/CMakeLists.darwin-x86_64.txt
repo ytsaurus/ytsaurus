@@ -43,6 +43,9 @@ target_sources(essentials-types-binary_json PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/types/binary_json/format.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/types/binary_json/read.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/types/binary_json/write.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/types/binary_json/format.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/types/binary_json/read.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/types/binary_json/write.h
 )
 
 

@@ -24,5 +24,6 @@ target_link_libraries(parser-proto_ast-antlr3 PUBLIC
 
 target_sources(parser-proto_ast-antlr3 PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/antlr3/proto_ast_antlr3.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/antlr3/proto_ast_antlr3.h
 )
 

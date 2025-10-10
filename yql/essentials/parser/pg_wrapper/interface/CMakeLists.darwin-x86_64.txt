@@ -41,5 +41,9 @@ target_sources(parser-pg_wrapper-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/parser.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/type_desc.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/utils.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/arrow.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/config.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/optimizer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/interface/raw_parser.h
 )
 
