@@ -1,4 +1,4 @@
-      subroutine parsur(iopt,ipar,idim,mu,u,mv,v,f,s,nuest,
+      recursive subroutine parsur(iopt,ipar,idim,mu,u,mv,v,f,s,nuest,
      * nvest,nu,tu,nv,tv,c,fp,wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  given the set of ordered points f(i,j) in the idim-dimensional space,

@@ -1,4 +1,4 @@
-      subroutine concon(iopt,m,x,y,w,v,s,nest,maxtr,maxbin,
+      recursive subroutine concon(iopt,m,x,y,w,v,s,nest,maxtr,maxbin,
      * n,t,c,sq,sx,bind,wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  given the set of data points (x(i),y(i)) and the set of positive

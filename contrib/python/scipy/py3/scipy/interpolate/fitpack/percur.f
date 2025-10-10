@@ -1,4 +1,4 @@
-      subroutine percur(iopt,m,x,y,w,k,s,nest,n,t,c,fp,
+      recursive subroutine percur(iopt,m,x,y,w,k,s,nest,n,t,c,fp,
      * wrk,lwrk,iwrk,ier)
       implicit none
 c  given the set of data points (x(i),y(i)) and the set of positive

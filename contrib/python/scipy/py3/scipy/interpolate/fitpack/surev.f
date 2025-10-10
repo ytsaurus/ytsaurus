@@ -1,4 +1,4 @@
-      subroutine surev(idim,tu,nu,tv,nv,c,u,mu,v,mv,f,mf,
+      recursive subroutine surev(idim,tu,nu,tv,nv,c,u,mu,v,mv,f,mf,
      * wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  subroutine surev evaluates on a grid (u(i),v(j)),i=1,...,mu; j=1,...

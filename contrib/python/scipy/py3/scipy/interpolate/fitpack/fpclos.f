@@ -1,4 +1,4 @@
-      subroutine fpclos(iopt,idim,m,u,mx,x,w,k,s,nest,tol,
+      recursive subroutine fpclos(iopt,idim,m,u,mx,x,w,k,s,nest,tol,
      *  maxit,k1,k2,n,t,nc,c,fp,fpint,z,a1,a2,b,g1,g2,q,nrdata,ier)
       implicit none
 c  ..

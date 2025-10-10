@@ -1,4 +1,4 @@
-      subroutine cocosp(m,x,y,w,n,t,e,maxtr,maxbin,c,sq,
+      recursive subroutine cocosp(m,x,y,w,n,t,e,maxtr,maxbin,c,sq,
      * sx,bind,wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  given the set of data points (x(i),y(i)) and the set of positive

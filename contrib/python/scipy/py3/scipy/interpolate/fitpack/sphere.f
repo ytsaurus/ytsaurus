@@ -1,4 +1,4 @@
-      subroutine sphere(iopt,m,teta,phi,r,w,s,ntest,npest,
+      recursive subroutine sphere(iopt,m,teta,phi,r,w,s,ntest,npest,
      *  eps,nt,tt,np,tp,c,fp,wrk1,lwrk1,wrk2,lwrk2,iwrk,kwrk,ier)
       implicit none
 c  subroutine sphere determines a smooth bicubic spherical spline

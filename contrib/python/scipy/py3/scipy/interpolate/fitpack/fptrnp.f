@@ -1,4 +1,4 @@
-      subroutine fptrnp(m,mm,idim,n,nr,sp,p,b,z,a,q,right)
+      recursive subroutine fptrnp(m,mm,idim,n,nr,sp,p,b,z,a,q,right)
       implicit none
 c  subroutine fptrnp reduces the (m+n-7) x (n-4) matrix a to upper
 c  triangular form and applies the same givens transformations to

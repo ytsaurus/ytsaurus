@@ -1,4 +1,4 @@
-      subroutine fpbisp(tx,nx,ty,ny,c,kx,ky,x,mx,y,my,
+      recursive subroutine fpbisp(tx,nx,ty,ny,c,kx,ky,x,mx,y,my,
      *     z,wx,wy,lx,ly)
       implicit none
 c  ..scalar arguments..

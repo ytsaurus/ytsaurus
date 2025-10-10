@@ -1,4 +1,4 @@
-      subroutine fpcyt2(a,n,b,c,nn)
+      recursive subroutine fpcyt2(a,n,b,c,nn)
       implicit none
 c subroutine fpcyt2 solves a linear n x n system
 c         a * c = b

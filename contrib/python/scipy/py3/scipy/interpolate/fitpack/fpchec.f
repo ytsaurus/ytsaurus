@@ -1,4 +1,4 @@
-      subroutine fpchec(x,m,t,n,k,ier)
+      recursive subroutine fpchec(x,m,t,n,k,ier)
       implicit none
 c  subroutine fpchec verifies the number and the position of the knots
 c  t(j),j=1,2,...,n of a spline of degree k, in relation to the number

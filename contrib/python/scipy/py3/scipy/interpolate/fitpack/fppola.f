@@ -1,4 +1,4 @@
-      subroutine fppola(iopt1,iopt2,iopt3,m,u,v,z,w,rad,s,
+      recursive subroutine fppola(iopt1,iopt2,iopt3,m,u,v,z,w,rad,s,
      * nuest,nvest,eta,tol,maxit,ib1,ib3,nc,ncc,intest,nrest,nu,tu,nv,
      * tv,c,fp,sup,fpint,coord,f,ff,row,cs,cosi,a,q,bu,bv,spu,spv,h,
      * index,nummer,wrk,lwrk,ier)

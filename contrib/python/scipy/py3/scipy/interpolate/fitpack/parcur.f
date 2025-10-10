@@ -1,4 +1,4 @@
-      subroutine parcur(iopt,ipar,idim,m,u,mx,x,w,ub,ue,k,s,
+      recursive subroutine parcur(iopt,ipar,idim,m,u,mx,x,w,ub,ue,k,s,
      * nest,n,t,nc,c,fp,wrk,lwrk,iwrk,ier)
       implicit none
 c  given the ordered set of m points x(i) in the idim-dimensional space
