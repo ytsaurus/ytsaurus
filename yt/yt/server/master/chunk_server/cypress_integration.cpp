@@ -503,7 +503,7 @@ private:
             for (const auto& channel : channels) {
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
                 // TODO(nadya02): Set the correct timeout here.
-                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+                proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto batchReq = proxy.ExecuteBatch();
                 auto req = TCypressYPathProxy::Enumerate(GetWellKnownPath(GetLocalChunkMapType()));
                 req->set_limit(limit);
@@ -648,7 +648,7 @@ private:
             for (const auto& channel : channels) {
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
                 // TODO(nadya02): Set the correct timeout here.
-                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+                proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto req = TYPathProxy::Get(GetWellKnownPath(GetLocalChunkMapType()) + "/@count");
                 responseFutures.push_back(proxy.Execute(req));
             }

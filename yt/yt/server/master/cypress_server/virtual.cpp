@@ -364,7 +364,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
     // TODO(nadya02): Set the correct timeout here.
-    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+    proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 
@@ -729,7 +729,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
     // TODO(nadya02): Set the correct timeout here.
-    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+    proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressUpstreamSync(true);
 
@@ -835,7 +835,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
     // TODO(nadya02): Set the correct timeout here.
-    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+    proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 

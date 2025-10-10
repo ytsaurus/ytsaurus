@@ -1564,7 +1564,7 @@ private:
                     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
                         multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
                     // TODO(nadya02): Set the correct timeout here.
-                    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+                    proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                     batchReq->SetOriginalRequestId(RequestId_);
                     auto reserved = false;

@@ -130,7 +130,7 @@ private:
             controllerAgentChannel);
 
         // TODO(nadya02): Set the correct timeout here.
-        jobProberProxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+        jobProberProxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
 
         YT_LOG_DEBUG(
             "Getting job shell descriptor from agent (AllocationId: %v, OperationId: %v)",

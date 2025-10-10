@@ -6677,7 +6677,7 @@ private:
 
         for (const auto& channel : channels) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
-            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+            proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
             auto batchReq = proxy.ExecuteBatch();
 
             batchReq->AddRequest(TYPathProxy::Get("//sys/local_lost_vital_chunks/@count"));
