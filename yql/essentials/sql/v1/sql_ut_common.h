@@ -1636,6 +1636,21 @@ Y_UNIT_TEST(CreateTableAsSelectWithTypes) {
     UNIT_ASSERT(!res.Root);
 }
 
+Y_UNIT_TEST(CreateTableWithOrderBy) {
+    const auto res = SqlToYql("USE plato; CREATE TABLE t (a text, b bytes, order by(b asc, a desc));");
+    UNIT_ASSERT_C(res.Root, res.Issues.ToString());
+
+    const TVerifyLineFunc verifyLine = [](const TString& word, const TString& line) {
+        if (word == "Write!") {
+            UNIT_ASSERT_VALUES_UNEQUAL(TString::npos, line.find(R"__('('orderby '('('"b" '0) '('"a" '1))))__"));
+        }
+    };
+
+    TWordCountHive elementStat = {{TString("Write!"), 0}};
+    VerifyProgram(res, elementStat, verifyLine);
+    UNIT_ASSERT_VALUES_EQUAL(1, elementStat["Write!"]);
+}
+
 Y_UNIT_TEST(CreateTableAsSelect) {
     NYql::TAstParseResult res = SqlToYql("USE ydb; CREATE TABLE t (a, b, primary key(a)) AS SELECT * FROM ts;");
     UNIT_ASSERT_C(res.Root, res.Issues.ToString());
