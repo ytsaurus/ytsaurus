@@ -505,7 +505,17 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
 TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDirectIO)
 {
     auto guard = Guard(DataFileHandleLock_);
-    if (!DataFileHandleFuture_[useDirectIO]) {
+    auto& fileHandleFuture = DataFileHandleFuture_[useDirectIO];
+
+    if (fileHandleFuture && fileHandleFuture.IsSet() &&
+        !fileHandleFuture.Get().IsOK())
+    {
+        // Seems like on the previous attempt we failed to open the file for some reason.
+        // Let us try again.
+        fileHandleFuture.Reset();
+    }
+
+    if (!fileHandleFuture) {
         YT_LOG_DEBUG("Started opening chunk data file (FileName: %v, DirectIO: %v)",
             FileName_, useDirectIO);
 
@@ -513,12 +523,12 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
         if (useDirectIO == EDirectIOFlag::On) {
             TIOEngineHandle::MarkOpenForDirectIO(&mode);
         }
-        DataFileHandleFuture_[useDirectIO] = IOEngine_->Open({FileName_, mode})
-            .ToUncancelable()
+        fileHandleFuture = IOEngine_->Open({FileName_, mode})
             .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO)
-            .AsyncVia(IOEngine_->GetAuxPoolInvoker()));
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+            .ToUncancelable();
     }
-    return DataFileHandleFuture_[useDirectIO];
+    return fileHandleFuture;
 }
 
 TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file)
