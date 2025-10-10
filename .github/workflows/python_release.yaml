@@ -127,6 +127,8 @@ jobs:
       - start-vm
     if: ${{ needs.build.outputs.release_type == 'test' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
+    permissions:
+      id-token: write
     steps:
       - name: Publish pydoc
         uses: yc-actions/yc-obj-storage-upload@v1
