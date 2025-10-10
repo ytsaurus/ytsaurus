@@ -34,6 +34,8 @@
 
 #include <yt/yt/server/lib/user_job/config.h>
 
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
 #include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/server/tools/proc.h>
@@ -1560,6 +1562,23 @@ private:
         YT_VERIFY(UserJobSpec_.memory_limit() > 0);
         statistics.AddSample("/user_job/memory_limit"_SP, UserJobSpec_.memory_limit());
         statistics.AddSample("/user_job/memory_reserve"_SP, UserJobSpec_.memory_reserve());
+
+        const auto& jobSpec = Host_->GetJobSpecHelper()->GetJobSpec();
+        if (jobSpec.has_resource_limits()) {
+            const auto& resourceLimits = jobSpec.resource_limits();
+
+            if (resourceLimits.has_cpu() || resourceLimits.has_vcpu()) {
+                const auto cpuReserve = NVectorHdrf::TCpuResource(
+                    resourceLimits.has_cpu() ? resourceLimits.cpu() : resourceLimits.vcpu());
+                statistics.AddSample(
+                    "/user_job/cpu_reserve"_SP,
+                    static_cast<i64>(cpuReserve.GetUnderlyingValue()));
+            }
+
+            if (resourceLimits.has_gpu()) {
+                statistics.AddSample("/user_job/gpu_reserve"_SP, resourceLimits.gpu());
+            }
+        }
 
         // TODO(pavook) repeating calculation code?
         statistics.AddSample(
