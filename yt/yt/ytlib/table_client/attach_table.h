@@ -12,12 +12,12 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> AttachTable(
-    const NYPath::TRichYPath& richPath,
-    const NApi::TAttachTableOptions& options,
+TFuture<NApi::TAttachTableResult> AttachTable(
+    NYPath::TRichYPath richPath,
+    NTableClient::TExternalSourceSpec sourceSpec,
+    NApi::TAttachTableOptions options,
     NApi::NNative::IClientPtr client,
-    NApi::ITransactionPtr transaction,
-    std::vector<std::string> sources);
+    NApi::ITransactionPtr transaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 

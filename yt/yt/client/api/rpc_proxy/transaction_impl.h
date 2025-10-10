@@ -146,9 +146,9 @@ public:
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 
-    TFuture<void> AttachTable(
+    TFuture<TAttachTableResult> AttachTable(
         const NYPath::TRichYPath& path,
-        std::vector<std::string> sourceUris,
+        const NTableClient::TExternalSourceSpec& sourceSpec,
         const NApi::TAttachTableOptions& options) override;
 
     TFuture<NYson::TYsonString> GetNode(

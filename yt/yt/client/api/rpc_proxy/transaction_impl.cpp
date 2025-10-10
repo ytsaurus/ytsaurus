@@ -706,15 +706,15 @@ TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
         PatchTransactionId(options));
 }
 
-TFuture<void> TTransaction::AttachTable(
+TFuture<TAttachTableResult> TTransaction::AttachTable(
     const TRichYPath& path,
-    std::vector<std::string> sourceUris,
+    const TExternalSourceSpec& sourceSpec,
     const NApi::TAttachTableOptions& options)
 {
     ValidateActive();
     return Client_->AttachTable(
         path,
-        std::move(sourceUris),
+        sourceSpec,
         PatchTransactionId(options));
 }
 

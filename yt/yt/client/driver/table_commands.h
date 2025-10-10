@@ -106,12 +106,11 @@ public:
 
     static void Register(TRegistrar registrar);
 
-protected:
-    void DoExecuteImpl(const ICommandContextPtr& context);
-
 private:
     NYPath::TRichYPath Path;
+    // COMPAT(achulkov2): Remove once source spec is always used.
     std::vector<std::string> SourceUris;
+    NTableClient::TExternalSourceSpec SourceSpec;
 
     void DoExecute(ICommandContextPtr context) override;
 };

@@ -20,14 +20,18 @@
 
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/merge_table_schemas.h>
+#include <yt/yt/client/table_client/external_source_spec.h>
 
 #include <yt/yt/library/s3/object.h>
+
+#include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NTableClient {
 
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 
@@ -41,28 +45,23 @@ class TTableAttacher
 public:
     TTableAttacher(
         const TRichYPath& richPath,
+        TExternalSourceSpec sourceSpec,
         const TAttachTableOptions& options,
         NNative::IClientPtr client,
-        ITransactionPtr transaction,
-        std::vector<std::string> sourceUris)
-        : Options_(options)
-        , TableWriterOptions_(New<NTableClient::TTableWriterOptions>())
-        , RichPath_(richPath)
+        ITransactionPtr transaction)
+        : RichPath_(richPath)
+        , SourceSpec_(std::move(sourceSpec))
+        , Options_(options)
+        , TableWriterOptions_(New<TTableWriterOptions>())
         , Client_(std::move(client))
-        , SourceUris_(std::move(sourceUris))
         , Logger(TableClientLogger())
     {
-        YT_LOG_DEBUG("Attaching external data to table (Path: %v, SourceUris: %v, AllowIncompatibleSourceSchemas: %v, Medium: %v, SourceFormat: %lv)",
+        YT_LOG_DEBUG("Attaching external data to table (Path: %v, SourceSpec: %v, AllowIncompatibleSourceSchemas: %v, Medium: %v, SourceFormat: %lv)",
             richPath.GetPath(),
-            SourceUris_,
+            SourceSpec_,
             Options_.AllowIncompatibleSourceSchemas,
             Options_.Medium,
             Options_.SourceFormat);
-
-        THROW_ERROR_EXCEPTION_IF(
-            SourceUris_.empty(),
-            "At least one source must be specified when attaching to a table %Qv",
-            RichPath_.GetPath());
 
         TTransactionStartOptions transactionOptions;
         transactionOptions.ParentId = transaction ? transaction->GetId() : NullTransactionId;
@@ -85,7 +84,7 @@ public:
             transactionOptions.ParentId);
     }
 
-    TFuture<void> Run()
+    TFuture<TAttachTableResult> Run()
     {
         return BIND(&TTableAttacher::DoRun, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
@@ -93,11 +92,11 @@ public:
     }
 
 private:
+    const TRichYPath RichPath_;
+    const TExternalSourceSpec SourceSpec_;
     const TAttachTableOptions Options_;
     const TTableWriterOptionsPtr TableWriterOptions_;
-    const TRichYPath RichPath_;
     const NNative::IClientPtr Client_;
-    const std::vector<std::string> SourceUris_;
 
     NLogging::TLogger Logger;
 
@@ -106,22 +105,254 @@ private:
 
     TS3MediumDescriptorPtr S3MediumDescriptor_;
 
+    std::vector<std::string> SourceUris_;
+
     TTableSchemaPtr InferredSchemaOfSources_;
 
-    struct ChunkInfo
+    struct TSourceChunkInfo
     {
         TTableSchemaPtr Schema;
-        EChunkFormat Format;
+        EExternalSourceFormat SourceFormat;
+        EChunkFormat ChunkFormat;
         TRefCountedChunkMetaPtr Meta;
         i64 RowCount;
         i64 DataSize;
     };
-    std::vector<ChunkInfo> ChunkInfos_;
+    std::vector<TSourceChunkInfo> ChunkInfos_;
 
     std::optional<TSchemalessTableUploader> Uploader_;
     int ChunkCount_ = 0;
     i64 DataSize_ = 0;
     i64 RowCount_ = 0;
+
+    // This struct will be returned as the result of the operation.
+    TAttachTableResult AttachTableResult_;
+
+    TAttachTableResult DoRun()
+    {
+        try {
+            GuardedRun();
+            return AttachTableResult_;
+        } catch (const TFiberCanceledException&) {
+            bool waitForCleanUp = false;
+            YT_LOG_DEBUG("Attach table operation was canceled, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
+            CleanUp(waitForCleanUp);
+            throw;
+        } catch (const std::exception& ex) {
+            bool waitForCleanUp = true;
+            YT_LOG_DEBUG("Attach table operation failed, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
+            CleanUp(waitForCleanUp);
+            THROW_ERROR_EXCEPTION("Failed to attach external data to table %Qv", RichPath_.GetPath())
+                << ex;
+        } catch (...) {
+            bool waitForCleanUp = false;
+            YT_LOG_DEBUG("Attach table operation failed with unknown error, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
+            CleanUp(waitForCleanUp);
+            throw;
+        }
+    }
+
+    void GuardedRun()
+    {
+        if (Options_.Medium) {
+            // If the medium was specified, we can use it to infer the schema of sources.
+            InferSourcesAndSchemasFromMedium(*Options_.Medium);
+            CreateTable(*Options_.Medium);
+        }
+
+        PrepareUpload();
+
+        ValidateDestinationTableParameters();
+
+        if (!Options_.Medium) {
+            // If medium wasn't specified, it means we haven't inferred the schema yet - do it now.
+            InferSourcesAndSchemasFromMedium(TableWriterOptions_->MediumName);
+        }
+
+        ValidateSchemaCompatibility();
+
+        BeginUpload();
+        AttachChunks();
+        EndUpload();
+    }
+
+    void InferSourcesAndSchemasFromMedium(const TString& medium)
+    {
+        RetrieveS3MediumDescriptor(medium);
+        InferSourceUris();
+        InferCommonSchema();
+    }
+
+    void InferSourceUris()
+    {
+        YT_VERIFY(S3MediumDescriptor_);
+        ValidateAborted();
+
+        YT_LOG_DEBUG("Inferring source URIs from source spec (Spec: %v)", SourceSpec_);
+
+        switch (SourceSpec_.GetCurrentType()) {
+            case EExternalSourceSpecType::Files:
+                InferSourceUris(SourceSpec_.TryGetConcrete<TFilesExternalSourceSpec>());
+                break;
+
+            case EExternalSourceSpecType::Prefix:
+                InferSourceUris(SourceSpec_.TryGetConcrete<TPrefixExternalSourceSpec>());
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported source spec type %Qlv",
+                    SourceSpec_.GetCurrentType());
+        }
+
+        if (SourceUris_.empty()) {
+            THROW_ERROR_EXCEPTION("At least one source must be specified or inferred from the source spec")
+                << TErrorAttribute("source_spec", SourceSpec_);
+        }
+
+        YT_LOG_DEBUG("Inferred source URIs from source spec (SpecType: %lv, SourceUriCount: %v)", SourceSpec_.GetCurrentType(), SourceUris_.size());
+    }
+
+    void InferSourceUris(const TFilesExternalSourceSpecPtr& spec)
+    {
+        YT_VERIFY(spec);
+
+        SourceUris_ = spec->Uris;
+    }
+
+    void InferSourceUris(const TPrefixExternalSourceSpecPtr& spec)
+    {
+        YT_VERIFY(spec);
+
+        auto s3Client = S3MediumDescriptor_->GetClient();
+
+        auto prefixObjectDescriptor = NS3::TObjectDescriptor::FromUri(spec->PrefixUri, /*allowEmptyKey*/ true);
+
+        NS3::TListObjectsResponse rsp;
+        do {
+            NS3::TListObjectsRequest req;
+            req.Bucket = prefixObjectDescriptor.Bucket();
+            req.Prefix = prefixObjectDescriptor.Key();
+
+            // Remove extraneous trailing slashes, only one is needed to denote a directory.
+            // This helps us cut the prefix from the returned object keys correctly, so we
+            // can apply include/exclude patterns to the remaining part of the key.
+            while (req.Prefix.EndsWith("//")) {
+                req.Prefix.pop_back();
+            }
+
+            // Specifying a delimiter leads to listing top-level files only.
+            // Trailing slash is required for non-empty prefixes, otherwise files end up being skipped.
+            if (!spec->Recursive) {
+                if (!req.Prefix.empty() && !req.Prefix.EndsWith('/')) {
+                    req.Prefix += '/';
+                }
+                req.Delimiter = "/";
+            }
+
+            req.ContinuationToken = rsp.NextContinuationToken;
+
+            rsp = WaitFor(s3Client->ListObjects(req))
+                .ValueOrThrow();
+
+            for (const auto& object: rsp.Objects) {
+                auto fullObjectUri = Format("s3://%v/%v", req.Bucket, object.Key);
+
+                if (!object.Key.StartsWith(req.Prefix)) {
+                    THROW_ERROR_EXCEPTION(
+                        "S3 object key %Qv does not start with the requested prefix %Qv; "
+                        "this is a logical error, please contact cluster administrators with the full contents of this error",
+                        object.Key,
+                        req.Prefix)
+                        << TErrorAttribute("bucket", req.Bucket)
+                        << TErrorAttribute("prefix", req.Prefix)
+                        << TErrorAttribute("delimiter", req.Delimiter)
+                        << TErrorAttribute("object_key", object.Key);
+                }
+
+                auto relativeObjectKey = object.Key.substr(req.Prefix.size());
+
+                if (!spec->IncludeRegexes.empty() && !MatchesAnyPattern(relativeObjectKey, spec->IncludeRegexes)) {
+                    YT_LOG_DEBUG(
+                        "Source URI does not match any include pattern, skipping (SourceUri: %v, RelativeKey: %v)",
+                        fullObjectUri,
+                        relativeObjectKey);
+                    continue;
+                }
+
+                if (auto matchedPattern = MatchesAnyPattern(relativeObjectKey, spec->ExcludeRegexes); !spec->ExcludeRegexes.empty() && matchedPattern) {
+                    YT_LOG_DEBUG(
+                        "Source URI matches an exclude pattern, skipping (SourceUri: %v, RelativeKey: %v, MatchedExcludePattern: %v)",
+                        fullObjectUri,
+                        relativeObjectKey,
+                        *matchedPattern);
+                    continue;
+                }
+
+                SourceUris_.push_back(fullObjectUri);
+
+                YT_LOG_DEBUG("Inferred source URI (SourceUri: %v)", fullObjectUri);
+            }
+        } while (rsp.NextContinuationToken);
+    }
+
+    void ValidateSchemaCompatibility()
+    {
+        ValidateAborted();
+
+        auto [schemaCompatibility, schemaCompatibilityError] = CheckTableSchemaCompatibility(
+            *InferredSchemaOfSources_,
+            *Uploader_->ChunkSchema,
+            TTableSchemaCompatibilityOptions{});
+        if (schemaCompatibility != ESchemaCompatibility::FullyCompatible) {
+            THROW_ERROR_EXCEPTION("Inferred schema for the sources is not compatible with table schema")
+                << schemaCompatibilityError;
+        }
+    }
+
+    void PrepareUpload()
+    {
+        ValidateAborted();
+
+        try {
+            Uploader_.emplace(TableWriterOptions_, RichPath_, Client_, TransactionId_);
+        } catch (const TErrorException& ex) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to retrieve upload parameters for destination table %Qv; check that it exists or specify medium in the parameters",
+                RichPath_.GetPath())
+                << ex;
+        }
+    }
+
+    void ValidateDestinationTableParameters()
+    {
+        ValidateAborted();
+
+        // TableWriterOptions_ are updated by the Uploader when it's created.
+        if (TableWriterOptions_->ErasureCodec != NErasure::ECodec::None) {
+            THROW_ERROR_EXCEPTION("Cannot attach external data to table with erasure codec %Qlv",
+                TableWriterOptions_->ErasureCodec);
+        }
+
+        auto outputTableMedium = TableWriterOptions_->MediumName;
+        if (Options_.Medium) {
+            THROW_ERROR_EXCEPTION_IF(
+                *Options_.Medium != outputTableMedium,
+                "Output table %Qv exists, but its medium %Qv is not the same as the specified one %Qv",
+                RichPath_.GetPath(),
+                outputTableMedium,
+                *Options_.Medium);
+        }
+    }
+
+    void AttachChunks()
+    {
+        ValidateAborted();
+
+        YT_VERIFY(SourceUris_.size() == ChunkInfos_.size());
+        for (ssize_t sourceIndex = 0; sourceIndex < std::ssize(SourceUris_); ++sourceIndex) {
+            AttachChunk(SourceUris_[sourceIndex], ChunkInfos_[sourceIndex]);
+        }
+    }
 
     void RetrieveS3MediumDescriptor(const TString& medium)
     {
@@ -152,17 +383,13 @@ private:
         }
     }
 
-    EChunkFormat GetChunkFormat(const NS3::TObjectDescriptor& descriptor)
+    EExternalSourceFormat GetExternalSourceFormat(const NS3::TObjectDescriptor& descriptor)
     {
-        auto externalFormat = [&] {
-            if (Options_.SourceFormat) {
-                return *Options_.SourceFormat;
-            } else {
-                return DeduceExternalSourceFormatOrThrow(descriptor.Key());
-            }
-        }();
-
-        return GetChunkFormatFromExternalSourceFormat(externalFormat);
+        if (Options_.SourceFormat) {
+            return *Options_.SourceFormat;
+        } else {
+            return DeduceExternalSourceFormatOrThrow(descriptor.Key());
+        }
     }
 
     void InferCommonSchema()
@@ -171,14 +398,15 @@ private:
         YT_VERIFY(!SourceUris_.empty());
         ValidateAborted();
 
-        // Firstly, retrieve the schemas of all sources.
+        // First, retrieve the schemas of all sources.
         ChunkInfos_.reserve(SourceUris_.size());
         for (const auto& sourceUri: SourceUris_) {
             // TODO(achulkov2): We might want to do something else once we support multiple different schemas, not just S3.
             // Probably it should go into a separate method that lives somewhere near chunk meta generators and dispatches
             // to the correct one from there.
             auto sourceS3Descriptor = NS3::TObjectDescriptor::FromUri(sourceUri);
-            auto chunkFormat = GetChunkFormat(sourceS3Descriptor);
+            auto sourceFormat = GetExternalSourceFormat(sourceS3Descriptor);
+            auto chunkFormat = GetChunkFormatFromExternalSourceFormat(sourceFormat);
 
             // NB: There is a context switch inside the constructor for TS3ArrowRandomAccessFile.
             auto chunkMetaGenerator = CreateArrowTableChunkMetaGenerator(
@@ -190,8 +418,9 @@ private:
             // NB: Possible context switch.
             chunkMetaGenerator->Generate();
 
-            ChunkInfos_.push_back(ChunkInfo(
+            ChunkInfos_.push_back(TSourceChunkInfo(
                 chunkMetaGenerator->GetChunkSchema(),
+                sourceFormat,
                 chunkFormat,
                 chunkMetaGenerator->GetChunkMeta(),
                 chunkMetaGenerator->GetRowCount(),
@@ -202,7 +431,7 @@ private:
                 chunkMetaGenerator->GetChunkSchema());
         }
 
-        // Secondly, try to infer the common schemas between all sources.
+        // Second, try to infer the common schemas of all sources.
         TTableSchemaPtr commonSchema;
         for (const auto& chunkInfo: ChunkInfos_) {
             if (!commonSchema) {
@@ -228,8 +457,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Inferred common schema for all sources (Schema: %v)",
-            commonSchema);
+        YT_LOG_DEBUG("Inferred common schema for all sources (Schema: %v)", commonSchema);
         InferredSchemaOfSources_ = commonSchema;
     }
 
@@ -261,7 +489,7 @@ private:
         YT_LOG_DEBUG("Created table (TablePath: %v)", tablePath);
     }
 
-    void DoBeginUpload()
+    void BeginUpload()
     {
         YT_VERIFY(Uploader_);
 
@@ -275,7 +503,7 @@ private:
             Uploader_->UploadTransaction->GetId());
     }
 
-    void AttachChunk(const std::string& sourceUri, const ChunkInfo& chunkInfo)
+    void AttachChunk(const std::string& sourceUri, const TSourceChunkInfo& chunkInfo)
     {
         YT_VERIFY(Uploader_);
 
@@ -283,7 +511,7 @@ private:
 
         YT_LOG_DEBUG("Attaching chunk to table (SourceUri: %v, ChunkFormat: %lv)",
             sourceUri,
-            chunkInfo.Format);
+            chunkInfo.ChunkFormat);
 
         auto sessionId = NChunkClient::CreateChunk(
             Client_,
@@ -300,7 +528,7 @@ private:
         YT_LOG_DEBUG("Confirming attached chunk (SourceUri: %v, ChunkId: %v, ChunkFormat: %lv, RowCount: %v, UncompressedDataSize: %v)",
             sourceUri,
             sessionId.ChunkId,
-            chunkInfo.Format,
+            chunkInfo.ChunkFormat,
             chunkInfo.RowCount,
             chunkInfo.DataSize);
 
@@ -348,9 +576,18 @@ private:
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
             sessionId.ChunkId);
+
+        AttachTableResult_.ChunkInfos.push_back({
+            .ChunkId = sessionId.ChunkId,
+            .RowCount = chunkInfo.RowCount,
+            .UncompressedDataSize = chunkInfo.DataSize,
+            .SourceUri = sourceUri,
+            .SourceFormat = chunkInfo.SourceFormat,
+            .ChunkFormat = chunkInfo.ChunkFormat,
+        });
     }
 
-    void DoEndUpload()
+    void EndUpload()
     {
         YT_VERIFY(Uploader_);
 
@@ -375,70 +612,17 @@ private:
         WaitFor(Transaction_->Commit())
             .ThrowOnError();
 
+        AttachTableResult_.TotalChunkCount = ChunkCount_;
+        AttachTableResult_.TotalRowCount = RowCount_;
+        AttachTableResult_.TotalUncompressedDataSize = DataSize_;
+
         YT_LOG_DEBUG("Table closed (UploadTransactionId: %v)", Uploader_->UploadTransaction->GetId());
         YT_LOG_DEBUG("Attached data statistics (DataStatistics: %v)", dataStatistics);
     }
 
-    void GuardedRun()
-    {
-        if (Options_.Medium) {
-            RetrieveS3MediumDescriptor(*Options_.Medium);
-            InferCommonSchema();
-            CreateTable(*Options_.Medium);
-        }
-
-        try {
-            Uploader_.emplace(TableWriterOptions_, RichPath_, Client_, TransactionId_);
-        } catch (const TErrorException& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Cannot attach external data to table %Qv; check that it exists or specify medium in the parameters",
-                RichPath_.GetPath())
-                << ex;
-        }
-
-        // TableWriterOptions_ are updated by the Uploader when it's created.
-        if (TableWriterOptions_->ErasureCodec != NErasure::ECodec::None) {
-            THROW_ERROR_EXCEPTION("Cannot attach external data to table with erasure codec %Qlv",
-                TableWriterOptions_->ErasureCodec);
-        }
-
-        auto outputTableMedium = TableWriterOptions_->MediumName;
-        if (Options_.Medium) {
-            THROW_ERROR_EXCEPTION_IF(
-                *Options_.Medium != outputTableMedium,
-                "Output table %Qv exists, but its medium %Qv is not the same as the specified one %Qv",
-                RichPath_.GetPath(),
-                outputTableMedium,
-                *Options_.Medium);
-        } else {
-            // If medium wasn't specified, it means we haven't inferred the schema yet - do it now.
-            YT_VERIFY(!S3MediumDescriptor_);
-            RetrieveS3MediumDescriptor(outputTableMedium);
-            InferCommonSchema();
-        }
-
-        auto [schemaCompatibility, schemaCompatibilityError] = CheckTableSchemaCompatibility(
-            *InferredSchemaOfSources_,
-            *Uploader_->ChunkSchema,
-            TTableSchemaCompatibilityOptions{});
-        if (schemaCompatibility != ESchemaCompatibility::FullyCompatible) {
-            THROW_ERROR_EXCEPTION("Inferred schema for the sources is not compatible with table schema")
-                << schemaCompatibilityError;
-        }
-
-        DoBeginUpload();
-
-        YT_VERIFY(SourceUris_.size() == ChunkInfos_.size());
-        for (ssize_t sourceIndex = 0; sourceIndex < std::ssize(SourceUris_); ++sourceIndex) {
-            AttachChunk(SourceUris_[sourceIndex], ChunkInfos_[sourceIndex]);
-        }
-
-        DoEndUpload();
-    }
-
     // NB(achulkov2): This method can be called upon fiber cancellation, so we are being extra
     // safe and providing a clean up mode in which we do not call WaitFor.
-    void DoCleanUp(bool wait)
+    void CleanUp(bool wait)
     {
         // It is possible for a transaction with AutoAbort = true to survive beyond the lifetime
         // of this object via the strong ref in a Ping request. Thus it is best to abort the
@@ -463,45 +647,40 @@ private:
         }
     }
 
-    void DoRun()
+    static std::optional<NRe2::TRe2Ptr> MatchesAnyPattern(const TString& str, const std::vector<NRe2::TRe2Ptr>& patterns)
     {
-        try {
-            GuardedRun();
-        } catch (const TFiberCanceledException&) {
-            bool waitForCleanUp = false;
-            YT_LOG_DEBUG("Attach table operation was canceled, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
-            DoCleanUp(waitForCleanUp);
-            throw;
-        } catch (const std::exception& ex) {
-            bool waitForCleanUp = true;
-            YT_LOG_DEBUG("Attach table operation failed, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
-            DoCleanUp(waitForCleanUp);
-            THROW_ERROR_EXCEPTION("Failed to attach external data to table %Qv", RichPath_.GetPath())
-                << ex;
-        } catch (...) {
-            bool waitForCleanUp = false;
-            YT_LOG_DEBUG("Attach table operation failed with unknown error, cleaning up (WaitForCleanUp: %v)", waitForCleanUp);
-            DoCleanUp(waitForCleanUp);
-            throw;
+        for (const auto& pattern : patterns) {
+            // We check against null patterns in YSON postprocessor, but it can still be manually passed here.
+            // Easiest just to skip them.
+            if (!pattern) {
+                continue;
+            }
+
+            if (RE2::FullMatch(str, *pattern)) {
+                return pattern;
+            }
         }
+
+        return {};
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> AttachTable(
-    const TRichYPath& richPath,
-    const TAttachTableOptions& options,
+TFuture<TAttachTableResult> AttachTable(
+    TRichYPath richPath,
+    TExternalSourceSpec sourceSpec,
+    TAttachTableOptions options,
     NNative::IClientPtr client,
-    ITransactionPtr transaction,
-    std::vector<std::string> sourceUris)
+    ITransactionPtr transaction)
 {
     return New<TTableAttacher>(
-        richPath,
-        options,
+        std::move(richPath),
+        std::move(sourceSpec),
+        std::move(options),
         std::move(client),
-        std::move(transaction),
-        std::move(sourceUris))->Run();
+        std::move(transaction))
+        ->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

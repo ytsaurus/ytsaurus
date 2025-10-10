@@ -5,6 +5,7 @@
 
 #include <yt/yt/client/table_client/chunk_stripe_statistics.h>
 #include <yt/yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/external_source_spec.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
@@ -55,6 +56,24 @@ struct TAttachTableOptions
     bool AllowIncompatibleSourceSchemas = false;
     std::optional<TString> Medium;
     std::optional<NChunkClient::EExternalSourceFormat> SourceFormat;
+};
+
+struct TAttachedChunkInfo
+{
+    NChunkClient::TChunkId ChunkId;
+    i64 RowCount = 0;
+    i64 UncompressedDataSize = 0;
+    std::string SourceUri;
+    NChunkClient::EExternalSourceFormat SourceFormat;
+    NChunkClient::EChunkFormat ChunkFormat;
+};
+
+struct TAttachTableResult
+{
+    i64 TotalChunkCount = 0;
+    i64 TotalRowCount = 0;
+    i64 TotalUncompressedDataSize = 0;
+    std::vector<TAttachedChunkInfo> ChunkInfos;
 };
 
 struct TTabletRangeOptions
@@ -359,9 +378,9 @@ struct ITableClientBase
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = {}) = 0;
 
-    virtual TFuture<void> AttachTable(
+    virtual TFuture<TAttachTableResult> AttachTable(
         const NYPath::TRichYPath& path,
-        std::vector<std::string> sourceUris,
+        const NTableClient::TExternalSourceSpec& sourceSpec,
         const TAttachTableOptions& options = {}) = 0;
 };
 

@@ -37,6 +37,7 @@ from string import ascii_letters
 
 from datetime import datetime, timedelta
 from io import BytesIO
+from dataclasses import dataclass, asdict, field
 
 try:
     import yt_tests_settings
@@ -833,10 +834,36 @@ def write_table(path, value=None, is_raw=False, **kwargs):
     return execute_command("write_table", kwargs, input_stream=input_stream)
 
 
-def attach_table(destination_table, **kwargs):
+# NB: Keep in sync with definition in yt wrapper.
+@dataclass(frozen=True)
+class FilesExternalSourceSpec:
+    uris: list[str]
+
+
+# NB: Keep in sync with definition in yt wrapper.
+@dataclass(frozen=True)
+class PrefixExternalSourceSpec:
+    prefix_uri: str
+    recursive: bool = True
+    include_regexes: list[str] = field(default_factory=list)
+    exclude_regexes: list[str] = field(default_factory=list)
+
+
+def attach_table(destination_table, source_spec=None, **kwargs):
     attributes = {}
+
     kwargs["path"] = yson.to_yson_type(destination_table, attributes=attributes)
-    return execute_command("attach_table", kwargs)
+
+    source_spec_type = None
+    if isinstance(source_spec, FilesExternalSourceSpec):
+        source_spec_type = "files"
+    if isinstance(source_spec, PrefixExternalSourceSpec):
+        source_spec_type = "prefix"
+    if source_spec_type is None:
+        raise YtError("Invalid source_spec: {}".format(source_spec))
+    kwargs["source_spec"] = update({"type": source_spec_type}, asdict(source_spec))
+
+    return execute_command("attach_table", kwargs, parse_yson=True)
 
 
 def locate_skynet_share(path, **kwargs):

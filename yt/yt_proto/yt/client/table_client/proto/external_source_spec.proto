@@ -1,0 +1,26 @@
+package NYT.NTableClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TFilesExternalSourceSpec
+{
+    repeated string uris = 1;
+}
+
+message TPrefixExternalSourceSpec
+{
+    required string prefix_uri = 1;
+    optional bool recursive = 2 [default = false];
+    repeated string include_regexes = 3;
+    repeated string exclude_regexes = 4;
+}
+
+message TExternalSourceSpec
+{
+    oneof value {
+        TFilesExternalSourceSpec files = 1;
+        TPrefixExternalSourceSpec prefix = 2;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////

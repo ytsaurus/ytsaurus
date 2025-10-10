@@ -148,6 +148,9 @@ void TListObjectsRequest::Serialize(THttpRequest* request) const
     if (!Prefix.empty()) {
         request->Query["prefix"] = Prefix;
     }
+    if (!Delimiter.empty()) {
+        request->Query["delimiter"] = Delimiter;
+    }
     if (ContinuationToken) {
         request->Query["continuation-token"] = *ContinuationToken;
     }
@@ -157,10 +160,17 @@ void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto parsedDocument = ParseXmlDocument(response->ReadAll());
     for (auto* child = parsedDocument->firstChild(); child; child = child->nextSibling()) {
-        if (child->nodeName() != "Contents") {
-            continue;
+        if (child->nodeName() == "Contents") {
+            Objects.emplace_back().Deserialize(*child);
         }
-        Objects.emplace_back().Deserialize(*child);
+
+        if (child->nodeName() == "CommonPrefixes") {
+            if (auto* prefixNode = FindChildByName(*child, "Prefix")) {
+                CommonPrefixes.push_back(prefixNode->innerText());
+            }
+        }
+
+        continue;
     }
     if (auto nextToken = FindChildByName(*parsedDocument, "NextContinuationToken")) {
         NextContinuationToken = nextToken->innerText();

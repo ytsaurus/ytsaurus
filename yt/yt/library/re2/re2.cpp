@@ -52,6 +52,37 @@ void Deserialize(TRe2Ptr& re, TYsonPullParserCursor* cursor)
     }
 }
 
+void FormatValue(TStringBuilderBase* builder, const TRe2Ptr& object, TStringBuf spec)
+{
+    if (object) {
+        FormatValue(builder, object->pattern(), spec);
+    } else {
+        FormatValue(builder, std::nullopt, spec);
+    }
+}
+
+void ToProto(TProtoStringType* protoRe, const TRe2Ptr& re)
+{
+    if (re) {
+        *protoRe = re->pattern();
+    } else {
+        protoRe->clear();
+    }
+}
+
+void FromProto(TRe2Ptr* re, const TProtoStringType& protoRe)
+{
+    if (!protoRe.empty()) {
+        *re = New<TRe2>(protoRe);
+        if (!(*re)->ok()) {
+            THROW_ERROR_EXCEPTION("Error parsing RE2 regex")
+                << TErrorAttribute("error", (*re)->error());
+        }
+    } else {
+        re->Reset();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRe2

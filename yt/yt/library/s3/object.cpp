@@ -8,27 +8,32 @@ namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectDescriptor::TObjectDescriptor(TString bucket, TString key)
+TObjectDescriptor::TObjectDescriptor(TString bucket, TString key, bool allowEmptyKey)
     : Bucket_(std::move(bucket))
     , Key_(std::move(key))
 {
-    NormalizeOrThrow();
+    NormalizeOrThrow(allowEmptyKey);
 }
 
-TObjectDescriptor TObjectDescriptor::FromUri(const std::string& uri)
+TObjectDescriptor TObjectDescriptor::FromUri(const std::string& uri, bool allowEmptyKey)
 {
     Poco::URI parsedUri(uri);
 
     if (parsedUri.getScheme() != "s3") {
-        THROW_ERROR_EXCEPTION("Invalid S3 URI %Qv: unexpected scheme %Qv",
+        THROW_ERROR_EXCEPTION("Failed to parse S3 URI %Qv: unexpected scheme %Qv",
             uri,
             parsedUri.getScheme());
     }
 
-    return TObjectDescriptor(TString(parsedUri.getHost()), TString(parsedUri.getPath()));
+    try {
+        return TObjectDescriptor(TString(parsedUri.getHost()), TString(parsedUri.getPath()), allowEmptyKey);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to parse S3 URI %Qv", uri)
+            << ex;
+    }
 }
 
-void TObjectDescriptor::NormalizeOrThrow()
+void TObjectDescriptor::NormalizeOrThrow(bool allowEmptyKey)
 {
     Key_.erase(0, Key_.find_first_not_of('/'));
 
@@ -36,7 +41,7 @@ void TObjectDescriptor::NormalizeOrThrow()
         THROW_ERROR_EXCEPTION("S3 object bucket should not be empty");
     }
 
-    if (Key_.empty()) {
+    if (Key_.empty() && !allowEmptyKey) {
         THROW_ERROR_EXCEPTION("S3 object key should not be empty");
     }
 }

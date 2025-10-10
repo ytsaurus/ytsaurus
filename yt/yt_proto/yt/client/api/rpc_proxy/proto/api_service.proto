@@ -15,6 +15,7 @@ import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/client/table_client/proto/versioned_io_options.proto";
+import "yt_proto/yt/client/table_client/proto/external_source_spec.proto";
 import "yt_proto/yt/client/tablet_client/proto/lock_mask.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2743,7 +2744,7 @@ message TReqAttachTable
 {
     required bytes path = 1; // RichYPath
 
-    repeated string source_uris = 2;
+    required NYT.NTableClient.NProto.TExternalSourceSpec source_spec = 2;
 
     optional bool allow_incompatible_source_schemas = 3 [default = false];
 
@@ -2756,6 +2757,20 @@ message TReqAttachTable
 
 message TRspAttachTable
 {
+    message TAttachedChunkInfo
+    {
+        optional NYT.NProto.TGuid chunk_id = 1;
+        optional int64 row_count = 2;
+        optional int64 uncompressed_data_size = 3;
+        optional string source_uri = 4;
+        optional int32 source_format = 5; // NChunkClient::EExternalSourceFormat
+        optional int32 chunk_format = 6; // NChunkClient::EChunkFormat
+    }
+
+    optional int64 total_chunk_count = 1;
+    optional int64 total_row_count = 2;
+    optional int64 total_uncompressed_data_size = 3;
+    repeated TAttachedChunkInfo chunk_infos = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

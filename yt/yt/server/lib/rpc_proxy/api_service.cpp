@@ -5894,7 +5894,7 @@ private:
         PutMethodInfoInTraceContext("attach_table");
 
         auto path = FromProto<TRichYPath>(request->path());
-        auto sourceUris = FromProto<std::vector<std::string>>(request->source_uris());
+        auto sourceSpec = FromProto<TExternalSourceSpec>(request->source_spec());
 
         NApi::TAttachTableOptions options;
 
@@ -5913,9 +5913,9 @@ private:
         }
 
         context->SetRequestInfo(
-            "Path: %v, SourceUris: %v, AllowIncompatibleSourceSchemas: %v, Medium: %v, SourceFormat: %v",
+            "Path: %v, SourceSpec: %v, AllowIncompatibleSourceSchemas: %v, Medium: %v, SourceFormat: %v",
             path,
-            sourceUris,
+            sourceSpec,
             options.AllowIncompatibleSourceSchemas,
             options.Medium,
             options.SourceFormat);
@@ -5923,7 +5923,30 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->AttachTable(path, sourceUris, options);
+                return client->AttachTable(path, sourceSpec, options);
+            },
+            [=] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+
+                response->set_total_chunk_count(result.TotalChunkCount);
+                response->set_total_row_count(result.TotalRowCount);
+                response->set_total_uncompressed_data_size(result.TotalUncompressedDataSize);
+
+                for (const auto& attachedChunkInfo : result.ChunkInfos) {
+                    auto* protoAttachedChunkInfo = response->add_chunk_infos();
+                    ToProto(protoAttachedChunkInfo->mutable_chunk_id(), attachedChunkInfo.ChunkId);
+                    protoAttachedChunkInfo->set_row_count(attachedChunkInfo.RowCount);
+                    protoAttachedChunkInfo->set_uncompressed_data_size(attachedChunkInfo.UncompressedDataSize);
+                    protoAttachedChunkInfo->set_source_uri(TString(attachedChunkInfo.SourceUri));
+                    protoAttachedChunkInfo->set_source_format(ToProto<int>(attachedChunkInfo.SourceFormat));
+                    protoAttachedChunkInfo->set_chunk_format(ToProto<int>(attachedChunkInfo.ChunkFormat));
+                }
+
+                context->SetResponseInfo(
+                    "TotalChunkCount: %v, TotalRowCount: %v, TotalUncompressedDataSize: %v",
+                    result.TotalChunkCount,
+                    result.TotalRowCount,
+                    result.TotalUncompressedDataSize);
             }
         );
     }

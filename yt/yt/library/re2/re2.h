@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <contrib/libs/re2/re2/re2.h>
 
 namespace NYT::NRe2 {
@@ -31,6 +33,11 @@ DEFINE_REFCOUNTED_TYPE(TRe2)
 void Serialize(const TRe2Ptr& re, NYson::IYsonConsumer* consumer);
 void Deserialize(TRe2Ptr& re, NYTree::INodePtr node);
 void Deserialize(TRe2Ptr& re, NYson::TYsonPullParserCursor* cursor);
+
+void FormatValue(TStringBuilderBase* builder, const TRe2Ptr& object, TStringBuf spec);
+
+void ToProto(TProtoStringType* protoRe, const TRe2Ptr& re);
+void FromProto(TRe2Ptr* re, const TProtoStringType& protoRe);
 
 ////////////////////////////////////////////////////////////////////////////////
 

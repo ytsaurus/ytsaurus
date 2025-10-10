@@ -787,9 +787,9 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
         })).As<ITableWriterPtr>();
 }
 
-TFuture<void> TClientBase::AttachTable(
+TFuture<TAttachTableResult> TClientBase::AttachTable(
     const TRichYPath& path,
-    std::vector<std::string> sourceUris,
+    const TExternalSourceSpec& sourceSpec,
     const TAttachTableOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -798,9 +798,7 @@ TFuture<void> TClientBase::AttachTable(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_path(), path);
-    for (auto& sourceUri : sourceUris) {
-        req->add_source_uris(TString(sourceUri));
-    }
+    ToProto(req->mutable_source_spec(), sourceSpec);
 
     req->set_allow_incompatible_source_schemas(options.AllowIncompatibleSourceSchemas);
     if (options.Medium) {
@@ -812,7 +810,27 @@ TFuture<void> TClientBase::AttachTable(
 
     ToProto(req->mutable_transactional_options(), options);
 
-    return req->Invoke().AsVoid();
+    return req->Invoke()
+        .Apply(BIND([] (const TApiServiceProxy::TRspAttachTablePtr& rsp) {
+            TAttachTableResult attachTableResult;
+
+            attachTableResult.TotalChunkCount = rsp->total_chunk_count();
+            attachTableResult.TotalRowCount = rsp->total_row_count();
+            attachTableResult.TotalUncompressedDataSize = rsp->total_uncompressed_data_size();
+
+            for (const auto& protoAttachedChunkInfo : rsp->chunk_infos()) {
+                attachTableResult.ChunkInfos.push_back({
+                    .ChunkId = FromProto<NChunkClient::TChunkId>(protoAttachedChunkInfo.chunk_id()),
+                    .RowCount = protoAttachedChunkInfo.row_count(),
+                    .UncompressedDataSize = protoAttachedChunkInfo.uncompressed_data_size(),
+                    .SourceUri = protoAttachedChunkInfo.source_uri(),
+                    .SourceFormat = CheckedEnumCast<NChunkClient::EExternalSourceFormat>(protoAttachedChunkInfo.source_format()),
+                    .ChunkFormat = CheckedEnumCast<NChunkClient::EChunkFormat>(protoAttachedChunkInfo.chunk_format()),
+                });
+            }
+
+            return attachTableResult;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

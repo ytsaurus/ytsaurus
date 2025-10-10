@@ -90,9 +90,9 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
     }));
 }
 
-void TClient::DoAttachTable(
+TAttachTableResult TClient::DoAttachTable(
     const NYPath::TRichYPath& path,
-    std::vector<std::string> sourceUris,
+    const TExternalSourceSpec& sourceSpec,
     const TAttachTableOptions& options)
 {
     NApi::ITransactionPtr transaction;
@@ -103,14 +103,13 @@ void TClient::DoAttachTable(
         transaction = AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    WaitFor(NTableClient::AttachTable(
+    return WaitFor(NTableClient::AttachTable(
         path,
+        sourceSpec,
         options,
         this,
-        transaction,
-        std::move(sourceUris)
-    ))
-        .ThrowOnError();
+        transaction))
+        .ValueOrThrow();
 }
 
 std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(

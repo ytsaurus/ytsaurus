@@ -17,11 +17,11 @@ class TObjectDescriptor
 public:
     //! Constructs descriptor from bucket and key, normalizing the key.
     //! Can throw if bucket or key is empty.
-    TObjectDescriptor(TString bucket, TString key);
+    TObjectDescriptor(TString bucket, TString key, bool allowEmptyKey = false);
     
     //! Parses descriptor from URI, e.g. "s3://my-bucket/path/to/object".
     //! Can throw if URI schema is incorrect or bucket or key is empty.
-    static TObjectDescriptor FromUri(const std::string& uri);
+    static TObjectDescriptor FromUri(const std::string& uri, bool allowEmptyKey = false);
 
 public:
     // TODO(achulkov2): Switch to std::string.
@@ -30,7 +30,7 @@ public:
 
 private:
     // Remove leading '/' from Key_ if any and throw if bucket or key is empty.
-    void NormalizeOrThrow();
+    void NormalizeOrThrow(bool allowEmptyKey = false);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

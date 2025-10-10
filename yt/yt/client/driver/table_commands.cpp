@@ -13,6 +13,7 @@
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/blob_reader.h>
 #include <yt/yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/external_source_spec.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/table_consumer.h>
 #include <yt/yt/client/table_client/table_output.h>
@@ -322,7 +323,10 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 void TAttachTableCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path);
-    registrar.Parameter("source_uris", &TThis::SourceUris);
+    registrar.Parameter("source_uris", &TThis::SourceUris)
+        .Default();
+    registrar.Parameter("source_spec", &TThis::SourceSpec)
+        .Default();
 
     registrar.ParameterWithUniversalAccessor<bool>(
         "allow_incompatible_source_schemas",
@@ -342,9 +346,27 @@ void TAttachTableCommand::Register(TRegistrar registrar)
             return command->Options.SourceFormat;
         })
         .Optional(/*init*/ false);
+
+    registrar.Postprocessor([] (TThis* command) {
+        // COMPAT(achulkov2)
+        if (command->SourceUris.empty() == (command->SourceSpec.GetCurrentType() == EExternalSourceSpecType::Base)) {
+            THROW_ERROR_EXCEPTION("Exactly one of \"source_uris\" and \"source_spec\" parameters must be specified");
+        }
+
+        // COMPAT(achulkov2)
+        if (!command->SourceUris.empty()) {
+            auto sourceSpec = New<TFilesExternalSourceSpec>();
+            sourceSpec->Uris = std::move(command->SourceUris);
+            command->SourceSpec = TExternalSourceSpec(EExternalSourceSpecType::Files, std::move(sourceSpec));
+        }
+
+        if (command->SourceSpec.GetCurrentType() == EExternalSourceSpecType::Base) {
+            THROW_ERROR_EXCEPTION("The \"source_spec\" parameter must be of either \"files\" or \"prefix\" type");
+        }
+    });
 }
 
-void TAttachTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
+void TAttachTableCommand::DoExecute(ICommandContextPtr context)
 {
     auto transaction = AttachTransaction(context, false);
 
@@ -353,14 +375,29 @@ void TAttachTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
 
     PutMethodInfoInTraceContext("attach_table");
 
-    WaitFor(context->GetClient()->AttachTable(Path, SourceUris, Options))
-        .ThrowOnError();
-}
+    auto attachTableResult = WaitFor(context->GetClient()->AttachTable(Path, SourceSpec, Options))
+        .ValueOrThrow();
 
-void TAttachTableCommand::DoExecute(ICommandContextPtr context)
-{
-    DoExecuteImpl(context);
-    ProduceEmptyOutput(context);
+    ProduceOutput(context, [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("total_chunk_count").Value(attachTableResult.TotalChunkCount)
+                .Item("total_row_count").Value(attachTableResult.TotalRowCount)
+                .Item("total_uncompressed_data_size").Value(attachTableResult.TotalUncompressedDataSize)
+                .Item("chunk_infos").DoListFor(attachTableResult.ChunkInfos, [] (TFluentList fluent, const TAttachedChunkInfo& chunkInfo) {
+                    fluent
+                        .Item()
+                        .BeginMap()
+                            .Item("chunk_id").Value(chunkInfo.ChunkId)
+                            .Item("row_count").Value(chunkInfo.RowCount)
+                            .Item("uncompressed_data_size").Value(chunkInfo.UncompressedDataSize)
+                            .Item("source_uri").Value(chunkInfo.SourceUri)
+                            .Item("source_format").Value(FormatEnum(chunkInfo.SourceFormat))
+                            .Item("chunk_format").Value(FormatEnum(chunkInfo.ChunkFormat))
+                        .EndMap();
+                })
+            .EndMap();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,8 @@ from yt_commands import (
     sort, partition_tables, map_reduce, reduce, ls,
     start_transaction, commit_transaction, abort_transaction)
 
+from yt_commands import PrefixExternalSourceSpec, FilesExternalSourceSpec
+
 from yt.test_helpers import assert_items_equal
 from yt_type_helpers import optional_type, make_schema, make_column, struct_type, list_type, normalize_schema_v3
 
@@ -233,8 +235,8 @@ class TestS3MediumBase(YTEnvSetup):
             cls.assert_chunk_exists_in_s3(chunk_id, s3_medium_index, negate)
 
     @classmethod
-    def setup_class(cls):
-        super(TestS3MediumBase, cls).setup_class()
+    def setup_class(cls, *args, **kwargs):
+        super(TestS3MediumBase, cls).setup_class(*args, **kwargs)
 
         cls.setup_s3_client()
 
@@ -1044,16 +1046,22 @@ class TestS3MediumOffshoreNodeProxy(TestS3MediumBase):
 
 ################################################################################
 
-# TODO(achulkov2): This suite is getting huge, consider splitting it.
-class TestAttachTable(TestS3MediumBase):
-    # Add configuration here.
 
+class TestAttachTableBase(TestS3MediumBase):
     @staticmethod
     def dump_arrow_table_as_bytes(table: pa.Table, **kwargs) -> BytesIO:
         buffer = BytesIO()
         pq.write_table(table, buffer, **kwargs)
         buffer.seek(0)
         return buffer
+
+
+################################################################################
+
+
+# TODO(achulkov2): This suite is getting huge, consider splitting it.
+class TestAttachTable(TestAttachTableBase):
+    # Add configuration here.
 
     @authors("pavel-bash")
     def test_attach_empty_sources(self):
@@ -2081,3 +2089,239 @@ class TestAttachTableRpcProxy(TestAttachTable):
 
 class TestAttachTableNoOffshoreNodeProxies(TestAttachTable):
     NUM_OFFSHORE_NODE_PROXIES = 0
+
+
+################################################################################
+
+class TestAttachTableApiSpecification(TestAttachTableBase):
+    # Add configuration here.
+
+    LETTER_TO_URI = {}
+
+    @classmethod
+    def put_object(cls, bucket, key, body, letter):
+        cls.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=body)
+        cls.LETTER_TO_URI[letter] = f"s3://{bucket}/{key}"
+
+    @classmethod
+    def init_source_files(cls):
+        bucket = cls.get_s3_medium_bucket()
+
+        cls.put_object(bucket, "first_level_dir_0/f1.jsonl", b'{"col":"a"}\n', "a")
+        cls.put_object(bucket, "first_level_dir_0/f2.jsonl", b'{"col":"b"}\n', "b")
+        cls.put_object(bucket, "first_level_dir_0/f3.csv", b"col\nc\n", "c")
+        cls.put_object(bucket, "first_level_dir_1/f4.csv", b"col\nd\n", "d")
+        cls.put_object(bucket, "first_level_dir_1/second_level_dir/f5.csv", b"col\ne\n", "e")
+        cls.put_object(bucket, "first_level_dir_1/second_level_dir/f6.jsonl", b'{"col":"f"}\n', "f")
+        cls.put_object(bucket, "f8.parquet", cls.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": "g"}]))
+        ), "g")
+        cls.put_object(bucket, "first_level_dir_1/second_level_dir/third_level_dir/f9.parquet", cls.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": "h"}]))
+        ), "h")
+
+        bucket1 = cls.EXTRA_BUCKETS[0]
+
+        cls.put_object(bucket1, "f10.jsonl", b'{"col":"i"}\n\n', "i")
+        cls.put_object(bucket1, "first_level_dir_0/f11.csv", b"col\nj\n", "j")
+        cls.put_object(bucket1, "first_level_dir_2/second_level_dir/f12.parquet", cls.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": "k"}]))
+        ), "k")
+        cls.put_object(bucket1, "f13.csv", b"col\nl\n", "l")
+
+        bucket2 = cls.EXTRA_BUCKETS[1]
+        cls.put_object(bucket2, "f14.jsonl", b'{"col":"m"}\n\n', "m")
+        cls.put_object(bucket2, "first_level_dir_3/f15.csv", b"col\nn\n", "n")
+        cls.put_object(bucket2, "f16.parquet", cls.dump_arrow_table_as_bytes(
+            pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": "o"}]))
+        ), "o")
+        cls.put_object(bucket2, "f17.csv", b"col\np\n", "p")
+        cls.put_object(bucket2, "first_level_dir_4/f18.jsonl", b'{"col":"q"}\n\n', "q")
+        cls.put_object(bucket2, "first_level_dir_4/f19.brakozyabra", b'{"col":"r"}\n\n', "r")
+
+    @classmethod
+    def setup_class(cls):
+        super(TestAttachTableApiSpecification, cls).setup_class()
+        cls.init_source_files()
+
+    @classmethod
+    def check_source_spec(cls, source_spec, expected_row_letters, **kwargs):
+        table_name = f"//tmp/imported_{uuid.uuid4().hex}"
+        attached_chunk_infos = attach_table(table_name, source_spec=source_spec, medium=cls.get_s3_medium_name(), **kwargs)
+
+        assert_items_equal(read_table(table_name), [{"col": x} for x in expected_row_letters])
+
+        assert attached_chunk_infos["total_chunk_count"] == len(expected_row_letters)
+        assert attached_chunk_infos["total_row_count"] == len(expected_row_letters)
+        assert attached_chunk_infos["total_uncompressed_data_size"] > 0
+
+        assert len(attached_chunk_infos["chunk_infos"]) == len(expected_row_letters)
+
+        attached_source_uris = {chunk_info["source_uri"] for chunk_info in attached_chunk_infos["chunk_infos"]}
+        expected_source_uris = {cls.LETTER_TO_URI[x] for x in expected_row_letters}
+        assert attached_source_uris == expected_source_uris
+
+        assert_items_equal([chunk_info["chunk_id"] for chunk_info in attached_chunk_infos["chunk_infos"]], get(f"{table_name}/@chunk_ids"))
+
+        for chunk_info in attached_chunk_infos["chunk_infos"]:
+            assert chunk_info["row_count"] == 1
+            assert chunk_info["uncompressed_data_size"] > 0
+
+    @authors("achulkov2")
+    def test_prefix_source_spec(self):
+        bucket = self.get_s3_medium_bucket()
+        bucket_1 = self.EXTRA_BUCKETS[0]
+        bucket_2 = self.EXTRA_BUCKETS[1]
+
+        # Default mode is recursive.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}"), "abcdefgh")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_1}"), "ijkl")
+
+        # Additional slashes in the beginning of the key are ignored by us.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}/"), "abcdefgh")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_1}//"), "ijkl")
+
+        # Non-recursive mode. We add trailing slashes ourselves, if needed.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", recursive=False), "g")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_1}/", recursive=False), "il")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_0/", recursive=False), "abc")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_1", recursive=False), "d")
+
+        # Multiple trailing slashes are trimmed.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_0///", recursive=False), "abc")
+
+        # Include regexes.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r".*\.jsonl$"]), "abf")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r".*\.csv$"]), "cde")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r".*\.parquet$"]), "gh")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r".*\.jsonl$", r".*\.csv$"]), "abcdef")
+
+        # Include/exclude regexes work on full relative path from the prefix.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r"first_level_dir_0.*"]), "abc")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", exclude_regexes=[r"first_level_dir_0.*"]), "defgh")
+        # Even with trailing slashes in the beginning and end of the key!
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}////first_level_dir_1////", include_regexes=[r"second_level_dir/.*"]), "efh")
+        # So don't add extra slashes in the filter patterns.
+        with pytest.raises(YtError, match="At least one source must be specified"):
+            self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_1////", include_regexes=[r"/second_level_dir/.*"]), "efh")
+
+        # Non-directory mode, i.e. searching by partial prefix, also works.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}/first_level"), "abcdefh")
+
+        # In the second bucket there are some files that cannot be auto-parsed.
+        with pytest.raises(YtError, match="Cannot deduce external source format"):
+            self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}"), "mnopqr")
+
+        # Good example to test exclude regexes!
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}", exclude_regexes=[r".*\.brakozyabra$"]), "mnopq")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}", exclude_regexes=[r".*\.brakozyabra$", r".*\.jsonl$"]), "nop")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}", exclude_regexes=[r".*\.brakozyabra$", r".*\.jsonl$", r".*\.csv$"]), "o")
+
+        # Or you can override format on your own. Last param is passed to attach_table.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}", include_regexes=[r".*\.brakozyabra$", r".*\.jsonl$"]), "mqr", source_format="jsonl")
+
+        # Excluding all files throws an error.
+        with pytest.raises(YtError):
+            self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}", exclude_regexes=[r".*\.brakozyabra$", r".*\.jsonl$", r".*\.csv$", r".*\.parquet$"]), "")
+
+        # Excludes override includes.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket_2}", include_regexes=[r".*\.brakozyabra$", r".*\.jsonl$"], exclude_regexes=[r".*\.brakozyabra$"]), "mq")
+
+    @authors("achulkov2")
+    def test_prefix_source_spec_regex_cases(self):
+        bucket = self.get_s3_medium_bucket()
+
+        # Keep in mind, you are matching the relative path from the prefix, not the full S3 key.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[rf"first_level_dir_0/f1\.jsonl"]), "a")
+
+        # Invalid regex.
+        with pytest.raises(YtError, match="Error parsing RE2 regex"):
+            self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r"*\.jsonl$"]), "abf")
+
+        # Regex that matches nothing.
+        with pytest.raises(YtError, match="At least one source must be specified"):
+            self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r"nomatch.*jsonl$"]), "a")
+
+        # Full match is performed, so end anchor is not required.
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r".*jsonl"]), "abf")
+
+        # This, however, matches nothing!
+        with pytest.raises(YtError, match="At least one source must be specified"):
+            self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r".*json"]), "abf")
+
+    @authors("achulkov2")
+    def test_files_source_spec(self):
+        bucket = self.get_s3_medium_bucket()
+        bucket_1 = self.EXTRA_BUCKETS[0]
+        bucket_2 = self.EXTRA_BUCKETS[1]
+
+        self.check_source_spec(FilesExternalSourceSpec([
+            f"s3://{bucket}/first_level_dir_0/f1.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f2.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f3.csv",
+            f"s3://{bucket}/first_level_dir_1/f4.csv",
+            f"s3://{bucket}/first_level_dir_1/second_level_dir/f5.csv",
+            f"s3://{bucket}/first_level_dir_1/second_level_dir/f6.jsonl",
+            f"s3://{bucket}/f8.parquet",
+            f"s3://{bucket}/first_level_dir_1/second_level_dir/third_level_dir/f9.parquet",
+        ]), "abcdefgh")
+
+        self.check_source_spec(FilesExternalSourceSpec([
+            f"s3://{bucket_1}/f10.jsonl",
+            f"s3://{bucket_1}/first_level_dir_0/f11.csv",
+            f"s3://{bucket_1}/first_level_dir_2/second_level_dir/f12.parquet",
+            f"s3://{bucket_1}/f13.csv",
+            f"s3://{bucket_2}/f14.jsonl",
+            f"s3://{bucket_2}/first_level_dir_3/f15.csv",
+            f"s3://{bucket_2}/f16.parquet",
+            f"s3://{bucket_2}/f17.csv",
+            f"s3://{bucket_2}/first_level_dir_4/f18.jsonl",
+        ]), "ijklmnopq")
+
+        # Non-existing file.
+        with pytest.raises(YtError, match="404 Not Found"):
+            self.check_source_spec(FilesExternalSourceSpec([
+                f"s3://{bucket}/first_level_dir_0/f1.jsonl",
+                f"s3://{bucket}/non_existing_file.jsonl",
+            ]), "a")
+
+    @authors("achulkov2")
+    def test_attached_chunk_infos(self):
+        bucket = self.get_s3_medium_bucket()
+
+        result = attach_table("//tmp/attached", source_spec=PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_0/", recursive=False), medium=self.get_s3_medium_name())
+
+        assert_items_equal(read_table("//tmp/attached"), [{"col": x} for x in "abc"])
+
+        print_debug(type(result), result)
+
+        assert result["total_chunk_count"] == 3
+        assert result["total_row_count"] == 3
+        assert result["total_uncompressed_data_size"] > 0
+        assert len(result["chunk_infos"]) == 3
+
+        chunk_ids = get("//tmp/attached/@chunk_ids")
+        assert_items_equal([info["chunk_id"] for info in result["chunk_infos"]], chunk_ids)
+        assert_items_equal([info["source_uri"] for info in result["chunk_infos"]], [
+            f"s3://{bucket}/first_level_dir_0/f1.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f2.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f3.csv",
+        ])
+
+        for attached_chunk_info in result["chunk_infos"]:
+            assert attached_chunk_info["row_count"] == 1
+            assert attached_chunk_info["uncompressed_data_size"] > 0
+            assert attached_chunk_info["source_format"] in ("jsonl", "csv")
+            assert attached_chunk_info["chunk_format"] in ("table_unversioned_arrow_csv", "table_unversioned_arrow_json_lines")
+            assert attached_chunk_info["source_uri"].endswith(attached_chunk_info["source_format"])
+
+
+################################################################################
+
+
+class TestAttachTableApiSpecificationRpcProxy(TestAttachTableApiSpecification):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+################################################################################

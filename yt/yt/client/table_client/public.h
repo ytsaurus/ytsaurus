@@ -48,6 +48,10 @@ class TVersionedRowDigestExt;
 class TCompressionDictionaryExt;
 class TVersionedReadOptions;
 class TVersionedWriteOptions;
+class TExternalSourceSpecBase;
+class TFilesExternalSourceSpec;
+class TPrefixExternalSourceSpec;
+class TExternalSourceSpec;
 
 } // namespace NProto
 
@@ -445,6 +449,9 @@ using TUUComparerSignature = int(const TUnversionedValue*, const TUnversionedVal
 
 struct TVersionedReadOptions;
 struct TVersionedWriteOptions;
+
+DECLARE_REFCOUNTED_STRUCT(TFilesExternalSourceSpec)
+DECLARE_REFCOUNTED_STRUCT(TPrefixExternalSourceSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 

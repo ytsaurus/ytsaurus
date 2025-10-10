@@ -80,6 +80,7 @@ struct TListObjectsRequest
 {
     TString Prefix;
     TString Bucket;
+    TString Delimiter;
     std::optional<TString> ContinuationToken;
     void Serialize(THttpRequest* request) const;
 };
@@ -88,6 +89,7 @@ struct TListObjectsResponse
 {
     std::optional<TString> NextContinuationToken;
     std::vector<TObject> Objects;
+    std::vector<TString> CommonPrefixes;
     void Deserialize(const NHttp::IResponsePtr& response);
 };
 
