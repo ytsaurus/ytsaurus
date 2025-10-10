@@ -2661,7 +2661,7 @@ private:
             };
 
             {
-                TWithTagGuard tagGuard(&buffer, "flavor", ClusterNodeFalvor);
+                TWithTagGuard tagGuard(&buffer, "flavor", ClusterNodeFlavor);
                 profileStatistics(GetAggregatedNodeStatistics());
             }
 
