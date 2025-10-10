@@ -1695,7 +1695,47 @@ class TestInferReadRange(ClickHouseTestBase):
                 3,
                 expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
             )
+            # Values are not sorted.
+            check(
+                "ts IN (toDateTime('2025-05-05T12:25:00'), toDateTime('2025-02-02T12:22:00'), toDateTime('2025-08-08T12:28:00'))",
+                3,
+                expected=[{"ts": "2025-02-02 12:22:00.000000"}, {"ts": "2025-05-05 12:25:00.000000"}, {"ts": "2025-08-08 12:28:00.000000"}]
+            )
             check("ts < toDateTime('2025-02-02T00:00:00') OR ts > toDateTime('2025-09-09T00:00:00')", 2)
+
+    @authors("buyval01")
+    def test_clickhouse_bool(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [
+                {"name": "key", "type": "uint8", "sort_order": "ascending"},
+            ]}
+        )
+        write_table("<append=%true>//tmp/t", [
+            {},
+            {"key": 0},
+            {"key": 1},
+        ])
+
+        with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
+            query = 'select * from "//tmp/t" where key'
+            # CHYT converts [where key] -> [where key != 0] for proper processing by QL range inferrer.
+            # This results in reading row with None.
+            res = clique.make_query_and_validate_prewhered_row_count(query, exact=2)
+            assert_items_equal(res, [{"key": 1},])
+
+            query = 'select * from "//tmp/t" where not key'
+            res = clique.make_query_and_validate_prewhered_row_count(query, exact=1)
+            assert_items_equal(res, [{"key": 0},])
+
+            query = 'select * from "//tmp/t" where not key and 1'
+            res = clique.make_query_and_validate_prewhered_row_count(query, exact=1)
+            assert_items_equal(res, [{"key": 0},])
+
+            query = 'select * from "//tmp/t" where not key and not 0'
+            res = clique.make_query_and_validate_prewhered_row_count(query, exact=1)
+            assert_items_equal(res, [{"key": 0},])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

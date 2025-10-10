@@ -13,7 +13,7 @@
 
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
-#include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/iterator/zip.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 #include <library/cpp/yt/memory/shared_range.h>
@@ -25,6 +25,7 @@
 #include <Analyzer/FunctionNode.h>
 
 #include <DataTypes/DataTypeTuple.h>
+#include <DataTypes/DataTypeFactory.h>
 
 #include <Interpreters/convertFieldToType.h>
 
@@ -62,15 +63,23 @@ NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(DB::DataTypeP
     auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
     auto tupleElementTypes = tupleType->getElements();
 
-    const auto& values = constantNode->getValue().safeGet<const DB::Tuple&>();
-
-    auto column = targetDataType->createColumn();
-    for (const auto& [valueIndex, value] : Enumerate(values)) {
-        auto convertedValue = DB::convertFieldToTypeStrict(value, *tupleElementTypes[valueIndex], *targetDataType);
+    const auto& tupleValues = constantNode->getValue().safeGet<const DB::Tuple&>();
+    std::vector<DB::Field> convertedValues;
+    convertedValues.reserve(tupleValues.size());
+    for (const auto& [value, data] : Zip(tupleValues, tupleElementTypes)) {
+        auto convertedValue = DB::convertFieldToTypeStrict(value, *data, *targetDataType);
         if (!convertedValue.has_value()) {
             return {};
         }
-        column->insert(std::move(*convertedValue));
+        convertedValues.emplace_back(std::move(*convertedValue));
+    }
+
+    // NB: QL range inferrer expects that values to be sorted.
+    std::sort(convertedValues.begin(), convertedValues.end());
+
+    auto column = targetDataType->createColumn();
+    for (auto& value : convertedValues) {
+        column->insert(std::move(value));
     }
 
     return NYT::NClickHouseServer::ToRowRange(
@@ -82,6 +91,23 @@ NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(DB::DataTypeP
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DB::QueryTreeNodePtr AdjustToYTBooleanExpression(DB::QueryTreeNodePtr node)
+{
+    if (node->getNodeType() != DB::QueryTreeNodeType::COLUMN) {
+        return node;
+    }
+
+    auto funcNode = std::make_shared<DB::FunctionNode>("notEquals");
+    auto& argumets = funcNode->getArguments().getNodes();
+    argumets.push_back(node);
+    argumets.push_back(std::make_shared<DB::ConstantNode>(DB::Field(0)));
+
+    return funcNode;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace
 
@@ -102,7 +128,8 @@ TConstExpressionPtr ConnverterImpl(
     const TCompositeSettingsPtr& settings,
     const TTableSchemaPtr& schema,
     DB::QueryTreeNodePtr node,
-    std::string& lastSeenColumn)
+    DB::DataTypePtr& desiredDataType,
+    std::optional<EValueType>& desiredValueType)
 {
     TConstExpressionPtr result;
 
@@ -110,11 +137,12 @@ TConstExpressionPtr ConnverterImpl(
     {
         case DB::QueryTreeNodeType::COLUMN: {
             auto columnNode = node->as<DB::ColumnNode&>();
-            if (schema->FindColumn(columnNode.getColumnName())) {
-                lastSeenColumn = columnNode.getColumnName();
+            if (auto columnSchema = schema->FindColumn(columnNode.getColumnName())) {
                 result =  New<NYT::NQueryClient::TReferenceExpression>(
                     SimpleLogicalType(ESimpleLogicalValueType::Null),
                     columnNode.getColumnName());
+                desiredDataType = ToDataType(*columnSchema, settings);
+                desiredValueType = columnSchema->GetWireType();
             }
             break;
         }
@@ -122,17 +150,28 @@ TConstExpressionPtr ConnverterImpl(
         case DB::QueryTreeNodeType::CONSTANT: {
             auto constantNode = node->as<DB::ConstantNode&>();
 
-            auto columnSchema = schema->GetColumn(lastSeenColumn);
-            auto columnDataType = ToDataType(columnSchema, settings);
+            auto constantDataType = constantNode.getResultType();
+            auto constantValueType = NTableClient::GetWireType(ToLogicalType(constantDataType, settings));
+
+            auto field = constantNode.getValue();
+            if (desiredDataType) {
+                field = DB::convertFieldToType(field, *desiredDataType);
+            }
 
             TUnversionedValue value;
             ToUnversionedValue(
-                DB::convertFieldToType(constantNode.getValue(), *columnDataType),
-                columnDataType,
+                field,
+                (desiredDataType != nullptr) ? desiredDataType : constantDataType,
                 settings,
                 &value);
 
-            result = New<NYT::NQueryClient::TLiteralExpression>(columnSchema.GetWireType(), value);
+            result = New<NYT::NQueryClient::TLiteralExpression>(
+                (desiredValueType.has_value() ? *desiredValueType : constantValueType),
+                value);
+
+            desiredDataType = constantDataType;
+            desiredValueType = constantValueType;
+
             break;
         }
 
@@ -141,15 +180,16 @@ TConstExpressionPtr ConnverterImpl(
             auto name = funcNode->getFunctionName();
             auto arguments = funcNode->getArguments().getNodes();
 
-            if (arguments.size() == 1 && name == "not") {
-                if (auto arg = ConnverterImpl(settings, schema, arguments[0], lastSeenColumn)) {
+            if (name == "not") {
+                auto argument = AdjustToYTBooleanExpression(arguments[0]);
+                if (auto arg = ConnverterImpl(settings, schema, argument, desiredDataType, desiredValueType)) {
                     result = New<NYT::NQueryClient::TUnaryOpExpression>(
                         EValueType::Boolean,
                         NQueryClient::EUnaryOp::Not,
                         std::move(arg));
                 }
-            } else if (arguments.size() == 1 && (name == "isNull" || name == "isNotNull")) {
-                if (auto arg = ConnverterImpl(settings, schema, arguments[0], lastSeenColumn)) {
+            } else if (name == "isNull" || name == "isNotNull") {
+                if (auto arg = ConnverterImpl(settings, schema, arguments[0], desiredDataType, desiredValueType)) {
                     result = New<TFunctionExpression>(
                         EValueType::Boolean,
                         "is_null",
@@ -161,7 +201,7 @@ TConstExpressionPtr ConnverterImpl(
                             std::move(result));
                     }
                 }
-            } else if (arguments.size() == 2 && binaryOpNameToOpCode.contains(name)) {
+            } else if (binaryOpNameToOpCode.contains(name)) {
                 auto lhsNode = arguments[0];
                 auto rhsNode = arguments[1];
 
@@ -169,13 +209,25 @@ TConstExpressionPtr ConnverterImpl(
                     lhsNode.swap(rhsNode);
                 }
 
-                auto lhsExpr = ConnverterImpl(settings, schema, lhsNode, lastSeenColumn);
+                DB::DataTypePtr lhsDataType;
+                std::optional<EValueType> lhsValueType;
+
+                // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
+                // To use QL inferrer, we need to adapt such cases to valid logical expressions.
+                if (name == "and" || name == "or") {
+                    lhsNode = AdjustToYTBooleanExpression(lhsNode);
+                    rhsNode = AdjustToYTBooleanExpression(rhsNode);
+
+                    lhsDataType = desiredDataType;
+                    lhsValueType = desiredValueType;
+                }
+
+                auto lhsExpr = ConnverterImpl(settings, schema, lhsNode, lhsDataType, lhsValueType);
                 if (!lhsExpr) {
                     break;
                 }
 
-                auto rhsExpr = ConnverterImpl(settings, schema, rhsNode, lastSeenColumn);
-
+                auto rhsExpr = ConnverterImpl(settings, schema, rhsNode, lhsDataType, lhsValueType);
                 if (lhsExpr && rhsExpr) {
                     result = New<NYT::NQueryClient::TBinaryOpExpression>(
                         EValueType::Boolean,
@@ -184,14 +236,14 @@ TConstExpressionPtr ConnverterImpl(
                         std::move(rhsExpr));
                 }
             } else if (arguments.size() == 2 && name == "in") {
-                auto argExpr = ConnverterImpl(settings, schema, arguments[0], lastSeenColumn);
+                DB::DataTypePtr argumentsDataType;
+                std::optional<EValueType> argumentsValueType;
+                auto argExpr = ConnverterImpl(settings, schema, arguments[0], argumentsDataType, argumentsValueType);
                 if (!argExpr) {
                     break;
                 }
 
-                auto columnSchema = schema->GetColumn(lastSeenColumn);
-                auto dataType = ToDataType(columnSchema, settings);
-                auto values = ConvertPreparedSetToSharedRange(dataType, arguments[1]);
+                auto values = ConvertPreparedSetToSharedRange(argumentsDataType, arguments[1]);
 
                 if (argExpr && !values.Empty()) {
                     result = New<NYT::NQueryClient::TInExpression>(
@@ -212,12 +264,17 @@ TConstExpressionPtr ConnverterImpl(
 
 TConstExpressionPtr ConvertToConstExpression(const TTableSchemaPtr& schema, DB::QueryTreeNodePtr node)
 {
-    std::string lastSeenColumn;
+    DB::DataTypePtr desiredDataType = DB::DataTypeFactory::instance().get("bool");
+    std::optional<EValueType> desiredValueType = EValueType::Boolean;
+
+    node = AdjustToYTBooleanExpression(node);
+
     return ConnverterImpl(
         TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true),
         schema,
         node,
-        lastSeenColumn);
+        desiredDataType,
+        desiredValueType);
 }
 
 std::vector<NChunkClient::TReadRange> InferReadRange(
