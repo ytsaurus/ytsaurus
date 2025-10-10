@@ -88,7 +88,7 @@ int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
     THydraServiceProxy proxy(channel);
     auto req = proxy.ForceBuildSnapshot();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
     req->set_set_read_only(options.SetReadOnly);
     req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
 
@@ -115,7 +115,7 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
         THydraServiceProxy proxy(std::move(channel));
         auto req = proxy.ForceBuildSnapshot();
         // TODO(nadya02): Set the correct timeout here.
-        req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+        req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
         req->set_set_read_only(options.SetReadOnly);
         req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
         return req;
@@ -193,7 +193,7 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         THiveServiceProxy proxy(std::move(channel));
         auto req = proxy.GetConsistentState();
         // TODO(nadya02): Set the correct timeout here.
-        req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+        req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
         if (logicalTime) {
             req->set_logical_time(*logicalTime);
         }
@@ -294,7 +294,7 @@ void TClient::DoExitReadOnly(
 
     auto req = proxy.ExitReadOnly();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -318,7 +318,7 @@ void TClient::DoMasterExitReadOnly(
         THydraServiceProxy proxy(std::move(channel));
         auto req = proxy.ExitReadOnly();
         // TODO(nadya02): Set the correct timeout here.
-        req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+        req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
         return req;
     };
 
@@ -378,7 +378,7 @@ void TClient::DoDiscombobulateNonvotingPeers(
     THydraServiceProxy proxy(channel);
     auto req = proxy.DiscombobulateNonvotingPeers();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -439,7 +439,7 @@ void TClient::DoResetStateHash(
     auto req = proxy.ResetStateHash();
     req->set_new_state_hash(newStateHash);
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -454,7 +454,7 @@ void TClient::DoGCCollect(const TGCCollectOptions& options)
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
     auto req = proxy.GCCollect();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -469,7 +469,7 @@ void TClient::DoKillProcess(const std::string& address, const TKillProcessOption
     TAdminServiceProxy proxy(channel);
     auto req = proxy.Die();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
     req->set_exit_code(options.ExitCode);
 
     // NB: This will always throw an error since the service can
@@ -488,7 +488,7 @@ TString TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDum
     TAdminServiceProxy proxy(channel);
     auto req = proxy.WriteCoreDump();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
+    req->SetTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return rsp->path();
@@ -503,7 +503,7 @@ TGuid TClient::DoWriteLogBarrier(const std::string& address, const TWriteLogBarr
     TAdminServiceProxy proxy(channel);
     auto req = proxy.WriteLogBarrier();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
     req->set_category(options.Category);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -548,7 +548,7 @@ void TClient::DoHealExecNode(
     TExecNodeAdminServiceProxy proxy(channel);
     auto req = proxy.HealNode();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     for (const auto& location : options.Locations) {
         req->add_locations(location);
@@ -823,7 +823,7 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     request->set_supports_per_target_response(true);
     batchRequest->AddRequest(request);
     // TODO(nadya02): Set the correct timeout here.
-    batchRequest->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    batchRequest->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     auto batchResponse = WaitFor(batchRequest->Invoke())
         .ValueOrThrow();
@@ -885,7 +885,7 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
 
     batchRequest->AddRequest(request);
     // TODO(nadya02): Set the correct timeout here.
-    batchRequest->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+    batchRequest->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
     auto batchResponse = WaitFor(batchRequest->Invoke())
         .ValueOrThrow();
@@ -1013,7 +1013,7 @@ TCollectCoverageResult TClient::DoCollectCoverage(
     NCoverage::TCoverageProxy proxy(channel);
     auto req = proxy.Collect();
     // TODO(nadya02): Set the correct timeout here.
-    req->SetTimeout(NRpc::DefaultRpcRequestTimeout);
+    req->SetTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {rsp->coverage_map()};

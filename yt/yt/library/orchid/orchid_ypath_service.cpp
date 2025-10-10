@@ -48,7 +48,7 @@ public:
         TOrchidServiceProxy proxy(Options_.Channel);
 
         // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(Options_.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
+        proxy.SetDefaultTimeout(Options_.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
 
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
         const auto& method = context->GetMethod();

@@ -96,7 +96,7 @@ private:
         auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(chaosLeaseId));
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
         // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+        proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
 
         auto req = proxy.RemoveChaosLease();
         req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
