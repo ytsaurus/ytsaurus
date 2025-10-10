@@ -23,6 +23,7 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NQueryClient;
+using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NServer;
@@ -125,6 +126,17 @@ private:
         return cellTag == NObjectClient::NotReplicatedCellTagSentinel
             ? TCellTagList{}
             : TCellTagList{cellTag};
+    }
+
+    TAccessControlDescriptor* DoFindAcd(TSecondaryIndex* secondaryIndex) override
+    {
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
+        if (!IsObjectAlive(table)) {
+            return {};
+        }
+
+        return &table->Acd();
     }
 };
 
