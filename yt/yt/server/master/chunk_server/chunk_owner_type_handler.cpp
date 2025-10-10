@@ -483,6 +483,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     }
 
                     auto* newOriginatingChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
+                    originatingChunkList->RemoveOwningNode(originatingNode);
 
                     newOriginatingChunkList->AddOwningNode(originatingNode);
                     originatingNode->SetChunkList(contentType, newOriginatingChunkList);
