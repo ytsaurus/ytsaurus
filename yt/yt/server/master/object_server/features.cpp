@@ -60,7 +60,7 @@ std::vector<std::string> GetNodeFlavors()
     for (auto value : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
         result.push_back(std::string(Format("%lv", value)));
     }
-    result.push_back(ClusterNodeFalvor);
+    result.push_back(ClusterNodeFlavor);
     return result;
 }
 
