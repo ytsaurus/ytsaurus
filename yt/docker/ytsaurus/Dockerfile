@@ -120,6 +120,29 @@ apt-get install -y "${packages[@]}"
 
 ln -s /usr/lib/linux-tools/*/perf /usr/local/bin/
 
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+EOT
+
+# https://nvidia.github.io/libnvidia-container/stable/
+# https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+# NOTE: key is expired 2021-06-16 but still in use, they publish repo like from 2018.
+ADD --chmod=664 \
+  https://nvidia.github.io/libnvidia-container/gpgkey \
+  /etc/apt/keyrings/nvidia-container-toolkit-keyring.asc
+
+RUN <<-EOT
+#!/bin/bash
+set -eux -o pipefail
+
+[ "$INSTALL_NVIDIA_PACKAGES" = "true" ] || exit
+
+tee <<EOF >/etc/apt/sources.list.d/nvidia-container-toolkit.list
+deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit-keyring.asc] https://nvidia.github.io/libnvidia-container/stable/deb/\$(ARCH) /
+# deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit-keyring.asc] #https://nvidia.github.io/libnvidia-container/experimental/deb/\$(ARCH) /
+EOF
+
 nvidia_packages=(
   nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
   nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
@@ -127,13 +150,12 @@ nvidia_packages=(
   libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
 )
 
-if [[ "$INSTALL_NVIDIA_PACKAGES" = "true" ]]; then curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-  | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-  | tee /etc/apt/sources.list.d/nvidia-container-toolkit.list \
-  && apt update \
-  && apt install -y "${nvidia_packages[@]}"; fi
+export DEBIAN_FRONTEND=noninteractive
+apt update -q --error-on=any
+
+apt policy nvidia-container-toolkit
+
+apt install -y "${nvidia_packages[@]}"
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
