@@ -257,6 +257,7 @@ class DefaultConfigType(TypedDict, total=False):
     distributed_write: DistributedWriteType
     read_buffer_size: int
     read_omit_inaccessible_columns: Optional[Any]
+    read_omit_inaccessible_rows: Optional[Any]
     spec_defaults: Dict[str, Any]
     spec_overrides: Dict[str, Any]
     memory_limit: Optional[Any]
@@ -876,6 +877,7 @@ default_config = {
 
     # Do not fail while reading columns blocked by column acl
     "read_omit_inaccessible_columns": None,
+    "read_omit_inaccessible_rows": None,
 
     # Defaults that will be passed to all operation specs with the least priority.
     "spec_defaults": {

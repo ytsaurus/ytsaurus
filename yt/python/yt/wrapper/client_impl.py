@@ -2098,7 +2098,7 @@ class YtClient(ClientState):
             self,
             table,
             format=None, table_reader=None, control_attributes=None, unordered=None, raw=None,
-            response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None):
+            response_parameters=None, enable_read_parallel=None, omit_inaccessible_columns=None, omit_inaccessible_rows=None):
         """
         Reads rows from table and parse (optionally).
 
@@ -2119,7 +2119,7 @@ class YtClient(ClientState):
             client=self,
             format=format, table_reader=table_reader, control_attributes=control_attributes, unordered=unordered,
             raw=raw, response_parameters=response_parameters, enable_read_parallel=enable_read_parallel,
-            omit_inaccessible_columns=omit_inaccessible_columns)
+            omit_inaccessible_columns=omit_inaccessible_columns, omit_inaccessible_rows=omit_inaccessible_rows)
 
     def read_table_structured(
             self,
