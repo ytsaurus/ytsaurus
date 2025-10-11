@@ -969,15 +969,19 @@ private:
             .AllowSecondaryIndexAbandonment = cloneOptions.allow_secondary_index_abandonment(),
         };
 
+        // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
+        auto inheritedAttributes = FromProto(request->inherited_attributes());
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto accountName = inheritedAttributes->GetAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
+        auto* account = securityManager->GetAccountByNameOrThrow(accountName, /*activeLifeStageOnly*/ true);
+
         auto nodeFactory = cypressManager->CreateNodeFactory(
             cypressManager->GetRootCypressShard(),
             cypressTransaction,
-            securityManager->GetSysAccount(),
+            account,
             factoryOptions);
 
-        // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
-        auto inheritedAttributes = FromProto(request->inherited_attributes());
         auto* sourceNode = cypressManager->GetVersionedNode(trunkSourceNode, cypressTransaction);
         auto* destinationNode = nodeFactory->CloneNode(sourceNode, mode, inheritedAttributes.Get(), destinationNodeId);
         state->DestinationNode.Assign(destinationNode);
