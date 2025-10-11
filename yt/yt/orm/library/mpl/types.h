@@ -103,6 +103,44 @@ struct TTypesFilterImpl
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <template <class...> class TContainer, class TLhsContainer, class TRhsContainer>
+struct TConcatImpl;
+
+template <template <class...> class TContainer, class... TLhsTypes, class... TRhsTypes>
+struct TConcatImpl<TContainer, TContainer<TLhsTypes...>, TContainer<TRhsTypes...>>
+{
+    using T = TContainer<TLhsTypes..., TRhsTypes...>;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <template <class...> class TContainer, class T>
+struct TFlattenImpl;
+
+template <template <class...> class TContainer>
+struct TFlattenImpl<TContainer, TContainer<>>
+{
+    using T = TContainer<>;
+};
+
+template <template <class...> class TContainer, class THead, class... TTail>
+struct TFlattenImpl<TContainer, TContainer<THead, TTail...>>
+{
+    using T = TConcatImpl<
+        TContainer,
+        typename TFlattenImpl<TContainer, THead>::T,
+        typename TFlattenImpl<TContainer, TContainer<TTail...>>::T
+    >::T;
+};
+
+template <template <class...> class TContainer, class TScalar>
+struct TFlattenImpl
+{
+    using T = TContainer<TScalar>;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDetail
 
 template <class... Ts>
@@ -158,6 +196,11 @@ struct TTypes
     struct TUnion
         : public virtual Ts...
     { };
+
+    template <class TRhs>
+    using Concat = NDetail::TConcatImpl<TTypes, TTypes<Ts...>, TRhs>::T;
+
+    using Flatten = NDetail::TFlattenImpl<TTypes, TTypes<Ts...>>::T;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,6 +21,9 @@ struct TC
     static constexpr TStringBuf Name = "C";
 };
 
+struct TD
+{ };
+
 } // namespace
 
 TEST(TTypes, Size)
@@ -74,6 +77,68 @@ TEST(TTypes, ForEach)
     });
 
     ASSERT_EQ(names, std::vector<std::string_view>({"A", "B", "C"}));
+}
+
+TEST(TTypes, Concat)
+{
+    static_assert(std::same_as<
+        TTypes<TA, TB>::Concat<TTypes<TC, TD>>,
+        TTypes<TA, TB, TC, TD>>);
+
+    static_assert(std::same_as<
+        TTypes<TA, TB>::Concat<TTypes<>>,
+        TTypes<TA, TB>>);
+
+    static_assert(std::same_as<
+        TTypes<>::Concat<TTypes<TC, TD>>,
+        TTypes<TC, TD>>);
+}
+
+TEST(TTypes, Flatten)
+{
+    static_assert(std::same_as<
+        TTypes<>::Flatten,
+        TTypes<>>);
+
+    static_assert(std::same_as<
+        TTypes<TA>::Flatten,
+        TTypes<TA>>);
+
+    static_assert(std::same_as<
+        TTypes<TA, TB, TC>::Flatten,
+        TTypes<TA, TB, TC>>);
+
+    static_assert(std::same_as<
+        TTypes<TTypes<>>::Flatten,
+        TTypes<>>);
+
+    static_assert(std::same_as<
+        TTypes<TTypes<>, TTypes<>, TTypes<>>::Flatten,
+        TTypes<>>);
+
+    static_assert(std::same_as<
+        TTypes<TTypes<TTypes<>>>::Flatten,
+        TTypes<>>);
+
+    static_assert(std::same_as<
+        TTypes<TA, TB, TTypes<>, TC>::Flatten,
+        TTypes<TA, TB, TC>>);
+
+    static_assert(std::same_as<
+        TTypes<TA, TTypes<TB>, TTypes<TB, TC>>::Flatten,
+        TTypes<TA, TB, TB, TC>>);
+
+    static_assert(std::same_as<
+        TTypes<TTypes<TA, TB>, TTypes<TB, TC>, TTypes<TC, TA>>::Flatten,
+        TTypes<TA, TB, TB, TC, TC, TA>>);
+
+    static_assert(std::same_as<
+        TTypes<
+            TTypes<TA, TTypes<TB, TC>>,
+            TTypes<TTypes<TA, TB, TC>>,
+            TTypes<TTypes<TA, TB>, TTypes<>, TC>
+        >::Flatten,
+        TTypes<TA, TB, TC, TA, TB, TC, TA, TB, TC>>);
 }
 
 } // namespace NYT::NOrm::NMpl::NTests
