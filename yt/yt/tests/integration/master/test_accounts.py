@@ -4556,13 +4556,13 @@ class TestAccountsMulticell(TestAccounts):
 
     @authors("aleksandra-zh")
     def test_master_cell_names(self):
-        set("//sys/@config/multicell_manager/cell_descriptors/10", {"name": "Julia"})
+        set("//sys/@config/multicell_manager/cell_descriptors/10/name", "Julia")
 
         with pytest.raises(YtError):
-            set("//sys/@config/multicell_manager/cell_descriptors/12", {"name": "Julia"})
+            set("//sys/@config/multicell_manager/cell_descriptors/12/name", "Julia")
 
         with pytest.raises(YtError):
-            set("//sys/@config/multicell_manager/cell_descriptors/11", {"name": "12"})
+            set("//sys/@config/multicell_manager/cell_descriptors/11/name", "12")
 
         create_account("a")
         set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
@@ -4570,7 +4570,7 @@ class TestAccountsMulticell(TestAccounts):
 
         set("//sys/accounts/a/@resource_limits/master_memory/per_cell", {"Julia": 100, "11": 200, "12": 300})
 
-        set("//sys/@config/multicell_manager/cell_descriptors/12", {"name": "George"})
+        set("//sys/@config/multicell_manager/cell_descriptors/12/name", "George")
 
         assert get("//sys/accounts/a/@resource_limits/master_memory/per_cell") ==\
             {"Julia": 100, "11": 200, "George": 300}
