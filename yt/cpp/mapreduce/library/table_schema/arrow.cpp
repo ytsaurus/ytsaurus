@@ -96,6 +96,9 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType)
         case arrow20::Type::type::DECIMAL256:
             return NTi::String();
 
+        case arrow20::Type::type::NA:
+            return NTi::Null();
+
         default:
             THROW_ERROR_EXCEPTION("Unsupported arrow type %Qv", arrowType->ToString());
     }
@@ -104,7 +107,8 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::DataType>& arrowType)
 NTi::TTypePtr GetYTType(const std::shared_ptr<arrow20::Field>& arrowField)
 {
     NTi::TTypePtr resultType = GetYTType(arrowField->type());
-    if (arrowField->nullable()) {
+    // YT type Optional<Null> will not be correctly denullified.
+    if (arrowField->nullable() && !resultType->IsNull()) {
         return NTi::Optional(resultType);
     }
     return resultType;
