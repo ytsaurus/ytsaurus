@@ -20,16 +20,7 @@
 #include <library/cpp/resource/resource.h>
 
 // Tests:
-// TCompareExpressionTest
-// TEliminateLookupPredicateTest
-// TEliminatePredicateTest
-// TParseAndPrepareExpressionTest
-// TArithmeticTest
-// TCompareWithNullTest
-// TEvaluateExpressionTest
-// TEvaluateAggregationTest
-// TEvaluateAggregationWithStringStateTest
-// TExpressionStrConvTest
+// TCastExpressionTest
 
 namespace NYT::NQueryClient {
 namespace {
@@ -136,6 +127,7 @@ TEST_F(TCastExpressionTest, Basic)
     Check("CAST(s1 AS String)", "s1=\"alpha\"", MakeString("alpha"));
 
     Check("CAST(1 AS String)", "", MakeString("1"));
+    Check("CAST(CAST(1 AS String) AS `Optional<String>`)", "", MakeString("1"));
     Check("CAST(# AS `String?`)", "", MakeNull());
     Check("CAST(\"1\" AS `Optional<Double>`)", "", MakeDouble(1.0));
 }

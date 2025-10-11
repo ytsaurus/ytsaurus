@@ -110,18 +110,51 @@ TLogicalTypePtr TTypingCtx::GetLogicalType(TTypeId typeId)
 
 bool TTypingCtx::HasImplicitCast(TTypeId sourceType, TTypeId targetType)
 {
-    auto nullType = GetTypeId(EValueType::Null);
-    auto int64Type = GetTypeId(EValueType::Int64);
-    auto uint64Type = GetTypeId(EValueType::Uint64);
-    auto doubleType = GetTypeId(EValueType::Double);
-    auto anyType = GetTypeId(EValueType::Any);
+    if (targetType == GetTypeId(EValueType::Any)) {
+        return true;
+    }
 
-    return
-        sourceType == nullType ||
-        targetType == anyType ||
-        sourceType == int64Type && targetType == uint64Type ||
-        sourceType == int64Type && targetType == doubleType ||
-        sourceType == uint64Type && targetType == doubleType;
+    const auto targetLogicalType = GetLogicalType(targetType);
+    const auto sourceLogicalType = GetLogicalType(sourceType);
+
+    const auto [_, sourceRequired] = CastToV1Type(sourceLogicalType);
+    const auto [targetSimpleType, targetRequired] = CastToV1Type(targetLogicalType);
+
+    if (sourceType == GetTypeId(EValueType::Null)) {
+        return !targetRequired;
+    }
+
+    if (targetRequired && !sourceRequired) {
+        return false;
+    }
+
+    const auto sourceWireType = NTableClient::GetWireType(sourceLogicalType);
+
+    switch (targetSimpleType) {
+        case ESimpleLogicalValueType::Int64:
+            return sourceWireType == EValueType::Int64;
+
+        case ESimpleLogicalValueType::Uint64:
+            return sourceWireType == EValueType::Uint64 ||
+                sourceWireType == EValueType::Int64;
+
+        case ESimpleLogicalValueType::Double:
+            return sourceWireType == EValueType::Double ||
+                sourceWireType == EValueType::Int64 ||
+                sourceWireType == EValueType::Uint64;
+
+        default:
+            break;
+    }
+
+    // T->Optional<T> is a trivial cast
+    if (targetLogicalType->GetMetatype() == ELogicalMetatype::Optional &&
+        GetTypeId(targetLogicalType->GetElement()) == sourceType)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 void TTypingCtx::RegisterFunction(std::string name, TFunctionSignatures signatures)
@@ -248,7 +281,7 @@ std::vector<TTypeId> TTypingCtx::InferFunctionType(
     auto matchSignature = [&] (int signatureIndex) {
         const auto& signature = signatures[signatureIndex];
 
-        auto matchConstraint = [&] (int constraintId, int argumentType) {
+        auto matchConstraint = [&] (int constraintId, TTypeId argumentType) {
             if (constraintId >= std::ssize(signature.Constraints)) {
                 // No constraint.
                 return true;
@@ -274,7 +307,6 @@ std::vector<TTypeId> TTypingCtx::InferFunctionType(
                 if (std::ssize(parametricAssignments) < -formalTypeId) {
                     parametricAssignments.resize(-formalTypeId);
                 }
-
                 if (matchConstraint(-(formalTypeId + 1), argumentType)) {
                     parametricAssignments[-(formalTypeId + 1)].push_back(argumentType);
                 }

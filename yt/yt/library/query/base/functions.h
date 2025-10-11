@@ -19,11 +19,13 @@ struct ITypeInferrer
     virtual int GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
         std::vector<int>* formalArguments,
-        std::optional<std::pair<int, bool>>* repeatedType) const = 0;
+        std::optional<std::pair<int, bool>>* repeatedType,
+        TStringBuf functionName) const = 0;
 
     virtual std::pair<int, int> GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* argumentConstraintIndexes) const = 0;
+        std::vector<int>* argumentConstraintIndexes,
+        TStringBuf functionName) const = 0;
 
     virtual std::vector<TTypeId> InferTypes(
         TTypingCtx* typingCtx,

@@ -22,7 +22,11 @@ std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const std::st
     std::vector<int> formalArguments;
     std::optional<std::pair<int, bool>> repeatedType;
 
-    int index = functionIterator->second->GetNormalizedConstraints(&typeConstraints, &formalArguments, &repeatedType);
+    int index = functionIterator->second->GetNormalizedConstraints(
+        &typeConstraints,
+        &formalArguments,
+        &repeatedType,
+        functionName);
     auto returnTypes = typeConstraints[index];
 
     if (returnTypes.GetSize() != 1) {

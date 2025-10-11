@@ -757,6 +757,9 @@ ETypeTag TypeTagFromType(TType type)
         },
         [] (const TUnionType&) {
             return ETypeTag::UnionType;
+        },
+        [] (const TLogicalTypePtr&) {
+            return ETypeTag::LogicalType;
         });
 }
 
@@ -790,6 +793,9 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
             break;
         case ETypeTag::ConcreteType:
             value.Type = ConvertTo<EValueType>(valueNode);
+            break;
+        case ETypeTag::LogicalType:
+            value.Type = ConvertTo<TLogicalTypePtr>(valueNode);
             break;
         default:
             YT_ABORT();

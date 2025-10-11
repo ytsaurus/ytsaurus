@@ -290,7 +290,8 @@ static void ValidateAggregatedColumns(const TTableSchema& schema)
 
                 auto [_, resultIndex] = typeInferrer->GetNormalizedConstraints(
                     &typeConstraints,
-                    &argumentIndexes);
+                    &argumentIndexes,
+                    aggregateName);
                 auto& resultConstraint = typeConstraints[resultIndex];
 
                 if (!resultConstraint.Get(elementType)) {

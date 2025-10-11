@@ -128,7 +128,8 @@ TConstExpressionPtr ParseAndPrepareExpression(
     TStringBuf source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
-    THashSet<std::string>* references = nullptr);
+    THashSet<std::string>* references = nullptr,
+    int exprBuilderVersion = DefaultExpressionBuilderVersion);
 
 ////////////////////////////////////////////////////////////////////////////////
 
