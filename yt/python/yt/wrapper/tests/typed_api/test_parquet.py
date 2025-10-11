@@ -607,3 +607,66 @@ class TestParquet(object):
             assert client.get(output_table + "/@chunk_count") == 10
             assert cnt.filtered_total_calls == 20
             assert cnt.filtered_raises == 10
+
+    @authors("rp-1")
+    def test_null_field_upload_parquet(self):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            filename = temp_file.name
+
+            data = {
+                "x": [{"a": 1, "b": None}, {"a": 2, "b": None}]
+            }
+
+            df = pandas.DataFrame(data)
+
+            table = pyarrow.Table.from_pandas(df)
+
+            pyarrow.parquet.write_table(table, filename)
+
+            output_table = TEST_DIR + "/output_table"
+
+            yt.upload_parquet(output_table, filename)
+
+            schema = TableSchema() \
+                .add_column("x", type_info.Optional[type_info.Struct[
+                    "a": type_info.Optional[type_info.Int64],
+                    "b": type_info.Null,
+                ]])
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
+
+            assert list(yt.read_table(output_table)) == [
+                {"x": {"a": 1, "b": None}},
+                {"x": {"a": 2, "b": None}}
+            ]
+
+    @authors("rp-1")
+    def test_null_column_upload_parquet(self):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            filename = temp_file.name
+
+            data = {
+                "x": [None, None]
+            }
+
+            df = pandas.DataFrame(data)
+
+            table = pyarrow.Table.from_pandas(df)
+
+            pyarrow.parquet.write_table(table, filename)
+
+            output_table = TEST_DIR + "/output_table"
+
+            yt.upload_parquet(output_table, filename)
+
+            schema = TableSchema() \
+                .add_column("x", type_info.Null)
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
+
+            assert list(yt.read_table(output_table)) == [
+                {"x": None},
+                {"x": None}
+            ]
