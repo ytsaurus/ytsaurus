@@ -141,8 +141,8 @@ DEFINE_ENUM(EMasterReign,
     ((FixLoadingTransactionLeasesStateFromSnapshot)                 (3040))  // kvk1920
     ((FixPrerequisiteLeasesIssuingForMasterCells)                   (3041))  // cherepashka
     ((FixSchemaDivergence)                                          (3042))  // h0pless
-    ((FixSequoiaAccountInheritance)                                 (3043))  // h0pless
-    ((FixAccountInSequoiaCopy)                                      (3044))  // h0pless
+    ((FixSequoiaAccountInheritance)                                 (3043))  // babenko
+    ((FixAccountInSequoiaCopy)                                      (3044))  // babenko
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
