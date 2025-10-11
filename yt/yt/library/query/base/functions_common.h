@@ -12,7 +12,7 @@ using NTableClient::EValueType;
 
 using TTypeParameter = int;
 using TUnionType = std::vector<EValueType>;
-using TType = std::variant<EValueType, TTypeParameter, TUnionType>;
+using TType = std::variant<EValueType, TTypeParameter, TUnionType, TLogicalTypePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +25,7 @@ DEFINE_ENUM(ETypeTag,
     ((ConcreteType)     (0))
     ((TypeParameter)    (1))
     ((UnionType)        (2))
+    ((LogicalType)      (3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

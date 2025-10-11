@@ -48,8 +48,15 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::Simple);
 
     builder->RegisterFunction(
+        "split",
+        std::vector<TType>{EValueType::String, EValueType::String},
+        OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+        "split",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterFunction(
         "yson_length",
-        std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}},
+        std::vector<TType>{EValueType::Any},
         EValueType::Int64,
         "yson_length",
         ECallingConvention::Simple);
@@ -99,7 +106,6 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Double,
             EValueType::String,
             EValueType::Any,
-            EValueType::Composite,
         },
         EValueType::Any,
         "make_map");
@@ -115,7 +121,6 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             EValueType::Double,
             EValueType::String,
             EValueType::Any,
-            EValueType::Composite,
         },
         EValueType::Any,
         "make_list");
@@ -327,7 +332,6 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
                 EValueType::Double,
                 EValueType::Boolean,
                 EValueType::Any,
-                EValueType::Composite,
             },
             EValueType::Boolean,
         },
@@ -339,7 +343,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "dict_sum",
         {},
-        {TUnionType{EValueType::Any, EValueType::Composite}},
+        {EValueType::Any},
         EValueType::Any,
         EValueType::Any,
         "dict_sum",
@@ -437,7 +441,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         auto&& type = fns.second;
         builder->RegisterFunction(
             name,
-            std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}, EValueType::String},
+            std::vector<TType>{EValueType::Any, EValueType::String},
             type,
             "ypath_get",
             ECallingConvention::UnversionedValue);
@@ -445,24 +449,14 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "to_any",
-        std::vector<TType>{
-            TUnionType{
-                EValueType::String,
-                EValueType::Uint64,
-                EValueType::Int64,
-                EValueType::Double,
-                EValueType::Boolean,
-                EValueType::Any,
-                EValueType::Composite,
-            },
-        },
+        std::vector<TType>{0},
         EValueType::Any,
         "to_any",
         ECallingConvention::UnversionedValue);
 
     builder->RegisterFunction(
         "yson_string_to_any",
-        std::vector<TType>{TUnionType{EValueType::String}},
+        std::vector<TType>{EValueType::String},
         EValueType::Any,
         "yson_string_to_any",
         ECallingConvention::UnversionedValue);
@@ -470,10 +464,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "list_contains",
         std::vector<TType>{
-            TUnionType{
-                EValueType::Any,
-                EValueType::Composite,
-            },
+            EValueType::Any,
             TUnionType{
                 EValueType::Null,
                 EValueType::Int64,
@@ -490,14 +481,8 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "list_has_intersection",
         std::vector<TType>{
-            TUnionType{
-                EValueType::Any,
-                EValueType::Composite,
-            },
-            TUnionType{
-                EValueType::Any,
-                EValueType::Composite,
-            },
+            EValueType::Any,
+            EValueType::Any,
         },
         EValueType::Boolean,
         "list_has_intersection",
@@ -505,7 +490,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "any_to_yson_string",
-        std::vector<TType>{TUnionType{EValueType::Any, EValueType::Composite}},
+        std::vector<TType>{EValueType::Any},
         EValueType::String,
         "any_to_yson_string",
         ECallingConvention::Simple);

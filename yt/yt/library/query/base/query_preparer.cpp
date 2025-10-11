@@ -912,7 +912,7 @@ TJoinClausePtr BuildArrayJoinClause(
             arrayJoinClause->ArrayExpressions[index] =
                 ApplyRewriters(builder->BuildTypedExpression(
                     aliasExpression->Expression,
-                    {EValueType::Composite}));
+                    {builderVersion == 1 ? EValueType::Any : EValueType::Composite}));
 
         auto logicalType = typedExpression->LogicalType;
         auto metatype = logicalType->GetMetatype();
@@ -926,7 +926,7 @@ TJoinClausePtr BuildArrayJoinClause(
             *typedExpression->LogicalType);
 
         auto flattenedType = logicalType->UncheckedAsListTypeRef().GetElement();
-        if (arrayJoin.IsLeft && !flattenedType->IsNullable()) {
+        if ((arrayJoin.IsLeft || arrayCount > 1) && !flattenedType->IsNullable()) {
             flattenedType = OptionalLogicalType(std::move(flattenedType));
         }
         nestedColumns[index] = TColumnSchema(aliasExpression->Name, std::move(flattenedType));

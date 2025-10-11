@@ -4580,6 +4580,32 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
         source,
         ResultMatcher(resultPartialColumnUse));
 
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
+    resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"flattenedA", EValueType::String},
+    });
+
+    auto resultWithSplit = YsonToRows({
+        "a=1; flattenedA=\"\";",
+        "a=1; flattenedA=\"b\";",
+        "a=1; flattenedA=\"c\";",
+        "a=1; flattenedA=\"b\";",
+        "a=1; flattenedA=\"\";",
+    }, resultSplit);
+
+    // TODO(dtorilov): compile split for webassembly.
+
+    EvaluateWithQueryStatistics(
+        "a, flattenedA FROM [//t] LEFT ARRAY JOIN split(\"abacaba\", \"a\") AS flattenedA WHERE a = 1",
+        {{"//t", split}},
+        {source},
+        ResultMatcher(resultWithSplit),
+        {.ExecutionBackend=EExecutionBackend::Native});
+
     SUCCEED();
 }
 
@@ -8447,7 +8473,7 @@ TEST_F(TQueryEvaluateTest, TypeV1Propagation)
     auto result = YsonToRows(source, split);
 
     Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
-        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
     })));
 }
 

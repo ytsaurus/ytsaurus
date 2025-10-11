@@ -3042,6 +3042,54 @@ extern "C" void NumericToString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern "C" void Split(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* string,
+    TValue* delimeter)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* stringAtHost = PtrFromVM(compartment, string);
+    auto* delimeterAtHost = PtrFromVM(compartment, delimeter);
+    auto* resultAtHost = PtrFromVM(compartment, result);
+
+    if (stringAtHost->Type == EValueType::Null || delimeterAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
+    auto stringView = TStringBuf(
+        PtrFromVM(compartment, stringAtHost->Data.String),
+        stringAtHost->Length);
+    auto delimeterView = TStringBuf(
+        PtrFromVM(compartment, delimeterAtHost->Data.String),
+        delimeterAtHost->Length);
+
+    result->Type = EValueType::Any;
+    result->Flags = {};
+
+    auto resultYson = TString();
+    auto output = TStringOutput(resultYson);
+    auto writer = TYsonWriter(&output, EYsonFormat::Binary);
+
+    writer.OnBeginList();
+
+    size_t from = 0;
+    size_t to = stringView.find(delimeterView);
+    while (to != std::string::npos) {
+        writer.OnStringScalar(stringView.SubString(from, to - from));
+        from = to + delimeterView.size();
+        to = stringView.find(delimeterView, from);
+    }
+
+    writer.OnStringScalar(stringView.SubString(from, stringView.size() - from));
+    writer.OnEndList();
+
+    NDetail::CopyStringLike(context, result, resultYson, EValueType::Any);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define DEFINE_CONVERT_STRING(TYPE) \
     extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TValue* result, TValue* value) \
     { \
@@ -4462,6 +4510,7 @@ REGISTER_ROUTINE(AnyToBoolean);
 REGISTER_ROUTINE(AnyToString);
 REGISTER_ROUTINE(MakeMap);
 REGISTER_ROUTINE(MakeList);
+REGISTER_ROUTINE(Split);
 REGISTER_ROUTINE(ListContains);
 REGISTER_ROUTINE(ListHasIntersection);
 REGISTER_ROUTINE(AnyToYsonString);

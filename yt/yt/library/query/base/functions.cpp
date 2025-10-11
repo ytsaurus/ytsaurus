@@ -33,7 +33,8 @@ public:
     int GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
         std::vector<int>* formalArguments,
-        std::optional<std::pair<int, bool>>* repeatedType) const override
+        std::optional<std::pair<int, bool>>* repeatedType,
+        TStringBuf functionName) const override
     {
         std::unordered_map<TTypeParameter, int> idToIndex;
 
@@ -72,6 +73,10 @@ public:
                     int index = typeConstraints->size();
                     typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
                     return index;
+                },
+                [&] (const TLogicalTypePtr&) -> int {
+                    THROW_ERROR_EXCEPTION("Function %Qv is not supported in expression builder v1",
+                        functionName);
                 });
         };
 
@@ -97,7 +102,7 @@ public:
     {
         std::vector<TTypeId> argumentTypeIds;
         for (auto type : argumentTypes) {
-            argumentTypeIds.push_back(typingCtx->GetTypeId(GetWireType(type)));
+            argumentTypeIds.push_back(typingCtx->GetTypeId(type));
         }
 
         auto signature = GetSignature(typingCtx, std::ssize(argumentTypes));
@@ -107,7 +112,8 @@ public:
 
     std::pair<int, int> GetNormalizedConstraints(
         std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*argumentConstraintIndexes*/) const override
+        std::vector<int>* /*argumentConstraintIndexes*/,
+        TStringBuf /*functionName*/) const override
     {
         YT_ABORT();
     }
@@ -142,6 +148,9 @@ private:
             },
             [&] (const TUnionType& /*unionType*/) {
                 THROW_ERROR_EXCEPTION("Result type cannot be union");
+            },
+            [&] (const TLogicalTypePtr& logicalType) {
+                signature.Types.push_back(typingCtx->GetTypeId(logicalType));
             });
 
         for (const auto& formalArgument : ArgumentTypes_) {
@@ -157,6 +166,9 @@ private:
                     signature.Types.push_back(-(1 + nextGenericId));
                     registerConstraints(nextGenericId, unionType);
                     ++nextGenericId;
+                },
+                [&] (const TLogicalTypePtr& logicalType) {
+                    signature.Types.push_back(typingCtx->GetTypeId(logicalType));
                 });
         }
 
@@ -181,6 +193,9 @@ private:
                         registerConstraints(nextGenericId, unionType);
                         ++nextGenericId;
                     }
+                },
+                [&] (const TLogicalTypePtr& logicalType) {
+                    signature.Types.push_back(typingCtx->GetTypeId(logicalType));
                 });
         }
 
@@ -233,7 +248,8 @@ public:
 
     std::pair<int, int> GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* argumentConstraintIndexes) const override
+        std::vector<int>* argumentConstraintIndexes,
+        TStringBuf functionName) const override
     {
         std::unordered_map<TTypeParameter, int> idToIndex;
 
@@ -270,6 +286,10 @@ public:
                 [&] (const TUnionType& unionType) -> int {
                     typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
                     return typeConstraints->size() - 1;
+                },
+                [&] (const TLogicalTypePtr&) -> int {
+                    THROW_ERROR_EXCEPTION("Function %Qv is not supported in expression builder v1",
+                        functionName);
                 });
         };
 
@@ -300,7 +320,8 @@ public:
     int GetNormalizedConstraints(
         std::vector<TTypeSet>* /*typeConstraints*/,
         std::vector<int>* /*formalArguments*/,
-        std::optional<std::pair<int, bool>>* /*repeatedType*/) const override
+        std::optional<std::pair<int, bool>>* /*repeatedType*/,
+        TStringBuf /*functionName*/) const override
     {
         YT_ABORT();
     }
@@ -335,6 +356,9 @@ private:
             },
             [&] (const TUnionType& /*unionType*/) {
                 THROW_ERROR_EXCEPTION("Result type cannot be union");
+            },
+            [&] (const TLogicalTypePtr& logicalType) {
+                signature.Types.push_back(typingCtx->GetTypeId(logicalType));
             });
 
         Visit(StateType_,
@@ -347,6 +371,9 @@ private:
             },
             [&] (const TUnionType& /*unionType*/) {
                 THROW_ERROR_EXCEPTION("State type cannot be union");
+            },
+            [&] (const TLogicalTypePtr& logicalType) {
+                signature.Types.push_back(typingCtx->GetTypeId(logicalType));
             });
 
         for (const auto& formalArgument : ArgumentTypes_) {
@@ -362,6 +389,9 @@ private:
                     signature.Types.push_back(-(1 + nextGenericId));
                     registerConstraints(nextGenericId, unionType);
                     ++nextGenericId;
+                },
+                [&] (const TLogicalTypePtr& logicalType) {
+                    signature.Types.push_back(typingCtx->GetTypeId(logicalType));
                 });
         }
 
@@ -418,7 +448,6 @@ public:
                     EValueType::Double,
                     EValueType::Boolean,
                     EValueType::Any,
-                    EValueType::Composite,
                 },
                 EValueType::Boolean,
             },
@@ -443,16 +472,7 @@ public:
             typingCtx->GetTypeId(EValueType::Boolean),
         };
     }
-
-    int GetNormalizedConstraints(
-        std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*formalArguments*/,
-        std::optional<std::pair<int, bool>>* /*repeatedType*/) const override
-    {
-        YT_ABORT();
-    }
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -475,7 +495,8 @@ public:
     [[noreturn]] int GetNormalizedConstraints(
         std::vector<TTypeSet>* /*typeConstraints*/,
         std::vector<int>* /*formalArguments*/,
-        std::optional<std::pair<int, bool>>* /*repeatedType*/) const override
+        std::optional<std::pair<int, bool>>* /*repeatedType*/,
+        TStringBuf /*functionName*/) const override
     {
         THROW_ERROR_EXCEPTION_UNLESS(SupportedInV1_, "Function %Qv is not supported in expression builder v1",
             Name_);
@@ -484,7 +505,8 @@ public:
 
     [[noreturn]] std::pair<int, int> GetNormalizedConstraints(
         std::vector<TTypeSet>* /*typeConstraints*/,
-        std::vector<int>* /*argumentConstraintIndexes*/) const override
+        std::vector<int>* /*argumentConstraintIndexes*/,
+        TStringBuf /*functionName*/) const override
     {
         THROW_ERROR_EXCEPTION_UNLESS(SupportedInV1_, "Function %Qv is not supported in expression builder v1",
             Name_);
