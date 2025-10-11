@@ -414,7 +414,6 @@ class TestAccounts(AccountsTestSuiteBase):
         get("//sys/accounts/tmp/@")
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_account_attr3(self):
         set("//tmp/a", {"x": 1, "y": 2})
         assert get("//tmp/a/@account") == "tmp"
@@ -760,7 +759,6 @@ class TestAccounts(AccountsTestSuiteBase):
             set("//tmp/t/@account", "max")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_node_count_limits5(self):
         create_account("max")
         create("map_node", "//tmp/a")
@@ -812,7 +810,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._get_account_chunk_count("max") == 1)
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_chunk_count_limits3(self):
         create_account("max")
         create("map_node", "//tmp/a")
@@ -956,7 +953,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert not exists("//tmp/b/a")
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_disk_space_limits5(self):
         create_account("max")
         with self.WaitForAccountUsage("//tmp/a", new_account="max"):
@@ -1069,7 +1065,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert self._get_account_chunk_count("tmp") == 3
 
     @authors("babenko", "ignat", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_copy(self):
         create_account("a1")
         create_account("a2")
@@ -1099,7 +1094,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert space == get_account_committed_disk_space("a2")
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_chunk_wise_accounting1(self):
         create_domestic_medium("hdd2")
         create_domestic_medium("hdd3")
@@ -1280,7 +1274,6 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("shakurov", "kiselyovp")
     @pytest.mark.ignore_in_opensource_ci
-    @not_implemented_in_sequoia
     def test_chunk_wise_accounting2(self):
         create_domestic_medium("hdd4")
         create_domestic_medium("hdd5")
@@ -1413,7 +1406,6 @@ class TestAccounts(AccountsTestSuiteBase):
         move("//tmp/x", "//tmp/for_y/y", preserve_account=False)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_dont_preserve_account_fail(self):
         # setup
         create("map_node", "//tmp/x")
@@ -1443,7 +1435,6 @@ class TestAccounts(AccountsTestSuiteBase):
             copy("//tmp/x", "//tmp/y", preserve_account=True)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_dont_preserve_account_fail(self):
         # setup
         create_account("a")
@@ -1577,7 +1568,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._get_master_memory_usage("a") == 0)
 
     @authors("aleksandra-zh")
-    @not_implemented_in_sequoia
     def test_master_memory_copy(self):
         create_account("a")
 
@@ -2100,7 +2090,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//tmp/one/@account") == "a"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_nested_tx_copy(self):
         gc_collect()
 
@@ -2133,7 +2122,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//sys/accounts/tmp/@committed_resource_usage/node_count") == committed_node_count
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_branched_nodes_not_checked_yt_8551(self):
         self._wait_for_tmp_account_usage()
 
