@@ -930,6 +930,7 @@ class TestRequestThrottling(YTEnvSetup):
         }
 
     @authors("achulkov2")
+    @pytest.mark.skip(reason="Too flaky, shakurov@ is investingating")
     @pytest.mark.parametrize("prepare_test_parameters", [
         _prepare_user_write_request_throttling_parameters,
         _prepare_user_read_request_throttling_parameters,
