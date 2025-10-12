@@ -358,7 +358,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/test_node/@desired_tablet_count")
 
     @authors("panin", "ignat")
-    @not_implemented_in_sequoia
     def test_json_format(self):
         create("document", "//tmp/d")
         # check input format for json
@@ -477,7 +476,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b") == 1
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_scalar_with_attr(self):
         set("//tmp/a", b"<x=y> 1", is_raw=True)
         copy("//tmp/a", "//tmp/b")
@@ -669,7 +667,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/x/y/@account") == "a2"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_account2(self):
         create_account("a1")
         create_account("a2")
@@ -795,7 +792,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/b") == 123
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_dont_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -839,7 +835,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@type") == "table"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_force_account1(self):
         create_account("a")
 
@@ -852,7 +847,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a2/@account") == "a"
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_force_account2(self):
         create_account("a")
 
@@ -873,7 +867,6 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_copy_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
@@ -884,7 +877,6 @@ class TestCypress(YTEnvSetup):
         assert_items_equal(get("//tmp/t2/@acl"), [])
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_move_acd(self):
         create("table", "//tmp/t1")
         set("//tmp/t1/@inherit_acl", False)
@@ -922,7 +914,6 @@ class TestCypress(YTEnvSetup):
             move("//tmp/a", "//tmp/a/b")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_move_dont_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -931,7 +922,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t2/@account") == "max"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_move_preserve_account(self):
         create_account("max")
         create("table", "//tmp/t1")
@@ -1157,12 +1147,14 @@ class TestCypress(YTEnvSetup):
             assert x.attributes["ephemeral_ref_counter"] == 0
 
     @authors("babenko")
+    # Virtual maps are not implemented in Sequoia.
     @not_implemented_in_sequoia
     def test_move_virtual_maps1(self):
         create("tablet_map", "//tmp/t")
         move("//tmp/t", "//tmp/tt")
 
     @authors("babenko")
+    # Virtual maps are not implemented in Sequoia.
     @not_implemented_in_sequoia
     def test_move_virtual_maps2(self):
         create("chunk_map", "//tmp/c")
@@ -1799,7 +1791,6 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/test_node/100")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_string_node_length_limit(self):
         set("//sys/@config/cypress_manager/max_string_node_length", 300)
         set("//tmp/test_node", "x" * 300)
@@ -1845,7 +1836,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
-    @not_implemented_in_sequoia
     def test_expiration_change_requires_remove_permission_failure(self, expiration):
         create_user("u")
         create("table", "//tmp/t")
@@ -1878,7 +1868,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
-    @not_implemented_in_sequoia
     def test_expiration_reset_requires_write_permission_failure(self, expiration):
         create_user("u")
         create(
@@ -1983,7 +1972,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/m")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_expiration_time_dont_wait_for_snapshot_locks(self):
         create("table", "//tmp/t")
         tx = start_transaction()
@@ -1998,7 +1986,6 @@ class TestCypress(YTEnvSetup):
             set("//@expiration_time", str(get_current_time()))
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_expiration_time_versioning1(self):
         create(
             "table",
@@ -2018,7 +2005,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@expiration_time") == "2031-03-07T13:18:55.000000Z"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_expiration_time_versioning2(self):
         create("table", "//tmp/t1")
 
@@ -2034,7 +2020,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@expiration_time") == "2030-03-07T13:18:55.000000Z"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_expiration_time_versioning3(self):
         create(
             "table",
@@ -2058,7 +2043,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1/@expiration_time")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_expiration_time_versioning4(self):
         create(
             "table",
@@ -2093,7 +2077,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1/@expiration_time")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_expiration_time_versioning5(self):
         tx = start_transaction()
         create(
@@ -2207,13 +2190,12 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=5))},
         )
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
-        time.sleep(2)
-        assert not exists("//tmp/t1")
+        wait(lambda: not exists("//tmp/t1"))
         assert exists("//tmp/t2", tx=tx)
         commit_transaction(tx)
         wait(lambda: not exists("//tmp/t2"))
@@ -2254,7 +2236,6 @@ class TestCypress(YTEnvSetup):
         time.sleep(2)
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
@@ -2263,7 +2244,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout2(self):
         set("//sys/@config/cypress_manager/expiration_check_period", 200)
@@ -2276,7 +2256,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
@@ -2290,7 +2269,6 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout4(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
@@ -2303,7 +2281,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout5(self):
         tx = start_transaction()
@@ -2322,7 +2299,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout6(self):
         tx = start_transaction()
@@ -2355,7 +2331,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout8(self):
         create("table", "//tmp/t")
@@ -2376,7 +2351,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout_zero(self):
         # Very small - including zero timeouts - should be handled normally.
@@ -2394,7 +2368,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t4")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout1(self):
         create(
@@ -2420,7 +2393,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout2(self):
         create(
@@ -3004,7 +2976,8 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
 
     @authors("kvk1920", "h0pless")
-    @not_implemented_in_sequoia  # This attribute should be handled in CP like @recursive_resource_usage.
+    # This attribute should be handled in CP like @recursive_resource_usage.
+    @not_implemented_in_sequoia
     def test_effective_inheritable_attributes_attribute(self):
         create("map_node", "//tmp/grandparent")
         set("//tmp/grandparent/@compression_codec", "zlib_9")
@@ -3397,7 +3370,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/d1/d2/d3/t2/@primary_medium", tx=tx) == "default"
 
     @authors("savrus")
-    @not_implemented_in_sequoia
     def test_create_invalid_type(self):
         with raises_yt_error("Error parsing EObjectType value"):
             create("some_invalid_type", "//tmp/s")
@@ -4201,7 +4173,6 @@ class TestCypress(YTEnvSetup):
         get("//tmp")
 
     @authors("h0pless")
-    @not_implemented_in_sequoia
     def test_yt24775(self):
         create("map_node", "//tmp/map_node")
         set("//tmp/map_node/@compression_codec", "lz4")
@@ -4336,6 +4307,7 @@ class TestCypressMulticell(TestCypress):
         assert not exists("//tmp/t/@external_cell_bias")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("use_offloading", [False, True])
     def test_virtual_map_read_authenticated_user_propagation(self, use_offloading):
         if use_offloading:
@@ -4498,7 +4470,6 @@ class TestCypressPortal(TestCypressMulticell):
         pass
 
     @authors("avmatrosov")
-    @not_implemented_in_sequoia
     def test_preserve_owner(self):
         create_user("u1")
         create("document", "//tmp/doc", authenticated_user="u1")
