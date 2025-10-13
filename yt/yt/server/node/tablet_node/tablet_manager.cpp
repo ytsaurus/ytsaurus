@@ -699,22 +699,21 @@ public:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-            .DoFor(
-                perClusterReplicationStatus.begin(),
-                perClusterReplicationStatus.end(),
-                [&] (TFluentMap fluent, const auto& replicationStatusEntry) {
-                    auto clusterName = replicationStatusEntry->first;
-                    auto replicationStatus = replicationStatusEntry->second;
-                    bool hasReplicationActivity = replicationStatus.PreparedReplicatorTransactionCount != 0 ||
-                        replicationStatus.ActiveReplicatorIterationCount != 0;
+                .DoFor(
+                    perClusterReplicationStatus.begin(),
+                    perClusterReplicationStatus.end(),
+                    [&] (TFluentMap fluent, const auto& replicationStatusEntry) {
+                        const auto& [clusterName, replicationStatus] = *replicationStatusEntry;
+                        bool hasReplicationActivity = replicationStatus.PreparedReplicatorTransactionCount != 0 ||
+                            replicationStatus.ActiveReplicatorIterationCount != 0;
 
-                    fluent.Item(clusterName)
-                        .BeginMap()
-                            .Item("prepared_replicator_transaction_count").Value(replicationStatus.PreparedReplicatorTransactionCount)
-                            .Item("active_replicator_iteration_count").Value(replicationStatus.ActiveReplicatorIterationCount)
-                            .Item("has_replication_activity").Value(hasReplicationActivity)
-                        .EndMap();
-                })
+                        fluent.Item(clusterName)
+                            .BeginMap()
+                                .Item("prepared_replicator_transaction_count").Value(replicationStatus.PreparedReplicatorTransactionCount)
+                                .Item("active_replicator_iteration_count").Value(replicationStatus.ActiveReplicatorIterationCount)
+                                .Item("has_replication_activity").Value(hasReplicationActivity)
+                            .EndMap();
+                    })
             .EndMap();
     }
 
