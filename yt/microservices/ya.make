@@ -3,11 +3,11 @@ RECURSE(
     bulk_acl_checker_roren
     resource_usage
     resource_usage_roren
+    access_log_viewer
 )
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        access_log_viewer
         error_manager
         excel
         firehose

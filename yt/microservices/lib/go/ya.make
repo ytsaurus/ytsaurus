@@ -5,7 +5,12 @@ SRCS(
     http.go
 )
 
-IF (NOT OPENSOURCE AND NOT RUN_MANUAL_TESTS)
+IF (OPENSOURCE)
+    SRCS(
+        common_external.go
+        auth_external.go
+    )
+ELSE()
     SRCS(
         common_internal.go
         auth_internal.go
