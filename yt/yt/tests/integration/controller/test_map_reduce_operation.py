@@ -3963,6 +3963,28 @@ for line in sys.stdin:
 
             assert job_count_per_task["partition_reduce"] == 3
 
+    @authors("apollo1321")
+    def test_explicit_map_job_count(self):
+        create("table", "//tmp/t_in")
+
+        rows = [{"x": 1}]
+        write_table("<append=%true>//tmp/t_in", rows)
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            reduce_by=["x"],
+            reducer_command="cat",
+            spec={
+                "map_job_count": 100,
+            },
+        )
+
+        assert read_table("//tmp/t_in") == rows
+        tasks = get(op.get_path() + "/@progress/tasks")
+        assert len(tasks) == 2
+        assert {"partition", "partition_reduce"} == {task["job_type"] for task in tasks}
+
 
 ##################################################################
 
