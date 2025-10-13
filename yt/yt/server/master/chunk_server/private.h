@@ -36,6 +36,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkReplicaFetcher)
 
 DECLARE_REFCOUNTED_CLASS(TJobRegistry)
 
+DECLARE_REFCOUNTED_STRUCT(ISequoiaReplicasModifier)
+
 template <class TPayload>
 class TChunkScanQueueWithPayload;
 using TChunkScanQueue = TChunkScanQueueWithPayload<void>;
@@ -56,12 +58,27 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (ApproveTimeout)
     (ChunkDestroyed)
     (NodeDisposed)
+    (NodeRestarted)
+    (SequoiaModified)
+    (SequoiaNodeDisposed)
 );
 
 DEFINE_ENUM(EChunkMergerStatus,
     ((NotInMergePipeline)           (0))
     ((AwaitingMerge)                (1))
     ((InMergePipeline)              (2))
+);
+
+DEFINE_ENUM(ESequoiaReplicaModificationPhase,
+    (StartTransaction)
+    (GatherModifiedAddedReplicas)
+    (ParseRemovedReplicas)
+    (LookupRemovedLocationReplicas)
+    (GatherModifiedRemovedReplicas)
+    (WriteRowsAndAddTransactionActions)
+    (CommitTransaction)
+    (LookupExistingReplicasInReplacedLocation)
+    (GatherReplacedLocationReplicasDifference)
 );
 
 // Only used for producing text representation of table chunk formats in

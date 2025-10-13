@@ -429,6 +429,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_chunk_count_to_fetch_from_refresh_queue", &TThis::SequoiaChunkCountToFetchFromRefreshQueue)
         .Default(1'000);
 
+    registrar.Parameter("use_location_replacement_for_location_full_heartbeat", &TThis::UseLocationReplacementForLocationFullHeartbeat)
+        .Default(false);
+
     registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
         .Default(true);
 

@@ -7,6 +7,7 @@
 #include "data_node_tracker.h"
 #include "domestic_medium.h"
 #include "chunk_manager.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/object_server/object.h>
 
@@ -133,13 +134,11 @@ public:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->SelectRows<NRecords::TLocationReplicas>({
-                .WhereConjuncts = {
-                    Format("cell_tag = %v", Bootstrap_->GetCellTag()),
-                    Format("node_id = %v", nodeId),
-                    Format("location_index = %v", locationIndex),
-                }
-            }).Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
+            ->SelectRows<NRecords::TLocationReplicas>(BuildSelectLocationSequoiaReplicasQuery(
+                Bootstrap_->GetCellTag(),
+                nodeId,
+                locationIndex
+            )).Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
                 return result;
             }));

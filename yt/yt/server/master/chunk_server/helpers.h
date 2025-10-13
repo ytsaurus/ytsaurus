@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/journal_client/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/location_indexes.pb.h>
@@ -166,6 +168,11 @@ TError SanitizeError(TError error);
 
 void ValidateMediumName(const std::string& name);
 void ValidateMediumPriority(int priority);
+
+NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
+    NObjectClient::TCellTag cellTag,
+    TNodeId nodeId,
+    NNodeTrackerClient::TChunkLocationIndex locationIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

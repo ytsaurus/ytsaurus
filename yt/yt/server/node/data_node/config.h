@@ -590,7 +590,7 @@ struct TDataNodeTestingOptions
     //! Test location disable during full heartbeat, contains location uuid.
     std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
 
-    //! Test data node intermediate state at master during full hearbteat session.
+    //! Test data node intermediate state at master during full heartbeat session.
     std::optional<TDuration> FullHeartbeatSessionSleepDuration;
 
     // For testing purposes.

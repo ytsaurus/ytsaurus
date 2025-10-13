@@ -5,11 +5,18 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/yson_string/string.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 using namespace NCellMaster;
 using namespace NNodeTrackerClient;
+
+using namespace NYson;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -162,5 +169,45 @@ void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void BuildReplicasListYson(
+    IYsonConsumer* consumer,
+    const std::vector<TChunkReplicaWithLocationIndex>& replicas)
+{
+    BuildYsonFluently(consumer)
+        .DoListFor(replicas, [] (auto fluent, const auto& replica) {
+            fluent
+                .Item()
+                .BeginList()
+                    .Item().Value(replica.LocationIndex)
+                    .Item().Value(replica.ReplicaIndex)
+                    .Item().Value(replica.NodeId)
+                .EndList();
+        });
+}
+
+TYsonString GetReplicasListYson(
+    const std::vector<TChunkReplicaWithLocationIndex>& replicas)
+{
+    return BuildYsonStringFluently()
+        .Do([&] (auto fluent) {
+            BuildReplicasListYson(fluent.GetConsumer(), replicas);
+        });
+}
+
+TYsonString GetReplicasYson(
+    const std::vector<TChunkReplicaWithLocationIndex>& replicasToAdd,
+    const std::vector<TChunkReplicaWithLocationIndex>& replicasToRemove)
+{
+    return BuildYsonStringFluently()
+        .BeginList()
+            .Item().Do([&] (auto fluent) {
+                BuildReplicasListYson(fluent.GetConsumer(), replicasToAdd);
+            })
+            .Item().Do([&] (auto fluent) {
+                BuildReplicasListYson(fluent.GetConsumer(), replicasToRemove);
+            })
+        .EndList();
+}
 
 } // namespace NYT::NChunkServer

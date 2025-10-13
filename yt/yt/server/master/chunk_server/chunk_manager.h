@@ -368,11 +368,19 @@ struct IChunkManager
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat* response) = 0;
+    virtual void ProcessDataNodeLocationsInFinalizeHeartbeat(
+        TNode* node,
+        const std::vector<TChunkLocationUuid>& reportedLocationUuids) = 0;
     virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) noexcept = 0;
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         NSequoiaClient::ESequoiaTransactionType transactionType,
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
+
+    virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ReplaceSequoiaLocationReplicas(
+        NSequoiaClient::ESequoiaTransactionType transactionType,
+        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqReplaceLocationReplicas> request) = 0;
+
     virtual TFuture<void> ConfirmSequoiaChunk(
         NChunkClient::NProto::TReqConfirmChunk* request) = 0;
 

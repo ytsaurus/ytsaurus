@@ -27,6 +27,7 @@
 #include <yt/yt/server/master/sequoia_server/config.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_disposal_manager.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/helpers.h>
 
@@ -134,6 +135,7 @@ public:
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TDataNodeTracker::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRestarted(BIND_NO_PROPAGATE(&TDataNodeTracker::OnNodeRestarted, MakeWeak(this)));
         nodeTracker->SubscribeNodeZombified(BIND_NO_PROPAGATE(&TDataNodeTracker::OnNodeZombified, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -154,6 +156,7 @@ public:
     // COMPAT(danilalexeev): YT-23781.
     template <class TFullHeartbeatContextPtr>
     void DoProcessFullHeartbeat(
+        const TNode* node,
         TFullHeartbeatContextPtr context,
         TRange<TChunkLocationIndex> locationDirectory)
     {
@@ -163,34 +166,64 @@ public:
 
         auto preparedRequest = SplitRequest(context, locationDirectory);
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
-            auto modifyDeadChunks = BIND([&] {
-                for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->removed_chunks()) {
+        if (Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->Enable) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto searchForDeadChunks = [&] (auto& request, const auto& chunks) {
+                for (const auto& protoChunkInfo : chunks) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
                     auto chunkId = chunkIdWithIndex.Id;
                     if (!IsObjectAlive(chunkManager->FindChunk(chunkId))) {
-                        ToProto(preparedRequest->SequoiaRequest->add_dead_chunk_ids(), chunkId);
+                        ToProto(request->add_dead_chunk_ids(), chunkId);
                     }
                 }
+            };
 
-                for (const auto& protoChunkInfo : preparedRequest->SequoiaRequest->added_chunks()) {
-                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(protoChunkInfo.chunk_id()));
-                    auto chunkId = chunkIdWithIndex.Id;
-                    if (!IsObjectAlive(chunkManager->FindChunk(chunkId))) {
-                        ToProto(preparedRequest->SequoiaRequest->add_dead_chunk_ids(), chunkId);
-                    }
+            if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
+                auto locationUuid = FromProto<TChunkLocationUuid>(context->Request().location_uuid());
+                auto* location = FindAndValidateLocation<true>(node, locationUuid);
+
+                if (location->GetState() == EChunkLocationState::Restarted ||
+                    Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->UseLocationReplacementForLocationFullHeartbeat)
+                {
+                    auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
+                    replaceLocationRequest->set_node_id(ToProto(node->GetId()));
+                    replaceLocationRequest->set_location_index(ToProto(location->GetIndex()));
+                    *replaceLocationRequest->mutable_chunks() = std::move(*preparedRequest->SequoiaRequest->mutable_added_chunks());
+
+                    preparedRequest->SequoiaRequest.reset();
+
+                    const auto& objectService = Bootstrap_->GetObjectService();
+                    WaitFor(BIND([&] {
+                            searchForDeadChunks(replaceLocationRequest, replaceLocationRequest->chunks());
+                        })
+                        .AsyncVia(objectService->GetLocalReadOffloadInvoker())
+                        .Run())
+                        .ThrowOnError();
+
+                    WaitFor(chunkManager->ReplaceSequoiaLocationReplicas(
+                        ESequoiaTransactionType::FullHeartbeat,
+                        std::move(replaceLocationRequest)))
+                        .ThrowOnError();
                 }
-            });
+            }
 
-            const auto& objectService = Bootstrap_->GetObjectService();
-            WaitFor(modifyDeadChunks
-                .AsyncVia(objectService->GetLocalReadOffloadInvoker())
-                .Run())
-                .ThrowOnError();
+            auto& sequoiaRequest = preparedRequest->SequoiaRequest;
+            // We will reset Sequoia request in case the location replacement is applied.
+            if (sequoiaRequest && sequoiaRequest->removed_chunks_size() + sequoiaRequest->added_chunks_size() > 0) {
+                auto modifyDeadChunks = BIND([&] {
+                    searchForDeadChunks(sequoiaRequest, sequoiaRequest->removed_chunks());
+                    searchForDeadChunks(sequoiaRequest, sequoiaRequest->added_chunks());
+                });
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::FullHeartbeat, std::move(preparedRequest->SequoiaRequest)))
-                .ThrowOnError();
+                const auto& objectService = Bootstrap_->GetObjectService();
+                WaitFor(modifyDeadChunks
+                    .AsyncVia(objectService->GetLocalReadOffloadInvoker())
+                    .Run())
+                    .ThrowOnError();
+
+                WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::FullHeartbeat, std::move(sequoiaRequest)))
+                    .ThrowOnError();
+            }
         }
 
         const auto& config = GetDynamicConfig();
@@ -240,9 +273,14 @@ public:
         const TNode* node,
         const TCtxFullHeartbeatPtr& context) override
     {
+        if (node->GetLocalState() == ENodeState::Restarted) {
+            YT_LOG_ALERT("Restarted node sent full heartbeat (NodeId: %v, NodeAddress: %v)", node->GetId(), node->GetDefaultAddress());
+            THROW_ERROR_EXCEPTION("Full data node heartbeats are not supported for restarted nodes, the node will be disposed for standard registration");
+        }
+
         ValidateHeartbeatRequest(node, context->Request());
         auto locationDirectory = ParseLocationDirectory(node, context->Request());
-        DoProcessFullHeartbeat(context, locationDirectory);
+        DoProcessFullHeartbeat(node, context, locationDirectory);
     }
 
     void ProcessLocationFullHeartbeat(
@@ -258,13 +296,68 @@ public:
         auto locationUuid = FromProto<TChunkLocationUuid>(context->Request().location_uuid());
         auto* location = FindAndValidateLocation<true>(node, locationUuid);
 
-        DoProcessFullHeartbeat(context, {location->GetIndex()});
+        DoProcessFullHeartbeat(node, context, {location->GetIndex()});
     }
 
     void FinalizeFullHeartbeatSession(
-        const TNode* /*node*/,
+        const TNode* node,
         const TCtxFinalizeFullHeartbeatSessionPtr& context) override
     {
+        auto reportedLocationUuids = GetLocationsReportedInStatistics(context->Request().statistics());
+
+        std::vector<TFuture<TRspModifyReplicas>> sequoiaReplaceLocationReplicasFutures;
+
+        for (const auto& location : node->ChunkLocations()) {
+            if (!std::ranges::binary_search(reportedLocationUuids, location->GetUuid())) {
+                // Some locations may send no location heartbeats.
+                // These locations are not present in location statistics.
+                // However, if these locations are restarted, we will need to clean up all chunks on them.
+                if (location->GetState() == EChunkLocationState::Restarted) {
+                    if (node->GetLocalState() != ENodeState::Restarted) {
+                        YT_LOG_ALERT("Non restarted node has restarted location (NodeId: %v, NodeAddress: %v, NodeLocalState: %v, LocationUuid: %v)",
+                            node->GetId(),
+                            node->GetDefaultAddress(),
+                            node->GetLocalState(),
+                            location->GetUuid());
+                        THROW_ERROR_EXCEPTION("Non restarted node has restarted location %v", location->GetUuid());
+                    }
+
+                    // We first clean up Sequoia chunks, and then in mutation we will clean non-Sequoia chunks.
+                    if (Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas->Enable) {
+                        auto replaceLocationRequest = std::make_unique<TReqReplaceLocationReplicas>();
+                        replaceLocationRequest->set_node_id(ToProto(node->GetId()));
+                        replaceLocationRequest->set_location_index(ToProto(location->GetIndex()));
+
+                        auto chunkManager = Bootstrap_->GetChunkManager();
+                        sequoiaReplaceLocationReplicasFutures.push_back(chunkManager->ReplaceSequoiaLocationReplicas(
+                            ESequoiaTransactionType::FullHeartbeat,
+                            std::move(replaceLocationRequest)));
+                    }
+                }
+            } else if (location->GetState() != EChunkLocationState::Online) {
+                // All locations that are present in statistics must be already reported in per locations heartbeats.
+                // For these locations we verify that they are online.
+                // The restarted locations also should be turned into online state even for disabled flag VerifyAllLocationsAreReportedInFullHeartbeats.
+
+                // COMPAT(grphil) always throw error after all nodes are updated to fresh 25.3.
+                if (GetDynamicConfig()->VerifyAllLocationsAreReportedInFullHeartbeats ||
+                    location->GetState() == EChunkLocationState::Restarted) {
+                    THROW_ERROR_EXCEPTION(
+                        "Node has not reported all locations, location %v has %v state",
+                        location->GetUuid(),
+                        location->GetState());
+                }
+            }
+        }
+
+        WaitFor(AllSet(std::move(sequoiaReplaceLocationReplicasFutures))
+            .Apply(BIND([](const std::vector<TErrorOr<TRspModifyReplicas>> responses) {
+                for (const auto& response : responses) {
+                    response.ThrowOnError();
+                }
+            })))
+            .ThrowOnError();
+
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             context,
@@ -483,8 +576,17 @@ public:
             }
         }
 
-        ReplicateChunkLocations(node, chunkLocationUuids);
-        MakeLocationsRegistered(node);
+        switch (node->GetLocalState()) {
+            case ENodeState::Offline:
+                ReplicateChunkLocations(node, chunkLocationUuids);
+                MakeLocationsRegistered(node);
+                break;
+            case ENodeState::Restarted:
+                ProcessRestartedNodeChunkLocations(node, chunkLocationUuids);
+                break;
+            default:
+                YT_LOG_ALERT("Unexpected node state during registration (NodeAddress: %v, State: %v)", node->GetDefaultAddress(), node->GetLocalState());
+        }
 
         if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
@@ -842,7 +944,7 @@ private:
     }
 
     template <bool FullHeartbeat>
-    void AlertAndThrowOnInvalidLocationIndex(
+    void AlertAndThrowOnInvalidChunkInfo(
         const auto& chunkInfo,
         const TNode* node,
         int locationDirectorySize) const
@@ -857,6 +959,17 @@ private:
             std::is_same_v<std::decay_t<decltype(chunkInfo)>, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>>;
 
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+
+        if constexpr (FullHeartbeat) {
+            if (chunkInfo.caused_by_medium_change()) {
+                YT_LOG_ALERT(
+                    "Data node reported full heartbeat with medium change chunk "
+                    "(ChunkId: %v, NodeAddress: %v)",
+                    chunkId,
+                    node->GetDefaultAddress());
+                THROW_ERROR_EXCEPTION("Full heartbeat contains chunk with medium change");
+            }
+        }
 
         if (chunkInfo.has_location_index()) {
             auto locationIndex = FromProto<NNodeTrackerClient::TChunkLocationIndex>(chunkInfo.location_index());
@@ -941,7 +1054,7 @@ private:
 
         auto checkLocationIndices = [&] (const auto& chunkInfos, int locationDirectorySize) {
             for (const auto& chunkInfo : chunkInfos) {
-                AlertAndThrowOnInvalidLocationIndex<fullHeartbeat>(chunkInfo, node, locationDirectorySize);
+                AlertAndThrowOnInvalidChunkInfo<fullHeartbeat>(chunkInfo, node, locationDirectorySize);
             }
         };
 
@@ -1001,10 +1114,12 @@ private:
 
         auto doSplitRequest = BIND([=] () {
             auto preparedRequest = NewWithOffloadedDtor<THeartbeatRequest<THeartbeatContextPtr>>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+
+            auto& sequoiaRequest = preparedRequest->SequoiaRequest;
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
+            sequoiaRequest->set_node_id(originalRequest.node_id());
 
             auto splitChunks = [&] (const auto& chunkInfos) {
-                preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
                 for (auto chunkInfo : chunkInfos) {
                     using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
@@ -1015,9 +1130,9 @@ private:
 
                     if (isSequoiaEnabled && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
                         if constexpr (std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo>) {
-                            *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
+                            *sequoiaRequest->add_added_chunks() = std::move(chunkInfo);
                         } else {
-                            *preparedRequest->SequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
+                            *sequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
                         }
                     } else {
                         if constexpr (std::is_same_v<THeartbeatContextPtr, TCtxIncrementalHeartbeatPtr>) {
@@ -1102,6 +1217,21 @@ private:
                 "Full data node heartbeat is already sent");
         }
 
+        for (const auto& location : node->ChunkLocations()) {
+            // We have checked that node state is not restarted, so there should not be any locations with restarted state.
+            if (location->GetState() != EChunkLocationState::Registered) {
+                YT_LOG_ALERT(
+                    "Node has reported full heartbeat for location with invalid state (NodeAddress: %v, NodeId: %v, LocationUuid: %v, LocationState: %Qlv)",
+                    node->GetDefaultAddress(),
+                    nodeId,
+                    location->GetUuid(),
+                    location->GetState());
+                THROW_ERROR_EXCEPTION(
+                    "Node has reported full heartbeat for location that has %Qlv state",
+                    location->GetState());
+            }
+        }
+
         YT_PROFILE_TIMING("/node_tracker/full_data_node_heartbeat_time") {
             YT_LOG_DEBUG("Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
@@ -1179,33 +1309,12 @@ private:
         nodeTracker->UpdateLastDataHeartbeatTime(node);
 
         auto& statistics = *request->mutable_statistics();
-        std::vector<TChunkLocationUuid> reportedLocations(statistics.chunk_locations_size());
-        std::ranges::transform(
-            statistics.chunk_locations(),
-            reportedLocations.begin(),
-            [] (const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics) {
-                return FromProto<TChunkLocationUuid>(statistics.location_uuid());
-            });
-        std::ranges::sort(reportedLocations);
-        for (const auto& location : node->ChunkLocations()) {
-            if (!std::ranges::binary_search(reportedLocations, location->GetUuid())) {
-                // Some locations may send no location heartbeats.
-                // These locations have no location statistics, so we need to manually set them online.
-                // Online location states will be checked in TChunkManager::FinalizeDataNodeFullHeartbeatSession.
-                location->SetState(EChunkLocationState::Online);
-            } else if (location->GetState() != EChunkLocationState::Online) {
-                // COMPAT(grphil)
-                if (GetDynamicConfig()->VerifyAllLocationsAreReportedInFullHeartbeats) {
-                    THROW_ERROR_EXCEPTION("Node did not report all locations with heartbeats: location %v is not online", location->GetUuid());
-                } else {
-                    location->SetState(EChunkLocationState::Online);
-                }
-            }
-        }
-
-        PopulateChunkLocationStatistics(node, statistics.chunk_locations());
+        auto reportedLocationUuids = GetLocationsReportedInStatistics(statistics);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->ProcessDataNodeLocationsInFinalizeHeartbeat(node, reportedLocationUuids);
+
+        PopulateChunkLocationStatistics(node, statistics.chunk_locations());
         node->SetDataNodeStatistics(std::move(statistics), chunkManager);
 
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
@@ -1244,6 +1353,16 @@ private:
 
         for (auto location : node->ChunkLocations()) {
             location->SetState(EChunkLocationState::Offline);
+            location->SetLastSeenTime(mutationContext->GetTimestamp());
+        }
+    }
+
+    void OnNodeRestarted(TNode* node)
+    {
+        auto mutationContext = GetCurrentMutationContext();
+
+        for (auto location : node->ChunkLocations()) {
+            location->SetState(EChunkLocationState::Restarted);
             location->SetLastSeenTime(mutationContext->GetTimestamp());
         }
     }
@@ -1335,6 +1454,20 @@ private:
         }
     }
 
+    std::vector<TChunkLocationUuid> GetLocationsReportedInStatistics(
+        const NNodeTrackerClient::NProto::TDataNodeStatistics& statistics)
+    {
+        std::vector<TChunkLocationUuid> reportedLocations(statistics.chunk_locations_size());
+        std::ranges::transform(
+            statistics.chunk_locations(),
+            reportedLocations.begin(),
+            [] (const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics) {
+                return FromProto<TChunkLocationUuid>(statistics.location_uuid());
+            });
+        std::ranges::sort(reportedLocations);
+        return reportedLocations;
+    }
+
     const TDynamicDataNodeTrackerConfigPtr& GetDynamicConfig() const
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->DataNodeTracker;
@@ -1351,6 +1484,86 @@ private:
         if (DanglingLocationsCleaningExecutor_) {
             DanglingLocationsCleaningExecutor_->SetPeriod(GetDynamicConfig()->DanglingLocationCleaner->CleanupPeriod);
         }
+    }
+
+    void ProcessRestartedNodeChunkLocations(
+        TNode* node,
+        const std::vector<TChunkLocationUuid>& chunkLocationUuids)
+    {
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
+        YT_VERIFY(HasMutationContext());
+
+        auto sortedLocationUuids = chunkLocationUuids;
+        std::ranges::sort(sortedLocationUuids);
+
+        for (auto location : node->ChunkLocations()) {
+            if (location->GetState() != EChunkLocationState::Restarted) {
+                YT_LOG_ALERT(
+                    "Locations was not set restarted after node is set restarted "
+                    "(LocationUuid: %v, locationState: %v, nodeAddress: %v)",
+                    location->GetUuid(),
+                    location->GetState(),
+                    node->GetDefaultAddress()
+                );
+                location->SetState(EChunkLocationState::Restarted);
+            }
+
+            if (!std::ranges::binary_search(sortedLocationUuids, location->GetUuid())) {
+                YT_LOG_ALERT(
+                    "Restarted node has disappeared location (NodeAddress: %v, NodeId: %v, LocationUuid: %v)",
+                    node->GetDefaultAddress(),
+                    node->GetId(),
+                    location->GetUuid());
+                THROW_ERROR_EXCEPTION(
+                    "Restarted node has disappeared location")
+                    << TErrorAttribute("node_address", node->GetDefaultAddress())
+                    << TErrorAttribute("node_id", node->GetId())
+                    << TErrorAttribute("location_uuid", location->GetUuid());
+            }
+        }
+        node->ChunkLocations().clear();
+
+        for (auto locationUuid : chunkLocationUuids) {
+            auto* location = FindChunkLocationByUuid(locationUuid);
+            if (!IsObjectAlive(location)) {
+                YT_LOG_ALERT(
+                    "Missing chunk location for node (NodeAddress: %v, LocationUuid: %v)",
+                    node->GetDefaultAddress(),
+                    locationUuid);
+                continue;
+            }
+
+            if (auto existingNode = location->GetNode(); IsObjectAlive(existingNode) && existingNode != node) {
+                // It was already checked in DataNodeTracker::ValidateRegisterNode().
+                YT_LOG_FATAL("Chunk location is already bound to another node (NodeAddress: %v, LocationUuid: %v, BoundNodeAddress: %v)",
+                    node->GetDefaultAddress(),
+                    locationUuid,
+                    existingNode->GetDefaultAddress());
+            } else {
+                // Location is not dangling anymore.
+                auto mutationContext = GetCurrentMutationContext();
+
+                location->SetNode(node);
+                location->SetLastSeenTime(mutationContext->GetTimestamp());
+                node->ChunkLocations().push_back(location);
+                if (location->GetState() != EChunkLocationState::Restarted) {
+                    location->SetState(EChunkLocationState::Registered);
+                    YT_LOG_DEBUG(
+                        "New location appeared in restarted node (NodeAddress: %v, NodeId: %v, LocationUuid: %v)",
+                        node->GetDefaultAddress(),
+                        node->GetId(),
+                        location->GetUuid());
+                } else {
+                    YT_LOG_DEBUG(
+                        "Location has restarted in restarted node (NodeAddress: %v, NodeId: %v, LocationUuid: %v)",
+                        node->GetDefaultAddress(),
+                        node->GetId(),
+                        location->GetUuid());
+                }
+            }
+        }
+
+        node->ChunkLocations().shrink_to_fit();
     }
 
     void CleanDanglingLocations()

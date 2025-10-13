@@ -127,7 +127,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Annotations)
             .SetPresent(static_cast<bool>(node->GetAnnotations())));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Version));
-        bool isGood = node->GetLocalState() == ENodeState::Registered || node->GetLocalState() == ENodeState::Online;
+        bool isGood = node->HasAliveLocalState();
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RegisterTime)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LeaseTransactionId)
@@ -176,8 +176,7 @@ private:
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* node = GetThisImpl();
-        auto state = node->GetLocalState();
-        bool isGood = state == ENodeState::Registered || state == ENodeState::Online;
+        bool isGood = node->HasAliveLocalState();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         switch (key) {

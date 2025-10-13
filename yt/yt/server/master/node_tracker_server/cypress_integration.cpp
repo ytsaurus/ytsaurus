@@ -228,7 +228,9 @@ private:
             case EInternedAttributeKey::Registered:
             case EInternedAttributeKey::Online:
             case EInternedAttributeKey::Unregistered:
-            case EInternedAttributeKey::Mixed: {
+            case EInternedAttributeKey::Mixed:
+            case EInternedAttributeKey::BeingDisposed:
+            case EInternedAttributeKey::Restarted: {
                 ENodeState state;
                 switch (key) {
                     case EInternedAttributeKey::Offline:
@@ -248,6 +250,9 @@ private:
                         break;
                     case EInternedAttributeKey::BeingDisposed:
                         state = ENodeState::BeingDisposed;
+                        break;
+                    case EInternedAttributeKey::Restarted:
+                        state = ENodeState::Restarted;
                         break;
                     default:
                         YT_ABORT();

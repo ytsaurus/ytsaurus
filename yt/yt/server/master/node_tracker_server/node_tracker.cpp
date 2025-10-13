@@ -141,6 +141,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraMaterializeNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeHasRestarted, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
@@ -323,6 +324,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableTabletCellsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodePendingRestartChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeTagsChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeRestarted);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TRack*), NodeRackChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TDataCenter*), DataCenterCreated);
@@ -976,12 +978,20 @@ public:
 
     void SetNodeLocalState(TNode* node, ENodeState state) override
     {
+        YT_LOG_DEBUG(
+            "Setting local state for node (NodeId: %v, NodeAddress: %v, OldState: %v, NewState: %v)",
+            node->GetId(),
+            node->GetDefaultAddress(),
+            node->GetLocalState(),
+            state);
+        UpdateNodeCounters(node, -1);
         node->SetLocalState(state);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
             SendNodeState(node);
         }
+        UpdateNodeCounters(node, +1);
     }
 
     void SetNodeLocalCellAggregatedStateReliability(TNode* node, ECellAggregatedStateReliability reliability)
@@ -995,6 +1005,11 @@ public:
 
         node->SetLocalCellAggregatedStateReliability(reliability);
         SendNodeAggregatedStateReliability(node);
+    }
+
+    INodeDisposalManagerPtr GetNodeDisposalManager() const override
+    {
+        return NodeDisposalManager_;
     }
 
 private:
@@ -1086,6 +1101,8 @@ private:
         std::optional<std::string> BuildVersion;
         std::optional<std::string> Rack;
         std::optional<std::string> DataCenter;
+        bool LocationIndexesInHeartbeatsSupported = false;
+        THashSet<TChunkLocationUuid> LocationUuids;
     };
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
@@ -1150,7 +1167,7 @@ private:
         auto* node = FindNodeByAddress(options.DefaultAddress);
         auto isNodeNew = !IsObjectAlive(node);
         if (!isNodeNew) {
-            KickOutPreviousNodeIncarnation(node, options.DefaultAddress);
+            KickOutPreviousNodeIncarnation(node, options.DefaultAddress, options);
             rack = node->GetRack();
         }
 
@@ -1221,12 +1238,13 @@ private:
         }
 
         if (leaseTransaction) {
+            UnregisterLeaseTransaction(node);
             node->SetLeaseTransaction(leaseTransaction);
             RegisterLeaseTransaction(node);
         }
     }
 
-    void KickOutPreviousNodeIncarnation(TNode* node, const std::string& address)
+    void KickOutPreviousNodeIncarnation(TNode* node, const std::string& address, const TNodeObjectCreationOptions& options)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1234,27 +1252,46 @@ private:
         node->ValidateNotBanned();
 
         if (multicellManager->IsPrimaryMaster()) {
-            auto localState = node->GetLocalState();
-            if (localState == ENodeState::Registered || localState == ENodeState::Online) {
-                YT_LOG_INFO("Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
-                    node->GetId(),
-                    address,
-                    localState);
-                UnregisterNode(node, true);
-            }
-            auto aggregatedState = node->GetAggregatedState();
-            if (aggregatedState != ENodeState::Offline) {
-                THROW_ERROR_EXCEPTION("Node %Qv is still in %Qlv state; must wait for it to become fully offline",
-                    node->GetDefaultAddress(),
-                    aggregatedState);
-            }
+            auto allLocationsAreReported = [&] {
+                for (const auto& location : node->ChunkLocations()) {
+                    if (!options.LocationUuids.contains(location->GetUuid())) {
+                        return false;
+                    }
+                }
+                return true;
+            };
 
-            if (node->GetRegistrationPending()) {
-                THROW_ERROR_EXCEPTION("Node %Qv is already being registered; must wait for it to become fully offline",
-                    node->GetDefaultAddress());
+            if (GetDynamicConfig()->NoRestartingNodesDisposal &&
+                node->GetAggregatedState() == ENodeState::Online &&
+                options.Flavors.contains(ENodeFlavor::Data) &&
+                options.LocationIndexesInHeartbeatsSupported &&
+                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->DataNodeTracker->EnablePerLocationFullHeartbeats &&
+                node->IsPendingRestart() &&
+                allLocationsAreReported())
+            {
+                SetNodeHasRestarted(node);
+            } else {
+                if (node->HasAliveLocalState()) {
+                    YT_LOG_INFO("Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                        node->GetId(),
+                        address,
+                        node->GetLocalState());
+                    UnregisterNode(node, true);
+                }
+                auto aggregatedState = node->GetAggregatedState();
+                if (aggregatedState != ENodeState::Offline) {
+                    THROW_ERROR_EXCEPTION("Node %Qv is still in %Qlv state; must wait for it to become fully offline",
+                        node->GetDefaultAddress(),
+                        aggregatedState);
+                }
+
+                if (node->GetRegistrationPending()) {
+                    THROW_ERROR_EXCEPTION("Node %Qv is already being registered; must wait for it to become fully offline",
+                        node->GetDefaultAddress());
+                }
             }
         } else {
-            EnsureNodeDisposed(node);
+            EnsureNodeDisposedOrRestarted(node);
         }
         // NB: No guarantee that node has saved dynamically propagated information about new master cells,
         // so it is counted that it should discover new master composition again.
@@ -1376,6 +1413,8 @@ private:
             .BuildVersion = request->has_build_version() ? std::make_optional(request->build_version()) : std::nullopt,
             .Rack = YT_OPTIONAL_FROM_PROTO((*request), rack),
             .DataCenter = YT_OPTIONAL_FROM_PROTO((*request), data_center),
+            .LocationIndexesInHeartbeatsSupported = request->location_indexes_in_heartbeats_supported(),
+            .LocationUuids = FromProto<THashSet<TChunkLocationUuid>>(request->chunk_location_uuids()),
         };
 
         EnsureNodeObjectCreated(options);
@@ -1389,11 +1428,10 @@ private:
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
-        UpdateNodeCounters(node, -1);
-        SetNodeLocalState(node, ENodeState::Registered);
-        UpdateNodeCounters(node, +1);
-
-        NodeRegistered_.Fire(node);
+        if (node->GetLocalState() != ENodeState::Restarted) {
+            SetNodeLocalState(node, ENodeState::Registered);
+            NodeRegistered_.Fire(node);
+        }
 
         YT_LOG_INFO(
             "Node registered "
@@ -1410,8 +1448,11 @@ private:
         CheckNodeOnline(node);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        // TODO(grphil): Add some analog for pending restart.
         if (multicellManager->IsPrimaryMaster()) {
-            node->SetRegistrationPending(multicellManager->GetCellTag());
+            if (node->GetLocalState() == ENodeState::Registered) {
+                node->SetRegistrationPending(multicellManager->GetCellTag());
+            }
             PostRegisterNodeMutation(node, request);
         }
 
@@ -1474,6 +1515,8 @@ private:
             }
 
             NodeRegistered_.Fire(node);
+        } else if (node->GetLocalState() != ENodeState::Offline) {
+            YT_LOG_ALERT("Node is materialized with invalid state (NodeId: %v, State: %v)", node->GetId(), node->GetLocalState());
         }
         NodeReplicated_.Fire(node);
 
@@ -1497,12 +1540,23 @@ private:
             return;
         }
 
-        auto state = node->GetLocalState();
-        if (state != ENodeState::Registered && state != ENodeState::Online) {
+        if (!node->HasAliveLocalState()) {
             return;
         }
 
         UnregisterNode(node, true);
+    }
+
+    void HydraSetNodeHasRestarted(TReqSetNodeHasRestarted* request)
+    {
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        auto* node = FindNode(nodeId);
+        if (!IsObjectAlive(node)) {
+            return;
+        }
+
+        SetNodeHasRestarted(node);
     }
 
     void HydraClusterNodeHeartbeat(
@@ -1980,6 +2034,10 @@ private:
                     // heartbeats will use imaginary locations.
                     [[fallthrough]];
 
+                case ENodeState::Restarted:
+                    // Restarted node should be treated the same way, as registered.
+                    [[fallthrough]];
+
                 case ENodeState::Unregistered:
                     // Node is going to be disposed right now, locations are
                     // still being used.
@@ -2111,14 +2169,12 @@ private:
         return result;
     }
 
-    void CheckNodeOnline(TNode* node)
+    void CheckNodeOnline(TNode* node) override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto expectedHeartbeats = GetExpectedHeartbeats(node, multicellManager->IsPrimaryMaster());
         if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
-            UpdateNodeCounters(node, -1);
             SetNodeLocalState(node, ENodeState::Online);
-            UpdateNodeCounters(node, +1);
 
             NodeOnline_.Fire(node);
 
@@ -2161,7 +2217,7 @@ private:
         auto isRegistered = false;
         const auto& descriptors = node->MulticellDescriptors();
         for (const auto& [cellag, descriptor] : descriptors) {
-            if (descriptor.State == ENodeState::Registered) {
+            if (descriptor.State == ENodeState::Registered || descriptor.State == ENodeState::Restarted) {
                 isRegistered = true;
                 break;
             }
@@ -2219,7 +2275,6 @@ private:
         UnregisterNode(node, true);
     }
 
-
     TNode* CreateNode(TNodeId nodeId, const TNodeAddressMap& nodeAddresses)
     {
         auto objectId = ObjectIdFromNodeId(nodeId);
@@ -2259,9 +2314,7 @@ private:
                 transactionManager->AbortMasterTransaction(transaction, options);
             }
 
-            UpdateNodeCounters(node, -1);
             SetNodeLocalState(node, ENodeState::Unregistered);
-            UpdateNodeCounters(node, +1);
             node->ReportedHeartbeats().clear();
 
             NodeUnregistered_.Fire(node);
@@ -2283,24 +2336,31 @@ private:
         }
     }
 
+    void SetNodeHasRestarted(TNode* node)
+    {
+        YT_VERIFY(node->GetLocalState() == ENodeState::Online);
+
+        SetNodeLocalState(node, ENodeState::Restarted);
+        node->ReportedHeartbeats().clear();
+        NodeRestarted_.Fire(node);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            PostSetNodeHasRestartedMutation(node);
+        }
+    }
+
+    void EnsureNodeDisposedOrRestarted(TNode* node)
+    {
+        if (node->GetLocalState() != ENodeState::Restarted && node->GetLocalState() != ENodeState::Offline) {
+            YT_LOG_ALERT("Node is not restarted or disposed when it should be (NodeId: %v)", node->GetId());
+        }
+    }
+
     void EnsureNodeDisposed(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Offline) {
             YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v)", node->GetId());
-        }
-
-        // Everything below is COMPAT(aleksandra-zh).
-        if (node->GetLocalState() == ENodeState::Registered ||
-            node->GetLocalState() == ENodeState::Online)
-        {
-            UnregisterNode(node, false);
-        }
-
-        if (node->GetLocalState() == ENodeState::Unregistered ||
-            node->GetLocalState() == ENodeState::BeingDisposed)
-        {
-            // This does not remove Sequoia replicas.
-            NodeDisposalManager_->DisposeNodeCompletely(node);
         }
     }
 
@@ -2438,6 +2498,15 @@ private:
         multicellManager->PostToSecondaryMasters(request);
     }
 
+    void PostSetNodeHasRestartedMutation(TNode* node)
+    {
+        TReqSetNodeHasRestarted request;
+        request.set_node_id(ToProto(node->GetId()));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(request);
+    }
+
     int AllocateRackIndex()
     {
         for (int index = 0; index < std::ssize(UsedRackIndexes_); ++index) {
@@ -2529,8 +2598,7 @@ private:
 
         request.set_host_name(node->GetHost()->GetName());
         request.set_exec_node_is_not_data_node(node->GetExecNodeIsNotDataNode());
-        auto state = node->GetLocalState();
-        auto materializedState = (state == ENodeState::Online || state == ENodeState::Registered)
+        auto materializedState = node->HasAliveLocalState()
             ? ENodeState::Registered
             : ENodeState::Offline;
         request.set_node_state(ToProto(materializedState));
@@ -3016,8 +3084,7 @@ private:
                 node->GetDefaultAddress());
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
-                auto state = node->GetLocalState();
-                if (state == ENodeState::Online || state == ENodeState::Registered) {
+                if (node->HasAliveLocalState()) {
                     UnregisterNode(node, true);
                 }
             }
