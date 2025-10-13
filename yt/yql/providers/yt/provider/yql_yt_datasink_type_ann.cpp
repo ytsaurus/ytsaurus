@@ -1807,6 +1807,8 @@ private:
                 }
 
                 TVector<const TItemExprType*> items(create.Columns().Size());
+                TColumnOrder columnOrder;
+                columnOrder.Reserve(items.size());
                 for (auto i = 0U; i < items.size(); ++i) {
                     const auto& node = create.Columns().Item(i).Ref();
                     const auto type = node.Child(1U)->GetTypeAnn()->Cast<TTypeExprType>()->GetType();
@@ -1814,6 +1816,7 @@ private:
                         return TStatus::Error;
                     }
                     items[i] = ctx.MakeType<TItemExprType>(node.Head().Content(), type);
+                    columnOrder.AddColumn(TString(node.Head().Content()));
                 }
 
                 const auto rowType = ctx.MakeType<TStructExprType>(std::move(items));
@@ -1827,6 +1830,9 @@ private:
                 outTable.RowSpec->SortMembers.reserve(orderBySize);
                 outTable.RowSpec->SortDirections.reserve(orderBySize);
                 outTable.RowSpec->SortedByTypes.reserve(orderBySize);
+                if (State_->Types->OrderedColumns) {
+                    outTable.RowSpec->SetColumnOrder(columnOrder);
+                }
 
                 const bool useNativeDescSort = State_->Configuration->UseNativeDescSort.Get().GetOrElse(DEFAULT_USE_NATIVE_DESC_SORT);
                 for (auto i = 0U; i < orderBySize; ++i) {
