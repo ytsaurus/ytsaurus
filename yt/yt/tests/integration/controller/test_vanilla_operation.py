@@ -1295,6 +1295,26 @@ class TestGangOperations(YTEnvSetup):
         op.abort()
 
     @authors("pogorelov")
+    def test_abandon_job(self):
+        incarnation_switch_counter = _get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={"gang_options": {}},
+        )
+
+        job_id_to_abandon, job_id_to_continue = wait_breakpoint(job_count=2)
+
+        print(f"Abandoning job {job_id_to_abandon}")
+        abandon_job(job_id_to_abandon)
+
+        release_breakpoint(job_id=job_id_to_continue)
+
+        op.track()
+
+        assert incarnation_switch_counter.get_delta() == 0
+
+    @authors("pogorelov")
     @pytest.mark.parametrize("task_to_abort_job_of", ["task_a", "task_b"])
     def test_task_spec(self, task_to_abort_job_of):
         aborted_job_profiler = JobCountProfiler(
