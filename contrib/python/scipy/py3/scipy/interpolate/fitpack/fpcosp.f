@@ -1,4 +1,4 @@
-      subroutine fpcosp(m,x,y,w,n,t,e,maxtr,maxbin,c,sq,sx,
+      recursive subroutine fpcosp(m,x,y,w,n,t,e,maxtr,maxbin,c,sq,sx,
      * bind,nm,mb,a,
      * b,const,z,zz,u,q,info,up,left,right,jbind,ibind,ier)
       implicit none

@@ -281,12 +281,16 @@ private:
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
         const auto& path = request->path();
-        IAttributeDictionaryPtr explicitAttributes;
-        if (request->has_node_attributes()) {
-            explicitAttributes = FromProto(request->node_attributes());
-        }
+
+        auto explicitAttributes = request->has_node_attributes()
+            ? FromProto(request->node_attributes())
+            : IAttributeDictionaryPtr();
 
         auto inheritedAttributes = FromProto(request->inherited_attributes());
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto accountName = inheritedAttributes->GetAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
+        auto* account = securityManager->GetAccountByNameOrThrow(accountName, /*activeLifeStageOnly*/ true);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
@@ -304,12 +308,10 @@ private:
         }
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-
         auto nodeFactory = cypressManager->CreateNodeFactory(
             cypressManager->GetRootCypressShard(),
             cypressTransaction,
-            securityManager->GetSysAccount(),
+            account,
             /*options*/ {});
 
         Y_UNUSED(nodeFactory->CreateNode(
@@ -973,15 +975,19 @@ private:
             .AllowSecondaryIndexAbandonment = cloneOptions.allow_secondary_index_abandonment(),
         };
 
+        // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
+        auto inheritedAttributes = FromProto(request->inherited_attributes());
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto accountName = inheritedAttributes->GetAndRemove<std::string>(NServer::EInternedAttributeKey::Account.Unintern());
+        auto* account = securityManager->GetAccountByNameOrThrow(accountName, /*activeLifeStageOnly*/ true);
+
         auto nodeFactory = cypressManager->CreateNodeFactory(
             cypressManager->GetRootCypressShard(),
             cypressTransaction,
-            securityManager->GetSysAccount(),
+            account,
             factoryOptions);
 
-        // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
-        auto inheritedAttributes = FromProto(request->inherited_attributes());
         auto* sourceNode = cypressManager->GetVersionedNode(trunkSourceNode, cypressTransaction);
         auto* destinationNode = nodeFactory->CloneNode(sourceNode, mode, inheritedAttributes.Get(), destinationNodeId);
         state->DestinationNode.Assign(destinationNode);

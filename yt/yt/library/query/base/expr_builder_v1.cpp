@@ -85,7 +85,8 @@ TTypeSet InferFunctionTypes(
     int formalResultType = inferrer->GetNormalizedConstraints(
         &typeConstraints,
         &formalArguments,
-        &repeatedType);
+        &repeatedType,
+        functionName);
 
     *genericAssignments = typeConstraints;
 
@@ -142,6 +143,7 @@ std::vector<EValueType> RefineFunctionTypes(
     EValueType resultType,
     int argumentCount,
     std::vector<TTypeSet>* genericAssignments,
+    TStringBuf functionName,
     TStringBuf source)
 {
     std::vector<TTypeSet> typeConstraints;
@@ -150,7 +152,8 @@ std::vector<EValueType> RefineFunctionTypes(
     int formalResultType = inferrer->GetNormalizedConstraints(
         &typeConstraints,
         &formalArguments,
-        &repeatedType);
+        &repeatedType,
+        functionName);
 
     (*genericAssignments)[formalResultType] = TTypeSet({resultType});
 
@@ -832,7 +835,12 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
             return columnReference;
         };
 
-        return {TTypeSet({GetWireType(type)}), std::move(generator), /*IsConstant*/ false};
+        auto wireType = GetWireType(type);
+        if (wireType == EValueType::Composite) {
+            wireType = EValueType::Any;
+        }
+
+        return {TTypeSet({wireType}), std::move(generator), /*IsConstant*/ false};
     }
 
     auto resolved = ResolveNestedTypes(type, reference);
@@ -848,7 +856,12 @@ TUntypedExpression TExprBuilderV1::UnwrapCompositeMemberAccessor(
         return memberAccessor;
     };
 
-    return {TTypeSet({GetWireType(resolved.ResultType)}), std::move(generator), /*IsConstant*/ false};
+    auto wireType = GetWireType(resolved.ResultType);
+    if (wireType == EValueType::Composite) {
+        wireType = EValueType::Any;
+    }
+
+    return {TTypeSet({wireType}), std::move(generator), /*IsConstant*/ false};
 }
 
 TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference)
@@ -933,7 +946,8 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         std::tie(stateConstraintIndex, resultConstraintIndex) = descriptor->GetNormalizedConstraints(
             &genericAssignments,
-            &formalArguments);
+            &formalArguments,
+            functionName);
         IntersectGenericsWithArgumentTypes(
             argTypes,
             &genericAssignments,
@@ -1024,6 +1038,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
                 type,
                 operandTypers.size(),
                 &genericAssignments,
+                functionName,
                 source);
 
             std::vector<TConstExpressionPtr> typedOperands;

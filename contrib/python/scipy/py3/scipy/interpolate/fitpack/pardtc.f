@@ -1,4 +1,4 @@
-      subroutine pardtc(tx,nx,ty,ny,c,kx,ky,nux,nuy,
+      recursive subroutine pardtc(tx,nx,ty,ny,c,kx,ky,nux,nuy,
      *   newc,ier)
       implicit none
 c  subroutine pardtc takes the knots and coefficients of a bivariate

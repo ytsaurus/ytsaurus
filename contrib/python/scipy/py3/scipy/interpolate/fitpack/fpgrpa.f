@@ -1,4 +1,4 @@
-      subroutine fpgrpa(ifsu,ifsv,ifbu,ifbv,idim,ipar,u,mu,
+      recursive subroutine fpgrpa(ifsu,ifsv,ifbu,ifbv,idim,ipar,u,mu,
      * v,mv,z,mz,tu,nu,tv,nv,p,c,nc,fp,fpu,fpv,mm,mvnu,spu,spv,
      * right,q,au,au1,av,av1,bu,bv,nru,nrv)
       implicit none

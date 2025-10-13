@@ -49,7 +49,8 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
         "a=5;nested=[[1;6;x]]"
     }, resultSplit);
 
-    EvaluateOnlyViaNativeExecutionBackend("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
+    EvaluateOnlyViaNativeExecutionBackend("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z "
+        "from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
         splits,
         sources,
         ResultMatcher(result, resultSplit.TableSchema),

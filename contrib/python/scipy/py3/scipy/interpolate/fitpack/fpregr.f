@@ -1,4 +1,4 @@
-      subroutine fpregr(iopt,x,mx,y,my,z,mz,xb,xe,yb,ye,
+      recursive subroutine fpregr(iopt,x,mx,y,my,z,mz,xb,xe,yb,ye,
      * kx,ky,s,nxest,nyest,tol,maxit,nc,nx,tx,ny,ty,c,fp,fp0,fpold,
      * reducx,reducy,fpintx,fpinty,lastdi,nplusx,nplusy,nrx,nry,
      * nrdatx,nrdaty,wrk,lwrk,ier)

@@ -1,4 +1,4 @@
-      subroutine fpfrno(maxtr,up,left,right,info,point,
+      recursive subroutine fpfrno(maxtr,up,left,right,info,point,
      *   merk,n1,count,ier)
       implicit none
 c  subroutine fpfrno collects the free nodes (up field zero) of the

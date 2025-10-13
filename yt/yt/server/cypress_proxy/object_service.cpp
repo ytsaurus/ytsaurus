@@ -527,7 +527,7 @@ private:
         auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nakedMasterChannel));
         // TODO(nadya02): Set the correct timeout here.
-        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+        proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
 
         auto masterRequest = proxy.Execute();
 

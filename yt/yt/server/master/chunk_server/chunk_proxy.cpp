@@ -973,7 +973,7 @@ private:
                 auto peerChannel = cellManager->GetPeerChannel(peerIndex);
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(peerChannel));
                 // TODO(nadya02): Set the correct timeout here.
-                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+                proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
                 responseFutures.push_back(proxy.Execute(req));
             }

@@ -27,6 +27,7 @@ add_subdirectory(credentials)
 add_subdirectory(url_preprocessing)
 add_subdirectory(cbo)
 add_subdirectory(file_storage)
+add_subdirectory(layers)
 add_subdirectory(minsketch)
 add_subdirectory(histogram)
 add_subdirectory(expr_nodes)
@@ -56,6 +57,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   essentials-core-credentials
   core-url_lister-interface
   core-url_preprocessing-interface
+  essentials-core-layers
   yql-essentials-minikql
   minikql-jsonpath-parser
   essentials-core-minsketch
@@ -89,6 +91,7 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_join.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_library_compiler.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_linear_checker.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_layers_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_hopping.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_match_recognize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_opt_normalize_depends_on.cpp

@@ -1,4 +1,4 @@
-      subroutine fpseno(maxtr,up,left,right,info,merk,
+      recursive subroutine fpseno(maxtr,up,left,right,info,merk,
      *    ibind,nbind)
       implicit none
 c  subroutine fpseno fetches a branch of a triply linked tree the

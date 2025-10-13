@@ -1791,8 +1791,8 @@ def _build_cluster_connection_config(yt_config,
         },
         "master_cell_directory_synchronizer": {
             "sync_period": 100,
-            "expire_after_successful_update_time": 500,
-            "expire_after_failed_update_time": 500,
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
         },
         "job_node_descriptor_cache": {
             "expire_after_successful_update_time": 0,

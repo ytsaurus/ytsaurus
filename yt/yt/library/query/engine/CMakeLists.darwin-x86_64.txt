@@ -160,6 +160,7 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/1276b8186777fb2549981f7f100f4851.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/310417e0df5e040f547363bcbdb73ddf.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/2e11c2bb2e4e15233288517fa383eaa5.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/db14678aaece7ab85b3f43bdb218ea69.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/0a3e0445570226f787d0a072eeeae238.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/3ab18e8cac0e865009bf72a29d47dafc.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/7ad10698537d6d9a5471c59282395582.cpp
@@ -828,6 +829,32 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/split.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/split.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_merged.bc
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_optimized.bc
+  -internalize-public-api-list=split
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+
+add_custom_command(
+  OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/yson_length_merged.bc
   DEPENDS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp.bc
@@ -1285,6 +1312,14 @@ llvm_compile_cxx(library-query-engine.global
 )
 
 llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/split.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/split.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_length.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1586,6 +1621,15 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/length_optimized.bc
   KEYS
   /llvm_bc/length
+  OPTS
+)
+
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/db14678aaece7ab85b3f43bdb218ea69.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/split_optimized.bc
+  KEYS
+  /llvm_bc/split
   OPTS
 )
 

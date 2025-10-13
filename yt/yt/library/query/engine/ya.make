@@ -300,6 +300,13 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/split.cpp
+    NAME split
+    SYMBOLS
+        split
+)
+
+LLVM_BC(
     udf/yson_length.cpp
     NAME yson_length
     SYMBOLS

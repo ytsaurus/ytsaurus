@@ -1,4 +1,4 @@
-      subroutine fpcurf(iopt,x,y,w,m,xb,xe,k,s,nest,tol,
+      recursive subroutine fpcurf(iopt,x,y,w,m,xb,xe,k,s,nest,tol,
      *   maxit,k1,k2,n,t,c,fp,fpint,z,a,b,g,q,nrdata,ier)
       implicit none
 c  ..

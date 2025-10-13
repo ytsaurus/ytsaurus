@@ -1,4 +1,4 @@
-      subroutine bispeu(tx,nx,ty,ny,c,kx,ky,x,y,z,m,wrk,
+      recursive subroutine bispeu(tx,nx,ty,ny,c,kx,ky,x,y,z,m,wrk,
      *   lwrk, ier)
       implicit none
 c  subroutine bispeu evaluates on a set of points (x(i),y(i)),i=1,...,m

@@ -34,6 +34,10 @@ TConstExpressionPtr CreateCoercion(EValueType type, TConstExpressionPtr operand)
             CastValueWithCheck(value, type));
     }
 
+    if (GetWireType(operand->LogicalType) == type) {
+        return operand;
+    }
+
     const char* castName;
     if (type == EValueType::Int64) {
         castName = "int64";
@@ -44,7 +48,7 @@ TConstExpressionPtr CreateCoercion(EValueType type, TConstExpressionPtr operand)
     } else if (type == EValueType::Any) {
         castName = "to_any";
     } else {
-        THROW_ERROR_EXCEPTION("No cast from %v to %v", *operand->LogicalType, type);
+        THROW_ERROR_EXCEPTION("No cast from %v to %Qlv", *operand->LogicalType, type);
     }
 
     return New<TFunctionExpression>(
@@ -532,7 +536,8 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
             functionName);
 
         for (int i = 0; i < std::ssize(typedOperands); ++i) {
-            if (functionTypes[i + 1] != TypingCtx_.GetTypeId(typedOperands[i]->LogicalType)) {
+            auto operandType = TypingCtx_.GetTypeId(typedOperands[i]->LogicalType);
+            if (operandType != functionTypes[i + 1]) {
                 auto type = TypingCtx_.GetWireType(functionTypes[i + 1]);
                 typedOperands[i] = CreateCoercion(type, typedOperands[i]);
             }
@@ -596,7 +601,8 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
             functionName);
 
         for (int i = 0; i < std::ssize(typedOperands); ++i) {
-            if (inferredTypes[i + 2] != TypingCtx_.GetTypeId(typedOperands[i]->LogicalType)) {
+            auto operandType = TypingCtx_.GetTypeId(typedOperands[i]->LogicalType);
+            if (operandType != inferredTypes[i + 2]) {
                 auto type = TypingCtx_.GetWireType(inferredTypes[i + 2]);
                 typedOperands[i] = CreateCoercion(type, typedOperands[i]);
             }
@@ -659,7 +665,7 @@ TConstExpressionPtr TExprBuilderV2::OnUnaryOp(const NAst::TUnaryOpExpression* un
             CastValueWithCheck(*foldedExpr, type));
     }
 
-    if (types[1] != TypingCtx_.GetTypeId(operand->GetWireType())) {
+    if (TypingCtx_.GetTypeId(operand->LogicalType) != types[1]) {
         operand = CreateCoercion(TypingCtx_.GetWireType(types[1]), operand);
     }
 
@@ -684,8 +690,8 @@ TConstExpressionPtr TExprBuilderV2::MakeBinaryExpr(
     // Functions are defined in terms of EValueType. Need signatures for int32, int64...
     // TODO(lukyan): Consider coercions of references in range inference.
 
-    auto lhsTypeId = TypingCtx_.GetTypeId(typedLhs->GetWireType());
-    auto rhsTypeId = TypingCtx_.GetTypeId(typedRhs->GetWireType());
+    auto lhsTypeId = TypingCtx_.GetTypeId(typedLhs->LogicalType);
+    auto rhsTypeId = TypingCtx_.GetTypeId(typedRhs->LogicalType);
 
     std::vector<TTypeId> types;
     try {
@@ -713,11 +719,11 @@ TConstExpressionPtr TExprBuilderV2::MakeBinaryExpr(
             CastValueWithCheck(*foldedExpr, type));
     }
 
-    if (types[1] != TypingCtx_.GetTypeId(typedLhs->GetWireType())) {
+    if (TypingCtx_.GetTypeId(typedLhs->LogicalType) != types[1]) {
         typedLhs = CreateCoercion(TypingCtx_.GetWireType(types[1]), typedLhs);
     }
 
-    if (types[2] != TypingCtx_.GetTypeId(typedRhs->GetWireType())) {
+    if (TypingCtx_.GetTypeId(typedRhs->LogicalType) != types[2]) {
         typedRhs = CreateCoercion(TypingCtx_.GetWireType(types[2]), typedRhs);
     }
 
@@ -1085,7 +1091,7 @@ TConstExpressionPtr TExprBuilderV2::OnCaseOp(const NAst::TCaseExpression* caseEx
     for (auto typedWhenThen : typedWhenThenExpressions) {
         auto thenResultType = TypingCtx_.GetTypeId(typedWhenThen->Result->GetWireType());
 
-        if (thenResultType != resultType) {
+        if (resultType != thenResultType) {
             typedWhenThen->Result = CreateCoercion(TypingCtx_.GetWireType(resultType), typedWhenThen->Result);
         }
     }
@@ -1260,7 +1266,13 @@ TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* quer
     std::vector<NTableClient::TStructField> resultFields;
 
     for (const auto& [expression, name] : projectClause->Projections) {
-        resultFields.push_back(NTableClient::TStructField{name, expression->LogicalType});
+        auto logicalType = expression->LogicalType;
+        if (!logicalType->IsNullable() && projectClause->Projections.size() > 1) {
+            // While uniting several arrays into table if said arrays have different lengths
+            // shortest arrays are prolonged with nulls.
+            logicalType = NTableClient::OptionalLogicalType(std::move(logicalType));
+        }
+        resultFields.push_back(NTableClient::TStructField{name, logicalType});
     }
 
     auto resultType = ListLogicalType(StructLogicalType(resultFields));

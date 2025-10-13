@@ -1,4 +1,4 @@
-      subroutine insert(iopt,t,n,c,k,x,tt,nn,cc,nest,ier)
+      recursive subroutine insert(iopt,t,n,c,k,x,tt,nn,cc,nest,ier)
       implicit none
 c  subroutine insert inserts a new knot x into a spline function s(x)
 c  of degree k and calculates the b-spline representation of s(x) with

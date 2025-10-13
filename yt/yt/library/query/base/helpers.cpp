@@ -75,7 +75,7 @@ TLogicalTypePtr ToQLType(const TLogicalTypePtr& columnType)
 {
     if (IsV1Type(columnType)) {
         const auto wireType = GetWireType(columnType);
-        return MakeLogicalType(GetLogicalType(wireType), /*required*/ false);
+        return MakeLogicalType(GetLogicalType(wireType), !columnType->IsNullable());
     } else {
         return columnType;
     }

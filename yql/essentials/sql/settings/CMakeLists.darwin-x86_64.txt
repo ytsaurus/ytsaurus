@@ -32,5 +32,8 @@ target_sources(essentials-sql-settings PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/partitioning.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translation_settings.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translator.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/partitioning.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translation_settings.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/settings/translator.h
 )
 

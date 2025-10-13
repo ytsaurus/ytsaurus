@@ -14,6 +14,11 @@ template <CDistinctTypes TKeys, class TValue>
 class TTypeToValueMap
 {
 public:
+    template <COneOfTypes<TKeys>>
+    using TTupleElement = TValue;
+
+    using TTuple = typename TKeys::template Map<TTupleElement>::template Wrap<std::tuple>;
+
     TTypeToValueMap() = default;
 
     template <CInvocableForEachType<TKeys> TProducer>
@@ -39,12 +44,22 @@ public:
         Get<TKey>() = std::move(value);
     }
 
+    const TTuple& GetValues() const
+    {
+        return Values_;
+    }
+
+    TTuple& GetValues()
+    {
+        return Values_;
+    }
+
+    void SetValues(TTuple values)
+    {
+        Values_ = std::move(values);
+    }
+
 private:
-    template <COneOfTypes<TKeys>>
-    using TTupleElement = TValue;
-
-    using TTuple = typename TKeys::template Map<TTupleElement>::template Wrap<std::tuple>;
-
     TTuple Values_;
 };
 
@@ -58,6 +73,8 @@ template <CDistinctTypes TKeys, template <class> class TValue>
 class TTypeToTemplateValueMap
 {
 public:
+    using TTuple = typename TKeys::template Map<TValue>::template Wrap<std::tuple>;
+
     TTypeToTemplateValueMap() = default;
 
     template <CInvocableForEachType<TKeys> TProducer>
@@ -83,9 +100,22 @@ public:
         Get<TKey>() = std::move(value);
     }
 
-private:
-    using TTuple = typename TKeys::template Map<TValue>::template Wrap<std::tuple>;
+    const TTuple& GetValues() const
+    {
+        return Values_;
+    }
 
+    TTuple& GetValues()
+    {
+        return Values_;
+    }
+
+    void SetValues(TTuple values)
+    {
+        Values_ = std::move(values);
+    }
+
+private:
     TTuple Values_;
 };
 

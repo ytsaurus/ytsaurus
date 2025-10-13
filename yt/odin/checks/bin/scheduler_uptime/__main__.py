@@ -1,11 +1,13 @@
 from yt_odin_checks.lib.check_runner import main
 
-from yt.common import date_string_to_datetime
+from yt.common import date_string_to_datetime, datetime_to_string
 import yt.wrapper as yt
 
+import datetime
 
-def is_zero_time_string(time_string):
-    return date_string_to_datetime(time_string).year == 1970
+
+def is_scheduler_connected(scheduler_service_info):
+    return date_string_to_datetime(scheduler_service_info["last_connection_time"]).year == 1970
 
 
 def run_check_impl(yt_client, logger, options, states):
@@ -13,7 +15,7 @@ def run_check_impl(yt_client, logger, options, states):
     try:
         new_scheduler_service_info = yt_client.get("//sys/scheduler/orchid/scheduler/service")
 
-        if is_zero_time_string(new_scheduler_service_info["last_connection_time"]):
+        if is_scheduler_connected(new_scheduler_service_info):
             message = "Scheduler has disconnected and is reconnecting now"
             logger.info(message)
             return states.PARTIALLY_AVAILABLE_STATE, message
@@ -40,11 +42,18 @@ def run_check_impl(yt_client, logger, options, states):
         previous_is_under_mainenance_path = "//sys/scheduler/instances/{}/@maintenance".format(scheduler_update_info.get("hostname", None))
         previous_is_under_maintenance = yt_client.exists(previous_is_under_mainenance_path) and yt_client.get(previous_is_under_mainenance_path)
         previous_connection_time_is_zero = date_string_to_datetime(scheduler_update_info["connection_time"]).year == 1970
+
+        mute_check_until = yt_client.get_attribute(scheduler_uptime_path, "mute_until", default="1970-00-00T00:00:00.000000Z")
+        now = datetime.datetime.now(datetime.UTC)
+
         if (previous_connection_time_is_zero
                 or scheduler_update_info["connection_time"] == connection_time
                 or scheduler_update_info["version"] != version
                 or previous_is_under_maintenance):
             result = states.FULLY_AVAILABLE_STATE
+        elif datetime_to_string(now) < mute_check_until:
+            logger.info("Check is muted until %s", mute_check_until)
+            result = states.PARTIALLY_AVAILABLE_STATE
         else:
             message = "Scheduler reconnected at {}".format(connection_time)
             logger.info(message)

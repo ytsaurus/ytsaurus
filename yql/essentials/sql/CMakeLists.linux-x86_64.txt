@@ -35,5 +35,7 @@ target_link_libraries(yql-essentials-sql PUBLIC
 target_sources(yql-essentials-sql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/sql/cluster_mapping.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/sql/sql.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/cluster_mapping.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/sql.h
 )
 

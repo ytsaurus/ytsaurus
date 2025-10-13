@@ -1,4 +1,4 @@
-      subroutine pardeu(tx,nx,ty,ny,c,kx,ky,nux,nuy,x,y,z,m,
+      recursive subroutine pardeu(tx,nx,ty,ny,c,kx,ky,nux,nuy,x,y,z,m,
      * wrk,lwrk,iwrk,kwrk,ier)
       implicit none
 c  subroutine pardeu evaluates on a set of points (x(i),y(i)),i=1,...,m

@@ -1,4 +1,4 @@
-      subroutine fpopsp(ifsu,ifsv,ifbu,ifbv,u,mu,v,mv,r,
+      recursive subroutine fpopsp(ifsu,ifsv,ifbu,ifbv,u,mu,v,mv,r,
      * mr,r0,r1,dr,iopt,ider,tu,nu,tv,nv,nuest,nvest,p,step,c,nc,
      * fp,fpu,fpv,nru,nrv,wrk,lwrk)
       implicit none

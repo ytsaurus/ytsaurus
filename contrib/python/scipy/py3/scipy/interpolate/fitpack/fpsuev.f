@@ -1,4 +1,4 @@
-      subroutine fpsuev(idim,tu,nu,tv,nv,c,u,mu,v,mv,f,
+      recursive subroutine fpsuev(idim,tu,nu,tv,nv,c,u,mu,v,mv,f,
      *   wu,wv,lu,lv)
       implicit none
 c  ..scalar arguments..

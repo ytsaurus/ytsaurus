@@ -1,4 +1,4 @@
-      subroutine fpsysy(a,n,g)
+      recursive subroutine fpsysy(a,n,g)
       implicit none
 c subroutine fpsysy solves a linear n x n symmetric system
 c    (a) * (b) = (g)

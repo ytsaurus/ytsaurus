@@ -173,12 +173,13 @@ TConstExpressionPtr ParseAndPrepareExpression(
     TStringBuf source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
-    THashSet<std::string>* references)
+    THashSet<std::string>* references,
+    int exprBuilderVersion)
 {
     return PrepareExpression(
         *ParseSource(source, EParseMode::Expression),
         tableSchema,
-        DefaultExpressionBuilderVersion,
+        exprBuilderVersion,
         functions,
         references);
 }

@@ -624,10 +624,11 @@ class YTEnvSetup(object):
         else:
             enable_legacy_logging_scheme = False
 
-        delta_global_cluster_connection_config = None
+        delta_global_cluster_connection_config = {
+            "object_life_stage_check_period": 100,
+        }
 
         if cls.get_param("USE_SEQUOIA", index):
-            delta_global_cluster_connection_config = {}
             update_inplace(delta_global_cluster_connection_config, {
                 "sequoia_retries": {
                     "enable": True,
@@ -649,13 +650,11 @@ class YTEnvSetup(object):
                 },
             })
         if cls._is_ground_cluster(index):
-            delta_global_cluster_connection_config = {
-                "permission_cache": {
-                    "expire_after_successful_update_time": 60000,
-                    "refresh_time": 60000,
-                    "expire_after_failed_update_time": 1000,
-                    "expire_after_access_time": 300000,
-                }
+            delta_global_cluster_connection_config["permission_cache"] = {
+                "expire_after_successful_update_time": 60000,
+                "refresh_time": 60000,
+                "expire_after_failed_update_time": 1000,
+                "expire_after_access_time": 300000,
             }
             if cls.get_param("ENABLE_GROUND_TABLE_MOUNT_CACHE", index):
                 delta_global_cluster_connection_config["table_mount_cache"] = {

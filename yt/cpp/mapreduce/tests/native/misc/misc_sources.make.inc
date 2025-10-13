@@ -11,6 +11,7 @@ SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/file_io.cpp
     ${MISC_SRCS_ROOT}/format_attribute.cpp
     ${MISC_SRCS_ROOT}/lock.cpp
+    ${MISC_SRCS_ROOT}/patchable_field.cpp
     ${MISC_SRCS_ROOT}/protobuf_format_derivation.cpp
     ${MISC_SRCS_ROOT}/protobuf_table_io.cpp
     ${MISC_SRCS_ROOT}/raw_io.cpp

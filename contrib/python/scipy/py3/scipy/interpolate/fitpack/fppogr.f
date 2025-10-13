@@ -1,4 +1,4 @@
-      subroutine fppogr(iopt,ider,u,mu,v,mv,z,mz,z0,r,s,
+      recursive subroutine fppogr(iopt,ider,u,mu,v,mv,z,mz,z0,r,s,
      * nuest,nvest,tol,maxit,nc,nu,tu,nv,tv,c,fp,fp0,fpold,reducu,
      * reducv,fpintu,fpintv,dz,step,lastdi,nplusu,nplusv,lasttu,nru,
      * nrv,nrdatu,nrdatv,wrk,lwrk,ier)

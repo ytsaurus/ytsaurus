@@ -202,7 +202,9 @@ public:
         GetBundleDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
-        OverloadController_ = NRpc::CreateOverloadController(New<NRpc::TOverloadControllerConfig>(), TabletNodeProfiler());
+        OverloadController_ = NRpc::CreateOverloadController(
+            New<NRpc::TOverloadControllerConfig>(),
+            TabletNodeProfiler().WithPrefix("/overload_controller"));
 
         MasterConnector_ = CreateMasterConnector(this);
 

@@ -1,4 +1,4 @@
-      subroutine surfit(iopt,m,x,y,z,w,xb,xe,yb,ye,kx,ky,s,
+      recursive subroutine surfit(iopt,m,x,y,z,w,xb,xe,yb,ye,kx,ky,s,
      *  nxest,nyest,nmax,eps,nx,tx,ny,ty,c,fp,wrk1,lwrk1,wrk2,lwrk2,
      *  iwrk,kwrk,ier)
       implicit none

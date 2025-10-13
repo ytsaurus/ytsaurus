@@ -333,6 +333,20 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         remove(f"#{id}", authenticated_user="index_user")
 
     @authors("sabdenovch")
+    def test_user_can_write_attributes(self):
+        create_user("index_user")
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/secondary", INDEX_ON_VALUE_SCHEMA)
+        set("//sys/schemas/secondary_index/@acl", [make_ace("allow", "index_user", ["create", "remove", "read"])])
+        if self.NUM_REMOTE_CLUSTERS:
+            create_table_collocation(table_paths=["//tmp/table", "//tmp/secondary"])
+        id = create_secondary_index("//tmp/table", "//tmp/secondary", "full_sync", authenticated_user="index_user")
+        with raises_yt_error(yt_error_codes.AuthorizationErrorCode):
+            set(f"#{id}/@table_to_index_correspondence", "bijective", authenticated_user="index_user")
+        set("//tmp/table/@acl", [make_ace("allow", "index_user", ["write"])])
+        set(f"#{id}/@table_to_index_correspondence", "bijective", authenticated_user="index_user")
+
+    @authors("sabdenovch")
     def test_ouroboros(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
         with raises_yt_error("Table cannot be an index to itself"):

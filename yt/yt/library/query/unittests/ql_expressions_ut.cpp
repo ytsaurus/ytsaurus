@@ -1918,6 +1918,28 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 }
 
+TEST_F(TExpressionTest, NonNullableVariableForNullableArgument)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("a", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+    });
+    auto buffer = New<TRowBuffer>();
+
+    auto row = YsonToSchemafulRow("a=1234567", *schema, /*treatMissingAsNull*/ true);
+
+    auto expr = ParseAndPrepareExpression(
+        "timestamp_floor_day(a)",
+        *schema,
+        GetBuiltinTypeInferrers(),
+        /*references*/ nullptr,
+        /*exprBuilderVersion*/ 2);
+    EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
+
+    Evaluate(expr, schema, buffer, row, [&] (const TUnversionedValue& result) {
+        EXPECT_EQ(result, MakeInt64(1209600));
+    });
+}
+
 TEST_F(TExpressionTest, Aliasing)
 {
     auto schema = New<TTableSchema>(std::vector{

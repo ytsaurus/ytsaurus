@@ -83,7 +83,7 @@ DEFINE_ENUM(ENodeFlavor,
 );
 
 // All nodes are cluster nodes.
-inline const std::string ClusterNodeFalvor("cluster");
+inline const std::string ClusterNodeFlavor("cluster");
 
 ////////////////////////////////////////////////////////////////////////////////
 
