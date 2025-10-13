@@ -62,11 +62,13 @@ def add_set_readonly_parser(parent_parser):
     action.add_argument("--read-only", dest="set_read_only", action="store_true")
     action.add_argument("--no-read-only", dest="set_read_only", action="store_false")
 
+    parent_parser.add_argument("--disable-automaton-read-only-barrier", dest="enable_automaton_read_only_barrier", action="store_false")
+
 
 def add_wait_for_snapshot_completion_parser(parent_parser):
-    action = parent_parser.add_mutually_exclusive_group()
-    action.add_argument("--wait-for-snapshot-completion", dest="wait_for_snapshot_completion", action="store_true", default=True)
-    action.add_argument("--do-not-wait-for-snapshot-completion", dest="wait_for_snapshot_completion", action="store_false", default=True)
+    action = parent_parser.add_mutually_exclusive_group(required=True)
+    action.add_argument("--wait-for-snapshot-completion", dest="wait_for_snapshot_completion", action="store_true")
+    action.add_argument("--do-not-wait-for-snapshot-completion", dest="wait_for_snapshot_completion", action="store_false")
 
 
 def main():

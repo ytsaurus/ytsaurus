@@ -54,6 +54,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        if (hydraManager->IsEnteringReadOnlyMode()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot start Sequoia transaction while entering read-only mode");
+        }
+
         // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually
         // committed. To observe all succeeded (from user point of view) txs
@@ -71,7 +78,6 @@ public:
             FromProto(request->attributes())->Find<std::string>("title"),
             prerequisiteTransactionIds);
 
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, *request);
         mutation->SetCurrentTraceContext();
 

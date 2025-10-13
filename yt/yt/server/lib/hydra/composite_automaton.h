@@ -113,6 +113,8 @@ protected:
 
     virtual void CheckInvariants();
 
+    virtual TFuture<void> GetReadyToEnterReadOnlyMode();
+
 private:
     using TThis = TCompositeAutomatonPart;
     friend class TCompositeAutomaton;
@@ -148,6 +150,8 @@ public:
     void ResetFinalRecoveryAction() override;
 
     void CheckInvariants() override;
+
+    virtual TFuture<void> GetReadyToEnterReadOnlyMode() override;
 
     DECLARE_SIGNAL(IInvoker::TWaitTimeObserver::TSignature, WaitTimeObserved);
 

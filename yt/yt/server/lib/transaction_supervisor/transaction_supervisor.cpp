@@ -1475,6 +1475,12 @@ private:
     {
         YT_VERIFY(!commit->GetPersistent());
 
+        if (HydraManager_->IsEnteringReadOnlyMode() && commit->GetStronglyOrdered()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot start a strongly ordered transaction commit while entering read-only mode");
+        }
+
         auto prepareTimestamp = commit->GetGeneratePrepareTimestamp()
             ? TimestampProvider_->GetLatestTimestamp()
             : NullTimestamp;

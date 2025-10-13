@@ -84,6 +84,12 @@ struct ISimpleHydraManager
      */
     virtual TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) = 0;
 
+    //! Returns |true| if Hydra is entering read only move.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool IsEnteringReadOnlyMode() const = 0;
+
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
@@ -189,7 +195,10 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) = 0;
+    virtual TFuture<int> BuildSnapshot(
+        bool setReadOnly,
+        bool waitForSnapshotCompletion,
+        bool enableAutomatonReadOnlyBarrier) = 0;
 
     //! Returns the callback for producing the monitoring info.
     /*!

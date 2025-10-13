@@ -58,6 +58,7 @@ message TReqForceBuildSnapshot
 {
     optional bool set_read_only = 1 [default = false];
     optional bool wait_for_snapshot_completion = 2 [default = true];
+    optional bool enable_automaton_read_only_barrier = 3 [default = true];
 }
 
 message TRspForceBuildSnapshot
