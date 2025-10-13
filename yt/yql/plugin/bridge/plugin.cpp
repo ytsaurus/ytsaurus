@@ -222,7 +222,7 @@ public:
         for (ssize_t i = 0; i < bridgeClustersResult->ClusterCount; i++) {
             clusters[i] = {
                 TString(bridgeClustersResult->Clusters[i]),
-                TString(bridgeClustersResult->ClusterAddresses[i])
+                TString(bridgeClustersResult->ClusterAddresses[i]),
             };
         }
         TClustersResult queryResult{
