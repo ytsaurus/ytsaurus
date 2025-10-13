@@ -3,10 +3,10 @@
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/core/event_pb.h>
 #include <contrib/ydb/library/actors/core/events.h>
+#include <contrib/ydb/library/actors/interconnect/poller/poller_tcp.h>
 
 #include "interconnect_common.h"
 #include "interconnect_impl.h"
-#include "poller_tcp.h"
 #include "events_local.h"
 
 namespace NActors {

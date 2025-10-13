@@ -8,6 +8,6 @@
 #include <contrib/ydb/core/protos/counters_testshard.pb.h>
 #include <contrib/ydb/core/protos/test_shard.pb.h>
 #include <contrib/ydb/library/actors/core/actor_coroutine.h>
-#include <contrib/ydb/library/actors/interconnect/poller_actor.h>
+#include <contrib/ydb/library/actors/interconnect/poller/poller_actor.h>
 #include <library/cpp/json/json_writer.h>
 #include <contrib/libs/t1ha/t1ha.h>

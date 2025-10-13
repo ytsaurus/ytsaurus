@@ -1,7 +1,7 @@
 #pragma once
 
 #include <contrib/ydb/library/actors/core/actorsystem.h>
-#include <contrib/ydb/library/actors/interconnect/poller_tcp.h>
+#include <contrib/ydb/library/actors/interconnect/poller/poller_tcp.h>
 #include <contrib/ydb/library/actors/interconnect/interconnect.h>
 #include <library/cpp/yson/node/node.h>
 
