@@ -13,7 +13,9 @@ class TStaticChannelFactory
 {
 public:
     TStaticChannelFactoryPtr Add(const std::string& address, IChannelPtr channel);
-    IChannelPtr CreateChannel(const std::string& address) override;
+    IChannelPtr CreateChannel(
+        const std::string& address,
+        const std::optional<std::string>& endpointIdentity = std::nullopt) override;
 
 private:
     THashMap<std::string, IChannelPtr> ChannelMap;

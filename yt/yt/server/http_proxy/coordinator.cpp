@@ -134,9 +134,7 @@ TCoordinator::TCoordinator(
     {
         TCypressRegistrarOptions options;
         options.RootPath = NApi::HttpProxiesPath + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
-        options.OrchidRemoteAddresses = NServer::GetLocalAddresses(
-            {{"default", Self_->Entry->GetHost()}},
-            Bootstrap_->GetConfig()->RpcPort);
+        options.OrchidRemoteAddresses = NServer::GetLocalAddresses(config->Addresses, config->RpcPort);
         options.CreateAliveChild = true;
         options.AttributesOnCreation = BuildAttributeDictionaryFluently()
             .Item("role").Value(Self_->Entry->Role)

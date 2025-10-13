@@ -16,6 +16,8 @@
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
@@ -326,7 +328,7 @@ private:
 
         TCypressRegistrarOptions options{
             .RootPath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(SelfAddress_)),
-            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, SelfAddress_}},
+            .OrchidRemoteAddresses = NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort),
             .AttributesOnStart = BuildAttributeDictionaryFluently()
                 .Item("annotations").Value(Config_->CypressAnnotations)
                 .Finish(),

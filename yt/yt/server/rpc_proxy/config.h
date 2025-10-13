@@ -14,8 +14,6 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/client/api/config.h>
@@ -121,8 +119,7 @@ struct TProxyBootstrapConfig
     TApiServiceConfigPtr ApiService;
 
     TDiscoveryServiceConfigPtr DiscoveryService;
-    //! Known RPC proxy addresses.
-    NNodeTrackerClient::TNetworkAddressList Addresses;
+
     int WorkerThreadPoolSize;
 
     TAccessCheckerConfigPtr AccessChecker;

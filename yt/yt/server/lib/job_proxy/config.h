@@ -401,7 +401,7 @@ struct TJobProxyInternalConfig
     TJobEnvironmentConfig JobEnvironment;
 
     //! Addresses derived from node local descriptor to leverage locality.
-    NNodeTrackerClient::TAddressMap Addresses;
+    NNodeTrackerClient::TAddressMap LocalAddresses;
     std::string LocalHostName;
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
