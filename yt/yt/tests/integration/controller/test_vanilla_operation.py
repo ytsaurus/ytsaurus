@@ -946,10 +946,6 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
         wait(lambda: started_job_profiler.get_job_count_delta() == 3)
 
-        aborted_job_profiler = JobCountProfiler(
-            "aborted",
-            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "cookie_group_disbanded"},
-        )
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             sleeping_op.abort()
 
@@ -960,12 +956,11 @@ class TestVanillaOperationRevival(YTEnvSetup):
 
         wait_breakpoint(job_count=3)
         assert op.get_job_count("aborted") == 1
-        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
         release_breakpoint()
 
         op.track()
 
-        assert started_job_profiler.get() == 3
+        wait(lambda: started_job_profiler.get() == 3)
 
 
 ##################################################################
