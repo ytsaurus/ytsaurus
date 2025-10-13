@@ -203,6 +203,8 @@ public:
     void OnFollowerRecoveryComplete();
     void OnStopFollowing();
 
+    TFuture<void> GetReadyToEnterReadOnlyMode() const;
+
     IInvokerPtr CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker);
     IInvokerPtr GetDefaultGuardedUserInvoker();
     IInvokerPtr GetSystemInvoker();
