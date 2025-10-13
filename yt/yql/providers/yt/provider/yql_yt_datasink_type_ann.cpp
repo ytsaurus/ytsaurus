@@ -1767,7 +1767,14 @@ private:
             return TStatus::Error;
         }
 
-        if (!ValidateSettings(*settings, EYtSettingType::Initial, ctx)) {
+        if (!ValidateSettings(*settings, EYtSettingType::Initial
+            | EYtSettingType::CompressionCodec
+            | EYtSettingType::ErasureCodec
+            | EYtSettingType::ReplicationFactor
+            | EYtSettingType::UserAttrs
+            | EYtSettingType::Expiration
+            , ctx))
+        {
             return TStatus::Error;
         }
 
