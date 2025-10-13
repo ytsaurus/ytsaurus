@@ -186,6 +186,9 @@ struct TBusClientConfig
     //! Connection fails if identities are known and do not match.
     std::optional<std::string> EndpointIdentity;
 
+    //! Use Address as default EndpointIdentity.
+    bool UseAddressAsDefaultEndpointIdentity;
+
     static TBusClientConfigPtr CreateTcp(
         const std::string& address,
         const std::optional<std::string>& endpointIdentity = std::nullopt);

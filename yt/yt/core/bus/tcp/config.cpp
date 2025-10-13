@@ -187,6 +187,8 @@ void TBusClientConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("endpoint_identity", &TThis::EndpointIdentity)
         .Default();
+    registrar.Parameter("use_address_as_default_endpoint_identity", &TThis::UseAddressAsDefaultEndpointIdentity)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->Address && !config->UnixDomainSocketPath) {

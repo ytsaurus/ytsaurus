@@ -230,10 +230,21 @@ private:
         const TBusClientConfigPtr& config,
         const std::string& endpointDescription)
     {
+        auto endpointIdentity = config->EndpointIdentity;
+        if (!endpointIdentity &&
+            config->UseAddressAsDefaultEndpointIdentity &&
+            config->Address &&
+            config->Address->contains('.') &&
+            !TNetworkAddress::TryParse(*config->Address).IsOK())
+        {
+            YT_LOG_WARNING("Using address as endpoint identity (Address: %v)",
+                config->Address);
+            endpointIdentity = *config->Address;
+        }
         return ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("address").Value(endpointDescription)
-                .OptionalItem("endpoint_identity", config->EndpointIdentity)
+                .OptionalItem("endpoint_identity", endpointIdentity)
                 .Item("encryption_mode").Value(config->EncryptionMode)
                 .Item("verification_mode").Value(config->VerificationMode)
             .EndMap());
