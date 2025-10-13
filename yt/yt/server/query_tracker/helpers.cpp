@@ -94,7 +94,7 @@ THashSet<std::string> GetUserSubjects(const std::string& user, const IClientPtr&
     auto userSubjectsOrError = WaitFor(client->GetNode("//sys/users/" + user + "/@member_of_closure", options));
     if (!userSubjectsOrError.IsOK()) {
         if (userSubjectsOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return THashSet<std::string>();
+            return {};
         }
         THROW_ERROR_EXCEPTION("Error while fetching user membership for the user %Qv", user)
             << userSubjectsOrError;
