@@ -3662,6 +3662,16 @@ private:
         BufferedProducer_->SetEnabled(true);
     }
 
+    TFuture<void> GetReadyToEnterReadOnlyMode() override
+    {
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        if (!transactionSupervisor) {
+            return VoidFuture;
+        }
+
+        return transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+    }
+
     void CreateLease(TTransaction* transaction)
     {
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();

@@ -369,6 +369,18 @@ public:
         return VoidFuture;
     }
 
+    bool IsEnteringReadOnlyMode() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto epochContext = AtomicEpochContext_.Acquire();
+        if (!epochContext) {
+            return false;
+        }
+
+        return epochContext->EnteringReadOnlyMode;
+    }
+
     bool CanBuildSnapshot() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -378,7 +390,10 @@ public:
         return leaderCommitter->CanBuildSnapshot() && !epochContext->EnteringReadOnlyMode;
     }
 
-    TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
+    TFuture<int> BuildSnapshot(
+        bool setReadOnly,
+        bool waitForSnapshotCompletion,
+        bool enableAutomatonReadOnlyBarrier) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -419,6 +434,19 @@ public:
 
         if (setReadOnly) {
             epochContext->EnteringReadOnlyMode = true;
+            if (enableAutomatonReadOnlyBarrier) {
+                auto readyToEnterReadOnlyMode = WaitForFast(DecoratedAutomaton_->GetReadyToEnterReadOnlyMode());
+                if (!readyToEnterReadOnlyMode.IsOK()) {
+                    epochContext->EnteringReadOnlyMode = false;
+                    YT_LOG_ALERT(readyToEnterReadOnlyMode, "Failed to become ready to enter read-only mode");
+                    ScheduleRestart(epochContext, readyToEnterReadOnlyMode);
+                    return MakeFuture<int>(TError(
+                        NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
+                        "Failed to become ready to enter read-only mode")
+                        << readyToEnterReadOnlyMode);
+                }
+            }
+
             auto result = WaitFor(CommitMutation(MakeSystemMutationRequest(EnterReadOnlyMutationType)));
             epochContext->EnteringReadOnlyMode = false;
             result.ThrowOnError();
@@ -444,7 +472,8 @@ public:
                             .Item("epoch_id").Value(epochContext->EpochId)
                             .Item("leader_id").Value(epochContext->LeaderId)
                             .Item("self_id").Value(selfId)
-                            .Item("voting").Value(epochContext->CellManager->GetPeerConfig(selfId)->Voting);
+                            .Item("voting").Value(epochContext->CellManager->GetPeerConfig(selfId)->Voting)
+                            .Item("entering_read_only_mode").Value(epochContext->EnteringReadOnlyMode);
                             // TODO(aleksandra-zh): add stuff.
                     })
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
@@ -768,12 +797,14 @@ private:
         {
             bool setReadOnly = request->set_read_only();
             bool waitForSnapshotCompletion = request->wait_for_snapshot_completion();
-            context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v",
+            bool enableAutomatonReadOnlyBarrier = request->enable_automaton_read_only_barrier();
+            context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v, EnableAutomatonReadOnlyBarrier: %v",
                 setReadOnly,
-                waitForSnapshotCompletion);
+                waitForSnapshotCompletion,
+                enableAutomatonReadOnlyBarrier);
 
             auto owner = GetOwnerOrThrow();
-            int snapshotId = WaitFor(owner->BuildSnapshot(setReadOnly, waitForSnapshotCompletion))
+            int snapshotId = WaitFor(owner->BuildSnapshot(setReadOnly, waitForSnapshotCompletion, enableAutomatonReadOnlyBarrier))
                 .ValueOrThrow();
 
             context->SetResponseInfo("SnapshotId: %v",
@@ -2977,7 +3008,7 @@ private:
 
         switch (DecoratedAutomaton_->GetFinalRecoveryAction()) {
             case EFinalRecoveryAction::BuildSnapshotAndRestart: {
-                auto snapshotId = WaitFor(BuildSnapshot(/*setReadOnly*/ false, /*waitForSnapshotCompletion*/ true))
+                auto snapshotId = WaitFor(BuildSnapshot(/*setReadOnly*/ false, /*waitForSnapshotCompletion*/ true, /*enableAutomatonReadOnlyBarrier*/ false))
                     .ValueOrThrow();
                 YT_LOG_INFO("Built snapshot as the final recovery action (SnapshotId: %v)",
                     snapshotId);

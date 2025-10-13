@@ -954,6 +954,11 @@ void TDecoratedAutomaton::OnStopFollowing()
     StopEpoch();
 }
 
+TFuture<void> TDecoratedAutomaton::GetReadyToEnterReadOnlyMode() const
+{
+    return Automaton_->GetReadyToEnterReadOnlyMode();
+}
+
 IInvokerPtr TDecoratedAutomaton::CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

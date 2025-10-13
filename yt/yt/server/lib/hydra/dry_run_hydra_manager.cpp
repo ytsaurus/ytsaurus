@@ -305,6 +305,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    bool IsEnteringReadOnlyMode() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
     {
         // Just do nothing.
@@ -378,7 +383,10 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TFuture<int> BuildSnapshot(bool /*setReadOnly*/, bool /*waitForSnapshotCompletion*/) override
+    TFuture<int> BuildSnapshot(
+        bool /*setReadOnly*/,
+        bool /*waitForSnapshotCompletion*/,
+        bool /*enableAutomatonReadOnlyBarrier*/) override
     {
         YT_UNIMPLEMENTED();
     }

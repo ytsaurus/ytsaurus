@@ -5031,11 +5031,13 @@ private:
         options.CellId = FromProto<TCellId>(request->cell_id());
         options.SetReadOnly = request->set_read_only();
         options.WaitForSnapshotCompletion = request->wait_for_snapshot_completion();
+        options.EnableAutomatonReadOnlyBarrier = request->enable_automaton_read_only_barrier();
 
-        context->SetRequestInfo("CellId: %v, SetReadOnly: %v, WaitForSnapshotCompletion: %v",
+        context->SetRequestInfo("CellId: %v, SetReadOnly: %v, WaitForSnapshotCompletion: %v, EnableAutomatonReadOnlyBarrier: %v",
             options.CellId,
             options.SetReadOnly,
-            options.WaitForSnapshotCompletion);
+            options.WaitForSnapshotCompletion,
+            options.EnableAutomatonReadOnlyBarrier);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
         ExecuteCall(
