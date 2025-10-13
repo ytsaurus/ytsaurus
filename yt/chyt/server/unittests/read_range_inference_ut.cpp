@@ -325,6 +325,14 @@ INSTANTIATE_TEST_SUITE_P(
                 MakeRows("1; 2; 3")),
             "key in (1, 2, 3)"),
         std::tuple<TConstExpressionPtr, const char*>(
+            New<TInExpression>(
+                std::initializer_list<TConstExpressionPtr>({
+                    MakeBinaryExpression(EBinaryOp::NotEqual,
+                        MakeReferenceExpression("key"),
+                        MakeLiteralExpression(MakeUnversionedInt64Value(0)))}),
+                MakeRows("\%false; \%true")),
+            "(key != 0) in (0, 1)"),
+        std::tuple<TConstExpressionPtr, const char*>(
             MakeBinaryExpression(EBinaryOp::And,
                 MakeBinaryExpression(EBinaryOp::GreaterOrEqual,
                     MakeReferenceExpression("key"),
