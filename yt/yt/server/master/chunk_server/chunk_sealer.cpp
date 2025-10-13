@@ -523,7 +523,9 @@ private:
         auto chunkId = chunk->GetId();
         auto overlayed = chunk->GetOverlayed();
         auto codecId = chunk->GetErasureCodec();
-        auto startRowIndex = GetJournalChunkStartRowIndex(chunk);
+        auto maybeStartRowIndex = GetDynamicConfig()->AllowHunkJournalChunksToHaveMultipleParents
+            ? NewGetJournalChunkStartRowIndex(chunk)
+            : std::make_optional(GetJournalChunkStartRowIndex(chunk));
         auto readQuorum = chunk->GetReadQuorum();
         auto writeQuorum = chunk->GetWriteQuorum();
         auto replicaLagLimit = chunk->GetReplicaLagLimit();
@@ -538,7 +540,7 @@ private:
         YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v, Overlayed: %v, StartRowIndex: %v)",
             chunkId,
             overlayed,
-            startRowIndex);
+            maybeStartRowIndex);
 
         std::vector<TChunkReplicaDescriptor> abortedReplicas;
         {
@@ -569,10 +571,10 @@ private:
         }
 
         auto firstOverlayedRowIndex = quorumInfo.FirstOverlayedRowIndex;
-        if (firstOverlayedRowIndex && *firstOverlayedRowIndex > startRowIndex) {
+        if (firstOverlayedRowIndex && *firstOverlayedRowIndex > maybeStartRowIndex) {
             THROW_ERROR_EXCEPTION("Sealing chunk %v would produce row gap",
                 chunkId)
-                << TErrorAttribute("start_row_index", startRowIndex)
+                << TErrorAttribute("start_row_index", maybeStartRowIndex)
                 << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
         }
 

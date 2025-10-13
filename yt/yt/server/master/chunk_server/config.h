@@ -784,6 +784,9 @@ struct TDynamicChunkManagerConfig
 
     int MaxLostVitalChunksToLog;
 
+    // COMPAT(akozhikhov)
+    bool AllowHunkJournalChunksToHaveMultipleParents;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

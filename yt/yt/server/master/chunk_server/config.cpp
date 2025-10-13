@@ -803,6 +803,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(100)
         .DontSerializeDefault();
 
+    registrar.Parameter("allow_hunk_journal_chunks_to_have_multiple_parents", &TThis::AllowHunkJournalChunksToHaveMultipleParents)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

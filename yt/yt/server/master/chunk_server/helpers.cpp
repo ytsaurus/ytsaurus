@@ -116,6 +116,68 @@ TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList)
     return index < children.size() ? children[index] : nullptr;
 }
 
+std::optional<i64> NewGetJournalChunkStartRowIndex(const TChunk* chunk)
+{
+    if (!chunk->IsJournal()) {
+        THROW_ERROR_EXCEPTION("%v is not a journal chunk",
+            chunk->GetId());
+    }
+
+    auto isHunkChunkList = [] (TChunkList* chunkList) {
+        return
+            chunkList->GetKind() == EChunkListKind::HunkTablet ||
+            chunkList->GetKind() == EChunkListKind::Hunk;
+    };
+
+    auto parentCount = GetParentCount(chunk);
+    if (parentCount == 0) {
+        THROW_ERROR_EXCEPTION("Journal chunk %v has zero parents",
+            chunk->GetId());
+    }
+
+    TChunkList* chunkList;
+    if (parentCount == 1) {
+        chunkList = GetUniqueParent(chunk)->AsChunkList();
+
+        if (isHunkChunkList(chunkList)) {
+            chunkList = nullptr;
+        }
+    } else {
+        YT_VERIFY(parentCount > 1);
+
+        for (auto [parent, cardinality] : chunk->Parents()) {
+            YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
+
+            auto* parentChunkList = parent->AsChunkList();
+            if (!isHunkChunkList(parentChunkList)) {
+                THROW_ERROR_EXCEPTION("Journal chunk %v with %v parents has a parent chunk list of unexpected (not-hunk) kind %Qlv",
+                    chunk->GetId(),
+                    parentCount,
+                    parentChunkList->GetKind());
+            }
+        }
+
+        chunkList = nullptr;
+    }
+
+    if (!chunkList) {
+        return std::nullopt;
+    }
+
+    auto chunkIndex = GetChildIndex(chunkList, chunk);
+    if (chunkIndex == 0) {
+        return 0;
+    }
+
+    if (!chunkList->Children()[chunkIndex - 1]->IsSealed()) {
+        THROW_ERROR_EXCEPTION("%v is not the first unsealed chunk in chunk list %v",
+            chunk->GetId(),
+            chunkList->GetId());
+    }
+
+    return chunkList->CumulativeStatistics().GetPreviousSum(chunkIndex).RowCount;
+}
+
 i64 GetJournalChunkStartRowIndex(const TChunk* chunk)
 {
     if (!chunk->IsJournal()) {

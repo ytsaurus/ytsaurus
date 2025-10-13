@@ -1571,13 +1571,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         return schema
 
     def _create_table(self,
+                      path="//tmp/t",
                       optimize_for="lookup",
                       max_inline_hunk_size=10,
                       hunk_erasure_codec="none",
                       schema=SCHEMA,
                       enable_dynamic_store_read=False):
         self._create_simple_table(
-            "//tmp/t",
+            path,
             schema=self._get_table_schema(schema, max_inline_hunk_size),
             enable_dynamic_store_read=enable_dynamic_store_read,
             hunk_chunk_reader={
@@ -2107,6 +2108,45 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             command="cat",
         )
         assert read_table("//tmp/t_out") == rows
+
+    @authors("akozhikhov")
+    def test_hunk_storage_seal_with_multiple_tables(self):
+        sync_create_cells(1)
+
+        set("//sys/@config/chunk_manager/allow_hunk_journal_chunks_to_have_multiple_parents", True)
+
+        self._create_table(path="//tmp/t1")
+        self._create_table(path="//tmp/t2")
+
+        hunk_storage_id = create(
+            "hunk_storage",
+            "//tmp/h",
+            attributes={
+                "store_rotation_period": 120000,
+            })
+        set("//tmp/t1/@hunk_storage_id", hunk_storage_id)
+        set("//tmp/t2/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t1", rows)
+        insert_rows("//tmp/t2", rows)
+
+        sync_unmount_table("//tmp/t1")
+        sync_unmount_table("//tmp/t2")
+        sync_unmount_table("//tmp/h")
+
+        chunk_ids_1 = builtins.set(get("//tmp/t1/@chunk_ids"))
+        chunk_ids_2 = builtins.set(get("//tmp/t2/@chunk_ids"))
+        journal_hunk_chunk_id = chunk_ids_1.intersection(chunk_ids_2)
+        assert len(journal_hunk_chunk_id) == 1
+        journal_hunk_chunk_id = journal_hunk_chunk_id.pop()
+
+        wait(lambda: get("#{}/@sealed".format(journal_hunk_chunk_id)))
+
 
 ################################################################################
 
