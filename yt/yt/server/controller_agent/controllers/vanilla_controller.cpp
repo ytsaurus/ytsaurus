@@ -1376,8 +1376,7 @@ bool TGangOperationController::OnJobCompleted(
     auto rank = gangJoblet.Rank;
 
     // TODO(pogorelov): Move it from here and TOperationControllerBase::OnJobCompleted to TCompletedJobSummary parsing.
-    if (const auto& jobResultExt = jobSummary->GetJobResultExt();
-        !jobResultExt.restart_needed() && jobSummary->InterruptionReason != EInterruptionReason::None)
+    if (!jobSummary->Abandoned && !jobSummary->GetJobResultExt().restart_needed() && jobSummary->InterruptionReason != EInterruptionReason::None)
     {
         YT_LOG_DEBUG(
             "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptionReason: %v)",
