@@ -15,7 +15,7 @@ class TDataBuilder
     : public NYql::NResult::IDataVisitor
 {
 public:
-    explicit TDataBuilder(NTableClient::IValueConsumer* consumer, NTableClient::TLogicalTypePtr type);
+    TDataBuilder(NTableClient::IValueConsumer* consumer, NTableClient::TLogicalTypePtr type);
 
 private:
     NTableClient::IValueConsumer* const ValueConsumer_;
@@ -26,17 +26,20 @@ private:
     int ColumnIndex_ = 0;
     std::stack<int> OptionalLevels_;
 
-    struct TTupleTypes {
-        std::vector<NTableClient::TLogicalTypePtr> Types_;
-        size_t Index_;
+    struct TTupleTypes
+    {
+        std::vector<NTableClient::TLogicalTypePtr> Types;
+        size_t Index;
     };
-    struct TStructTypes {
-        std::vector<NTableClient::TStructField> Types_;
-        size_t Index_;
+    struct TStructTypes
+    {
+        std::vector<NTableClient::TStructField> Types;
+        size_t Index;
     };
-    struct TDictType {
-        NTableClient::TLogicalTypePtr Key_;
-        NTableClient::TLogicalTypePtr Value_;
+    struct TDictType
+    {
+        NTableClient::TLogicalTypePtr Key;
+        NTableClient::TLogicalTypePtr Value;
     };
     std::stack<NTableClient::TLogicalTypePtr> Type_;
     std::stack<TTupleTypes> TupleTypes_;
