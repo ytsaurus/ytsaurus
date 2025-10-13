@@ -62,7 +62,7 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     NLogging::TLogger logger,
     i64 inputDataWeight,
     i64 inputRowCount,
-    double compressionRatio);
+    i64 inputCompressedDataSize);
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     const NScheduler::TSortOperationSpecBasePtr& spec,

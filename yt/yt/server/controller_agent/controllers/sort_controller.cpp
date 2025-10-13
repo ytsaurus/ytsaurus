@@ -2908,7 +2908,7 @@ protected:
             Logger,
             EstimatedInputStatistics_->DataWeight,
             EstimatedInputStatistics_->RowCount,
-            EstimatedInputStatistics_->CompressionRatio);
+            EstimatedInputStatistics_->CompressedDataSize);
 
         PartitioningParametersEvaluator_ = CreatePartitioningParametersEvaluator(
             Spec_,

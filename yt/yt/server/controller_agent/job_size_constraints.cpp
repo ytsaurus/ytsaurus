@@ -904,12 +904,12 @@ public:
         TLogger logger,
         i64 inputDataWeight,
         i64 inputRowCount,
-        double compressionRatio)
+        i64 inputCompressedDataSize)
         : TJobSizeConstraintsBase(
             inputDataWeight,
-            inputDataWeight * compressionRatio,
+            inputCompressedDataSize,
             inputDataWeight,
-            inputDataWeight * compressionRatio,
+            inputCompressedDataSize,
             spec,
             options,
             std::move(logger),
@@ -921,6 +921,8 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
+        double compressionRatio = static_cast<double>(inputCompressedDataSize) / inputDataWeight;
+
         if (Spec_->PartitionJobCount) {
             JobCountByDataWeight_ = *Spec_->PartitionJobCount;
             JobCountByCompressedDataSize_ = *Spec_->PartitionJobCount;
@@ -967,7 +969,6 @@ public:
                     jobCount = DivCeil(inputSize, maxSizePerJob);
                 }
             }
-            YT_VERIFY(inputSize >= jobCount);
             return std::min({jobCount, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
         };
 
@@ -1165,7 +1166,7 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
     TLogger logger,
     i64 inputDataWeight,
     i64 inputRowCount,
-    double compressionRatio)
+    i64 inputCompressedDataSize)
 {
     return New<TPartitionJobSizeConstraints>(
         spec,
@@ -1173,7 +1174,7 @@ IJobSizeConstraintsPtr CreatePartitionJobSizeConstraints(
         std::move(logger),
         inputDataWeight,
         inputRowCount,
-        compressionRatio);
+        inputCompressedDataSize);
 }
 
 IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
