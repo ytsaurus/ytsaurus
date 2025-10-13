@@ -988,9 +988,9 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         TListNodeOptions listOptions;
         listOptions.ReadFrom = EMasterChannelKind::Cache;
         listOptions.SuccessStalenessBound = TDuration::Minutes(1);
-        auto allClusters = WaitFor(StateClient_->ListNode("//sys/clusters", listOptions))
+        auto clustersYson = WaitFor(StateClient_->ListNode("//sys/clusters", listOptions))
             .ValueOrThrow();
-        clusters = ConvertTo<std::vector<std::string>>(allClusters);
+        clusters = ConvertTo<std::vector<std::string>>(clustersYson);
     }
 
     auto enginesInfoMap = ConvertToNode(EmptyMap)->AsMap();
