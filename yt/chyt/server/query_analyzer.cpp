@@ -185,7 +185,7 @@ DB::ASTPtr CreateProperNullableComparator(
     } else {
         THROW_ERROR_EXCEPTION(
             "Unexpected cmp function name %v; "
-            "this is a bug; please, file an issue in CHYT queue",
+            "this is a bug; please, fill an issue in CHYT queue",
             cmpFunctionName);
     }
 }
@@ -700,10 +700,10 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
 
     return {
-        .Query=std::move(secondaryQueryAst),
-        .Scalars=std::move(scalars),
-        .TotalRowsToRead=static_cast<ui64>(totalRowCount),
-        .TotalBytesToRead=static_cast<ui64>(totalDataWeight),
+        .Query = std::move(secondaryQueryAst),
+        .Scalars = std::move(scalars),
+        .TotalRowsToRead = static_cast<ui64>(totalRowCount),
+        .TotalBytesToRead = static_cast<ui64>(totalDataWeight),
     };
 }
 
@@ -994,8 +994,8 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     if (matchedKeyPrefixSize == 0) {
         YT_LOG_DEBUG(
             "As a result of the inferring sorted join key columns, the key turned out to be empty "
-            "(MatchedLeftKeyNames: %Qv, LeftKeyPositionMap: %Qv, RightKeyPositionMap: %Qv, "
-            "UnmatchedKeyPairs: %Qv, JoinKeySize: %Qv)",
+            "(MatchedLeftKeyNames: %v, LeftKeyPositionMap: %v, RightKeyPositionMap: %v, "
+            "UnmatchedKeyPairs: %v, JoinKeySize: %v)",
             matchedLeftKeyNames,
             leftKeyPositionMap,
             rightKeyPositionMap,
@@ -1147,7 +1147,7 @@ DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage(
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetOptimizedQueryProcessingStage method is already called; "
-            "this is a bug; please, file an issue in CHYT queue");
+            "this is a bug; please, fill an issue in CHYT queue");
     }
 
     if (!OptimizedQueryProcessingStage_) {
@@ -1156,11 +1156,11 @@ DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage(
             THROW_ERROR_EXCEPTION(
                 "setting chyt.execution.optimize_query_processing_stage is not set "
                 "but we're trying to optimize stage; "
-                "this is a bug; please, file an issue in CHYT queue");
+                "this is a bug; please, fill an issue in CHYT queue");
         }
         THROW_ERROR_EXCEPTION(
             "Unexpected call to get optimized query processing stage; "
-            "this is a bug; please, file an issue in CHYT queue");
+            "this is a bug; please, fill an issue in CHYT queue");
     }
     return *OptimizedQueryProcessingStage_;
 }
@@ -1377,7 +1377,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but Analyze method is already called; "
-            "this is a bug; please, file an issue in CHYT queue");
+            "this is a bug; please, fill an issue in CHYT queue");
     }
 
     const auto& settings = StorageContext_->Settings;
@@ -1482,7 +1482,7 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but GetSecondaryQueryBuilder method is already called; "
-            "this is a bug; please, file an issue in CHYT queue");
+            "this is a bug; please, fill an issue in CHYT queue");
     }
 
     YT_VERIFY(!OnlyAnalyze_);
@@ -1565,7 +1565,7 @@ bool TQueryAnalyzer::IsJoinedByKeyColumns() const
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but IsJoinedByKeyColumns method is already called; "
-            "this is a bug; please, file an issue in CHYT queue");
+            "this is a bug; please, fill an issue in CHYT queue");
     }
     return JoinedByKeyColumns_;
 }

@@ -74,7 +74,7 @@ public:
             "",
             0 /*maxQuerySize*/,
             0 /*maxQueryDepth*/,
-            0 /*max_parser_backtracks=*/);
+            0 /*max_parser_backtracks*/);
     }
 
     String getEngineName() const override

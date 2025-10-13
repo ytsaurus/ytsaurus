@@ -155,7 +155,7 @@ private:
 
         // Query context is inherited from session context like it was made in ClickHouse gRPC server.
         DB::Session session(Host_->GetContext(), DB::ClientInfo::Interface::GRPC);
-        session.authenticate(User_, /*password=*/ "", DBPoco::Net::SocketAddress());
+        session.authenticate(User_, /*password*/ "", DBPoco::Net::SocketAddress());
         session.makeSessionContext();
         QueryContext_ = session.makeQueryContext();
         QueryContext_->makeSessionContext();
