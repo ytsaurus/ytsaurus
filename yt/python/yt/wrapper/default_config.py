@@ -1244,7 +1244,7 @@ def _update_from_env_vars(
         if isinstance(None, var_type):
             if type_hint_value:
                 if get_origin(type_hint_value) == Union:
-                    var_type = get_args(type_hint_value)[0]
+                    type_hint_value = get_args(type_hint_value)[0]
 
                 if type_hint_value in (int, str, float, bool, list, dict, tuple):
                     var_type = type_hint_value
