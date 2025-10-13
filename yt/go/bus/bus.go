@@ -63,8 +63,10 @@ const (
 	handshakeSignature = uint32(0x68737562)
 	nullPartSize       = uint32(0xffffffff)
 	maxPartSize        = 512 * 1024 * 1024
-	maxPartCount       = 64
-	fixHeaderSize      = 36
+
+	// Similar to MaxMessagePartCount in yt/yt/core/bus/public.h.
+	maxPartCount  = 1 << 28
+	fixHeaderSize = 36
 )
 
 type fixedHeader struct {
