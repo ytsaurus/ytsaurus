@@ -204,6 +204,7 @@ public:
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TTamedCellManager::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRestarted(BIND_NO_PROPAGATE(&TTamedCellManager::OnNodeRestarted, MakeWeak(this)));
 
         const auto& cellarNodeTracker = Bootstrap_->GetCellarNodeTracker();
         cellarNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TTamedCellManager::OnCellarNodeHeartbeat, MakeWeak(this)));
@@ -1590,14 +1591,27 @@ private:
         node->UpdateCellarSize(cellarType, newSize);
     }
 
-    void OnNodeUnregistered(TNode* node)
+    void ProcessUnregisterNode(TNode* node)
     {
-        YT_LOG_DEBUG("Node unregistered (Address: %v)",
-            node->GetDefaultAddress());
-
         for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
             UpdateNodeCellarSize(node, cellarType, 0);
         }
+    }
+
+    void OnNodeUnregistered(TNode* node)
+    {
+        YT_LOG_INFO("Node unregistered (Address: %v)",
+            node->GetDefaultAddress());
+
+        ProcessUnregisterNode(node);
+    }
+
+    void OnNodeRestarted(TNode* node)
+    {
+        YT_LOG_INFO("Node restarted (Address: %v)",
+            node->GetDefaultAddress());
+
+        ProcessUnregisterNode(node);
     }
 
     void OnCellarNodeHeartbeat(

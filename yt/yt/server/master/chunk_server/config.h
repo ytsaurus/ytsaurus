@@ -521,6 +521,8 @@ struct TDynamicSequoiaChunkReplicasConfig
     TDuration SequoiaChunkRefreshPeriod;
     int SequoiaChunkCountToFetchFromRefreshQueue;
 
+    bool UseLocationReplacementForLocationFullHeartbeat;
+
     bool ClearMasterRequest;
 
     // When fetching replicas from Sequoia, validate they are the same as master replicas.

@@ -138,6 +138,8 @@ struct TDynamicNodeTrackerConfig
 
     TDuration MaxNodeIncompleteStateDuration;
 
+    bool NoRestartingNodesDisposal;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

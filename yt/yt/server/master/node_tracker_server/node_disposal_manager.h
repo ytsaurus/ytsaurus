@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/profiling/producer.h>
 
+#include <yt/yt/server/master/chunk_server/public.h>
+
 namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////

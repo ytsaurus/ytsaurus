@@ -132,6 +132,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_node_incomplete_state_duration", &TThis::MaxNodeIncompleteStateDuration)
         .Default(TDuration::Days(1));
+
+    registrar.Parameter("no_restarting_nodes_disposal", &TThis::NoRestartingNodesDisposal)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

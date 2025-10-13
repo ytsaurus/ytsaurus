@@ -23,6 +23,7 @@ import yt.wrapper as yt
 
 import json
 import os
+import shutil
 import threading
 from time import sleep, time
 
@@ -901,6 +902,321 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
 
         for node in nodes:
             wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
+
+
+##################################################################
+
+
+class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
+    ENABLE_MULTIDAEMON = False  # Kill specific components.
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "no_restarting_nodes_disposal": True,
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 5000,
+            "lease_transaction_ping_period": 1000,
+        },
+    }
+
+    def _get_profiler_gauge(self, name):
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+        return profiler.gauge(name).get()
+
+    def _wait_for_profiler_ready(self):
+        wait(lambda: self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") is not None)
+
+    def _get_locations_being_disposed_count(self):
+        return self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") + self._get_profiler_gauge("node_tracker/chunk_locations_awaiting_disposal")
+
+    @authors("grphil")
+    def test_restarted_state(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 2000,
+                },
+            }
+        })
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
+
+        add_maintenance("cluster_node", node, "pending_restart", "")
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+
+        self._wait_for_profiler_ready()
+
+        self.Env.kill_service("node", indexes=[node_index])
+
+        sleep(1)
+
+        assert self._get_locations_being_disposed_count() == 0
+
+        assert get("//sys/cluster_nodes/{}/@state".format(node)) == "online"
+
+        self.Env.start_nodes()
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
+        assert node in get(f"#{chunk_id}/@stored_replicas")
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
+        assert node in get(f"#{chunk_id}/@stored_replicas")
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
+
+        sleep(1)
+
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 3
+        assert node in get(f"#{chunk_id}/@stored_replicas")
+
+        assert self._get_locations_being_disposed_count() == 0
+
+    @authors("grphil")
+    def test_table_removed_during_restart(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 2000,
+                },
+            }
+        })
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
+
+        add_maintenance("cluster_node", node, "pending_restart", "")
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+
+        self._wait_for_profiler_ready()
+        self.Env.kill_service("node", indexes=[node_index])
+
+        import sys
+        x = get(f"#{chunk_id}/@stored_replicas")
+        print("XXX", x, file=sys.stderr)
+
+        self.Env.start_nodes()
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
+        remove("//tmp/t")
+        assert get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted"
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
+
+        location_uuid = ls(f"//sys/cluster_nodes/{node}/@chunk_locations")[0]
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@chunk_locations/{location_uuid}/chunk_count") == 0)
+
+    @authors("grphil")
+    def test_lost_location_during_restart(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+
+        self._wait_for_profiler_ready()
+        assert self._get_locations_being_disposed_count() == 0
+
+        add_maintenance("cluster_node", node, "pending_restart", "")
+        self.Env.kill_service("node", indexes=[node_index])
+        sleep(1)  # Wait for node to go offline
+
+        shutil.rmtree(self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"])
+
+        assert self._get_locations_being_disposed_count() == 0
+
+        self.Env.start_nodes(sync=False)
+        wait(lambda: self._get_locations_being_disposed_count() == 1)
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 10)
+
+        wait(lambda: self._get_locations_being_disposed_count() == 0)
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "online")
+
+    @authors("grphil")
+    def test_chunks_are_changed(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 2000,
+                },
+            }
+        })
+
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", {"a": "b"}, table_writer={"upload_replication_factor": 1})
+
+        chunk1 = get_singular_chunk_id("//tmp/t1")
+        wait(lambda: len(get(f"#{chunk1}/@stored_replicas")) == 1)
+
+        chunk1_node = get(f"#{chunk1}/@stored_replicas")[0]
+        chunk1_node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(chunk1_node))
+
+        self.Env.kill_service("node", indexes=[chunk1_node_index])
+
+        self._wait_for_profiler_ready()
+        wait(lambda: self._get_locations_being_disposed_count() == 0)
+        wait(lambda: get("//sys/cluster_nodes/{}/@state".format(chunk1_node)) == "offline")
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 1})
+        write_table("//tmp/t2", {"a": "b"}, table_writer={"upload_replication_factor": 1})
+
+        chunk2 = get_singular_chunk_id("//tmp/t2")
+        wait(lambda: len(get(f"#{chunk2}/@stored_replicas")) == 1)
+
+        node = get(f"#{chunk2}/@stored_replicas")[0]
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+
+        add_maintenance("cluster_node", node, "pending_restart", "")
+        self.Env.kill_service("node", indexes=[node_index])
+
+        with open(os.path.join(self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"], "uuid")) as fin:
+            uuid = fin.read()
+
+        shutil.rmtree(self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"])
+        shutil.copytree(
+            self.Env.configs["node"][chunk1_node_index]["data_node"]["store_locations"][0]["path"],
+            self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"])
+
+        with open(os.path.join(self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"], "uuid"), "w") as fout:
+            fout.write(uuid)
+
+        shutil.rmtree(self.Env.configs["node"][chunk1_node_index]["data_node"]["store_locations"][0]["path"])
+
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "restarted")
+        assert self._get_locations_being_disposed_count() == 0
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+        wait(lambda: get(f"//sys/cluster_nodes/{chunk1_node}/@state") == "online")
+        assert self._get_locations_being_disposed_count() == 0
+
+        wait(lambda: node in get(f"#{chunk1}/@stored_replicas"))
+        wait(lambda: node not in get(f"#{chunk2}/@stored_replicas"))
+
+    @authors("grphil")
+    def test_chunk_moved(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 1000,
+                },
+            }
+        })
+
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", {"a": "b"}, table_writer={"upload_replication_factor": 1})
+
+        chunk = get_singular_chunk_id("//tmp/t1")
+        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 1)
+
+        node1 = str(get(f"#{chunk}/@stored_replicas")[0])
+        node1_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node1))
+
+        nodes = list(map(str, ls("//sys/cluster_nodes")))
+        if node1 == nodes[0]:
+            node2 = nodes[1]
+        else:
+            node2 = nodes[0]
+
+        node2_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node2))
+
+        set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
+        add_maintenance("cluster_node", node1, "pending_restart", "")
+        add_maintenance("cluster_node", node2, "pending_restart", "")
+
+        self.Env.kill_service("node", indexes=[node1_index, node2_index])
+
+        with open(os.path.join(self.Env.configs["node"][node1_index]["data_node"]["store_locations"][0]["path"], "uuid")) as fin:
+            uuid1 = fin.read()
+
+        with open(os.path.join(self.Env.configs["node"][node2_index]["data_node"]["store_locations"][0]["path"], "uuid")) as fin:
+            uuid2 = fin.read()
+
+        shutil.move(
+            self.Env.configs["node"][node1_index]["data_node"]["store_locations"][0]["path"],
+            self.Env.configs["node"][node1_index]["data_node"]["store_locations"][0]["path"] + "tmp")
+
+        shutil.move(
+            self.Env.configs["node"][node2_index]["data_node"]["store_locations"][0]["path"],
+            self.Env.configs["node"][node1_index]["data_node"]["store_locations"][0]["path"])
+
+        shutil.move(
+            self.Env.configs["node"][node1_index]["data_node"]["store_locations"][0]["path"] + "tmp",
+            self.Env.configs["node"][node2_index]["data_node"]["store_locations"][0]["path"])
+
+        with open(os.path.join(self.Env.configs["node"][node1_index]["data_node"]["store_locations"][0]["path"], "uuid"), "w") as fout:
+            fout.write(uuid1)
+
+        with open(os.path.join(self.Env.configs["node"][node2_index]["data_node"]["store_locations"][0]["path"], "uuid"), "w") as fout:
+            fout.write(uuid2)
+
+        self.Env.start_nodes(sync=False)
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node1}/@state") == "restarted")
+        wait(lambda: get(f"//sys/cluster_nodes/{node2}/@state") == "restarted")
+        assert self._get_locations_being_disposed_count() == 0
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node1}/@state") == "online")
+        wait(lambda: get(f"//sys/cluster_nodes/{node2}/@state") == "online")
+        assert self._get_locations_being_disposed_count() == 0
+
+        replicas = list(map(str, get(f"#{chunk}/@stored_replicas")))
+        wait(lambda: node2 in replicas)
+        wait(lambda: node1 not in replicas)
+
+
+class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "no_restarting_nodes_disposal": True,
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": True,
+            },
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+                "enable": True
+            }
+        },
+    }
 
 
 ##################################################################

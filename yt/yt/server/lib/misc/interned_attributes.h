@@ -475,6 +475,7 @@
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
     XX(ResourceQuota, resource_quota) \
     XX(ResourceUsage, resource_usage) \
+    XX(Restarted, restarted) \
     XX(RetainedTimestamp, retained_timestamp) \
     XX(Revision, revision) \
     XX(RootAccountResourceLimits, root_account_resource_limits) \

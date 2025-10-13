@@ -1174,6 +1174,10 @@ private:
 
         ClearChunksDeltaForCell(cellTag);
 
+        if (auto duration = GetNodeDynamicConfig()->TestingOptions->FullHeartbeatSessionSleepDuration) {
+            TDelayedExecutor::WaitForDuration(*duration);
+        }
+
         auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
         TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
         proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);

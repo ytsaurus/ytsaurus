@@ -98,6 +98,9 @@ public:
     //! Fired when node tags change.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeTagsChanged);
 
+    //! Fired when node is restarted.
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeRestarted);
+
     //! Fired when node rack changes.
     /*!
      *  NB: A node's rack may also change when its host changes. This signal is
@@ -286,6 +289,10 @@ public:
 
     //! Sets node state and sends it to primary master.
     virtual void SetNodeLocalState(TNode* node, ENodeState state) = 0;
+
+    virtual INodeDisposalManagerPtr GetNodeDisposalManager() const = 0;
+
+    virtual void CheckNodeOnline(TNode* node) = 0;
 
 private:
     friend class TNodeTypeHandler;

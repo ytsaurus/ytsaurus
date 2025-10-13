@@ -513,6 +513,32 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
         remove(table)
 
 
+class TestSequoiaReplicasLocationReplacementInHeartbeats(TestSequoiaReplicas):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            # Making sure we do not use it for replicas.
+            "enable": False
+        },
+        "chunk_manager": {
+            "replica_approve_timeout": 5000,
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": True,
+            },
+            "sequoia_chunk_replicas": {
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+                "use_location_replacement_for_location_full_heartbeat": True
+            }
+        }
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestSequoiaReplicasLocationReplacementInHeartbeats, cls).setup_class()
+
+
 class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_SECONDARY_MASTER_CELLS = 3

@@ -44,7 +44,9 @@ private:
             THROW_ERROR_EXCEPTION("Location is not bound to any node");
         }
         if (location->GetState() == EChunkLocationState::Online ||
-            location->GetState() == EChunkLocationState::Registered) {
+            location->GetState() == EChunkLocationState::Registered ||
+            location->GetState() == EChunkLocationState::Restarted)
+        {
             THROW_ERROR_EXCEPTION("Location is in %Qlv state", location->GetState());
         }
     }

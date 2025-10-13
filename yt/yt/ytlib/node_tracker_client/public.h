@@ -51,6 +51,8 @@ DEFINE_ENUM(ENodeState,
     ((Mixed)         (4))
     // Unregistered and ongoing disposal.
     ((BeingDisposed) (5))
+    // Restarted, registered, but did not report some of the heartbeats.
+    ((Restarted)     (6))
 );
 
 DEFINE_ENUM(ECellAggregatedStateReliability,

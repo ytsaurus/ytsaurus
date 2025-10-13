@@ -152,6 +152,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSchemaDivergence_25_4)                                     (3105))  // h0pless
     ((SetClipTimestampInAlter)                                      (3106))  // alexelexa
     ((SecondaryIndexAcd)                                            (3107))  // sabdenovch
+    ((RestartedNodeState)                                           (3108))  // grphil
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

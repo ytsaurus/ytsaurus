@@ -43,6 +43,7 @@ public:
         nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeTagsChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRestarted(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         cellManager->SubscribeAreaCreated(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnAreaCreated, MakeWeak(this)));
