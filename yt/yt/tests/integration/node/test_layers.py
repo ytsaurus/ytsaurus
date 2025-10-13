@@ -1702,21 +1702,18 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
-    @pytest.mark.skip(reason="Test is broken")
-    def test_read_timeout(self):
+    def test_error_on_read(self):
         self.setup_files()
-
-        # Set read I/O timeout to 1/2 second
-        io_timeout = 500
 
         update_nodes_dynamic_config({
             "exec_node": {
                 "nbd": {
-                    "block_cache_compressed_data_capacity": 536870912,
-                    "client": {
-                        "io_timeout": io_timeout,
-                    },
                     "enabled": True,
+                    "client": {
+                        # Set read I/O timeout to 1/2 second
+                        "io_timeout": 500,
+                        "connection_count": 2,
+                    },
                     "server": {
                         "unix_domain_socket": {
                             # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
@@ -1725,74 +1722,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
                         "test_options": {
-                            # Sleep for a number of timeouts prior to performing block device read
-                            "block_device_sleep_before_read": 3 * io_timeout,
-                        },
-                    },
-                },
-            },
-        })
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        # Wait for node to restart
-        wait_for_nodes()
-
-        nodes = ls("//sys/data_nodes")
-        assert len(nodes) == 1
-        node = nodes[0]
-
-        wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
-
-        # Create input table
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-
-        create("table", "//tmp/t_out")
-
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_in",
-                out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
-                spec={
-                    "max_failed_job_count": 1,
-                    "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
-                    },
-                },
-            )
-
-        # YT-14186: Corrupted user layer should not disable jobs on node.
-        for node in ls("//sys/cluster_nodes"):
-            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
-
-    @authors("yuryalekseev")
-    def test_read_error(self):
-        self.setup_files()
-
-        update_nodes_dynamic_config({
-            "exec_node": {
-                "nbd": {
-                    "block_cache_compressed_data_capacity": 536870912,
-                    "client": {
-                        # Set read I/O timeout to 1 second
-                        "io_timeout": 1000,
-                    },
-                    "enabled": True,
-                    "server": {
-                        "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
-                        },
-                        "test_options": {
-                            # Set test error on block device read
-                            "set_block_device_error_on_read": True,
+                            "set_error_on_read": True,
                         },
                     },
                 },
@@ -1821,62 +1751,6 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                     },
                 },
             )
-
-    @authors("yuryalekseev")
-    def test_abort_on_read(self):
-        self.setup_files()
-
-        update_nodes_dynamic_config({
-            "exec_node": {
-                "nbd": {
-                    "block_cache_compressed_data_capacity": 536870912,
-                    "client": {
-                        # Set read I/O timeout to 1 second
-                        "io_timeout": 1000,
-                    },
-                    "enabled": True,
-                    "server": {
-                        "unix_domain_socket": {
-                            # The best would be to use os.path.join(self.path_to_run, tempfile.mkstemp(dir="/tmp")[1]),
-                            # but it leads to a path with length greater than the maximum allowed 108 bytes.
-                            # So put it at home directory until PORTO-1242 is done, then put it in /tmp.
-                            "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
-                        },
-                        "test_options": {
-                            # Abort connection on block device read
-                            "abort_connection_on_read": True,
-                        },
-                    },
-                },
-            },
-        })
-
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
-        wait_for_nodes()
-
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
-
-        with pytest.raises(YtError):
-            map(
-                in_="//tmp/t_in",
-                out="//tmp/t_out",
-                command="ls $YT_ROOT_FS/dir 1>&2",
-                spec={
-                    "max_failed_job_count": 1,
-                    "mapper": {
-                        "layer_paths": ["//tmp/squashfs.img"],
-                    },
-                },
-            )
-
-        # YT-14186: Corrupted user layer should not disable jobs on node.
-        for node in ls("//sys/cluster_nodes"):
-            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
 
 
 @authors("yuryalekseev")

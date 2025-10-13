@@ -72,13 +72,13 @@ void TUdsConfig::Register(TRegistrar registrar)
 
 void TNbdTestOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("block_device_sleep_before_read", &TThis::BlockDeviceSleepBeforeRead)
+    registrar.Parameter("sleep_on_read", &TThis::SleepOnRead)
         .Default();
-    registrar.Parameter("block_device_sleep_before_write", &TThis::BlockDeviceSleepBeforeWrite)
+    registrar.Parameter("sleep_on_write", &TThis::SleepOnWrite)
         .Default();
-    registrar.Parameter("set_block_device_error_on_read", &TThis::SetBlockDeviceErrorOnRead)
+    registrar.Parameter("set_error_on_read", &TThis::SetErrorOnRead)
         .Default();
-    registrar.Parameter("set_block_device_error_on_write", &TThis::SetBlockDeviceErrorOnWrite)
+    registrar.Parameter("set_error_on_write", &TThis::SetErrorOnWrite)
         .Default();
     registrar.Parameter("abort_connection_on_read", &TThis::AbortConnectionOnRead)
         .Default();
