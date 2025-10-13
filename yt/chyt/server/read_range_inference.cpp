@@ -2,6 +2,7 @@
 
 #include "conversion.h"
 #include "config.h"
+#include "custom_data_types.h"
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -50,7 +51,7 @@ static const std::unordered_map<std::string, EBinaryOp> binaryOpNameToOpCode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(DB::DataTypePtr targetDataType, DB::QueryTreeNodePtr node)
+NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::DataTypePtr& targetDataType, const DB::QueryTreeNodePtr& node)
 {
     auto constantNode = node->as<DB::ConstantNode>();
     if (!constantNode) {
@@ -108,7 +109,6 @@ DB::QueryTreeNodePtr AdjustToYTBooleanExpression(DB::QueryTreeNodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 } // namespace
 
 namespace NYT::NClickHouseServer {
@@ -118,31 +118,38 @@ using namespace NYT::NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ExpressionConvertionResult
+{
+    TConstExpressionPtr Expression;
+    DB::DataTypePtr DataType;
+    EValueType ValueType;
+};
 
 // TODO (buyval01) : Support complex tuple expression:
 // (k, l) >= (1, 2) AND (k, l) < (1, 4)
 // expr: (k > 0#1 OR k = 0#1 AND l >= 0#2) AND (k < 0#1 OR k = 0#1 AND l < 0#4)
 // (k, m) IN ((2, 3), (4, 6)) AND l IN (2, 3)
 // expr: ((k, m) IN ([0#2, 0#3], [0#4, 0#6])) AND (l IN ([0#2], [0#3]))
-TConstExpressionPtr ConnverterImpl(
+std::optional<ExpressionConvertionResult> ConnverterImpl(
     const TCompositeSettingsPtr& settings,
     const TTableSchemaPtr& schema,
     DB::QueryTreeNodePtr node,
-    DB::DataTypePtr& desiredDataType,
-    std::optional<EValueType>& desiredValueType)
+    const DB::DataTypePtr& desiredDataType,
+    std::optional<EValueType> desiredValueType)
 {
-    TConstExpressionPtr result;
+    std::optional<ExpressionConvertionResult> result;
 
     switch (node->getNodeType())
     {
         case DB::QueryTreeNodeType::COLUMN: {
             auto columnNode = node->as<DB::ColumnNode&>();
             if (auto columnSchema = schema->FindColumn(columnNode.getColumnName())) {
-                result =  New<NYT::NQueryClient::TReferenceExpression>(
+                result.emplace();
+                result->Expression =  New<NYT::NQueryClient::TReferenceExpression>(
                     SimpleLogicalType(ESimpleLogicalValueType::Null),
                     columnNode.getColumnName());
-                desiredDataType = ToDataType(*columnSchema, settings);
-                desiredValueType = columnSchema->GetWireType();
+                result->DataType = ToDataType(*columnSchema, settings);
+                result->ValueType = columnSchema->GetWireType();
             }
             break;
         }
@@ -155,22 +162,25 @@ TConstExpressionPtr ConnverterImpl(
 
             auto field = constantNode.getValue();
             if (desiredDataType) {
-                field = DB::convertFieldToType(field, *desiredDataType);
+                auto convertedField = DB::convertFieldToTypeStrict(field, *constantDataType, *desiredDataType);
+                if (!convertedField) {
+                    break;
+                }
+                field = std::move(*convertedField);
             }
+
+            result.emplace();
+            result->DataType = (desiredDataType != nullptr) ? desiredDataType : constantDataType;
+            result->ValueType = (desiredValueType.has_value() ? *desiredValueType : constantValueType);
 
             TUnversionedValue value;
             ToUnversionedValue(
                 field,
-                (desiredDataType != nullptr) ? desiredDataType : constantDataType,
+                result->DataType,
                 settings,
                 &value);
 
-            result = New<NYT::NQueryClient::TLiteralExpression>(
-                (desiredValueType.has_value() ? *desiredValueType : constantValueType),
-                value);
-
-            desiredDataType = constantDataType;
-            desiredValueType = constantValueType;
+            result->Expression = New<NYT::NQueryClient::TLiteralExpression>(result->ValueType, value);
 
             break;
         }
@@ -182,24 +192,27 @@ TConstExpressionPtr ConnverterImpl(
 
             if (name == "not") {
                 auto argument = AdjustToYTBooleanExpression(arguments[0]);
-                if (auto arg = ConnverterImpl(settings, schema, argument, desiredDataType, desiredValueType)) {
-                    result = New<NYT::NQueryClient::TUnaryOpExpression>(
+                if (auto arg = ConnverterImpl(settings, schema, argument, GetDataTypeBoolean(), EValueType::Boolean)) {
+                    result.emplace();
+                    result->Expression = New<NYT::NQueryClient::TUnaryOpExpression>(
                         EValueType::Boolean,
                         NQueryClient::EUnaryOp::Not,
-                        std::move(arg));
+                        std::move(arg->Expression));
                 }
             } else if (name == "isNull" || name == "isNotNull") {
                 if (auto arg = ConnverterImpl(settings, schema, arguments[0], desiredDataType, desiredValueType)) {
-                    result = New<TFunctionExpression>(
+                    TConstExpressionPtr expr = New<TFunctionExpression>(
                         EValueType::Boolean,
                         "is_null",
-                        std::initializer_list<TConstExpressionPtr>({std::move(arg)}));
+                        std::initializer_list<TConstExpressionPtr>({std::move(arg->Expression)}));
                     if (name == "isNotNull") {
-                        result = New<NYT::NQueryClient::TUnaryOpExpression>(
+                        expr = New<NYT::NQueryClient::TUnaryOpExpression>(
                             EValueType::Boolean,
                             NQueryClient::EUnaryOp::Not,
-                            std::move(result));
+                            std::move(expr));
                     }
+                    result.emplace();
+                    result->Expression = std::move(expr);
                 }
             } else if (binaryOpNameToOpCode.contains(name)) {
                 auto lhsNode = arguments[0];
@@ -209,8 +222,8 @@ TConstExpressionPtr ConnverterImpl(
                     lhsNode.swap(rhsNode);
                 }
 
-                DB::DataTypePtr lhsDataType;
-                std::optional<EValueType> lhsValueType;
+                DB::DataTypePtr desiredLhsDataType;
+                std::optional<EValueType> desiredLhsValueType;
 
                 // NB: CH uses integer literals and columns with the UInt8 data type as boolean values.
                 // To use QL inferrer, we need to adapt such cases to valid logical expressions.
@@ -218,40 +231,45 @@ TConstExpressionPtr ConnverterImpl(
                     lhsNode = AdjustToYTBooleanExpression(lhsNode);
                     rhsNode = AdjustToYTBooleanExpression(rhsNode);
 
-                    lhsDataType = desiredDataType;
-                    lhsValueType = desiredValueType;
+                    desiredLhsDataType = GetDataTypeBoolean();
+                    desiredLhsValueType = EValueType::Boolean;
                 }
 
-                auto lhsExpr = ConnverterImpl(settings, schema, lhsNode, lhsDataType, lhsValueType);
+                auto lhsExpr = ConnverterImpl(settings, schema, lhsNode, desiredLhsDataType, desiredLhsValueType);
                 if (!lhsExpr) {
                     break;
                 }
 
-                auto rhsExpr = ConnverterImpl(settings, schema, rhsNode, lhsDataType, lhsValueType);
-                if (lhsExpr && rhsExpr) {
-                    result = New<NYT::NQueryClient::TBinaryOpExpression>(
+                auto rhsExpr = ConnverterImpl(settings, schema, rhsNode, lhsExpr->DataType, lhsExpr->ValueType);
+                if (rhsExpr) {
+                    result.emplace();
+                    result->Expression = New<NYT::NQueryClient::TBinaryOpExpression>(
                         EValueType::Boolean,
                         binaryOpNameToOpCode.at(name),
-                        std::move(lhsExpr),
-                        std::move(rhsExpr));
+                        std::move(lhsExpr->Expression),
+                        std::move(rhsExpr->Expression));
                 }
             } else if (arguments.size() == 2 && name == "in") {
-                DB::DataTypePtr argumentsDataType;
-                std::optional<EValueType> argumentsValueType;
-                auto argExpr = ConnverterImpl(settings, schema, arguments[0], argumentsDataType, argumentsValueType);
-                if (!argExpr) {
+                auto argument = ConnverterImpl(settings, schema, arguments[0], desiredDataType, desiredValueType);
+                if (!argument) {
                     break;
                 }
 
-                auto values = ConvertPreparedSetToSharedRange(argumentsDataType, arguments[1]);
-
-                if (argExpr && !values.Empty()) {
-                    result = New<NYT::NQueryClient::TInExpression>(
+                auto values = ConvertPreparedSetToSharedRange(argument->DataType, arguments[1]);
+                if (!values.Empty()) {
+                    result.emplace();
+                    result->Expression = New<NYT::NQueryClient::TInExpression>(
                         std::initializer_list<TConstExpressionPtr>({
-                            std::move(argExpr)}),
+                            std::move(argument->Expression)}),
                         std::move(values));
                 }
             }
+
+            if (result) {
+                result->DataType = GetDataTypeBoolean();
+                result->ValueType = EValueType::Boolean;
+            }
+
             break;
         }
 
@@ -264,17 +282,14 @@ TConstExpressionPtr ConnverterImpl(
 
 TConstExpressionPtr ConvertToConstExpression(const TTableSchemaPtr& schema, DB::QueryTreeNodePtr node)
 {
-    DB::DataTypePtr desiredDataType = DB::DataTypeFactory::instance().get("bool");
-    std::optional<EValueType> desiredValueType = EValueType::Boolean;
-
     node = AdjustToYTBooleanExpression(node);
-
-    return ConnverterImpl(
+    auto result = ConnverterImpl(
         TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true),
         schema,
         node,
-        desiredDataType,
-        desiredValueType);
+        GetDataTypeBoolean(),
+        EValueType::Boolean);
+    return result->Expression;
 }
 
 std::vector<NChunkClient::TReadRange> InferReadRange(

@@ -1624,11 +1624,10 @@ class TestInferReadRange(ClickHouseTestBase):
                 for row_index in range(rows_per_chunk)])
 
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
-            query = 'select value from "//tmp/t" where key > 1 and key < 4 order by key'
-            assert clique.make_query_and_validate_prewhered_row_count(query, exact=2) == [
-                {"value": "2, 0"},
-                {"value": "0, 1"},
-            ]
+            query = 'select value from "//tmp/t" where key > 1 and key < 4'
+            res = clique.make_query_and_validate_prewhered_row_count(query, exact=2)
+            assert_items_equal(res, [{"value": "2, 0"}, {"value": "0, 1"},])
+
             assert_items_equal(
                 clique.make_query('select key from "//tmp/t"'),
                 [{"key": i} for i in range(chunks_count * rows_per_chunk)]
@@ -1719,23 +1718,25 @@ class TestInferReadRange(ClickHouseTestBase):
         ])
 
         with Clique(1, config_patch=self._get_config_patch(), export_query_log=True) as clique:
-            query = 'select * from "//tmp/t" where key'
+            def check(pred, exact, expected):
+                query = f'select * from "//tmp/t" where {pred}'
+                res = clique.make_query_and_validate_prewhered_row_count(query, exact=exact)
+                assert_items_equal(res, expected)
+
+            check('1', 3, [{"key": None}, {"key": 0}, {"key": 1},])
+            check('0', 0, [])
+
             # CHYT converts [where key] -> [where key != 0] for proper processing by QL range inferrer.
             # This results in reading row with None.
-            res = clique.make_query_and_validate_prewhered_row_count(query, exact=2)
-            assert_items_equal(res, [{"key": 1},])
+            check('key', 2, [{"key": 1},])
 
-            query = 'select * from "//tmp/t" where not key'
-            res = clique.make_query_and_validate_prewhered_row_count(query, exact=1)
-            assert_items_equal(res, [{"key": 0},])
+            check('not key', 1, [{"key": 0},])
+            check('not key and 1', 1, [{"key": 0},])
+            check('not key and not 0', 1, [{"key": 0},])
+            check('key IN (0, 1)', 2, [{"key": 0}, {"key": 1},])
 
-            query = 'select * from "//tmp/t" where not key and 1'
-            res = clique.make_query_and_validate_prewhered_row_count(query, exact=1)
-            assert_items_equal(res, [{"key": 0},])
-
-            query = 'select * from "//tmp/t" where not key and not 0'
-            res = clique.make_query_and_validate_prewhered_row_count(query, exact=1)
-            assert_items_equal(res, [{"key": 0},])
+            # Inferrer treats only columns as arguments to the IN operator.
+            check('(key != 0) IN (0, 1)', 3, [{"key": 0}, {"key": 1},])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):
