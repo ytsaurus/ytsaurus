@@ -1319,6 +1319,43 @@ TEST(TArrowParserTest, InvalidEmptyStruct)
         "YT \"struct\" type has no fields, but no metadata found with the key");
 }
 
+
+TEST(TArrowParserTest, IncorrectInput)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("string", EValueType::String)
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    arrow20::StringBuilder stringBuilder;
+
+    int rowCount = 5;
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        Verify(stringBuilder.Append("hello"));
+    }
+
+    // NB: Unsafe offsets manipulation.
+    auto offsets = const_cast<int*>(stringBuilder.offsets_data());
+    offsets[2] = 1000;
+
+    auto stringArray = stringBuilder.Finish();
+
+    auto arrowSchema = arrow20::schema({
+        arrow20::field("string", arrow20::binary()),
+    });
+
+    std::vector<std::shared_ptr<arrow20::Array>> columns = {*stringArray};
+
+    auto recordBatch = arrow20::RecordBatch::Make(arrowSchema, rowCount, columns);
+
+    auto data = MakeOutputFromRecordBatch(recordBatch);
+
+    ASSERT_ANY_THROW(parser->Read(data));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
