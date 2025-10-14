@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pandas
-Version: 2.3.2
+Version: 2.3.3
 Summary: Powerful data structures for data analysis, time series, and statistics
 Author-Email: The Pandas Development Team <pandas-dev@python.org>
 License: BSD 3-Clause License
@@ -1267,6 +1267,7 @@ Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
 Classifier: Topic :: Scientific/Engineering
 Project-URL: homepage, https://pandas.pydata.org
 Project-URL: documentation, https://pandas.pydata.org/docs/
