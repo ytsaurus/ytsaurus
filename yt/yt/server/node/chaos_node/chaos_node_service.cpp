@@ -7,7 +7,6 @@
 #include "replication_card.h"
 #include "replication_card_collocation.h"
 #include "replication_card_serialization.h"
-#include "helpers.h"
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
@@ -15,6 +14,7 @@
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/hydra_service.h>
 
+#include <yt/yt/ytlib/chaos_client/helpers.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 
@@ -88,6 +88,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChaosObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(IsChaosObjectExistent));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateMultipleTableProgresses));
     }
@@ -299,6 +300,40 @@ private:
 
         DoFindChaosObject(objectId);
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, IsChaosObjectExistent)
+    {
+        SyncWithUpstream();
+
+        auto chaosObjectId = FromProto<TChaosObjectId>(request->chaos_object_id());
+        auto typeFromId = TypeFromId(chaosObjectId);
+
+        context->SetRequestInfo("ChaosObjectId: %v, Type: %v",
+            chaosObjectId,
+            typeFromId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        auto existenceResult = chaosManager->IsChaosObjectExistent(chaosObjectId);
+        switch (existenceResult) {
+            case EExistenceResult::Available:
+                response->mutable_chaos_object_exists();
+                break;
+
+            case EExistenceResult::Absent:
+                response->mutable_chaos_object_is_absent();
+                break;
+
+            case EExistenceResult::NonExistent:
+                response->mutable_chaos_object_does_not_exist();
+                break;
+        }
+
+        context->SetResponseInfo("ChaosObjectId: %v, Type: %v, ExistenceResult: %v",
+            chaosObjectId,
+            typeFromId,
+            existenceResult);
         context->Reply();
     }
 

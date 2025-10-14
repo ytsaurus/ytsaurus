@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-namespace NYT::NChaosNode {
+namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,4 +19,4 @@ void ThrowChaosLeaseNotKnown(TChaosLeaseId chaosLeaseId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChaosNode
+} // namespace NYT::NChaosClient

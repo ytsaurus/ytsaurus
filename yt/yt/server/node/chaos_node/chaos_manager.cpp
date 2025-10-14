@@ -6,7 +6,6 @@
 #include "chaos_lease.h"
 #include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
-#include "helpers.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
 #include "replication_card_batcher.h"
@@ -32,6 +31,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chaos_client/helpers.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.h>
 
@@ -408,6 +408,35 @@ public:
         return collocation;
     }
 
+    EExistenceResult IsChaosObjectExistent(TChaosObjectId chaosObjectId) const override
+    {
+        switch (auto objectType = TypeFromId(chaosObjectId)) {
+            case EObjectType::ReplicationCard: {
+                auto* replicationCard = FindReplicationCard(chaosObjectId);
+                if (!replicationCard) {
+                    return IsDomesticReplicationCard(chaosObjectId)
+                        ? EExistenceResult::NonExistent
+                        : EExistenceResult::Absent;
+                }
+
+                return IsReplicationCardMigrated(replicationCard)
+                    ? EExistenceResult::Absent
+                    : EExistenceResult::Available;
+            }
+
+            case EObjectType::ReplicationCardCollocation:
+                return FindReplicationCardCollocation(chaosObjectId)
+                    ? EExistenceResult::Available
+                    : EExistenceResult::Absent;
+
+            case EObjectType::ChaosLease:
+                return FindChaosLease(chaosObjectId) ? EExistenceResult::Available : EExistenceResult::Absent;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported object type: %v", objectType);
+        }
+    }
+
     void UpdateReplicationCardLagTimes(const TReplicationCard& replicationCard) override
     {
         if (IsReplicationCardMigrated(&replicationCard)) {
@@ -474,7 +503,7 @@ public:
         return chaosLease;
     }
 
-    TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) override
+    TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) const override
     {
         switch (TypeFromId(chaosObjectId)) {
             case EObjectType::ReplicationCard:
@@ -2065,12 +2094,12 @@ private:
         }
     }
 
-    bool IsDomesticReplicationCard(TReplicationCardId replicationCardId)
+    bool IsDomesticReplicationCard(TReplicationCardId replicationCardId) const
     {
         return CellTagFromId(replicationCardId) == CellTagFromId(Slot_->GetCellId());
     }
 
-    bool IsReplicationCardMigrated(const TReplicationCard* replicationCard)
+    static bool IsReplicationCardMigrated(const TReplicationCard* replicationCard)
     {
         return replicationCard->IsMigrated();
     }
