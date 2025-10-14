@@ -276,7 +276,7 @@ Erasure кодирование по умолчанию всегда выключ
 | --- | --- | --- |
 | Флаг | - | Динамическая |
 
-Управляет процессом [фонового сжатия таблиц]({{yt-docs-root}}/user-guide/storage/regular-system-processes#nightly_compress), чтобы они занимали меньше места.
+Управляет процессом {% if audience == "internal" %}[фонового сжатия таблиц]({{yt-docs-root}}/user-guide/storage/regular-system-processes#nightly_compress){% else %}фонового сжатия таблиц{% endif %}, чтобы они занимали меньше места.
 
 Значение `true` устанавливает на таблице атрибут `@force_nightly_compress` равным `true`.
 Значение `false` устанавливает на таблице атрибут `@nightly_compression_settings` с дочерним значением `enabled` равным `false`.
@@ -960,7 +960,7 @@ Map-side стратегия JOIN может выполняться в шарди
 | --- | --- | --- |
 | Положительное число | — | Динамическая |
 
-Задаёт количество [спекулятивно исполняемых джобов]({{yql.pages.syntax.pragma.speculative-job}}) в {{product-name}} операциях. По умолчанию используются настройки {{product-name}} кластера.
+Задаёт количество {% if audience == "internal" %}[спекулятивно исполняемых джобов]({{yql.pages.syntax.pragma.speculative-job}}){% else %}спекулятивно исполняемых джобов{% endif %} в {{product-name}} операциях. По умолчанию используются настройки {{product-name}} кластера.
 
 ## yt.LLVMMemSize
 
@@ -1084,7 +1084,7 @@ Published являются таблицы, указанные в [INSERT INTO](.
 | --- | --- | --- |
 | Строка | - | Статическая, per-cluster |
 
-Задаёт использование указанного [сетевого проекта]({{yt-docs-root}}/user-guide/data-processing/operations/mtn) в джобах для всех map-reduce операций в запросе (включая evaluation стадию).
+Задаёт использование указанного {% if audience == "internal" %}[сетевого проекта]({{yt-docs-root}}/user-guide/data-processing/operations/mtn){% else %}сетевого проекта{% endif %} в джобах для всех map-reduce операций в запросе (включая evaluation стадию).
 
 ## yt.NetworkProject
 

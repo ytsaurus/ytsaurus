@@ -6,7 +6,7 @@
 
 ## Список функций
 
-* [Compress Decompress](compress)
+* [Compress Decompress](compress_decompress.md)
 * [DateTime](datetime.md)
 * [Digest](digest.md)
 {% if audience == "internal" %}

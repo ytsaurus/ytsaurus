@@ -142,7 +142,7 @@ yt create access_control_object --attr '{namespace=queries;name=nobody}'
 **NB:**
 - Compatible only with operator version [0.6.0](https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.6.0) and later
 - Compatible only with proxies version [23.2](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F23.2.0) and later
-- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker#access-control) section containing information about the new query access control.
+- Before updating, please read the [documentation](https://ytsaurus.tech/docs/ru/user-guide/query-tracker/about#access-control) section containing information about the new query access control.
 
 **New related issues:**
 - [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)

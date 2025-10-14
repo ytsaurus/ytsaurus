@@ -2,7 +2,7 @@
 
 | Type | Description |
 | ----- | ----- |
-| `Callable` | A callable value that can be executed by passing arguments in parentheses in YQL SQL syntax or using the `Apply` function with the [s-expressions](/docs/s_expressions) syntax. |
+| `Callable` | A callable value that can be executed by passing arguments in parentheses in YQL SQL syntax or using the `Apply` function with the s-expressions syntax. |
 | `Resource` | Resource is an opaque pointer to a resource you can pass between the user defined functions (UDF). The type of the returned and accepted resource is declared inside a function using a string label. When passing a resource, YQL checks for label matching to prevent passing of resources between incompatible functions. If the labels mismatch, a type error occurs. |
 | `Tagged` | Tagged is the option to assign an application name to any other type. |
 | `Generic` | The data type used for data types. |
