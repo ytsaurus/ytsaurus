@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/node/data_node/artifact.pb.h>
+#include <yt/yt/server/node/exec_node/artifact.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,5 +34,5 @@ void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecNode
 

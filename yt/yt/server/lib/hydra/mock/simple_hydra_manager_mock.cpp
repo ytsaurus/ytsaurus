@@ -227,6 +227,11 @@ int TSimpleHydraManagerMock::GetAutomatonTerm() const
     return 42;
 }
 
+bool TSimpleHydraManagerMock::IsEnteringReadOnlyMode() const
+{
+    return false;
+}
+
 TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() const
 {
     return CancelableContext;

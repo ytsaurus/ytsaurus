@@ -1,9 +1,8 @@
 #pragma once
 
-#include "chunk_cache.h"
+#include "artifact.h"
+#include "artifact_cache.h"
 #include "job_workspace_builder.h"
-
-#include <yt/yt/server/node/data_node/artifact.h>
 
 #include <yt/yt/library/containers/public.h>
 
@@ -78,7 +77,7 @@ struct IUserSlot
         ESandboxKind sandboxKind,
         const TString& sourcePath,
         const TFile& destinationFile,
-        const NDataNode::TChunkLocationPtr& sourceLocation) = 0;
+        const TCacheLocationPtr& sourceLocation) = 0;
 
     virtual TFuture<void> MakeFile(
         TJobId jobId,
@@ -87,14 +86,14 @@ struct IUserSlot
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) = 0;
 
-    virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
+    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
     virtual TFuture<IVolumePtr> PrepareRootVolume(
-        const std::vector<NDataNode::TArtifactKey>& layers,
+        const std::vector<TArtifactKey>& layers,
         const TVolumePreparationOptions& options) = 0;
 
     virtual TFuture<IVolumePtr> PrepareGpuCheckVolume(
-        const std::vector<NDataNode::TArtifactKey>& layers,
+        const std::vector<TArtifactKey>& layers,
         const TVolumePreparationOptions& options) = 0;
 
     virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;

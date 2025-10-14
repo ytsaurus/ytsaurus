@@ -15,6 +15,8 @@
 namespace NYT::NCellMaster {
 
 using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NObjectClient;
 
 class THiveProfilingManager
     : public IHiveProfilingManager
@@ -44,10 +46,8 @@ private:
 
     void OnProfiling()
     {
-        const auto& masterCellTags = Bootstrap_->GetMulticellManager()->GetRegisteredMasterCellTags();
-        auto cellIdFilter = [&] (NElection::TCellId cellId) {
-            auto cellTag = NObjectClient::CellTagFromId(cellId);
-            return std::ranges::find(masterCellTags, cellTag) != masterCellTags.end();
+        auto cellIdFilter = [] (NElection::TCellId cellId) {
+            return TypeFromId(cellId) == EObjectType::MasterCell;
         };
 
         Bootstrap_->GetHiveManager()->OnProfiling(cellIdFilter);

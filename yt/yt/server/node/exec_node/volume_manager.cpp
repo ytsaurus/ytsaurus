@@ -1,7 +1,8 @@
 #include "volume_manager.h"
 
+#include "artifact.h"
+#include "artifact_cache.h"
 #include "bootstrap.h"
-#include "chunk_cache.h"
 #include "job_controller.h"
 #include "helpers.h"
 #include "private.h"
@@ -11,9 +12,8 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/private.h>
-#include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/chunk.h>
-#include <yt/yt/server/node/data_node/disk_location.h>
+#include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 
@@ -97,7 +97,7 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NClusterNode;
-using namespace NDataNode;
+using namespace NNode;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
@@ -263,48 +263,48 @@ class TVolumeArtifactAdapter
     : public IVolumeArtifact
 {
 public:
-    TVolumeArtifactAdapter(IChunkPtr chunk)
-        : Chunk_(chunk)
+    TVolumeArtifactAdapter(TArtifactPtr artifact)
+        : Artifact_(std::move(artifact))
     { }
 
-    TString GetFileName() const override
+    const std::string& GetFileName() const override
     {
-        return Chunk_->GetFileName();
+        return Artifact_->GetFileName();
     }
 
 private:
-    IChunkPtr Chunk_;
+    TArtifactPtr Artifact_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVolumeChunkCacheAdapter
-    : public IVolumeChunkCache
+class TVolumeArtifactCacheAdapter
+    : public IVolumeArtifactCache
 {
 public:
-    TVolumeChunkCacheAdapter(TChunkCachePtr chunkCache)
-        : ChunkCache_(chunkCache)
+    TVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
+        : ArtifactCache_(artifactCache)
     { }
 
     TFuture<IVolumeArtifactPtr> DownloadArtifact(
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions) override
     {
-        auto artifact = ChunkCache_->DownloadArtifact(key, artifactDownloadOptions);
-        return artifact.Apply(BIND([] (IChunkPtr artifact) {
+        auto artifact = ArtifactCache_->DownloadArtifact(key, artifactDownloadOptions);
+        return artifact.Apply(BIND([] (TArtifactPtr artifact) {
             return IVolumeArtifactPtr(New<TVolumeArtifactAdapter>(artifact));
         }));
     }
 
 private:
-    TChunkCachePtr ChunkCache_;
+    TArtifactCachePtr ArtifactCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVolumeChunkCachePtr CreateVolumeChunkCacheAdapter(TChunkCachePtr chunkCache)
+IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache)
 {
-    return New<TVolumeChunkCacheAdapter>(chunkCache);
+    return New<TVolumeArtifactCacheAdapter>(std::move(artifactCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -330,7 +330,7 @@ struct TLayerMetaHeader
 };
 
 struct TLayerMeta
-    : public NDataNode::NProto::TLayerMeta
+    : public NProto::TLayerMeta
 {
     TString Path;
     TLayerId Id;
@@ -339,7 +339,7 @@ struct TLayerMeta
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVolumeMeta
-    : public NDataNode::NProto::TVolumeMeta
+    : public NProto::TVolumeMeta
 {
     TVolumeId Id;
     TString MountPath;
@@ -468,11 +468,11 @@ static const TString LayersMetaName = "layers_meta";
 static const TString VolumesMetaName = "volumes_meta";
 
 class TLayerLocation
-    : public TDiskLocation
+    : public NNode::TDiskLocation
 {
 public:
     TLayerLocation(
-        TLayerLocationConfigPtr locationConfig,
+        NDataNode::TLayerLocationConfigPtr locationConfig,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
@@ -494,7 +494,7 @@ public:
         // More details here: PORTO-460.
         , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
     {
-        auto profiler = LocationProfiler()
+        auto profiler = NDataNode::LocationProfiler()
             .WithPrefix("/layer")
             .WithTag("location_id", ToString(Id_));
 
@@ -586,7 +586,7 @@ public:
         NProfiling::TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
-        const TString& squashFSFilePath)
+        const std::string& squashFSFilePath)
     {
         return BIND(
             &TLayerLocation::DoCreateSquashFSVolume,
@@ -743,7 +743,7 @@ public:
     }
 
 private:
-    const TLayerLocationConfigPtr Config_;
+    const NDataNode::TLayerLocationConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IPortoExecutorPtr VolumeExecutor_;
     const IPortoExecutorPtr LayerExecutor_;
@@ -809,7 +809,8 @@ private:
         for (const auto& fileName : fileNames) {
             auto filePath = NFS::CombinePaths(LayersMetaPath_, fileName);
             if (fileName.EndsWith(NFS::TempFileSuffix)) {
-                YT_LOG_DEBUG("Remove temporary file (Path: %v)",
+                YT_LOG_DEBUG(
+                    "Remove temporary file (Path: %v)",
                     filePath);
                 NFS::Remove(filePath);
                 continue;
@@ -818,7 +819,8 @@ private:
             auto nameWithoutExtension = NFS::GetFileNameWithoutExtension(fileName);
             TGuid id;
             if (!TGuid::FromString(nameWithoutExtension, &id)) {
-                YT_LOG_WARNING("Unrecognized file in layer location directory (Path: %v)",
+                YT_LOG_WARNING(
+                    "Unrecognized file in layer location directory (Path: %v)",
                     filePath);
                 continue;
             }
@@ -833,13 +835,15 @@ private:
         for (const auto& layerName : layerNames) {
             TGuid id;
             if (!TGuid::FromString(layerName, &id)) {
-                YT_LOG_ERROR("Unrecognized layer name in layer location directory (LayerName: %v)",
+                YT_LOG_ERROR(
+                    "Unrecognized layer name in layer location directory (LayerName: %v)",
                     layerName);
                 continue;
             }
 
             if (!fileIds.contains(id)) {
-                YT_LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
+                YT_LOG_DEBUG(
+                    "Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
                 auto async = DynamicConfigManager_
                     ->GetConfig()
@@ -857,7 +861,8 @@ private:
 
         for (const auto& id : fileIds) {
             auto path = GetLayerMetaPath(id);
-            YT_LOG_DEBUG("Remove layer meta file with no matching layer (Path: %v)",
+            YT_LOG_DEBUG(
+                "Remove layer meta file with no matching layer (Path: %v)",
                 path);
             NFS::Remove(path);
         }
@@ -893,20 +898,23 @@ private:
 
             const auto* metaHeader = reinterpret_cast<const TLayerMetaHeader*>(metaFileBlob.Begin());
             if (metaHeader->Signature != TLayerMetaHeader::ExpectedSignature) {
-                THROW_ERROR_EXCEPTION("Incorrect layer header signature %x in layer meta file %v",
+                THROW_ERROR_EXCEPTION(
+                    "Incorrect layer header signature %x in layer meta file %v",
                     metaHeader->Signature,
                     metaFileName);
             }
 
             auto metaBlob = TRef(metaFileBlob.Begin() + sizeof(TLayerMetaHeader), metaFileBlob.End());
             if (metaHeader->MetaChecksum != GetChecksum(metaBlob)) {
-                THROW_ERROR_EXCEPTION("Incorrect layer meta checksum in layer meta file %v",
+                THROW_ERROR_EXCEPTION(
+                    "Incorrect layer meta checksum in layer meta file %v",
                     metaFileName);
             }
 
-            NDataNode::NProto::TLayerMeta protoMeta;
+            NProto::TLayerMeta protoMeta;
             if (!TryDeserializeProtoWithEnvelope(&protoMeta, metaBlob)) {
-                THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
+                THROW_ERROR_EXCEPTION(
+                    "Failed to parse chunk meta file %v",
                     metaFileName);
             }
 
@@ -948,7 +956,8 @@ private:
                 ex,
                 /*persistentDisable*/ !error.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
 
-            THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
+            THROW_ERROR_EXCEPTION(
+                "Failed to initialize layer location %v",
                 Config_->Path)
                 << ex;
         }
@@ -1001,7 +1010,8 @@ private:
             }
         } catch (const std::exception& ex) {
             Disable(ex);
-            THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
+            THROW_ERROR_EXCEPTION(
+                "Failed to initialize layer location %v",
                 Config_->Path)
                 << ex;
         }
@@ -1042,7 +1052,8 @@ private:
             availableSpace = AvailableSpace_;
         }
 
-        YT_LOG_INFO("Finished layer import (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v, Tag: %v)",
+        YT_LOG_INFO(
+            "Finished layer import (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v, Tag: %v)",
             layerMeta.Id,
             layerMeta.Path,
             usedSpace,
@@ -1063,7 +1074,8 @@ private:
             LayerImportsInProgress_.fetch_add(-1);
         });
         try {
-            YT_LOG_DEBUG("Ensure that cached layer archive is not in use (ArchivePath: %v)",
+            YT_LOG_DEBUG(
+                "Ensure that cached layer archive is not in use (ArchivePath: %v)",
                 archivePath);
 
             {
@@ -1077,14 +1089,17 @@ private:
             i64 layerSize = 0;
 
             try {
-                YT_LOG_DEBUG("Unpack layer (Path: %v)",
+                YT_LOG_DEBUG(
+                    "Unpack layer (Path: %v)",
                     layerDirectory);
 
                 TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
                 WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(layerId), PlacePath_, container))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Layer unpacking failed (ArchivePath: %v)",
+                YT_LOG_ERROR(
+                    ex,
+                    "Layer unpacking failed (ArchivePath: %v)",
                     archivePath);
                 THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
                     << ex;
@@ -1096,7 +1111,8 @@ private:
             config->DeduplicateByINodes = true;
 
             layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
-            YT_LOG_DEBUG("Calculated layer size (Size: %v, Tag: %v)",
+            YT_LOG_DEBUG(
+                "Calculated layer size (Size: %v, Tag: %v)",
                 layerSize,
                 tag);
 
@@ -1183,7 +1199,8 @@ private:
                 AvailableSpace_ += layerSize;
             }
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to remove layer %v",
+            auto error = TError(
+                "Failed to remove layer %v",
                 layerId)
                 << ex;
             Disable(error);
@@ -1213,7 +1230,8 @@ private:
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
-            YT_LOG_DEBUG("Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
+            YT_LOG_DEBUG(
+                "Creating volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
                 volumeType,
                 volumeId);
@@ -1229,19 +1247,24 @@ private:
                 try {
                     WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self")).ThrowOnError();
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to unlink volume (MountPath: %v)",
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to unlink volume (MountPath: %v)",
                         mountPath);
                 }
 
                 try {
                     NFS::RemoveRecursive(volumePath);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to remove volume path (VolumePath: %v)",
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to remove volume path (VolumePath: %v)",
                         volumePath);
                 }
             });
 
-            YT_LOG_INFO("Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
+            YT_LOG_INFO(
+                "Created volume (Tag: %v, Type: %v, VolumeId: %v, VolumeMountPath: %v)",
                 tag,
                 volumeType,
                 volumeId,
@@ -1274,12 +1297,15 @@ private:
                 try {
                     NFS::Remove(volumeMetaFileName);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to remove volume meta (VolumeMetaPath: %v)",
+                    YT_LOG_ERROR(
+                        ex,
+                        "Failed to remove volume meta (VolumeMetaPath: %v)",
                         volumeMetaFileName);
                 }
             });
 
-            YT_LOG_INFO("Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
+            YT_LOG_INFO(
+                "Created volume meta (Tag: %v, Type: %v, VolumeId: %v, MetaFileName: %v)",
                 tag,
                 volumeType,
                 volumeId,
@@ -1305,12 +1331,15 @@ private:
         } catch (const std::exception& ex) {
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
-            YT_LOG_ERROR(ex, "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
+            YT_LOG_ERROR(
+                ex,
+                "Failed to create volume (Tag: %v, Type: %v, VolumeId: %v)",
                 tag,
                 volumeType,
                 volumeId);
 
-            auto error = TError("Failed to create %Qlv volume %v",
+            auto error = TError(
+                "Failed to create %Qlv volume %v",
                 volumeType,
                 volumeId)
                 << ex;
@@ -1484,14 +1513,14 @@ private:
         NProfiling::TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
-        const TString& squashFSFilePath)
+        const std::string& squashFSFilePath)
     {
         ValidateEnabled();
 
         THashMap<TString, TString> volumeProperties {
             {"backend", "squash"},
             {"read_only", "true"},
-            {"layers", squashFSFilePath}
+            {"layers", TString(squashFSFilePath)}
         };
 
         TVolumeMeta volumeMeta;
@@ -1518,7 +1547,8 @@ private:
 
             // When location is disabled, volumes is empty.
             if (IsEnabled() && !Volumes_.contains(volumeId)) {
-                YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+                YT_LOG_FATAL(
+                    "Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
                     volumeId,
                     volumePath,
                     volumeMetaPath);
@@ -1529,19 +1559,22 @@ private:
             // The location could be disabled while we were getting here.
             // Any how try to unlink volume and remove associated data.
 
-            YT_LOG_DEBUG("Removing volume (VolumeId: %v)",
+            YT_LOG_DEBUG(
+                "Removing volume (VolumeId: %v)",
                 volumeId);
 
             WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Volume unlinked (VolumeId: %v)",
+            YT_LOG_DEBUG(
+                "Volume unlinked (VolumeId: %v)",
                 volumeId);
 
             NFS::RemoveRecursive(volumePath);
             NFS::Remove(volumeMetaPath);
 
-            YT_LOG_INFO("Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+            YT_LOG_INFO(
+                "Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
                 volumeId,
                 volumePath,
                 volumeMetaPath);
@@ -1633,7 +1666,8 @@ TLayerLocationPtr DoPickLocation(
     }
 
     if (!location) {
-        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NoLayerLocationAvailable,
+        THROW_ERROR_EXCEPTION(
+            NExecNode::EErrorCode::NoLayerLocationAvailable,
             "Failed to get layer location; all locations are disabled");
     }
 
@@ -1655,7 +1689,8 @@ public:
     ~TLayer()
     {
         auto removalNeeded = IsLayerRemovalNeeded_;
-        YT_LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v, RemovalNeeded: %v)",
+        YT_LOG_INFO(
+            "Layer is destroyed (LayerId: %v, LayerPath: %v, RemovalNeeded: %v)",
             LayerMeta_.Id,
             LayerMeta_.Path,
             removalNeeded);
@@ -1771,7 +1806,7 @@ class TTmpfsLayerCache
 public:
     TTmpfsLayerCache(
         IBootstrap* const bootstrap,
-        TTmpfsLayerCacheConfigPtr config,
+        NDataNode::TTmpfsLayerCacheConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
@@ -1859,7 +1894,7 @@ public:
 
             MemoryUsageTracker_->Acquire(Config_->Capacity);
 
-            auto locationConfig = New<TLayerLocationConfig>();
+            auto locationConfig = New<NDataNode::TLayerLocationConfig>();
             locationConfig->Quota = Config_->Capacity;
             locationConfig->LowWatermark = 0;
             locationConfig->MinDiskSpace = 0;
@@ -1943,7 +1978,7 @@ public:
     }
 
 private:
-    const TTmpfsLayerCacheConfigPtr Config_;
+    const NDataNode::TTmpfsLayerCacheConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
@@ -2012,7 +2047,9 @@ private:
             listNodeOptions));
 
         if (!listNodeRspOrError.IsOK()) {
-            SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Failed to list %v tmpfs layers directory %v",
+            SetAlert(TError(
+                NExecNode::EErrorCode::TmpfsLayerImportFailed,
+                "Failed to list %v tmpfs layers directory %v",
                 CacheName_,
                 Config_->LayersDirectoryPath)
                 << listNodeRspOrError);
@@ -2029,13 +2066,16 @@ private:
                 paths.insert(FromObjectId(id));
             }
         } catch (const std::exception& ex) {
-            SetAlert(TError(NExecNode::EErrorCode::TmpfsLayerImportFailed, "Tmpfs layers directory %v has invalid structure",
+            SetAlert(TError(
+                NExecNode::EErrorCode::TmpfsLayerImportFailed,
+                "Tmpfs layers directory %v has invalid structure",
                 Config_->LayersDirectoryPath)
                 << ex);
             return;
         }
 
-        YT_LOG_INFO("Listed tmpfs layers (CacheName: %v, Count: %v)",
+        YT_LOG_INFO(
+            "Listed tmpfs layers (CacheName: %v, Count: %v)",
             CacheName_,
             paths.size());
 
@@ -2110,7 +2150,9 @@ private:
 
             guard.Release();
 
-            YT_LOG_INFO_IF(!artifactsToRemove.empty(), "Released cached tmpfs layers (Count: %v)",
+            YT_LOG_INFO_IF(
+                !artifactsToRemove.empty(),
+                "Released cached tmpfs layers (Count: %v)",
                 artifactsToRemove.size());
         }
 
@@ -2146,7 +2188,8 @@ private:
             }
 
             const auto& layer = newLayerOrError.Value();
-            YT_LOG_INFO("Successfully imported new tmpfs layer (LayerId: %v, ArtifactPath: %v, CacheName: %v)",
+            YT_LOG_INFO(
+                "Successfully imported new tmpfs layer (LayerId: %v, ArtifactPath: %v, CacheName: %v)",
                 layer->GetMeta().Id,
                 layer->GetMeta().artifact_key().data_source().path(),
                 CacheName_);
@@ -2184,11 +2227,11 @@ class TLayerCache
 {
 public:
     TLayerCache(
-        const TVolumeManagerConfigPtr& config,
+        const NDataNode::TVolumeManagerConfigPtr& config,
         const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
         std::vector<TLayerLocationPtr> layerLocations,
         IPortoExecutorPtr tmpfsExecutor,
-        IVolumeChunkCachePtr chunkCache,
+        IVolumeArtifactCachePtr artifactCache,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* bootstrap)
@@ -2200,13 +2243,13 @@ public:
             ExecNodeProfiler().WithPrefix("/layer_cache"))
         , Config_(config)
         , DynamicConfigManager_(dynamicConfigManager)
-        , ChunkCache_(chunkCache)
-        , ControlInvoker_(controlInvoker)
+        , ArtifactCache_(std::move(artifactCache))
+        , ControlInvoker_(std::move(controlInvoker))
         , LayerLocations_(std::move(layerLocations))
         , Semaphore_(New<TAsyncSemaphore>(config->LayerImportConcurrency))
         , ProfilingExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
-            BIND(&TLayerCache::OnProfiling, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TLayerCache::OnProfiling, MakeWeak(this)),
             ProfilingPeriod))
     {
         auto absorbLayer = BIND(
@@ -2251,7 +2294,8 @@ public:
                 TArtifactKey key;
                 key.MergeFrom(layerMeta.artifact_key());
 
-                YT_LOG_DEBUG("Loading existing cached Porto layer (LayerId: %v, ArtifactPath: %v)",
+                YT_LOG_DEBUG(
+                    "Loading existing cached Porto layer (LayerId: %v, ArtifactPath: %v)",
                     layerMeta.Id,
                     layerMeta.artifact_key().data_source().path());
 
@@ -2260,7 +2304,8 @@ public:
                 if (cookie.IsActive()) {
                     cookie.EndInsert(layer);
                 } else {
-                    YT_LOG_DEBUG("Failed to insert cached Porto layer (LayerId: %v, ArtifactPath: %v)",
+                    YT_LOG_DEBUG(
+                        "Failed to insert cached Porto layer (LayerId: %v, ArtifactPath: %v)",
                         layerMeta.Id,
                         layerMeta.artifact_key().data_source().path());
                 }
@@ -2346,13 +2391,16 @@ public:
             DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr)
                 .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
                     if (layerOrError.IsOK()) {
-                        YT_LOG_DEBUG("Layer has been inserted into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
+                        YT_LOG_DEBUG(
+                            "Layer has been inserted into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
                             tag,
                             artifactKey.data_source().path(),
                             layerOrError.Value()->GetMeta().Id);
                         cookie.EndInsert(layerOrError.Value());
                     } else {
-                        YT_LOG_DEBUG(layerOrError, "Insert layer into cache canceled (Tag: %v, ArtifactPath: %v)",
+                        YT_LOG_DEBUG(
+                            layerOrError,
+                            "Insert layer into cache canceled (Tag: %v, ArtifactPath: %v)",
                             tag,
                             artifactKey.data_source().path());
                         cookie.Cancel(layerOrError);
@@ -2360,7 +2408,8 @@ public:
                 })
                 .Via(GetCurrentInvoker()));
         } else {
-            YT_LOG_DEBUG("Layer is already being loaded into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
+            YT_LOG_DEBUG(
+                "Layer is already being loaded into cache (Tag: %v, ArtifactPath: %v, LayerId: %v)",
                 tag,
                 artifactKey.data_source().path(),
                 value.IsSet() && value.Get().IsOK() ? ToString(value.Get().Value()->GetMeta().Id) : "Importing");
@@ -2411,9 +2460,9 @@ public:
     }
 
 private:
-    const TVolumeManagerConfigPtr Config_;
+    const NDataNode::TVolumeManagerConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-    const IVolumeChunkCachePtr ChunkCache_;
+    const IVolumeArtifactCachePtr ArtifactCache_;
     const IInvokerPtr ControlInvoker_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
 
@@ -2449,7 +2498,9 @@ private:
         auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const TString& cacheName) -> TLayerPtr {
             auto tmpfsLayer = tmpfsCache->FindLayer(artifactKey);
             if (tmpfsLayer) {
-                YT_LOG_DEBUG_IF(tag, "Found layer in %v tmpfs cache (LayerId: %v, ArtifactPath: %v, Tag: %v)",
+                YT_LOG_DEBUG_IF(
+                    tag,
+                    "Found layer in %v tmpfs cache (LayerId: %v, ArtifactPath: %v, Tag: %v)",
                     cacheName,
                     tmpfsLayer->GetMeta().Id,
                     artifactKey.data_source().path(),
@@ -2479,10 +2530,11 @@ private:
                 layerId,
                 artifactKey.data_source().path());
 
-        YT_LOG_DEBUG("Start loading layer into cache (HasTargetLocation: %v)",
+        YT_LOG_DEBUG(
+            "Start loading layer into cache (HasTargetLocation: %v)",
             static_cast<bool>(location));
 
-        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
+        return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
                 YT_LOG_DEBUG("Layer artifact loaded, starting import");
 
@@ -2506,7 +2558,7 @@ private:
                     container = "self";
                 }
 
-                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), container, layerId, tag))
+                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, TString(artifactChunk->GetFileName()), container, layerId, tag))
                     .ValueOrThrow();
                 return New<TLayer>(layerMeta, artifactKey, location);
             })
@@ -2587,7 +2639,8 @@ public:
         TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
 
         const auto& volumeId = GetId();
-        YT_LOG_DEBUG("Removing NBD volume (VolumeId: %v, ExportId: %v)",
+        YT_LOG_DEBUG(
+            "Removing NBD volume (VolumeId: %v, ExportId: %v)",
             volumeId,
             NbdExportId_);
 
@@ -2600,7 +2653,8 @@ public:
                 nbdServer = NbdServer_,
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] {
-                YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v)",
+                YT_LOG_DEBUG(
+                    "Removed NBD volume (VolumeId: %v, ExportId: %v)",
                     volumeId,
                     nbdExportId);
 
@@ -2743,11 +2797,11 @@ public:
     TSquashFSVolume(
         NProfiling::TTagSet tagSet,
         TVolumeMeta&& volumeMeta,
-        IVolumeArtifactPtr chunkCacheArtifact,
+        IVolumeArtifactPtr artifact,
         TLayerLocationPtr location)
         : TagSet_(std::move(tagSet))
         , VolumeMeta_(std::move(volumeMeta))
-        , ChunkCacheArtifact_(std::move(chunkCacheArtifact))
+        , Artifact_(std::move(artifact))
         , Location_(std::move(location))
     { }
 
@@ -2770,12 +2824,14 @@ public:
 
         const auto& volumeId = GetId();
         const auto& volumePath = GetPath();
-        YT_LOG_DEBUG("Removing squashfs volume (VolumeId: %v, VolumePath: %v)",
+        YT_LOG_DEBUG(
+            "Removing squashfs volume (VolumeId: %v, VolumePath: %v)",
             volumeId,
             volumePath);
 
         RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
-            YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
+            YT_LOG_DEBUG(
+                "Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
                 volumePath);
         })).ToUncancelable();
@@ -2803,7 +2859,7 @@ private:
     const TVolumeMeta VolumeMeta_;
     const TArtifactKey ArtifactKey_;
     // We store chunk cache artifact here to make sure that SquashFS file outlives SquashFS volume.
-    const IVolumeArtifactPtr ChunkCacheArtifact_;
+    const IVolumeArtifactPtr Artifact_;
     const TLayerLocationPtr Location_;
 
     TFuture<void> RemoveFuture_;
@@ -2841,14 +2897,14 @@ public:
     TPortoVolumeManager(
         NDataNode::TDataNodeConfigPtr config,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        IVolumeChunkCachePtr chunkCache,
+        IVolumeArtifactCachePtr artifactCache,
         IInvokerPtr controlInvoker,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
         , DynamicConfigManager_(std::move(dynamicConfigManager))
-        , ChunkCache_(std::move(chunkCache))
+        , ArtifactCache_(std::move(artifactCache))
         , ControlInvoker_(std::move(controlInvoker))
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
@@ -2898,7 +2954,7 @@ public:
             DynamicConfigManager_,
             std::move(locations),
             tmpfsExecutor,
-            ChunkCache_,
+            ArtifactCache_,
             ControlInvoker_,
             MemoryUsageTracker_,
             Bootstrap_);
@@ -2932,7 +2988,8 @@ public:
 
         const auto& userSandboxOptions = options.UserSandboxOptions;
 
-        YT_LOG_DEBUG("Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
+        YT_LOG_DEBUG(
+            "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
             tag,
             artifactKeys.size(),
             userSandboxOptions.VirtualSandboxData.has_value(),
@@ -2940,7 +2997,9 @@ public:
 
         if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
             auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
-            YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
+            YT_LOG_DEBUG(
+                error,
+                "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
                 tag,
                 artifactKeys.size(),
                 userSandboxOptions.VirtualSandboxData.has_value(),
@@ -3016,7 +3075,8 @@ public:
 
                     const auto& [channel, sessionId] = *response;
 
-                    YT_LOG_DEBUG("Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
+                    YT_LOG_DEBUG(
+                        "Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
                         sessionId,
                         data.MediumIndex,
                         data.Size,
@@ -3080,9 +3140,9 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    const TDataNodeConfigPtr Config_;
+    const NDataNode::TDataNodeConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
-    const IVolumeChunkCachePtr ChunkCache_;
+    const IVolumeArtifactCachePtr ArtifactCache_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
@@ -3122,15 +3182,18 @@ private:
         const auto& layer = options.ArtifactKey;
 
         try {
-            THROW_ERROR_EXCEPTION_IF(!layer.has_filesystem(),
+            THROW_ERROR_EXCEPTION_IF(
+                !layer.has_filesystem(),
                 "NBD layer %v does not have filesystem",
                 layer.data_source().path());
 
-            THROW_ERROR_EXCEPTION_IF(!layer.has_nbd_export_id(),
+            THROW_ERROR_EXCEPTION_IF(
+                !layer.has_nbd_export_id(),
                 "NBD layer %v does not have export id",
                 layer.data_source().path());
 
-            YT_LOG_DEBUG("Preparing NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
+            YT_LOG_DEBUG(
+                "Preparing NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
                 tag,
                 layer.nbd_export_id(),
                 layer.data_source().path(),
@@ -3163,7 +3226,8 @@ private:
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
 
             future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] {
-                YT_LOG_DEBUG("Prepared NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
+                YT_LOG_DEBUG(
+                    "Prepared NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
                     tag,
                     layer.nbd_export_id(),
                     layer.data_source().path(),
@@ -3187,7 +3251,8 @@ private:
     {
         auto future = VoidFuture;
         try {
-            YT_LOG_DEBUG("Preparing NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
+            YT_LOG_DEBUG(
+                "Preparing NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
                 tag,
                 options.ExportId,
                 options.Size,
@@ -3225,7 +3290,8 @@ private:
             nbdServer->RegisterDevice(options.ExportId, std::move(device));
 
             future = initializeFuture.Apply(BIND([tag = tag, options = options, Logger = Logger] {
-                YT_LOG_DEBUG("Prepared NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
+                YT_LOG_DEBUG(
+                    "Prepared NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
                     tag,
                     options.ExportId,
                     options.Size,
@@ -3236,7 +3302,9 @@ private:
             TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
 
             auto error = TError(ex);
-            YT_LOG_ERROR(error, "Failed to prepare NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
+            YT_LOG_ERROR(
+                error,
+                "Failed to prepare NBD root export (Tag: %v, ExportId: %v, DiskSize: %v, DiskMediumIndex: %v, DiskFilesystem: %v)",
                 tag,
                 options.ExportId,
                 options.Size,
@@ -3254,7 +3322,8 @@ private:
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions)
     {
-        YT_LOG_DEBUG("Prepare layer (Tag: %v, Path: %v)",
+        YT_LOG_DEBUG(
+            "Prepare layer (Tag: %v, Path: %v)",
             tag,
             artifactKey.data_source().path());
 
@@ -3269,7 +3338,8 @@ private:
         TGuid tag,
         const TArtifactKey& artifactKey)
     {
-        YT_LOG_DEBUG("Prepare cypress file image reader (Tag: %v, Path: %v)",
+        YT_LOG_DEBUG(
+            "Prepare cypress file image reader (Tag: %v, Path: %v)",
             tag,
             artifactKey.data_source().path());
 
@@ -3302,7 +3372,8 @@ private:
         YT_VERIFY(options.ImageReader);
         const auto& artifactKey = options.ArtifactKey;
 
-        YT_LOG_DEBUG("Prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
+        YT_LOG_DEBUG(
+            "Prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
             tag,
             artifactKey.nbd_export_id(),
             artifactKey.data_source().path());
@@ -3335,7 +3406,9 @@ private:
                         nbdServer->TryUnregisterDevice(artifactKey.nbd_export_id());
                     }
 
-                    YT_LOG_ERROR(errorOrVolume, "Failed to prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
+                    YT_LOG_ERROR(
+                        errorOrVolume,
+                        "Failed to prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
                         tag,
                         artifactKey.nbd_export_id(),
                         artifactKey.data_source().path());
@@ -3343,7 +3416,8 @@ private:
                     THROW_ERROR(errorOrVolume);
                 }
 
-                YT_LOG_DEBUG("Prepared NBD volume (Tag: %v, ExportId: %v, Path: %v)",
+                YT_LOG_DEBUG(
+                    "Prepared NBD volume (Tag: %v, ExportId: %v, Path: %v)",
                     tag,
                     artifactKey.nbd_export_id(),
                     artifactKey.data_source().path());
@@ -3362,7 +3436,8 @@ private:
         TGuid tag,
         const TPrepareNbdRootVolumeOptions& options)
     {
-        YT_LOG_DEBUG("Prepare NBD root volume (Tag: %v, ExportId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v)",
+        YT_LOG_DEBUG(
+            "Prepare NBD root volume (Tag: %v, ExportId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v)",
             tag,
             options.ExportId,
             options.Size,
@@ -3400,14 +3475,17 @@ private:
                             nbdServer->TryUnregisterDevice(nbdExportId);
                         }
 
-                        YT_LOG_ERROR(errorOrVolume, "Failed to prepare NBD root volume (Tag: %v, ExportId: %v)",
+                        YT_LOG_ERROR(
+                            errorOrVolume,
+                            "Failed to prepare NBD root volume (Tag: %v, ExportId: %v)",
                             tag,
                             nbdExportId);
 
                         THROW_ERROR(errorOrVolume);
                     }
 
-                    YT_LOG_DEBUG("Prepared NBD root volume (Tag: %v, ExportId: %v)",
+                    YT_LOG_DEBUG(
+                        "Prepared NBD root volume (Tag: %v, ExportId: %v)",
                         tag,
                         nbdExportId);
 
@@ -3426,7 +3504,8 @@ private:
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions)
     {
-        YT_LOG_DEBUG("Prepare squashfs volume (Tag: %v, Path: %v)",
+        YT_LOG_DEBUG(
+            "Prepare squashfs volume (Tag: %v, Path: %v)",
             tag,
             artifactKey.data_source().path());
 
@@ -3434,19 +3513,19 @@ private:
         YT_VERIFY(FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS);
         YT_VERIFY(!artifactKey.has_nbd_export_id());
 
-        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
+        return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                 TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-                // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
+                // We pass artifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
                 return CreateSquashFSVolume(
                     tag,
                     std::move(tagSet),
                     std::move(volumeCreateTimeGuard),
                     artifactKey,
-                    chunkCacheArtifact);
+                    artifact);
             }).AsyncVia(GetCurrentInvoker())).As<TOverlayData>();
     }
 
@@ -3456,7 +3535,8 @@ private:
         TEventTimerGuard volumeCreateTimeGuard,
         TCreateNbdVolumeOptions options)
     {
-        YT_LOG_DEBUG("Creating NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
+        YT_LOG_DEBUG(
+            "Creating NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
             tag,
             options.ExportId,
             options.Filesystem,
@@ -3506,7 +3586,8 @@ private:
             auto volume = WaitFor(volumeFuture)
                 .ValueOrThrow();
 
-            YT_LOG_DEBUG("Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
+            YT_LOG_DEBUG(
+                "Created NBD volume (Tag: %v, VolumeId: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
                 tag,
                 volume->GetId(),
                 options.ExportId,
@@ -3516,7 +3597,9 @@ private:
 
             return volume;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to create NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
+            YT_LOG_ERROR(
+                ex,
+                "Failed to create NBD volume (Tag: %v, ExportId: %v, Filesytem: %v, IsReadOnly: %v, IsRoot: %v)",
                 tag,
                 options.ExportId,
                 options.Filesystem,
@@ -3527,7 +3610,9 @@ private:
                     nbdServer->TryUnregisterDevice(options.ExportId);
                     auto error = WaitFor(device->Finalize());
                     if (!error.IsOK()) {
-                        YT_LOG_ERROR(error, "Failed to finalize NBD export (ExportId: %v)",
+                        YT_LOG_ERROR(
+                            error,
+                            "Failed to finalize NBD export (ExportId: %v)",
                             options.ExportId);
                     }
                 }
@@ -3543,11 +3628,13 @@ private:
         const TUserSandboxOptions& options,
         const std::vector<TOverlayData>& overlayDataArray)
     {
-        YT_LOG_INFO("All layers and volumes have been prepared (Tag: %v, OverlayDataArraySize: %v)",
+        YT_LOG_INFO(
+            "All layers and volumes have been prepared (Tag: %v, OverlayDataArraySize: %v)",
             tag,
             overlayDataArray.size());
 
-        YT_LOG_DEBUG("Creating overlay volume (Tag: %v, OverlayDataArraySize: %v)",
+        YT_LOG_DEBUG(
+            "Creating overlay volume (Tag: %v, OverlayDataArraySize: %v)",
             tag,
             overlayDataArray.size());
 
@@ -3555,11 +3642,13 @@ private:
             if (volumeOrLayer.IsLayer()) {
                 LayerCache_->Touch(volumeOrLayer.GetLayer());
 
-                YT_LOG_DEBUG("Using layer to create new overlay volume (Tag: %v, LayerId: %v)",
+                YT_LOG_DEBUG(
+                    "Using layer to create new overlay volume (Tag: %v, LayerId: %v)",
                     tag,
                     volumeOrLayer.GetLayer()->GetMeta().Id);
             } else {
-                YT_LOG_DEBUG("Using volume to create new overlay volume (Tag: %v, VolumeId: %v)",
+                YT_LOG_DEBUG(
+                    "Using volume to create new overlay volume (Tag: %v, VolumeId: %v)",
                     tag,
                     volumeOrLayer.GetVolume()->GetId());
             }
@@ -3591,7 +3680,8 @@ private:
         auto volume = WaitFor(volumeFuture)
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Created overlay volume (Tag: %v, VolumeId: %v)",
+        YT_LOG_DEBUG(
+            "Created overlay volume (Tag: %v, VolumeId: %v)",
             tag,
             volume->GetId());
 
@@ -3603,11 +3693,12 @@ private:
         NProfiling::TTagSet tagSet,
         TEventTimerGuard volumeCreateTimeGuard,
         const TArtifactKey& artifactKey,
-        IVolumeArtifactPtr chunkCacheArtifact)
+        IVolumeArtifactPtr artifact)
     {
-        auto squashFSFilePath = chunkCacheArtifact->GetFileName();
+        auto squashFSFilePath = artifact->GetFileName();
 
-        YT_LOG_DEBUG("Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
+        YT_LOG_DEBUG(
+            "Creating squashfs volume (Tag: %v, SquashFSFilePath: %v)",
             tag,
             squashFSFilePath);
 
@@ -3617,13 +3708,13 @@ private:
             [
                 tagSet = std::move(tagSet),
                 artifactKey,
-                chunkCacheArtifact = std::move(chunkCacheArtifact),
+                artifact = std::move(artifact),
                 location = std::move(location)
             ] (TVolumeMeta&& volumeMeta) {
             return New<TSquashFSVolume>(
                 std::move(tagSet),
                 std::move(volumeMeta),
-                std::move(chunkCacheArtifact),
+                std::move(artifact),
                 std::move(location));
         })).ToUncancelable();
         // This uncancelable future ensures that TSquashFSVolume object owning the volume will be created
@@ -3632,7 +3723,8 @@ private:
         auto volume = WaitFor(volumeFuture)
             .ValueOrThrow();
 
-        YT_LOG_INFO("Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
+        YT_LOG_INFO(
+            "Created squashfs volume (Tag: %v, VolumeId: %v, SquashFSFilePath: %v)",
             tag,
             volume->GetId(),
             squashFSFilePath);
@@ -3705,7 +3797,8 @@ private:
         std::vector<std::string> addresses,
         TSandboxNbdRootVolumeData data)
     {
-        YT_LOG_DEBUG("Trying to open NBD session on any suitable data node (SessionId: %v, DataNodeAddresses: %v, MediumIndex: %v, Size: %v, FsType: %v, DataNodeRpcTimeout: %v)",
+        YT_LOG_DEBUG(
+            "Trying to open NBD session on any suitable data node (SessionId: %v, DataNodeAddresses: %v, MediumIndex: %v, Size: %v, FsType: %v, DataNodeRpcTimeout: %v)",
             sessionId,
             addresses,
             data.MediumIndex,
@@ -3716,7 +3809,8 @@ private:
         for (const auto& address : addresses) {
             auto channel = Bootstrap_->GetConnection()->GetChannelFactory()->CreateChannel(address);
             if (!channel) {
-                YT_LOG_DEBUG("Failed to create channel to data node (Address: %v)",
+                YT_LOG_DEBUG(
+                    "Failed to create channel to data node (Address: %v)",
                     address);
                 continue;
             }
@@ -3731,12 +3825,15 @@ private:
             auto rspOrError = WaitFor(req->Invoke());
 
             if (!rspOrError.IsOK()) {
-                YT_LOG_INFO(rspOrError, "Failed to open NBD session, skip data node (Address: %v)",
+                YT_LOG_INFO(
+                    rspOrError,
+                    "Failed to open NBD session, skip data node (Address: %v)",
                     address);
                 continue;
             }
 
-            YT_LOG_INFO("Opened NBD session (SessionId: %v, DataNodeAddress: %v, MediumIndex: %v, Size: %v, FsType: %v)",
+            YT_LOG_INFO(
+                "Opened NBD session (SessionId: %v, DataNodeAddress: %v, MediumIndex: %v, Size: %v, FsType: %v)",
                 sessionId,
                 address,
                 data.MediumIndex,
@@ -3755,7 +3852,8 @@ private:
     {
         auto sessionId = GenerateSessionId(data.MediumIndex);
 
-        YT_LOG_DEBUG("Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
+        YT_LOG_DEBUG(
+            "Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
             sessionId,
             data.MediumIndex,
             data.Size,
@@ -3797,9 +3895,9 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
-    TDataNodeConfigPtr config,
+    NDataNode::TDataNodeConfigPtr config,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    IVolumeChunkCachePtr chunkCache,
+    IVolumeArtifactCachePtr artifactCache,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     IBootstrap* bootstrap)
@@ -3807,7 +3905,7 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     auto volumeManager = New<TPortoVolumeManager>(
         std::move(config),
         std::move(dynamicConfigManager),
-        std::move(chunkCache),
+        std::move(artifactCache),
         std::move(controlInvoker),
         std::move(memoryUsageTracker),
         bootstrap);

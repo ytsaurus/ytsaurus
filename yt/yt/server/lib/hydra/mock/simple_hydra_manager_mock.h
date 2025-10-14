@@ -45,6 +45,7 @@ public:
     TEpochId GetAutomatonEpochId() const override;
     int GetAutomatonTerm() const override;
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) override;
+    bool IsEnteringReadOnlyMode() const override;
 
     // NB: Semantics for these signals is not properly reproduced. Only the
     // parts necessary for tablet write manager are introduced.

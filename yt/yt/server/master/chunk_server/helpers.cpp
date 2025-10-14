@@ -47,10 +47,12 @@ using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NTabletClient;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
 using namespace NObjectServer;
 using namespace NConcurrency;
 
@@ -1372,6 +1374,20 @@ void ValidateMediumPriority(int priority)
     if (priority < 0 || priority > MaxMediumPriority) {
         THROW_ERROR_EXCEPTION("Medium priority must be in range [0,%v]", MaxMediumPriority);
     }
+}
+
+TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
+    TCellTag cellTag,
+    TNodeId nodeId,
+    TChunkLocationIndex locationIndex)
+{
+    return TSelectRowsQuery{
+        .WhereConjuncts = {
+            Format("cell_tag = %v", cellTag),
+            Format("node_id = %v", nodeId),
+            Format("location_index = %v", locationIndex),
+        }
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

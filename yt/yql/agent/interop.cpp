@@ -128,16 +128,16 @@ TYqlRowset BuildRowsetByRef(
         table = "//" + table;
     }
 
-    TString clusterAddress;
+    std::optional<TString> clusterAddress;
     for (const auto& clusterMapping : clusters) {
         if (clusterMapping.first == cluster) {
             clusterAddress = clusterMapping.second;
         }
     }
     if (!clusterAddress) {
-        THROW_ERROR_EXCEPTION("Cluster %v address is not specified", cluster);
+        THROW_ERROR_EXCEPTION("Cluster %Qv address is not specified", cluster);
     }
-    auto config = NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterAddress);
+    auto config = NRpcProxy::TConnectionConfig::CreateFromClusterUrl(*clusterAddress);
     auto connection = NRpcProxy::CreateConnection(config);
     auto client = connection->CreateClient(clientOptions);
 

@@ -872,14 +872,14 @@ private:
 
     bool StartDqManager_;
 
-    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false) {
+    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false)
+    {
         // NB: TProgram destructor must be called without locking.
         std::optional<TActiveQuery> query;
         {
             auto guard = WriterGuard(ProgressSpinLock_);
             auto it = ActiveQueriesProgress_.find(queryId);
-            if (it != ActiveQueriesProgress_.end() &&
-                    (force | it->second.Finished)) {
+            if (it != ActiveQueriesProgress_.end() && (force | it->second.Finished)) {
                 query = std::move(it->second);
                 ActiveQueriesProgress_.erase(it);
             }

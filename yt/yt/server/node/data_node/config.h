@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/node/config.h>
+
 #include <yt/yt/server/lib/io/config.h>
 
 #include <yt/yt/library/disk_manager/public.h>
@@ -33,6 +35,10 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NDataNode {
+
+using namespace NNode;
+
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,13 +87,9 @@ DEFINE_REFCOUNTED_TYPE(TP2PConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkLocationConfig
-    : public NServer::TDiskLocationConfig
+    : public TChunkLocationConfigBase
 {
     static constexpr bool EnableHazard = true;
-
-    //! Maximum space chunks are allowed to occupy.
-    //! (If not initialized then indicates to occupy all available space on drive).
-    std::optional<i64> Quota;
 
     // NB: Actually registered as parameter by subclasses (because default value
     // is subclass-specific).
@@ -100,14 +102,6 @@ struct TChunkLocationConfig
     bool EnableUncategorizedThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
-    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
-
-    //! IO engine type.
-    NIO::EIOEngineType IOEngineType;
-
-    //! IO engine config.
-    NYTree::INodePtr IOConfig;
-
     TDuration ThrottleDuration;
 
     //! Maximum number of bytes in the gap between two adjacent read locations
@@ -118,25 +112,7 @@ struct TChunkLocationConfig
 
     double IOWeight;
 
-    bool ResetUuid;
-
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
-
-    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
-    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
-    i64 LegacyWriteMemoryLimit;
-
-    //! Limit on the maximum memory used of location reads.
-    i64 ReadMemoryLimit;
-
-    //! Limit on the maximum memory used of location writes.
-    i64 WriteMemoryLimit;
-
-    //! Limit on the maximum memory used of location reads and writes.
-    i64 TotalMemoryLimit;
-
-    //! Limit on the maximum count of location write sessions.
-    i64 SessionCountLimit;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
@@ -156,41 +132,18 @@ struct TChunkLocationConfig
 
 DEFINE_REFCOUNTED_TYPE(TChunkLocationConfig)
 
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkLocationDynamicConfig
-    : public NServer::TDiskLocationDynamicConfig
+    : public NNode::TChunkLocationDynamicConfigBase
 {
-    std::optional<NIO::EIOEngineType> IOEngineType;
-    NYTree::INodePtr IOConfig;
-
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
     std::optional<TDuration> ThrottleDuration;
 
     std::optional<bool> EnableUncategorizedThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
-    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
-
     std::optional<i64> CoalescedReadMaxGapSize;
 
     TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
-
-    //! Limit on the maximum memory used in location writes with legacy protocol without probing.
-    // COMPAT(vvshlyaga): Remove after rolling writer with probing on all nodes.
-    std::optional<i64> LegacyWriteMemoryLimit;
-
-    //! Limit on the maximum memory used by location reads.
-    std::optional<i64> ReadMemoryLimit;
-
-    //! Limit on the maximum memory used by location writes.
-    std::optional<i64> WriteMemoryLimit;
-
-    //! Limit on the maximum memory used by location reads and writes.
-    std::optional<i64> TotalMemoryLimit;
-
-    //! Limit on the maximum count of location write sessions.
-    std::optional<i64> SessionCountLimit;
 
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
@@ -590,7 +543,7 @@ struct TDataNodeTestingOptions
     //! Test location disable during full heartbeat, contains location uuid.
     std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
 
-    //! Test data node intermediate state at master during full hearbteat session.
+    //! Test data node intermediate state at master during full heartbeat session.
     std::optional<TDuration> FullHeartbeatSessionSleepDuration;
 
     // For testing purposes.

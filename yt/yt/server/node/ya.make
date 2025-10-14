@@ -19,8 +19,6 @@ SRCS(
     cluster_node/config.cpp
 
     data_node/ally_replica_manager.cpp
-    data_node/artifact.cpp
-    data_node/artifact.proto
     data_node/blob_chunk.cpp
     data_node/blob_reader_cache.cpp
     data_node/blob_session.cpp
@@ -36,7 +34,6 @@ SRCS(
     data_node/config.cpp
     data_node/data_node_service.cpp
     data_node/data_node_nbd_service.cpp
-    data_node/disk_location.cpp
     data_node/job.cpp
     data_node/job_controller.cpp
     data_node/job_info.cpp
@@ -62,9 +59,11 @@ SRCS(
     data_node/ytree_integration.cpp
 
     exec_node/allocation.cpp
+    exec_node/artifact.cpp
+    exec_node/artifact.proto
+    exec_node/artifact_cache.cpp
     exec_node/bootstrap.cpp
     exec_node/controller_agent_connector.cpp
-    exec_node/chunk_cache.cpp
     exec_node/cache_location.cpp
     exec_node/exec_node_admin_service.cpp
     exec_node/helpers.cpp
@@ -235,6 +234,7 @@ PEERDIR(
     yt/yt/server/lib/lsm
     yt/yt/server/lib/misc
     yt/yt/server/lib/nbd
+    yt/yt/server/lib/node
     yt/yt/server/lib/rpc
     yt/yt/server/lib/tablet_server
 
@@ -254,6 +254,7 @@ END()
 RECURSE_FOR_TESTS(
     chaos_node/unittests
     data_node/unittests
+    exec_node/unittests
     query_agent/unittests
     tablet_node/unittests
 )

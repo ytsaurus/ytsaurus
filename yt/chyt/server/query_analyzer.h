@@ -133,6 +133,8 @@ private:
     const TStorageContext* StorageContext_;
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger;
+    const bool OnlyAnalyze_;
+
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;
     int SecondaryQueryOperandCount_ = 0;
@@ -155,7 +157,6 @@ private:
     bool EnableMinMaxOptimization_ = false;
 
     bool Prepared_ = false;
-    bool OnlyAnalyze_;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;

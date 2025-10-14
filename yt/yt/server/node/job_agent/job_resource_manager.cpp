@@ -7,8 +7,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
+#include <yt/yt/server/node/exec_node/artifact_cache.h>
 #include <yt/yt/server/node/exec_node/bootstrap.h>
-#include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/gpu_manager.h>
 #include <yt/yt/server/node/exec_node/job_controller.h>
 #include <yt/yt/server/node/exec_node/slot.h>
@@ -286,7 +286,7 @@ public:
             auto gpuManager = execNodeBootstrap->GetGpuManager();
 
             auto scheduleJobEnabled =
-                execNodeBootstrap->GetChunkCache()->IsEnabled() &&
+                execNodeBootstrap->GetArtifactCache()->IsEnabled() &&
                 !execNodeBootstrap->GetJobController()->AreJobsDisabled() &&
                 !Bootstrap_->IsReadOnly();
 

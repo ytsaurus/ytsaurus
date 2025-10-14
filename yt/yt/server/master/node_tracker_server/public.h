@@ -91,6 +91,7 @@ DEFINE_ENUM(ENodeHeartbeatType,
     ((Exec)         (2))
     ((Tablet)       (3))
     ((Cellar)       (4))
+    ((DataFinalize) (5))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

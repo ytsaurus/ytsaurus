@@ -1,6 +1,5 @@
 #pragma once
 
-#include "artifact.h"
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 #include "location.h"
@@ -60,7 +59,7 @@ protected:
     TBlobChunkBase(
         TChunkContextPtr context,
         TChunkLocationPtr location,
-        const TChunkDescriptor& descriptor,
+        const NNode::TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
 
     TFuture<void> AsyncRemove() override;
@@ -90,7 +89,7 @@ private:
         NIO::TBlocksExtPtr BlocksExt;
         NThreading::TAtomicObject<TLocationMemoryGuard> LocationMemoryGuard;
         std::atomic<bool> Finished = false;
-        TLocationFairShareSlotPtr FairShareSlot = nullptr;
+        NNode::TLocationFairShareSlotPtr FairShareSlot = nullptr;
     };
 
     struct TReadBlocksRequest
@@ -174,7 +173,6 @@ private:
     //! Default value is `true`.
     bool ShouldSyncOnClose();
 
-    //! Artifact chunks are not readable.
     bool IsReadable();
 };
 
@@ -190,7 +188,7 @@ public:
     TStoredBlobChunk(
         TChunkContextPtr context,
         TChunkLocationPtr location,
-        const TChunkDescriptor& descriptor,
+        const NNode::TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
 };
 

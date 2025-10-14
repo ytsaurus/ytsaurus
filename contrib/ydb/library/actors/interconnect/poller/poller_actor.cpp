@@ -1,5 +1,4 @@
 #include "poller_actor.h"
-#include "interconnect_common.h"
 
 #include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
 #include <contrib/ydb/library/actors/core/actorsystem.h>

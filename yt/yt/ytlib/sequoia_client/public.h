@@ -20,6 +20,7 @@ DEFINE_ENUM(ESequoiaTransactionType,
     (ResponseKeeper)
     (IncrementalHeartbeat)
     (FullHeartbeat)
+    (FinalizeHeartbeatSession)
     (ChunkLocationDisposal)
     (ChunkConfirmation)
     (DeadChunkReplicaRemoval)

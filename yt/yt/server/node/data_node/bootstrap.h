@@ -20,6 +20,7 @@ struct IBootstrap
     virtual const TChunkStorePtr& GetChunkStore() const = 0;
     virtual const IAllyReplicaManagerPtr& GetAllyReplicaManager() const = 0;
     virtual const TLocationManagerPtr& GetLocationManager() const = 0;
+    virtual const IChunkMetaManagerPtr& GetChunkMetaManager() const = 0;
 
     // Session stuff.
     virtual const TSessionManagerPtr& GetSessionManager() const = 0;
@@ -53,6 +54,7 @@ struct IBootstrap
     // Caches.
     virtual const TTableSchemaCachePtr& GetTableSchemaCache() const = 0;
     virtual const NQueryClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
+    virtual const IBlobReaderCachePtr& GetBlobReaderCache() const = 0;
 
     virtual const IIOThroughputMeterPtr& GetIOThroughputMeter() const = 0;
 

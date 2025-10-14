@@ -207,7 +207,7 @@ private:
             readerConfig,
             chunk,
             Bootstrap_->GetBlockCache(),
-            Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
+            Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache());
 
         auto chunkState = New<TChunkState>(TChunkState{
             .BlockCache = Bootstrap_->GetBlockCache(),

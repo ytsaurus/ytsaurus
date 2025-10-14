@@ -260,6 +260,8 @@ DEFINE_ENUM(EChunkLocationState,
     ((Disposed)  (3))
     // Belongs to a node that is registered and no heartbeat was sent for this location.
     ((Registered)(4))
+    // Belongs to a node that has restarted, but did not report location in heartbeats.
+    ((Restarted) (5))
 );
 
 DEFINE_ENUM(EChunkTreeBalancerMode,

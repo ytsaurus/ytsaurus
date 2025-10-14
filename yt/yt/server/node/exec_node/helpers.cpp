@@ -31,7 +31,6 @@ using namespace NApi;
 using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NControllerAgent;
-using namespace NDataNode;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NFileClient;

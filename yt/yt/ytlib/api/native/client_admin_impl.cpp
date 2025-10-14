@@ -91,6 +91,7 @@ int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
     req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
     req->set_set_read_only(options.SetReadOnly);
     req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
+    req->set_enable_automaton_read_only_barrier(options.EnableAutomatonReadOnlyBarrier);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -118,6 +119,7 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
         req->SetTimeout(options.Timeout.value_or(NRpc::HugeDoNotUseRpcRequestTimeout));
         req->set_set_read_only(options.SetReadOnly);
         req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
+        req->set_enable_automaton_read_only_barrier(options.EnableAutomatonReadOnlyBarrier);
         return req;
     };
 

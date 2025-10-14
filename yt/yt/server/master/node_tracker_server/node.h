@@ -317,8 +317,9 @@ public:
 
     //! Gets the local state by dereferencing local descriptor pointer.
     ENodeState GetLocalState() const;
-    //! Sets the local state by dereferencing local descriptor pointer.
-    void SetLocalState(ENodeState state);
+
+    //! Checks that node state is either Online, Registered or Restarted.
+    bool HasAliveLocalState() const;
 
     //! Gets the cell reliability for node descriptor.
     ECellAggregatedStateReliability GetCellAggregatedStateReliability(NObjectClient::TCellTag cellTag) const;
@@ -480,6 +481,10 @@ private:
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
     void SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
+
+    // Sets the local state by dereferencing local descriptor pointer.
+    // Should be used only from TNodeTracker.
+    void SetLocalState(ENodeState state);
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TNode)

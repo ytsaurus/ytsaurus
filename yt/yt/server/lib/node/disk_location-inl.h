@@ -16,7 +16,7 @@
 
 #include <yt/yt/core/yson/string.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,4 +58,4 @@ TFuture<T> TDiskLocation::RegisterAction(TCallback<TFuture<T>()> action)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NNode

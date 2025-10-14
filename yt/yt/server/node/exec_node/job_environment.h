@@ -3,9 +3,6 @@
 #include "private.h"
 #include "job_workspace_builder.h"
 
-#include <yt/yt/server/node/data_node/artifact.h>
-#include <yt/yt/server/node/data_node/public.h>
-
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/library/containers/public.h>

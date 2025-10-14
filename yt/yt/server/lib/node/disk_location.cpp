@@ -4,13 +4,13 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/yt/server/lib/misc/private.h>
+#include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/misc/fs.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NNode {
 
 using namespace NConcurrency;
 using namespace NClusterNode;
@@ -143,7 +143,8 @@ void TDiskLocation::ValidateMinimumSpace() const
         auto minSpace = *config->MinDiskSpace;
         auto totalSpace = GetTotalSpace();
         if (totalSpace < minSpace) {
-            THROW_ERROR_EXCEPTION("Minimum disk space requirement is not met for location %Qv",
+            THROW_ERROR_EXCEPTION(
+                "Minimum disk space requirement is not met for location %Qv",
                 Id_)
                 << TErrorAttribute("actual_space", totalSpace)
                 << TErrorAttribute("required_space", minSpace);
@@ -159,4 +160,4 @@ i64 TDiskLocation::GetTotalSpace() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NNode

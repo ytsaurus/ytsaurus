@@ -107,7 +107,7 @@ public:
             New<TReplicationReaderConfig>(),
             Chunk_,
             Bootstrap_->GetBlockCache(),
-            Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
+            Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache());
 
         YT_LOG_DEBUG("Local chunk reader is created for offloaded chunk read session");
     }

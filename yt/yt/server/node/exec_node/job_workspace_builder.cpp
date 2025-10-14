@@ -152,7 +152,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
     for (const auto& artifact : Context_.Artifacts) {
         // Artifact is passed into the job via symlink.
         if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
-            YT_VERIFY(artifact.Chunk);
+            YT_VERIFY(artifact.Artifact);
 
             YT_LOG_INFO(
                 "Making symlink for artifact (FileName: %v, Executable: "
@@ -170,7 +170,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Chunk->GetFileName(),
+                TString(artifact.Artifact->GetFileName()),
                 symlinkPath,
                 artifact.Executable))
                 .ThrowOnError();
@@ -203,7 +203,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
 
     for (const auto& artifact : Context_.Artifacts) {
         if (artifact.AccessedViaBind) {
-            YT_VERIFY(artifact.Chunk);
+            YT_VERIFY(artifact.Artifact);
 
             auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
             auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
@@ -220,7 +220,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
                 Context_.Job->GetId(),
                 artifact.Name,
                 artifact.SandboxKind,
-                artifact.Chunk->GetFileName(),
+                TString(artifact.Artifact->GetFileName()),
                 artifactPath,
                 artifact.Executable));
         } else {

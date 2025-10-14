@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/server/lib/node/chunk.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +17,7 @@ public:
     TJournalChunk(
         TChunkContextPtr context,
         TStoreLocationPtr location,
-        const TChunkDescriptor& descriptor);
+        const NNode::TChunkDescriptor& descriptor);
 
     const TStoreLocationPtr& GetStoreLocation() const;
 

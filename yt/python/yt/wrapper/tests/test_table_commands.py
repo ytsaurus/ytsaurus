@@ -107,6 +107,7 @@ class TestTableCommands(object):
         yt.write_table(table, [{"x": "a" * (2 * 10**5)}] * 10)
         client = yt.YtClient(config=deepcopy(yt.config.config))
         with set_config_option("read_parallel/max_thread_count", 2), \
+                set_config_option("read_parallel/data_size_per_thread", 1), \
                 set_config_option("transaction_timeout", 3000), \
                 set_config_option("proxy/request_timeout", 1000), \
                 set_config_option("proxy/retries/total_timeout", 3000), \
@@ -117,6 +118,7 @@ class TestTableCommands(object):
                 if transaction.attributes.get("title", "").startswith("Python wrapper: read"):
                     client.abort_transaction(transaction.attributes["id"])
 
+            # automatic data_size_per_thread do not rise
             time.sleep(5)
             with pytest.raises(yt.YtError):
                 for _ in iterator:
@@ -221,7 +223,14 @@ class TestTableCommands(object):
 
     @authors("ignat")
     def test_read_parallel(self, yt_env_with_rpc):
-        with set_config_option("read_parallel/enable", True):
+        with set_config_option("read_parallel/enable", True), \
+                set_config_option("read_parallel/data_size_per_thread", 1):
+            self._test_read_write_small()
+
+    @authors("denvr")
+    def test_read_parallel_auto_size(self, yt_env_with_rpc):
+        with set_config_option("read_parallel/enable", True), \
+                set_config_option("read_parallel/data_size_per_thread", None):
             self._test_read_write_small()
 
     @authors("asaitgalin", "ignat")

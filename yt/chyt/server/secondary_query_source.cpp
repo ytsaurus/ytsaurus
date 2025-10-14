@@ -43,7 +43,7 @@ using namespace NProfiling;
 
 namespace {
 
-TTableReaderConfigPtr MergeTableReaderConfigs(TTableReaderConfigPtr storageConfig, TTableReaderConfigPtr subqueryConfig)
+TTableReaderConfigPtr MergeTableReaderConfigs(const TTableReaderConfigPtr& storageConfig, const TTableReaderConfigPtr& subqueryConfig)
 {
     auto config = CloneYsonStruct(storageConfig);
     config->SamplingMode = subqueryConfig->SamplingMode;
@@ -63,7 +63,7 @@ TNameTablePtr GetPlanNameTable(TReadPlanWithFilterPtr readPlan)
     return nameTable;
 }
 
-};
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

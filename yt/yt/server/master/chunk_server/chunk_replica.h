@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <library/cpp/yt/yson/public.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,6 +234,21 @@ void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo&
 void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkReplica& replica);
 
 void FormatValue(TStringBuilderBase* builder, const TSequoiaChunkReplica& value, TStringBuf spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkReplicaWithLocationIndex
+{
+    TNodeId NodeId = InvalidNodeId;
+    int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
+    NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
+};
+
+NYson::TYsonString GetReplicasListYson(const std::vector<TChunkReplicaWithLocationIndex>& replicas);
+
+NYson::TYsonString GetReplicasYson(
+    const std::vector<TChunkReplicaWithLocationIndex>& replicasToAdd,
+    const std::vector<TChunkReplicaWithLocationIndex>& replicasToRemove);
 
 ////////////////////////////////////////////////////////////////////////////////
 

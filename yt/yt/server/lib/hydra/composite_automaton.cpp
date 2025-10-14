@@ -201,6 +201,11 @@ void TCompositeAutomatonPart::OnRecoveryComplete()
 void TCompositeAutomatonPart::CheckInvariants()
 { }
 
+TFuture<void> TCompositeAutomatonPart::GetReadyToEnterReadOnlyMode()
+{
+    return VoidFuture;
+}
+
 void TCompositeAutomatonPart::StartEpoch()
 {
     EpochAutomatonInvoker_ = HydraManager_
@@ -643,6 +648,19 @@ void TCompositeAutomaton::CheckInvariants()
 int TCompositeAutomaton::GetRegisteredMethodCount() const
 {
     return MethodNameToDescriptor_.size();
+}
+
+TFuture<void> TCompositeAutomaton::GetReadyToEnterReadOnlyMode()
+{
+    std::vector<TFuture<void>> futures;
+    for (const auto& weakPart : Parts_) {
+        if (auto part = weakPart.Lock()) {
+            futures.push_back(part->GetReadyToEnterReadOnlyMode());
+        }
+    }
+
+    return AllSucceeded(futures)
+        .AsVoid();
 }
 
 void TCompositeAutomaton::SubscribeWaitTimeObserved(const IInvoker::TWaitTimeObserver& callback)

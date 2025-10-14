@@ -1375,12 +1375,14 @@ bool TGangOperationController::OnJobCompleted(
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
     auto rank = gangJoblet.Rank;
 
+    auto jobId = joblet->JobId;
+
     // TODO(pogorelov): Move it from here and TOperationControllerBase::OnJobCompleted to TCompletedJobSummary parsing.
     if (!jobSummary->Abandoned && !jobSummary->GetJobResultExt().restart_needed() && jobSummary->InterruptionReason != EInterruptionReason::None)
     {
         YT_LOG_DEBUG(
             "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptionReason: %v)",
-            joblet->JobId,
+            jobId,
             jobSummary->InterruptionReason);
         jobSummary->InterruptionReason = EInterruptionReason::None;
     }
@@ -1390,7 +1392,7 @@ bool TGangOperationController::OnJobCompleted(
 
     YT_LOG_DEBUG(
         "Gang job completed (JobId: %v, Rank: %v, InterruptionReason: %v)",
-        joblet->JobId,
+        jobId,
         rank,
         interruptionReason);
 
@@ -1404,7 +1406,7 @@ bool TGangOperationController::OnJobCompleted(
         auto incarnationData = TIncarnationSwitchData{
             .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobInterrupted,
             .IncarnationSwitchInfo{
-                .TriggerJobId = joblet->JobId,
+                .TriggerJobId = jobId,
                 .InterruptionReason = interruptionReason,
                 .TriggerJobError = std::move(jobError),
             },
@@ -1414,6 +1416,15 @@ bool TGangOperationController::OnJobCompleted(
             /*operationIsReviving*/ false,
             std::move(incarnationData));
     }
+
+    auto* allocation = FindAllocation(AllocationIdFromJobId(jobId));
+    YT_VERIFY(allocation);
+
+    // NB(pogorelov) See YT-26422.
+    // We could preserve the allocation though, but situation
+    // when we should start new gang job after some other job completed is very strange,
+    // so we don't care about it.
+    allocation->NewJobsForbiddenReason = EScheduleFailReason::AllocationFinishRequested;
 
     return true;
 }
@@ -1584,9 +1595,9 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
 
         UpdateAllTasks();
 
-        // NB(pogorelov): We can not just do nothing here with job constraints
+        // NB(pogorelov): We can not just do nothing here with new job constraints
         // because current and new allocation can conflict over job cookie, for example.
-        // We could preserve allocation alive resetting job constraints.
+        // We could preserve allocation alive resetting new job constraints.
         // But the occurrence is not so frequent.
         // And to not violate some convenient invariants (like preserving job cookie for allocation),
         // we just finish current allocations.

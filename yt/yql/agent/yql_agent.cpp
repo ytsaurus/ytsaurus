@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/client/api/options.h>
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/public.h>
 
@@ -112,7 +113,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::optional<TString> TryIssueToken(const TQueryId queryId, const TString& user, const std::vector<std::pair<TString, TString>>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout)
+static std::optional<TString> TryIssueToken(
+    const TQueryId queryId,
+    const TString& user,
+    const std::vector<std::pair<TString, TString>>& clusters,
+    THashMap<TString, NApi::NNative::IClientPtr>& queryClients,
+    TDuration expirationTimeout)
 {
     TString token;
     if (clusters.empty()) {
@@ -133,7 +139,10 @@ static std::optional<TString> TryIssueToken(const TQueryId queryId, const TStrin
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING("Token request failed (User: %v, Cluster: %v)", user, cluster.first);
             if (rspOrError.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
-                YT_LOG_WARNING("Requested token already exists in the cluster (User: %v, Cluster: %v)", user, cluster.first);
+                YT_LOG_WARNING(
+                    "Requested token already exists in the cluster (User: %v, Cluster: %v)",
+                    user,
+                    cluster.first);
                 return std::nullopt;
             }
             rspOrError.ThrowOnError();
@@ -148,7 +157,13 @@ static std::optional<TString> TryIssueToken(const TQueryId queryId, const TStrin
     return token;
 }
 
-static TString IssueToken(const TQueryId queryId, const TString& user, const std::vector<std::pair<TString, TString>>& clusters, THashMap<TString, NApi::NNative::IClientPtr>& queryClients, const TDuration& expirationTimeout, const int attempts)
+static TString IssueToken(
+    const TQueryId queryId,
+    const TString& user,
+    const std::vector<std::pair<TString, TString>>& clusters,
+    THashMap<TString, NApi::NNative::IClientPtr>& queryClients,
+    TDuration expirationTimeout,
+    int attempts)
 {
     for (int attempt = 0; attempt < attempts; attempt++) {
         auto tokenOrErr = TryIssueToken(queryId, user, clusters, queryClients, expirationTimeout);
@@ -568,9 +583,7 @@ private:
 
             YT_LOG_INFO("YQL plugin 'StartQuery' call completed");
 
-            auto clientOptions = NApi::TClientOptions();
-            clientOptions.User = user;
-            clientOptions.Token = token;
+            auto clientOptions = NApi::TClientOptions::FromUserAndToken(user, token);
 
             TYqlResponse yqlResponse;
             ValidateAndFillYqlResponseField(yqlResponse, result.YsonResult, &TYqlResponse::mutable_result);
@@ -673,7 +686,7 @@ private:
 
         try {
             auto abortResult = YqlPlugin_->Abort(queryId);
-            YT_LOG_DEBUG("Plugin abortion is finished (QueryId: %v)", queryId);
+            YT_LOG_DEBUG("Plugin abort is finished (QueryId: %v)", queryId);
             if (auto ysonError = abortResult.YsonError) {
                 error = ConvertTo<TError>(TYsonString(*ysonError));
             }

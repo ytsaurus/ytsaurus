@@ -301,8 +301,7 @@ void TNode::ValidateRegistered() const
 {
     auto state = GetLocalState();
     auto reliability = GetLocalCellAggregatedStateReliability();
-    if (state == ENodeState::Registered || state == ENodeState::Online ||
-        reliability == ECellAggregatedStateReliability::DuringPropagation)
+    if (HasAliveLocalState() || reliability == ECellAggregatedStateReliability::DuringPropagation)
     {
         return;
     }
@@ -489,6 +488,12 @@ void TNode::RecomputeMediumStatistics(const IChunkManagerPtr& chunkManager)
 ENodeState TNode::GetLocalState() const
 {
     return LocalDescriptorPtr_ ? LocalDescriptorPtr_->State : ENodeState::Unknown;
+}
+
+bool TNode::HasAliveLocalState() const
+{
+    auto state = GetLocalState();
+    return state == ENodeState::Online || state == ENodeState::Registered || state == ENodeState::Restarted;
 }
 
 void TNode::SetLocalState(ENodeState state)

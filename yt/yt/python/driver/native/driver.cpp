@@ -267,6 +267,9 @@ public:
         if (HasArgument(args, kwargs, "wait_for_snapshot_completion")) {
             options.WaitForSnapshotCompletion = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "wait_for_snapshot_completion")));
         }
+        if (HasArgument(args, kwargs, "enable_automaton_read_only_barrier")) {
+            options.EnableAutomatonReadOnlyBarrier = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "enable_automaton_read_only_barrier")));
+        }
         if (!HasArgument(args, kwargs, "cell_id")) {
             throw CreateYtError("Missing argument 'cell_id'");
         }
@@ -300,6 +303,9 @@ public:
         }
         if (HasArgument(args, kwargs, "wait_for_snapshot_completion")) {
             options.WaitForSnapshotCompletion = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "wait_for_snapshot_completion")));
+        }
+        if (HasArgument(args, kwargs, "enable_automaton_read_only_barrier")) {
+            options.EnableAutomatonReadOnlyBarrier = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "enable_automaton_read_only_barrier")));
         }
 
         ValidateArgumentsEmpty(args, kwargs);

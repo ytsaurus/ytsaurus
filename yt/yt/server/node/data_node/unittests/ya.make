@@ -26,10 +26,6 @@ DEPENDS(
 
 EXPLICIT_DATA()
 
-IF (NOT OPENSOURCE)
-    INCLUDE(ya_non_opensource.inc)
-ENDIF()
-
 TAG(
     ya:yt
     ya:fat

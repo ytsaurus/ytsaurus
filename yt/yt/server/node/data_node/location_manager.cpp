@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "chunk_store.h"
+#include "config.h"
 
 #include <yt/yt/server/lib/misc/restart_manager.h>
 
@@ -27,6 +28,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NServer;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

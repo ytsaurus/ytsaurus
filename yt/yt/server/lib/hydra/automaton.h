@@ -59,6 +59,9 @@ struct IAutomaton
     //! Checks that persistent state invariants are held. This method is called during
     //! snapshot validation and after some mutations in tests.
     virtual void CheckInvariants() = 0;
+
+    //! Is set when automaton is ready to enter read only mode.
+    virtual TFuture<void> GetReadyToEnterReadOnlyMode() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAutomaton)

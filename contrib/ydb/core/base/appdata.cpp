@@ -34,7 +34,7 @@
 #include <contrib/ydb/core/protos/workload_manager_config.pb.h>
 #include <contrib/ydb/library/pdisk_io/aio.h>
 
-#include <contrib/ydb/library/actors/interconnect/poller_tcp.h>
+#include <contrib/ydb/library/actors/interconnect/poller/poller_tcp.h>
 #include <contrib/ydb/library/actors/core/monotonic_provider.h>
 #include <contrib/ydb/library/actors/util/should_continue.h>
 #include <library/cpp/random_provider/random_provider.h>

@@ -471,17 +471,20 @@ private:
             auto offset = InetToHost(message.Offset);
             auto length = InetToHost(message.Length);
 
-            if (Server_->GetConfig()->TestOptions->SetBlockDeviceErrorOnRead) {
-                YT_LOG_DEBUG("Set test error on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+            if (Server_->GetConfig()->TestOptions->SetErrorOnRead) {
+                YT_LOG_DEBUG("Set error on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
                     cookie,
                     offset,
                     length,
                     flags);
+
                 Device_->SetError(TError("Test error on NBD_CMD_READ"));
+                WriteServerResponse(EServerError::NBD_EIO, cookie);
+                return;
             }
 
             if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
-                YT_LOG_DEBUG("Do test connection abortion on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+                YT_LOG_DEBUG("Abort connection on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
                     cookie,
                     offset,
                     length,
@@ -501,14 +504,14 @@ private:
                 return;
             }
 
-            if (Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead) {
-                YT_LOG_DEBUG("Do test sleep before NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
+            if (Server_->GetConfig()->TestOptions->SleepOnRead) {
+                YT_LOG_DEBUG("Sleep on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
                     cookie,
                     offset,
                     length,
-                    Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead);
+                    Server_->GetConfig()->TestOptions->SleepOnRead);
 
-                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeRead);
+                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->SleepOnRead);
             }
 
             YT_LOG_DEBUG("Started serving NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
@@ -557,17 +560,19 @@ private:
             auto length = InetToHost(message.Length);
             auto payload = ReadBuffer(length);
 
-            if (Server_->GetConfig()->TestOptions->SetBlockDeviceErrorOnWrite) {
-                YT_LOG_DEBUG("Set test error on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+            if (Server_->GetConfig()->TestOptions->SetErrorOnWrite) {
+                YT_LOG_DEBUG("Set error on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
                     cookie,
                     offset,
                     length,
                     flags);
                 Device_->SetError(TError("Test error on NBD_CMD_WRITE"));
+                WriteServerResponse(EServerError::NBD_EIO, cookie);
+                return;
             }
 
-            if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
-                YT_LOG_DEBUG("Do test connection abortion on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
+            if (Server_->GetConfig()->TestOptions->AbortConnectionOnWrite) {
+                YT_LOG_DEBUG("Abort connection on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
                     cookie,
                     offset,
                     length,
@@ -593,14 +598,14 @@ private:
                 return;
             }
 
-            if (Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite) {
-                YT_LOG_DEBUG("Do test sleep before NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
+            if (Server_->GetConfig()->TestOptions->SleepOnWrite) {
+                YT_LOG_DEBUG("Sleep on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
                     cookie,
                     offset,
                     length,
-                    Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite);
+                    Server_->GetConfig()->TestOptions->SleepOnWrite);
 
-                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->BlockDeviceSleepBeforeWrite);
+                TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->SleepOnWrite);
             }
 
             YT_LOG_DEBUG("Started serving NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
