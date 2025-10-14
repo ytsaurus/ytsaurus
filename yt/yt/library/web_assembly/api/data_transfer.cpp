@@ -11,8 +11,9 @@ TCopyGuard::TCopyGuard(IWebAssemblyCompartment* compartment, uintptr_t offset)
     , CopiedOffset_(offset)
 { }
 
-TCopyGuard::~TCopyGuard()
+Y_WEAK TCopyGuard::~TCopyGuard()
 {
+    // NB(dtorilov): This is a stub, the correct implementation resides in yt/yt/library/web_assembly/engine/data_transfer.cpp.
     if (Compartment_ != nullptr && CopiedOffset_ != 0) {
         Compartment_->FreeBytes(CopiedOffset_);
     }
