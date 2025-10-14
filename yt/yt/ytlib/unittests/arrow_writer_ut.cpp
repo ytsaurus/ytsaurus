@@ -1871,6 +1871,57 @@ TEST(TArrowWriterTest, SeveralMultiTypesSeveralBatches)
     }
 }
 
+TEST(TArrowWriterTest, AnyMetadata)
+{
+    std::string ColumnName = "any";
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {ColumnName};
+    std::vector<std::string> anyColumn;
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], EValueType::Any),
+    }));
+
+    TStringStream outputStream;
+
+    auto nameTable = New<TNameTable>();
+    auto anyId = nameTable->RegisterName(ColumnName);
+    size_t rowCount = 2;
+    size_t stringSize = 2;
+    std::vector<TUnversionedOwningRowBuilder> rowsBuilders(rowCount);
+
+    for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        std::string randomString = MakeRandomString(stringSize);
+
+        anyColumn.push_back(randomString);
+
+        rowsBuilders[rowIndex].AddValue(MakeUnversionedAnyValue(randomString, anyId));
+    }
+
+    std::vector<TUnversionedOwningRow> owningRows;
+    std::vector<TUnversionedRow> rows;
+    for (size_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        owningRows.push_back(rowsBuilders[rowIndex].FinishRow());
+        rows.push_back(owningRows.back().Get());
+    }
+
+    auto writer = CreateArrowWriter(nameTable, &outputStream, tableSchemas);
+
+    EXPECT_TRUE(writer->Write(rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+    CheckColumnNames(batch, columnNames);
+
+    auto columnMetadata = batch->schema()->field(0)->metadata();
+    EXPECT_TRUE(columnMetadata);
+    auto value = *(columnMetadata->Get("YtType"));
+    EXPECT_EQ(value, "yson");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TArrowWriterComplexTest, BasicStruct) {
