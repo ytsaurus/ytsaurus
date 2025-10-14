@@ -208,7 +208,7 @@ struct TQueryOptions
     // COMPAT(lukyan)
     bool NewRangeInference = true;
     // COMPAT(dtorilov)
-    bool AdaptiveOrderedSchemafulReader = false;
+    bool AdaptiveOrderedSchemafulReader = true;
     // COMPAT(sabdenovch)
     bool UseOrderByInJoinSubqueries = false;
 

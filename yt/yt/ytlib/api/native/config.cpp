@@ -521,7 +521,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("disable_adaptive_ordered_schemaful_reader", &TThis::DisableAdaptiveOrderedSchemafulReader)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
