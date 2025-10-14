@@ -114,9 +114,6 @@ void TReadRangesGenerator::GenerateReadRanges(TConstraintRef constraintRef, cons
         for (const auto& item : intervals) {
             Row_[columnId] = TColumnConstraint{item.GetLowerBound(), item.GetUpperBound()};
 
-            Row_[columnId].Lower.Value.Id = columnId;
-            Row_[columnId].Upper.Value.Id = columnId;
-
             GenerateReadRanges(item.Next, onRange, keyWidthLimit);
         }
     }
