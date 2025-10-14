@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(2025.1)
+VERSION(2025.2)
 
 LICENSE(Apache-2.0)
 
@@ -137,6 +137,7 @@ RESOURCE_FILES(
     tzdata/zoneinfo/America/Coral_Harbour
     tzdata/zoneinfo/America/Cordoba
     tzdata/zoneinfo/America/Costa_Rica
+    tzdata/zoneinfo/America/Coyhaique
     tzdata/zoneinfo/America/Creston
     tzdata/zoneinfo/America/Cuiaba
     tzdata/zoneinfo/America/Curacao
