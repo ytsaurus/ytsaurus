@@ -16,6 +16,7 @@ IF (NOT OPENSOURCE)
         id_to_path_mapping
         klacalka
         lib
+        ml
         perfetto
         resource-pumper
         solomon-resolver
