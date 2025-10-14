@@ -446,6 +446,16 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 			return err
 		}
 	}
+
+	if ok, err := oplet.c.CheckState(ctx, oplet); err != nil || ok {
+		if err != nil {
+			return err
+		}
+		if err := oplet.restartOp(ctx, "conroller state changed"); err != nil {
+			return err
+		}
+	}
+
 	if ok, reason := oplet.needsUpdateOpParameters(); ok {
 		if err := oplet.updateOpParameters(ctx, reason); err != nil {
 			return err
