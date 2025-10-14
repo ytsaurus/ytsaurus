@@ -36,7 +36,7 @@ type Speclet struct {
 	EnableStickyQueryDistribution bool `yson:"enable_sticky_query_distribution"`
 	QueryStickyGroupSize          *int `yson:"query_sticky_group_size"`
 
-	RestartOnVersionChange *bool `yson:"restart_on_version_change"`
+	RestartOnVersionDrift *bool `yson:"restart_on_version_drift"`
 }
 
 type runtimeDataSpec struct {
@@ -55,7 +55,7 @@ const (
 
 	DefaultQueryStickyGroupSize = 2
 
-	DefaultRestartOnVersionChange = false
+	DefaultRestartOnVersionDrift = false
 )
 
 func (speclet *Speclet) CHYTVersionOrDefault() string {
@@ -116,11 +116,11 @@ func (speclet *Speclet) ExportSystemLogTablesOrDefault(defaultValue bool) bool {
 	return defaultValue
 }
 
-func (speclet *Speclet) RestartOnVersionChangeOrDefault() bool {
-	if speclet.RestartOnVersionChange != nil {
-		return *speclet.RestartOnVersionChange
+func (speclet *Speclet) RestartOnVersionDriftOrDefault() bool {
+	if speclet.RestartOnVersionDrift != nil {
+		return *speclet.RestartOnVersionDrift
 	}
-	return DefaultRestartOnVersionChange
+	return DefaultRestartOnVersionDrift
 }
 
 func (speclet *Speclet) QueryStickyGroupSizeOrDefault() int {
