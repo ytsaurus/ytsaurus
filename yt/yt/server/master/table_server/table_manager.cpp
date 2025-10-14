@@ -170,8 +170,12 @@ public:
     void Initialize() override
     {
         // Dynamic config is not loaded yet, initialize caches with default config and they will be reconfigured in OnDynamicConfigChanged.
-        TableSchemaCache_ = New<TTableSchemaCache>(New<TAsyncExpiringCacheConfig>());
-        YsonTableSchemaCache_ = New<TYsonTableSchemaCache>(MakeWeak(this), New<TYsonTableSchemaCacheConfig>());
+        auto tableSchemaCacheConfig = New<TAsyncExpiringCacheConfig>();
+        tableSchemaCacheConfig->ShardCount = 256;
+        TableSchemaCache_ = New<TTableSchemaCache>(std::move(tableSchemaCacheConfig));
+        auto ysonTableSchemaCacheConfig = New<TYsonTableSchemaCacheConfig>();
+        ysonTableSchemaCacheConfig->ShardCount = 256;
+        YsonTableSchemaCache_ = New<TYsonTableSchemaCache>(MakeWeak(this), std::move(ysonTableSchemaCacheConfig));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTableManager::OnDynamicConfigChanged, MakeWeak(this)));
