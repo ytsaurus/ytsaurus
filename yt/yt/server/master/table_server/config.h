@@ -29,6 +29,7 @@ struct TDynamicTableManagerConfig
     i64 MaxSchemaMemoryUsageToLog;
     TAsyncExpiringCacheConfigPtr TableSchemaCache;
     TYsonTableSchemaCacheConfigPtr YsonTableSchemaCache;
+    bool CacheHeavySchemaOnCreation;
 
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 

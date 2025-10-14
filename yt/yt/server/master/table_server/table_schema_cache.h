@@ -19,9 +19,11 @@ class TTableSchemaCache
 public:
     explicit TTableSchemaCache(TAsyncExpiringCacheConfigPtr config);
 
-    // Calls ConvertToHeavyTableSchema and caches the result.
+    // Calls ConvertToHeavyTableSchema and optionally caches the result.
     // Returns non-OK error in case of parsing errors. (Such errors are cached, too.)
-    TErrorOr<NTableClient::TTableSchemaPtr> ConvertToHeavyTableSchemaAndCache(const TCompactTableSchemaPtr& compactTableSchema);
+    TErrorOr<NTableClient::TTableSchemaPtr> ConvertToHeavyTableSchemaAndCache(
+        const TCompactTableSchemaPtr& compactTableSchema,
+        bool doCache);
 
 private:
     friend class TYsonTableSchemaCache;
