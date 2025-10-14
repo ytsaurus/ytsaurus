@@ -622,7 +622,7 @@ public:
                 maxSchemaMemoryUsageToLog,
                 cacheHeavySchemaOnCreation,
                 this,
-                this_=MakeStrong(this)
+                this_ = MakeStrong(this)
             ] {
                 auto heavySchemaOrError = TableSchemaCache_->Find(compactSchema);
                 if (!heavySchemaOrError) {
