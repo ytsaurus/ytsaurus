@@ -17,8 +17,9 @@ TWebAssemblyMemoryPool::TWebAssemblyMemoryPool(IWebAssemblyCompartment* compartm
     : Compartment_(compartment)
 { }
 
-TWebAssemblyMemoryPool::~TWebAssemblyMemoryPool()
+Y_WEAK TWebAssemblyMemoryPool::~TWebAssemblyMemoryPool()
 {
+    // NB(dtorilov): This is a stub, the correct implementation resides in yt/yt/library/web_assembly/engine/memory_pool.cpp.
     Clear();
 }
 

@@ -13,7 +13,7 @@ public:
     TCopyGuard() = default;
     TCopyGuard(IWebAssemblyCompartment* compartment, uintptr_t offset);
 
-    ~TCopyGuard();
+    Y_WEAK ~TCopyGuard();
     TCopyGuard(TCopyGuard&& other);
     TCopyGuard& operator=(TCopyGuard&& other);
 

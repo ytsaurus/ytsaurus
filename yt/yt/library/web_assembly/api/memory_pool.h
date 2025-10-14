@@ -20,7 +20,7 @@ public:
     TWebAssemblyMemoryPool();
     explicit TWebAssemblyMemoryPool(IWebAssemblyCompartment* compartment);
 
-    ~TWebAssemblyMemoryPool();
+    Y_WEAK ~TWebAssemblyMemoryPool();
     TWebAssemblyMemoryPool(TWebAssemblyMemoryPool&& other);
     TWebAssemblyMemoryPool& operator=(TWebAssemblyMemoryPool&& other);
 
