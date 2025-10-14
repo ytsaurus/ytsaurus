@@ -274,7 +274,7 @@ The difference between Published and Temporary is similar to [CompressionCodec](
 | --- | --- | --- |
 | Flag | - | Dynamic |
 
-Manages the [background table compression]({{yt-docs-root}}/user-guide/storage/regular-system-processes#nightly_compress) process so that the tables take up less space.
+Manages the background table compression process so that the tables take up less space.
 
 The `true` value sets the `@force_nightly_compress` attribute equal to `true` on the table.
 The `false` value sets the `@nightly_compression_settings` attribute with the `enabled` child value equal to `false` on the table.
@@ -948,7 +948,7 @@ Sets a URL for downloading the geobase (geodata6.bin file) if the query uses Geo
 | --- | --- | --- |
 | Positive number | — | Dynamic |
 
-Sets the number of [speculatively executed jobs]({{yql.pages.syntax.pragma.speculative-job}}) in {{product-name}} operations. {{product-name}} cluster settings are used by default.
+Sets the number of speculatively executed jobs in {{product-name}} operations. {{product-name}} cluster settings are used by default.
 
 ## yt.LLVMMemSize
 
@@ -1064,7 +1064,7 @@ Includes hybrid query execution via DQ
 | --- | --- | --- |
 | String | - | Dynamic |
 
-Sets the use of a specified network project in jobs. See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/mtn).
+Sets the use of a specified network project in jobs. <!--See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/mtn).-->
 
 ## yt.BatchListFolderConcurrency
 
