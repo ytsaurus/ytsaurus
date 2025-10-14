@@ -1,6 +1,7 @@
 #include "blob_chunk.h"
 
 #include "blob_reader_cache.h"
+#include "config.h"
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
 #include "private.h"

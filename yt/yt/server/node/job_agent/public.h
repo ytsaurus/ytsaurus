@@ -25,7 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TResourceOwner)
 DECLARE_REFCOUNTED_CLASS(TResourceHolder)
 DECLARE_REFCOUNTED_CLASS(TJobResourceManager)
 
-struct TChunkCacheStatistics
+struct TArtifactCacheStatistics
 {
     i64 CacheHitArtifactsSize = 0;
     i64 CacheMissArtifactsSize = 0;

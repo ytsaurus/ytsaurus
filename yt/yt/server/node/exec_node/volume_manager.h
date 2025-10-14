@@ -1,8 +1,7 @@
 #pragma once
 
+#include "artifact_cache.h"
 #include "public.h"
-
-#include "chunk_cache.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -15,26 +14,26 @@ namespace NYT::NExecNode {
 struct IVolumeArtifact
     : public TRefCounted
 {
-    virtual TString GetFileName() const = 0;
+    virtual const std::string& GetFileName() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolumeArtifact)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IVolumeChunkCache
+struct IVolumeArtifactCache
     : public TRefCounted
 {
     virtual TFuture<IVolumeArtifactPtr> DownloadArtifact(
-        const NDataNode::TArtifactKey& key,
+        const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IVolumeChunkCache)
+DEFINE_REFCOUNTED_TYPE(IVolumeArtifactCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVolumeChunkCachePtr CreateVolumeChunkCacheAdapter(TChunkCachePtr chunkCache);
+IVolumeArtifactCachePtr CreateVolumeArtifactCacheAdapter(TArtifactCachePtr artifactCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,10 +61,10 @@ struct IVolumeManager
     : public virtual TRefCounted
 {
     virtual TFuture<IVolumePtr> PrepareVolume(
-        const std::vector<NDataNode::TArtifactKey>& artifactKeys,
+        const std::vector<TArtifactKey>& artifactKeys,
         const TVolumePreparationOptions& options) = 0;
 
-    virtual bool IsLayerCached(const NDataNode::TArtifactKey& artifactKey) const = 0;
+    virtual bool IsLayerCached(const TArtifactKey& artifactKey) const = 0;
 
     virtual void BuildOrchid(NYTree::TFluentAny fluent) const = 0;
 
@@ -87,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
     NDataNode::TDataNodeConfigPtr config,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    IVolumeChunkCachePtr chunkCache,
+    IVolumeArtifactCachePtr artifactCache,
     IInvokerPtr controlInvoker,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     IBootstrap* bootstrap);

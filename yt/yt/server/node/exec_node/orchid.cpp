@@ -7,8 +7,6 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
-#include <yt/yt/server/node/data_node/ytree_integration.h>
-
 namespace NYT::NExecNode {
 
 using namespace NJobAgent;
@@ -35,11 +33,6 @@ NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
     mapService->AddChild(
         "slot_manager",
         bootstrap->GetSlotManager()->GetOrchidService());
-    mapService->AddChild(
-        "cached_chunks",
-        NDataNode::CreateCachedChunkMapService(
-            bootstrap->GetChunkCache())
-                ->Via(bootstrap->GetControlInvoker()));
     mapService->AddChild(
         "job_proxy_sensors",
         bootstrap->GetJobProxySolomonExporter()->GetSensorService());

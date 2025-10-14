@@ -148,6 +148,11 @@ public:
         return Bootstrap_->GetLocationManager();
     }
 
+    const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override
+    {
+        return Bootstrap_->GetChunkMetaManager();
+    }
+
     const TSessionManagerPtr& GetSessionManager() const override
     {
         return Bootstrap_->GetSessionManager();
@@ -221,6 +226,11 @@ public:
     const NQueryClient::IRowComparerProviderPtr& GetRowComparerProvider() const override
     {
         return Bootstrap_->GetRowComparerProvider();
+    }
+
+    const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override
+    {
+        return Bootstrap_->GetBlobReaderCache();
     }
 
     const IIOThroughputMeterPtr& GetIOThroughputMeter() const override

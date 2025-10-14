@@ -1,8 +1,9 @@
 #include "job.h"
 
 #include "allocation.h"
+#include "artifact.h"
+#include "artifact_cache.h"
 #include "bootstrap.h"
-#include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "job_controller.h"
 #include "job_gpu_checker.h"
@@ -19,7 +20,6 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/location.h>
@@ -134,7 +134,7 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NFileClient;
 using namespace NClusterNode;
-using namespace NDataNode;
+using namespace NNode;
 using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
@@ -490,6 +490,16 @@ void TJob::OnResourcesAcquired() noexcept
     YT_ABORT();
 }
 
+template <class... U>
+void TJob::AddJobEvent(U&&... u)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    JobEvents_.emplace_back(std::forward<U>(u)...);
+    HandleJobReport(MakeDefaultJobReport()
+        .Events(JobEvents_));
+}
+
 void TJob::Start() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -651,9 +661,9 @@ void TJob::PrepareArtifact(
                     artifact.SandboxKind,
                     artifact.Key.GetCompressedDataSize());
 
-                const auto& chunkCache = Bootstrap_->GetChunkCache();
+                const auto& artifactCache = Bootstrap_->GetArtifactCache();
                 auto downloadOptions = MakeArtifactDownloadOptions();
-                auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
+                auto producer = artifactCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
 
                 ArtifactPrepareFutures_.push_back(
                     GetUserSlot()->MakeFile(
@@ -663,7 +673,7 @@ void TJob::PrepareArtifact(
                         producer,
                         pipe));
             } else if (artifact.CopyFile) {
-                YT_VERIFY(artifact.Chunk);
+                YT_VERIFY(artifact.Artifact);
 
                 YT_LOG_INFO(
                     "Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
@@ -677,9 +687,9 @@ void TJob::PrepareArtifact(
                         Id_,
                         artifact.Name,
                         artifact.SandboxKind,
-                        artifact.Chunk->GetFileName(),
+                        TString(artifact.Artifact->GetFileName()),
                         pipe,
-                        artifact.Chunk->GetLocation()));
+                        artifact.Artifact->GetLocation()));
             }
         });
 }
@@ -1088,8 +1098,7 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
 
     if (Stored_) {
         JobResendBackoffStartTime_ = TInstant::Now();
-        YT_LOG_DEBUG(
-            "Job reset backoff start time reset");
+        YT_LOG_DEBUG("Job reset backoff start time reset");
     }
 }
 
@@ -1356,11 +1365,11 @@ void TJob::SetCoreInfos(TCoreInfos value)
     CoreInfos_ = std::move(value);
 }
 
-const TChunkCacheStatistics& TJob::GetChunkCacheStatistics() const
+const TArtifactCacheStatistics& TJob::GetArtifactCacheStatistics() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ChunkCacheStatistics_;
+    return ArtifactCacheStatistics_;
 }
 
 TYsonString TJob::GetStatistics() const
@@ -1654,7 +1663,8 @@ TPollJobShellResponse TJob::PollJobShell(
         // The following code changes error code for more user-friendly
         // diagnostics in interactive shell.
         if (ex.Error().FindMatching(NRpc::EErrorCode::TransportError)) {
-            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::JobProxyConnectionFailed,
+            THROW_ERROR_EXCEPTION(
+                NExecNode::EErrorCode::JobProxyConnectionFailed,
                 "No connection to job proxy")
                 << ex;
         }
@@ -2277,7 +2287,8 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
         "OnNodeDirectoryPrepared",
         [&] {
             ValidateJobPhase(EJobPhase::PreparingNodeDirectory);
-            THROW_ERROR_EXCEPTION_IF_FAILED(protoNodeDirectoryOrError,
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                protoNodeDirectoryOrError,
                 NExecNode::EErrorCode::NodeDirectoryPreparationFailed,
                 "Failed to prepare job node directory");
 
@@ -2336,7 +2347,7 @@ bool TJob::IsFullHostGpuJob() const
     return !gpuSlots.empty() && gpuSlots.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
 }
 
-void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
+void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& errorOrArtifacts)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -2348,9 +2359,9 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
 
             YT_LOG_INFO("Artifacts downloaded");
 
-            const auto& chunks = errorOrArtifacts.Value();
+            const auto& artifacts = errorOrArtifacts.Value();
             for (size_t index = 0; index < Artifacts_.size(); ++index) {
-                Artifacts_[index].Chunk = chunks[index];
+                Artifacts_[index].Artifact = artifacts[index];
             }
 
             ArtifactsDownloadedTime_ = TInstant::Now();
@@ -2871,7 +2882,8 @@ void TJob::TryCleanupNbdExports()
                     {},
                     "/device/unregistered_unexpected").Increment(1);
 
-                YT_LOG_ERROR("Unregistered unexpected NBD export (ExportId: %v)",
+                YT_LOG_ERROR(
+                    "Unregistered unexpected NBD export (ExportId: %v)",
                     exportId);
             }
         }
@@ -3102,7 +3114,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         for (const auto& artifact : Artifacts_) {
             // Artifact is passed into the job via bind.
             if (artifact.AccessedViaBind) {
-                YT_VERIFY(artifact.Chunk);
+                YT_VERIFY(artifact.Artifact);
 
                 YT_LOG_INFO(
                     "Make bind for artifact (FileName: %v, Executable: %v, "
@@ -3116,7 +3128,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 auto targetPath = NFS::CombinePaths(sandboxPath, artifact.Name);
 
                 auto bind = New<TBindConfig>();
-                bind->ExternalPath = artifact.Chunk->GetFileName();
+                bind->ExternalPath = artifact.Artifact->GetFileName();
                 bind->InternalPath = targetPath;
                 bind->ReadOnly = true;
 
@@ -3402,7 +3414,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     return options;
 }
 
-bool TJob::CanBeAccessedViaBind(const TArtifact& artifact) const
+bool TJob::CanBeAccessedViaBind(const TArtifactDescription& artifact) const
 {
     return !artifact.AccessedViaVirtualSandbox &&
         !artifact.BypassArtifactCache &&
@@ -3410,7 +3422,7 @@ bool TJob::CanBeAccessedViaBind(const TArtifact& artifact) const
         !Bootstrap_->GetConfig()->ExecNode->JobProxy->TestRootFS;
 }
 
-bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
+bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact) const
 {
     if (artifact.BypassArtifactCache ||
         artifact.CopyFile ||
@@ -3528,14 +3540,14 @@ void TJob::InitializeArtifacts()
 
     if (UserJobSpec_) {
         for (const auto& descriptor : UserJobSpec_->files()) {
-            Artifacts_.push_back(TArtifact{
+            Artifacts_.push_back(TArtifactDescription{
                 .SandboxKind = ESandboxKind::User,
                 .Name = descriptor.file_name(),
                 .Executable = descriptor.executable(),
                 .BypassArtifactCache = descriptor.bypass_artifact_cache(),
                 .CopyFile = descriptor.copy_file(),
                 .Key = TArtifactKey(descriptor),
-                .Chunk = nullptr
+                .Artifact = nullptr
             });
             YT_VERIFY(UserArtifactNameToIndex_.emplace(descriptor.file_name(), Artifacts_.size() - 1).second);
         }
@@ -3544,7 +3556,8 @@ void TJob::InitializeArtifacts()
 
         if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
             if (UserJobSpec_->root_volume_layers().empty()) {
-                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuJobWithoutLayers,
+                THROW_ERROR_EXCEPTION(
+                    NExecNode::EErrorCode::GpuJobWithoutLayers,
                     "No layers specified for GPU job; at least a base layer is required to use GPU");
             }
 
@@ -3581,14 +3594,14 @@ void TJob::InitializeArtifacts()
                 *key.add_chunk_specs() = chunkSpec;
             }
 
-            Artifacts_.push_back(TArtifact{
+            Artifacts_.push_back(TArtifactDescription{
                 .SandboxKind = ESandboxKind::Udf,
                 .Name = function.name(),
                 .Executable = false,
                 .BypassArtifactCache = false,
                 .CopyFile = false,
                 .Key = key,
-                .Chunk = nullptr
+                .Artifact = nullptr
             });
         }
     }
@@ -3621,23 +3634,23 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
 }
 
 // Start async artifacts download.
-TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
+TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    const auto& chunkCache = Bootstrap_->GetChunkCache();
+    const auto& artifactCache = Bootstrap_->GetArtifactCache();
 
-    std::vector<TFuture<IChunkPtr>> asyncChunks;
+    std::vector<TFuture<TArtifactPtr>> asyncArtifacts;
     for (const auto& artifact : Artifacts_) {
         i64 artifactSize = artifact.Key.GetCompressedDataSize();
         if (artifact.BypassArtifactCache) {
-            ChunkCacheStatistics_.CacheBypassedArtifactsSize += artifactSize;
-            asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
+            ArtifactCacheStatistics_.CacheBypassedArtifactsSize += artifactSize;
+            asyncArtifacts.push_back(MakeFuture<TArtifactPtr>(nullptr));
             continue;
         }
 
         if (artifact.AccessedViaVirtualSandbox) {
-            asyncChunks.push_back(MakeFuture<IChunkPtr>(nullptr));
+            asyncArtifacts.push_back(MakeFuture<TArtifactPtr>(nullptr));
             continue;
         }
 
@@ -3649,28 +3662,34 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
 
         auto downloadOptions = MakeArtifactDownloadOptions();
         bool fetchedFromCache = false;
-        auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
-            .Apply(BIND([fileName = artifact.Name, this, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
-                    NExecNode::EErrorCode::ArtifactDownloadFailed,
-                    "Failed to prepare user file %Qv",
-                    fileName);
+        auto asyncArtifact = artifactCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
+            .Apply(BIND(
+                [
+                    fileName = artifact.Name,
+                    this,
+                    this_ = MakeStrong(this)
+                ] (const TErrorOr<TArtifactPtr>& chunkOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(
+                        chunkOrError,
+                        NExecNode::EErrorCode::ArtifactDownloadFailed,
+                        "Failed to prepare user file %Qv",
+                        fileName);
 
-                const auto& chunk = chunkOrError.Value();
-                YT_LOG_INFO(
-                    "Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
-                    fileName,
-                    chunk->GetLocation()->GetId(),
-                    chunk->GetId());
-                return chunk;
+                    const auto& chunk = chunkOrError.Value();
+                    YT_LOG_INFO(
+                        "Artifact chunk ready (FileName: %v, LocationId: %v, ChunkId: %v)",
+                        fileName,
+                        chunk->GetLocation()->GetId(),
+                        chunk->GetId());
+                    return chunk;
             }));
 
-        asyncChunks.push_back(asyncChunk);
+        asyncArtifacts.push_back(std::move(asyncArtifact));
 
         UpdateArtifactStatistics(artifactSize, fetchedFromCache);
     }
 
-    return AllSucceeded(asyncChunks)
+    return AllSucceeded(std::move(asyncArtifacts))
         .ToImmediatelyCancelable();
 }
 
@@ -4048,9 +4067,9 @@ void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 
 void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
 {
-    statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size"_SP, ChunkCacheStatistics_.CacheHitArtifactsSize);
-    statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ChunkCacheStatistics_.CacheMissArtifactsSize);
-    statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ChunkCacheStatistics_.CacheBypassedArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size"_SP, ArtifactCacheStatistics_.CacheHitArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ArtifactCacheStatistics_.CacheMissArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ArtifactCacheStatistics_.CacheBypassedArtifactsSize);
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
@@ -4106,9 +4125,9 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
 void TJob::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
 {
     if (cacheHit) {
-        ChunkCacheStatistics_.CacheHitArtifactsSize += compressedDataSize;
+        ArtifactCacheStatistics_.CacheHitArtifactsSize += compressedDataSize;
     } else {
-        ChunkCacheStatistics_.CacheMissArtifactsSize += compressedDataSize;
+        ArtifactCacheStatistics_.CacheMissArtifactsSize += compressedDataSize;
     }
 }
 

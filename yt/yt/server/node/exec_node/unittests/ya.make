@@ -1,14 +1,8 @@
-GTEST(unittester-data-node)
+GTEST(unittester-exec-node)
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 ALLOCATOR(TCMALLOC)
-
-SRCS(
-    p2p_ut.cpp
-    journal_manager_ut.cpp
-    data_node_service_ut.cpp
-)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
@@ -26,6 +20,10 @@ DEPENDS(
 
 EXPLICIT_DATA()
 
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
+
 TAG(
     ya:yt
     ya:fat
@@ -38,6 +36,6 @@ YT_SPEC(yt/yt/tests/integration/spec.yson)
 
 SIZE(LARGE)
 
-DATA(arcadia/yt/yt/server/node/data_node/unittests/testdata)
+DATA(arcadia/yt/yt/server/node/exec_node/unittests/testdata)
 
 END()

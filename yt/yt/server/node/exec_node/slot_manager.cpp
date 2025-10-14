@@ -1240,7 +1240,7 @@ void TSlotManager::AsyncInitialize()
         auto volumeManager = WaitFor(CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode,
             Bootstrap_->GetDynamicConfigManager(),
-            CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
+            CreateVolumeArtifactCacheAdapter(Bootstrap_->GetArtifactCache()),
             Bootstrap_->GetControlInvoker(),
             Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
             Bootstrap_))

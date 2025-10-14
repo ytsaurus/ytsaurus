@@ -38,7 +38,7 @@ struct IBootstrap
 
     virtual NJobProxy::TJobProxyInternalConfigPtr GetJobProxyConfigTemplate() const = 0;
 
-    virtual const TChunkCachePtr& GetChunkCache() const = 0;
+    virtual const TArtifactCachePtr& GetArtifactCache() const = 0;
 
     virtual bool IsSimpleEnvironment() const = 0;
 

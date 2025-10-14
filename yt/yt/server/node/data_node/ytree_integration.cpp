@@ -1,12 +1,9 @@
 #include "ytree_integration.h"
 #include "ally_replica_manager.h"
-#include "artifact.h"
 #include "chunk.h"
 #include "chunk_store.h"
 #include "journal_chunk.h"
 #include "location.h"
-
-#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -20,7 +17,6 @@
 
 namespace NYT::NDataNode {
 
-using namespace NExecNode;
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
@@ -104,13 +100,6 @@ IYPathServicePtr CreateStoredChunkMapService(
     return New<TVirtualChunkMap<TChunkStore>>(
         std::move(chunkStore),
         std::move(allyReplicaManager));
-}
-
-IYPathServicePtr CreateCachedChunkMapService(TChunkCachePtr chunkCache)
-{
-    return New<TVirtualChunkMap<TChunkCache>>(
-        std::move(chunkCache),
-        /*allyReplicaManager*/ nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

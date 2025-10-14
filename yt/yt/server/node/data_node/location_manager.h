@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "disk_location.h"
+#include <yt/yt/server/lib/node/disk_location.h>
 
 #include <yt/yt/library/disk_manager/public.h>
 
@@ -21,7 +21,7 @@ struct TLocationLivenessInfo
 {
     TStoreLocationPtr Location;
     std::string DiskId;
-    ELocationState LocationState;
+    NNode::ELocationState LocationState;
     bool IsDiskAlive;
     NDiskManager::EDiskState DiskState;
 };

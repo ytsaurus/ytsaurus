@@ -83,7 +83,7 @@ public:
     void RegisterNewChunk(
         const IChunkPtr& chunk,
         const ISessionPtr& session,
-        TLockedChunkGuard lockedChunkGuard);
+        NNode::TLockedChunkGuard lockedChunkGuard);
 
     //! Triggers another round of master notification for a chunk that is already registered.
     /*!
@@ -199,7 +199,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    std::tuple<TStoreLocationPtr, TLockedChunkGuard> AcquireNewChunkLocation(
+    std::tuple<TStoreLocationPtr, NNode::TLockedChunkGuard> AcquireNewChunkLocation(
         TSessionId sessionId,
         const TSessionOptions& options);
 
@@ -277,7 +277,7 @@ private:
     TChunkEntry DoEraseChunk(const IChunkPtr& chunk);
 
     static TChunkEntry BuildChunkEntry(const IChunkPtr& chunk);
-    IChunkPtr CreateFromDescriptor(const TStoreLocationPtr& location, const TChunkDescriptor& descriptor);
+    IChunkPtr CreateFromDescriptor(const TStoreLocationPtr& location, const NNode::TChunkDescriptor& descriptor);
 
     TPlacementInfo* GetOrCreatePlacementInfo(NChunkClient::TPlacementId placementId);
     void ExpirePlacementInfos();

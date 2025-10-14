@@ -1,5 +1,6 @@
 #pragma once
 
+#include "artifact.h"
 #include "public.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
@@ -7,8 +8,6 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
-
-#include <yt/yt/server/node/data_node/artifact.h>
 
 #include <yt/yt/library/gpu/gpu_info_provider.h>
 
@@ -111,7 +110,7 @@ public:
     TErrorOr<std::vector<TGpuSlotPtr>> AcquireGpuSlots(int slotCount);
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
-    std::vector<NDataNode::TArtifactKey> GetToppingLayers();
+    std::vector<TArtifactKey> GetToppingLayers();
     void VerifyCudaToolkitDriverVersion(const TString& toolkitVersion);
 
     void ReleaseGpuSlot(int deviceIndex);
@@ -167,7 +166,7 @@ private:
 
     NYPath::TYPath DriverLayerPath_;
     NHydra::TRevision DriverLayerRevision_ = NHydra::NullRevision;
-    std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
+    std::optional<TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
     TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;
     NGpu::TNetworkPriority CurrentNetworkPriority_ = DefaultNetworkPriority;

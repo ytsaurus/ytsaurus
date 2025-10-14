@@ -14,6 +14,7 @@ namespace NYT::NDataNode {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTools;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

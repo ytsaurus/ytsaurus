@@ -11,7 +11,7 @@
 
 #include <library/cpp/yt/misc/hash.h>
 
-namespace NYT::NDataNode {
+namespace NYT::NExecNode {
 
 using namespace NChunkClient;
 using namespace NObjectClient;
@@ -231,4 +231,4 @@ void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NExecNode

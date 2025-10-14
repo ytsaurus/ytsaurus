@@ -1,15 +1,15 @@
-#ifndef LOCATION_INL_H_
-#error "Direct inclusion of this file is not allowed, include location.h"
+#ifndef CHUNK_LOCATION_INL_H_
+#error "Direct inclusion of this file is not allowed, include chunk_location.h"
 // For the sake of sane code completion.
-#include "location.h"
+#include "chunk_location.h"
 #endif
 
-namespace NYT::NDataNode {
+namespace NYT::NNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TCallback<T()> TChunkLocation::DisableOnError(const TCallback<T()> callback)
+TCallback<T()> TChunkLocationBase::DisableOnError(const TCallback<T()> callback)
 {
     return BIND([=, this, this_ = MakeStrong(this)] {
         try {
@@ -23,4 +23,4 @@ TCallback<T()> TChunkLocation::DisableOnError(const TCallback<T()> callback)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NNode

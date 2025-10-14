@@ -1,7 +1,7 @@
 #include "slot.h"
 
+#include "artifact_cache.h"
 #include "bootstrap.h"
-#include "chunk_cache.h"
 #include "private.h"
 #include "job_environment.h"
 #include "slot_location.h"
@@ -33,7 +33,7 @@ static NLogging::TLogger SlotLogger("Slot");
 using namespace NBus;
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NDataNode;
+using namespace NNode;
 using namespace NTools;
 using namespace NYTree;
 
@@ -255,7 +255,7 @@ public:
         ESandboxKind sandboxKind,
         const TString& sourcePath,
         const TFile& destinationFile,
-        const NDataNode::TChunkLocationPtr& sourceLocation) override
+        const TCacheLocationPtr& sourceLocation) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 

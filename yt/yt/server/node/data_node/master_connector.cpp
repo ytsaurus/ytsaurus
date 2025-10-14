@@ -24,8 +24,8 @@
 #include <yt/yt/server/node/cluster_node/master_heartbeat_reporter_base.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
+#include <yt/yt/server/node/exec_node/artifact_cache.h>
 #include <yt/yt/server/node/exec_node/bootstrap.h>
-#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
 
@@ -1396,8 +1396,8 @@ private:
 
         int totalCachedChunkCount = 0;
         if (Bootstrap_->IsExecNode()) {
-            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
-            totalCachedChunkCount = chunkCache->GetChunkCount();
+            const auto& artifactCache = Bootstrap_->GetExecNodeBootstrap()->GetArtifactCache();
+            totalCachedChunkCount = artifactCache->GetArtifactCount();
         }
 
         statistics->set_total_available_space(totalAvailableSpace);
@@ -1580,7 +1580,7 @@ private:
         delta->AddedSinceLastSuccess.erase(chunk);
         delta->RemovedSinceLastSuccess.insert(chunk);
 
-        Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache()->TryRemove(chunk->GetId());
+        Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache()->TryRemove(chunk->GetId());
 
         YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
             chunk->GetId(),

@@ -9,7 +9,6 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
-#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -50,13 +49,6 @@ public:
 
         if (mediumIndex != AllMediaIndex) {
             return nullptr;
-        }
-
-        if (Bootstrap_->IsExecNode()) {
-            const auto& chunkCache = Bootstrap_->GetExecNodeBootstrap()->GetChunkCache();
-            if (auto cachedChunk = chunkCache->FindChunk(chunkId)) {
-                return cachedChunk;
-            }
         }
 
         return nullptr;

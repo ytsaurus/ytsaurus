@@ -1,11 +1,11 @@
 #pragma once
 
-#include "private.h"
-#include "chunk_cache.h"
+#include "artifact.h"
+#include "artifact_cache.h"
 #include "job_gpu_checker.h"
 #include "job.h"
+#include "private.h"
 
-#include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 
 #include <yt/yt/server/lib/job_agent/public.h>
@@ -43,10 +43,10 @@ struct TJobWorkspaceBuildingContext
 
     TArtifactDownloadOptions ArtifactDownloadOptions;
 
-    std::vector<TArtifact> Artifacts;
+    std::vector<TArtifactDescription> Artifacts;
     std::vector<NContainers::TBind> Binds;
-    std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys;
-    std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
+    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
+    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::vector<TShellCommandConfigPtr> SetupCommands;
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;

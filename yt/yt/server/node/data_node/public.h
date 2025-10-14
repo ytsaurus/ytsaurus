@@ -21,13 +21,10 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkDescriptor;
 struct TSessionOptions;
 struct TChunkReadOptions;
 
 class TChunkReadGuard;
-
-struct TArtifactKey;
 
 class TNetworkStatistics;
 
@@ -133,7 +130,6 @@ DECLARE_REFCOUNTED_STRUCT(ILocalChunkFragmentReader)
 DECLARE_REFCOUNTED_STRUCT(INbdChunkHandler)
 
 DECLARE_REFCOUNTED_CLASS(TProbePutBlocksRequestSupplier)
-DECLARE_REFCOUNTED_CLASS(TLocationFairShareSlot)
 
 ////////////////////////////////////////////////////////////////////////////////
 

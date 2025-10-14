@@ -700,8 +700,8 @@ class TestIoEngine(YTEnvSetup):
             return sum(
                 none_to_zero(profiler_factory().at_node(node).gauge(
                     name="location/engine_enabled",
-                    fixed_tags={"location_type": "store", "engine_type": name})
-                    .get())
+                    fixed_tags={"location_type": "store", "engine_type": name}
+                ).get())
                 for node in ls("//sys/cluster_nodes")
             )
 

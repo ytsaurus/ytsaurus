@@ -35,6 +35,7 @@ using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NRpc;
 using namespace NConcurrency;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

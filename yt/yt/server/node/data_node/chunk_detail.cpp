@@ -1,5 +1,7 @@
 #include "chunk_detail.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 #include "location.h"
 #include "chunk_meta_manager.h"
@@ -31,7 +33,7 @@ constinit const auto Logger = DataNodeLogger;
 TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
 {
     return New<TChunkContext>(TChunkContext{
-        .ChunkMetaManager = bootstrap->GetChunkMetaManager(),
+        .ChunkMetaManager = bootstrap->GetDataNodeBootstrap()->GetChunkMetaManager(),
 
         .StorageHeavyInvoker = bootstrap->GetStorageHeavyInvoker(),
         .StorageLightInvoker = bootstrap->GetStorageLightInvoker(),
@@ -41,7 +43,7 @@ TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
         .JournalDispatcher = bootstrap->NeedDataNodeBootstrap()
             ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher()
             : nullptr,
-        .BlobReaderCache = bootstrap->GetBlobReaderCache(),
+        .BlobReaderCache = bootstrap->GetDataNodeBootstrap()->GetBlobReaderCache(),
         .DynamicConfigManager = bootstrap->GetDynamicConfigManager(),
     });
 }

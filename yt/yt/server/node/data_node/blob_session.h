@@ -37,7 +37,7 @@ public:
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease,
-        TLockedChunkGuard lockedChunkGuard,
+        NNode::TLockedChunkGuard lockedChunkGuard,
         NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
 
     i64 GetMemoryUsage() const override;
@@ -54,7 +54,7 @@ private:
     struct TSlot
     {
         ESlotState State = ESlotState::Empty;
-        TLocationFairShareSlotPtr FairShareSlot;
+        NNode::TLocationFairShareSlotPtr FairShareSlot;
         NChunkClient::TBlock Block;
 
         TPromise<void> ReceivedPromise = NewPromise<void>();
@@ -95,7 +95,7 @@ private:
         std::vector<NChunkClient::TBlock> blocks,
         bool useCumulativeBlockSize,
         bool enableCaching,
-        TLocationFairShareSlotPtr fairShareQueueSlot);
+        NNode::TLocationFairShareSlotPtr fairShareQueueSlot);
     void OnBlocksWritten(
         int beginBlockIndex,
         int endBlockIndex,
@@ -119,7 +119,7 @@ private:
         std::optional<int> blockCount,
         bool truncateExtraBlocks) override;
     TFinishResult OnFinished(
-        TLocationFairShareSlotPtr fairShareQueueSlot,
+        NNode::TLocationFairShareSlotPtr fairShareQueueSlot,
         const TError& error);
 
     void Abort();

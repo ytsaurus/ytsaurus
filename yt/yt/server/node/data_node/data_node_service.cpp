@@ -1900,7 +1900,7 @@ private:
             ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
 
             if (partitionTags) {
-                const auto& blockMetaCache = Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache();
+                const auto& blockMetaCache = Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache();
                 auto cachedBlockMeta = blockMetaCache->Find(chunkId);
                 if (!cachedBlockMeta) {
                     auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(meta->extensions());

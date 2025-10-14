@@ -38,6 +38,7 @@ using namespace NConcurrency;
 using namespace NYTProf;
 using namespace NYTree;
 using namespace NYson;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

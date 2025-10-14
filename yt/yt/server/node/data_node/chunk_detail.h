@@ -13,26 +13,6 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Chunk properties that can be obtained during the filesystem scan.
-struct TChunkDescriptor
-{
-    TChunkDescriptor() = default;
-
-    explicit TChunkDescriptor(TChunkId id, i64 diskSpace = 0)
-        : Id(id)
-        , DiskSpace(diskSpace)
-    { }
-
-    TChunkId Id;
-    i64 DiskSpace = 0;
-
-    // For journal chunks only.
-    i64 RowCount = 0;
-    bool Sealed = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkContext final
 {
     IChunkMetaManagerPtr ChunkMetaManager;

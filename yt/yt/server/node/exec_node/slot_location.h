@@ -4,10 +4,11 @@
 #include "private.h"
 #include "slot.h"
 
-#include <yt/yt/server/node/data_node/disk_location.h>
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/tools/public.h>
+
+#include <yt/yt/server/lib/node/disk_location.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
@@ -25,7 +26,7 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlotLocation
-    : public NDataNode::TDiskLocation
+    : public NNode::TDiskLocation
 {
     DEFINE_BYVAL_RO_PROPERTY(int, SessionCount);
 
@@ -54,7 +55,7 @@ public:
         ESandboxKind sandboxKind,
         const TString& sourcePath,
         const TFile& destinationFile,
-        const NDataNode::TChunkLocationPtr& sourceLocation);
+        const TCacheLocationPtr& sourceLocation);
 
     TFuture<void> MakeSandboxLink(
         TJobId jobId,

@@ -1,6 +1,6 @@
 #include "bootstrap.h"
 
-#include "chunk_cache.h"
+#include "artifact_cache.h"
 #include "controller_agent_connector.h"
 #include "exec_node_admin_service.h"
 #include "gpu_manager.h"
@@ -142,7 +142,7 @@ public:
 
         BuildJobProxyConfigTemplate(/*secondaryMasterConfigsOverrides*/ std::nullopt);
 
-        ChunkCache_ = New<TChunkCache>(GetConfig()->DataNode, this);
+        ArtifactCache_ = New<TArtifactCache>(GetConfig()->DataNode, this);
 
         DynamicConfig_.Store(New<TClusterNodeDynamicConfig>());
 
@@ -195,7 +195,7 @@ public:
 
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
-        ChunkCache_->Initialize();
+        ArtifactCache_->Initialize();
         // COMPAT(pogorelov)
         if (JobProxyLogManager_) {
             JobProxyLogManager_->Initialize();
@@ -335,9 +335,9 @@ public:
         return JobProxyConfigTemplate_.Acquire();
     }
 
-    const TChunkCachePtr& GetChunkCache() const override
+    const TArtifactCachePtr& GetArtifactCache() const override
     {
-        return ChunkCache_;
+        return ArtifactCache_;
     }
 
     bool IsSimpleEnvironment() const override
@@ -450,7 +450,7 @@ private:
 
     TAtomicIntrusivePtr<TJobProxyInternalConfig> JobProxyConfigTemplate_;
 
-    TChunkCachePtr ChunkCache_;
+    TArtifactCachePtr ArtifactCache_;
 
     IMasterConnectorPtr MasterConnector_;
 

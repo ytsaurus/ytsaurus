@@ -22,7 +22,7 @@ struct TNbdSession
         TSessionOptions options,
         TStoreLocationPtr storeLocation,
         NConcurrency::TLease lease,
-        TLockedChunkGuard lockedChunkGuard);
+        NNode::TLockedChunkGuard lockedChunkGuard);
 
     // NBD specific calls.
 
@@ -108,7 +108,7 @@ private:
     const TSessionOptions Options_;
     const TStoreLocationPtr StoreLocation_;
     const NConcurrency::TLease Lease_;
-    TLockedChunkGuard LockedChunkGuard_;
+    NNode::TLockedChunkGuard LockedChunkGuard_;
     const TInstant StartTime_;
     TPromise<void> UnregisteredEvent_ = NewPromise<void>();
     TError Error_;

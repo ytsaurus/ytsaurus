@@ -1,5 +1,6 @@
 #include "journal_chunk.h"
 
+#include "config.h"
 #include "private.h"
 #include "journal_dispatcher.h"
 #include "location.h"
@@ -27,6 +28,7 @@ namespace NYT::NDataNode {
 using namespace NConcurrency;
 using namespace NThreading;
 using namespace NClusterNode;
+using namespace NNode;
 using namespace NIO;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;

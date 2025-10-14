@@ -1,6 +1,6 @@
 #pragma once
 
-#include "chunk_cache.h"
+#include "artifact_cache.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
 #include "helpers.h"
@@ -49,15 +49,15 @@ DEFINE_ENUM(EGpuCheckType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TArtifact
+struct TArtifactDescription
 {
     ESandboxKind SandboxKind;
     TString Name;
     bool Executable;
     bool BypassArtifactCache;
     bool CopyFile;
-    NDataNode::TArtifactKey Key;
-    NDataNode::IChunkPtr Chunk;
+    TArtifactKey Key;
+    TArtifactPtr Artifact;
     bool AccessedViaBind = false;
     bool AccessedViaVirtualSandbox = false;
 };
@@ -175,7 +175,7 @@ public:
 
     void SetCoreInfos(NControllerAgent::TCoreInfos value);
 
-    const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const;
+    const NJobAgent::TArtifactCacheStatistics& GetArtifactCacheStatistics() const;
 
     NYson::TYsonString GetStatistics() const;
     NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics() const;
@@ -384,9 +384,9 @@ private:
 
     NThreading::TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
-    std::vector<TArtifact> Artifacts_;
-    std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys_;
-    std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
+    std::vector<TArtifactDescription> Artifacts_;
+    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys_;
+    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
     std::optional<TString> DockerImage_;
     std::optional<TString> DockerImageId_;
 
@@ -431,7 +431,7 @@ private:
     TNetworkAttributes NetworkAttributes_;
 
     // Artifact statistics.
-    NJobAgent::TChunkCacheStatistics ChunkCacheStatistics_;
+    NJobAgent::TArtifactCacheStatistics ArtifactCacheStatistics_;
 
     std::vector<TFuture<void>> ArtifactPrepareFutures_;
 
@@ -462,14 +462,7 @@ private:
     // Helpers.
 
     template <class... U>
-    void AddJobEvent(U&&... u)
-    {
-        YT_ASSERT_THREAD_AFFINITY(JobThread);
-
-        JobEvents_.emplace_back(std::forward<U>(u)...);
-        HandleJobReport(MakeDefaultJobReport()
-            .Events(JobEvents_));
-    }
+    void AddJobEvent(U&&... u);
 
     void SetJobState(EJobState state);
 
@@ -500,7 +493,7 @@ private:
     // Event handlers.
     void OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError);
 
-    void OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts);
+    void OnArtifactsDownloaded(const TErrorOr<std::vector<TArtifactPtr>>& errorOrArtifacts);
 
     void OnSandboxDirectoriesPrepared(const TError& error);
 
@@ -560,8 +553,8 @@ private:
 
     TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
-    bool CanBeAccessedViaBind(const TArtifact& artifact) const;
-    bool CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const;
+    bool CanBeAccessedViaBind(const TArtifactDescription& artifact) const;
+    bool CanBeAccessedViaVirtualSandbox(const TArtifactDescription& artifact) const;
 
     // Build artifacts.
     void InitializeArtifacts();
@@ -573,7 +566,7 @@ private:
     TArtifactDownloadOptions MakeArtifactDownloadOptions() const;
 
     // Start async artifacts download.
-    TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts();
+    TFuture<std::vector<TArtifactPtr>> DownloadArtifacts();
 
     // Analyse results.
     static TError BuildJobProxyError(const TError& spawnError);
