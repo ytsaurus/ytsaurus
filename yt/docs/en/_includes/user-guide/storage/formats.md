@@ -507,6 +507,11 @@ Format advantages:
 
 - Arrow supports composite data types, such as structs, lists, dictionaries, and others.
 
+**Parameters:**
+
+The values are specified in parentheses by default.
+- **enable_complex_types** (`false`) — enable converting {{product-name}} complex types into Arrow complex types (see below).
+
 ### Arrow in {{product-name}}
 
 Reading a table in Arrow format returns a concatenation of multiple [IPC Streaming Format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) streams.
@@ -559,19 +564,30 @@ bit count and signedness.
 - `datetime` is displayed as [arrow::date64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DATE64E).
 - `timestamp` is displayed as [arrow::timestamp](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type9TIMESTAMPE).
 - `interval` is displayed as [arrow::int64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5INT64E).
-- `Complex types` are represented as [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE) with [YSON representation](https://yt.yandex-team.ru/docs/user-guide/storage/data-types#yson) of these types.
+- Representation of complex types depends on parameter **enable_complex_types**:
+  - if `false`, complex types are represented as [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE) with [YSON representation](../../../user-guide/storage/data-types.md#yson) of these types.
+  - if `true`, complex types are represented as corresponding Arrow complex types:
+    - `list` is displayed as [arrow::list](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4LISTE)
+    - `struct` is displayed as [arrow::struct](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6STRUCTE)
+    - `dict` is displayed as [arrow::map](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type3MAPE)
 
-Writes support the same types as reads, as well as the following:
+{% note warning "Attention" %}
 
-- [arrow::list](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4LISTE) is represented as `list`.
-- [arrow::map](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type3MAPE) is represented as `dict`.
-- [arrow::struct](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6STRUCTE) is represented as `struct`.
+Since {{product-name}} stores the values of complex types as YSON-encoded strings, they have to be parsed when writing with **enable_complex_types** enabled, which may result in significant slowdown.
+
+{% endnote %}
+
+Writes support the same types as reads, including complex types.
 
 Other notes for working with types:
 
 - When reading a table, almost any type can be returned as [arrow::dictionary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type10DICTIONARYE), where the dictionary elements are the column values, and the indexes specify the order of those values. For more information, see [this section](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout).
 
-- The Arrow format supports one level of nesting, "optional". Deeper nesting is returned as the binary type during reads, same as for other composite data types.
+- The Arrow format supports one level of nested `optional`, with missing values represented with unset bits in [*validity bitmap*](https://arrow.apache.org/docs/format/Columnar.html#validity-bitmaps). Representation of deeper nested `optional` depends on parameter **enable_complex_types**:
+  - if `false`, the value is displayed as arrow::binary, same as for other complex data types.
+  - if `true`, the value of `optional<optional<T>>` is displayed as nullable arrow::struct with a single field of type `optional<T>` and metadata field `YtType: NestedOptional`. This behaviour is also supported for writes.
+
+- The Arrow format does not support empty structs, so they are displayed as arrow::struct with a single dummy field of type [Null/NA](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type2NAE) and metadata field `YtType: EmptyStruct`. This behaviour is also supported for writes.
 
 ### Examples of operations
 
