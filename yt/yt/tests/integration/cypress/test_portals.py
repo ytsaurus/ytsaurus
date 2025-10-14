@@ -1612,9 +1612,16 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(self.DST)
         super(TestCrossCellCopy, self).teardown_method(method)
 
+    def _fetch_extended_attributes(self, path, tx):
+        attributes = get(f"{path}/@", tx=tx)
+        if attributes["type"] == "table":
+            attributes["schema"] = get(f"{path}/@schema", tx=tx)
+
+        return attributes
+
     def _validate_attribute_consistency_for_node(self, src_path, dst_path, tx):
-        src_attributes = get(f"{src_path}/@", tx=tx) if self.COMMAND == "copy" else self.SRC_ATTRIBUTES[src_path]
-        dst_attributes = get(f"{dst_path}/@", tx=tx)
+        src_attributes = self._fetch_extended_attributes(src_path, tx=tx) if self.COMMAND == "copy" else self.SRC_ATTRIBUTES[src_path]
+        dst_attributes = self._fetch_extended_attributes(dst_path, tx=tx)
 
         for attribute_key in src_attributes.keys():
             # Preservable attributes should be tested directly.
@@ -1685,6 +1692,10 @@ class TestCrossCellCopy(YTEnvSetup):
                 "external_cell_tag": 13,
                 "optimize_for": "scan",
                 "account": random.choice(self.AVAILABLE_ACCOUNTS),
+                "schema": [
+                    {"name": "key", "type": "int64"},
+                    {"name": "value", "type": "string"}
+                ],
             },
             tx=tx)
         write_table(path, self.TABLE_PAYLOAD, tx=tx)
@@ -1846,7 +1857,7 @@ class TestCrossCellCopy(YTEnvSetup):
         paths_to_check = [resolved_path]
         while len(paths_to_check) > 0:
             next_path = paths_to_check.pop(0)
-            attributes = get(f"{next_path}/@", tx=tx)
+            attributes = self._fetch_extended_attributes(next_path, tx=tx)
             self.SRC_ATTRIBUTES[next_path] = attributes
 
             # Document supports "ls" command, but we don't actually want to check it's contents with it.

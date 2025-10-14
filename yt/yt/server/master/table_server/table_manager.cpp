@@ -536,7 +536,9 @@ public:
         }
 
         // We have to perform serialization right now.
-        auto heavySchemaOrError = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(compactTableSchema);
+        auto heavySchemaOrError = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(
+            compactTableSchema,
+            /*doCache*/ true);
         YT_LOG_ALERT_IF(isUnexpectedError(heavySchemaOrError),
             heavySchemaOrError,
             "Unexpected error encountered while converting compact schema to heavy table schema");
@@ -603,7 +605,40 @@ public:
         YT_VERIFY(schema->CellTagToExportCount().empty());
         YT_VERIFY(schema->IsNative() == isNative);
 
-        YT_LOG_DEBUG("Schema created (Id: %v)", id);
+        const auto& config = Bootstrap_->GetDynamicConfig()->TableManager;
+        auto maxSchemaMemoryUsageToLog = config->MaxSchemaMemoryUsageToLog;
+        auto cacheHeavySchemaOnCreation = config->CacheHeavySchemaOnCreation;
+
+        YT_LOG_DEBUG("Schema created (Id: %v)",
+            id);
+
+        const auto& compactSchema = schema->AsCompactTableSchema(/*crashOnZombie*/ false);
+        // Parsing schemas takes precious CPU resources here and offloading it is almost free.
+        NRpc::TDispatcher::Get()
+            ->GetHeavyInvoker()
+            ->Invoke(BIND([
+                compactSchema,
+                id,
+                maxSchemaMemoryUsageToLog,
+                cacheHeavySchemaOnCreation,
+                this,
+                this_=MakeStrong(this)
+            ] {
+                auto heavySchemaOrError = TableSchemaCache_->Find(compactSchema);
+                if (!heavySchemaOrError) {
+                    heavySchemaOrError = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(compactSchema, /*doCache*/ cacheHeavySchemaOnCreation);
+                }
+
+                if (!heavySchemaOrError->IsOK()) {
+                    YT_LOG_DEBUG("Newly created schema cannot be parsed (Id: %v, Error: %v)",
+                        id,
+                        *heavySchemaOrError);
+                } else {
+                    YT_LOG_DEBUG("Newly created schema parsed (Id: %v, Schema: %v)",
+                        id,
+                        MakeTableSchemaTruncatedFormatter(heavySchemaOrError->Value(), maxSchemaMemoryUsageToLog));
+                }
+            }));
 
         return schema;
     }
