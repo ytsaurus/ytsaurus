@@ -507,6 +507,11 @@ Karina	20364947097122776
 
 - Arrow поддерживает сложные типы данных, такие как структуры, списки, словари и другие.
 
+**Параметры:**
+
+В скобках указаны значения по умолчанию.
+- **enable_complex_types** (`false`) — включить конвертацию сложных типов {{product-name}} в сложные типы Arrow (см. ниже).
+
 ### Arrow в {{product-name}}
 
 При чтении таблицы в формате arrow возвращается конкатенация нескольких [IPC Streaming Format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) потоков.
@@ -559,19 +564,30 @@ Karina	20364947097122776
 - `datetime` отображается в [arrow::date64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DATE64E)
 - `timestamp` отображается в [arrow::timestamp](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type9TIMESTAMPE)
 - `interval` отображается в [arrow::int64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5INT64E)
-- `cложные типы` представляются в виде [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE), где хранится [yson представление](https://yt.yandex-team.ru/docs/user-guide/storage/data-types#yson) этих типов
+- Представление сложных типов зависит от значения параметра **enable_complex_types**:
+  - при значении `false` cложные типы представляются в виде [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE), где хранится [YSON-представление](../../../user-guide/storage/data-types.md#yson) этих типов.
+  - при значении `true` сложные типы представляются в виде соответствующих сложных типов Arrow:
+    - `list` отображается в [arrow::list](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4LISTE)
+    - `struct` отображается в [arrow::struct](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6STRUCTE)
+    - `dict` отображается в [arrow::map](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type3MAPE)
 
-На запись поддержаны те же типы, что и на чтение, а также дополнительно поддержаны:
+{% note warning "Внимание" %}
 
-- [arrow::list](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4LISTE) представляется, как `list`
-- [arrow::map](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type3MAPE) представляется, как `dict`
-- [arrow::struct](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6STRUCTE) представляется, как `struct`
+Поскольку в {{product-name}} значение сложного типа хранится как его YSON-представление, при записи с включенным параметром **enable_complex_types** происходит парсинг YSON, что может существенно замедлить запись.
+
+{% endnote %}
+
+На запись поддержаны те же типы, что и на чтение, включая сложные типы.
 
 Другие особенности работы с типами:
 
--  При чтении таблицы почти любой из типов может прийти, как [arrow::dictionary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type10DICTIONARYE), где элементы словаря будут значениями, которые встречаются в колонке, а индексы указывают на порядок значений, подробнее [тут](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout).
+- При чтении таблицы почти любой из типов может прийти, как [arrow::dictionary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type10DICTIONARYE), где элементы словаря будут значениями, которые встречаются в колонке, а индексы указывают на порядок значений, подробнее [тут](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout).
 
-- формат arrow поддерживает одну вложенность optional, более глубокая вложенность при чтении будет возвращена бинарным типом, так же как и для остальных сложных типов.
+- Arrow поддерживает один уровень вложенности `optional`, таким образом, при чтении отсутствующие значения будут представлены выключенным битом в [*validity bitmap*](https://arrow.apache.org/docs/format/Columnar.html#validity-bitmaps). Поведение при более глубокой вложенности `optional` зависит от значения параметра **enable_complex_types**:
+  - при значении `false` значение будет отображено в arrow::binary, как для остальных сложных типов.
+  - при значении `true` значение `optional<optional<T>>` будет отображено в зануляемую arrow::struct с единственным полем типа `optional<T>` и полем метаданных `YtType: NestedOptional`. Данное поведение также поддержано на запись.
+
+- Arrow не поддерживает пустые структуры, поэтому они представлются arrow::struct с фиктивным полем типа [Null/NA](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type2NAE) и полем метаданных `YtType: EmptyStruct`. Данное поведение также поддержано на запись.
 
 ### Пример операций
 
