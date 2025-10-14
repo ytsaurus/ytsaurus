@@ -134,7 +134,7 @@ TString FormatResources(const TJobResourcesWithQuota& resources)
         resources.GetUserSlots(),
         resources.GetCpu(),
         resources.GetGpu(),
-        resources.GetMemory() / 1_MB,
+        resources.GetMemory() / 1_MBs,
         resources.GetNetwork(),
         resources.DiskQuota());
 
