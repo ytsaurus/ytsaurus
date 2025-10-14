@@ -2132,6 +2132,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp = FromProto<TTimestamp>(request->clip_timestamp());
     }
 
+    auto maxSchemaMemoryUsageToLog = Bootstrap_
+        ->GetDynamicConfig()
+        ->TableManager
+        ->MaxSchemaMemoryUsageToLog;
+
     const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, "
         "ClipTimestamp: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
@@ -2142,7 +2147,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        tableManager->GetHeavyTableSchemaSync(options.Schema));
+        MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();

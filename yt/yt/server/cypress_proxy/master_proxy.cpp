@@ -136,7 +136,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMasterProxy, MaterializeCopyPrerequisites)
             auto* schema = GetOrCrash(schemaDescriptors, schemaId);
             auto* subreq = req->add_schema_descriptors();
             ToProto(subreq->mutable_schema_id(), schemaId);
-            subreq->mutable_schema()->Swap(schema);
+            subreq->mutable_schema()->CopyFrom(*schema);
         }
         batchReq->AddRequest(req);
 
