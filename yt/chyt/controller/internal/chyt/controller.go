@@ -371,6 +371,30 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
+func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (bool, error) {
+	speclet := oplet.ControllerSpeclet().(Speclet)
+	if !speclet.RestartOnVersionChangeOrDefault() {
+		return false, nil
+	}
+	curentChytVersionPath, err := c.resolveSymlink(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
+	if err != nil {
+		return false, err
+	}
+	curentChytVersionString := filepath.Base(curentChytVersionPath.String())
+
+	briefInfo := oplet.GetBriefInfo()
+	var controllerInfo chytOpletInfo
+	err = yson.Unmarshal(briefInfo.OpletInfo, &controllerInfo)
+	if err != nil {
+		return false, err
+	}
+
+	if controllerInfo.ChytRunningVersion != curentChytVersionString {
+		return true, nil
+	}
+	return false, nil
+}
+
 func (c *Controller) UpdateState() (changed bool, err error) {
 	connectionChanged, err := c.updateClusterConnection(context.Background())
 	if err != nil {
@@ -436,6 +460,13 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "chyt_version",
 					Type:         strawberry.TypeString,
 					CurrentValue: speclet.CHYTVersion,
+				},
+				{
+					Title:        "Restart On Version Change",
+					Name:         "restart_on_version_change",
+					Type:         strawberry.TypeBool,
+					CurrentValue: speclet.RestartOnVersionChange,
+					DefaultValue: speclet.RestartOnVersionChangeOrDefault(),
 				},
 				{
 					Title:        "Enable geodata",

@@ -283,6 +283,10 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
+func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (bool, error) {
+	return false, nil
+}
+
 func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
 	return nil
 }
