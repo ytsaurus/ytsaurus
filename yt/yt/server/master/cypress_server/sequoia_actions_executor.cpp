@@ -237,7 +237,7 @@ private:
             });
     }
 
-    void FinishSequoiaNodeMaterialization(TCypressNode* node, TNodeId parentId, const TString& path)
+    void FinishSequoiaNodeMaterialization(TCypressNode* node, TNodeId parentId, const TYPath& path)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& handler = cypressManager->GetHandler(node);
