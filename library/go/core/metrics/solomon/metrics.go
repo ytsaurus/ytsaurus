@@ -142,8 +142,9 @@ var (
 )
 
 type Metrics struct {
-	metrics   []Metric
-	timestamp *time.Time
+	metrics      []Metric
+	timestamp    *time.Time
+	commonLabels map[string]string
 }
 
 // MarshalJSON implements json.Marshaler.
@@ -180,13 +181,21 @@ func (s Metrics) SplitToChunks(maxChunkSize int) []Metrics {
 			rightBound = len(s.metrics)
 		}
 		chunk := s.metrics[leftBound:rightBound]
-		chunks = append(chunks, Metrics{metrics: chunk, timestamp: s.timestamp})
+		chunks = append(chunks, Metrics{metrics: chunk, timestamp: s.timestamp, commonLabels: s.commonLabels})
 	}
 	return chunks
 }
 
 func (s *Metrics) SetTimestamp(timestamp time.Time) {
 	s.timestamp = &timestamp
+}
+
+func (s *Metrics) SetCommonLabels(labels map[string]string) {
+	s.commonLabels = labels
+}
+
+func (s *Metrics) CommonLabels() map[string]string {
+	return s.commonLabels
 }
 
 // List return list of metrics
