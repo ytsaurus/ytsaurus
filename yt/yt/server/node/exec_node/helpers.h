@@ -1,9 +1,8 @@
 #pragma once
 
+#include "artifact.h"
 #include "bootstrap.h"
 #include "private.h"
-
-#include <yt/yt/server/node/data_node/artifact.h>
 
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
@@ -26,7 +25,7 @@ namespace NYT::NExecNode {
 struct TFetchedArtifactKey
 {
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
-    std::optional<NDataNode::TArtifactKey> ArtifactKey;
+    std::optional<TArtifactKey> ArtifactKey;
 };
 
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(

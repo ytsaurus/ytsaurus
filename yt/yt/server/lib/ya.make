@@ -55,6 +55,7 @@ RECURSE(
     lsm
     misc
     nbd
+    node
     node_tracker_server
     object_server
     rpc_proxy

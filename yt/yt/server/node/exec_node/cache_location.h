@@ -1,51 +1,68 @@
 #pragma once
 
 #include "public.h"
+#include "artifact.h"
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/blob_chunk.h>
-#include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/public.h>
+
+#include <yt/yt/server/lib/node/chunk_location.h>
 
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A blob chunk owned by TChunkCache.
-class TCachedBlobChunk
-    : public NDataNode::TBlobChunkBase
-    , public TAsyncCacheValueBase<NDataNode::TArtifactKey, TCachedBlobChunk>
+class TArtifact
+    : public TAsyncCacheValueBase<TArtifactKey, TArtifact>
 {
 public:
-    TCachedBlobChunk(
-        NDataNode::TChunkContextPtr context,
-        NDataNode::TChunkLocationPtr location,
-        const NDataNode::TChunkDescriptor& descriptor,
+    TArtifact(
+        TCacheLocationPtr location,
+        const NNode::TChunkDescriptor& descriptor,
+        const TArtifactKey& key,
         NChunkClient::TRefCountedChunkMetaPtr meta,
-        const NDataNode::TArtifactKey& key,
         TClosure destroyedHandler);
 
-    ~TCachedBlobChunk();
+    ~TArtifact();
+
+    const std::string& GetFileName() const;
+    const TCacheLocationPtr& GetLocation() const;
+
+    i64 GetDiskSpace() const;
+
+    // TODO(pogorelov): Make better name than chunk id.
+    NChunkClient::TChunkId GetId() const;
+
+    const NChunkClient::TRefCountedChunkMetaPtr& GetMeta() const;
 
 private:
+    const NChunkClient::TChunkId Id_;
+
     const TClosure DestroyedHandler_;
+
+    const std::string FileName_;
+
+    const TCacheLocationPtr Location_;
+
+    NChunkClient::TRefCountedChunkMetaPtr Meta_;
+
+    i64 DiskSpace_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)
+DEFINE_REFCOUNTED_TYPE(TArtifact)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCacheLocation
-    : public NDataNode::TChunkLocation
+    : public NNode::TChunkLocationBase
 {
 public:
     TCacheLocation(
         TString id,
         NDataNode::TCacheLocationConfigPtr config,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        NDataNode::TChunkContextPtr chunkContext,
-        NDataNode::IChunkStoreHostPtr chunkStoreHost,
-        TChunkCachePtr chunkCache);
+        const NClusterNode::IBootstrap* bootstrap,
+        TArtifactCachePtr artifactCache);
 
     const NDataNode::TCacheLocationConfigPtr& GetStaticConfig() const;
 
@@ -56,18 +73,25 @@ public:
 
     bool ScheduleDisable(const TError& reason) override;
 
+    const std::string& GetMediumName() const;
+
 private:
     const NDataNode::TCacheLocationConfigPtr StaticConfig_;
     const NConcurrency::IReconfigurableThroughputThrottlerPtr InThrottler_;
-    const TChunkCachePtr ChunkCache_;
+    const TArtifactCachePtr ArtifactCache_;
+
+    const std::string MediumName_;
+
+    const NClusterNode::IBootstrap* const Bootstrap_;
 
     TFuture<void> RemoveChunks();
 
-    std::optional<NDataNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const TString& metaSuffix);
-    std::optional<NDataNode::TChunkDescriptor> RepairChunk(NDataNode::TChunkId chunkId) override;
+    std::optional<NNode::TChunkDescriptor> Repair(NDataNode::TChunkId chunkId, const TString& metaSuffix);
+    std::optional<NNode::TChunkDescriptor> RepairChunk(NDataNode::TChunkId chunkId) override;
 
     std::vector<TString> GetChunkPartNames(NDataNode::TChunkId chunkId) const override;
 
+    NNode::TBriefChunkLocationConfig GetBriefConfig() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocation)

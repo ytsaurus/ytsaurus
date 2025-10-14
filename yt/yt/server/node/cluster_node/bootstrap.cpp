@@ -15,7 +15,6 @@
 #include <yt/yt/server/node/chaos_node/bootstrap.h>
 #include <yt/yt/server/node/chaos_node/slot_manager.h>
 
-#include <yt/yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/chunk_reader_sweeper.h>
@@ -32,7 +31,6 @@
 #include <yt/yt/server/node/data_node/session_manager.h>
 #include <yt/yt/server/node/data_node/table_schema_cache.h>
 #include <yt/yt/server/node/data_node/ytree_integration.h>
-#include <yt/yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/yt/server/node/data_node/skynet_http_handler.h>
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
@@ -563,11 +561,6 @@ public:
         return SystemJobsMemoryUsageTracker_;
     }
 
-    const IChunkMetaManagerPtr& GetChunkMetaManager() const override
-    {
-        return ChunkMetaManager_;
-    }
-
     const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const override
     {
         return ChunkReaderSweeper_;
@@ -602,11 +595,6 @@ public:
     const IChunkRegistryPtr& GetChunkRegistry() const override
     {
         return ChunkRegistry_;
-    }
-
-    const IBlobReaderCachePtr& GetBlobReaderCache() const override
-    {
-        return BlobReaderCache_;
     }
 
     const TJobResourceManagerPtr& GetJobResourceManager() const override
@@ -781,11 +769,9 @@ private:
 
     std::unique_ptr<TNetworkStatistics> NetworkStatistics_;
 
-    IChunkMetaManagerPtr ChunkMetaManager_;
     IVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
 
     IChunkRegistryPtr ChunkRegistry_;
-    IBlobReaderCachePtr BlobReaderCache_;
 
     TChunkReaderSweeperPtr ChunkReaderSweeper_;
 
@@ -1009,16 +995,6 @@ private:
         ChunkReaderSweeper_ = New<TChunkReaderSweeper>(
             GetDynamicConfigManager(),
             GetStorageHeavyInvoker());
-
-        ChunkMetaManager_ = CreateChunkMetaManager(
-            Config_->DataNode,
-            GetDynamicConfigManager(),
-            GetNodeMemoryUsageTracker());
-
-        BlobReaderCache_ = CreateBlobReaderCache(
-            GetConfig()->DataNode,
-            GetDynamicConfigManager(),
-            ChunkMetaManager_);
 
         VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(
             Config_->TabletNode->VersionedChunkMetaCache,
@@ -2027,11 +2003,6 @@ const IMemoryUsageTrackerPtr& TBootstrapBase::GetSystemJobsMemoryUsageTracker() 
     return Bootstrap_->GetSystemJobsMemoryUsageTracker();
 }
 
-const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const
-{
-    return Bootstrap_->GetChunkMetaManager();
-}
-
 const TChunkReaderSweeperPtr& TBootstrapBase::GetChunkReaderSweeper() const
 {
     return Bootstrap_->GetChunkReaderSweeper();
@@ -2065,11 +2036,6 @@ TNetworkStatistics& TBootstrapBase::GetNetworkStatistics() const
 const IChunkRegistryPtr& TBootstrapBase::GetChunkRegistry() const
 {
     return Bootstrap_->GetChunkRegistry();
-}
-
-const IBlobReaderCachePtr& TBootstrapBase::GetBlobReaderCache() const
-{
-    return Bootstrap_->GetBlobReaderCache();
 }
 
 const NJobAgent::TJobResourceManagerPtr& TBootstrapBase::GetJobResourceManager() const

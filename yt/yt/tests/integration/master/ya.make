@@ -4,7 +4,6 @@ TEST_SRCS(
     test_access_logs.py
     test_account_resource_usage_lease.py
     test_accounts.py
-    test_chunk_cache.py
     test_chunk_locations.py
     test_chunk_merger.py
     test_chunk_reincarnator.py

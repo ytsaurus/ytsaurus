@@ -52,7 +52,7 @@ using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
 using namespace NIO;
-using namespace NDataNode;
+using namespace NNode;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NFS;
@@ -159,7 +159,7 @@ void TSlotLocation::DoInitialize()
 
 void TSlotLocation::DoRepair()
 {
-    auto changeStateResult = ChangeState(NDataNode::ELocationState::Enabling, ELocationState::Disabled);
+    auto changeStateResult = ChangeState(NNode::ELocationState::Enabling, ELocationState::Disabled);
 
     if (!changeStateResult) {
         YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
@@ -429,7 +429,7 @@ struct TSlotLocationIOTags
 
 static THashMap<std::string, std::string> BuildSandboxCopyTags(
     const std::string& direction,
-    const NDataNode::TChunkLocationPtr& location,
+    const TCacheLocationPtr& location,
     const std::optional<TSlotLocationIOTags>& slotLocationTags)
 {
     THashMap<std::string, std::string> result{
@@ -456,7 +456,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
     ESandboxKind sandboxKind,
     const TString& sourcePath,
     const TFile& destinationFile,
-    const NDataNode::TChunkLocationPtr& sourceLocation)
+    const TCacheLocationPtr& sourceLocation)
 {
     return DoMakeSandboxFile(
         jobId,

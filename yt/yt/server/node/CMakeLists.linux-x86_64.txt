@@ -31,6 +31,7 @@ get_built_tool_path(
 add_subdirectory(cellar_node)
 add_subdirectory(chaos_node)
 add_subdirectory(data_node)
+add_subdirectory(exec_node)
 add_subdirectory(query_agent)
 add_subdirectory(tablet_node)
 
@@ -87,6 +88,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-lsm
   server-lib-misc
   server-lib-nbd
+  server-lib-node
   server-lib-rpc
   server-lib-tablet_server
   server-lib-controller_agent
@@ -107,7 +109,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/cluster_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/ally_replica_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/artifact.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_chunk.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_reader_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/blob_session.cpp
@@ -123,7 +124,6 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/data_node_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/data_node_nbd_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/disk_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/job_info.cpp
@@ -148,9 +148,10 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/table_schema_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/ytree_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/allocation.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/controller_agent_connector.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/chunk_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/cache_location.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/exec_node_admin_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/helpers.cpp
@@ -278,14 +279,14 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_log.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/artifact.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/transaction_manager.pb.h
 )
 
 target_proto_messages(yt-server-node PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/artifact.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/artifact.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/volume.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/in_memory_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto

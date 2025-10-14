@@ -22,6 +22,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NIO;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

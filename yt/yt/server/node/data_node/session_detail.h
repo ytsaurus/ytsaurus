@@ -26,7 +26,7 @@ public:
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease,
-        TLockedChunkGuard lockedChunkGuard,
+        NNode::TLockedChunkGuard lockedChunkGuard,
         NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
 
     TChunkId GetChunkId() const& override;
@@ -93,7 +93,7 @@ protected:
     const NLogging::TLogger Logger;
     const TInstant StartTime_;
 
-    TLockedChunkGuard LockedChunkGuard_;
+    NNode::TLockedChunkGuard LockedChunkGuard_;
     const NChunkClient::IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     TPromise<void> UnregisteredEvent_ = NewPromise<void>();

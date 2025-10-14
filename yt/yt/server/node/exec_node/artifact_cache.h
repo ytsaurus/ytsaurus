@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "artifact.h"
 #include "cache_location.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -28,14 +29,14 @@ namespace NYT::NExecNode {
  *  \note
  *  Thread affinity: any
  */
-class TChunkCache
+class TArtifactCache
     : public TRefCounted
 {
 public:
-    TChunkCache(
+    TArtifactCache(
         NDataNode::TDataNodeConfigPtr config,
         IBootstrap* bootstrap);
-    ~TChunkCache();
+    ~TArtifactCache();
 
     void Initialize();
 
@@ -43,31 +44,31 @@ public:
     bool IsEnabled() const;
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    NDataNode::IChunkPtr FindChunk(NChunkClient::TChunkId chunkId);
+    TArtifactPtr FindArtifact(NChunkClient::TChunkId chunkId);
 
     //! Returns the list of all registered chunks.
-    std::vector<NDataNode::IChunkPtr> GetChunks();
+    std::vector<TArtifactPtr> GetArtifacts();
 
     //! Returns the number of registered chunks.
-    int GetChunkCount();
+    int GetArtifactCount();
 
     //! Downloads a single- or multi-chunk artifact into the cache.
     /*!
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TFuture<NDataNode::IChunkPtr> DownloadArtifact(
-        const NDataNode::TArtifactKey& key,
+    TFuture<TArtifactPtr> DownloadArtifact(
+        const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions,
         bool* fetchedFromCache = nullptr);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
-        const NDataNode::TArtifactKey& key,
+        const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions);
 
     //! Remove chunks from cache.
-    TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location);
+    TFuture<void> RemoveArtifactsByLocation(const TCacheLocationPtr& location);
 
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
@@ -77,7 +78,7 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkCache)
+DEFINE_REFCOUNTED_TYPE(TArtifactCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

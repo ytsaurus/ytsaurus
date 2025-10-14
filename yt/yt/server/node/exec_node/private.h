@@ -16,6 +16,10 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const TString ArtifactMetaSuffix(".artifact");
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +30,10 @@ DECLARE_REFCOUNTED_CLASS(TAllocation)
 DECLARE_REFCOUNTED_STRUCT(TSchedulerHeartbeatContext)
 
 DECLARE_REFCOUNTED_STRUCT(TAgentHeartbeatContext)
+
+DECLARE_REFCOUNTED_CLASS(TArtifact)
+
+DECLARE_REFCOUNTED_CLASS(TCacheLocation)
 
 struct TControllerAgentDescriptor;
 

@@ -1954,10 +1954,10 @@ private:
 
         YT_VERIFY(job->IsStarted());
 
-        const auto& chunkCacheStatistics = job->GetChunkCacheStatistics();
-        CacheHitArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheHitArtifactsSize);
-        CacheMissArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheMissArtifactsSize);
-        CacheBypassedArtifactsSizeCounter_.Increment(chunkCacheStatistics.CacheBypassedArtifactsSize);
+        const auto& artifactCacheStatistics = job->GetArtifactCacheStatistics();
+        CacheHitArtifactsSizeCounter_.Increment(artifactCacheStatistics.CacheHitArtifactsSize);
+        CacheMissArtifactsSizeCounter_.Increment(artifactCacheStatistics.CacheMissArtifactsSize);
+        CacheBypassedArtifactsSizeCounter_.Increment(artifactCacheStatistics.CacheBypassedArtifactsSize);
     }
 
     void OnJobFinished(TJobPtr job)

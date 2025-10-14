@@ -142,7 +142,6 @@ struct IBootstrapBase
 
     // Common node caches.
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
-    virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const = 0;
     virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const = 0;
     virtual const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const = 0;
 
@@ -161,8 +160,6 @@ struct IBootstrapBase
 
     // Global chunk management.
     virtual const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const = 0;
-
-    virtual const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const = 0;
 
     // Job resource manager.
     virtual const NJobAgent::TJobResourceManagerPtr& GetJobResourceManager() const = 0;
@@ -307,7 +304,6 @@ public:
     const IMemoryUsageTrackerPtr& GetSystemJobsMemoryUsageTracker() const override;
 
     const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
-    const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
     const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
     const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const override;
 
@@ -319,8 +315,6 @@ public:
     NDataNode::TNetworkStatistics& GetNetworkStatistics() const override;
 
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override;
-
-    const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
 
     const NJobAgent::TJobResourceManagerPtr& GetJobResourceManager() const override;
 

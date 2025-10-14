@@ -1,12 +1,17 @@
 #pragma once
 
-#include "config.h"
+#include <yt/yt/server/lib/misc/public.h>
+
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/logging/log.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
-namespace NYT::NDataNode {
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+#include <library/cpp/yt/threading/spin_lock.h>
+
+namespace NYT::NNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +89,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDataNode
+} // namespace NYT::NNode
 
 #define DISK_LOCATION_INL_H_
 #include "disk_location-inl.h"

@@ -51,6 +51,7 @@
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
+using namespace NNode;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NLogging;
@@ -62,9 +63,6 @@ using namespace NYson;
 using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Others must not be able to list chunk store and chunk cache directories.
-static constexpr int ChunkFilesPermissions = 0751;
 
 // https://www.kernel.org/doc/html/latest/block/stat.html
 // read sectors, write sectors, discard_sectors
@@ -174,32 +172,6 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocationFairShareSlot::TLocationFairShareSlot(
-    TFairShareHierarchicalSlotQueuePtr<std::string> queue,
-    TFairShareHierarchicalSlotQueueSlotPtr<std::string> slot)
-    : Queue_(std::move(queue))
-    , Slot_(std::move(slot))
-{
-    YT_VERIFY(Queue_);
-    YT_VERIFY(Slot_);
-}
-
-TFairShareHierarchicalSlotQueueSlotPtr<std::string> TLocationFairShareSlot::GetSlot() const
-{
-    return Slot_;
-}
-
-TLocationFairShareSlot::~TLocationFairShareSlot()
-{
-    if (Slot_) {
-        Queue_->DequeueSlot(Slot_);
-        Slot_->ReleaseResources();
-        Slot_.Reset();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TLocationMemoryGuard::TLocationMemoryGuard(
     TMemoryUsageTrackerGuard memoryGuard,
     bool useLegacyUsedMemory,
@@ -303,53 +275,6 @@ TLocationMemoryGuard::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLockedChunkGuard::TLockedChunkGuard(TChunkLocationPtr location, TChunkId chunkId)
-    : Location_(std::move(location))
-    , ChunkId_(chunkId)
-{ }
-
-TLockedChunkGuard::TLockedChunkGuard(TLockedChunkGuard&& other)
-{
-    MoveFrom(std::move(other));
-}
-
-TLockedChunkGuard::~TLockedChunkGuard()
-{
-    if (Location_) {
-        Location_->UnlockChunk(ChunkId_);
-    }
-}
-
-TLockedChunkGuard& TLockedChunkGuard::operator=(TLockedChunkGuard&& other)
-{
-    if (this != &other) {
-        MoveFrom(std::move(other));
-    }
-    return *this;
-}
-
-void TLockedChunkGuard::Release()
-{
-    Location_.Reset();
-    ChunkId_ = {};
-}
-
-void TLockedChunkGuard::MoveFrom(TLockedChunkGuard&& other)
-{
-    Location_ = std::move(other.Location_);
-    ChunkId_ = other.ChunkId_;
-
-    other.Location_.Reset();
-    other.ChunkId_ = {};
-}
-
-TLockedChunkGuard::operator bool() const
-{
-    return Location_.operator bool();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkLocation::TChunkLocation(
     ELocationType type,
     TString id,
@@ -358,44 +283,30 @@ TChunkLocation::TChunkLocation(
     TChunkStorePtr chunkStore,
     TChunkContextPtr chunkContext,
     IChunkStoreHostPtr chunkStoreHost)
-    : TDiskLocation(
-        config,
+    : TChunkLocationBase(
+        type,
         std::move(id),
-        DataNodeLogger())
+        config,
+        BIND_NO_PROPAGATE(&TChunkLocation::GetBriefConfig, Unretained(this)),
+        chunkStoreHost->GetCellId(),
+        chunkStoreHost->GetFairShareHierarchicalScheduler(),
+        chunkStoreHost->GetHugePageManager(),
+        DataNodeLogger(),
+        LocationProfiler())
     , DynamicConfigManager_(std::move(dynamicConfigManager))
     , ChunkStore_(std::move(chunkStore))
     , ChunkContext_(std::move(chunkContext))
     , ChunkStoreHost_(std::move(chunkStoreHost))
-    , Type_(type)
-    , StaticConfig_(std::move(config))
+    , RuntimeConfig_(config)
     , ReadMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
     , WriteMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
-    , RuntimeConfig_(StaticConfig_)
     , MediumDescriptor_(TMediumDescriptor{
-        .Name = StaticConfig_->MediumName
+        .Name = GetStaticConfig()->MediumName
     })
 {
-    TTagSet tagSet;
-    tagSet.AddTag({"location_type", FormatEnum(Type_)});
-    tagSet.AddTag({"disk_family", StaticConfig_->DiskFamily}, -1);
-    tagSet.AddTag({"medium", GetMediumName()}, -1);
-    tagSet.AddTag({"location_id", Id_}, -1);
-    tagSet.AddExtensionTag({"device_name", StaticConfig_->DeviceName}, -1);
-    tagSet.AddExtensionTag({"device_model", StaticConfig_->DeviceModel}, -1);
-
-    MediumTag_ = tagSet.AddDynamicTag(2);
-
-    Profiler_ = LocationProfiler()
-        .WithSparse()
-        .WithTags(tagSet);
+    UpdateMediumTag();
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
-
-    IOFairShareQueue_ = CreateFairShareHierarchicalSlotQueue<std::string>(
-        ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
-        Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
-
-    HugePageManager_ = ChunkStoreHost_->GetHugePageManager();
 
     auto probePutblocksProfiler = Profiler_.WithPrefix("/probe_writes");
     probePutblocksProfiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
@@ -409,26 +320,10 @@ TChunkLocation::TChunkLocation(
     MediumFlag_ = Profiler_.Gauge("/medium");
     MediumFlag_.Update(1);
 
-    UpdateMediumTag();
-
-    DynamicIOEngine_ = NIO::CreateDynamicIOEngine(
-        StaticConfig_->IOEngineType,
-        StaticConfig_->IOConfig,
-        IOFairShareQueue_,
-        HugePageManager_,
-        Id_,
-        Profiler_,
-        DataNodeLogger().WithTag("LocationId: %v", Id_));
-    IOEngineModel_ = CreateIOModelInterceptor(
-        Id_,
-        DynamicIOEngine_,
-        DataNodeLogger().WithTag("IOModel: %v", Id_));
-    IOEngine_ = IOEngineModel_;
-
     auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         Throttlers_[kind] = ReconfigurableThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
-            StaticConfig_->Throttlers[kind],
+            GetStaticConfig()->Throttlers[kind],
             ToString(kind),
             Logger,
             diskThrottlerProfiler);
@@ -439,58 +334,15 @@ TChunkLocation::TChunkLocation(
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
         "UnlimitedOutThrottler",
         diskThrottlerProfiler);
-    EnableUncategorizedThrottler_ = StaticConfig_->EnableUncategorizedThrottler;
+    EnableUncategorizedThrottler_ = GetStaticConfig()->EnableUncategorizedThrottler;
     UncategorizedThrottler_ = ReconfigurableUncategorizedThrottler_ = CreateNamedReconfigurableThroughputThrottler(
-        StaticConfig_->UncategorizedThrottler,
+        GetStaticConfig()->UncategorizedThrottler,
         "uncategorized",
         Logger,
         diskThrottlerProfiler);
 
-    HealthChecker_ = New<TDiskHealthChecker>(
-        StaticConfig_->DiskHealthChecker,
-        GetPath(),
-        GetAuxPoolInvoker(),
-        DataNodeLogger(),
-        Profiler_);
-
     ChunkStoreHost_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
-}
-
-TErrorOr<TLocationFairShareSlotPtr> TChunkLocation::AddFairShareQueueSlot(
-    i64 size,
-    std::vector<IFairShareHierarchicalSlotQueueResourcePtr> resources,
-    std::vector<TFairShareHierarchyLevel<std::string>> levels)
-{
-    auto slotOrError = IOFairShareQueue_->EnqueueSlot(
-        size,
-        std::move(resources),
-        std::move(levels));
-
-    if (slotOrError.IsOK()) {
-        YT_LOG_DEBUG("Add new fair share slot (SlotId: %v, SlotSize: %v)",
-            slotOrError.Value()->GetSlotId(),
-            size);
-        return New<TLocationFairShareSlot>(
-            IOFairShareQueue_,
-            std::move(slotOrError.Value()));
-    }
-
-    return slotOrError.Wrap();
-}
-
-const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return IOEngine_;
-}
-
-const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return IOEngineModel_;
 }
 
 double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const
@@ -510,38 +362,6 @@ THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
     return RuntimeConfig_.AcquireHazard();
 }
 
-i64 TChunkLocation::GetLegacyWriteMemoryLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->LegacyWriteMemoryLimit;
-}
-
-i64 TChunkLocation::GetReadMemoryLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->ReadMemoryLimit;
-}
-
-i64 TChunkLocation::GetWriteMemoryLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->WriteMemoryLimit;
-}
-
-i64 TChunkLocation::GetTotalMemoryLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->TotalMemoryLimit;
-}
-
 double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -550,25 +370,13 @@ double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
     return config->MemoryLimitFractionForStartingNewSessions;
 }
 
-i64 TChunkLocation::GetSessionCountLimit() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto config = GetRuntimeConfig();
-    return config->SessionCountLimit;
-}
-
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    TChunkLocationBase::Reconfigure(config);
+
     UpdateIOWeightEvaluator(config->IOWeightFormula);
-
-    HealthChecker_->Reconfigure(config->DiskHealthChecker);
-
-    TDiskLocation::Reconfigure(config);
-
-    DynamicIOEngine_->SetType(config->IOEngineType, config->IOConfig);
 
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);
@@ -579,49 +387,6 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
     }
 
     RuntimeConfig_.Store(std::move(config));
-}
-
-ELocationType TChunkLocation::GetType() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return Type_;
-}
-
-TChunkLocationUuid TChunkLocation::GetUuid() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return Uuid_;
-}
-
-TChunkLocationIndex TChunkLocation::GetIndex() const
-{
-    return Index_;
-}
-
-void TChunkLocation::SetIndex(TChunkLocationIndex index)
-{
-    if (Index_ != NNodeTrackerClient::InvalidChunkLocationIndex && Index_ != index) {
-        YT_LOG_ALERT(
-            "Chunk location index has been changed (LocationUuid: %v, OldIndex: %v, NewIndex: %v)",
-            Uuid_,
-            Index_,
-            index);
-
-        THROW_ERROR_EXCEPTION("Chunk location index has been changed")
-            << TErrorAttribute("location_uuid", Uuid_)
-            << TErrorAttribute("old_index", Index_)
-            << TErrorAttribute("new_index", index);
-    }
-    Index_ = index;
-}
-
-const TString& TChunkLocation::GetDiskFamily() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return StaticConfig_->DiskFamily;
 }
 
 std::string TChunkLocation::GetMediumName() const
@@ -638,32 +403,11 @@ TMediumDescriptor TChunkLocation::GetMediumDescriptor() const
     return MediumDescriptor_.Load();
 }
 
-const NProfiling::TProfiler& TChunkLocation::GetProfiler() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return Profiler_;
-}
-
 TLocationPerformanceCounters& TChunkLocation::GetPerformanceCounters()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return *PerformanceCounters_;
-}
-
-const TString& TChunkLocation::GetPath() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return StaticConfig_->Path;
-}
-
-i64 TChunkLocation::GetQuota() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return StaticConfig_->Quota.value_or(std::numeric_limits<i64>::max());
 }
 
 double TChunkLocation::GetIOWeight() const
@@ -674,7 +418,7 @@ double TChunkLocation::GetIOWeight() const
         auto value = EvaluateIOWeight(evaluator);
         return value.ValueOrDefault(1.);
     } else {
-        return StaticConfig_->IOWeight;
+        return GetStaticConfig()->IOWeight;
     }
 }
 
@@ -685,109 +429,12 @@ i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
     return GetRuntimeConfig()->CoalescedReadMaxGapSize;
 }
 
-const IInvokerPtr& TChunkLocation::GetAuxPoolInvoker()
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return IOEngine_->GetAuxPoolInvoker();
-}
-
-std::vector<TChunkDescriptor> TChunkLocation::Scan()
-{
-    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_VERIFY(GetState() == ELocationState::Enabling);
-
-    try {
-        ValidateLockFile();
-        ValidateMinimumSpace();
-        ValidateWritable();
-        return DoScan();
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Location disabled");
-        MarkUninitializedLocationDisabled(ex);
-        return {};
-    }
-}
-
-void TChunkLocation::InitializeIds()
-{
-    try {
-        InitializeCellId();
-        InitializeUuid();
-    } catch (const std::exception& ex) {
-        Crash(TError("Location initialize failed") << ex);
-    }
-}
-
-void TChunkLocation::Start()
-{
-    ChangeState(ELocationState::Enabled);
-    LocationDisabledAlert_.Store(TError());
-
-    try {
-        DoStart();
-    } catch (const std::exception& ex) {
-        ScheduleDisable(TError("Location start failed") << ex);
-    }
-}
-
 bool TChunkLocation::CanPublish() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GetUuid() != InvalidChunkLocationUuid &&
         GetUuid() != EmptyChunkLocationUuid;
-}
-
-bool TChunkLocation::StartDestroy()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    if (!ChangeState(ELocationState::Destroying, ELocationState::Disabled)) {
-        return false;
-    }
-
-    YT_LOG_INFO("Starting location destruction (LocationUuid: %v, DiskName: %v)",
-        GetUuid(),
-        StaticConfig_->DeviceName);
-    return true;
-}
-
-bool TChunkLocation::FinishDestroy(
-    bool destroyResult,
-    const TError& reason = {})
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    if (destroyResult) {
-        if (!ChangeState(ELocationState::Destroyed, ELocationState::Destroying)) {
-            return false;
-        }
-
-        YT_LOG_INFO("Finish location destruction (LocationUuid: %v, DiskName: %v)",
-            GetUuid(),
-            StaticConfig_->DeviceName);
-    } else {
-        if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying)) {
-            return false;
-        }
-
-        YT_LOG_ERROR(reason, "Location destroying failed");
-    }
-
-    return true;
-}
-
-bool TChunkLocation::OnDiskRepaired()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    if (!ChangeState(ELocationState::Disabled, ELocationState::Destroyed)) {
-        return false;
-    }
-
-    LocationDiskFailedAlert_.Store(TError());
-    return true;
 }
 
 bool TChunkLocation::Resurrect()
@@ -824,64 +471,9 @@ bool TChunkLocation::Resurrect()
     return true;
 }
 
-void TChunkLocation::Crash(const TError& reason)
-{
-    YT_LOG_ERROR(reason, "Error during location initialization");
-
-    LocationDisabledAlert_.Store(
-        TError(NChunkClient::EErrorCode::LocationCrashed,
-            "Error during location initialization")
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
-            << reason);
-
-    ChangeState(ELocationState::Crashed);
-}
-
-void TChunkLocation::UpdateUsedSpace(i64 size)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    UsedSpace_ += size;
-    AvailableSpace_ -= size;
-}
-
-i64 TChunkLocation::GetUsedSpace() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return UsedSpace_.load();
-}
-
 std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobSessionBlockFree() const
 {
     return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobSessionBlockFree;
-}
-
-i64 TChunkLocation::GetAvailableSpace() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    if (!IsEnabled()) {
-        return 0;
-    }
-
-    i64 availableSpace = 0;
-    try {
-        auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
-        availableSpace = statistics.AvailableSpace + GetAdditionalSpace();
-
-        i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
-        availableSpace = std::min(availableSpace, remainingQuota);
-        AvailableSpace_.store(availableSpace);
-
-        return availableSpace;
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to compute available space")
-            << ex;
-        const_cast<TChunkLocation*>(this)->ScheduleDisable(error);
-        return 0;
-    }
 }
 
 const IMemoryUsageTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
@@ -947,11 +539,6 @@ i64 TChunkLocation::GetRequestedQueueSize() const
     auto guard = Guard(ProbePutBlocksRequestsLock_);
 
     return ProbePutBlocksRequests_.size();
-}
-
-TError TChunkLocation::GetLocationDisableError() const
-{
-    return LocationDisabledAlert_.Load();
 }
 
 void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
@@ -1222,93 +809,6 @@ void TChunkLocation::IncreaseCompletedIOSize(
     PerformanceCounters_->CompletedIOSize[direction][category].Increment(delta);
 }
 
-void TChunkLocation::UpdateSessionCount(ESessionType type, int delta)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    if (!IsEnabled()) {
-        return;
-    }
-
-    PerTypeSessionCount_[type] += delta;
-}
-
-int TChunkLocation::GetSessionCount(ESessionType type) const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return PerTypeSessionCount_[type];
-}
-
-int TChunkLocation::GetSessionCount() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    int result = 0;
-    for (const auto& count : PerTypeSessionCount_) {
-        result += count.load();
-    }
-    return result;
-}
-
-void TChunkLocation::UpdateChunkCount(int delta)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    ChunkCount_ += delta;
-}
-
-int TChunkLocation::GetChunkCount() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return ChunkCount_;
-}
-
-TString TChunkLocation::GetChunkPath(TChunkId chunkId) const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return NFS::CombinePaths(GetPath(), GetRelativeChunkPath(chunkId));
-}
-
-void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    try {
-        YT_LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
-
-        auto partNames = GetChunkPartNames(chunkId);
-        auto directory = NFS::GetDirectoryName(GetChunkPath(chunkId));
-
-        for (const auto& name : partNames) {
-            auto fileName = NFS::CombinePaths(directory, name);
-            if (NFS::Exists(fileName)) {
-                NFS::Remove(fileName);
-            }
-        }
-
-        YT_LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
-
-        UnlockChunk(chunkId);
-    } catch (const std::exception& ex) {
-        auto error = TError(
-            NChunkClient::EErrorCode::IOError,
-            "Error removing chunk %v",
-            chunkId)
-            << ex;
-        ScheduleDisable(error);
-    }
-}
-
-void TChunkLocation::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    RemoveChunkFilesPermanently(chunkId);
-}
-
 const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1391,87 +891,6 @@ bool TChunkLocation::IsWriteThrottling() const
     auto time = PerformanceCounters_->LastWriteThrottleTime.load();
     auto config = GetRuntimeConfig();
     return GetCpuInstant() < time + 2 * DurationToCpuDuration(config->ThrottleDuration);
-}
-
-TString TChunkLocation::GetRelativeChunkPath(TChunkId chunkId)
-{
-    int hashByte = chunkId.Parts32[0] & 0xff;
-    return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
-}
-
-void TChunkLocation::ForceHashDirectories(const TString& rootPath)
-{
-    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        auto hashDirectory = Format("%02x", hashByte);
-        NFS::MakeDirRecursive(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
-    }
-}
-
-void TChunkLocation::ValidateWritable()
-{
-    NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
-
-    // Run first health check before to sort out read-only drives.
-    HealthChecker_->RunCheck();
-}
-
-void TChunkLocation::InitializeCellId()
-{
-    auto cellIdPath = NFS::CombinePaths(GetPath(), CellIdFileName);
-    auto expectedCellId = ChunkStoreHost_->GetCellId();
-
-    if (NFS::Exists(cellIdPath)) {
-        TUnbufferedFileInput file(cellIdPath);
-        auto cellIdString = file.ReadAll();
-        TCellId cellId;
-        if (!TCellId::FromString(cellIdString, &cellId)) {
-            THROW_ERROR_EXCEPTION("Failed to parse cell id %Qv",
-                cellIdString);
-        }
-
-        if (cellId != expectedCellId) {
-            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, found %v",
-                expectedCellId,
-                cellId);
-        }
-    } else {
-        YT_LOG_INFO("Cell id file is not found, creating");
-        TFile file(cellIdPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TUnbufferedFileOutput output(file);
-        output.Write(ToString(expectedCellId));
-    }
-}
-
-void TChunkLocation::InitializeUuid()
-{
-    auto uuidPath = NFS::CombinePaths(GetPath(), ChunkLocationUuidFileName);
-
-    auto uuidResetPath = NFS::CombinePaths(GetPath(), ChunkLocationUuidResetFileName);
-    if (StaticConfig_->ResetUuid && !NFS::Exists(uuidResetPath)) {
-        TFile file(uuidResetPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-
-        if (NFS::Exists(uuidPath)) {
-            NFS::Remove(uuidPath);
-        }
-    }
-
-    if (NFS::Exists(uuidPath)) {
-        TUnbufferedFileInput file(uuidPath);
-        auto uuidString = file.ReadAll();
-        if (!TCellId::FromString(uuidString, &Uuid_)) {
-            THROW_ERROR_EXCEPTION("Failed to parse chunk location uuid %Qv",
-                uuidString);
-        }
-    } else {
-        do {
-            Uuid_ = TChunkLocationUuid::Create();
-        } while (Uuid_ == EmptyChunkLocationUuid || Uuid_ == InvalidChunkLocationUuid);
-        YT_LOG_INFO("Chunk location uuid file is not found, creating (LocationUuid: %v)",
-            Uuid_);
-        TFile file(uuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TUnbufferedFileOutput output(file);
-        output.Write(ToString(Uuid_));
-    }
 }
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
@@ -1663,194 +1082,9 @@ i64 TChunkLocation::GetWriteThrottlingLimit() const
     return limit.value_or(config->DiskWriteThrottlingLimit);
 }
 
-bool TChunkLocation::IsSick() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return IOEngine_->IsSick();
-}
-
-TLockedChunkGuard TChunkLocation::TryLockChunk(TChunkId chunkId)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto guard = Guard(LockedChunksLock_);
-
-    if (!LockedChunkIds_.insert(chunkId).second) {
-        YT_LOG_DEBUG("Chunk is already locked (ChunkId: %v)",
-            chunkId);
-        return {};
-    }
-    YT_LOG_DEBUG("Chunk locked (ChunkId: %v)",
-        chunkId);
-    return {this, chunkId};
-}
-
-void TChunkLocation::UnlockChunk(TChunkId chunkId)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto guard = Guard(LockedChunksLock_);
-    if (LockedChunkIds_.erase(chunkId) == 0) {
-        YT_LOG_ALERT("Attempt to unlock a non-locked chunk (ChunkId: %v)",
-            chunkId);
-    } else {
-        YT_LOG_DEBUG("Chunk unlocked (ChunkId: %v)",
-            chunkId);
-    }
-}
-
-void TChunkLocation::UnlockChunkLocks()
-{
-    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-
-    auto state = GetState();
-    YT_LOG_FATAL_IF(
-        state != ELocationState::Disabling,
-        "Remove location chunk locks should be called when state is equal to ELocationState::Disabling");
-
-    auto guard = Guard(LockedChunksLock_);
-    LockedChunkIds_.clear();
-}
-
-void TChunkLocation::OnHealthCheckFailed(const TError& error)
-{
-    ScheduleDisable(error);
-}
-
-bool TChunkLocation::IsLocationDiskOK() const
-{
-    return LocationDiskFailedAlert_.Load().IsOK();
-}
-
-void TChunkLocation::MarkLocationDiskFailed()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    YT_LOG_WARNING("Disk with store location failed (LocationUuid: %v, DiskName: %v)",
-        GetUuid(),
-        StaticConfig_->DeviceName);
-
-    LocationDiskFailedAlert_.Store(
-        TError(NChunkClient::EErrorCode::LocationDiskFailed,
-            "Disk of chunk location is marked as failed")
-            << TErrorAttribute("location_uuid", GetUuid())
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
-}
-
-void TChunkLocation::MarkLocationDiskWaitingReplacement()
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    LocationDiskFailedAlert_.Store(
-        TError(NChunkClient::EErrorCode::LocationDiskWaitingReplacement,
-            "Disk of chunk location is waiting replacement")
-            << TErrorAttribute("location_uuid", GetUuid())
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
-}
-
-void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
-{
-    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabling)) {
-        return;
-    }
-
-    LocationDisabledAlert_.Store(TError(NChunkClient::EErrorCode::LocationDisabled,
-        "Chunk location at %v is disabled", GetPath())
-        << TErrorAttribute("location_uuid", GetUuid())
-        << TErrorAttribute("location_path", GetPath())
-        << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
-        << error);
-
-    AvailableSpace_.store(0);
-    UsedSpace_.store(0);
-    for (auto& count : PerTypeSessionCount_) {
-        count.store(0);
-    }
-    ChunkCount_.store(0);
-
-    ChangeState(ELocationState::Disabled, ELocationState::Disabling);
-}
-
-i64 TChunkLocation::GetAdditionalSpace() const
-{
-    return 0;
-}
-
-bool TChunkLocation::ShouldSkipFileName(const TString& fileName) const
-{
-    return
-        fileName == CellIdFileName ||
-        fileName == ChunkLocationUuidFileName ||
-        fileName == ChunkLocationUuidResetFileName;
-}
-
-std::vector<TChunkDescriptor> TChunkLocation::DoScan()
-{
-    YT_LOG_INFO("Started scanning location");
-
-    NFS::CleanTempFiles(GetPath());
-    ForceHashDirectories(GetPath());
-
-    THashSet<TChunkId> chunkIds;
-    {
-        // Enumerate files under the location's directory.
-        // Note that these also include trash files but the latter are explicitly skipped.
-        auto fileNames = NFS::EnumerateFiles(GetPath(), std::numeric_limits<int>::max());
-        for (const auto& fileName : fileNames) {
-            if (ShouldSkipFileName(fileName)) {
-                continue;
-            }
-
-            TChunkId chunkId;
-            auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
-            if (!TChunkId::FromString(bareFileName, &chunkId)) {
-                YT_LOG_ERROR("Unrecognized file in location directory (FileName: %v)", fileName);
-                continue;
-            }
-
-            chunkIds.insert(chunkId);
-        }
-    }
-
-    // Construct the list of chunk descriptors.
-    // Also "repair" half-alive chunks (e.g. those having some of their essential parts missing)
-    // by moving them into trash.
-    std::vector<TChunkDescriptor> descriptors;
-    for (auto chunkId : chunkIds) {
-        if (TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::NbdChunk) {
-            YT_LOG_DEBUG("Removing left over NBD chunk (ChunkId: %v)", chunkId);
-            RemoveChunkFiles(chunkId, /*force*/ true);
-            continue;
-        }
-        auto optionalDescriptor = RepairChunk(chunkId);
-        if (optionalDescriptor) {
-            descriptors.push_back(*optionalDescriptor);
-        }
-    }
-
-    YT_LOG_INFO("Finished scanning location (CountChunk: %v)",
-        descriptors.size());
-
-    return descriptors;
-}
-
-void TChunkLocation::DoStart()
-{
-    HealthChecker_->SubscribeFailed(BIND(&TChunkLocation::OnHealthCheckFailed, Unretained(this)));
-    HealthChecker_->Start();
-}
-
-void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback)
-{
-    HealthChecker_->SubscribeFailed(callback);
-}
-
 void TChunkLocation::UpdateMediumTag()
 {
-    Profiler_.RenameDynamicTag(MediumTag_, "medium", GetMediumName());
+    TChunkLocationBase::UpdateMediumTag(GetMediumName());
 }
 
 void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)
@@ -1878,86 +1112,23 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         newDescriptor.Priority);
 }
 
-void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
-{
-    for (const auto* alertHolder : {&LocationDisabledAlert_, &LocationDiskFailedAlert_}) {
-        if (auto alert = alertHolder->Load(); !alert.IsOK()) {
-            alerts->push_back(std::move(alert));
-        }
-    }
-}
-
-TFuture<void> TChunkLocation::SynchronizeActions()
-{
-    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-
-    auto state = GetState();
-    YT_LOG_FATAL_IF(
-        state != ELocationState::Disabling,
-        "Synchronization of actions should be called when state is equal to ELocationState::Disabling");
-
-    std::vector<TFuture<void>> futures;
-    {
-        auto actionsGuard = Guard(ActionsContainerLock_);
-        futures = {Actions_.begin(), Actions_.end()};
-    }
-
-    return AllSet(futures)
-        .AsVoid()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
-            // All actions with this location ended here.
-            auto actionsGuard = Guard(ActionsContainerLock_);
-            YT_VERIFY(Actions_.empty());
-        }));
-}
-
-void TChunkLocation::CreateDisableLockFile(const TError& reason)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto state = GetState();
-    YT_LOG_FATAL_IF(
-        state != ELocationState::Disabling,
-        "Disable lock file should be created when state is equal to ELocationState::Disabling");
-
-    // Save the reason in a file and exit.
-    // Location will be disabled during the scan in the restart process.
-    auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
-    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
-
-    try {
-        TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TUnbufferedFileOutput fileOutput(file);
-        fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
-    } catch (const std::exception& ex) {
-        if (dynamicConfig->AbortOnLocationDisabled) {
-            YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
-        } else {
-            THROW_ERROR_EXCEPTION("Error creating location lock file; aborting")
-                << ex;
-        }
-    }
-
-    if (dynamicConfig->AbortOnLocationDisabled) {
-        YT_LOG_FATAL(reason);
-    }
-}
-
-void TChunkLocation::ResetLocationStatistic()
-{
-    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-
-    AvailableSpace_.store(0);
-    UsedSpace_.store(0);
-    for (auto& count : PerTypeSessionCount_) {
-        count.store(0);
-    }
-    ChunkCount_.store(0);
-}
-
 const TChunkStorePtr& TChunkLocation::GetChunkStore() const
 {
     return ChunkStore_;
+}
+
+NNode::TBriefChunkLocationConfig TChunkLocation::GetBriefConfig() const
+{
+    YT_VERIFY(DynamicConfigManager_);
+
+    return {
+        .AbortOnLocationDisabled = DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled,
+    };
+}
+
+TChunkLocationConfigPtr TChunkLocation::GetStaticConfig() const
+{
+    return StaticPointerCast<TChunkLocationConfig>(TChunkLocationBase::GetStaticConfig());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

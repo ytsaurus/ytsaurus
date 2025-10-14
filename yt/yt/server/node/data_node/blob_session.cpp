@@ -40,6 +40,7 @@ using namespace NIO;
 using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NRpc;
+using namespace NNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

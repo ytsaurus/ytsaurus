@@ -90,10 +90,7 @@ void TP2PConfig::Register(TRegistrar registrar)
 
 void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig)
 {
-    TDiskLocationConfig::ApplyDynamicInplace(dynamicConfig);
-
-    UpdateYsonStructField(IOEngineType, dynamicConfig.IOEngineType);
-    UpdateYsonStructField(IOConfig, dynamicConfig.IOConfig);
+    TChunkLocationConfigBase::ApplyDynamicInplace(dynamicConfig);
 
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         UpdateYsonStructField(Throttlers[kind], dynamicConfig.Throttlers[kind]);
@@ -103,15 +100,7 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(EnableUncategorizedThrottler, dynamicConfig.EnableUncategorizedThrottler);
     UpdateYsonStructField(UncategorizedThrottler, dynamicConfig.UncategorizedThrottler);
 
-    UpdateYsonStructField(DiskHealthChecker, DiskHealthChecker->ApplyDynamic(*dynamicConfig.DiskHealthChecker));
-
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
-
-    UpdateYsonStructField(LegacyWriteMemoryLimit, dynamicConfig.LegacyWriteMemoryLimit);
-
-    UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
-
-    UpdateYsonStructField(TotalMemoryLimit, dynamicConfig.TotalMemoryLimit);
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
         auto priority = dynamicConfig.FairShareWorkloadCategoryWeights[category];
@@ -122,10 +111,6 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
         }
     }
 
-    UpdateYsonStructField(WriteMemoryLimit, dynamicConfig.WriteMemoryLimit);
-
-    UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
-
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
 
     UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
@@ -133,10 +118,6 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("quota", &TThis::Quota)
-        .GreaterThanOrEqual(0)
-        .Default();
-
     registrar.Parameter("throttlers", &TThis::Throttlers)
         .Default();
 
@@ -146,26 +127,8 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .DefaultNew();
 
-    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
-        .DefaultNew();
-
-    registrar.Parameter("io_engine_type", &TThis::IOEngineType)
-        .Default(NIO::EIOEngineType::ThreadPool);
-    registrar.Parameter("io_config", &TThis::IOConfig)
-        .Optional();
-
     registrar.Parameter("fair_share_workload_category_priorities", &TThis::FairShareWorkloadCategoryWeights)
         .Default();
-
-    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
-        .Default(10_GB);
-    registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
-        .Default(10_GB);
-    registrar.Parameter("total_memory_limit", &TThis::TotalMemoryLimit)
-        .Default(20_GB);
-
-    registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
-        .Default(1000);
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
@@ -190,9 +153,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    registrar.Parameter("reset_uuid", &TThis::ResetUuid)
-        .Default(false);
-
     registrar.Postprocessor([] (TThis* config) {
         config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
 
@@ -208,10 +168,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
 
 void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("io_engine_type", &TThis::IOEngineType)
-        .Optional();
-    registrar.Parameter("io_config", &TThis::IOConfig)
-        .Optional();
     registrar.Parameter("throttlers", &TThis::Throttlers)
         .Optional();
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
@@ -221,26 +177,13 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .Optional();
 
-    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
-        .DefaultNew();
-
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
-        .Optional();
-
-    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
-        .Optional();
-    registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
-        .Optional();
-    registrar.Parameter("total_memory_limit", &TThis::TotalMemoryLimit)
         .Optional();
 
     registrar.Parameter("memory_limit_fraction_for_starting_new_sessions", &TThis::MemoryLimitFractionForStartingNewSessions)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
-        .Optional();
-
-    registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
 
     registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)

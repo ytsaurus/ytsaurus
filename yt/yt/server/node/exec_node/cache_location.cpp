@@ -1,6 +1,6 @@
 #include "cache_location.h"
 
-#include "chunk_cache.h"
+#include "artifact_cache.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/format.h>
@@ -10,6 +10,7 @@
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/private.h>
 
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -24,59 +25,97 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NClusterNode;
 using namespace NCypressClient;
-using namespace NDataNode;
+using namespace NNode;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlobChunk::TCachedBlobChunk(
-    TChunkContextPtr context,
-    TChunkLocationPtr location,
+TArtifact::TArtifact(
+    TCacheLocationPtr location,
     const TChunkDescriptor& descriptor,
-    TRefCountedChunkMetaPtr meta,
     const TArtifactKey& key,
+    NChunkClient::TRefCountedChunkMetaPtr meta,
     TClosure destroyedHandler)
-    : TBlobChunkBase(
-        std::move(context),
-        std::move(location),
-        descriptor,
-        std::move(meta))
-    , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
+    : TAsyncCacheValueBase<TArtifactKey, TArtifact>(key)
+    , Id_(descriptor.Id)
     , DestroyedHandler_(std::move(destroyedHandler))
+    , FileName_(location->GetChunkPath(descriptor.Id))
+    , Location_(location)
+    , Meta_(std::move(meta))
+    , DiskSpace_(descriptor.DiskSpace)
 { }
 
-TCachedBlobChunk::~TCachedBlobChunk()
+TArtifact::~TArtifact()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DestroyedHandler_.Run();
 }
 
+const std::string& TArtifact::GetFileName() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return FileName_;
+}
+
+const TCacheLocationPtr& TArtifact::GetLocation() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return Location_;
+}
+
+i64 TArtifact::GetDiskSpace() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return DiskSpace_;
+}
+
+NChunkClient::TChunkId TArtifact::GetId() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return Id_;
+}
+
+const NChunkClient::TRefCountedChunkMetaPtr& TArtifact::GetMeta() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return Meta_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCacheLocation::TCacheLocation(
     TString id,
-    TCacheLocationConfigPtr config,
-    TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    TChunkContextPtr chunkContext,
-    IChunkStoreHostPtr chunkStoreHost,
-    TChunkCachePtr chunkCache)
-    : TChunkLocation(
+    NDataNode::TCacheLocationConfigPtr config,
+    const NClusterNode::IBootstrap* bootstrap,
+    TArtifactCachePtr artifactCache)
+    : TChunkLocationBase(
         ELocationType::Cache,
         std::move(id),
         config,
-        std::move(dynamicConfigManager),
-        nullptr,
-        std::move(chunkContext),
-        std::move(chunkStoreHost))
+        BIND_NO_PROPAGATE(&TCacheLocation::GetBriefConfig, Unretained(this)),
+        bootstrap->GetCellId(),
+        bootstrap->GetFairShareHierarchicalScheduler(),
+        bootstrap->GetHugePageManager(),
+        ExecNodeLogger(),
+        NDataNode::LocationProfiler())
     , StaticConfig_(config)
     , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
         config->InThrottler,
         "InThrottler",
         Logger,
         Profiler_.WithPrefix("/cache")))
-    , ChunkCache_(std::move(chunkCache))
-{ }
+    , ArtifactCache_(std::move(artifactCache))
+    , MediumName_(config->MediumName)
+    , Bootstrap_(bootstrap)
+{
+    TChunkLocationBase::UpdateMediumTag(GetMediumName());
+}
 
 const NDataNode::TCacheLocationConfigPtr& TCacheLocation::GetStaticConfig() const
 {
@@ -89,7 +128,7 @@ void TCacheLocation::Reconfigure(NDataNode::TCacheLocationConfigPtr config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    TChunkLocation::Reconfigure(config);
+    TChunkLocationBase::Reconfigure(config);
     InThrottler_->Reconfigure(config->InThrottler);
 }
 
@@ -121,14 +160,16 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
             descriptor.DiskSpace = dataSize + metaSize;
             return descriptor;
         }
-        YT_LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
+        YT_LOG_WARNING("Artifact meta file %v is empty, removing artifact files",
             metaFileName);
     } else if (hasData && !hasMeta) {
-        YT_LOG_WARNING("Chunk meta file %v is missing, removing data file %v",
+        YT_LOG_WARNING(
+            "Artifact meta file %v is missing, removing data file %v",
             metaFileName,
             dataFileName);
     } else if (!hasData && hasMeta) {
-        YT_LOG_WARNING("Chunk data file %v is missing, removing meta file %v",
+        YT_LOG_WARNING(
+            "Artifact data file %v is missing, removing meta file %v",
             dataFileName,
             metaFileName);
     }
@@ -189,10 +230,11 @@ std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 TFuture<void> TCacheLocation::RemoveChunks()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
+    YT_LOG_INFO(
+        "Location is disabled; unregistering all the artifacts in it (LocationId: %v)",
         GetId());
 
-    return ChunkCache_->RemoveChunksByLocation(MakeStrong(this));
+    return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this));
 }
 
 bool TCacheLocation::ScheduleDisable(const TError& reason)
@@ -206,7 +248,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
     YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
-    auto error = TError("Chunk location at %v is disabled", GetPath())
+    auto error = TError("Artifact location at %v is disabled", GetPath())
         << TErrorAttribute("location_uuid", GetUuid());
     error = error << reason;
     LocationDisabledAlert_.Store(error);
@@ -243,6 +285,22 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
         .Run());
 
     return true;
+}
+
+const std::string& TCacheLocation::GetMediumName() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return MediumName_;
+}
+
+TBriefChunkLocationConfig TCacheLocation::GetBriefConfig() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return {
+        .AbortOnLocationDisabled = Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->AbortOnLocationDisabled,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

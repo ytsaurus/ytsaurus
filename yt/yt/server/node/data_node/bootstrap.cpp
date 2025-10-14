@@ -1,10 +1,14 @@
 #include "bootstrap.h"
 
+#include "config.h"
+
 #include "ally_replica_manager.h"
+#include "blob_reader_cache.h"
 #include "chunk_detail.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
 #include "data_node_nbd_service.h"
+#include "chunk_meta_manager.h"
 #include "io_throughput_meter.h"
 #include "job_controller.h"
 #include "journal_dispatcher.h"
@@ -90,6 +94,16 @@ public:
         auto dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
 
         JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
+
+        ChunkMetaManager_ = CreateChunkMetaManager(
+            GetConfig()->DataNode,
+            GetDynamicConfigManager(),
+            GetNodeMemoryUsageTracker());
+
+        BlobReaderCache_ = CreateBlobReaderCache(
+            GetConfig()->DataNode,
+            GetDynamicConfigManager(),
+            ChunkMetaManager_);
 
         ChunkStore_ = New<TChunkStore>(
             GetConfig()->DataNode,
@@ -302,6 +316,16 @@ public:
         return ChunkStore_;
     }
 
+    const IChunkMetaManagerPtr& GetChunkMetaManager() const override
+    {
+        return ChunkMetaManager_;
+    }
+
+    const IBlobReaderCachePtr& GetBlobReaderCache() const override
+    {
+        return BlobReaderCache_;
+    }
+
     const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
     {
         return AllyReplicaManager_;
@@ -439,6 +463,10 @@ private:
 
     TChunkStorePtr ChunkStore_;
     IAllyReplicaManagerPtr AllyReplicaManager_;
+
+    IChunkMetaManagerPtr ChunkMetaManager_;
+
+    IBlobReaderCachePtr BlobReaderCache_;
 
     TSessionManagerPtr SessionManager_;
 
