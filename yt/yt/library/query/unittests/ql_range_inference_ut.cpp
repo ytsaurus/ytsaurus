@@ -1156,6 +1156,8 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
         std::pair(YsonToKey("1;1;1;aaa"), YsonToKey("100;100;100;bbb")),
         expr);
 
+    VerifyIdsInRange(result);
+
     EXPECT_EQ(YsonToKey("50;50;50;abc"), result.first);
     EXPECT_EQ(YsonToKey("50;50;50;abd"), result.second);
 }
@@ -1489,6 +1491,8 @@ TEST_P(TInferRangesTest, Stress)
             GetDefaultMemoryChunkProvider(),
             /*forceLightRangeInference*/ false);
 
+        VerifyIdsInRanges(inferredRanges);
+
         Y_UNUSED(inferredRanges);
 
         TCGVariables variables;
@@ -1516,7 +1520,9 @@ TEST_P(TInferRangesTest, Stress)
 
             bool rowInRanges = foundIt != inferredRanges.end() && foundIt->first <= row;
 
-            EXPECT_FALSE(resultValue.Data.Boolean && !rowInRanges) <<
+            bool matchesPredicate = resultValue.Data.Boolean && (resultValue.Type != EValueType::Null);
+
+            EXPECT_FALSE(matchesPredicate && !rowInRanges) <<
                 Format("Expression: %v, InferredRanges: %v, RandomRow: %v",
                     expressionString,
                     inferredRanges,

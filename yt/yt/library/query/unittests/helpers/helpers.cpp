@@ -180,14 +180,26 @@ std::string TRandomExpressionGenerator::GenerateRelation(int tupleSize)
 
 std::string TRandomExpressionGenerator::GenerateRelation(TRange<int> ids)
 {
-    const char* relationOps[] = {">", ">=", "<", "<=", "=", "!=", "IN"};
-    const char* relationOp = relationOps[Rng.Uniform(7)];
+    const char* relationOps[] = {">", ">=", "<", "<=", "=", "!=", "IN", "is_prefix"};
+    int maxOp = 7;
+    if (ids.size() == 1 && Schema->Columns()[ids[0]].GetWireType() == EValueType::String) {
+        maxOp++;
+    }
+    const char* relationOp = relationOps[Rng.Uniform(maxOp)];
 
     return GenerateRelation(ids, relationOp);
 }
 
 std::string TRandomExpressionGenerator::GenerateRelation(TRange<int> ids, const char* relationOp)
 {
+    if (relationOp == TStringBuf("is_prefix")) {
+        auto id = ids[0];
+
+        return Format("is_prefix(%v, %v)",
+            GenerateRandomLiteral(Schema->Columns()[id].GetWireType()),
+            Schema->Columns()[id].Name());
+    }
+
     std::string result = GenerateFieldTuple(ids);
     result += Format(" %v ", relationOp);
     if (relationOp == std::string("IN")) {

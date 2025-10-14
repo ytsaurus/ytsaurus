@@ -141,15 +141,20 @@ TKeyTriePtr IsPrefixRangeExtractor(
         if (keyPartIndex >= 0) {
             auto value = TValue(constantExpr->Value);
 
+            if (value.Type == EValueType::Null) {
+                return TKeyTrie::Empty();
+            }
+
             YT_VERIFY(value.Type == EValueType::String);
 
+            value.Id = keyPartIndex;
             result = New<TKeyTrie>(keyPartIndex);
             result->Bounds.emplace_back(value, true);
             auto upper = GetUpperBound(TStringBuf{value.Data.String, value.Length}, rowBuffer->GetPool());
             result->Bounds.emplace_back(
                 upper.empty()
                     ? MakeSentinelValue<TUnversionedValue>(EValueType::Max)
-                    : MakeUnversionedStringValue(upper),
+                    : MakeUnversionedStringValue(upper, value.Id),
                 false);
         }
     }
@@ -173,8 +178,14 @@ TConstraintRef IsPrefixConstraintExtractor(
         int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
         if (keyPartIndex >= 0) {
             auto value = TValue(constantExpr->Value);
+            if (value.Type == EValueType::Null) {
+                // is_prefix(#, v) == # and # converts to false
+                return TConstraintRef::Empty();
+            }
+
             YT_VERIFY(value.Type == EValueType::String);
 
+            value.Id = keyPartIndex;
             auto upper = GetUpperBound(TStringBuf{value.Data.String, value.Length}, rowBuffer->GetPool());
 
             return constraints->Interval(
@@ -182,7 +193,7 @@ TConstraintRef IsPrefixConstraintExtractor(
                 TValueBound{
                     upper.empty()
                         ? MakeSentinelValue<TUnversionedValue>(EValueType::Max)
-                        : MakeUnversionedStringValue(upper),
+                        : MakeUnversionedStringValue(upper, value.Id),
                     false},
                 keyPartIndex);
         }
