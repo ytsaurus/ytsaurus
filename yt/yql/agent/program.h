@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 #include "config.h"
+#include "yql_agent.h"
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>

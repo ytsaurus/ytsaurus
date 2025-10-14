@@ -25,11 +25,15 @@
 
 #include <yt/yt/core/net/config.h>
 
+#include <yt/yt/library/program/program.h>
+
 #include <yt/yql/plugin/bridge/plugin.h>
 #include <yt/yql/plugin/process/plugin.h>
 
 #include <util/generic/hash_set.h>
 #include <util/string/builder.h>
+
+#include <csignal>
 
 namespace NYT::NYqlAgent {
 
@@ -312,6 +316,15 @@ public:
 
         coroutine.Run(std::move(options));
         YT_VERIFY(coroutine.IsCompleted());
+
+        // Configure crash handler again because YqlPlugin overrides signal handlers.
+        ConfigureCrashHandler();
+
+#ifdef _unix_
+        if (Config_->TestingOptions && Config_->TestingOptions->CrashAfterStart) {
+            raise(SIGSEGV);
+        }
+#endif
     }
 
     void Start() override

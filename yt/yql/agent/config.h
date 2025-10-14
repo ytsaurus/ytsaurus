@@ -24,6 +24,20 @@ using NYqlPlugin::TYqlPluginConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TYqlAgentTestingOptions);
+
+struct TYqlAgentTestingOptions
+    : public NYTree::TYsonStruct
+{
+    bool CrashAfterStart;
+
+    REGISTER_YSON_STRUCT(TYqlAgentTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYqlAgentTestingOptions)
+
 struct TYqlAgentConfig
     : public TYqlPluginConfig
 {
@@ -35,6 +49,8 @@ struct TYqlAgentConfig
     std::optional<std::string> MaxSupportedYqlVersion;
 
     std::vector<std::string> InsecureSecretPathSubjects;
+
+    TYqlAgentTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 
