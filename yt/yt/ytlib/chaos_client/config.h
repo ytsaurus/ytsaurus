@@ -37,6 +37,8 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellDirectorySynchronizerConfig)
 struct TChaosResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
+    bool UseHasChaosObject;
+
     TChaosResidencyCacheConfigPtr ApplyDynamic(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);

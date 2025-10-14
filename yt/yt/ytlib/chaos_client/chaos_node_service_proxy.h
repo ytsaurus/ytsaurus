@@ -39,6 +39,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, PingChaosLease);
     DEFINE_RPC_PROXY_METHOD(NProto, FindChaosObject);
     DEFINE_RPC_PROXY_METHOD(NProto, FindReplicationCard);
+    DEFINE_RPC_PROXY_METHOD(NProto, IsChaosObjectExistent);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

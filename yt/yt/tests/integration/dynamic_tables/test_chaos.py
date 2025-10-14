@@ -80,6 +80,14 @@ class TestChaos(ChaosTestBase):
         },
     }
 
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
@@ -5274,6 +5282,29 @@ class TestChaosNativeProxy(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 0
     NUM_NODES = 5
 
+    DELTA_DRIVER_CONFIG = {
+        "enable_read_from_async_replicas": True,
+        "chaos_residency_cache": {
+            "enable_client_mode" : True,
+        },
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+    }
+
     @authors("osidorkin")
     def test_partial_pull_rows(self):
         metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -5471,6 +5502,23 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+    }
+
     DELTA_RPC_DRIVER_CONFIG = {
         "table_mount_cache": {
             "expire_after_successful_update_time": 0,
@@ -5480,8 +5528,12 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             "expiration_period": 0,
         },
     }
+
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5493,8 +5545,12 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             },
         },
     }
+
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5691,6 +5747,14 @@ class TestChaosMetaCluster(ChaosTestBase):
                     "replication_card_keep_alive_period": 0,
                 },
                 "leftover_migration_period": 5,
+            },
+        },
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
             },
         },
     }
@@ -6356,6 +6420,14 @@ class ChaosClockBase(ChaosTestBase):
     NUM_TIMESTAMP_PROVIDERS = 1
     USE_PRIMARY_CLOCKS = False
 
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "transaction_manager": {
@@ -6653,6 +6725,14 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 class TestChaosSingleCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
 
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):

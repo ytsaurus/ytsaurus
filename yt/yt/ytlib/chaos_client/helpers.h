@@ -4,7 +4,7 @@
 
 #include <yt/yt/client/api/public.h>
 
-namespace NYT::NChaosNode {
+namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,4 +14,4 @@ TError CreateChaosLeaseNotKnownError(TChaosLeaseId chaosLeaseId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChaosNode
+} // namespace NYT::NChaosClient
