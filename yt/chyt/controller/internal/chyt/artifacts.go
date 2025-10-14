@@ -31,10 +31,10 @@ func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (targe
 }
 
 func (c *Controller) resolveChytVersion(ctx context.Context, path ypath.Path, chytVersion *chytOpletInfo) {
-	chytVersion.ChytRunningVersionPath = path.String()
-	err := c.ytc.GetNode(ctx, path.Attr("version"), &chytVersion.ChytRunningVersion, nil)
+	chytVersion.CHYTRunningVersionPath = path.String()
+	err := c.ytc.GetNode(ctx, path.Attr("version"), &chytVersion.CHYTRunningVersion, nil)
 	if err != nil {
-		chytVersion.ChytRunningVersion = "unknown"
+		chytVersion.CHYTRunningVersion = "unknown"
 	}
 }
 
