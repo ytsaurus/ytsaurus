@@ -13,7 +13,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TAugmentedStoredChunkReplicaPtr::HasPtr() const
+TAugmentedStoredChunkReplicaPtr::operator bool() const
 {
     return Value_ & 0x0000fffffffffffcLL;
 }
