@@ -69,6 +69,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/sequoia_server/context.h>
+
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
@@ -4448,6 +4450,14 @@ private:
 
     void ValidateCreatedNodeTypePermission(EObjectType type)
     {
+        // TODO(danilalexeev): YT-24575. Drop this.
+        if (GetSequoiaContext() &&
+            (type == EObjectType::SequoiaMapNode ||
+             type == EObjectType::SequoiaLink))
+        {
+            return;
+        }
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(type);
 
