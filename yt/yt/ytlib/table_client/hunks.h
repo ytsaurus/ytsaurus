@@ -326,6 +326,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TCompressedInlineRefHunkValu
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value);
 TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value);
 
+size_t ComputeDataWeightAfterHunkDecoding(const THunkValue& hunkValue);
 THunkValue ReadHunkValue(TRef input);
 
 bool TryDecodeInlineHunkValue(TUnversionedValue* value);
@@ -476,6 +477,10 @@ IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
     NChunkClient::IChunkWriter::TWriteBlocksOptions underlyingOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+size_t ComputeSchemafulRowsDataWeightAfterHunkDecoding(
+    TRange<TUnversionedRow> rows,
+    const TTableSchemaPtr& schema);
 
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value);
 
