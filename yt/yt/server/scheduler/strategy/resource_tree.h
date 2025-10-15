@@ -92,7 +92,10 @@ private:
 
     void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
-    void DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
+    void DoIncreaseHierarchicalResourceUsagePrecommit(
+        const TResourceTreeElementPtr& element,
+        const TJobResources& delta,
+        bool enableDetailedLogs = false);
 
     void DoInitializeResourceUsageFor(
         const TResourceTreeElementPtr& targetElement,

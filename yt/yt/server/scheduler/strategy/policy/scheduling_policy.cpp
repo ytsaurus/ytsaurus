@@ -1556,8 +1556,15 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
     };
 
     auto decreaseHierarchicalResourceUsagePrecommit = [&] (const TJobResources& precommittedResources, TControllerEpoch scheduleAllocationEpoch) {
-        if (IsOperationEnabled(element) && scheduleAllocationEpoch == element->GetControllerEpoch()) {
+        auto operationEnabled = IsOperationEnabled(element);
+        if (operationEnabled && scheduleAllocationEpoch == element->GetControllerEpoch()) {
             element->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
+        } else if (!operationEnabled) {
+            YT_LOG_DEBUG(
+                "Failed to decrease resource usage precommit because operation is disabled "
+                "(OperationId: %v, PrecommittedResources: %v)",
+                element->GetId(),
+                precommittedResources);
         }
     };
 

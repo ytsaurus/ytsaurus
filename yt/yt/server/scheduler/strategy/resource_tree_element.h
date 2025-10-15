@@ -79,7 +79,9 @@ private:
         bool allowLimitsOvercommit,
         TJobResources* availableResourceLimitsOutput);
 
-    bool IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
+    bool IncreaseLocalResourceUsagePrecommit(
+        const TJobResources& delta,
+        bool enableDetailedLogs = false);
 
     bool CommitLocalResourceUsage(
         const TJobResources& resourceUsageDelta,
