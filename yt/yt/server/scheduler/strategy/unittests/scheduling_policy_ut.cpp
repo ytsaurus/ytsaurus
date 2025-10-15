@@ -615,6 +615,7 @@ protected:
             strategyHost.Get(),
             TreeConfig_,
             NProfiling::TProfiler());
+        SchedulingPolicy_->Initialize();
     }
 
     TPoolTreeRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)
