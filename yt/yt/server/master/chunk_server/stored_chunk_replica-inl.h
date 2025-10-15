@@ -27,22 +27,6 @@ TAugmentedStoredChunkReplicaPtr::TAugmentedStoredChunkReplicaPtr(T* ptr, int ind
     YT_ASSERT(static_cast<uintptr_t>(replicaState) <= 0x3);
 }
 
-template <class T>
-T* TAugmentedStoredChunkReplicaPtr::As(EStoredReplicaType replicaType) const
-    requires ((std::is_same_v<T, TChunkLocation> || std::is_same_v<T, TMedium>))
-{
-    YT_ASSERT(replicaType == GetStoredReplicaType());
-
-    switch (replicaType) {
-        case EStoredReplicaType::ChunkLocation: {
-            return reinterpret_cast<TChunkLocation*>(Value_ & 0x0000fffffffffffcLL);
-        }
-        case EStoredReplicaType::OffshoreMedia: {
-            return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
-        }
-    }
-}
-
 template <class C>
 void TAugmentedStoredChunkReplicaPtr::Save(C& context) const
 {
