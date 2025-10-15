@@ -328,6 +328,25 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     return TRef(beginPtr, currentPtr);
 }
 
+size_t ComputeDataWeightAfterHunkDecoding(const THunkValue& hunkValue)
+{
+    return Visit(
+        hunkValue,
+        [&] (const TInlineHunkValue& inlineHunkValue) {
+            return inlineHunkValue.Payload.Size();
+        },
+        [&] (const TCompressedInlineRefHunkValue& compressedInlineRefHunkValue) {
+            auto* codec = NCompression::GetDictionaryCompressionCodec();
+            return codec->GetFrameInfo(compressedInlineRefHunkValue.Payload).ContentSize;
+        },
+        [&] (const TLocalRefHunkValue& localRefHunkValue) {
+            return static_cast<size_t>(localRefHunkValue.Length);
+        },
+        [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
+            return static_cast<size_t>(globalRefHunkValue.Length);
+        });
+}
+
 THunkValue ReadHunkValue(TRef input)
 {
     if (input.Size() == 0) {
@@ -2512,6 +2531,38 @@ IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+size_t ComputeSchemafulRowsDataWeightAfterHunkDecoding(
+    TRange<TUnversionedRow> rows,
+    const TTableSchemaPtr& schema)
+{
+    std::vector<bool> isHunkColumn(schema->GetColumnCount(), false);
+    for (auto columnId : schema->GetHunkColumnIds()) {
+        isHunkColumn[columnId] = true;
+    }
+
+    size_t result = 0;
+    for (auto row : rows) {
+        if (!row) {
+            continue;
+        }
+
+        result += 1;
+
+        YT_ASSERT(row.GetCount() == isHunkColumn.size());
+        for (int id = 0; id < static_cast<int>(row.GetCount()); ++id) {
+            const auto& value = row[id];
+            if (isHunkColumn[id] && Any(value.Flags & EValueFlags::Hunk)) {
+                YT_ASSERT(IsStringLikeType(value.Type));
+                result += ComputeDataWeightAfterHunkDecoding(ReadHunkValue(GetValueRef(value)));
+            } else {
+                result += GetDataWeight(value);
+            }
+        }
+    }
+
+    return result;
+}
 
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value)
 {

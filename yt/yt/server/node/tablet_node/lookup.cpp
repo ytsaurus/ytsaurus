@@ -276,7 +276,7 @@ protected:
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         const TColumnFilter& /*columnFilter*/,
         const TReadTimestampRange& timestampRange,
-        const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
+        const TClientChunkReadOptions& /*chunkReadOptions*/,
         const std::optional<std::string>& /*profilingUser*/,
         TRowBufferPtr /*rowBuffer*/,
         NLogging::TLogger /*logger*/)
@@ -339,7 +339,7 @@ protected:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& /*columnFilter*/,
         const TReadTimestampRange& timestampRange,
-        const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
+        const TClientChunkReadOptions& /*chunkReadOptions*/,
         const std::optional<std::string>& profilingUser,
         TRowBufferPtr rowBuffer,
         NLogging::TLogger logger)
@@ -801,7 +801,7 @@ protected:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
         const TReadTimestampRange& timestampRange,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        const TClientChunkReadOptions& chunkReadOptions,
         const std::optional<std::string>& profilingUser,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger Logger)
@@ -859,12 +859,13 @@ private:
 
     const TTableSchemaPtr Schema_;
     const TColumnFilter ColumnFilter_;
-    const TRowBufferPtr RowBuffer_;
 
-    NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader_;
-    NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
-    NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
-    NTableClient::TTabletPerformanceCountersPtr PerformanceCounters_;
+    TRowBufferPtr RowBuffer_;
+
+    IChunkFragmentReaderPtr ChunkFragmentReader_;
+    IDictionaryCompressionFactoryPtr DictionaryCompressionFactory_;
+    TClientChunkReadOptions ChunkReadOptions_;
+    TTabletPerformanceCountersPtr PerformanceCounters_;
 
     std::vector<TMutableRow> HunkEncodedRows_;
     bool HunksDecoded_ = false;
@@ -1048,7 +1049,7 @@ public:
         int maxConcurrentSubqueries,
         TReadTimestampRange timestampRange,
         std::optional<bool> useLookupCache,
-        NChunkClient::TClientChunkReadOptions chunkReadOptions,
+        TClientChunkReadOptions chunkReadOptions,
         TRetentionConfigPtr retentionConfig,
         bool enablePartialResult,
         TVersionedReadOptions versionedReadOptions,
@@ -1088,7 +1089,7 @@ private:
     const NLogging::TLogger Logger;
 
     TWallTimer WallTimer_;
-    NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
+    TClientChunkReadOptions ChunkReadOptions_;
     std::optional<std::pair<TTabletSnapshotPtr, TServiceProfilerGuard>> ProfilerGuard_;
 
     std::vector<TTabletLookupRequest> TabletRequests_;
@@ -1246,7 +1247,7 @@ TLookupSession::TLookupSession(
     int maxConcurrentSubqueries,
     TReadTimestampRange timestampRange,
     std::optional<bool> useLookupCache,
-    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    TClientChunkReadOptions chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
     TVersionedReadOptions versionedReadOptions,
@@ -2389,7 +2390,7 @@ ILookupSessionPtr CreateLookupSession(
     int maxConcurrentSubqueries,
     TReadTimestampRange timestampRange,
     std::optional<bool> useLookupCache,
-    NChunkClient::TClientChunkReadOptions chunkReadOptions,
+    TClientChunkReadOptions chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
     TVersionedReadOptions versionedReadOptions,
@@ -2466,7 +2467,11 @@ protected:
         HunksDecodingTime_ = timer->GetElapsedTime();
         timer->Restart();
         return Writer_->Close().Apply(
-            BIND([pipe = Pipe_, resultPromise = ResultPromise_, dataStatistics = std::move(DataStatistics_)] (const TError& error) mutable {
+            BIND([
+                pipe = Pipe_,
+                resultPromise = ResultPromise_,
+                dataStatistics = std::move(DataStatistics_)
+            ] (const TError& error) mutable {
                 if (error.IsOK()) {
                     pipe->SetDataStatistics(std::move(dataStatistics));
                 }

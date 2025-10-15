@@ -50,6 +50,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Logging)                    (33))
     ((ChunkReplicaCache)          (34))
     ((HeavyRequest)               (35))
+    ((FetchTableRows)             (36))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EMemoryCategory, Unrecognized);

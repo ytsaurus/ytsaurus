@@ -17,6 +17,7 @@
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
 #include <yt/yt/server/node/tablet_node/error_reporting_service_base.h>
+#include <yt/yt/server/node/tablet_node/fetch_rows.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
@@ -1462,8 +1463,9 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TCellId>(request->cell_id());
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         auto tabletSnapshot = request->has_mount_revision()
-            ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, FromProto<NHydra::TRevision>(request->mount_revision()))
+            ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision)
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
         SetErrorManagerContext(tabletSnapshot);
@@ -1543,135 +1545,74 @@ private:
             desiredStore = *std::ranges::prev(desiredStoreIt, /*n*/ 1, /*bound*/ orderedStores.begin());
         }
 
-        TFetchRowsFromOrderedStoreResult fetchRowsResult;
-        auto writer = CreateWireProtocolWriter();
+        auto throttler = GetUserBackendOutThrottler();
 
-        if (desiredStore) {
-            YT_LOG_DEBUG(
-                "Found store to read from (StoreId: %v, StartingRowIndex: %v, RowCount: %v)",
-                desiredStore->GetId(),
-                desiredStore->GetStartingRowIndex(),
-                desiredStore->GetRowCount());
-
-
-            TClientChunkReadOptions chunkReadOptions;
-            if (request->options().has_workload_descriptor()) {
-                chunkReadOptions.WorkloadDescriptor =
-                    FromProto<TWorkloadDescriptor>(request->options().workload_descriptor());
-            }
-            chunkReadOptions.ReadSessionId = TReadSessionId::Create();
-
-            fetchRowsResult = FetchRowsFromOrderedStore(
-                tabletSnapshot,
-                desiredStore,
-                request->tablet_index(),
-                rowIndex,
-                request->max_row_count(),
-                request->max_data_weight(),
-                chunkReadOptions,
-                writer.get());
+        if (!desiredStore) {
+            ProcessFetchRowsResult(
+                context,
+                throttler,
+                TFetchRowsFromOrderedStoreResult{ .Rowsets = {} });
+            context->Reply();
+            return;
         }
 
-        response->Attachments() = writer->Finish();
-        context->SetResponseInfo(
-            "RowCount: %v, DataWeight: %v",
-            fetchRowsResult.RowCount,
-            fetchRowsResult.DataWeight);
-        AcquireUserBackendOutTraffic(GetAttachmentBytes(response));
-        context->Reply();
+        YT_LOG_DEBUG("Found store to read from (StoreId: %v, StartingRowIndex: %v, RowCount: %v)",
+            desiredStore->GetId(),
+            desiredStore->GetStartingRowIndex(),
+            desiredStore->GetRowCount());
+
+        TClientChunkReadOptions chunkReadOptions;
+        if (request->options().has_workload_descriptor()) {
+            chunkReadOptions.WorkloadDescriptor =
+                FromProto<TWorkloadDescriptor>(request->options().workload_descriptor());
+        }
+        chunkReadOptions.ReadSessionId = TReadSessionId::Create();
+        chunkReadOptions.MemoryUsageTracker = Bootstrap_
+            ->GetNodeMemoryUsageTracker()
+            ->WithCategory(EMemoryCategory::FetchTableRows);
+
+        auto resultFuture = FetchRowsFromOrderedStore(
+            std::move(tabletSnapshot),
+            desiredStore,
+            request->tablet_index(),
+            rowIndex,
+            request->max_row_count(),
+            request->max_data_weight(),
+            MaxPullQueueResponseDataWeight_.load(std::memory_order::relaxed),
+            chunkReadOptions,
+            GetCurrentInvoker());
+
+        if (auto maybeResult = resultFuture.TryGetUnique()) {
+            ProcessFetchRowsResult(
+                context,
+                throttler,
+                std::move(maybeResult->ValueOrThrow()));
+            context->Reply();
+        } else {
+            context->ReplyFrom(
+                resultFuture.ApplyUnique(BIND(
+                [
+                    context = context,
+                    throttler = std::move(throttler)
+                ] (TFetchRowsFromOrderedStoreResult&& result) {
+                    ProcessFetchRowsResult(context, throttler, std::move(result));
+                })),
+                GetCurrentInvoker());
+        }
     }
 
-    struct TFetchRowsFromOrderedStoreResult
+    static void ProcessFetchRowsResult(
+        const TCtxFetchTableRowsPtr& context,
+        const IThroughputThrottlerPtr& throttler,
+        TFetchRowsFromOrderedStoreResult result)
     {
-        i64 RowCount = 0;
-        i64 DataWeight = 0;
-    };
+        context->SetResponseInfo("RowCount: %v, DataWeight: %v",
+            result.RowCount,
+            result.DataWeight);
 
-    TFetchRowsFromOrderedStoreResult FetchRowsFromOrderedStore(
-        const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
-        const IOrderedStorePtr& store,
-        int tabletIndex,
-        i64 rowIndex,
-        i64 maxRowCount,
-        i64 maxDataWeight,
-        const TClientChunkReadOptions& chunkReadOptions,
-        IWireProtocolWriter* writer)
-    {
-        auto tabletId = tabletSnapshot->TabletId;
-
-        YT_LOG_DEBUG(
-            "Fetching rows from ordered store (TabletId: %v, Store: %v, StartingRowIndex: %v, RowIndex: %v, "
-            "MaxRowCount: %v, MaxDataWeight: %v)",
-            tabletId,
-            store->GetId(),
-            store->GetStartingRowIndex(),
-            rowIndex,
-            maxRowCount,
-            maxDataWeight);
-
-        auto reader = store->CreateReader(
-            tabletSnapshot,
-            tabletIndex,
-            /*lowerRowIndex*/ rowIndex,
-            /*upperRowIndex*/ std::numeric_limits<i64>::max(),
-            AsyncLastCommittedTimestamp,
-            TColumnFilter::MakeUniversal(),
-            chunkReadOptions,
-            chunkReadOptions.WorkloadDescriptor.Category);
-
-        TRowBatchReadOptions readOptions;
-        readOptions.MaxRowsPerRead = std::min(readOptions.MaxRowsPerRead, maxRowCount);
-        readOptions.MaxDataWeightPerRead = std::min(readOptions.MaxDataWeightPerRead, maxDataWeight);
-
-        i64 readRows = 0;
-        i64 readDataWeight = 0;
-        while (auto batch = reader->Read(readOptions)) {
-            if (batch->IsEmpty()) {
-                YT_LOG_DEBUG(
-                    "Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
-                    tabletId,
-                    rowIndex + readRows);
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-                continue;
-            }
-
-            auto rows = batch->MaterializeRows();
-
-            readRows += std::ssize(rows);
-            maxRowCount -= std::ssize(rows);
-
-            i64 currentReadDataWeight = GetDataWeight(rows);
-            readDataWeight += currentReadDataWeight;
-            maxDataWeight -= currentReadDataWeight;
-
-            writer->WriteUnversionedRowset(rows);
-
-            if (maxRowCount <= 0 ||
-                maxDataWeight <= 0 ||
-                readDataWeight >= MaxPullQueueResponseDataWeight_.load(std::memory_order::relaxed))
-            {
-                break;
-            }
-
-            readOptions.MaxRowsPerRead = std::min(readOptions.MaxRowsPerRead, maxRowCount);
-            readOptions.MaxDataWeightPerRead = std::min(readOptions.MaxDataWeightPerRead, maxDataWeight);
-        }
-
-        YT_LOG_DEBUG(
-            "Fetched rows from ordered store (TabletId: %v, RowCount: %v, DataWeight: %v)",
-            tabletId,
-            readRows,
-            readDataWeight);
-
-        auto counters = tabletSnapshot->TableProfiler->GetFetchTableRowsCounters(GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()));
-        counters->DataWeight.Increment(readDataWeight);
-        counters->RowCount.Increment(readRows);
-
-        return {
-            .RowCount = readRows,
-            .DataWeight = readDataWeight,
-        };
+        auto* response = &context->Response();
+        response->Attachments() = std::move(result.Rowsets);
+        throttler->Acquire(GetAttachmentBytes(response));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetOrderedTabletSafeTrimRowCount)
