@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/cell_master/public.h>
+
 #include <yt/yt/server/lib/misc/assert_sizeof.h>
 
 namespace NYT::NChunkServer {
@@ -47,22 +49,19 @@ public:
     bool operator>(TAugmentedStoredChunkReplicaPtr other) const;
     bool operator>=(TAugmentedStoredChunkReplicaPtr other) const;
 
-    template <class C>
-    void Save(C& context) const;
-
-    template <class C>
-    void Load(C& context);
-
     TAugmentedStoredChunkReplicaPtr ToGenericState() const;
 
     EChunkReplicaState GetReplicaState() const;
 
     int GetReplicaIndex() const;
     int GetEffectiveMediumIndex() const;
-    // only this one
+    // TODO: location uses only this one
     NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const;
     NChunkClient::TChunkLocationUuid GetLocationUuid() const;
     NNodeTrackerClient::TNodeId GetNodeId() const;
+
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
 private:
     static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
