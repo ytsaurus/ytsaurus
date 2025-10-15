@@ -6270,6 +6270,7 @@ private:
 
         options.EnableKeyGuarantee = request->enable_key_guarantee();
         options.EnableCookies = request->enable_cookies();
+        options.OmitInaccessibleRows = request->omit_inaccessible_rows();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
