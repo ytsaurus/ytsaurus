@@ -154,6 +154,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexAcd)                                            (3107))  // sabdenovch
     ((RestartedNodeState)                                           (3108))  // grphil
     ((SequoiaLinkIsLink)                                            (3109))  // kvk1920
+    ((RemoveSchemaRevision)                                         (3110))  // theevilbird
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

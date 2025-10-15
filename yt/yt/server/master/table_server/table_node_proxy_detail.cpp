@@ -274,7 +274,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaMode));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaRevision));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkWriter)
         .SetCustom(true)
         .SetReplicated(true));
@@ -534,11 +533,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
                 .Value(table->GetSchemaMode());
-            return true;
-
-        case EInternedAttributeKey::SchemaRevision:
-            BuildYsonFluently(consumer)
-                .Value(table->GetSchemaRevision());
             return true;
 
         case EInternedAttributeKey::SortedBy:
