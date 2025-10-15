@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
     lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address, concatenate,
     write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells, get_operation,
-    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
+    sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move,
     get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user)
@@ -2153,6 +2153,41 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         journal_hunk_chunk_id = journal_hunk_chunk_id.pop()
 
         wait(lambda: get("#{}/@sealed".format(journal_hunk_chunk_id)))
+
+    @authors("akozhikhov")
+    def test_pull_rows_with_hunks(self):
+        sync_create_cells(1)
+
+        self._create_table()
+        set("//tmp/t/@dynamic_store_auto_flush_period", None)
+
+        hunk_storage_id = create(
+            "hunk_storage",
+            "//tmp/h",
+            attributes={
+                "store_rotation_period": 120000,
+            })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        # Smaller block because block size defines granularity of the underlying reader,
+        # so we can actually test limiting by max_data_weight.
+        set("//tmp/t/@chunk_writer", {"block_size": 10})
+
+        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/h")
+
+        rows = [{"key": 0, "value": "a" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+        assert rows == pull_queue("//tmp/t", offset=0, partition_index=0)
+
+        assert rows[:2] == pull_queue("//tmp/t", offset=0, partition_index=0, max_row_count=2)
+        assert rows[1:3] == pull_queue("//tmp/t", offset=1, partition_index=0, max_row_count=2)
+
+        assert rows[:5] == pull_queue("//tmp/t", offset=0, partition_index=0, max_data_weight=200)
+
 
 ################################################################################
 
