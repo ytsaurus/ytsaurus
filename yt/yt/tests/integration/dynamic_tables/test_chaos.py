@@ -6316,6 +6316,7 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         assert len(replication_card["coordinators"]) == 1
         assert cell_id1 in replication_card["coordinators"]
         assert replication_card["coordinators"][cell_id1] == "revoking"
+        wait(lambda: cell_id1 not in self._get_chaos_cell_orchid(cell_id, "/chaos_manager/coordinators"))
 
         execute_command(
             "forsake_chaos_coordinator",
