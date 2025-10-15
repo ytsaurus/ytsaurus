@@ -33,8 +33,9 @@ constinit const auto Logger = DataNodeLogger;
 TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
 {
     return New<TChunkContext>(TChunkContext{
-        .ChunkMetaManager = bootstrap->GetDataNodeBootstrap()->GetChunkMetaManager(),
-
+        .ChunkMetaManager = bootstrap->GetDataNodeBootstrap()
+            ? bootstrap->GetDataNodeBootstrap()->GetChunkMetaManager()
+            : nullptr,
         .StorageHeavyInvoker = bootstrap->GetStorageHeavyInvoker(),
         .StorageLightInvoker = bootstrap->GetStorageLightInvoker(),
         .DataNodeConfig = bootstrap->GetConfig()->DataNode,
@@ -43,7 +44,9 @@ TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
         .JournalDispatcher = bootstrap->NeedDataNodeBootstrap()
             ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher()
             : nullptr,
-        .BlobReaderCache = bootstrap->GetDataNodeBootstrap()->GetBlobReaderCache(),
+        .BlobReaderCache = bootstrap->GetDataNodeBootstrap()
+            ? bootstrap->GetDataNodeBootstrap()->GetBlobReaderCache()
+            : nullptr,
         .DynamicConfigManager = bootstrap->GetDynamicConfigManager(),
     });
 }
