@@ -13,9 +13,17 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TAugmentedStoredChunkReplicaPtr::HasPtr() const
+TAugmentedStoredChunkReplicaPtr::operator bool() const
 {
-    return Value_ & 0x0000fffffffffffcLL;
+    auto type = GetStoredReplicaType();
+    switch (type) {
+        case EStoredReplicaType::ChunkLocation:
+            return AsChunkLocationPtr();
+        case EStoredReplicaType::OffshoreMedia:
+            return AsMediumPtr();
+        default:
+            return false;
+    }
 }
 
 bool TAugmentedStoredChunkReplicaPtr::IsChunkLocationPtr() const
