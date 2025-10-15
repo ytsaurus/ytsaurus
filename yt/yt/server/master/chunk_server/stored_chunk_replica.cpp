@@ -13,39 +13,39 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::HasPtr() const
+bool TAugmentedStoredChunkReplicaPtr::HasPtr() const
 {
     return Value_ & 0x0000fffffffffffcLL;
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::IsChunkLocationPtr() const
+bool TAugmentedStoredChunkReplicaPtr::IsChunkLocationPtr() const
 {
     return GetStoredReplicaType() == EStoredReplicaType::ChunkLocation;
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::IsMediumPtr() const
+bool TAugmentedStoredChunkReplicaPtr::IsMediumPtr() const
 {
     return GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia;
 }
 
-TChunkLocation* TStoredChunkReplicaPtrWithReplicaInfo::AsChunkLocationPtr() const
+TChunkLocation* TAugmentedStoredChunkReplicaPtr::AsChunkLocationPtr() const
 {
     YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
     return reinterpret_cast<TChunkLocation*>(Value_ & 0x0000fffffffffffcLL);
 }
 
-TMedium* TStoredChunkReplicaPtrWithReplicaInfo::AsMediumPtr() const
+TMedium* TAugmentedStoredChunkReplicaPtr::AsMediumPtr() const
 {
     YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
     return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::operator==(TStoredChunkReplicaPtrWithReplicaInfo other) const
+bool TAugmentedStoredChunkReplicaPtr::operator==(TAugmentedStoredChunkReplicaPtr other) const
 {
     return Value_ == other.Value_;
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::operator<(TStoredChunkReplicaPtrWithReplicaInfo other) const
+bool TAugmentedStoredChunkReplicaPtr::operator<(TAugmentedStoredChunkReplicaPtr other) const
 {
     auto thisStoredReplicaType = GetStoredReplicaType();
     auto otherStoredReplicaType = other.GetStoredReplicaType();
@@ -59,7 +59,7 @@ bool TStoredChunkReplicaPtrWithReplicaInfo::operator<(TStoredChunkReplicaPtrWith
     return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) < std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::operator<=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+bool TAugmentedStoredChunkReplicaPtr::operator<=(TAugmentedStoredChunkReplicaPtr other) const
 {
     auto thisStoredReplicaType = GetStoredReplicaType();
     auto otherStoredReplicaType = other.GetStoredReplicaType();
@@ -72,38 +72,38 @@ bool TStoredChunkReplicaPtrWithReplicaInfo::operator<=(TStoredChunkReplicaPtrWit
     return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) <= std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::operator>(TStoredChunkReplicaPtrWithReplicaInfo other) const
+bool TAugmentedStoredChunkReplicaPtr::operator>(TAugmentedStoredChunkReplicaPtr other) const
 {
     return !operator<=(other);
 }
 
-bool TStoredChunkReplicaPtrWithReplicaInfo::operator>=(TStoredChunkReplicaPtrWithReplicaInfo other) const
+bool TAugmentedStoredChunkReplicaPtr::operator>=(TAugmentedStoredChunkReplicaPtr other) const
 {
     return !operator<(other);
 }
 
-TStoredChunkReplicaPtrWithReplicaInfo TStoredChunkReplicaPtrWithReplicaInfo::ToGenericState() const
+TAugmentedStoredChunkReplicaPtr TAugmentedStoredChunkReplicaPtr::ToGenericState() const
 {
     auto type = GetStoredReplicaType();
     switch (type) {
         case EStoredReplicaType::ChunkLocation:
-            return TStoredChunkReplicaPtrWithReplicaInfo(AsChunkLocationPtr(), GetReplicaIndex());
+            return TAugmentedStoredChunkReplicaPtr(AsChunkLocationPtr(), GetReplicaIndex());
         case EStoredReplicaType::OffshoreMedia:
-            return TStoredChunkReplicaPtrWithReplicaInfo(AsMediumPtr(), GetReplicaIndex());
+            return TAugmentedStoredChunkReplicaPtr(AsMediumPtr(), GetReplicaIndex());
     }
 }
 
-EChunkReplicaState TStoredChunkReplicaPtrWithReplicaInfo::GetReplicaState() const
+EChunkReplicaState TAugmentedStoredChunkReplicaPtr::GetReplicaState() const
 {
     return static_cast<EChunkReplicaState>(Value_ & 0x3);
 }
 
-int TStoredChunkReplicaPtrWithReplicaInfo::GetReplicaIndex() const
+int TAugmentedStoredChunkReplicaPtr::GetReplicaIndex() const
 {
     return static_cast<int>((Value_ >> 56) & 0xff);
 }
 
-int TStoredChunkReplicaPtrWithReplicaInfo::GetEffectiveMediumIndex() const
+int TAugmentedStoredChunkReplicaPtr::GetEffectiveMediumIndex() const
 {
     auto type = GetStoredReplicaType();
     switch (type) {
@@ -114,7 +114,7 @@ int TStoredChunkReplicaPtrWithReplicaInfo::GetEffectiveMediumIndex() const
     }
 }
 
-TChunkLocationIndex TStoredChunkReplicaPtrWithReplicaInfo::GetChunkLocationIndex() const
+TChunkLocationIndex TAugmentedStoredChunkReplicaPtr::GetChunkLocationIndex() const
 {
     switch (GetStoredReplicaType()) {
     case EStoredReplicaType::ChunkLocation: {
@@ -129,7 +129,7 @@ TChunkLocationIndex TStoredChunkReplicaPtrWithReplicaInfo::GetChunkLocationIndex
     }
 }
 
-TChunkLocationUuid TStoredChunkReplicaPtrWithReplicaInfo::GetLocationUuid() const
+TChunkLocationUuid TAugmentedStoredChunkReplicaPtr::GetLocationUuid() const
 {
     switch (GetStoredReplicaType()) {
     case EStoredReplicaType::ChunkLocation: {
@@ -144,7 +144,7 @@ TChunkLocationUuid TStoredChunkReplicaPtrWithReplicaInfo::GetLocationUuid() cons
     }
 }
 
-TNodeId TStoredChunkReplicaPtrWithReplicaInfo::GetNodeId() const
+TNodeId TAugmentedStoredChunkReplicaPtr::GetNodeId() const
 {
     switch (GetStoredReplicaType()) {
     case EStoredReplicaType::ChunkLocation: {
@@ -163,12 +163,12 @@ TNodeId TStoredChunkReplicaPtrWithReplicaInfo::GetNodeId() const
     }
 }
 
-EStoredReplicaType TStoredChunkReplicaPtrWithReplicaInfo::GetStoredReplicaType() const
+EStoredReplicaType TAugmentedStoredChunkReplicaPtr::GetStoredReplicaType() const
 {
     return static_cast<EStoredReplicaType>((Value_ >> 48) & 0xff);
 }
 
-NObjectClient::TObjectId TStoredChunkReplicaPtrWithReplicaInfo::GetId() const
+NObjectClient::TObjectId TAugmentedStoredChunkReplicaPtr::GetId() const
 {
     switch (GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {
@@ -184,7 +184,7 @@ NObjectClient::TObjectId TStoredChunkReplicaPtrWithReplicaInfo::GetId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, TAugmentedStoredChunkReplicaPtr value, TStringBuf spec)
 {
     switch (value.GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {
@@ -199,8 +199,7 @@ void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaI
     }
 }
 
-//! Serializes node id, replica index, medium index.
-void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value)
+void ToProto(ui64* protoValue, TAugmentedStoredChunkReplicaPtr value)
 {
     switch (value.GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {

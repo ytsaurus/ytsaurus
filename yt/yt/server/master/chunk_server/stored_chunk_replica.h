@@ -17,20 +17,21 @@ static_assert(
     static_cast<int>(TEnumTraits<EStoredReplicaType>::GetMaxValue()) < (1LL << 8),
     "Stored replica type must fit into 8 bits.");
 
-//! Custom class for variant chunk replica. It is similar to TAugmentedPtr, but due to variety of stored pointer has to be separate class.
+//! Custom class for variant stored chunk replica. It is similar to TAugmentedPtr, but due to variety of stored pointer has to be separate class.
 //! It stores compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
-class TStoredChunkReplicaPtrWithReplicaInfo
+class TAugmentedStoredChunkReplicaPtr
 {
 public:
-    TStoredChunkReplicaPtrWithReplicaInfo() = default;
+    TAugmentedStoredChunkReplicaPtr() = default;
     template <class T>
-    TStoredChunkReplicaPtrWithReplicaInfo(T* ptr, int index, EChunkReplicaState replicaState = EChunkReplicaState::Generic)
+    TAugmentedStoredChunkReplicaPtr(T* ptr, int index, EChunkReplicaState replicaState = EChunkReplicaState::Generic)
         requires ((std::is_same_v<T, TChunkLocation> || std::is_same_v<T, TMedium>));
 
-    TStoredChunkReplicaPtrWithReplicaInfo(const TStoredChunkReplicaPtrWithReplicaInfo& other) = default;
-    TStoredChunkReplicaPtrWithReplicaInfo(TStoredChunkReplicaPtrWithReplicaInfo&& other) = default;
+    TAugmentedStoredChunkReplicaPtr(const TAugmentedStoredChunkReplicaPtr& other) = default;
+    TAugmentedStoredChunkReplicaPtr(TAugmentedStoredChunkReplicaPtr&& other) = default;
 
-    TStoredChunkReplicaPtrWithReplicaInfo& operator=(const TStoredChunkReplicaPtrWithReplicaInfo& other) = default;
+    TAugmentedStoredChunkReplicaPtr& operator=(const TAugmentedStoredChunkReplicaPtr& other) = default;
+    TAugmentedStoredChunkReplicaPtr& operator=(TAugmentedStoredChunkReplicaPtr&& other) = default;
 
     bool HasPtr() const;
 
@@ -40,11 +41,11 @@ public:
     TChunkLocation* AsChunkLocationPtr() const;
     TMedium* AsMediumPtr() const;
 
-    bool operator==(TStoredChunkReplicaPtrWithReplicaInfo other) const;
-    bool operator<(TStoredChunkReplicaPtrWithReplicaInfo other) const;
-    bool operator<=(TStoredChunkReplicaPtrWithReplicaInfo other) const;
-    bool operator>(TStoredChunkReplicaPtrWithReplicaInfo other) const;
-    bool operator>=(TStoredChunkReplicaPtrWithReplicaInfo other) const;
+    bool operator==(TAugmentedStoredChunkReplicaPtr other) const;
+    bool operator<(TAugmentedStoredChunkReplicaPtr other) const;
+    bool operator<=(TAugmentedStoredChunkReplicaPtr other) const;
+    bool operator>(TAugmentedStoredChunkReplicaPtr other) const;
+    bool operator>=(TAugmentedStoredChunkReplicaPtr other) const;
 
     template <class C>
     void Save(C& context) const;
@@ -52,7 +53,7 @@ public:
     template <class C>
     void Load(C& context);
 
-    TStoredChunkReplicaPtrWithReplicaInfo ToGenericState() const;
+    TAugmentedStoredChunkReplicaPtr ToGenericState() const;
 
     EChunkReplicaState GetReplicaState() const;
 
@@ -74,24 +75,23 @@ private:
 
     NObjectClient::TObjectId GetId() const;
 
-    friend void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec);
-    friend void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value);
+    friend void FormatValue(TStringBuilderBase* builder, TAugmentedStoredChunkReplicaPtr value, TStringBuf spec);
+    friend void ToProto(ui64* protoValue, TAugmentedStoredChunkReplicaPtr value);
 };
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TStoredChunkReplicaPtrWithReplicaInfo, 8);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TAugmentedStoredChunkReplicaPtr, 8);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TStoredChunkReplicaPtrWithReplicaInfoList = TCompactVector<TStoredChunkReplicaPtrWithReplicaInfo, TypicalReplicaCount>;
-using TChunkToStoredChunkReplicaPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TStoredChunkReplicaPtrWithReplicaInfoList>>;
+using TStoredChunkReplicaList = TCompactVector<TAugmentedStoredChunkReplicaPtr, TypicalReplicaCount>;
+using TChunkToStoredChunkReplicaList = THashMap<TChunkId, TErrorOr<TStoredChunkReplicaList>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, TStoredChunkReplicaPtrWithReplicaInfo value, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, TAugmentedStoredChunkReplicaPtr value, TStringBuf spec);
 
-//! Serializes node id, replica index, medium index.
-void ToProto(ui64* protoValue, TStoredChunkReplicaPtrWithReplicaInfo value);
+void ToProto(ui64* protoValue, TAugmentedStoredChunkReplicaPtr value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

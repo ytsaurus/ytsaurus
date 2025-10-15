@@ -19,12 +19,12 @@ public:
         const TChunkPlacement* chunkPlacement,
         const TDomesticMedium* medium,
         const TGenericChunk* chunk,
-        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica)
+        TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica)
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
         , Chunk_(chunk)
@@ -248,7 +248,7 @@ template <typename TGenericChunk>
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TDomesticMedium* medium,
     TGenericChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+    const TStoredChunkReplicaList& replicas,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
@@ -281,7 +281,7 @@ template <typename TGenericChunk>
 TNodeList TChunkPlacement::GetWriteTargets(
     TDomesticMedium* medium,
     TGenericChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+    const TStoredChunkReplicaList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -290,7 +290,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
     const std::optional<std::string>& preferredHostName,
-    TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica,
+    TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica,
     bool systemAllocation)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
@@ -473,13 +473,13 @@ template <typename TGenericChunk>
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TDomesticMedium* medium,
     TGenericChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+    const TStoredChunkReplicaList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
     NChunkClient::ESessionType sessionType,
-    TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica)
+    TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica)
 {
     auto targetNodes = GetWriteTargets(
         medium,

@@ -324,7 +324,7 @@ private:
         IYsonConsumer* consumer,
         const IChunkManagerPtr& chunkManager,
         TChunkId chunkId,
-        TStoredChunkReplicaPtrWithReplicaInfoList replicas)
+        TStoredChunkReplicaList replicas)
     {
         SortBy(replicas, [] (auto replica) {
             return std::tuple(replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
@@ -371,7 +371,7 @@ private:
                 }
 
                 auto storedReplicas = chunk->StoredReplicas();
-                TStoredChunkReplicaPtrWithReplicaInfoList replicaList(storedReplicas.begin(), storedReplicas.end());
+                TStoredChunkReplicaList replicaList(storedReplicas.begin(), storedReplicas.end());
                 BuildYsonReplicas(
                     consumer,
                     chunkManager,
@@ -1167,7 +1167,7 @@ private:
                         auto it = replicas.find(chunkId);
                         const auto& chunkReplicas = it != replicas.end()
                             ? chunkReplicaFetcher->FilterAliveReplicas(it->second)
-                            : TStoredChunkReplicaPtrWithReplicaInfoList();
+                            : TStoredChunkReplicaList();
                         return BuildYsonStringFluently()
                             .Do([&] (auto fluent) {
                                 BuildYsonReplicas(

@@ -210,7 +210,7 @@ public:
             }));
     }
 
-    TErrorOr<TStoredChunkReplicaPtrWithReplicaInfoList> GetChunkReplicas(
+    TErrorOr<TStoredChunkReplicaList> GetChunkReplicas(
         const TEphemeralObjectPtr<TChunk>& chunk,
         bool includeUnapproved) const override
     {
@@ -223,7 +223,7 @@ public:
         auto result = GetChunkReplicas(chunks, includeUnapproved);
         return GetOrCrash(result, chunk->GetId());
     }
-    TChunkToStoredChunkReplicaPtrWithReplicaInfoList GetChunkReplicas(
+    TChunkToStoredChunkReplicaList GetChunkReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved) const override
     {
@@ -237,10 +237,10 @@ public:
 
         // Fastpath.
         if (!fetchReplicasFromSequoia || sequoiaChunkIds.empty()) {
-            TChunkToStoredChunkReplicaPtrWithReplicaInfoList result;
+            TChunkToStoredChunkReplicaList result;
             for (const auto& chunk : chunks) {
                 auto masterReplicas = chunk->StoredReplicas();
-                TStoredChunkReplicaPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+                TStoredChunkReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
                 result.emplace(chunk->GetId(), replicaList);
             }
             return result;
@@ -309,7 +309,7 @@ public:
                 masterReplicas.insert(masterReplicas.end(), unapprovedMasterReplicas.begin(), unapprovedMasterReplicas.end());
             }
 
-            TChunkToStoredChunkReplicaPtrWithReplicaInfoList result;
+            TChunkToStoredChunkReplicaList result;
             for (const auto& [chunkId, replicas] : masterReplicasInSequoiaSkin) {
                 EmplaceOrCrash(result, chunkId, FilterAliveReplicas(replicas));
             }
@@ -642,10 +642,10 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
     }
 
-    TStoredChunkReplicaPtrWithReplicaInfoList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
+    TStoredChunkReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const override
     {
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        TStoredChunkReplicaPtrWithReplicaInfoList aliveReplicas;
+        TStoredChunkReplicaList aliveReplicas;
         for (const auto& replica : replicas) {
             auto chunkId = replica.ChunkId;
             auto locationIndex = replica.LocationIndex;
@@ -663,19 +663,19 @@ private:
                     locationIndex);
                 continue;
             }
-            aliveReplicas.emplace_back(TStoredChunkReplicaPtrWithReplicaInfo(location, replica.ReplicaIndex, replica.ReplicaState));
+            aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(location, replica.ReplicaIndex, replica.ReplicaState));
         }
         return aliveReplicas;
     }
 
-    TChunkToStoredChunkReplicaPtrWithReplicaInfoList CombineReplicas(
+    TChunkToStoredChunkReplicaList CombineReplicas(
         const std::vector<TEphemeralObjectPtr<TChunk>>& chunks,
         const TErrorOr<THashMap<TChunkId, std::vector<TSequoiaChunkReplica>>>& sequoiaReplicasOrError,
         const std::vector<TChunkId>& sequoiaChunkIds) const
     {
         VerifyPersistentStateRead();
 
-        TChunkToStoredChunkReplicaPtrWithReplicaInfoList result;
+        TChunkToStoredChunkReplicaList result;
         if (!sequoiaReplicasOrError.IsOK()) {
             for (auto chunkId : sequoiaChunkIds) {
                 EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
@@ -688,7 +688,7 @@ private:
 
         for (const auto& chunk : chunks) {
             auto masterReplicas = chunk->StoredReplicas();
-            TStoredChunkReplicaPtrWithReplicaInfoList replicaList(masterReplicas.begin(), masterReplicas.end());
+            TStoredChunkReplicaList replicaList(masterReplicas.begin(), masterReplicas.end());
             auto [it, inserted] = result.emplace(chunk->GetId(), replicaList);
 
             if (inserted) {
