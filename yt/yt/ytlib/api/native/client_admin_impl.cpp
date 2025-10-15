@@ -810,7 +810,7 @@ TMaintenanceIdPerTarget TClient::DoAddMaintenance(
     ValidateMaintenanceComment(comment);
 
     auto [cellTag, componentRegistryId] = GetCellTagForMaintenanceComponent(component, this);
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+    auto proxy = CreateObjectServiceWriteProxy(cellTag);
     auto batchRequest = proxy.ExecuteBatch();
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 
@@ -854,7 +854,7 @@ TMaintenanceCountsPerTarget TClient::DoRemoveMaintenance(
     const TRemoveMaintenanceOptions& options)
 {
     auto [cellTag, componentRegistryId] = GetCellTagForMaintenanceComponent(component, this);
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+    auto proxy = CreateObjectServiceWriteProxy(cellTag);
     auto batchRequest = proxy.ExecuteBatch();
     batchRequest->SetSuppressTransactionCoordinatorSync(true);
 

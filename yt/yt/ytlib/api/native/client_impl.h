@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chaos_client/alien_cell.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+
 #include <yt/yt/ytlib/chunk_pools/public.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
@@ -1108,8 +1110,9 @@ private:
     NObjectClient::TObjectServiceProxy CreateObjectServiceWriteProxy(
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
 
-    template <class TProxy>
-    TProxy CreateWriteProxy(NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
+    NChunkClient::TChunkServiceProxy CreateChunkServiceWriteProxy(
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
+
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor);
     NRpc::IChannelPtr GetHydraAdminChannelOrThrow(NObjectClient::TCellId cellId);
