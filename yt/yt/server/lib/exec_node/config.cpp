@@ -533,14 +533,14 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("health_check_timeout", &TThis::HealthCheckTimeout)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(5));
     registrar.Parameter("health_check_failure_backoff", &TThis::HealthCheckFailureBackoff)
         .Default(TDuration::Minutes(10));
 
     registrar.Parameter("rdma_device_info_update_timeout", &TThis::RdmaDeviceInfoUpdateTimeout)
         .Default(TDuration::Minutes(5));
     registrar.Parameter("rdma_device_info_update_period", &TThis::RdmaDeviceInfoUpdatePeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(5));
 
     registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
         .Default();
