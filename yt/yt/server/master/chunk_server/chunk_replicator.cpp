@@ -908,7 +908,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
         result.Status |= EChunkStatus::Lost;
     }
 
-    if (unsafelyPlacedSealedReplica &&
+    if (unsafelyPlacedSealedReplica.HasPtr() &&
         None(result.Status & EChunkStatus::Overreplicated))
     {
         result.Status |= EChunkStatus::UnsafelyPlaced;
@@ -1336,7 +1336,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
         }
     }
 
-    if (replicationFactor > 1 && unsafelyPlacedReplica && None(result.Status & EChunkStatus::Overreplicated)) {
+    if (replicationFactor > 1 && unsafelyPlacedReplica.HasPtr() && None(result.Status & EChunkStatus::Overreplicated)) {
         result.Status |= EChunkStatus::UnsafelyPlaced;
         result.UnsafelyPlacedReplica = unsafelyPlacedReplica;
     }
