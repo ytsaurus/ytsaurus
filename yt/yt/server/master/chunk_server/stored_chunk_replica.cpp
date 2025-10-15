@@ -3,6 +3,8 @@
 #include "medium_base.h"
 #include "chunk_location.h"
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
 namespace NYT::NChunkServer {
@@ -168,6 +170,52 @@ TNodeId TAugmentedStoredChunkReplicaPtr::GetNodeId() const
     }
     case EStoredReplicaType::OffshoreMedia:
         return OffshoreNodeId;
+    }
+}
+
+void TAugmentedStoredChunkReplicaPtr::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    auto type = GetStoredReplicaType();
+    Save(context, type);
+    Save(context, GetReplicaIndex());
+    Save(context, GetReplicaState());
+
+    switch (type) {
+        case EStoredReplicaType::ChunkLocation: {
+            SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsChunkLocationPtr());
+            break;
+        }
+        case EStoredReplicaType::OffshoreMedia: {
+            SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsMediumPtr());
+            break;
+        }
+    }
+}
+
+void TAugmentedStoredChunkReplicaPtr::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    if (context.GetVersion() < NCellMaster::EMasterReign::RefactoringAroundChunkStoredReplicas) {
+        auto chunkLocation = Load<TChunkLocationPtrWithReplicaInfo>(context);
+        *this = TAugmentedStoredChunkReplicaPtr(chunkLocation.GetPtr(), chunkLocation.GetReplicaIndex(), chunkLocation.GetReplicaState());
+    } else {
+        auto type = Load<EStoredReplicaType>(context);
+        int index = Load<ui8>(context);
+        auto state = Load<EChunkReplicaState>(context);
+        switch (type) {
+            case EStoredReplicaType::ChunkLocation: {
+                auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, TChunkLocation*>(context);
+                *this = TAugmentedStoredChunkReplicaPtr(ptr, index,state);
+                break;
+            }
+            case EStoredReplicaType::OffshoreMedia: {
+                auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, TMedium*>(context);
+                *this = TAugmentedStoredChunkReplicaPtr(ptr, index,state);
+                break;
+            }
+        }
     }
 }
 
