@@ -208,6 +208,34 @@ std::vector<int64_t> ReadInteger64Array(const std::shared_ptr<arrow20::Array>& a
     return  {int64Array->raw_values(), int64Array->raw_values() + array->length()};
 }
 
+std::vector<uint64_t> ReadUInteger64Array(const std::shared_ptr<arrow20::Array>& array)
+{
+    auto uint64Array = std::dynamic_pointer_cast<arrow20::UInt64Array>(array);
+    YT_VERIFY(uint64Array);
+    return  {uint64Array->raw_values(), uint64Array->raw_values() + array->length()};
+}
+
+std::vector<uint32_t> ReadInteger32Array(const std::shared_ptr<arrow20::Array>& array)
+{
+    auto int32Array = std::dynamic_pointer_cast<arrow20::Int32Array>(array);
+    YT_VERIFY(int32Array);
+    return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
+}
+
+std::vector<uint32_t> ReadUInteger32Array(const std::shared_ptr<arrow20::Array>& array)
+{
+    auto uint32Array = std::dynamic_pointer_cast<arrow20::UInt32Array>(array);
+    YT_VERIFY(uint32Array);
+    return  {uint32Array->raw_values(), uint32Array->raw_values() + array->length()};
+}
+
+std::vector<uint16_t> ReadUInteger16Array(const std::shared_ptr<arrow20::Array>& array)
+{
+    auto uint16Array = std::dynamic_pointer_cast<arrow20::UInt16Array>(array);
+    YT_VERIFY(uint16Array);
+    return  {uint16Array->raw_values(), uint16Array->raw_values() + array->length()};
+}
+
 std::vector<int64_t> ReadIntegerDateArray(const std::shared_ptr<arrow20::Array>& array)
 {
     auto int32Array = std::dynamic_pointer_cast<arrow20::Date32Array>(array);
@@ -227,20 +255,6 @@ std::vector<int64_t> ReadTimestampArray(const std::shared_ptr<arrow20::Array>& a
     auto int64Array = std::dynamic_pointer_cast<arrow20::TimestampArray>(array);
     YT_VERIFY(int64Array);
     return  {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
-}
-
-std::vector<uint32_t> ReadInteger32Array(const std::shared_ptr<arrow20::Array>& array)
-{
-    auto int32Array = std::dynamic_pointer_cast<arrow20::Int32Array>(array);
-    YT_VERIFY(int32Array);
-    return  {int32Array->raw_values(), int32Array->raw_values() + array->length()};
-}
-
-std::vector<uint32_t> ReadUInteger32Array(const std::shared_ptr<arrow20::Array>& array)
-{
-    auto uint32Array = std::dynamic_pointer_cast<arrow20::UInt32Array>(array);
-    YT_VERIFY(uint32Array);
-    return  {uint32Array->raw_values(), uint32Array->raw_values() + array->length()};
 }
 
 std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow20::Array>& array)
@@ -2395,6 +2409,167 @@ TEST(TArrowWriterComplexTest, OptionalEmptyStruct) {
     EXPECT_TRUE(columnMetadata);
     auto value = *(columnMetadata->Get(YtTypeMetadataKey));
     EXPECT_EQ(value, YtTypeMetadataValueEmptyStruct);
+}
+
+TEST(TArrowWriterComplexTest, NullTypes) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"null", "null_struct"};
+
+    auto optionalType = OptionalLogicalType(StructLogicalType({}));
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], NullLogicalType()),
+        TColumnSchema(columnNames[1], OptionalLogicalType(StructLogicalType({{"null", NullLogicalType()}}))),
+    }));
+
+    std::vector<std::optional<TString>> nulls = {
+        std::nullopt,
+        std::nullopt,
+    };
+    std::vector<std::optional<TString>> nullStructs = {
+        "[#;]",
+        std::nullopt,
+    };
+
+    auto rows = MakeUnversionedNullableAnyRowsFromYson({nulls, nullStructs}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto nullArray = batch->column(0);
+    auto nullStructArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(1));
+    auto nestedNullArray = nullStructArray->GetFieldByName("null");
+
+    ASSERT_EQ(nullArray->null_count(), 2);
+    ASSERT_TRUE(nullStructArray->IsValid(0));
+    ASSERT_TRUE(nullStructArray->IsNull(1));
+    ASSERT_TRUE(nestedNullArray->IsNull(0));
+}
+
+TEST(TArrowWriterComplexTest, NestedTzType) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"tz"};
+
+    auto type = StructLogicalType({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
+    });
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], type),
+    }));
+
+    constexpr ESimpleLogicalValueType UnderlyingDateType = GetUnderlyingDateType<ESimpleLogicalValueType::TzTimestamp>();
+    using TInt = TUnderlyingTimestampIntegerType<UnderlyingDateType>;
+
+    std::vector<TString> ysonStrings = {
+        "[\"123\";\"" + MakeTzString<TInt>(0, GetTzName(0)) + "\";]",
+        "[\"456\";\"" + MakeTzString<TInt>(1, GetTzName(1)) + "\";]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+    config->EnableTzIndex = false;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+    auto tzArray = std::dynamic_pointer_cast<arrow20::StructArray>(structArray->GetFieldByName("b"));
+    auto timestampArray = ReadUInteger64Array(tzArray->GetFieldByName("Timestamp"));
+    auto tzNameArray = ReadStringArray(tzArray->GetFieldByName("TzName"));
+
+    ASSERT_EQ(timestampArray, std::vector<ui64>({0, 1}));
+    ASSERT_EQ(tzNameArray, std::vector<std::string>({std::string(GetTzName(0)), std::string(GetTzName(1))}));
+}
+
+TEST(TArrowWriterComplexTest, NestedTzTypeWithIndices) {
+    std::vector<TTableSchemaPtr> tableSchemas;
+    std::vector<std::string> columnNames = {"tz"};
+
+    auto type = StructLogicalType({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::TzTimestamp)},
+    });
+
+    tableSchemas.push_back(New<TTableSchema>(std::vector{
+        TColumnSchema(columnNames[0], type),
+    }));
+
+    constexpr ESimpleLogicalValueType UnderlyingDateType = GetUnderlyingDateType<ESimpleLogicalValueType::TzTimestamp>();
+    using TInt = TUnderlyingTimestampIntegerType<UnderlyingDateType>;
+
+    std::vector<TString> ysonStrings = {
+        "[\"123\";\"" + MakeTzString<TInt>(0, GetTzName(0)) + "\";]",
+        "[\"456\";\"" + MakeTzString<TInt>(1, GetTzName(1)) + "\";]",
+    };
+
+    auto rows = MakeUnversionedAnyRowsFromYson({ysonStrings}, columnNames);
+
+    auto config = New<TArrowFormatConfig>();
+    config->EnableComplexTypes = true;
+    config->EnableTzIndex = true;
+
+    TStringStream outputStream;
+
+    auto writer = CreateArrowWriter(
+        rows.NameTable,
+        &outputStream,
+        tableSchemas,
+        config);
+
+    EXPECT_TRUE(writer->Write(rows.Rows));
+
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    auto batch = MakeBatch(outputStream);
+
+    CheckColumnNames(batch, columnNames);
+
+    auto structArray = std::dynamic_pointer_cast<arrow20::StructArray>(batch->column(0));
+    auto tzArray = std::dynamic_pointer_cast<arrow20::StructArray>(structArray->GetFieldByName("b"));
+    auto timestampArray = ReadUInteger64Array(tzArray->GetFieldByName("Timestamp"));
+    auto tzIndexArray = ReadUInteger16Array(tzArray->GetFieldByName("TzIndex"));
+
+    ASSERT_EQ(timestampArray, std::vector<ui64>({0, 1}));
+    ASSERT_EQ(tzIndexArray, std::vector<ui16>({0, 1}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
