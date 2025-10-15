@@ -700,6 +700,7 @@ type WhoAmIResult struct {
 
 type OperationRuntimeParameters struct {
 	ACL                          []ACE          `yson:"acl"`
+	ACOName                      *string        `yson:"aco_name"`
 	SchedulingOptionsPerPoolTree map[string]any `yson:"scheduling_options_per_pool_tree"`
 	Annotations                  map[string]any `yson:"annotations"`
 	ErasedTrees                  []string       `yson:"erased_trees"`
