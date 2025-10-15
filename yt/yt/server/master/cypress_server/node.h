@@ -340,9 +340,6 @@ public:
     TCypressNode* GetEffectiveExpirationTimeNode();
     TCypressNode* GetEffectiveExpirationTimeoutNode();
 
-    //! Returns |true| if object is being created.
-    bool IsBeingCreated() const;
-
     //! Returns true if the node can be cached for resolve.
     /*!
      *  The following conditions must be met:
