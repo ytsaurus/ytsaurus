@@ -51,7 +51,7 @@ void TNodeDirectoryBuilder::Add(TRange<TChunkLocationPtrWithReplicaInfo> locatio
     }
 }
 
-void TNodeDirectoryBuilder::Add(NChunkServer::TStoredChunkReplicaPtrWithReplicaInfo replica)
+void TNodeDirectoryBuilder::Add(NChunkServer::TAugmentedStoredChunkReplicaPtr replica)
 {
     if (replica.IsChunkLocationPtr()) {
         Add(replica.AsChunkLocationPtr()->GetNode());
@@ -63,7 +63,7 @@ void TNodeDirectoryBuilder::Add(NChunkServer::TStoredChunkReplicaPtrWithReplicaI
     }
 }
 
-void TNodeDirectoryBuilder::Add(TRange<NChunkServer::TStoredChunkReplicaPtrWithReplicaInfo> replicaList)
+void TNodeDirectoryBuilder::Add(TRange<NChunkServer::TAugmentedStoredChunkReplicaPtr> replicaList)
 {
     for (auto replica : replicaList) {
         Add(replica);

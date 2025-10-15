@@ -759,7 +759,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -783,7 +783,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -807,7 +807,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -829,7 +829,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TDummyNbdChunk* chunk,
-        const TStoredChunkReplicaPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -5945,7 +5945,7 @@ private:
             return;
         }
 
-        TStoredChunkReplicaPtrWithReplicaInfo chunkLocationWithReplicaInfo(
+        TAugmentedStoredChunkReplicaPtr chunkLocationWithReplicaInfo(
             chunkLocation,
             replica.GetReplicaIndex(),
             replica.GetReplicaState());
@@ -5977,7 +5977,7 @@ private:
     {
         auto* chunk = chunkWithIndexes.GetPtr();
         auto node = location->GetNode();
-        TStoredChunkReplicaPtrWithReplicaInfo locationWithIndexes(
+        TAugmentedStoredChunkReplicaPtr locationWithIndexes(
             location,
             chunkWithIndexes.GetReplicaIndex(),
             chunkWithIndexes.GetReplicaState());

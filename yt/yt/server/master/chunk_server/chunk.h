@@ -169,19 +169,19 @@ public:
     int GetParentCount() const;
     bool HasParents() const;
 
-    TRange<TStoredChunkReplicaPtrWithReplicaInfo> StoredReplicas() const;
+    TRange<TAugmentedStoredChunkReplicaPtr> StoredReplicas() const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     TRange<TNodeId> LastSeenReplicas() const;
 
     void AddReplica(
-        TStoredChunkReplicaPtrWithReplicaInfo replica,
+        TAugmentedStoredChunkReplicaPtr replica,
         const TMedium* medium,
         bool approved);
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
 
-    void ApproveReplica(TStoredChunkReplicaPtrWithReplicaInfo replica);
+    void ApproveReplica(TAugmentedStoredChunkReplicaPtr replica);
     int GetApprovedReplicaCount() const;
 
     // COMPAT(ifsmirnov)
@@ -415,9 +415,9 @@ private:
 
         virtual ~TReplicasDataBase() = default;
 
-        virtual TRange<TStoredChunkReplicaPtrWithReplicaInfo> GetStoredReplicas() const = 0;
-        virtual TMutableRange<TStoredChunkReplicaPtrWithReplicaInfo> MutableStoredReplicas() = 0;
-        virtual void AddStoredReplica(TStoredChunkReplicaPtrWithReplicaInfo replica) = 0;
+        virtual TRange<TAugmentedStoredChunkReplicaPtr> GetStoredReplicas() const = 0;
+        virtual TMutableRange<TAugmentedStoredChunkReplicaPtr> MutableStoredReplicas() = 0;
+        virtual void AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica) = 0;
         virtual void RemoveStoredReplica(int replicaIndex) = 0;
 
         //! Null entries are InvalidNodeId.
@@ -432,7 +432,7 @@ private:
     struct TReplicasData
         : public TReplicasDataBase
     {
-        TStoredChunkReplicaPtrWithReplicaInfoList StoredReplicas;
+        TStoredChunkReplicaList StoredReplicas;
 
         std::array<TNodeId, MaxLastSeenReplicaCount> LastSeenReplicas;
 
@@ -447,9 +447,9 @@ private:
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;
 
         //! Null entries are InvalidNodeId.
-        TRange<TStoredChunkReplicaPtrWithReplicaInfo> GetStoredReplicas() const override;
-        TMutableRange<TStoredChunkReplicaPtrWithReplicaInfo> MutableStoredReplicas() override;
-        void AddStoredReplica(TStoredChunkReplicaPtrWithReplicaInfo replica) override;
+        TRange<TAugmentedStoredChunkReplicaPtr> GetStoredReplicas() const override;
+        TMutableRange<TAugmentedStoredChunkReplicaPtr> MutableStoredReplicas() override;
+        void AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica) override;
         void RemoveStoredReplica(int replicaIndex) override;
 
         void Load(NCellMaster::TLoadContext& context) override;

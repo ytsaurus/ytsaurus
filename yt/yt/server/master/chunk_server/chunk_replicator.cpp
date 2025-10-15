@@ -519,7 +519,7 @@ void TChunkReplicator::TouchChunk(TChunk* chunk)
 
 TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
     TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
 
     VerifyPersistentStateRead();
@@ -537,18 +537,18 @@ TCompactMediumMap<EChunkStatus> TChunkReplicator::ComputeChunkStatuses(
 
 ECrossMediumChunkStatus TChunkReplicator::ComputeCrossMediumChunkStatus(
     TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     return ComputeChunkStatistics(chunk, replicas).Status;
 }
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMediumPtr(); });
     if (chunk->IsErasure() && offshoreReplicaIt != replicas.end()) {
-        TStoredChunkReplicaPtrWithReplicaInfoList offshoreReplicas;
+        TStoredChunkReplicaList offshoreReplicas;
         for (const auto& replica: replicas) {
             if (replica.IsMediumPtr()) {
                 offshoreReplicas.push_back(replica);
@@ -574,7 +574,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatistics(
     const TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     TChunkStatistics result;
 
@@ -587,7 +587,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     TCompactMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
-    TCompactMediumMap<TStoredChunkReplicaPtrWithReplicaInfo> unsafelyPlacedSealedReplicas;
+    TCompactMediumMap<TAugmentedStoredChunkReplicaPtr> unsafelyPlacedSealedReplicas;
     // An arbitrary replica that violates consistent placement requirements - per medium.
     TCompactMediumMap<std::array<TChunkLocation*, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
@@ -761,7 +761,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
 TCompactMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(
     const TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     if (!chunk->HasConsistentReplicaPlacementHash()) {
         return {};
@@ -810,7 +810,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     TReplicationPolicy replicationPolicy,
     int maxReplicasPerRack,
     const std::array<TChunkLocationList, ChunkReplicaIndexBound>& decommissionedReplicas,
-    TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedSealedReplica,
+    TAugmentedStoredChunkReplicaPtr unsafelyPlacedSealedReplica,
     NErasure::TPartIndexSet& erasedIndexes,
     bool totallySealed)
 {
@@ -1053,11 +1053,11 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(
     const TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     TChunkStatistics results;
 
-    TMediumMap<TStoredChunkReplicaPtrWithReplicaInfo> unsafelyPlacedReplicas;
+    TMediumMap<TAugmentedStoredChunkReplicaPtr> unsafelyPlacedReplicas;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
     TMediumMap<THashSet<const THost*>> replicasHosts;
     // TODO(gritukan): YT-16557.
@@ -1284,7 +1284,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     const TChunkLocationPtrWithReplicaIndexList& decommissionedReplicas,
     bool hasSealedReplica,
     bool totallySealed,
-    TStoredChunkReplicaPtrWithReplicaInfo unsafelyPlacedReplica,
+    TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica,
     TChunkLocationPtrWithReplicaIndex inconsistentlyPlacedReplica,
     const TNodePtrWithReplicaAndMediumIndexList& missingReplicas)
 {
@@ -1506,7 +1506,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     TChunkPtrWithReplicaIndex chunkWithIndex,
     TDomesticMedium* targetMedium,
     TNodeId targetNodeId,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     auto* sourceNode = context->GetNode();
     auto* chunk = chunkWithIndex.GetPtr();
@@ -1714,7 +1714,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
     IJobSchedulingContext* context,
     EChunkRepairQueue repairQueue,
     TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
 
@@ -2420,7 +2420,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
 
 void TChunkReplicator::RefreshChunk(
     const TEphemeralObjectPtr<TChunk>& ephemeralChunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas)
+    const TStoredChunkReplicaList& chunkReplicas)
 {
     if (!IsObjectAlive(ephemeralChunk)) {
         return;
@@ -2757,7 +2757,7 @@ void TChunkReplicator::MaybeRememberPartMissingChunk(TChunk* chunk)
 
 void TChunkReplicator::RemoveChunkReplicasFromReplicationQueues(
     TChunkId chunkId,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas)
+    const TStoredChunkReplicaList& replicas)
 {
     for (auto replica : replicas) {
         if (!replica.IsChunkLocationPtr()) {
@@ -2787,7 +2787,7 @@ bool TChunkReplicator::IsReplicaOnPendingRestartNode(TChunkLocation* replica)
 
 TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(
     const TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas) const
+    const TStoredChunkReplicaList& replicas) const
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto result = chunk->GetAggregatedReplication(GetChunkRequisitionRegistry());
@@ -3072,7 +3072,7 @@ TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
 
 bool TChunkReplicator::IsDurabilityRequired(
     TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& replicas) const
+    const TStoredChunkReplicaList& replicas) const
 {
     if (chunk->GetHistoricallyNonVital()) {
         return false;

@@ -140,7 +140,7 @@ void CanonizeCellTags(TCellTagList* cellTags)
 }
 
 static void PopulateChunkSpecWithReplicas(
-    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas,
+    const TStoredChunkReplicaList& chunkReplicas,
     bool fetchParityReplicas,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -270,7 +270,7 @@ void BuildReplicalessChunkSpec(
 void BuildChunkSpec(
     TBootstrap* bootstrap,
     TChunk* chunk,
-    const TStoredChunkReplicaPtrWithReplicaInfoList& chunkReplicas,
+    const TStoredChunkReplicaList& chunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,

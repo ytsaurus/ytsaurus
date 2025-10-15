@@ -14,7 +14,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TStoredChunkReplicaPtrWithReplicaInfo::TStoredChunkReplicaPtrWithReplicaInfo(T* ptr, int index, EChunkReplicaState replicaState)
+TAugmentedStoredChunkReplicaPtr::TAugmentedStoredChunkReplicaPtr(T* ptr, int index, EChunkReplicaState replicaState)
     requires ((std::is_same_v<T, TChunkLocation> || std::is_same_v<T, TMedium>))
 : Value_(
     reinterpret_cast<uintptr_t>(ptr) |
@@ -28,7 +28,7 @@ TStoredChunkReplicaPtrWithReplicaInfo::TStoredChunkReplicaPtrWithReplicaInfo(T* 
 }
 
 template <class C>
-void TStoredChunkReplicaPtrWithReplicaInfo::Save(C& context) const
+void TAugmentedStoredChunkReplicaPtr::Save(C& context) const
 {
     using NYT::Save;
     auto type = GetStoredReplicaType();
@@ -49,13 +49,13 @@ void TStoredChunkReplicaPtrWithReplicaInfo::Save(C& context) const
 }
 
 template <class C>
-void TStoredChunkReplicaPtrWithReplicaInfo::Load(C& context)
+void TAugmentedStoredChunkReplicaPtr::Load(C& context)
 {
     using NYT::Load;
 
     if (context.GetVersion() < NCellMaster::EMasterReign::RefactoringAroundChunkStoredReplicas) {
         auto chunkLocation = Load<TChunkLocationPtrWithReplicaInfo>(context);
-        *this = TStoredChunkReplicaPtrWithReplicaInfo(chunkLocation.GetPtr(), chunkLocation.GetReplicaIndex(), chunkLocation.GetReplicaState());
+        *this = TAugmentedStoredChunkReplicaPtr(chunkLocation.GetPtr(), chunkLocation.GetReplicaIndex(), chunkLocation.GetReplicaState());
     } else {
         auto type = Load<EStoredReplicaType>(context);
         int index = Load<ui8>(context);
@@ -63,12 +63,12 @@ void TStoredChunkReplicaPtrWithReplicaInfo::Load(C& context)
         switch (type) {
             case EStoredReplicaType::ChunkLocation: {
                 auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, TChunkLocation*>(context);
-                *this = TStoredChunkReplicaPtrWithReplicaInfo(ptr, index,state);
+                *this = TAugmentedStoredChunkReplicaPtr(ptr, index,state);
                 break;
             }
             case EStoredReplicaType::OffshoreMedia: {
                 auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, TMedium*>(context);
-                *this = TStoredChunkReplicaPtrWithReplicaInfo(ptr, index,state);
+                *this = TAugmentedStoredChunkReplicaPtr(ptr, index,state);
                 break;
             }
         }

@@ -25,8 +25,8 @@ public:
     void Add(TRange<NChunkServer::TNodePtrWithReplicaAndMediumIndex> nodeList);
     void Add(NChunkServer::TChunkLocationPtrWithReplicaInfo location);
     void Add(TRange<NChunkServer::TChunkLocationPtrWithReplicaInfo> locationList);
-    void Add(NChunkServer::TStoredChunkReplicaPtrWithReplicaInfo replica);
-    void Add(TRange<NChunkServer::TStoredChunkReplicaPtrWithReplicaInfo> replicaList);
+    void Add(NChunkServer::TAugmentedStoredChunkReplicaPtr replica);
+    void Add(TRange<NChunkServer::TAugmentedStoredChunkReplicaPtr> replicaList);
 
 private:
     NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory_;
