@@ -151,8 +151,11 @@ TFuture<void> TNbdSession::Start()
 
 void TNbdSession::Cancel(const TError& error)
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     Error_ = error;
-    WaitFor(Destroy()).ThrowOnError();
+
+    YT_UNUSED_FUTURE(Destroy());
 }
 
 TInstant TNbdSession::GetStartTime() const
