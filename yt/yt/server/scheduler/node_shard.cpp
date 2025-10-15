@@ -1757,7 +1757,9 @@ void TNodeShard::FillNodeProfilingTags(
     };
 
     if (auto maybeTreeId = strategyProxy->GetMaybeTreeId()) {
-        addTag(ProfilingPoolTreeKey, *maybeTreeId);
+        addTag(ExeNodeProfilingPoolTreeKey, *maybeTreeId);
+    } else {
+        addTag(ExeNodeProfilingPoolTreeKey, ExeNodeProfilingUnknownPoolTreeName);
     }
     // TODO(arkady-e1ppa): Something else?
 }

@@ -1162,4 +1162,46 @@ class TestGroupOutOfOrderBlocks(YTEnvSetup):
         assert extract_statistic_v2(chunk_reader_statistics, "block_count") == column_count
 
 
+class TestExeNodeProfiling(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "scheduler_connector": {
+                    "use_profiling_tags_from_scheduler": True,
+                }
+            }
+        },
+    }
+
+    @authors("coteeq")
+    def test_exe_node_tags_from_scheduler(self):
+        node, = ls("//sys/exec_nodes")
+        profiler = profiler_factory().at_node(node)
+
+        def get_labels(tree):
+            return {
+                "pool_tree": tree,
+                "origin": "scheduler",
+            }
+
+        # Just a random sensor that should have non-null value.
+        sensor = "job_controller/active_job_count"
+
+        wait(lambda: profiler.get(sensor, tags=get_labels("default")) == 0.0)
+
+        # Sanity check.
+        assert profiler.get(sensor, tags=get_labels("<unknown>")) is None
+
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+
+        set(f"//sys/cluster_nodes/{node}/@user_tags", ["other"])
+        wait(lambda: "other" in get(f"//sys/scheduler/orchid/scheduler/nodes/{node}/tags"))
+
+        wait(lambda: profiler.get(sensor, tags=get_labels("<unknown>")) == 0.0)
+        assert profiler.get(sensor, tags=get_labels("default")) is None
+
+
 ##################################################################
