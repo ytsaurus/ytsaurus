@@ -213,7 +213,7 @@ double TPoolTreeElement::GetWeight() const
     }
     double selfGuaranteeDominantShare = MaxComponent(Attributes().StrongGuaranteeShare) + Attributes().TotalResourceFlowRatio;
 
-    if (selfGuaranteeDominantShare < NVectorHdrf::RatioComputationPrecision) {
+    if (selfGuaranteeDominantShare < NVectorHdrf::Epsilon) {
         return 1.0;
     }
 
@@ -222,7 +222,7 @@ double TPoolTreeElement::GetWeight() const
         parentGuaranteeDominantShare = MaxComponent(GetParent()->Attributes().StrongGuaranteeShare) + GetParent()->Attributes().TotalResourceFlowRatio;
     }
 
-    if (parentGuaranteeDominantShare < NVectorHdrf::RatioComputationPrecision) {
+    if (parentGuaranteeDominantShare < NVectorHdrf::Epsilon) {
         return 1.0;
     }
 
@@ -419,7 +419,7 @@ double TPoolTreeElement::ComputeLocalSatisfactionRatio(const TJobResources& reso
     const auto& fairShare = Attributes_.FairShare.Total;
 
     // Check for corner cases.
-    if (Dominates(TResourceVector::SmallEpsilon(), fairShare)) {
+    if (Dominates(TResourceVector::Epsilon(), fairShare)) {
         return InfiniteSatisfactionRatio;
     }
 
@@ -843,7 +843,7 @@ void TPoolTreeCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
             child->BuildSchedulableChildrenLists(context);
             if (child->IsSchedulable()) {
                 bool shouldSkip = SchedulableElementCount_ >= *maxSchedulableElementCount &&
-                    Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total);
+                    Dominates(TResourceVector::Epsilon(), child->Attributes().FairShare.Total);
                 if (shouldSkip) {
                     child->OnFifoSchedulableElementCountLimitReached(context);
                 } else {
@@ -2078,7 +2078,7 @@ ESchedulableStatus TPoolTreeOperationElement::GetStatus() const
     }
 
     double tolerance = EffectiveFairShareStarvationTolerance_;
-    if (Dominates(Attributes_.FairShare.Total + TResourceVector::Epsilon(), Attributes_.DemandShare)) {
+    if (Dominates(Attributes_.FairShare.Total + TResourceVector::LargeEpsilon(), Attributes_.DemandShare)) {
         tolerance = 1.0;
     }
 

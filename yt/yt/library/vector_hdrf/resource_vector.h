@@ -14,8 +14,9 @@ namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr double RatioComputationPrecision = 1e-9;
-static constexpr double RatioComparisonPrecision = 1e-4;
+static constexpr double Epsilon = 1e-9;
+static constexpr double LargeEpsilon = 1e-4;
+
 static constexpr double InfiniteResourceAmount = 1e10;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,14 +61,14 @@ public:
         double zeroDivByZero = 0.0,
         double oneDivByZero = 0.0);
 
-    static constexpr TResourceVector SmallEpsilon()
-    {
-        return FromDouble(RatioComputationPrecision);
-    }
-
     static constexpr TResourceVector Epsilon()
     {
-        return FromDouble(RatioComparisonPrecision);
+        return FromDouble(NVectorHdrf::Epsilon);
+    }
+
+    static constexpr TResourceVector LargeEpsilon()
+    {
+        return FromDouble(NVectorHdrf::LargeEpsilon);
     }
 
     static constexpr TResourceVector Infinity()

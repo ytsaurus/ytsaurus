@@ -3625,10 +3625,12 @@ void TSchedulingPolicy::PublishFairShareAtOperation(
     // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
     // It is necessary since some allocation's resource usage may increase before the next fair share update,
     // and in this case we don't want any allocations to become preemptible
-    bool dominantFairShareEqualToDominantDemandShare =
-        TResourceVector::Near(element->Attributes().FairShare.Total, element->Attributes().DemandShare, NVectorHdrf::RatioComparisonPrecision) &&
-            !Dominates(TResourceVector::Epsilon(), element->Attributes().DemandShare);
-    bool currentPreemptibleValue = !dominantFairShareEqualToDominantDemandShare;
+    bool operationDemandFullySatisfied = TResourceVector::Near(
+        element->Attributes().FairShare.Total,
+        element->Attributes().DemandShare,
+        NVectorHdrf::Epsilon);
+    bool currentPreemptibleValue = !operationDemandFullySatisfied ||
+        Dominates(TResourceVector::Epsilon(), element->Attributes().DemandShare);
 
     const auto& operationSharedState = postUpdateContext->StaticAttributesList.AttributesOf(element).OperationSharedState;
     operationSharedState->PublishFairShare(element->Attributes().FairShare.Total);
