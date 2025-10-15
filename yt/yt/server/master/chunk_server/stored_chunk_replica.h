@@ -17,8 +17,8 @@ static_assert(
     static_cast<int>(TEnumTraits<EStoredReplicaType>::GetMaxValue()) < (1LL << 8),
     "Stored replica type must fit into 8 bits.");
 
-//! Custom class for variant stored chunk replica. It is similar to TAugmentedPtr, but due to variety of stored pointer has to be separate class.
-//! It stores compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
+// Stores compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
+// Similar to TAugmentedPtr but not limited to a single fixed pointer type.
 class TAugmentedStoredChunkReplicaPtr
 {
 public:
@@ -33,7 +33,7 @@ public:
     TAugmentedStoredChunkReplicaPtr& operator=(const TAugmentedStoredChunkReplicaPtr& other) = default;
     TAugmentedStoredChunkReplicaPtr& operator=(TAugmentedStoredChunkReplicaPtr&& other) = default;
 
-    bool HasPtr() const;
+    explicit operator bool() const;
 
     bool IsChunkLocationPtr() const;
     bool IsMediumPtr() const;
@@ -59,6 +59,7 @@ public:
 
     int GetReplicaIndex() const;
     int GetEffectiveMediumIndex() const;
+    // only this one
     NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const;
     NChunkClient::TChunkLocationUuid GetLocationUuid() const;
     NNodeTrackerClient::TNodeId GetNodeId() const;
