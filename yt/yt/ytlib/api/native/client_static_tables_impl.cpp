@@ -138,7 +138,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             extensionTags.push_back(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
         }
 
-        auto [inputChunks, schema, _] = CollectTableInputChunks(
+        auto inputTableInfo = CollectInputTableInfo(
             path,
             this,
             nodeDirectory,
@@ -147,18 +147,21 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
                 ? *transactionId
                 : options.TransactionId,
             extensionTags,
+            TGetUserObjectBasicAttributesOptions{},
             Logger);
+
+        YT_VERIFY(!inputTableInfo.RlsReadSpec);
 
         YT_LOG_INFO("Fetching columnar statistics (Columns: %v, FetcherMode: %v)",
             *path.GetColumns(),
             options.FetcherMode);
 
         YT_VERIFY(path.GetColumns().operator bool());
-        auto stableColumnNames = MapNamesToStableNames(*schema, *path.GetColumns(), NonexistentColumnName);
-        for (const auto& inputChunk : inputChunks) {
+        auto stableColumnNames = MapNamesToStableNames(*inputTableInfo.Schema, *path.GetColumns(), NonexistentColumnName);
+        for (const auto& inputChunk : inputTableInfo.Chunks) {
             fetcher->AddChunk(inputChunk, stableColumnNames);
         }
-        chunkCount.push_back(inputChunks.size());
+        chunkCount.push_back(inputTableInfo.Chunks.size());
     }
 
     WaitFor(fetcher->Fetch())

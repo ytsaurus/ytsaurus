@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     alter_table, authors, create, create_user, get, insert_rows, partition_tables, raises_yt_error, read_table, read_table_partition,
-    sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table)
+    sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table, set as yt_set)
 
 from yt.yson import dumps, to_yson_type
 
@@ -734,3 +734,64 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         assert len(actual_rows) == len(expected_rows)
         assert actual_rows == expected_rows
+
+
+class PartitionTablesRlsBase(TestPartitionTablesBase):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    @authors("coteeq")
+    def test_read_partition_rls(self):
+        create_user("u")
+        self._create_table("//tmp/t", chunk_count=2, rows_per_chunk=4, row_weight=1)
+        yt_set("//tmp/t/@acl", [
+            dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate='key_1 = "0000000001"'),
+            dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate='key_1 = "0000000002"'),
+        ])
+
+        partitions = partition_tables(
+            ["//tmp/t"],
+            data_weight_per_partition=1,
+            enable_cookies=True,
+            omit_inaccessible_rows=True,
+            authenticated_user="u",
+        )
+
+        collected_rows = []
+        for partition in partitions:
+            collected_rows.extend(read_table_partition(partition["cookie"], authenticated_user="u"))
+
+        expected_rows = read_table("//tmp/t")
+        expected_rows = [
+            row
+            for row in expected_rows
+            if row["key_1"] in ("0000000001", "0000000002")
+        ]
+        assert sorted_dicts(collected_rows) == expected_rows
+
+
+class TestPartitionTablesRlsNative(PartitionTablesRlsBase):
+    DRIVER_BACKEND = "native"
+
+
+@pytest.mark.xfail(reason="RPC driver does not know how to output partitions yet")
+class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
+    DRIVER_BACKEND = "rpc"
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
+            },
+            "generation": {
+                "cypress_key_writer": dict(),
+                "key_rotator": dict(),
+                "generator": dict(),
+            },
+        },
+    }
+
+    # NB(pavook): to avoid key owner collision.
+    NUM_RPC_PROXIES = 1
+
+    OWNERS_PATH = "//sys/public_keys/by_owner"
