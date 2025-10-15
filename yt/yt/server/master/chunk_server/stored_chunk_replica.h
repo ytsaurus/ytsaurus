@@ -17,8 +17,8 @@ static_assert(
     static_cast<int>(TEnumTraits<EStoredReplicaType>::GetMaxValue()) < (1LL << 8),
     "Stored replica type must fit into 8 bits.");
 
-//! Custom class for variant stored chunk replica. It is similar to TAugmentedPtr, but due to variety of stored pointer has to be separate class.
-//! It stores compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
+// Stores compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
+// Similar to TAugmentedPtr but not limited to a single fixed pointer type.
 class TAugmentedStoredChunkReplicaPtr
 {
 public:
@@ -33,14 +33,21 @@ public:
     TAugmentedStoredChunkReplicaPtr& operator=(const TAugmentedStoredChunkReplicaPtr& other) = default;
     TAugmentedStoredChunkReplicaPtr& operator=(TAugmentedStoredChunkReplicaPtr&& other) = default;
 
-    bool HasPtr() const;
+    explicit operator bool() const;
 
     bool IsChunkLocationPtr() const;
     bool IsMediumPtr() const;
 
+    EStoredReplicaType GetStoredReplicaType() const;
+
+    template <class T>
+    T* As(EStoredReplicaType replicaType) const
+        requires ((std::is_same_v<T, TChunkLocation> || std::is_same_v<T, TMedium>));
+
     TChunkLocation* AsChunkLocationPtr() const;
     TMedium* AsMediumPtr() const;
 
+    std::weak_ordering operator<=>(const TAugmentedStoredChunkReplicaPtr& other) const;
     bool operator==(TAugmentedStoredChunkReplicaPtr other) const;
     bool operator<(TAugmentedStoredChunkReplicaPtr other) const;
     bool operator<=(TAugmentedStoredChunkReplicaPtr other) const;
@@ -70,8 +77,6 @@ private:
     // |replica_index, replica_type, (variant(TChunkLocation*, TMedium*), replica_state|
     // |       8 bits,       8 bits,                             46 bits,        2 bits|
     uintptr_t Value_;
-
-    EStoredReplicaType GetStoredReplicaType() const;
 
     NObjectClient::TObjectId GetId() const;
 
