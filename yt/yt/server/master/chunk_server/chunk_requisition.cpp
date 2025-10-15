@@ -387,7 +387,8 @@ void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkMa
             auto& replicationPolicy = entry.ReplicationPolicy;
             if (!replicationPolicy) {
                 YT_LOG_ALERT(
-                    "Medium is disabled for requisition entry, ignore replication factor set (RequisitionEntry: %v)",
+                    "Medium is disabled for requisition entry, ignore replication factor set (Requisition: %v, RequisitionEntry: %v)",
+                    *this,
                     entry);
                 continue;
             }

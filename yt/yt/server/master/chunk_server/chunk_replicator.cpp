@@ -546,19 +546,21 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TChunk* chunk,
     const TStoredChunkReplicaList& replicas)
 {
-    auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMediumPtr(); });
-    if (chunk->IsErasure() && offshoreReplicaIt != replicas.end()) {
-        TStoredChunkReplicaList offshoreReplicas;
-        for (const auto& replica: replicas) {
-            if (replica.IsMediumPtr()) {
-                offshoreReplicas.push_back(replica);
+    if (chunk->IsErasure()) {
+        auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMediumPtr(); });
+        if (offshoreReplicaIt != replicas.end()) {
+            TStoredChunkReplicaList offshoreReplicas;
+            for (const auto& replica: replicas) {
+                if (replica.IsMediumPtr()) {
+                    offshoreReplicas.push_back(replica);
+                }
             }
+            YT_LOG_ALERT(
+                "Erasure chunk has offshore replicas (ChunkId: %v, Replicas: %v, OffshoreReplicas: %v)",
+                chunk->GetId(),
+                replicas,
+                offshoreReplicas);
         }
-        YT_LOG_ALERT(
-            "Erasure chunk has offshore replicas (ChunkId: %v, Replicas: %v, OffshoreReplicas: %v)",
-            chunk->GetId(),
-            replicas,
-            offshoreReplicas);
     }
 
     auto result = chunk->IsErasure()
