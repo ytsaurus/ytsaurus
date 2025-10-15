@@ -86,11 +86,17 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
         self._check_events(write_events, category="store_flush", allowed_chunk_ids=(get_singular_chunk_id("//tmp/table"), ))
 
     @authors("tea-mur")
-    def test_lookup(self):
+    @pytest.mark.parametrize("enable_data_node_lookup", [False, True])
+    def test_lookup(self, enable_data_node_lookup):
         # Prepare cluster.
         sync_create_cells(1)
         self._create_sorted_table("//tmp/table")
         self._prefer_remote_replicas("//tmp/table")
+        if enable_data_node_lookup:
+            self._enable_data_node_lookup("//tmp/table")
+            data_node_method = "LookupRows"
+        else:
+            data_node_method = "GetBlockSet"
         sync_mount_table("//tmp/table")
 
         # Prepare data.
@@ -104,7 +110,7 @@ class TestTabletNodeIOTracking(TestDynamicTableIOTrackingBase, DynamicTablesBase
 
         # Check io log.
         read_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier, check_event_count=True,
-                                               filter=lambda event: event.get("data_node_method@") == "GetBlockSet")
+                                               filter=lambda event: event.get("data_node_method@") == data_node_method)
         self._check_events(read_events, category="lookup_rows", allowed_chunk_ids=(get_singular_chunk_id("//tmp/table"), ))
 
     @authors("tea-mur")
