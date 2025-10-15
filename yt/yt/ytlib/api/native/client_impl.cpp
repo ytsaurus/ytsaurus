@@ -515,17 +515,10 @@ TObjectServiceProxy TClient::CreateObjectServiceWriteProxy(
         cellTag);
 }
 
-template <class TProxy>
-TProxy TClient::CreateWriteProxy(
-    TCellTag cellTag)
+TChunkServiceProxy TClient::CreateChunkServiceWriteProxy(TCellTag cellTag)
 {
-    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-    return TProxy(std::move(channel));
+    return TChunkServiceProxy(GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
 }
-
-template TChunkServiceProxy TClient::CreateWriteProxy<TChunkServiceProxy>(TCellTag cellTag);
-
-template TObjectServiceProxy TClient::CreateWriteProxy<TObjectServiceProxy>(TCellTag cellTag);
 
 NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor)
 {

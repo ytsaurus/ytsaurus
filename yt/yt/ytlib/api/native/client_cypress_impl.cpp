@@ -2429,7 +2429,7 @@ private:
 
     void UploadChunks()
     {
-        auto proxy = Client_->CreateWriteProxy<TChunkServiceProxy>(DstObject_.ExternalCellTag);
+        auto proxy = Client_->CreateChunkServiceWriteProxy(DstObject_.ExternalCellTag);
 
         auto batchReq = proxy.ExecuteBatch();
         NRpc::GenerateMutationId(batchReq);

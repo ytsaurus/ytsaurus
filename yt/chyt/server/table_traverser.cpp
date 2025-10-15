@@ -33,7 +33,7 @@ std::vector<NYTree::INodePtr> GetNodes(
 
     auto connection = client->GetNativeConnection();
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchRequest = proxy.ExecuteBatch();
     SetBalancingHeader(batchRequest, connection, masterReadOptions);
 

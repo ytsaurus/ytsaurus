@@ -449,7 +449,10 @@ public:
         TAttachmentRange GetResponseAttachmentRange(int index) const;
     };
 
+private:
     explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
+
+public:
 
     //! Executes a batched Cypress request. Retries backed off, uncertain
     //! subrequests and Sequoia retriable errors. May take an arbitrarily long

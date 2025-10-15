@@ -79,7 +79,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const auto& connection = client->GetNativeConnection();
     TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, masterReadOptions);
 
@@ -145,7 +145,7 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
     TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, masterReadOptions);
 
