@@ -113,8 +113,6 @@ public:
 
     virtual TMasterTableSchema* GetEmptyMasterTableSchema() const = 0;
 
-    // Set correct schema revision after merge
-    virtual void MergeTableSchema(TSchemafulNode* originatingNode, TSchemafulNode* branchedNode) = 0;
     virtual void SetTableSchema(TSchemafulNode* table, TMasterTableSchema* schema) = 0;
     virtual void SetTableSchemaOrCrash(TSchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void ResetTableSchema(TSchemafulNode* table) = 0;

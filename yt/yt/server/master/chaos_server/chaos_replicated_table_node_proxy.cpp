@@ -201,7 +201,6 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetOpaque(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaRevision));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
             .SetWritable(true)
             .SetPresent(hasNonEmptySchema && isSorted));
@@ -303,11 +302,6 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(node->IsSorted());
-                return true;
-
-            case EInternedAttributeKey::SchemaRevision:
-                BuildYsonFluently(consumer)
-                    .Value(node->GetSchemaRevision());
                 return true;
 
             default:

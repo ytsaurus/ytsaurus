@@ -293,17 +293,6 @@ public:
         return EmptyMasterTableSchema_;
     }
 
-    void MergeTableSchema(TSchemafulNode* originatingNode, TSchemafulNode* branchedNode) override
-    {
-        auto originatingNodeSchemaRevision = originatingNode->GetSchemaRevision();
-        auto branchedNodeSchemaRevision = branchedNode->GetSchemaRevision();
-        SetTableSchema(originatingNode, branchedNode->GetSchema());
-
-        if (originatingNodeSchemaRevision != branchedNodeSchemaRevision) {
-            originatingNode->SetSchemaRevision(branchedNodeSchemaRevision);
-        }
-    }
-
     void SetTableSchema(TSchemafulNode* table, TMasterTableSchema* schema) override
     {
         if (!schema) {
@@ -326,9 +315,6 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         table->SetSchema(schema);
         objectManager->RefObject(schema);
-        const auto* context = GetCurrentMutationContext();
-        auto newSchemaRevision = context->GetVersion().ToRevision();
-        table->SetSchemaRevision(newSchemaRevision);
 
         if (table->IsExternal()) {
             ExportMasterTableSchema(schema, table->GetExternalCellTag());
