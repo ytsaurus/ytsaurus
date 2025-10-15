@@ -1296,7 +1296,7 @@ public:
             }
 
             bool zeroGuarantee = considerGuaranteesForSingleTree &&
-                Dominates(TResourceVector::SmallEpsilon(), estimatedGuaranteeShare);
+                Dominates(TResourceVector::Epsilon(), estimatedGuaranteeShare);
 
             auto newDemand = neededResources.GetNeededResourcesForTree(treeId);
             auto newDemandShare = TResourceVector::FromJobResources(newDemand, totalResourceLimits);

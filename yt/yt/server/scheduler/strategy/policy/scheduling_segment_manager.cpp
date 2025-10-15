@@ -442,14 +442,14 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
     TNonOwningOperationElementList bestOperationsToPreempt;
     double fairResourceAmount = 0.0;
     auto currentCandidate = assignedOperationElements.begin();
-    while (fairResourceAmount + NVectorHdrf::RatioComparisonPrecision < neededDemand &&
+    while (fairResourceAmount + NVectorHdrf::LargeEpsilon < neededDemand &&
         currentCandidate != assignedOperationElements.end())
     {
         auto nextCandidate = std::next(currentCandidate);
 
         while (nextCandidate != assignedOperationElements.end()) {
             auto nextCandidateFairResourceAmount = GetElementFairResourceAmount(*nextCandidate, context);
-            if (nextCandidateFairResourceAmount + fairResourceAmount + NVectorHdrf::RatioComparisonPrecision < neededDemand)
+            if (nextCandidateFairResourceAmount + fairResourceAmount + NVectorHdrf::LargeEpsilon < neededDemand)
             {
                 break;
             }
@@ -463,7 +463,7 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
         ++currentCandidate;
     }
 
-    if (fairResourceAmount + NVectorHdrf::RatioComparisonPrecision < neededDemand) {
+    if (fairResourceAmount + NVectorHdrf::LargeEpsilon < neededDemand) {
         return {};
     }
 
@@ -614,7 +614,7 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
         }
 
         bool hasZeroUsageAndFairShare = (element->ResourceUsageAtUpdate() == TJobResources()) &&
-            Dominates(TResourceVector::SmallEpsilon(), element->Attributes().FairShare.Total);
+            Dominates(TResourceVector::Epsilon(), element->Attributes().FairShare.Total);
         if (hasZeroUsageAndFairShare && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
             YT_LOG_DEBUG(
                 "Revoking operation module assignment because it has zero fair share and usage "
@@ -661,7 +661,9 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             continue;
         }
 
-        bool demandFullySatisfied = Dominates(element->Attributes().FairShare.Total + TResourceVector::Epsilon(), element->Attributes().DemandShare);
+        bool demandFullySatisfied = Dominates(
+            element->Attributes().FairShare.Total + TResourceVector::Epsilon(),
+            element->Attributes().DemandShare);
         if (operation->SchedulingSegmentModule || !demandFullySatisfied) {
             continue;
         }
@@ -806,7 +808,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
 
 std::optional<TNetworkPriority> TSchedulingSegmentManager::GetNetworkPriority(double operationDemand, double moduleCapacity) const
 {
-    if (Config_->ModuleShareToNetworkPriority.empty() || moduleCapacity < NVectorHdrf::RatioComparisonPrecision) {
+    if (Config_->ModuleShareToNetworkPriority.empty() || moduleCapacity < NVectorHdrf::LargeEpsilon) {
         return std::nullopt;
     }
 
