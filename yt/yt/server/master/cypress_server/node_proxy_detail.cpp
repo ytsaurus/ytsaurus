@@ -562,7 +562,10 @@ void TNontemplateCypressNodeProxyBase::LogAcdUpdate(TInternedAttributeKey key, c
 {
     TObjectProxyBase::LogAcdUpdate(key, value);
 
-    if (!GetThisImpl()->IsBeingCreated()) {
+    const auto* impl = GetThisImpl();
+    // TODO(h0pless): this is not quite correct since multiple changes may get
+    // encapsulated into a single Hive mutation.
+    if (impl->GetRevision() != NHydra::GetCurrentHydraContext()->GetVersion().ToRevision()) {
         NSecurityServer::LogAcdUpdate(key.Unintern(), GetPath(), value);
     }
 }
