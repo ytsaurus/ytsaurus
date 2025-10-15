@@ -72,7 +72,7 @@ TResourceVector AdjustProposedIntegralShare(
 {
     auto guaranteeShare = strongGuaranteeShare + proposedIntegralShare;
     if (!Dominates(limitsShare, guaranteeShare)) {
-        YT_VERIFY(Dominates(limitsShare + TResourceVector::SmallEpsilon(), guaranteeShare));
+        YT_VERIFY(Dominates(limitsShare + TResourceVector::Epsilon(), guaranteeShare));
         YT_VERIFY(Dominates(limitsShare, strongGuaranteeShare));
 
         proposedIntegralShare = limitsShare - strongGuaranteeShare;
@@ -156,11 +156,11 @@ void TElement::CheckFairShareFeasibility(EFairShareType fairShareType) const
     const auto& demandShare = Attributes().DemandShare;
     const auto& fairShare = Attributes().GetFairShare(fairShareType).Total;
     bool isFairShareSignificantlyGreaterThanDemandShare =
-        !Dominates(demandShare + TResourceVector::SmallEpsilon(), fairShare);
+        !Dominates(demandShare + TResourceVector::Epsilon(), fairShare);
     if (isFairShareSignificantlyGreaterThanDemandShare) {
         std::vector<EJobResourceType> significantlyGreaterResources;
         for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-            if (demandShare[resource] + RatioComputationPrecision <= fairShare[resource]) {
+            if (demandShare[resource] + Epsilon <= fairShare[resource]) {
                 significantlyGreaterResources.push_back(resource);
             }
         }
@@ -266,7 +266,7 @@ void TElement::PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context)
 
         double limit = Attributes().LimitsShare[r];
         // NB(eshcherbin): We definitely cannot use a precise inequality here. See YT-13864.
-        YT_VERIFY(fsbffComponent.LeftFunctionValue() < limit + RatioComputationPrecision);
+        YT_VERIFY(fsbffComponent.LeftFunctionValue() < limit + Epsilon);
         limit = std::min(std::max(limit, fsbffComponent.LeftFunctionValue()), fsbffComponent.RightFunctionValue());
 
         double guarantee = Attributes().GetGuaranteeShare()[r];
@@ -521,7 +521,7 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
         }
 
         auto maxAvailableStrongGuaranteeShare = Attributes().StrongGuaranteeShare - totalFixedChildrenStrongGuaranteeShare;
-        YT_VERIFY(Dominates(maxAvailableStrongGuaranteeShare + TResourceVector::SmallEpsilon(), TResourceVector::Zero()));
+        YT_VERIFY(Dominates(maxAvailableStrongGuaranteeShare + TResourceVector::Epsilon(), TResourceVector::Zero()));
         maxAvailableStrongGuaranteeShare = TResourceVector::Max(maxAvailableStrongGuaranteeShare, TResourceVector::Zero());
 
         if (!Dominates(maxAvailableStrongGuaranteeShare, currentTierTotalChildrenStrongGuaranteeShare)) {
@@ -849,7 +849,7 @@ double TCompositeElement::GetMinChildWeight() const
     double minWeight = std::numeric_limits<double>::max();
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
-        if (child->GetWeight() > RatioComputationPrecision) {
+        if (child->GetWeight() > Epsilon) {
             minWeight = std::min(minWeight, child->GetWeight());
         }
     }
@@ -962,7 +962,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
     };
     auto checkFitFactor = [&] (double fitFactor) {
         // Check that we can safely use the given fit factor to compute suggestions for children.
-        return Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), getChildrenSuggestedFairShare(fitFactor));
+        return Dominates(suggestedFairShare + TResourceVector::Epsilon(), getChildrenSuggestedFairShare(fitFactor));
     };
 
     // Usually MFFBS(suggestion) is the right fit factor to use for child suggestions.
@@ -993,7 +993,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, EFairShareType
 
     // Validate children total fair share.
     bool suggestedShareNearlyDominatesChildrenUsedShare =
-        Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), childrenUsedFairShare);
+        Dominates(suggestedFairShare + TResourceVector::Epsilon(), childrenUsedFairShare);
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(childrenUsedFairShare, suggestedFairShare, 1e-4 * MaxComponent(childrenUsedFairShare));
 
@@ -1078,7 +1078,7 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
         /*hi*/ FairShareByFitFactor_->RightFunctionBound(),
         /*predicate*/ checkFitFactor);
 
-    if (!Dominates(TResourceVector::SmallEpsilon(), suggestedFairShare - getChildrenSuggestedFairShare(fitFactor))) {
+    if (!Dominates(TResourceVector::Epsilon(), suggestedFairShare - getChildrenSuggestedFairShare(fitFactor))) {
         YT_LOG_INFO(
             "Children suggested fair share significantly differs from suggested fair share in pool, "
             "trying to distribute it with gap (SuggestedFairShare: %v, ChildrenSuggestedFairShare: %v, "
@@ -1090,7 +1090,7 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
         if (context->Options.EnableImprovedFairShareByFitFactorComputationDistributionGap) {
             auto checkFitFactorWithGap = [&] (double fitFactor) {
                 // Check that we can safely use the given fit factor to compute suggestions for children.
-                return Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), getChildrenSuggestedFairShare(fitFactor));
+                return Dominates(suggestedFairShare + TResourceVector::Epsilon(), getChildrenSuggestedFairShare(fitFactor));
             };
 
             fitFactor = FloatingPointInverseLowerBound(
@@ -1101,7 +1101,7 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
     }
 
     // This rounding is necessary to avoid negligibly small fair shares instead of zero fair shares.
-    if (fitFactor < RatioComputationPrecision) {
+    if (fitFactor < Epsilon) {
         fitFactor = 0.0;
     }
 
@@ -1118,7 +1118,7 @@ void TCompositeElement::ComputeAndSetFairShare(TResourceVector suggestedFairShar
 
     // Validate children total fair share.
     bool suggestedShareNearlyDominatesChildrenUsedShare =
-        Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), childrenUsedFairShare);
+        Dominates(suggestedFairShare + TResourceVector::Epsilon(), childrenUsedFairShare);
     bool usedShareNearSuggestedShare =
         TResourceVector::Near(childrenUsedFairShare, suggestedFairShare, 1e-4 * MaxComponent(childrenUsedFairShare));
 
@@ -1192,7 +1192,7 @@ void TCompositeElement::DoTruncateFairShareInFifoPool(EFairShareType fairShareTy
 
         // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
         // which fair share is less than demand.
-        bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::Epsilon(), childAttributes.DemandShare);
+        bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::LargeEpsilon(), childAttributes.DemandShare);
         bool shouldTruncate = !isChildFullySatisfied && childOperation->IsGangLike();
         if (shouldTruncate) {
             const auto& Logger = GetLogger();
@@ -1337,10 +1337,9 @@ void TCompositeElement::DistributeFreeVolume()
             auto weightSum = 0.0;
             for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
                 auto& childAttributes = GetChild(childIndex)->Attributes();
-                if (childAttributes.AcceptableVolume.*resourceDataMember >
-                        static_cast<std::decay_t<decltype(childAttributes.AcceptableVolume.*resourceDataMember)>>(RatioComputationPrecision) &&
-                    childAttributes.TotalResourceFlowRatio >
-                        static_cast<std::decay_t<decltype(childAttributes.TotalResourceFlowRatio)>>(RatioComputationPrecision))
+
+                if (static_cast<double>(childAttributes.AcceptableVolume.*resourceDataMember) > Epsilon &&
+                    childAttributes.TotalResourceFlowRatio > Epsilon)
                 {
                     // Resource flow is taken as weight.
                     auto weight = childAttributes.TotalResourceFlowRatio;
