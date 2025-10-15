@@ -318,6 +318,8 @@ public:
 
         ProfileManager_->RegisterPool(RootElement_);
 
+        SchedulingPolicy_->Initialize();
+
         YT_LOG_INFO("Pool tree created");
     }
 
