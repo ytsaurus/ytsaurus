@@ -28,4 +28,5 @@ RECURSE(
     upload_chunk
     yt_sudo_fixup
     zstdtail
+    sqllogictest_generator
 )

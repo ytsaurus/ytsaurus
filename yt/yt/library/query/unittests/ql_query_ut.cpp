@@ -3386,7 +3386,7 @@ TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
             "k, x, sum(b) as s from [//t] group by a as k, v % 2 as x",
             split,
             sources,
-            OrderedResultMatcher(result, {"k", "x"}));
+            OrderedResultMatcher(result, std::vector<std::string>{"k", "x"}));
     }
 }
 
@@ -5388,7 +5388,7 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
         "a, c, b, d, e from [//a] join [//b] using c join [//c] using d",
         splits,
         sources,
-        OrderedResultMatcher(result, {"a", "b"}));
+        OrderedResultMatcher(result, std::vector<std::string>{"a", "b"}));
 
     SUCCEED();
 }
@@ -5449,7 +5449,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
         "a, b, c from [//x] join [//y] using a join [//z] using a left join [//q] using a",
         splits,
         sources,
-        OrderedResultMatcher(result, {"c", "b"}));
+        OrderedResultMatcher(result, std::vector<std::string>{"c", "b"}));
 
     SUCCEED();
 }

@@ -1,0 +1,46 @@
+
+statement ok
+CREATE TABLE t1(a INTEGER, b INTEGER, c INTEGER, d INTEGER, e INTEGER)
+
+statement ok
+INSERT INTO t1(e,c,b,d,a) VALUES(103,102,100,101,104)
+
+statement ok
+INSERT INTO t1(a,c,d,e,b) VALUES(107,106,108,109,105)
+
+statement ok
+INSERT INTO t1(e,d,b,a,c) VALUES(110,114,112,111,113)
+
+query I nosort
+SELECT CASE WHEN c>(SELECT avg(c) FROM t1) THEN a*2 ELSE b*10 END
+FROM t1
+ORDER BY 1
+----
+30 values hashing to 3c13dee48d9356ae19af2515e05e6b54
+
+query IIII nosort
+SELECT a+b*2+c*3+d*4,
+    CASE a+1 WHEN b THEN 111 WHEN c THEN 222
+    WHEN d THEN 333  WHEN e THEN 444 ELSE 555 END,
+    (SELECT count(*) FROM t1 AS x WHERE x.c>t1.c AND x.d<t1.d),
+    c
+FROM t1
+WHERE (c<=d-2 OR c>=d+2)
+ORDER BY 4,2,1,3
+----
+60 values hashing to a2af299d7b2197866b7c8f6854b77ab5
+
+query II nosort
+SELECT a+b*2+c*3+d*4+e*5,
+    (a+b+c+d+e)/5
+FROM t1
+ORDER BY 1,2
+----
+60 values hashing to 808146289313018fce25f1a280bd8c30
+
+query II rowsort x1
+SELECT a+b*2+c*3+d*4+e*5,
+       (a+b+c+d+e)/5
+  FROM t1
+----
+60 values hashing to f5182c92f97475673097a499ce82ae64

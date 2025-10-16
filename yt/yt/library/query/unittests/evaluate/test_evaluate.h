@@ -34,6 +34,7 @@ std::vector<TOwningRow> YsonToRows(TRange<std::string> rowsData, const TDataSpli
 
 TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchemaPtr expectedSchema = nullptr);
 TResultMatcher OrderedResultMatcher(std::vector<TOwningRow> expectedResult, std::vector<std::string> columns);
+TResultMatcher OrderedResultMatcher(std::vector<TOwningRow> expectedResult, const std::vector<int>& indexes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
