@@ -82,6 +82,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/line_split.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/prefetch.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/range_walker.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/unaligned_read.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/url_builder.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/utf8.h
 )
