@@ -41,3 +41,9 @@ RECURSE(
     v1
     v2
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE(
+        sqllogic
+    )
+ENDIF()

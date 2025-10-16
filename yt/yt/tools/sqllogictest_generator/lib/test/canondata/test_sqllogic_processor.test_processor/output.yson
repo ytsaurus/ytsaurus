@@ -1,0 +1,49 @@
+{
+    "table_schema" = {
+        "//t1" = "[{\"name\"=\"a\";\"type\"=\"int64\";};{\"name\"=\"b\";\"type\"=\"int64\";};{\"name\"=\"c\";\"type\"=\"int64\";};{\"name\"=\"d\";\"type\"=\"int64\";};{\"name\"=\"e\";\"type\"=\"int64\";};]";
+    };
+    "source_rows" = {
+        "//t1" = [
+            "\"a\"=104;\n\"b\"=100;\n\"c\"=102;\n\"d\"=101;\n\"e\"=103;\n";
+            "\"a\"=107;\n\"b\"=105;\n\"c\"=106;\n\"d\"=108;\n\"e\"=109;\n";
+            "\"a\"=111;\n\"b\"=112;\n\"c\"=113;\n\"d\"=114;\n\"e\"=110;\n";
+        ];
+    };
+    "queries" = [
+        {
+            "name" = "query_1";
+            "query" = "select case when c > (select avg(c) from `//t1`) then a * 2 else b * 10 end from `//t1` order by 1 limit 1000000";
+            "expected_rows" = [
+                "<\"id\"=0;>222;\n";
+                "<\"id\"=0;>1000;\n";
+                "<\"id\"=0;>1050;\n";
+            ];
+        };
+        {
+            "name" = "query_2";
+            "query" = "select a + b * 2 + c * 3 + d * 4, case a + 1 when b then 111 when c then 222 when d then 333 when e then 444 else 555 end, (select sum(1) from `//t1` as x where x.c > `//t1`.c and x.d < `//t1`.d), c from `//t1` where (c <= d - 2 or c >= d + 2) order by 4, 2, 1, 3 limit 1000000";
+            "expected_rows" = [
+                "<\"id\"=0;>1067;\n<\"id\"=1;>333;\n<\"id\"=2;>0;\n<\"id\"=3;>106;\n";
+            ];
+            "skip_reason" = "Subquery from table not supported";
+        };
+        {
+            "name" = "query_3";
+            "query" = "select a + b * 2 + c * 3 + d * 4 + e * 5, (a + b + c + d + e) / 5 from `//t1` order by 1, 2 limit 1000000";
+            "expected_rows" = [
+                "<\"id\"=0;>1529;\n<\"id\"=1;>102;\n";
+                "<\"id\"=0;>1612;\n<\"id\"=1;>107;\n";
+                "<\"id\"=0;>1680;\n<\"id\"=1;>112;\n";
+            ];
+        };
+        {
+            "name" = "query_4_x1";
+            "query" = "select a + b * 2 + c * 3 + d * 4 + e * 5, (a + b + c + d + e) / 5 from `//t1`";
+            "expected_rows" = [
+                "<\"id\"=0;>1529;\n<\"id\"=1;>102;\n";
+                "<\"id\"=0;>1612;\n<\"id\"=1;>107;\n";
+                "<\"id\"=0;>1680;\n<\"id\"=1;>112;\n";
+            ];
+        };
+    ];
+}

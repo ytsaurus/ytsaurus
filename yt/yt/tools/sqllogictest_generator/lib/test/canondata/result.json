@@ -1,0 +1,5 @@
+{
+    "test_sqllogic_processor.test_processor": {
+        "uri": "file://test_sqllogic_processor.test_processor/output.yson"
+    }
+}
