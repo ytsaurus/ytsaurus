@@ -1692,8 +1692,10 @@ void TChunkLocation::UnlockChunk(TChunkId chunkId)
 
     auto guard = Guard(LockedChunksLock_);
     if (LockedChunkIds_.erase(chunkId) == 0) {
-        YT_LOG_ALERT("Attempt to unlock a non-locked chunk (ChunkId: %v)",
-            chunkId);
+        if (TypeFromId(chunkId) != EObjectType::NbdChunk) {
+            YT_LOG_ALERT("Attempt to unlock a non-locked chunk (ChunkId: %v)",
+                chunkId);
+        }
     } else {
         YT_LOG_DEBUG("Chunk unlocked (ChunkId: %v)",
             chunkId);
