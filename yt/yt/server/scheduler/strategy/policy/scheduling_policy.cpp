@@ -2504,6 +2504,9 @@ TSchedulingPolicy::TSchedulingPolicy(
     , ScheduleAllocationsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
     , OperationCountByPreemptionPriorityBufferedProducer_(New<TBufferedProducer>())
     , SchedulingSegmentManager_(TreeId_, Config_->SchedulingSegments, Logger, Profiler_)
+{ }
+
+void TSchedulingPolicy::Initialize()
 {
     InitSchedulingProfilingCounters();
 

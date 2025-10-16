@@ -599,6 +599,8 @@ public:
         TStrategyTreeConfigPtr config,
         NProfiling::TProfiler profiler);
 
+    void Initialize();
+
     //! Node management.
     void RegisterNode(NNodeTrackerClient::TNodeId nodeId);
     void UnregisterNode(NNodeTrackerClient::TNodeId nodeId);
