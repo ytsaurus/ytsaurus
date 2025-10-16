@@ -64,8 +64,8 @@ public:
     bool IsFunctionLoaded(const std::string& function) const;
     void AddLoadedFunction(const std::string& function);
 
-    bool IsModuleLoaded(TRef data) const;
-    void AddLoadedModule(TRef data);
+    bool IsModuleLoaded(const TSharedRef& data) const;
+    void AddLoadedModule(TSharedRef data);
 
     void BuildWebAssembly();
     TRef GetWebAssemblyBytecode() const;

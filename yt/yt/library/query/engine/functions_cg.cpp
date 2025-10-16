@@ -508,7 +508,7 @@ void LoadLlvmBitcode(
     TCGBaseContext& builder,
     const std::string& functionName,
     const std::vector<std::string>& requiredSymbols,
-    TRef implementationFile)
+    TSharedRef implementationFile)
 {
     if (builder.Module->IsModuleLoaded(implementationFile)) {
         return;
@@ -625,7 +625,7 @@ void LoadLlvmFunctions(
     TCGBaseContext& builder,
     const std::string& functionName,
     std::vector<std::pair<std::string, llvm::FunctionType*>> functions,
-    TRef implementationFile)
+    TSharedRef implementationFile)
 {
     if (!implementationFile) {
         THROW_ERROR_EXCEPTION("UDF implementation is not available in this context");
