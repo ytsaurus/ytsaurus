@@ -121,6 +121,8 @@ DECLARE_MASTER_OBJECT_TYPE(TTableReplica)
 DECLARE_MASTER_OBJECT_TYPE(TTabletAction)
 DECLARE_MASTER_OBJECT_TYPE(THunkStorageNode)
 
+struct TCreateTabletActionOptions;
+
 struct TTabletStatistics;
 
 class TTabletResources;

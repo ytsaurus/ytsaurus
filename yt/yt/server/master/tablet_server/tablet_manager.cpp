@@ -1711,10 +1711,9 @@ public:
                 /*cells*/ {},
                 /*pivotKeys*/ {},
                 descriptor.TabletCount,
-                /*skipFreezing*/ false,
-                correlationId,
-                TInstant::Zero(),
-                /*expirationTimeout*/ std::nullopt);
+                TCreateTabletActionOptions{
+                    .CorrelationId = correlationId,
+                });
             return action->GetId();
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to create tablet action during sync reshard (TabletBalancerCorrelationId: %v)",
@@ -1751,10 +1750,9 @@ public:
                 {GetTabletCellOrThrow(descriptor.TabletCellId)},
                 /*pivotKeys*/ {},
                 /*tabletCount*/ std::nullopt,
-                /*skipFreezing*/ false,
-                correlationId,
-                TInstant::Zero(),
-                /*expirationTimeout*/ std::nullopt);
+                TCreateTabletActionOptions{
+                    .CorrelationId = correlationId,
+                });
             return action->GetId();
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG("Failed to create tablet action during sync cells balancing (TabletBalancerCorrelationId: %v)",

@@ -155,6 +155,7 @@ message TReqCreateTabletAction
     optional NYT.NProto.TGuid correlation_id = 7;
     optional uint64 expiration_time = 8;
     optional uint64 expiration_timeout = 9;
+    optional bool inplace_reshard = 10;
 }
 
 message TReqDestroyTabletActions
