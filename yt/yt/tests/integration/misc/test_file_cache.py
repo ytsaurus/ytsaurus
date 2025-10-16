@@ -7,6 +7,8 @@ from yt_commands import (
 
 from yt.common import date_string_to_datetime, YtError
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 import hashlib
 import pytest
 import time
@@ -21,6 +23,7 @@ class TestFileCache(YTEnvSetup):
     NUM_NODES = 5
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_get_file_from_cache(self):
         cache_path = "//tmp/file_cache"
         create("file", "//tmp/file")
@@ -56,6 +59,7 @@ class TestFileCache(YTEnvSetup):
         assert get_file_from_cache("", cache_path) == ""
 
     @authors("ignat")
+    @not_implemented_in_sequoia
     def test_put_file_to_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
@@ -224,3 +228,25 @@ class TestFileCacheRpcProxy(TestFileCache):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+
+##################################################################
+
+
+class TestFileCacheSequoia(TestFileCache):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        }
+    }
