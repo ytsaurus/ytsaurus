@@ -110,14 +110,13 @@ public:
         const auto& replicas = Chunk_->StoredReplicas();
         builder.Add(replicas);
         for (auto replica : replicas) {
-            if (!replica.IsChunkLocationPtr()) {
-                continue;
+            if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
+                const auto* location = locationReplica->AsChunkLocationPtr();
+                jobSpecExt->add_source_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(
+                    location->GetNode(),
+                    replica.GetReplicaIndex(),
+                    location->GetEffectiveMediumIndex())));
             }
-            const auto* location = replica.AsChunkLocationPtr();
-            jobSpecExt->add_source_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(
-                location->GetNode(),
-                replica.GetReplicaIndex(),
-                location->GetEffectiveMediumIndex())));
         }
 
         return true;

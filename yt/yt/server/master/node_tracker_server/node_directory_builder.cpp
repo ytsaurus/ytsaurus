@@ -53,8 +53,8 @@ void TNodeDirectoryBuilder::Add(TRange<TChunkLocationPtrWithReplicaInfo> locatio
 
 void TNodeDirectoryBuilder::Add(NChunkServer::TAugmentedStoredChunkReplicaPtr replica)
 {
-    if (replica.IsChunkLocationPtr()) {
-        Add(replica.AsChunkLocationPtr()->GetNode());
+    if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
+        Add(locationReplica->AsChunkLocationPtr()->GetNode());
     } else if (ListedNodeIds_.insert(OffshoreNodeId).second) {
         // TODO(cherepashka): fill out proto when offshore media will be supported.
         auto* item = ProtoDirectory_->add_items();

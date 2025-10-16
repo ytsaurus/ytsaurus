@@ -15,9 +15,14 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EStoredReplicaType, ui8,
     ((OffshoreMedia)   (1))
 );
 
+template <EStoredReplicaType type>
+struct TStoredReplicaTraits;
+
 static_assert(
     static_cast<int>(TEnumTraits<EStoredReplicaType>::GetMaxValue()) < (1LL << 8),
     "Stored replica type must fit into 8 bits.");
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Stores compact representation for |(variant(TChunkLocation*, TMedium*), replica_index, replica_state)|.
 // Similar to TAugmentedPtr but not limited to a single fixed pointer type.
@@ -37,11 +42,9 @@ public:
 
     explicit operator bool() const;
 
-    bool IsChunkLocationPtr() const;
-    bool IsMediumPtr() const;
-
-    TChunkLocation* AsChunkLocationPtr() const;
-    TMedium* AsMediumPtr() const;
+    EStoredReplicaType GetStoredReplicaType() const;
+    template <EStoredReplicaType type>
+    const typename TStoredReplicaTraits<type>::Type* As() const;
 
     bool operator==(TAugmentedStoredChunkReplicaPtr other) const;
     bool operator<(TAugmentedStoredChunkReplicaPtr other) const;
@@ -55,23 +58,19 @@ public:
 
     int GetReplicaIndex() const;
     int GetEffectiveMediumIndex() const;
-    // TODO: location uses only this one
-    NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const;
     NChunkClient::TChunkLocationUuid GetLocationUuid() const;
     NNodeTrackerClient::TNodeId GetNodeId() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-private:
+protected:
     static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
 
     // Use compact 8-byte representation.
     // |replica_index, replica_type, (variant(TChunkLocation*, TMedium*), replica_state|
     // |       8 bits,       8 bits,                             46 bits,        2 bits|
     uintptr_t Value_;
-
-    EStoredReplicaType GetStoredReplicaType() const;
 
     NObjectClient::TObjectId GetId() const;
 
@@ -84,14 +83,44 @@ YT_STATIC_ASSERT_SIZEOF_SANITY(TAugmentedStoredChunkReplicaPtr, 8);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAugmentedLocationChunkReplicaPtr
+    : public TAugmentedStoredChunkReplicaPtr
+{
+public:
+    NNodeTrackerClient::TChunkLocationIndex GetChunkLocationIndex() const;
+
+    TChunkLocation* AsChunkLocationPtr() const;
+};
+
+// Think twice before increasing this.
+YT_STATIC_ASSERT_SIZEOF_SANITY(TAugmentedLocationChunkReplicaPtr, 8);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAugmentedMediumChunkReplicaPtr
+    : public TAugmentedStoredChunkReplicaPtr
+{
+public:
+    TMedium* AsMediumPtr() const;
+};
+
+// Think twice before increasing this.
+YT_STATIC_ASSERT_SIZEOF_SANITY(TAugmentedMediumChunkReplicaPtr, 8);
+
+////////////////////////////////////////////////////////////////////////////////
+
 using TStoredChunkReplicaList = TCompactVector<TAugmentedStoredChunkReplicaPtr, TypicalReplicaCount>;
 using TChunkToStoredChunkReplicaList = THashMap<TChunkId, TErrorOr<TStoredChunkReplicaList>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, TAugmentedStoredChunkReplicaPtr value, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, TAugmentedLocationChunkReplicaPtr value, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, TAugmentedMediumChunkReplicaPtr value, TStringBuf spec);
 
 void ToProto(ui64* protoValue, TAugmentedStoredChunkReplicaPtr value);
+void ToProto(ui64* protoValue, TAugmentedLocationChunkReplicaPtr value);
+void ToProto(ui64* protoValue, TAugmentedMediumChunkReplicaPtr value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -331,11 +331,11 @@ private:
         });
 
         BuildYsonFluently(consumer)
-            .DoListFor(replicas, [&] (TFluentList fluent, auto replica) {
+            .DoListFor(replicas, [&] (TFluentList fluent, const TAugmentedStoredChunkReplicaPtr& replica) {
                 TChunkLocation* location = nullptr;
                 TNodeRawPtr node = nullptr;
-                if (replica.IsChunkLocationPtr()) {
-                    location = replica.AsChunkLocationPtr();
+                if (auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>()) {
+                    location = locationReplica->AsChunkLocationPtr();
                     node = location->GetNode();
                 }
                 SerializeReplica(
@@ -347,7 +347,7 @@ private:
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
                     replica.GetEffectiveMediumIndex(),
-                    /*offshoreMedium*/ replica.IsMediumPtr());
+                    /*offshoreMedium*/ replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
             });
     };
 

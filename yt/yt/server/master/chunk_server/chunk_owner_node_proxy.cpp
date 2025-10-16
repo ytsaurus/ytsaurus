@@ -153,15 +153,16 @@ static void PopulateChunkSpecWithReplicas(
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    auto addReplica = [&] (auto replica)  {
-        if (!replica.IsChunkLocationPtr()) {
+    auto addReplica = [&] (const TAugmentedStoredChunkReplicaPtr& replica)  {
+        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
             // TODO(cherepashka): actually return medium replicas in chunk specs, once more logic is here.
             return false;
         }
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        const auto* location = replica.AsChunkLocationPtr();
+        const auto* location = locationReplica->AsChunkLocationPtr();
         replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
         nodeDirectoryBuilder->Add(replica);
         return true;

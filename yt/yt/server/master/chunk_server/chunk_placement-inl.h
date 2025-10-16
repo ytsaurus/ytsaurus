@@ -52,10 +52,11 @@ public:
 
         int mediumIndex = medium->GetIndex();
         for (auto replica : replicas) {
-            if (!replica.IsChunkLocationPtr()) {
+            auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+            if (!locationReplica) {
                 continue;
             }
-            auto chunkLocation = replica.AsChunkLocationPtr();
+            auto chunkLocation = locationReplica->AsChunkLocationPtr();
             if (replica.GetEffectiveMediumIndex() == mediumIndex) {
                 auto node = chunkLocation->GetNode();
                 if (!AllowMultipleReplicasPerNode_) {
