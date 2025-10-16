@@ -5,7 +5,7 @@ from yt.environment.default_config import get_dynamic_node_config
 
 from yt_commands import (
     authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, sync_create_cells,
-    raises_yt_error, read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
+    read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
@@ -302,42 +302,36 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
             cluster_index,
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
-    @authors("cherepashka")
-    def test_add_cell(self):
+    def check_portals(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 12})
         tx = start_transaction(timeout=120000)
         create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 12
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12]
 
+        yield
+
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
+        create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
+        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
+
+    def check_no_nodes_reregistration(self):
         nodes = ls("//sys/cluster_nodes")
         lease_txs = {}
         for node in nodes:
             lease_txs[node] = get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
 
-        self._enable_last_cell(downtime=False)
+        yield
 
         # Make sure nodes have discovered the new cell and the last master cell receive all heartbetas.
         wait(lambda: self._nodes_synchronized_with_masters(nodes))
         self._wait_for_nodes_state("online", aggregate_state=False)
 
         # Nodes should not reregister.
-        for node in ls("//sys/cluster_nodes"):
+        for node in nodes:
             assert lease_txs[node] == get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
 
-        with raises_yt_error("not discovered by all nodes"):
-            set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
-
-        # Make the new master cell "reliable" for other master cells.
-        set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
-        set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
-
-        create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
-        assert read_table("//tmp/t") == [{"a" : "b"}]
-
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
-        create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
-        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
+    def check_basic_map_reduce(self):
+        yield
 
         data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in", attributes={"external_cell_tag": 11})
@@ -356,9 +350,16 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
         wait(lambda: self.do_with_retries(map_reduce_wrapper))
 
-        # Just in case. Nodes still should not reregister.
-        for node in ls("//sys/cluster_nodes"):
-            assert lease_txs[node] == get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
+    def check_basic_tables_operation(self):
+        yield
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 13})
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
+        assert read_table("//tmp/t") == [{"a" : "b"}]
+
+    @authors("cherepashka")
+    def test_add_cell(self):
+        self.execute_checks_with_cell_addition(downtime=False)
 
 
 ##################################################################
