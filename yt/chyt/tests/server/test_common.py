@@ -579,6 +579,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique, query_log_path, "select min(a) from '//tmp/t/1' group by a having a < 1", 5, [{"min(a)": 0}]
             )
 
+            self.make_query_and_check_block_rows(
+                clique, query_log_path, "select min($table_name) from '//tmp/t/1'", 6, [{"min($table_name)": "1"}]
+            )
+
             settings = {"chyt.execution.allow_string_min_max_optimization": 0}
             self.make_query_and_check_block_rows(
                 clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "4"}], settings
