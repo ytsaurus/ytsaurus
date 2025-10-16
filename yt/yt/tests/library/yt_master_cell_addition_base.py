@@ -11,7 +11,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, read_table, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
+    align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, raises_yt_error, read_table, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
     exists, get, set, ls, create, remove, create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction, create_area, remove_area, create_rack, create_data_center, assert_true_for_all_cells,
     assert_true_for_secondary_cells, build_snapshot, get_driver, create_user, make_ace,
@@ -416,6 +416,13 @@ class MasterCellAdditionBase(YTEnvSetup):
             after_first_checkers_lambda()
 
         type(self)._enable_last_cell(downtime)
+
+        with raises_yt_error("not discovered by all nodes"):
+            set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
+
+        # Make the new master cell "reliable" for other master cells.
+        set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
+        set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
 
         self.run_checkers_iteration(checker_state_list, True)
 
