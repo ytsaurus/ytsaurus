@@ -610,7 +610,7 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("guaranteed_job_resources", &TThis::GuaranteedJobResources)
-        .DefaultNew();
+        .Default();
 
     registrar.Parameter("min_node_resource_limits", &TThis::MinNodeResourceLimits)
         .DefaultNew();
