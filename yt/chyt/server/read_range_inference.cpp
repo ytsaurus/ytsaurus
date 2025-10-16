@@ -173,14 +173,9 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
             result->DataType = (desiredDataType != nullptr) ? desiredDataType : constantDataType;
             result->ValueType = (desiredValueType.has_value() ? *desiredValueType : constantValueType);
 
-            TUnversionedValue value;
-            ToUnversionedValue(
-                field,
-                result->DataType,
-                settings,
-                &value);
-
-            result->Expression = New<NYT::NQueryClient::TLiteralExpression>(result->ValueType, value);
+            result->Expression = New<NYT::NQueryClient::TLiteralExpression>(
+                result->ValueType,
+                ToUnversionedOwningValue(field,result->DataType, settings));
 
             break;
         }
