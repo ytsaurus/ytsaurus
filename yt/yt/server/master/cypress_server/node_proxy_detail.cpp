@@ -1734,7 +1734,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     context->SetRequestInfo(
         "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
-        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, ExplicitAttributeKeys: %v",
+        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, ExplicitAttributeCount: %v, ExplicitInternedAttributeKeys: %v",
         type,
         ignoreExisting,
         lockExisting,
@@ -1742,7 +1742,17 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         force,
         ignoreTypeMismatch,
         hintId,
-        explicitAttributes ? explicitAttributes->ListKeys() : std::vector<std::string>{});
+        request->node_attributes().attributes_size(),
+        [&] {
+            std::vector<std::string> explicitInternedAttributeKeys;
+            if (explicitAttributes) {
+                explicitInternedAttributeKeys = explicitAttributes->ListKeys();
+                std::erase_if(explicitInternedAttributeKeys, [] (const std::string& key) {
+                    return TInternedAttributeKey::Lookup(key) == InvalidInternedAttribute;
+                });
+            }
+            return explicitInternedAttributeKeys;
+        }());
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
