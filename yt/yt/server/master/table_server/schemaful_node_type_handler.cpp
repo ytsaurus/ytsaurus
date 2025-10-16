@@ -117,6 +117,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TSchemafulNodeTypeHandlerBase<TChaosReplicatedTableNode>;
 template class TSchemafulNodeTypeHandlerBase<TReplicatedTableNode>;
 template class TSchemafulNodeTypeHandlerBase<TTableNode>;

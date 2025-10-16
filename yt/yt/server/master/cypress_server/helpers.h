@@ -36,7 +36,7 @@ namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const TAccessTrackingOptions& options, TStringBuf /*spec*/);
 
-}
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,6 +140,11 @@ bool NodeHasKey(const TCypressNode* node);
 std::optional<std::string> FindNodeKey(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
+    NTransactionServer::TTransaction* transaction);
+
+template <class TChild>
+int GetNodeChildCount(
+    const TMapNodeImpl<TChild>* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 bool NodeHasParentId(const TCypressNode* node);

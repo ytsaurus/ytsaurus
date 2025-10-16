@@ -112,11 +112,9 @@ void TCellTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class
-TCellTypeHandlerBase<NTabletServer::TTabletCell>;
-
-template class
-TCellTypeHandlerBase<NChaosServer::TChaosCell>;
+// Explicit instantiations.
+template class TCellTypeHandlerBase<NTabletServer::TTabletCell>;
+template class TCellTypeHandlerBase<NChaosServer::TChaosCell>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -49,6 +49,11 @@ struct TAttributeDictionarySerializer
 
 void ValidateYTreeKey(IAttributeDictionary::TKeyView key);
 
+void ValidateYTreeChildCount(
+    TYPathBuf path,
+    int childCount,
+    int maxChildCount);
+
 [[noreturn]] void ThrowYPathResolutionDepthExceeded(TYPathBuf path);
 
 void ValidateYPathResolutionDepth(TYPathBuf path, int depth);

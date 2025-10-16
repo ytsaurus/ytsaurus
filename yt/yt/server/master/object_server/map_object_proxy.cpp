@@ -1028,9 +1028,9 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TNonversionedMapObjectProxyBase<NSecurityServer::TAccount>;
 template class TNonversionedMapObjectFactoryBase<NSecurityServer::TAccount>;
-
 template class TNonversionedMapObjectProxyBase<NSchedulerPoolServer::TSchedulerPool>;
 template class TNonversionedMapObjectFactoryBase<NSchedulerPoolServer::TSchedulerPool>;
 

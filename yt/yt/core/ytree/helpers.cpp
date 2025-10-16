@@ -315,6 +315,20 @@ void ValidateYTreeKey(IAttributeDictionary::TKeyView key)
 #endif
 }
 
+void ValidateYTreeChildCount(
+    TYPathBuf path,
+    int childCount,
+    int maxChildCount)
+{
+    if (childCount >= maxChildCount) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::MaxChildCountViolation,
+            "Composite node %v is not allowed to contain more than %v items",
+            path,
+            maxChildCount);
+    }
+}
+
 [[noreturn]] void ThrowYPathResolutionDepthExceeded(TYPathBuf path)
 {
     THROW_ERROR_EXCEPTION(

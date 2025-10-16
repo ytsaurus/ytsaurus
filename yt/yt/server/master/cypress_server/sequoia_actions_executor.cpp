@@ -7,6 +7,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cypress_server/config.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/lib/sequoia/helpers.h>
@@ -391,12 +392,14 @@ private:
 
         DoLog(*request, ELogStage::Preparing, sequoiaTransaction->GetId());
 
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->CypressManager;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        TTransaction* cypressTransaction = cypressTransactionId
+        auto* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
 
@@ -405,6 +408,20 @@ private:
         THROW_ERROR_EXCEPTION_IF(
             !beingCreated && !options.LatePrepare,
             "Operation is not atomic for user");
+
+        // NB: ImmutableSequoiaProperties could be null in some cases, e.g. when a subtree is being
+        // copied to Sequoia. In such a case we suppress the check as it seems unimportant.
+        // See also YT-26439.
+        if (parent->GetType() == EObjectType::SequoiaMapNode && parent->ImmutableSequoiaProperties()) {
+            int childCount = NCypressServer::GetNodeChildCount(
+                parent->As<TSequoiaMapNode>(),
+                cypressTransaction);
+            int maxChildCount = config->MaxNodeChildCount;
+            ValidateYTreeChildCount(
+                parent->ImmutableSequoiaProperties()->Path,
+                childCount,
+                maxChildCount);
+        }
 
         if (options.LatePrepare) {
             cypressManager->LockNode(

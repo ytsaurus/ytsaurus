@@ -1901,7 +1901,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_node_children_limit(self):
         set("//sys/@config/cypress_manager/max_node_child_count", 100)
         create("map_node", "//tmp/test_node")

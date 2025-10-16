@@ -186,6 +186,7 @@ template void RecomputeSubtreeSize(TNonversionedMapObjectBase<NSchedulerPoolServ
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TNonversionedMapObjectBase<NSecurityServer::TAccount>;
 template class TNonversionedMapObjectBase<NSchedulerPoolServer::TSchedulerPool>;
 
