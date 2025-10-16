@@ -804,12 +804,14 @@ TQueryAnalyzer::TQueryAnalyzer(
     const TStorageContext* storageContext,
     const DB::SelectQueryInfo& queryInfo,
     const TLogger& logger,
-    bool onlyAnalyze)
+    bool onlyAnalyze,
+    bool hasVirtualColumns)
     : DB::WithContext(std::move(context))
     , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
     , OnlyAnalyze_(onlyAnalyze)
+    , HasVirtualColumns_(hasVirtualColumns)
 {
     // When the query is not processed by InterpreterSelectQueryAnalyzer,
     // SelectQueryInfo does not contain query_tree and planner_context.
@@ -1046,7 +1048,7 @@ void TQueryAnalyzer::ParseQuery()
 
     auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
 
-    if (tableExpressionsStack.size() == 1) {
+    if (tableExpressionsStack.size() == 1 && !HasVirtualColumns_) {
         TCheckMinMaxOptimizationVisitor minMaxVisitor;
         minMaxVisitor.visit(QueryInfo_.query_tree);
         EnableMinMaxOptimization_ = minMaxVisitor.EnableMinMaxOptimization();

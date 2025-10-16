@@ -541,7 +541,7 @@ private:
 
     void PrepareInput()
     {
-        QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger);
+        QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger, false, !VirtualColumnNames_.empty());
         QueryAnalyzer_->Prepare();
         QueryAnalysisResult_.emplace(QueryAnalyzer_->Analyze());
 
