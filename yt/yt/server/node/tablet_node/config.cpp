@@ -40,6 +40,18 @@ void TTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(1'000);
     registrar.Parameter("reject_incorrect_clock_cluster_tag", &TThis::RejectIncorrectClockClusterTag)
         .Default(false);
+    registrar.Parameter("max_parallel_transaction_count", &TThis::MaxParallelTransactionCount)
+        .Default(1'000'000)
+        .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTransactionManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_parallel_transaction_count", &TThis::MaxParallelTransactionCount)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -541,6 +553,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
+        .DefaultNew();
+
+    registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
 
     registrar.Parameter("tablet_cell_write_manager", &TThis::TabletCellWriteManager)

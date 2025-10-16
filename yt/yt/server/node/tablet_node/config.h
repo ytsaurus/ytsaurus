@@ -54,6 +54,7 @@ struct TTransactionManagerConfig
     TDuration BarrierCheckPeriod;
     int MaxAbortedTransactionPoolSize;
     bool RejectIncorrectClockClusterTag;
+    i64 MaxParallelTransactionCount;
 
     REGISTER_YSON_STRUCT(TTransactionManagerConfig);
 
@@ -61,6 +62,20 @@ struct TTransactionManagerConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTransactionManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<i64> MaxParallelTransactionCount;
+
+    REGISTER_YSON_STRUCT(TTransactionManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTransactionManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,6 +622,7 @@ struct TTabletNodeDynamicConfig
     std::optional<int> Slots;
 
     TTabletManagerDynamicConfigPtr TabletManager;
+    TTransactionManagerDynamicConfigPtr TransactionManager;
 
     TTabletCellWriteManagerDynamicConfigPtr TabletCellWriteManager;
 
