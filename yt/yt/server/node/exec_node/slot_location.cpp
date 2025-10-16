@@ -1316,6 +1316,20 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
         /*permissions*/ 0755,
         /*removeIfExists*/ false));
 
+    // Create directory for root volume overlay.
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSlotPath(slotIndex), "overlay"),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
+
+    // Create directory that porto uses to create volumes and import layers inside container.
+    config->Directories.push_back(getDirectory(
+        NFS::CombinePaths(GetSlotPath(slotIndex), "place"),
+        uid,
+        /*permissions*/ 0777,
+        /*removeIfExists*/ true));
+
     return config;
 }
 
