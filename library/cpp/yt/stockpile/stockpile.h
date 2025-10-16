@@ -27,7 +27,7 @@ struct TStockpileOptions
     static constexpr i64 DefaultBufferSize = 4_GBs;
     i64 BufferSize = DefaultBufferSize;
 
-    static constexpr int DefaultThreadCount = 1;
+    static constexpr int DefaultThreadCount = 0;
     int ThreadCount = DefaultThreadCount;
 
     static constexpr EStockpileStrategy DefaultStrategy = EStockpileStrategy::FlooredLoad;
