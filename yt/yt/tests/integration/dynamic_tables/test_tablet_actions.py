@@ -313,6 +313,56 @@ class TestTabletActions(TabletActionsBase):
                 },
             )
 
+    @authors("atalmenev")
+    def test_inplace_reshard(self):
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t", pivot_keys=[[], [1]])
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        def _create_action(tablet_ids, **attributes):
+            if "kind" not in attributes:
+                attributes["kind"] = "reshard"
+
+            attributes.update({
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "inplace_reshard": True,
+            })
+            return create("tablet_action", "", attributes=attributes)
+
+        with raises_yt_error("cells cannot be specified with inplace reshard"):
+            _create_action(
+                cell_ids=[cells[0]],
+                tablet_ids=[tablet_ids[0], tablet_ids[1]],
+                tablet_count=1
+            )
+
+        action = _create_action(tablet_ids=[tablet_ids[0], tablet_ids[1]], tablet_count=1)
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get(f"#{tablet_id}/@cell_id") == cells[0]
+
+        action = _create_action(tablet_ids=[tablet_id], pivot_keys=[[], [10]])
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        assert get(f"#{tablet_ids[0]}/@cell_id") == cells[0]
+        assert get(f"#{tablet_ids[1]}/@cell_id") == cells[0]
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t", target_cell_ids=cells)
+
+        with raises_yt_error("must belong to the same cell"):
+            _create_action(tablet_ids=[tablet_ids[0], tablet_ids[1]], tablet_count=2)
+
+        with raises_yt_error("can not be set together with"):
+            _create_action(kind="move", tablet_ids=[tablet_ids[0], tablet_ids[1]])
+
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
     @pytest.mark.parametrize("freeze", [False, True])

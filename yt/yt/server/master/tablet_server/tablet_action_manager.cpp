@@ -138,14 +138,11 @@ public:
     TTabletAction* CreateTabletAction(
         TObjectId hintId,
         ETabletActionKind kind,
-        const std::vector<TTabletBaseRawPtr>& tablets,
-        const std::vector<TTabletCellRawPtr>& cells,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        std::vector<TTabletBaseRawPtr> tablets,
+        std::vector<TTabletCellRawPtr> cells,
+        std::vector<NTableClient::TLegacyOwningKey> pivotKeys,
         const std::optional<int>& tabletCount,
-        bool skipFreezing,
-        TGuid correlationId,
-        TInstant expirationTime,
-        std::optional<TDuration> expirationTimeout) override
+        TCreateTabletActionOptions options) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -238,6 +235,9 @@ public:
                     THROW_ERROR_EXCEPTION("Invalid number of tablets: expected std::nullopt, actual %v",
                         *tabletCount);
                 }
+                if (options.InplaceReshard) {
+                    THROW_ERROR_EXCEPTION("inplace_reshard can not be set together with move action");
+                }
                 break;
 
             case ETabletActionKind::Reshard:
@@ -271,6 +271,17 @@ public:
                             prev->GetId(),
                             cur->GetId());
                     }
+
+                    if (options.InplaceReshard && prev->GetCell() != cur->GetCell()) {
+                        THROW_ERROR_EXCEPTION("All tablets must belong to the same cell");
+                    }
+                }
+
+                if (options.InplaceReshard) {
+                    auto cell = tablets[0]->GetCell();
+                    THROW_ERROR_EXCEPTION_IF(!cells.empty(), "Destination cells cannot be specified with inplace reshard");
+
+                    cells.assign(tabletCount.value_or(pivotKeys.size()), cell);
                 }
                 break;
 
@@ -332,15 +343,12 @@ public:
             hintId,
             kind,
             ETabletActionState::Preparing,
-            tablets,
-            cells,
-            pivotKeys,
+            std::move(tablets),
+            std::move(cells),
+            std::move(pivotKeys),
             tabletCount,
             freeze,
-            skipFreezing,
-            correlationId,
-            expirationTime,
-            expirationTimeout);
+            std::move(options));
 
         OnTabletActionStateChanged(action);
         return action;
@@ -359,10 +367,7 @@ public:
             std::vector<NTableClient::TLegacyOwningKey>{},
             /*tabletCount*/ std::nullopt,
             freeze,
-            /*skipFreezing*/ false,
-            /*correlationId*/ {},
-            /*expirationTime*/ TInstant::Zero(),
-            /*expirationTimeout*/ std::nullopt);
+            /*options*/ {});
     }
 
     void ZombifyTabletAction(TTabletAction* action) override
@@ -617,20 +622,19 @@ private:
         auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
         auto cellIds = FromProto<std::vector<TTabletId>>(request->cell_ids());
         auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
-        TInstant expirationTime = TInstant::Zero();
+        TCreateTabletActionOptions options{.ExpirationTime = TInstant::Zero()};
         if (request->has_expiration_time()) {
-            expirationTime = FromProto<TInstant>(request->expiration_time());
+            options.ExpirationTime = FromProto<TInstant>(request->expiration_time());
         }
-        auto expirationTimeout = request->has_expiration_timeout()
+        options.ExpirationTimeout = request->has_expiration_timeout()
             ? std::optional(FromProto<TDuration>(request->expiration_timeout()))
             : std::nullopt;
         std::optional<int> tabletCount = request->has_tablet_count()
             ? std::optional(request->tablet_count())
             : std::nullopt;
-
-        TGuid correlationId;
+        options.InplaceReshard = request->inplace_reshard();
         if (request->has_correlation_id()) {
-            FromProto(&correlationId, request->correlation_id());
+            FromProto(&options.CorrelationId, request->correlation_id());
         }
 
         std::vector<TTabletBaseRawPtr> tablets;
@@ -652,10 +656,7 @@ private:
                 cells,
                 pivotKeys,
                 tabletCount,
-                /*skipFreezing*/ false,
-                correlationId,
-                expirationTime,
-                expirationTimeout);
+                options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(TError(ex), "Error creating tablet action (Kind: %v, "
                 "Tablets: %v, TabletCells: %v, PivotKeys: %v, TabletCount: %v, TabletBalancerCorrelationId: %v)",
@@ -664,7 +665,7 @@ private:
                 cells,
                 pivotKeys,
                 tabletCount,
-                correlationId);
+                options.CorrelationId);
         }
     }
 
@@ -718,15 +719,12 @@ private:
         TObjectId hintId,
         ETabletActionKind kind,
         ETabletActionState state,
-        const std::vector<TTabletBaseRawPtr>& tablets,
-        const std::vector<TTabletCellRawPtr>& cells,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        std::vector<TTabletBaseRawPtr> tablets,
+        std::vector<TTabletCellRawPtr> cells,
+        std::vector<NTableClient::TLegacyOwningKey> pivotKeys,
         std::optional<int> tabletCount,
         bool freeze,
-        bool skipFreezing,
-        TGuid correlationId,
-        TInstant expirationTime,
-        std::optional<TDuration> expirationTimeout)
+        TCreateTabletActionOptions options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
@@ -752,6 +750,7 @@ private:
                     : ETabletState::Mounted);
             }
         }
+
         for (auto cell : cells) {
             cell->Actions().insert(action);
         }
@@ -762,13 +761,14 @@ private:
         action->TabletCells() = std::move(cells);
         action->PivotKeys() = std::move(pivotKeys);
         action->SetTabletCount(tabletCount);
-        action->SetSkipFreezing(skipFreezing);
+        action->SetSkipFreezing(options.SkipFreezing);
         action->SetFreeze(freeze);
-        action->SetCorrelationId(correlationId);
-        action->SetExpirationTime(expirationTime);
-        action->SetExpirationTimeout(expirationTimeout);
+        action->SetCorrelationId(options.CorrelationId);
+        action->SetExpirationTime(options.ExpirationTime);
+        action->SetExpirationTimeout(options.ExpirationTimeout);
         const auto& bundle = action->Tablets()[0]->GetOwner()->TabletCellBundle();
         action->SetTabletCellBundle(bundle.Get());
+        action->SetInplaceReshard(options.InplaceReshard);
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
