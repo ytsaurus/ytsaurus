@@ -118,10 +118,10 @@ DEFINE_REFCOUNTED_TYPE(TUdsConfig)
 struct TNbdTestOptions
     : public NYTree::TYsonStruct
 {
-    std::optional<TDuration> BlockDeviceSleepBeforeRead;
-    std::optional<TDuration> BlockDeviceSleepBeforeWrite;
-    bool SetBlockDeviceErrorOnRead;
-    bool SetBlockDeviceErrorOnWrite;
+    std::optional<TDuration> SleepOnRead;
+    std::optional<TDuration> SleepOnWrite;
+    bool SetErrorOnRead;
+    bool SetErrorOnWrite;
     bool AbortConnectionOnRead;
     bool AbortConnectionOnWrite;
 
