@@ -40,6 +40,7 @@ void TTabletTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TTabletTypeHandlerBase<TTablet>;
 template class TTabletTypeHandlerBase<THunkTablet>;
 

@@ -3253,19 +3253,9 @@ void TCypressMapNodeProxy::Clear()
 
 int TCypressMapNodeProxy::GetChildCount() const
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
-
-    int result = 0;
-    for (const auto* node : originators) {
-        const auto* mapNode = node->As<TCypressMapNode>();
-        result += mapNode->ChildCountDelta();
-
-        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
-            break;
-        }
-    }
-    return result;
+    return NCypressServer::GetNodeChildCount(
+        TrunkNode_->As<TCypressMapNode>(),
+        Transaction_);
 }
 
 std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren() const
@@ -3670,20 +3660,9 @@ void TSequoiaMapNodeProxy::ListSelf(
 
 int TSequoiaMapNodeProxy::GetChildCount() const
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
-
-    int result = 0;
-    for (const auto* node : originators) {
-        const auto* mapNode = node->As<TSequoiaMapNode>();
-        result += mapNode->ChildCountDelta();
-
-        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
-            break;
-        }
-    }
-
-    return result;
+    return NCypressServer::GetNodeChildCount(
+        TrunkNode_->As<TCypressMapNode>(),
+        Transaction_);
 }
 
 void TSequoiaMapNodeProxy::Clear()

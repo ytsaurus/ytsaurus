@@ -732,6 +732,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMaterializeNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TChunkOwnerTypeHandler<TFileNode>;
 template class TChunkOwnerTypeHandler<TTableNode>;
 template class TChunkOwnerTypeHandler<TReplicatedTableNode>;

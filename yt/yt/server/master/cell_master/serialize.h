@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSchemaDivergence)                                          (3042))  // h0pless
     ((FixSequoiaAccountInheritance)                                 (3043))  // babenko
     ((FixAccountInSequoiaCopy)                                      (3044))  // babenko
+    ((SupportMaxNodeChildCountInSequoia)                            (3045))  // babenko
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
