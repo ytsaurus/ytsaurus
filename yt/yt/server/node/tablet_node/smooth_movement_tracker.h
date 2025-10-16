@@ -26,7 +26,7 @@ struct ISmoothMovementTrackerHost
     virtual NProto::TReqReplicateTabletContent PrepareReplicateTabletContentRequest(
         TTablet* tablet) = 0;
 
-    virtual void AbortAllTransactions(TTablet* Tablet) = 0;
+    virtual void AbortAllTransactions(TTablet* tablet) = 0;
 
     virtual void PostAvenueMessage(
         NHiveServer::TAvenueEndpointId endpointId,

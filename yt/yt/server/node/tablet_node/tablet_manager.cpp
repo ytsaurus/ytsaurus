@@ -1752,7 +1752,7 @@ private:
         PopulateDynamicStoreIdPool(tablet, request);
 
         const auto& storeManager = tablet->GetStoreManager();
-        storeManager->Rotate(true, EStoreRotationReason::None);
+        storeManager->Rotate(/*createNewStore*/ true, EStoreRotationReason::None);
         storeManager->InitializeRotation();
 
         UpdateTabletSnapshot(tablet);
@@ -1995,7 +1995,7 @@ private:
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
-                storeManager->Rotate(false, EStoreRotationReason::None);
+                storeManager->Rotate(/*createNewStore*/ false, EStoreRotationReason::None);
 
                 YT_LOG_INFO("Waiting for all tablet stores to be flushed (%v, NewState: %v)",
                     tablet->GetLoggingTag(),
@@ -2089,7 +2089,7 @@ private:
 
                 if (!tablet->GetActiveStore()) {
                     const auto& storeManager = tablet->GetStoreManager();
-                    storeManager->Rotate(true, EStoreRotationReason::None);
+                    storeManager->Rotate(/*createNewStore*/ true, EStoreRotationReason::None);
                 }
 
                 UpdateTabletSnapshot(tablet);
@@ -4305,10 +4305,10 @@ private:
                 transaction->GetPersistentState(),
                 transaction->GetTransientState());
 
-            auto future = transactionSupervisor->AbortTransaction(transactionId)
+            transactionSupervisor->AbortTransaction(transactionId)
                 // TODO(ifsmirnov): remove subscription with excessive logging
                 // after some testing.
-                .Apply(BIND([transactionId, this] (const TError& error) {
+                .Subscribe(BIND([transactionId, Logger = Logger] (const TError& error) {
                     if (error.IsOK()) {
                         YT_LOG_DEBUG("Transaction aborted by out-of-order tablet request (TransactionId: %v)",
                             transactionId);
@@ -4317,7 +4317,6 @@ private:
                             transactionId);
                     }
                 }));
-            YT_UNUSED_FUTURE(future);
         }
     }
 
