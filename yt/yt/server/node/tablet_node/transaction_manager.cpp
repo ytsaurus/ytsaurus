@@ -340,8 +340,7 @@ public:
     {
         auto token = transaction->GetExternalizationToken();
 
-        auto it = TokenToExternalizedTransactions_.find(token);
-        YT_VERIFY(it != TokenToExternalizedTransactions_.end());
+        auto it = GetIteratorOrCrash(TokenToExternalizedTransactions_, token);
         EraseOrCrash(it->second, transaction);
 
         if (it->second.empty()) {

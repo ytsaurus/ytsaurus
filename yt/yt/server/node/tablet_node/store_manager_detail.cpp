@@ -529,7 +529,7 @@ void TStoreManagerBase::PopulateReplicateTabletContentRequest(
         ToProto(request->mutable_active_store_id(), activeStore->GetId());
     }
 
-    for (const auto& policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+    for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
         ToProto(
             request->add_compression_dictionaries_by_policy(),
             Tablet_->GetCompressionDictionaryId(policy));

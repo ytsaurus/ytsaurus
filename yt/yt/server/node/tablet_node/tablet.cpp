@@ -2793,6 +2793,11 @@ void TTablet::PushDynamicStoreIdToPool(
     YT_VERIFY(storeId);
     DynamicStoreIdPool_.push_back(storeId);
 
+    YT_LOG_DEBUG("Dynamic store id added to pool (%v, StoreId: %v, Reason: %lv)",
+        LoggingTag_,
+        storeId,
+        reservationReason);
+
     if (reservationReason) {
         ++ReservedDynamicStoreIdCount_[*reservationReason];
     }
@@ -2809,6 +2814,10 @@ TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
 void TTablet::ReleaseReservedDynamicStoreId(
     EDynamicStoreIdReservationReason reason)
 {
+    YT_LOG_DEBUG("Reserved dynamic store id released from pool (%v, Reason: %lv)",
+        LoggingTag_,
+        reason);
+
     YT_VERIFY(ReservedDynamicStoreIdCount_[reason] > 0);
     --ReservedDynamicStoreIdCount_[reason];
 }
@@ -3282,7 +3291,7 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     .Item("chunk_id").Value(info.ChunkId)
                     .Item("rebuild_backoff_time").Value(info.RebuildBackoffTime)
                     .Item("building_in_progress").Value(info.BuildingInProgress)
-                    .EndMap();
+                .EndMap();
             });
 }
 
