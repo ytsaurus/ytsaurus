@@ -287,7 +287,7 @@ void TChunk::AddReplica(
     auto* data = MutableReplicasData();
 
     if (medium->IsOffshore()) {
-        if (replica.IsChunkLocationPtr()) {
+        if (replica.GetStoredReplicaType() == EStoredReplicaType::ChunkLocation) {
             YT_LOG_ALERT(
                 "Attempted to add chunk location replica with offshore medium, ignored"
                 "(ChunkId: %v, MediumIndex: %v)",
@@ -362,10 +362,11 @@ void TChunk::RemoveReplica(
     auto storedReplicas = data->GetStoredReplicas();
     for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
         auto existingReplica = storedReplicas[replicaIndex];
-        if (!existingReplica.IsChunkLocationPtr()) {
+        auto* locationReplica = existingReplica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
             continue;
         }
-        if (existingReplica.AsChunkLocationPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
+        if (locationReplica->AsChunkLocationPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
             data->RemoveStoredReplica(replicaIndex);
             return;
         }
@@ -375,7 +376,7 @@ void TChunk::RemoveReplica(
 
 void TChunk::ApproveReplica(TAugmentedStoredChunkReplicaPtr replica)
 {
-    if (replica.IsMediumPtr()) {
+    if (replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia) {
         YT_LOG_ALERT(
             "Attempted to approve offshore medium replica, ignored (ReplicaMediumIndex: %v, ReplicaIndex: %v)",
             replica.GetEffectiveMediumIndex(),

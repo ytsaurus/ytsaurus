@@ -260,10 +260,11 @@ public:
                     replica.ChunkId = chunk->GetId();
                     replica.ReplicaIndex = masterReplica.GetReplicaIndex();
                     replica.NodeId = masterReplica.GetNodeId();
-                    replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                     replica.ReplicaState = masterReplica.GetReplicaState();
-                    if (masterReplica.IsChunkLocationPtr()) {
-                        auto* location = masterReplica.AsChunkLocationPtr();
+                    if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
+                        // NB: InvalidChunkLocationIndex will be used as default for offshore media.
+                        replica.LocationIndex = locationReplica->GetChunkLocationIndex();
+                        auto* location = locationReplica->AsChunkLocationPtr();
                         if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk.Get(), masterReplica.GetReplicaIndex()))) {
                             unapprovedReplicas.push_back(replica);
                         } else {
@@ -430,12 +431,16 @@ public:
             auto masterReplicas = chunk->StoredReplicas();
             std::vector<TSequoiaChunkReplica> replicas;
             for (const auto& masterReplica : masterReplicas) {
+                
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunk->GetId();
                 replica.ReplicaIndex = masterReplica.GetReplicaIndex();
                 replica.NodeId = masterReplica.GetNodeId();
-                replica.LocationIndex = masterReplica.GetChunkLocationIndex();
                 replica.ReplicaState = masterReplica.GetReplicaState();
+                if (auto* locationReplica = masterReplica.As<EStoredReplicaType::ChunkLocation>()) {
+                    // NB: InvalidChunkLocationIndex will be used as default for offshore media.
+                    replica.LocationIndex = locationReplica->GetChunkLocationIndex();
+                }
                 replicas.push_back(replica);
             }
             EmplaceOrCrash(result, chunk->GetId(), replicas);

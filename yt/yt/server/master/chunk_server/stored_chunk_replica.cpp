@@ -20,34 +20,17 @@ TAugmentedStoredChunkReplicaPtr::operator bool() const
     auto type = GetStoredReplicaType();
     switch (type) {
         case EStoredReplicaType::ChunkLocation:
-            return AsChunkLocationPtr();
+            return As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr();
         case EStoredReplicaType::OffshoreMedia:
-            return AsMediumPtr();
+            return As<EStoredReplicaType::OffshoreMedia>()->AsMediumPtr();
         default:
             return false;
     }
 }
 
-bool TAugmentedStoredChunkReplicaPtr::IsChunkLocationPtr() const
+EStoredReplicaType TAugmentedStoredChunkReplicaPtr::GetStoredReplicaType() const
 {
-    return GetStoredReplicaType() == EStoredReplicaType::ChunkLocation;
-}
-
-bool TAugmentedStoredChunkReplicaPtr::IsMediumPtr() const
-{
-    return GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia;
-}
-
-TChunkLocation* TAugmentedStoredChunkReplicaPtr::AsChunkLocationPtr() const
-{
-    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
-    return reinterpret_cast<TChunkLocation*>(Value_ & 0x0000fffffffffffcLL);
-}
-
-TMedium* TAugmentedStoredChunkReplicaPtr::AsMediumPtr() const
-{
-    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
-    return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
+    return static_cast<EStoredReplicaType>((Value_ >> 48) & 0xff);
 }
 
 bool TAugmentedStoredChunkReplicaPtr::operator==(TAugmentedStoredChunkReplicaPtr other) const
@@ -97,9 +80,9 @@ TAugmentedStoredChunkReplicaPtr TAugmentedStoredChunkReplicaPtr::ToGenericState(
     auto type = GetStoredReplicaType();
     switch (type) {
         case EStoredReplicaType::ChunkLocation:
-            return TAugmentedStoredChunkReplicaPtr(AsChunkLocationPtr(), GetReplicaIndex());
+            return TAugmentedStoredChunkReplicaPtr(As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr(), GetReplicaIndex());
         case EStoredReplicaType::OffshoreMedia:
-            return TAugmentedStoredChunkReplicaPtr(AsMediumPtr(), GetReplicaIndex());
+            return TAugmentedStoredChunkReplicaPtr(As<EStoredReplicaType::OffshoreMedia>()->AsMediumPtr(), GetReplicaIndex());
     }
 }
 
@@ -117,25 +100,10 @@ int TAugmentedStoredChunkReplicaPtr::GetEffectiveMediumIndex() const
 {
     auto type = GetStoredReplicaType();
     switch (type) {
-    case EStoredReplicaType::ChunkLocation:
-        return AsChunkLocationPtr()->GetEffectiveMediumIndex();
-    case EStoredReplicaType::OffshoreMedia:
-        return AsMediumPtr()->GetIndex();
-    }
-}
-
-TChunkLocationIndex TAugmentedStoredChunkReplicaPtr::GetChunkLocationIndex() const
-{
-    switch (GetStoredReplicaType()) {
-    case EStoredReplicaType::ChunkLocation: {
-        auto* location = AsChunkLocationPtr();
-        if (!IsObjectAlive(location)) {
-            return InvalidChunkLocationIndex;
-        }
-        return location->GetIndex();
-    }
-    case EStoredReplicaType::OffshoreMedia:
-        return InvalidChunkLocationIndex;
+        case EStoredReplicaType::ChunkLocation:
+            return As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr()->GetEffectiveMediumIndex();
+        case EStoredReplicaType::OffshoreMedia:
+            return As<EStoredReplicaType::OffshoreMedia>()->AsMediumPtr()->GetIndex();
     }
 }
 
@@ -143,7 +111,7 @@ TChunkLocationUuid TAugmentedStoredChunkReplicaPtr::GetLocationUuid() const
 {
     switch (GetStoredReplicaType()) {
     case EStoredReplicaType::ChunkLocation: {
-        auto* location = AsChunkLocationPtr();
+        auto* location = As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr();
         if (!IsObjectAlive(location)) {
             return InvalidChunkLocationUuid;
         }
@@ -157,25 +125,26 @@ TChunkLocationUuid TAugmentedStoredChunkReplicaPtr::GetLocationUuid() const
 TNodeId TAugmentedStoredChunkReplicaPtr::GetNodeId() const
 {
     switch (GetStoredReplicaType()) {
-    case EStoredReplicaType::ChunkLocation: {
-        auto* location = AsChunkLocationPtr();
-        if (!IsObjectAlive(location)) {
-            return InvalidNodeId;
+        case EStoredReplicaType::ChunkLocation: {
+            auto* location = As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr();
+            if (!IsObjectAlive(location)) {
+                return InvalidNodeId;
+            }
+            auto node = location->GetNode();
+            if (!IsObjectAlive(node)) {
+                return InvalidNodeId;
+            }
+            return node->GetId();
         }
-        auto node = location->GetNode();
-        if (!IsObjectAlive(node)) {
-            return InvalidNodeId;
-        }
-        return node->GetId();
-    }
-    case EStoredReplicaType::OffshoreMedia:
-        return OffshoreNodeId;
+        case EStoredReplicaType::OffshoreMedia:
+            return OffshoreNodeId;
     }
 }
 
 void TAugmentedStoredChunkReplicaPtr::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
+
     auto type = GetStoredReplicaType();
     Save(context, type);
     Save(context, GetReplicaIndex());
@@ -183,11 +152,11 @@ void TAugmentedStoredChunkReplicaPtr::Save(NCellMaster::TSaveContext& context) c
 
     switch (type) {
         case EStoredReplicaType::ChunkLocation: {
-            SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsChunkLocationPtr());
+            SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr());
             break;
         }
         case EStoredReplicaType::OffshoreMedia: {
-            SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, AsMediumPtr());
+            SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, As<EStoredReplicaType::OffshoreMedia>()->AsMediumPtr());
             break;
         }
     }
@@ -219,23 +188,46 @@ void TAugmentedStoredChunkReplicaPtr::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-EStoredReplicaType TAugmentedStoredChunkReplicaPtr::GetStoredReplicaType() const
-{
-    return static_cast<EStoredReplicaType>((Value_ >> 48) & 0xff);
-}
-
 NObjectClient::TObjectId TAugmentedStoredChunkReplicaPtr::GetId() const
 {
     switch (GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {
-            auto* location = AsChunkLocationPtr();
+            auto locationReplica = As<EStoredReplicaType::ChunkLocation>();
+            auto* location = locationReplica->AsChunkLocationPtr();
             return IsObjectAlive(location) ? location->GetId() : NullObjectId;
         }
         case EStoredReplicaType::OffshoreMedia: {
-            auto* medium = AsMediumPtr();
+            auto* medium = As<EStoredReplicaType::OffshoreMedia>()->AsMediumPtr();
             return IsObjectAlive(medium) ? medium->GetId() : NullObjectId;
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkLocationIndex TAugmentedLocationChunkReplicaPtr::GetChunkLocationIndex() const
+{
+    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
+
+    auto* location = AsChunkLocationPtr();
+    if (!IsObjectAlive(location)) {
+        return InvalidChunkLocationIndex;
+    }
+    return location->GetIndex();
+}
+
+TChunkLocation* TAugmentedLocationChunkReplicaPtr::AsChunkLocationPtr() const
+{
+    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
+    return reinterpret_cast<TChunkLocation*>(Value_ & 0x0000fffffffffffcLL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMedium* TAugmentedMediumChunkReplicaPtr::AsMediumPtr() const
+{
+    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
+    return reinterpret_cast<TMedium*>(Value_ & 0x0000fffffffffffcLL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,29 +236,48 @@ void FormatValue(TStringBuilderBase* builder, TAugmentedStoredChunkReplicaPtr va
 {
     switch (value.GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {
-            FormatValue(builder, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()), spec);
+            FormatValue(builder, value.As<EStoredReplicaType::ChunkLocation>(), spec);
             break;
         }
-        case EStoredReplicaType::OffshoreMedia:
-        {
-            FormatValue(builder, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()), spec);
+        case EStoredReplicaType::OffshoreMedia: {
+            FormatValue(builder, value.As<EStoredReplicaType::OffshoreMedia>(), spec);
             break;
         }
     }
+}
+
+void FormatValue(TStringBuilderBase* builder, TAugmentedLocationChunkReplicaPtr value, TStringBuf spec)
+{
+    FormatValue(builder, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()), spec);
+}
+
+void FormatValue(TStringBuilderBase* builder, TAugmentedMediumChunkReplicaPtr value, TStringBuf spec)
+{
+    FormatValue(builder, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()), spec);
 }
 
 void ToProto(ui64* protoValue, TAugmentedStoredChunkReplicaPtr value)
 {
     switch (value.GetStoredReplicaType()) {
         case EStoredReplicaType::ChunkLocation: {
-            ToProto(protoValue, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()));
+            ToProto(protoValue, *value.As<EStoredReplicaType::ChunkLocation>());
             break;
         }
         case EStoredReplicaType::OffshoreMedia: {
-            ToProto(protoValue, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()));
+            ToProto(protoValue, *value.As<EStoredReplicaType::OffshoreMedia>());
             break;
         }
     }
+}
+
+void ToProto(ui64* protoValue, TAugmentedLocationChunkReplicaPtr value)
+{
+    ToProto(protoValue, TChunkLocationPtrWithReplicaInfo(value.AsChunkLocationPtr(), value.GetReplicaIndex()));
+}
+
+void ToProto(ui64* protoValue, TAugmentedMediumChunkReplicaPtr value)
+{
+    ToProto(protoValue, TMediumPtrWithReplicaInfo(value.AsMediumPtr(), value.GetReplicaIndex()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

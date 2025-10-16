@@ -1253,11 +1253,12 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* ch
 
     std::vector<TChunkReplicaDescriptor> replicas;
     for (auto replica : chunk->StoredReplicas()) {
-        if (!replica.IsChunkLocationPtr()) {
+        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
             continue;
         }
         replicas.push_back({
-            replica.AsChunkLocationPtr()->GetNode()->GetDescriptor(),
+            locationReplica->AsChunkLocationPtr()->GetNode()->GetDescriptor(),
             replica.GetReplicaIndex(),
             replica.GetEffectiveMediumIndex(),
         });

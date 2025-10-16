@@ -547,11 +547,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TStoredChunkReplicaList& replicas)
 {
     if (chunk->IsErasure()) {
-        auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.IsMediumPtr(); });
+        auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia; });
         if (offshoreReplicaIt != replicas.end()) {
             TStoredChunkReplicaList offshoreReplicas;
             for (const auto& replica: replicas) {
-                if (replica.IsMediumPtr()) {
+                if (replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia) {
                     offshoreReplicas.push_back(replica);
                 }
             }
@@ -612,7 +612,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (auto replica : replicas) {
-        if (!replica.IsChunkLocationPtr()) {
+        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
             YT_LOG_ALERT("Non-chunk location stored replica encountered during computation statistics for erasure chunk "
                 "(ChunkId: %v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
                 chunk->GetId(),
@@ -620,7 +621,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
                 replica.GetReplicaIndex());
             continue;
         }
-        auto* chunkLocation = replica.AsChunkLocationPtr();
+        auto* chunkLocation = locationReplica->AsChunkLocationPtr();
         auto node = chunkLocation->GetNode();
         int replicaIndex = replica.GetReplicaIndex();
         int mediumIndex = chunkLocation->GetEffectiveMediumIndex();
@@ -1091,11 +1092,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             auto it = std::find_if(
                 replicas.begin(),
                 replicas.end(),
-                [&, mediumIndex = mediumIndex] (const auto& replica) {
-                    if (!replica.IsChunkLocationPtr()) {
+                [&, mediumIndex = mediumIndex] (const TAugmentedStoredChunkReplicaPtr& replica) {
+                    auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+                    if (!locationReplica) {
                         return false;
                     }
-                    return replica.AsChunkLocationPtr()->GetNode() == node && replica.GetEffectiveMediumIndex() == mediumIndex;
+                    return locationReplica->AsChunkLocationPtr()->GetNode() == node && replica.GetEffectiveMediumIndex() == mediumIndex;
                 });
             if (it == replicas.end()) {
                 missingReplicas[mediumIndex].push_back(nodePtrWithIndexes);
@@ -1104,12 +1106,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     }
 
     for (auto replica : replicas) {
-        if (!replica.IsChunkLocationPtr()) {
+        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
             auto mediumIndex = replica.GetEffectiveMediumIndex();
             ++replicaCount[mediumIndex];
             continue;
         }
-        auto* chunkLocation = replica.AsChunkLocationPtr();
+        auto* chunkLocation = locationReplica->AsChunkLocationPtr();
         auto node = chunkLocation->GetNode();
         auto mediumIndex = chunkLocation->GetEffectiveMediumIndex();
 
@@ -1982,10 +1985,11 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto& mediumIndexSet = it->second;
 
             for (const auto& replica : replicasOrError.Value()) {
-                if (!replica.IsChunkLocationPtr()) {
+                auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+                if (!locationReplica) {
                     continue;
                 }
-                auto pushNode = replica.AsChunkLocationPtr()->GetNode();
+                auto pushNode = locationReplica->AsChunkLocationPtr()->GetNode();
                 if (!pushNode->ReportedDataNodeHeartbeat()) {
                     // Refresh is scheduled on node complete unregistration, but I am not sure about
                     // per location registration here, so it won't hurt.
@@ -2563,7 +2567,8 @@ void TChunkReplicator::RefreshChunk(
                         }
                     } else {
                         for (auto replica : chunkReplicas) {
-                            if (!replica.IsChunkLocationPtr()) {
+                            auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+                            if (!locationReplica) {
                                 alertNonChunkLocationReplica(replica);
                                 continue;
                             }
@@ -2584,7 +2589,7 @@ void TChunkReplicator::RefreshChunk(
                                 continue;
                             }
 
-                            auto node = replica.AsChunkLocationPtr()->GetNode();
+                            auto node = locationReplica->AsChunkLocationPtr()->GetNode();
                             if (!node->ReportedDataNodeHeartbeat() || node->IsPendingRestart()) {
                                 continue;
                             }
@@ -2605,11 +2610,12 @@ void TChunkReplicator::RefreshChunk(
 
                     if (config->EnableRepairViaReplication) {
                         for (auto replica : chunkReplicas) {
-                            if (!replica.IsChunkLocationPtr()) {
+                            auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+                            if (!locationReplica) {
                                 alertNonChunkLocationReplica(replica);
                                 continue;
                             }
-                            auto* location = replica.AsChunkLocationPtr();
+                            auto* location = locationReplica->AsChunkLocationPtr();
                             auto node = location->GetNode();
                             if (!node->ReportedDataNodeHeartbeat() || node->IsPendingRestart()) {
                                 continue;
@@ -2632,7 +2638,8 @@ void TChunkReplicator::RefreshChunk(
     if (Any(allMediaStatistics.Status & ECrossMediumChunkStatus::Sealed)) {
         YT_ASSERT(chunk->IsJournal());
         for (auto replica : chunkReplicas) {
-            if (!replica.IsChunkLocationPtr()) {
+            auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+            if (!locationReplica) {
                 alertNonChunkLocationReplica(replica);
                 continue;
             }
@@ -2640,7 +2647,7 @@ void TChunkReplicator::RefreshChunk(
                 continue;
             }
 
-            auto* location = replica.AsChunkLocationPtr();
+            auto* location = locationReplica->AsChunkLocationPtr();
             if (!location->GetNode()->ReportedDataNodeHeartbeat()) {
                 continue;
             }
@@ -2762,11 +2769,12 @@ void TChunkReplicator::RemoveChunkReplicasFromReplicationQueues(
     const TStoredChunkReplicaList& replicas)
 {
     for (auto replica : replicas) {
-        if (!replica.IsChunkLocationPtr()) {
+        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
             // NB: No replication for offshore replicas is implemented yet.
             continue;
         }
-        auto* location = replica.AsChunkLocationPtr();
+        auto* location = locationReplica->AsChunkLocationPtr();
         auto node = location->GetNode();
         int mediumIndex = location->GetEffectiveMediumIndex();
 
