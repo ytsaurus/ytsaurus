@@ -482,6 +482,34 @@ std::optional<std::string> FindNodeKey(
     }
 }
 
+template <class TChild>
+int GetNodeChildCount(
+    const TMapNodeImpl<TChild>* trunkNode,
+    NTransactionServer::TTransaction* transaction)
+{
+    const auto& cypressManager = GetBootstrap()->GetCypressManager();
+    auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode->GetTrunkNode());
+
+    int result = 0;
+    for (const auto* node : originators) {
+        const auto* mapNode = node->template As<TMapNodeImpl<TChild>>();
+        result += mapNode->ChildCountDelta();
+
+        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
+    }
+    return result;
+}
+
+// Explicit instantiations.
+template int GetNodeChildCount<>(
+    const TMapNodeImpl<TCypressNodeRawPtr>* trunkNode,
+    NTransactionServer::TTransaction* transaction);
+template int GetNodeChildCount<>(
+    const TMapNodeImpl<TNodeId>* trunkNode,
+    NTransactionServer::TTransaction* transaction);
+
 bool NodeHasParentId(const TCypressNode* node)
 {
     if (node->IsSequoia() && node->ImmutableSequoiaProperties()) {

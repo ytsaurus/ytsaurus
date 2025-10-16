@@ -117,6 +117,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoMaterializeNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TTabletOwnerTypeHandlerBase<TTableNode>;
 template class TTabletOwnerTypeHandlerBase<TReplicatedTableNode>;
 template class TTabletOwnerTypeHandlerBase<THunkStorageNode>;

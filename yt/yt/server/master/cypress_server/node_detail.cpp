@@ -752,6 +752,7 @@ template <class TNonOwnedChild>
     return dstChildren;
 }
 
+// Explicit instantiations.
 template class TMapNodeChildren<TCypressNodeRawPtr>;
 template class TMapNodeChildren<TNodeId>;
 
@@ -842,6 +843,7 @@ bool TMapNodeImpl<TChild>::IsNull(TChild child) noexcept
     return TChildren::IsNull(child);
 }
 
+// Explicit instantiations.
 template class TMapNodeImpl<TCypressNodeRawPtr>;
 template class TMapNodeImpl<TNodeId>;
 

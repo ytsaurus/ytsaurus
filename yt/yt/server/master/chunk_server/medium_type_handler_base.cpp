@@ -60,6 +60,7 @@ void TMediumTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TMediumTypeHandlerBase<TDomesticMedium>;
 template class TMediumTypeHandlerBase<TS3Medium>;
 
