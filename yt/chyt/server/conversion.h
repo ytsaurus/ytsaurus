@@ -71,11 +71,10 @@ std::vector<DB::Field> UnversionedRowToFields(
 // TODO(max42): pass logical type.
 void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
 
-void ToUnversionedValue(
+NTableClient::TUnversionedOwningValue ToUnversionedOwningValue(
     const DB::Field& field,
     const DB::DataTypePtr& dataType,
-    const TCompositeSettingsPtr& settings,
-    NTableClient::TUnversionedValue* value);
+    const TCompositeSettingsPtr& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

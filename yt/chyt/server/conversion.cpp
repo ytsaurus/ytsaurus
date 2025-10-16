@@ -250,11 +250,10 @@ std::vector<int> GetColumnIndexToId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(
+TUnversionedOwningValue ToUnversionedOwningValue(
     const DB::Field& field,
     const DB::DataTypePtr& dataType,
-    const TCompositeSettingsPtr& settings,
-    NTableClient::TUnversionedValue* value)
+    const TCompositeSettingsPtr& settings)
 {
     auto column = dataType->createColumn();
     column->insert(field);
@@ -264,7 +263,7 @@ void ToUnversionedValue(
         /*columnIndexToId*/ {0},
         settings
     );
-    *value = range[0][0];
+    return TUnversionedOwningValue(range[0][0], range.ReleaseHolder());
 }
 
 TSharedRange<TUnversionedRow> ToRowRange(
