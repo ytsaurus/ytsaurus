@@ -583,7 +583,13 @@ private:
                 requestMessage.End());
         }
 
-        return masterRequest->Invoke();
+        auto responseFuture = masterRequest->Invoke();
+        YT_LOG_DEBUG("Some subrequests are forwarded to master cell (TargetCellTag: %v, OriginRequestId: %v, ForwardedRequestId: %v, SubrequestIndices: %v)",
+            cellTag,
+            RpcContext_->GetRequestId(),
+            masterRequest->GetRequestId(),
+            MakeFormattableView(subrequestIndices, TDefaultFormatter{}));
+        return responseFuture;
     }
 
     bool IsRetriableBatchLevelError(const TError& error)
