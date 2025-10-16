@@ -23,7 +23,7 @@ Assign the minimal required ACLs to the service user (assuming the user is `robo
 ```bash
 yt set //sys/@acl/end '{action=allow; subjects=[robot-odin]; permissions=[read; write; create; remove; mount]}'
 yt set //sys/accounts/sys/@acl/end '{action=allow; subjects=[robot-odin]; permissions=[use]}'
-yt set //sys/tablet_cell_bundles/@acl/end '{subjects=[robot-odin];permissions=[use];action=allow}'
+yt set //sys/tablet_cell_bundles/sys/@acl/end '{subjects=[robot-odin];permissions=[use];action=allow}'
 yt set //sys/operations/@acl/end '{subjects=[robot-odin];permissions=[read];action=allow}'
 ```
 
