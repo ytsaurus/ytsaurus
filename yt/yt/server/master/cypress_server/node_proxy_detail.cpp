@@ -1727,17 +1727,22 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
     auto hintId = FromProto<TNodeId>(request->hint_id());
+    IAttributeDictionaryPtr explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = FromProto(request->node_attributes());
+    }
 
     context->SetRequestInfo(
         "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
-        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v",
+        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, ExplicitAttributeKeys: %v",
         type,
         ignoreExisting,
         lockExisting,
         recursive,
         force,
         ignoreTypeMismatch,
-        hintId);
+        hintId,
+        explicitAttributes ? explicitAttributes->ListKeys() : std::vector<std::string>{});
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1826,11 +1831,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         intendedParentNode = cypressManager->GetVersionedNode(node->GetParent(), Transaction_);
-    }
-
-    IAttributeDictionaryPtr explicitAttributes;
-    if (request->has_node_attributes()) {
-        explicitAttributes = FromProto(request->node_attributes());
     }
 
     ValidateCreatePermissions(node, replace, explicitAttributes.Get());
