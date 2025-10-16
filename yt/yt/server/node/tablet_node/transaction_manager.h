@@ -37,6 +37,7 @@ struct ITransactionManagerHost
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() = 0;
     virtual NHydra::TCellId GetCellId() = 0;
+    virtual TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManagerHost)
@@ -152,6 +153,7 @@ struct ITransactionManager
     virtual bool IsDecommissioned() const = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+    virtual void ValidateMaximumTransactionCount() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

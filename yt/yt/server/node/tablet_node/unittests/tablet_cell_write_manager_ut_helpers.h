@@ -73,6 +73,7 @@ public:
             TotalMutationWaitTime_ += mutationWaitTime.MicroSeconds() + 1;
         }));
 
+        TabletNodeDynamicConfig_ = New<TTabletNodeDynamicConfig>();
         HydraManager_ = New<TSimpleHydraManagerMock>(Automaton_, AutomatonInvoker_, NTabletNode::GetCurrentReign());
         TransactionManager_ = CreateTransactionManager(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
@@ -130,6 +131,11 @@ public:
         return result;
     }
 
+    TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() override
+    {
+        return TabletNodeDynamicConfig_->TransactionManager;
+    }
+
     void Shutdown()
     {
         YT_VERIFY(HydraManager_->GetPendingMutationCount() == 0);
@@ -142,6 +148,7 @@ public:
         TransactionSupervisor_.Reset();
         TabletManager_.Reset();
         TabletCellWriteManager_.Reset();
+        TabletNodeDynamicConfig_.Reset();
     }
 
     const ITransactionSupervisorPtr& GetTransactionSupervisor() override
@@ -212,6 +219,7 @@ public:
     }
 
 private:
+    TTabletNodeDynamicConfigPtr TabletNodeDynamicConfig_;
     TSimpleHydraManagerMockPtr HydraManager_;
     TActionQueuePtr AutomatonQueue_;
     IInvokerPtr AutomatonInvoker_;
