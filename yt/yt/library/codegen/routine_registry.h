@@ -66,8 +66,8 @@ private:
         TValueTypeBuilder typeBuilder);
 
 private:
-    THashMap<TString, uint64_t> SymbolToAddress_;
-    THashMap<TString, TValueTypeBuilder> SymbolToTypeBuilder_;
+    THashMap<std::string, uint64_t> SymbolToAddress_;
+    THashMap<std::string, TValueTypeBuilder> SymbolToTypeBuilder_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
