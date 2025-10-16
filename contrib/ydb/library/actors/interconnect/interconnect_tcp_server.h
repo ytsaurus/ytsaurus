@@ -3,6 +3,7 @@
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/core/event_pb.h>
 #include <contrib/ydb/library/actors/core/events.h>
+#include <contrib/ydb/library/actors/interconnect/logging/logging.h>
 #include <contrib/ydb/library/actors/interconnect/poller/poller_actor.h>
 
 #include "interconnect_common.h"
