@@ -4625,7 +4625,7 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         if (Spec_->HasNontrivialMapper() && isRoot) {
-            result.SetCpu(GetCpuLimit(Spec_->Reducer));
+            result.SetCpu(GetCpuLimit(Spec_->Mapper));
             result.SetJobProxyMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig_, stat) +
                 GetOutputWindowMemorySize(PartitionJobIOConfig_) +
