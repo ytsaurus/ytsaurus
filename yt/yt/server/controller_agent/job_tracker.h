@@ -42,6 +42,10 @@ DEFINE_ENUM(ESettleJobRequestStage,
 class TJobTracker
     : public TRefCounted
 {
+    class TAllocationInfo;
+    void FinishAllocationAndClearJobs(TAllocationInfo& allocationInfo);
+    void FinishAllocation(TAllocationInfo& allocationInfo, TSchedulerToAgentAllocationEvent&& event);
+
 public:
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NProto::TReqHeartbeat,
@@ -250,9 +254,6 @@ private:
         void EraseRunningJobOrCrash();
         bool EraseFinishedJob(TJobId jobId);
 
-        void FinishAndClearJobs() noexcept;
-        void Finish(TSchedulerToAgentAllocationEvent&& event);
-
         TSchedulerToAgentAllocationEvent ConsumePostponedEventOrCrash();
         template <class TEventType>
         TEventType ConsumePostponedEventOrCrash();
@@ -274,6 +275,14 @@ private:
         std::optional<TSchedulerToAgentAllocationEvent> PostponedAllocationEvent_;
 
         std::optional<TInBarrier> NewJobSettlingBarrier_;
+
+        friend void TJobTracker::FinishAllocationAndClearJobs(TAllocationInfo& allocationInfo);
+        friend void TJobTracker::FinishAllocation(TAllocationInfo& allocationInfo, TSchedulerToAgentAllocationEvent&& event);
+
+        // We do not want to call these methods directly because we want to use job tracker's methods
+        // (which among other things, cancel settle job requests).
+        void FinishAndClearJobs() noexcept;
+        void Finish(TSchedulerToAgentAllocationEvent&& event);
     };
 
     struct TNodeJobs
@@ -321,13 +330,14 @@ private:
 
     struct TSettleJobRequestInfo
     {
-        TGuid RequestId;
-        TAllocationId AllocationId;
-        TOperationId OperationId;
-        std::optional<TJobId> LastJobId;
+        const TGuid RequestId;
+        const TAllocationId AllocationId;
+        const TOperationId OperationId;
+        const std::optional<TJobId> LastJobId;
         ESettleJobRequestStage Stage;
+        const NRpc::IServiceContextPtr RequestContext;
 
-        TInstant ProcessingStartTime = TInstant::Now();
+        const TInstant ProcessingStartTime = TInstant::Now();
     };
 
     THashMap<TAllocationId, THashMultiMap<TGuid, TSettleJobRequestInfo>> SettleJobRequestInfos_;
@@ -608,6 +618,8 @@ private:
 
     void ProcessOperationContext(TOperationUpdatesProcessingContext operationUpdatesProcessingContext);
     void ProcessOperationContexts(THashMap<TOperationId, TOperationUpdatesProcessingContext> operationUpdatesProcessingContext);
+
+    void CancelAllocationSettleJobRequests(TAllocationId allocationId);
 
     void DoInitialize(IInvokerPtr cancelableInvoker);
     void SetIncarnationId(TIncarnationId incarnationId);
