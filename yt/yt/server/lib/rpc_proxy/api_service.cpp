@@ -743,7 +743,9 @@ public:
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobSpec));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobStderr));
-        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobTrace));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobTrace)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJobFailContext));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetJob));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AbandonJob));
@@ -3475,36 +3477,29 @@ private:
         TGetJobTraceOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        if (request->has_job_id()) {
-            options.JobId = FromProto<TJobId>(request->job_id());
-        }
+        auto jobId = FromProto<TJobId>(request->job_id());
+
         if (request->has_trace_id()) {
             options.TraceId = FromProto<NJobTrackerClient::TJobTraceId>(request->trace_id());
         }
-        if (request->has_from_event_index()) {
-            options.FromEventIndex = request->from_event_index();
-        }
-        if (request->has_to_event_index()) {
-            options.ToEventIndex = request->to_event_index();
-        }
         if (request->has_from_time()) {
-            options.FromTime = request->from_time();
+            options.FromTime = FromProto<TInstant>(request->from_time());
         }
-        if (request->has_to_event_index()) {
-            options.ToTime = request->to_time();
+        if (request->has_to_time()) {
+            options.ToTime = FromProto<TInstant>(request->to_time());
         }
 
-        context->SetRequestInfo("OperationIdOrAlias: %v", operationIdOrAlias);
+        context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, TraceId: %v, FromTime: %v, ToTime: %v",
+            operationIdOrAlias,
+            jobId,
+            options.TraceId,
+            options.FromTime,
+            options.ToTime);
 
-        ExecuteCall(
-            context,
-            [=] {
-                return client->GetJobTrace(operationIdOrAlias, options);
-            },
-            [] (const auto& context, const auto& result) {
-                auto* response = &context->Response();
-                ToProto(response->mutable_events(), result);
-            });
+        auto jobTraceReader = WaitFor(client->GetJobTrace(operationIdOrAlias, jobId, options))
+            .ValueOrThrow();
+
+        HandleInputStreamingRequest(context, jobTraceReader);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobFailContext)

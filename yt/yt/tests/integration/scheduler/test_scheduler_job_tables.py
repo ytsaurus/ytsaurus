@@ -13,7 +13,7 @@ from yt_commands import (
     map, reduce, map_reduce, vanilla, run_test_vanilla,
     select_rows, list_jobs, get_job, get_job_trace, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
-    lookup_rows, print_debug)
+    lookup_rows, print_debug, set)
 
 import yt_error_codes
 
@@ -39,6 +39,10 @@ if arcadia_interop.yatest_common is not None:
 else:
     YT_CUDA_CORE_DUMP_SIMULATOR = None
     YT_LIB_CUDA_CORE_DUMP_INJECTION = None
+
+##################################################################
+
+JOB_TRACE_ARCHIVE_PATH = "//sys/operations_archive/job_trace_events"
 
 ##################################################################
 
@@ -1677,6 +1681,38 @@ class TestJobTraceEvents(YTEnvSetup):
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
+    def _set_batch_size(self, batch_size):
+        # TODO(bystrovserg): Do better
+        if not self.ENABLE_RPC_PROXY:
+            set("//sys/clusters/primary/get_job_trace_batch_size", batch_size)
+            for http_proxy in ls("//sys/http_proxies"):
+                wait(
+                    lambda: get(
+                        f"//sys/http_proxies/{http_proxy}/orchid/cluster_connection"
+                        f"/dynamic_config/get_job_trace_batch_size"
+                    )
+                    == batch_size
+                )
+        else:
+            rpc_config = {
+                "cluster_connection" : {
+                    "get_job_trace_batch_size": batch_size
+                }
+            }
+            set("//sys/rpc_proxies/@config", rpc_config)
+
+            def _config_updated():
+                for proxy_name in ls("//sys/rpc_proxies"):
+                    config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+                    if config["cluster_connection"]["get_job_trace_batch_size"] != batch_size:
+                        return False
+                return True
+            wait(_config_updated)
+
+    def _format_events(self, rows):
+        events = "[" + ",".join(row["event"] for row in rows) + "]"
+        return events.encode()
+
     def _start_vanilla_operation(self, profile="", should_sleep=True, write_count=2, command=None, job_count=2):
         write = command
         if not write:
@@ -1693,7 +1729,6 @@ class TestJobTraceEvents(YTEnvSetup):
         if should_sleep:
             command += "\n sleep 100000"
 
-        print_debug(command)
         task_patch = {
             "profilers": [{
                 "binary": "user_job",
@@ -1743,16 +1778,65 @@ class TestJobTraceEvents(YTEnvSetup):
     @authors("bystrovserg")
     def test_no_profiling(self):
         op = run_test_vanilla(
-            job_count=2,
+            job_count=1,
             command="sleep 0",
             track=True,
         )
-        wait(lambda: len(op.list_jobs()) == 2)
-        job_ids = op.list_jobs()
+        wait(lambda: len(op.list_jobs()) == 1)
 
-        events = get_job_trace(op.id)
-        assert not events
-        assert all([len(self._get_job_traces(op.id, job_id)) == 0 for job_id in job_ids])
+        assert len(op.list_jobs()) == 1
+
+        events = get_job_trace(op.id, op.list_jobs()[0])
+        assert events == b"[]"
+
+    @authors("bystrovserg")
+    def test_get_job_trace_streaming_several_traces(self):
+        trace_id1 = generate_uuid()
+        trace_id2 = generate_uuid()
+        command = self.TraceCommandBuilder().add_complete_trace(1, trace_id1, 5).add_complete_trace(1, trace_id2, 10)
+        op = self._start_vanilla_operation(should_sleep=True, command=command.build(), job_count=1)
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+
+        wait(lambda: len(select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")) == 15)
+        trace_id_parts = select_rows(f"trace_id_hi, trace_id_lo from [{JOB_TRACE_ARCHIVE_PATH}] group by trace_id_hi, trace_id_lo limit 2")
+        trace_id1_parts = (trace_id_parts[0]["trace_id_hi"], trace_id_parts[0]["trace_id_lo"])
+        trace_id2_parts = (trace_id_parts[1]["trace_id_hi"], trace_id_parts[1]["trace_id_lo"])
+
+        assert parts_to_uuid(*trace_id1_parts) == trace_id1
+        assert parts_to_uuid(*trace_id2_parts) == trace_id2
+
+        self._set_batch_size(2)
+        trace1 = get_job_trace(op.id, job_id, trace_id=trace_id1)
+        self._set_batch_size(3)
+        trace2 = get_job_trace(op.id, job_id, trace_id=trace_id2)
+        self._set_batch_size(7)
+        full_trace = get_job_trace(op.id, job_id)
+
+        trace1_expected = self._format_events(select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}] where (trace_id_hi, trace_id_lo) = {trace_id1_parts} order by event_index limit 100"))
+        trace2_expected = self._format_events(select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}] where (trace_id_hi, trace_id_lo) = {trace_id2_parts} order by event_index limit 100"))
+        assert frozenset([trace1_expected, trace2_expected]) == frozenset([trace1, trace2])
+        full_trace_expected = self._format_events(select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}] order by trace_id_hi, trace_id_lo, event_index limit 100"))
+        assert full_trace_expected == full_trace
+
+    @authors("bystrovserg")
+    def test_get_job_trace_streaming(self):
+        command = self.TraceCommandBuilder().add_complete_trace(1, generate_uuid(), 100)
+        op = self._start_vanilla_operation(command=command.build(), should_sleep=True, job_count=1)
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+
+        def check_events(batch_size=None):
+            if batch_size:
+                self._set_batch_size(batch_size)
+            events_from_table = select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}] order by event_index limit 1000")
+            assert len(events_from_table) > 0
+            assert get_job_trace(op.id, job_id) == self._format_events(events_from_table)
+
+        wait_no_assert(lambda: check_events())
+        wait_no_assert(lambda: check_events(batch_size=30))
+        wait_no_assert(lambda: check_events(batch_size=20))
+        wait_no_assert(lambda: check_events(batch_size=99))
 
     @authors("bystrovserg")
     def test_incorrect_event(self):
@@ -1768,50 +1852,26 @@ class TestJobTraceEvents(YTEnvSetup):
         ]
 
         for profile in profiles:
-            op = self._start_vanilla_operation(profile, should_sleep=False, write_count=1)
+            op = self._start_vanilla_operation(profile, should_sleep=False)
             op.wait_for_state("completed")
 
-        events = select_rows("* from [//sys/operations_archive/job_trace_events]")
+        events = select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")
         assert len(events) == 0
-
-    @authors("bystrovserg")
-    def test_get_job_trace(self):
-        profile = "{\"event\": \"profile\", \"ts\": 1.5, \"tid\": 1}"
-        op = self._start_vanilla_operation(profile)
-
-        @wait_no_assert
-        def events_are_ready():
-            events_from_table = select_rows("* from [//sys/operations_archive/job_trace_events]")
-            events = get_job_trace(op.id)
-            assert len(events) == len(events_from_table)
-
-            job_ids = [job["id"] for job in list_jobs(op.id)["jobs"]]
-            for job_id in job_ids:
-                events = get_job_trace(op.id, job_id=job_id)
-                assert len(events) == 2
-                assert events[0]["job_id"] == job_id
-                assert events[1]["job_id"] == job_id
-                assert events[0]["event_index"] == 0
-                assert events[1]["event_index"] == 1
-
-                for trace_id in [event["trace_id"] for event in events]:
-                    events = get_job_trace(op.id, job_id=job_id, trace_id=trace_id)
-                    assert len(events) == 2
 
     @authors("ignat")
     def test_get_job_trace_on_missing_operation(self):
         with pytest.raises(YtError):
             # Missing/incorrect op_id
-            get_job_trace("1-1-1-1")
+            get_job_trace("1-1-1-1", "2-2-2-2")
 
     @authors("bystrovserg")
     def test_has_trace_in_archive_features(self):
-        profile = "{\"event\": \"profile\", \"ts\": 1.5, \"tid\": 1}"
-        op = self._start_vanilla_operation(profile, write_count=1)
+        command = self.TraceCommandBuilder().add_complete_trace(1, trace_id=generate_uuid(), count=1)
+        op = self._start_vanilla_operation(command=command.build())
 
         @wait_no_assert
         def events_are_ready():
-            events_from_table = select_rows("* from [//sys/operations_archive/job_trace_events]")
+            events_from_table = select_rows(f"* from [{JOB_TRACE_ARCHIVE_PATH}]")
             assert len(events_from_table) == 2
 
         def check_job(job):
@@ -2043,3 +2103,12 @@ class TestJobReporterInProgressLimits(YTEnvSetup):
 
         assert get_stderr_size_from_archive(op.id, job_id) == len(stderr_dict[job_id].decode("ascii"))
         assert get_stderr_from_archive(op.id, job_id) is None
+
+
+##################################################################
+
+
+class TestJobTraceEventsRpcProxy(TestJobTraceEvents):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
