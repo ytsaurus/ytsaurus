@@ -1094,6 +1094,7 @@ struct TDataNodeDynamicConfig
     std::optional<bool> PublishDisabledLocations;
 
     bool UseDisableSendBlocks;
+    bool UseProbePutBlocks;
 
     TP2PConfigPtr P2P;
 
