@@ -46,11 +46,8 @@ public:
     template <EStoredReplicaType type>
     const typename TStoredReplicaTraits<type>::Type* As() const;
 
-    bool operator==(TAugmentedStoredChunkReplicaPtr other) const;
-    bool operator<(TAugmentedStoredChunkReplicaPtr other) const;
-    bool operator<=(TAugmentedStoredChunkReplicaPtr other) const;
-    bool operator>(TAugmentedStoredChunkReplicaPtr other) const;
-    bool operator>=(TAugmentedStoredChunkReplicaPtr other) const;
+    bool operator==(const TAugmentedStoredChunkReplicaPtr& other) const = default;
+    std::strong_ordering operator<=>(const TAugmentedStoredChunkReplicaPtr& other) const;
 
     TAugmentedStoredChunkReplicaPtr ToGenericState() const;
 

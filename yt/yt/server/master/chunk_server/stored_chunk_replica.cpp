@@ -33,12 +33,7 @@ EStoredReplicaType TAugmentedStoredChunkReplicaPtr::GetStoredReplicaType() const
     return static_cast<EStoredReplicaType>((Value_ >> 48) & 0xff);
 }
 
-bool TAugmentedStoredChunkReplicaPtr::operator==(TAugmentedStoredChunkReplicaPtr other) const
-{
-    return Value_ == other.Value_;
-}
-
-bool TAugmentedStoredChunkReplicaPtr::operator<(TAugmentedStoredChunkReplicaPtr other) const
+std::strong_ordering TAugmentedStoredChunkReplicaPtr::operator<=>(const TAugmentedStoredChunkReplicaPtr& other) const
 {
     auto thisStoredReplicaType = GetStoredReplicaType();
     auto otherStoredReplicaType = other.GetStoredReplicaType();
@@ -49,30 +44,7 @@ bool TAugmentedStoredChunkReplicaPtr::operator<(TAugmentedStoredChunkReplicaPtr 
     auto thisState = GetReplicaState();
     auto otherState = other.GetReplicaState();
 
-    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) < std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
-}
-
-bool TAugmentedStoredChunkReplicaPtr::operator<=(TAugmentedStoredChunkReplicaPtr other) const
-{
-    auto thisStoredReplicaType = GetStoredReplicaType();
-    auto otherStoredReplicaType = other.GetStoredReplicaType();
-
-    auto thisReplicaIndex = GetReplicaIndex();
-    auto otherReplicaIndex = other.GetReplicaIndex();
-
-    auto thisState = GetReplicaState();
-    auto otherState = other.GetReplicaState();
-    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) <= std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
-}
-
-bool TAugmentedStoredChunkReplicaPtr::operator>(TAugmentedStoredChunkReplicaPtr other) const
-{
-    return !operator<=(other);
-}
-
-bool TAugmentedStoredChunkReplicaPtr::operator>=(TAugmentedStoredChunkReplicaPtr other) const
-{
-    return !operator<(other);
+    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) <=> std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
 }
 
 TAugmentedStoredChunkReplicaPtr TAugmentedStoredChunkReplicaPtr::ToGenericState() const
