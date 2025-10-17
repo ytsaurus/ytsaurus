@@ -19,6 +19,7 @@
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
+#include <util/generic/hash_multi_map.h>
 #include <util/generic/noncopyable.h>
 
 namespace NYT::NControllerAgent {
@@ -28,6 +29,12 @@ namespace NYT::NControllerAgent {
 DEFINE_ENUM(EJobStage,
     (Running)
     (Finished)
+);
+
+DEFINE_ENUM(ESettleJobRequestStage,
+    (WaitingOnBarrier)
+    (WaitingForController)
+    (WaitingForDelay)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +94,9 @@ private:
     TEnumIndexedArray<EJobStage, std::array<NProfiling::TCounter, 2>> HeartbeatStatisticsBytes_;
     NProfiling::TGauge HeartbeatEnqueuedControllerEvents_;
     std::atomic<i64> EnqueuedControllerEventCount_ = 0;
+    NProfiling::TGauge SettleJobRequestWaitingOnBarriers_;
+    std::atomic<int> SettleJobRequestWaitingOnBarriersCount_ = 0;
+    NProfiling::TCounter CancelledSettleJobRequestWaitingOnBarrierCount_;
     NProfiling::TCounter HeartbeatCount_;
     NProfiling::TCounter StaleHeartbeatCount_;
     NProfiling::TCounter ReceivedJobCount_;
@@ -159,18 +169,53 @@ private:
 
     struct TFinishedJobInfo { };
 
-    struct TOutBarrier
+
+    class TInBarrier;
+
+    class TOutBarrier
     {
-        TPromise<void> Promise;
-        TGuid Id = TGuid::Create();
+    public:
+        TOutBarrier() = default;
+        // NB(pogorelov): We have to define it in header since class is private :(
+        friend void FormatValue(TStringBuilderBase* builder, const TOutBarrier& outBarrier, TStringBuf /*format*/)
+        {
+            builder->AppendFormat("{Id: %v, CreatedAt: %v}", outBarrier.Id_, outBarrier.CreatedAt_);
+        }
+
+        void Release();
+
+        bool IsEmpty() const;
+
+        void Init();
+
+    private:
+        TPromise<void> Promise_;
+        TGuid Id_ = TGuid::Create();
+        TInstant CreatedAt_ = TInstant::Now();
+
+        friend class TInBarrier;
     };
 
-    struct TInBarrier
+    class TInBarrier
     {
-        TFuture<void> Future;
-        TGuid Id;
-
+    public:
         TInBarrier(const TOutBarrier& outBarrier);
+
+        // NB(pogorelov): We have to define it in header since class is private :(
+        friend void FormatValue(TStringBuilderBase* builder, const TInBarrier& inBarrier, TStringBuf /*format*/)
+        {
+            builder->AppendFormat("{Id: %v, OutBarrierCreationTime: %v}", inBarrier.Id_, inBarrier.OutBarrierCreationTime_);
+        }
+
+        template <CInvocable<void(const TError&)> TCallback>
+        void Wait(TCallback&& onCanceled) const;
+
+        void Cancel(const TError& error) const;
+
+    private:
+        TFuture<void> Future_;
+        TGuid Id_;
+        TInstant OutBarrierCreationTime_;
     };
 
     class TAllocationInfo
@@ -273,6 +318,19 @@ private:
     THashMap<TOperationId, TOperationInfo> RegisteredOperations_;
 
     NYTree::IYPathServicePtr OrchidService_;
+
+    struct TSettleJobRequestInfo
+    {
+        TGuid RequestId;
+        TAllocationId AllocationId;
+        TOperationId OperationId;
+        std::optional<TJobId> LastJobId;
+        ESettleJobRequestStage Stage;
+
+        TInstant ProcessingStartTime = TInstant::Now();
+    };
+
+    THashMap<TAllocationId, THashMultiMap<TGuid, TSettleJobRequestInfo>> SettleJobRequestInfos_;
 
     struct THeartbeatCounters
     {
@@ -440,6 +498,8 @@ private:
         const NLogging::TLogger& Logger,
         TNonNullPtr<THeartbeatCounters> heartbeatCounters);
 
+    void WaitForNewSettleJobBarrier(TAllocationInfo& allocationInfo, const NLogging::TLogger& Logger);
+
     void DoRegisterOperation(
         TOperationId operationId,
         TWeakPtr<IOperationController> operationController);
@@ -559,6 +619,7 @@ private:
     class TJobTrackerAllocationOrchidService;
     class TJobTrackerJobOrchidService;
     class TJobTrackerOperationOrchidService;
+    class TJobTrackerInflightSettleJobRequestsOrchidService;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTracker)

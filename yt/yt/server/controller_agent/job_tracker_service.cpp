@@ -36,7 +36,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SettleJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SettleJob).SetCancelable(true));
     }
 
 private:
@@ -64,7 +64,7 @@ private:
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto allocationId = FromProto<TAllocationId>(request->allocation_id());
-        auto lastJobId = YT_OPTIONAL_FROM_PROTO(*request, last_job_id);
+        auto lastJobId = YT_OPTIONAL_FROM_PROTO(*request, last_job_id, TJobId);
         context->SetRequestInfo(
             "NodeId: %v, NodeAddress: %v, KnownIncarnationId: %v, OperationId: %v, AllocationId: %v, LastJobId: %v",
             nodeId,
