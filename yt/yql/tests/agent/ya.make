@@ -8,6 +8,7 @@ TEST_SRCS(
     conftest.py
     test_simple.py
     test_udfs.py
+    test_crash_handler.py
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)

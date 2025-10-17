@@ -23,6 +23,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TYqlAgentTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("crash_after_start", &TThis::CrashAfterStart)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYqlAgentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
@@ -37,6 +45,8 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("insecure_secret_path_subjects", &TThis::InsecureSecretPathSubjects)
         .Default();
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,3 +103,4 @@ void TYqlAgentServerDynamicConfig::Register(TRegistrar registrar)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYqlAgent
+
