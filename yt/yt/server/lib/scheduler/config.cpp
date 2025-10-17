@@ -630,6 +630,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_detailed_logs_for_starving_operations", &TThis::EnableDetailedLogsForStarvingOperations)
         .Default(false);
 
+    registrar.Parameter("enable_detailed_logs_for_single_allocation_vanilla_operations", &TThis::EnableDetailedLogsForSingleAllocationVanillaOperations)
+        .Default(true);
+
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
         .Default(true);
 
