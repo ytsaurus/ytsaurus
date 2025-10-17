@@ -407,7 +407,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             # Big batch timeout, so we would not divide batches into smaller one.
             "remove_batch_timeout": 1000 * 1000,
             # 5 minute threshold.
-            "operation_removal_timeout_stuck_threshold": 5 * 60 * 1000,
+            "operation_removal_stuck_timeout": 5 * 60 * 1000,
             "enable_operation_archivation": False,
             # Try remove operations every second.
             "max_removal_sleep_delay": 1000,
@@ -431,7 +431,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         time.sleep(5)
         assert len(get("//sys/scheduler/@alerts")) == 0
 
-        set(CLEANER_CONFIG + "/operation_removal_timeout_stuck_threshold", 3 * 1000)
+        set(CLEANER_CONFIG + "/operation_removal_stuck_timeout", 3 * 1000)
 
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1)
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
@@ -446,6 +446,47 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         print_debug("Return operation to Cypress")
         set(path, op_value)
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+    @authors("bystrovserg")
+    def test_removal_drop_timeout(self):
+        config = {
+            "remove_batch_size": 2,
+            # Big batch timeout, so we would not divide batches into smaller one.
+            "remove_batch_timeout": 1000 * 1000,
+            # 5 minute threshold.
+            "operation_removal_stuck_timeout": 5 * 60 * 1000,
+            "operation_removal_drop_timeout": 10 * 60 * 1000,
+            "enable_operation_archivation": False,
+            # Try remove operations every second.
+            "max_removal_sleep_delay": 1000,
+        }
+        update_scheduler_config("operations_cleaner", config)
+        op = run_test_vanilla("sleep 1", track=True)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+        path = op.get_path()
+
+        # Remove operation from Cypress manually so operations cleaner's removal fails.
+        print_debug("Remove operation from Cypress")
+        remove(path)
+
+        set(CLEANER_CONFIG + "/remove_batch_size", 1)
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1)
+
+        # No alerts because of operation_removal_stuck_timeout
+        assert len(get("//sys/scheduler/@alerts")) == 0
+
+        set(CLEANER_CONFIG + "/operation_removal_stuck_timeout", 3 * 1000)
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
+
+        print_debug("Set small operation_removal_drop_timeout")
+        set(CLEANER_CONFIG + "/operation_removal_drop_timeout", 4 * 1000)
 
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0)
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)

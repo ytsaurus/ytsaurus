@@ -920,8 +920,10 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("disconnect_on_finished_operation_fetch_failure", &TThis::DisconnectOnFinishedOperationFetchFailure)
         .Default(true);
-    registrar.Parameter("operation_removal_timeout_stuck_threshold", &TThis::OperationRemovalTimeoutStuckThreshold)
+    registrar.Parameter("operation_removal_stuck_timeout", &TThis::OperationRemovalStuckTimeout)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("operation_removal_drop_timeout", &TThis::OperationRemovalDropTimeout)
+        .Default(TDuration::Minutes(10));
 
     registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
         if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {
@@ -929,6 +931,13 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
                 "\"min_archivation_retry_sleep_delay\"")
                 << TErrorAttribute("min_archivation_retry_sleep_delay", config->MinArchivationRetrySleepDelay)
                 << TErrorAttribute("max_archivation_retry_sleep_delay", config->MaxArchivationRetrySleepDelay);
+        }
+
+        if (config->OperationRemovalDropTimeout <= config->OperationRemovalStuckTimeout) {
+            THROW_ERROR_EXCEPTION("\"operation_removal_drop_timeout\" must be greater than "
+                "\"operation_removal_stuck_timeout\"")
+                << TErrorAttribute("operation_removal_drop_timeout", config->OperationRemovalDropTimeout)
+                << TErrorAttribute("operation_removal_stuck_timeout", config->OperationRemovalStuckTimeout);
         }
     });
 }

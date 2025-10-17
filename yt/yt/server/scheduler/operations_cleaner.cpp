@@ -881,6 +881,7 @@ private:
     TCounter CommittedDataWeightCounter_;
     TCounter ArchiveErrorCounter_;
     TCounter RemoveOperationErrorCounter_;
+    TCounter RemoveOperationDroppedCounter_;
     TCounter ArchivedOperationAlertEventCounter_;
     TCounter DroppedOperationAlertEventCounter_;
     TEventTimer AnalyzeOperationsTimer_;
@@ -957,6 +958,7 @@ private:
         CommittedDataWeightCounter_ = Profiler().Counter("/committed_data_weight");
         ArchiveErrorCounter_ = Profiler().Counter("/archive_errors");
         RemoveOperationErrorCounter_ = Profiler().Counter("/remove_errors");
+        RemoveOperationDroppedCounter_ = Profiler().Counter("/remove_dropped");
         ArchivedOperationAlertEventCounter_ = Profiler().Counter("/alert_events/archived");
         DroppedOperationAlertEventCounter_ = Profiler().Counter("/alert_events/dropped");
 
@@ -1485,15 +1487,37 @@ private:
         ScheduleArchiveOperations();
     }
 
-    void OnOperationRemovalFailed(const TRemoveOperationRequest& request)
+    // Returns whether stuck operation should be dropped from operations cleaner.
+    bool OnOperationRemovalFailed(const TRemoveOperationRequest& request)
     {
         YT_VERIFY(request.RemovalStartTime);
 
-        auto removalTimeout = Config_->OperationRemovalTimeoutStuckThreshold;
+        auto removalStartTime = *request.RemovalStartTime;
+        auto removalStuckTimeout = Config_->OperationRemovalStuckTimeout;
+        auto removalDropTimeout = Config_->OperationRemovalDropTimeout;
         auto now = TInstant::Now();
-        if (*request.RemovalStartTime + removalTimeout < now) {
+
+        if (removalStartTime + removalStuckTimeout < now) {
             StuckInRemovalOperations_.insert(request.Id);
         }
+        if (request.RemovalError->FindMatching(NYTree::EErrorCode::ResolveError) && removalStartTime + removalDropTimeout < now) {
+            YT_LOG_DEBUG(
+                "Operation is already removed, so we drop it from operations cleaner (OperationId: %v)",
+                request.Id);
+            return true;
+        }
+        RemoveBatcher_->Enqueue(request);
+        return false;
+    }
+
+    std::vector<TRemoveOperationRequest> ProcessFailedOperationRemovals(const std::vector<TRemoveOperationRequest>& requests) {
+        std::vector<TRemoveOperationRequest> droppedRequests;
+        for (const auto& request : requests) {
+            if (OnOperationRemovalFailed(request)) {
+                droppedRequests.push_back(request);
+            }
+        }
+        return droppedRequests;
     }
 
     void OnOperationRemoved(TOperationId id)
@@ -1501,12 +1525,8 @@ private:
         StuckInRemovalOperations_.erase(id);
     }
 
-    void ProcessFailedOperationRemovals(const std::vector<TRemoveOperationRequest>& removedOperationRequests)
+    void ProcessStuckOperations()
     {
-        for (const auto& request : removedOperationRequests) {
-            OnOperationRemovalFailed(request);
-        }
-
         if (StuckInRemovalOperations_.empty()) {
             SetSchedulerAlert(ESchedulerAlertType::OperationStuckInRemoval, TError());
             return;
@@ -1539,7 +1559,6 @@ private:
         std::vector<TRemoveOperationRequest> requestsWithOperationNodeToRemove;
 
         int lockedOperationCount = 0;
-        int failedToRemoveOperationCount = 0;
 
         // Fetch lock_count attribute.
         {
@@ -1588,8 +1607,6 @@ private:
                     requests.size());
 
                 failedRequests = requests;
-
-                failedToRemoveOperationCount = std::ssize(requests);
             }
         }
 
@@ -1646,6 +1663,7 @@ private:
                             "Failed to remove dependent node from Cypress (OperationId: %v, DependentNodeId: %v)",
                             operationRemoveRequest.Id,
                             dependentNodeId);
+
                         failedRequests.push_back(operationRemoveRequest);
                         removedAllDependentNodes = false;
                         break;
@@ -1672,8 +1690,6 @@ private:
                     failedRequests.end(),
                     requestsWithDependentNodesToRemove.begin(),
                     requestsWithDependentNodesToRemove.end());
-
-                failedToRemoveOperationCount += std::ssize(requestsWithDependentNodesToRemove);
             }
         }
 
@@ -1716,7 +1732,6 @@ private:
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 int startIndex = subbatchIndex * subbatchSize;
                 int endIndex = std::min(static_cast<int>(std::ssize(requestsWithOperationNodeToRemove)), startIndex + subbatchSize);
-
                 const auto& batchRspOrError = responseResults[subbatchIndex];
                 if (batchRspOrError.IsOK()) {
                     const auto& batchRsp = batchRspOrError.Value();
@@ -1725,7 +1740,6 @@ private:
 
                     for (int index = startIndex; index < endIndex; ++index) {
                         auto removeRequest = requestsWithOperationNodeToRemove[index];
-
                         auto rsp = rsps[index - startIndex];
                         if (rsp.IsOK()) {
                             YT_LOG_DEBUG(
@@ -1738,9 +1752,8 @@ private:
                                 "Failed to remove finished operation from Cypress (OperationId: %v)",
                                 removeRequest.Id);
 
+                            removeRequest.RemovalError = rsp;
                             failedRequests.push_back(removeRequest);
-
-                            ++failedToRemoveOperationCount;
                         }
                     }
                 } else {
@@ -1751,32 +1764,34 @@ private:
 
                     for (int index = startIndex; index < endIndex; ++index) {
                         failedRequests.push_back(requestsWithOperationNodeToRemove[index]);
-                        ++failedToRemoveOperationCount;
                     }
                 }
             }
         }
 
         YT_VERIFY(std::ssize(requests) == std::ssize(failedRequests) + std::ssize(successfulRequests) + lockedOperationCount);
-        int removedCount = std::ssize(successfulRequests);
 
-        RemovedOperationCounter_.Increment(std::ssize(successfulRequests));
-        RemoveOperationErrorCounter_.Increment(std::ssize(failedRequests) + lockedOperationCount);
-
+        auto droppedRequests = ProcessFailedOperationRemovals(failedRequests);
         ProcessRemovedOperations(successfulRequests);
-        ProcessFailedOperationRemovals(failedRequests);
+        ProcessRemovedOperations(droppedRequests);
+        ProcessStuckOperations();
 
-        for (auto request : failedRequests) {
-            RemoveBatcher_->Enqueue(request);
-        }
+        int removedCount = std::ssize(successfulRequests);
+        int failedToRemoveCount = std::ssize(failedRequests);
+        int droppedCount = std::ssize(droppedRequests);
+
+        RemovedOperationCounter_.Increment(removedCount);
+        RemoveOperationErrorCounter_.Increment(failedToRemoveCount + lockedOperationCount);
+        RemoveOperationDroppedCounter_.Increment(droppedCount);
 
         RemovePendingLocked_ += lockedOperationCount;
-        RemovePending_ -= removedCount;
+        RemovePending_ -= removedCount + droppedCount;
         YT_LOG_DEBUG(
-            "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %v)",
+            "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %v, DroppedCount: %v)",
             removedCount,
             lockedOperationCount,
-            failedToRemoveOperationCount);
+            failedToRemoveCount,
+            droppedCount);
     }
 
     void RemoveOperations()
