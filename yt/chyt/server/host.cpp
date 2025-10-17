@@ -591,7 +591,8 @@ public:
         systemDatabase->attachTable(
             getContext(),
             "clique",
-            CreateStorageSystemClique(Discovery_, Config_->InstanceId));
+            CreateStorageSystemClique(Discovery_, Config_->InstanceId),
+            /*relative_table_path*/ "");
     }
 
     DB::DatabasePtr CreateYTDatabase() const

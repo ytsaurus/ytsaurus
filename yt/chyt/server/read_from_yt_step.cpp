@@ -2,17 +2,18 @@
 
 #include <Interpreters/ExpressionActions.h>
 
+#include <IO/Operators.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadFromYTStep::TReadFromYTStep(
     DB::Pipe pipe,
-    DB::ContextPtr context,
     const DB::SelectQueryInfo& queryInfo,
     std::vector<std::shared_ptr<IChytIndexStat>> indexStats,
     const std::vector<TTablePtr>& tables)
-    : DB::ReadFromStorageStep(std::move(pipe), /*storage_name*/ "", context, queryInfo)
+    : DB::ReadFromPreparedSource(std::move(pipe))
     , IndexStats_(std::move(indexStats))
     , PrewhereInfo_(queryInfo.prewhere_info)
 {

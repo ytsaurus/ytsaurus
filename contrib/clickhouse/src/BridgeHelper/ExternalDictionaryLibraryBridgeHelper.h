@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Interpreters/Context.h>
+#include <Core/Block.h>
+#include <Interpreters/Context_fwd.h>
 #include <IO/ReadWriteBufferFromHTTP.h>
 #include <DBPoco/Net/HTTPRequest.h>
 #include <DBPoco/URI.h>

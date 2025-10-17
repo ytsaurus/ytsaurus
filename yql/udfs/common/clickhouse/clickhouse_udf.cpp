@@ -82,6 +82,12 @@
 using namespace NYql;
 using namespace NUdf;
 
+namespace DB::Setting {
+
+extern const SettingsUInt64 preferred_block_size_bytes;
+
+} // namespace DB::Setting
+
 namespace {
 
 class INotify {
@@ -702,9 +708,9 @@ ui64 ConvertInputValue(DB::IColumn* col, const TColumnMeta& meta, const TUnboxed
         DB::Field field = DB::AggregateFunctionStateData();
         auto func = aggColumn.getAggregateFunction();
         auto typeString = DB::DataTypeAggregateFunction(func, func->getArgumentTypes(), func->getParameters()).getName();
-        field.safeGet<DB::AggregateFunctionStateData &>().name = typeString;
+        field.safeGet<DB::AggregateFunctionStateData>().name = typeString;
         auto ref = value.AsStringRef();
-        field.safeGet<DB::AggregateFunctionStateData &>().data.assign(ref.Data(), ref.Data() + ref.Size());
+        field.safeGet<DB::AggregateFunctionStateData>().data.assign(ref.Data(), ref.Data() + ref.Size());
         aggColumn.insert(field);
         return 8 + ref.Size();
     }
@@ -1131,7 +1137,7 @@ public:
         DB::Pipes pipes;
         auto hostCtx = GetHostContext(context);
         auto source = std::make_shared<TSource>(sampleBlock, max_block_size,
-            context->getSettingsRef().preferred_block_size_bytes, context, MetaColumns);
+            context->getSettingsRef()[DB::Setting::preferred_block_size_bytes], context, MetaColumns);
         return DB::Pipe(source);
     }
 
@@ -1207,7 +1213,7 @@ struct TCHContext {
         DB::registerFunctions();
         DB::registerFormats();
         DB::registerAggregateFunctions();
-        DB::registerTableFunctions();
+        DB::registerTableFunctions(/*use_legacy_mongodb_integration*/ false);
         DB::registerInterpreters();
         std::string defaultDatabase = "_local";
         auto db = std::make_shared<TLocalDatabase>(defaultDatabase);
@@ -1368,7 +1374,7 @@ TUnboxedValuePod ConvertOutputValue(const DB::IColumn* col, const TColumnMeta& m
 
     if (meta.Aggregation) {
         auto field = (*col)[externalIndex];
-        const auto& state = field.safeGet<DB::AggregateFunctionStateData &>();
+        const auto& state = field.safeGet<DB::AggregateFunctionStateData>();
         return valueBuilder->NewString({ state.data.data(), (ui32)state.data.size() }).Release();
     }
 
@@ -2329,6 +2335,8 @@ public:
                     "" /*default_database*/,
                     parts[1] /*user*/,
                     parts[2] /*password*/,
+                    "notchunked" /*proto_send_chunked*/,
+                    "notchunked" /*proto_recv_chunked*/,
                     "" /*quota_key*/,
                     "" /*cluster*/,
                     "" /*cluster_secret*/,
@@ -2375,12 +2383,12 @@ public:
 
                         for (size_t i = 0; i < size; ++i) {
                             DB::ColumnWithTypeAndName elem;
-                            elem.name = (*name)[i].safeGet<const String &>();
+                            elem.name = (*name)[i].safeGet<String>();
                             if (!columns.contains(TString(elem.name))) {
                                 continue;
                             }
 
-                            String dataTypeName = (*type)[i].safeGet<const String &>();
+                            String dataTypeName = (*type)[i].safeGet<String>();
                             elem.type = dataTypeFactory.get(dataTypeName);
                             headerBlock.insert(elem);
 

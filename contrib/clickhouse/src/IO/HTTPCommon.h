@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string_view>
 
 #include <DBPoco/Net/HTTPClientSession.h>
 #include <DBPoco/Net/HTTPRequest.h>
@@ -61,7 +62,8 @@ HTTPSessionPtr makeHTTPSession(
     HTTPConnectionGroupType group,
     const DBPoco::URI & uri,
     const ConnectionTimeouts & timeouts,
-    const ProxyConfiguration & proxy_config = {}
+    const ProxyConfiguration & proxy_config = {},
+    UInt64 * connect_time = nullptr
 );
 
 bool isRedirect(DBPoco::Net::HTTPResponse::HTTPStatus status);

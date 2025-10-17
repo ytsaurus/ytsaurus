@@ -2,6 +2,7 @@
 
 #if USE_ARROW || USE_PARQUET
 
+#include <Core/DecimalFunctions.h>
 #include <Columns/ColumnFixedString.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
@@ -21,6 +22,8 @@
 #include <DataTypes/DataTypeFixedString.h>
 #include <Processors/Formats/IOutputFormat.h>
 #include <Processors/Formats/Impl/ArrowBufferedStreams.h>
+#include <Processors/Port.h>
+
 #error #include <arrow/api.h>
 #error #include <arrow/builder.h>
 #error #include <arrow/type.h>

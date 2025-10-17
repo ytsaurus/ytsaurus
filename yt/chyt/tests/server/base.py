@@ -423,7 +423,7 @@ class Clique(object):
         in_error = False
         result = []
         for line in lines:
-            if line.startswith("std::exception") or line.startswith("Code:"):
+            if line.startswith("std::exception") or line.startswith("Code:") or line.startswith('"exception"'):
                 in_error = True
             if in_error:
                 result.append(line)
@@ -524,10 +524,6 @@ class Clique(object):
         query_id = parts_to_uuid(random.randint(0, 2 ** 64 - 1), (Clique.clique_index << 32) | Clique.query_index)
         Clique.query_index += 1
 
-        print_debug()
-        print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
-        print_debug("Query id: {}".format(query_id))
-
         if headers is None:
             headers = {}
 
@@ -535,6 +531,11 @@ class Clique(object):
         headers["X-Yt-Trace-Id"] = query_id
         headers["X-Yt-Span-Id"] = "0"
         headers["X-Yt-Sampled"] = str(int(self.is_tracing))
+
+        print_debug()
+        print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
+        print_debug("Query id: {}".format(query_id))
+        print_debug(f"Query headers: {headers}")
 
         try:
             return self.make_request(

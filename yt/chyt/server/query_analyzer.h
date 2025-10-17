@@ -10,6 +10,8 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 
+#include <Planner/TableExpressionData.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////

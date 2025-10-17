@@ -11,7 +11,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Foundation
@@ -39,8 +39,11 @@ ENDIF()
 CFLAGS(
     -DPOCO_ENABLE_CPP11
     -DPOCO_OS_FAMILY_UNIX
+    -DPRIVATE
+    -DXML_GE=0
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
     -D_LIBUNWIND_IS_NATIVE_ONLY
+    -D_poco_xml
 )
 
 SRCS(

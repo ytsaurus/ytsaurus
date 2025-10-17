@@ -75,7 +75,7 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
 
 TQuerySettingsPtr ParseCustomSettings(
     TQuerySettingsPtr baseSettings,
-    const DB::Settings::Range& customSettings,
+    const DB::SettingsChanges& settingsChanges,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

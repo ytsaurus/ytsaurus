@@ -45,6 +45,13 @@
 #include <DBPoco/Util/LayeredConfiguration.h>
 #include <base/range.h>
 #include <Common/logger_useful.h>
+
+#include <absl/base/log_severity.h>
+#include <absl/log/globals.h>
+#include <absl/log/initialize.h>
+#include <absl/log/log_sink_registry.h>
+
+#error #include <grpc/support/log.h>
 #error #include <grpc++/security/server_credentials.h>
 #error #include <grpc++/server.h>
 #error #include <grpc++/server_builder.h>
@@ -59,6 +66,21 @@ using GRPCObsoleteTransportCompression = clickhouse::grpc::ObsoleteTransportComp
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool allow_settings_after_format_in_insert;
+    extern const SettingsBool calculate_text_stack_trace;
+    extern const SettingsUInt64 interactive_delay;
+    extern const SettingsLogsLevel send_logs_level;
+    extern const SettingsString send_logs_source_regexp;
+    extern const SettingsUInt64 max_insert_block_size;
+    extern const SettingsUInt64 max_parser_backtracks;
+    extern const SettingsUInt64 max_parser_depth;
+    extern const SettingsUInt64 max_query_size;
+    extern const SettingsBool throw_if_no_data_to_insert;
+    extern const SettingsBool use_concurrency_control;
+}
+
 namespace ErrorCodes
 {
     extern const int INVALID_CONFIG_PARAMETER;
@@ -74,34 +96,68 @@ namespace ErrorCodes
 namespace
 {
     /// Make grpc to pass logging messages to ClickHouse logging system.
+    class GrpcLogSink : public absl::LogSink
+    {
+    public:
+        void Send(const absl::LogEntry & entry) override
+        {
+            static LoggerRawPtr logger = getRawLogger("grpc");
+
+            const auto msg = std::string(entry.text_message());
+            const auto file = entry.source_filename();
+            int line = entry.source_line();
+
+            switch (entry.log_severity())
+            {
+                case absl::LogSeverity::kInfo:
+                    LOG_INFO(logger, "{} ({}:{})", msg, file, line);
+                    break;
+                case absl::LogSeverity::kWarning:
+                    LOG_WARNING(logger, "{} ({}:{})", msg, file, line);
+                    break;
+                case absl::LogSeverity::kError:
+                    LOG_ERROR(logger, "{} ({}:{})", msg, file, line);
+                    break;
+                case absl::LogSeverity::kFatal:
+                    LOG_ERROR(logger, "FATAL: {} ({}:{})", msg, file, line);
+                    break;
+            }
+        }
+    };
+    GrpcLogSink grpc_log_sink;
+
+    /// See also contrib/grpc/src/core/util/log.cc
     void initGRPCLogging(const DBPoco::Util::AbstractConfiguration & config)
     {
         static std::once_flag once_flag;
         std::call_once(once_flag, [&config]
         {
-            static LoggerRawPtr logger = getRawLogger("grpc");
-            gpr_set_log_function([](gpr_log_func_args* args)
-            {
-                if (args->severity == GPR_LOG_SEVERITY_DEBUG)
-                    LOG_DEBUG(logger, "{} ({}:{})", args->message, args->file, args->line);
-                else if (args->severity == GPR_LOG_SEVERITY_INFO)
-                    LOG_INFO(logger, "{} ({}:{})", args->message, args->file, args->line);
-                else if (args->severity == GPR_LOG_SEVERITY_ERROR)
-                    LOG_ERROR(logger, "{} ({}:{})", args->message, args->file, args->line);
-            });
+            absl::AddLogSink(&grpc_log_sink);
+            absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
+            absl::InitializeLog();
 
-            if (config.getBool("grpc.verbose_logs", false))
-            {
-                gpr_set_log_verbosity(GPR_LOG_SEVERITY_DEBUG);
+            absl::SetStderrThreshold(absl::LogSeverityAtLeast::kInfinity);
+
+            const bool verbose = config.getBool("grpc.verbose_logs", false);
+            static LoggerRawPtr logger = getRawLogger("grpc");
+
+            if (verbose)
                 grpc_tracer_set_enabled("all", true);
-            }
-            else if (logger->is(DBPoco::Message::PRIO_DEBUG))
+
+            if (logger->is(DBPoco::Message::PRIO_DEBUG))
             {
-                gpr_set_log_verbosity(GPR_LOG_SEVERITY_DEBUG);
+                absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+                absl::SetVLogLevel("*grpc*/*", 2);
             }
             else if (logger->is(DBPoco::Message::PRIO_INFORMATION))
             {
-                gpr_set_log_verbosity(GPR_LOG_SEVERITY_INFO);
+                absl::SetMinLogLevel(absl::LogSeverityAtLeast::kInfo);
+                absl::SetVLogLevel("*grpc*/*", -1);
+            }
+            else
+            {
+                absl::SetMinLogLevel(absl::LogSeverityAtLeast::kWarning);
+                absl::SetVLogLevel("*grpc*/*", -1);
             }
         });
     }
@@ -878,13 +934,13 @@ namespace
 
         /// Prepare for sending exceptions and logs.
         const Settings & settings = query_context->getSettingsRef();
-        send_exception_with_stacktrace = settings.calculate_text_stack_trace;
-        const auto client_logs_level = settings.send_logs_level;
+        send_exception_with_stacktrace = settings[Setting::calculate_text_stack_trace];
+        const auto client_logs_level = settings[Setting::send_logs_level];
         if (client_logs_level != LogsLevel::none)
         {
             logs_queue = std::make_shared<InternalTextLogsQueue>();
             logs_queue->max_priority = DBPoco::Logger::parseLevel(client_logs_level.toString());
-            logs_queue->setSourceRegexp(settings.send_logs_source_regexp);
+            logs_queue->setSourceRegexp(settings[Setting::send_logs_source_regexp]);
             CurrentThread::attachInternalTextLogsQueue(logs_queue, client_logs_level);
         }
 
@@ -897,15 +953,15 @@ namespace
             responder->setTransportCompression(*transport_compression);
 
         /// The interactive delay will be used to show progress.
-        interactive_delay = settings.interactive_delay;
+        interactive_delay = settings[Setting::interactive_delay];
         query_context->setProgressCallback([this](const Progress & value) { return progress.incrementPiecewiseAtomically(value); });
 
         /// Parse the query.
         query_text = std::move(*(query_info.mutable_query()));
         const char * begin = query_text.data();
         const char * end = begin + query_text.size();
-        ParserQuery parser(end, settings.allow_settings_after_format_in_insert);
-        ast = parseQuery(parser, begin, end, "", settings.max_query_size, settings.max_parser_depth, settings.max_parser_backtracks);
+        ParserQuery parser(end, settings[Setting::allow_settings_after_format_in_insert]);
+        ast = parseQuery(parser, begin, end, "", settings[Setting::max_query_size], settings[Setting::max_parser_depth], settings[Setting::max_parser_backtracks]);
 
         /// Choose input format.
         insert_query = ast->as<ASTInsertQuery>();
@@ -921,9 +977,9 @@ namespace
         /// Choose output format.
         query_context->setDefaultFormat(query_info.output_format());
         if (const auto * ast_query_with_output = dynamic_cast<const ASTQueryWithOutput *>(ast.get());
-            ast_query_with_output && ast_query_with_output->format)
+            ast_query_with_output && ast_query_with_output->format_ast)
         {
-            output_format = getIdentifierName(ast_query_with_output->format);
+            output_format = getIdentifierName(ast_query_with_output->format_ast);
         }
         if (output_format.empty())
             output_format = query_context->getDefaultFormat();
@@ -991,14 +1047,12 @@ namespace
         {
             if (!insert_query)
                 throw Exception(ErrorCodes::NO_DATA_TO_INSERT, "Query requires data to insert, but it is not an INSERT query");
-            else
-            {
-                const auto & settings = query_context->getSettingsRef();
-                if (settings.throw_if_no_data_to_insert)
-                    throw Exception(ErrorCodes::NO_DATA_TO_INSERT, "No data to insert");
-                else
-                    return;
-            }
+
+            const auto & settings = query_context->getSettingsRef();
+            if (settings[Setting::throw_if_no_data_to_insert])
+                throw Exception(ErrorCodes::NO_DATA_TO_INSERT, "No data to insert");
+
+            return;
         }
 
         /// This is significant, because parallel parsing may be used.
@@ -1084,7 +1138,7 @@ namespace
 
         assert(!pipeline);
         auto source
-            = query_context->getInputFormat(input_format, *read_buffer, header, query_context->getSettingsRef().max_insert_block_size);
+            = query_context->getInputFormat(input_format, *read_buffer, header, query_context->getSettingsRef()[Setting::max_insert_block_size]);
 
         pipeline = std::make_unique<QueryPipeline>(std::move(source));
         pipeline_executor = std::make_unique<PullingPipelineExecutor>(*pipeline);
@@ -1152,7 +1206,7 @@ namespace
                         external_table_context->applySettingsChanges(settings_changes);
                     }
                     auto in = external_table_context->getInputFormat(
-                        format, *buf, metadata_snapshot->getSampleBlock(), external_table_context->getSettingsRef().max_insert_block_size);
+                        format, *buf, metadata_snapshot->getSampleBlock(), external_table_context->getSettingsRef()[Setting::max_insert_block_size]);
 
                     QueryPipelineBuilder cur_pipeline;
                     cur_pipeline.init(Pipe(std::move(in)));
@@ -1232,6 +1286,7 @@ namespace
         if (io.pipeline.pulling())
         {
             auto executor = std::make_shared<PullingAsyncPipelineExecutor>(io.pipeline);
+            io.pipeline.setConcurrencyControl(query_context->getSettingsRef()[Setting::use_concurrency_control]);
             auto check_for_cancel = [&]
             {
                 if (isQueryCancelled())
@@ -1472,8 +1527,7 @@ namespace
         {
             if (initial_query_info_read)
                 throw Exception(ErrorCodes::NETWORK_ERROR, "Failed to read extra QueryInfo");
-            else
-                throw Exception(ErrorCodes::NETWORK_ERROR, "Failed to read initial QueryInfo");
+            throw Exception(ErrorCodes::NETWORK_ERROR, "Failed to read initial QueryInfo");
         }
     }
 

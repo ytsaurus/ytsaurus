@@ -6,6 +6,8 @@
 #include "query_registry.h"
 #include "secondary_query_header.h"
 
+#include <thread>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
@@ -30,6 +32,17 @@
 #include <Interpreters/ProcessList.h>
 
 #include <util/generic/algorithm.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsSeconds max_execution_time;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 
 namespace NYT::NClickHouseServer {
 
@@ -114,7 +127,7 @@ TStorageContext::TStorageContext(int index, DB::ContextPtr context, TQueryContex
 {
     YT_LOG_INFO("Storage context created");
 
-    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
+    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
 }
 
 TStorageContext::~TStorageContext()
@@ -139,7 +152,7 @@ DB::ContextMutablePtr PrepareContextForQuery(
     auto contextForQuery = session->makeQueryContext();
 
     auto settings = contextForQuery->getSettingsCopy();
-    settings.max_execution_time = DBPoco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
+    settings[DB::Setting::max_execution_time] = DBPoco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
     contextForQuery->setSettings(settings);
 
     auto queryId = TQueryId::Create();
@@ -190,10 +203,10 @@ TQueryContext::TQueryContext(
     const auto& clientInfo = context->getClientInfo();
 
     CurrentUser = clientInfo.current_user;
-    CurrentAddress = clientInfo.current_address.toString();
+    CurrentAddress = (clientInfo.current_address != nullptr) ? clientInfo.current_address->toString() : "";
 
     InitialUser = clientInfo.initial_user;
-    InitialAddress = clientInfo.initial_address.toString();
+    InitialAddress = (clientInfo.initial_address != nullptr) ? clientInfo.initial_address->toString() : "";
     InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
 
     if (QueryKind == EQueryKind::SecondaryQuery) {
@@ -219,7 +232,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().allCustom(), Logger);
+    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context->getSettingsRef().changes(), Logger);
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "

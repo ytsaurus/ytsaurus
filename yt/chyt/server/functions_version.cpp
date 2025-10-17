@@ -2,9 +2,13 @@
 
 #include <yt/yt/build/build.h>
 
+#include <Core/Field.h>
+
 #include <DataTypes/DataTypeString.h>
+
 #include <Functions/FunctionFactory.h>
 #include <Functions/IFunction.h>
+
 #include <Interpreters/Context.h>
 
 namespace NYT::NClickHouseServer {

@@ -362,7 +362,7 @@ namespace Util
         void setArgs(int argc, char * argv[]);
         void setArgs(const ArgVec & args);
         void getApplicationPath(DBPoco::Path & path) const;
-        void processOptions();
+        void processPocoOptions();
         bool findAppConfigFile(const std::string & appName, const std::string & extension, DBPoco::Path & path) const;
         bool findAppConfigFile(const Path & basePath, const std::string & appName, const std::string & extension, DBPoco::Path & path) const;
 

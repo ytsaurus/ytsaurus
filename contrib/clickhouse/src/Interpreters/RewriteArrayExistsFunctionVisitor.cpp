@@ -93,8 +93,7 @@ void RewriteArrayExistsFunctionMatcher::visit(const ASTFunction & func, ASTPtr &
         ast = std::move(new_func);
         return;
     }
-    else if (
-        (filter_id = filter_arguments[1]->as<ASTIdentifier>()) && filter_arguments[0]->as<ASTLiteral>()
+    if ((filter_id = filter_arguments[1]->as<ASTIdentifier>()) && filter_arguments[0]->as<ASTLiteral>()
         && filter_id->full_name == id->full_name)
     {
         /// arrayExists(x -> elem = x, arr) -> has(arr, elem)
@@ -108,7 +107,7 @@ void RewriteArrayExistsFunctionMatcher::visit(const ASTFunction & func, ASTPtr &
 bool RewriteArrayExistsFunctionMatcher::needChildVisit(const ASTPtr & ast, const ASTPtr &)
 {
     /// Children of ASTTableJoin are handled separately in visit() function
-    if (auto * join = ast->as<ASTTableJoin>())
+    if (auto * /*join*/ _ = ast->as<ASTTableJoin>())
         return false;
 
     return true;

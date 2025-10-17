@@ -6,7 +6,10 @@
 
 #include <boost/noncopyable.hpp>
 
+#error #include <llvm/Analysis/CGSCCPassManager.h>
+#error #include <llvm/Analysis/LoopAnalysisManager.h>
 #error #include <llvm/Analysis/TargetTransformInfo.h>
+#error #include <llvm/Passes/PassBuilder.h>
 #error #include <llvm/IR/BasicBlock.h>
 #error #include <llvm/IR/DataLayout.h>
 #error #include <llvm/IR/DerivedTypes.h>
@@ -18,12 +21,11 @@
 #error #include <llvm/ExecutionEngine/JITSymbol.h>
 #error #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #error #include <llvm/ExecutionEngine/JITEventListener.h>
-#error #include <llvm/MC/SubtargetFeature.h>
+#error #include <llvm/TargetParser/SubtargetFeature.h>
 #error #include <llvm/MC/TargetRegistry.h>
 #error #include <llvm/Support/DynamicLibrary.h>
-#error #include <llvm/Support/Host.h>
+#error #include <llvm/TargetParser/Host.h>
 #error #include <llvm/Support/TargetSelect.h>
-#error #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #error #include <llvm/Support/SmallVectorMemoryBuffer.h>
 
 #include <base/getPageSize.h>
@@ -217,10 +219,8 @@ private:
 
             return static_cast<char *>(result);
         }
-        else
-        {
-            return nullptr;
-        }
+
+        return nullptr;
     }
 
     void allocateNextPageBlock(size_t size)
@@ -287,8 +287,7 @@ public:
     {
         if (is_read_only)
             return reinterpret_cast<uint8_t *>(ro_page_arena.allocate(size, alignment));
-        else
-            return reinterpret_cast<uint8_t *>(rw_page_arena.allocate(size, alignment));
+        return reinterpret_cast<uint8_t *>(rw_page_arena.allocate(size, alignment));
     }
 
     bool finalizeMemory(std::string *) override
@@ -486,29 +485,27 @@ std::string CHJIT::getMangledName(const std::string & name_to_mangle) const
 
 void CHJIT::runOptimizationPassesOnModule(llvm::Module & module) const
 {
-    llvm::PassManagerBuilder pass_manager_builder;
-    llvm::legacy::PassManager mpm;
-    llvm::legacy::FunctionPassManager fpm(&module);
-    pass_manager_builder.OptLevel = 3;
-    pass_manager_builder.SLPVectorize = true;
-    pass_manager_builder.LoopVectorize = true;
-    pass_manager_builder.RerollLoops = true;
-    pass_manager_builder.VerifyInput = true;
-    pass_manager_builder.VerifyOutput = true;
-    machine->adjustPassManager(pass_manager_builder);
+    llvm::LoopAnalysisManager lam;
+    llvm::FunctionAnalysisManager fam;
+    llvm::CGSCCAnalysisManager cgam;
+    llvm::ModuleAnalysisManager mam;
 
-    fpm.add(llvm::createTargetTransformInfoWrapperPass(machine->getTargetIRAnalysis()));
-    mpm.add(llvm::createTargetTransformInfoWrapperPass(machine->getTargetIRAnalysis()));
+    auto target_analysis = machine->getTargetIRAnalysis();
+    fam.registerPass([&] { return target_analysis; });
 
-    pass_manager_builder.populateFunctionPassManager(fpm);
-    pass_manager_builder.populateModulePassManager(mpm);
+    llvm::PipelineTuningOptions pto;
+    pto.SLPVectorization = true;
 
-    fpm.doInitialization();
-    for (auto & function : module)
-        fpm.run(function);
-    fpm.doFinalization();
+    llvm::PassBuilder pb(nullptr, pto);
 
-    mpm.run(module);
+    pb.registerModuleAnalyses(mam);
+    pb.registerCGSCCAnalyses(cgam);
+    pb.registerFunctionAnalyses(fam);
+    pb.registerLoopAnalyses(lam);
+    pb.crossRegisterProxies(lam, fam, cgam, mam);
+
+    llvm::ModulePassManager mpm = pb.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
+    mpm.run(module, mam);
 }
 
 std::unique_ptr<llvm::TargetMachine> CHJIT::getTargetMachine()
@@ -529,10 +526,8 @@ std::unique_ptr<llvm::TargetMachine> CHJIT::getTargetMachine()
         throw Exception(ErrorCodes::CANNOT_COMPILE_CODE, "Cannot find target triple {} error: {}", triple, error);
 
     llvm::SubtargetFeatures features;
-    llvm::StringMap<bool> feature_map;
-    if (llvm::sys::getHostCPUFeatures(feature_map))
-        for (auto & f : feature_map)
-            features.AddFeature(f.first(), f.second);
+    for (const auto & f : llvm::sys::getHostCPUFeatures())
+        features.AddFeature(f.first(), f.second);
 
     llvm::TargetOptions options;
 
@@ -541,9 +536,9 @@ std::unique_ptr<llvm::TargetMachine> CHJIT::getTargetMachine()
         cpu,
         features.getString(),
         options,
-        llvm::None,
-        llvm::None,
-        llvm::CodeGenOpt::Aggressive,
+        std::nullopt,
+        std::nullopt,
+        llvm::CodeGenOptLevel::Aggressive,
         jit);
 
     if (!target_machine)

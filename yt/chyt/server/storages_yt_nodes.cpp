@@ -11,15 +11,18 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <Columns/IColumn.h>
+
+#include <Core/NamesAndTypes.h>
+
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 
 #include <Processors/Sources/SourceFromSingleChunk.h>
+
 #include <Storages/VirtualColumnsDescription.h>
 #include <Storages/System/IStorageSystemOneBlock.h>
-
-#include <Core/NamesAndTypes.h>
 
 namespace NYT::NClickHouseServer {
 

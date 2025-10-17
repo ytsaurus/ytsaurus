@@ -5,14 +5,13 @@ LIBRARY()
 LICENSE(
     Apache-2.0 AND
     BSL-1.0 AND
-    CC0-1.0 AND
     MIT AND
     NTP
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Foundation
@@ -68,6 +67,8 @@ CFLAGS(
 
 SRCS(
     Decimal.cpp
+    GitHash.generated.cpp
+    IPv4andIPv6.cpp
     JSON.cpp
     Numa.cpp
     StringRef.cpp
@@ -91,6 +92,7 @@ SRCS(
     sleep.cpp
     terminalColors.cpp
     throwError.cpp
+    wide_integer_to_string.cpp
 )
 
 END()

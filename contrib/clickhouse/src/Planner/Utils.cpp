@@ -11,11 +11,13 @@
 #include <DataTypes/DataTypeNullable.h>
 
 #include <Columns/getLeastSuperColumn.h>
+#include <Columns/ColumnConst.h>
 #include <Columns/ColumnSet.h>
 
 #include <IO/WriteBufferFromString.h>
 
 #include <Functions/FunctionFactory.h>
+#include <Functions/IFunctionAdaptors.h>
 #include <Functions/indexHint.h>
 
 #include <Storages/StorageDummy.h>
@@ -48,6 +50,27 @@
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsString additional_result_filter;
+    extern const SettingsUInt64 max_bytes_to_read;
+    extern const SettingsUInt64 max_bytes_to_read_leaf;
+    extern const SettingsSeconds max_estimated_execution_time;
+    extern const SettingsUInt64 max_execution_speed;
+    extern const SettingsUInt64 max_execution_speed_bytes;
+    extern const SettingsSeconds max_execution_time;
+    extern const SettingsUInt64 max_query_size;
+    extern const SettingsUInt64 max_rows_to_read;
+    extern const SettingsUInt64 max_rows_to_read_leaf;
+    extern const SettingsUInt64 min_execution_speed;
+    extern const SettingsUInt64 min_execution_speed_bytes;
+    extern const SettingsUInt64 max_parser_backtracks;
+    extern const SettingsUInt64 max_parser_depth;
+    extern const SettingsOverflowMode read_overflow_mode;
+    extern const SettingsOverflowMode read_overflow_mode_leaf;
+    extern const SettingsSeconds timeout_before_checking_execution_speed;
+    extern const SettingsOverflowMode timeout_overflow_mode;
+}
 
 namespace ErrorCodes
 {
@@ -57,15 +80,15 @@ namespace ErrorCodes
     extern const int INTERSECT_OR_EXCEPT_RESULT_STRUCTURES_MISMATCH;
 }
 
-String dumpQueryPlan(QueryPlan & query_plan)
+String dumpQueryPlan(const QueryPlan & query_plan)
 {
     WriteBufferFromOwnString query_plan_buffer;
-    query_plan.explainPlan(query_plan_buffer, QueryPlan::ExplainPlanOptions{true, true, true, true});
+    query_plan.explainPlan(query_plan_buffer, ExplainPlanOptions{true, true, true, true});
 
     return query_plan_buffer.str();
 }
 
-String dumpQueryPipeline(QueryPlan & query_plan)
+String dumpQueryPipeline(const QueryPlan & query_plan)
 {
     QueryPlan::ExplainPipelineOptions explain_pipeline;
     WriteBufferFromOwnString query_pipeline_buffer;
@@ -113,19 +136,22 @@ Block buildCommonHeaderForUnion(const Blocks & queries_headers, SelectUnionMode 
     return common_header;
 }
 
-ASTPtr queryNodeToSelectQuery(const QueryTreeNodePtr & query_node)
+ASTPtr queryNodeToSelectQuery(const QueryTreeNodePtr & query_node, bool set_subquery_cte_name)
 {
     auto & query_node_typed = query_node->as<QueryNode &>();
 
     // In case of cross-replication we don't know what database is used for the table.
     // Each shard will use the default database (in the case of cross-replication shards may have different defaults).
-    auto result_ast = query_node_typed.toAST({ .qualify_indentifiers_with_database = false });
+    auto result_ast = query_node_typed.toAST({
+        .qualify_indentifiers_with_database = false,
+        .set_subquery_cte_name = set_subquery_cte_name
+    });
 
     while (true)
     {
-        if (auto * select_query = result_ast->as<ASTSelectQuery>())
+        if (auto * /*select_query*/ _ = result_ast->as<ASTSelectQuery>())
             break;
-        else if (auto * select_with_union = result_ast->as<ASTSelectWithUnionQuery>())
+        if (auto * select_with_union = result_ast->as<ASTSelectWithUnionQuery>())
             result_ast = select_with_union->list_of_selects->children.at(0);
         else if (auto * subquery = result_ast->as<ASTSubquery>())
             result_ast = subquery->children.at(0);
@@ -139,31 +165,13 @@ ASTPtr queryNodeToSelectQuery(const QueryTreeNodePtr & query_node)
     return result_ast;
 }
 
-static void removeCTEs(ASTPtr & ast)
-{
-    std::stack<IAST *> stack;
-    stack.push(ast.get());
-    while (!stack.empty())
-    {
-        auto * node = stack.top();
-        stack.pop();
-
-        if (auto * subquery = typeid_cast<ASTSubquery *>(node))
-            subquery->cte_name = {};
-
-        for (const auto & child : node->children)
-            stack.push(child.get());
-    }
-}
-
 ASTPtr queryNodeToDistributedSelectQuery(const QueryTreeNodePtr & query_node)
 {
-    auto ast = queryNodeToSelectQuery(query_node);
     /// Remove CTEs information from distributed queries.
     /// Now, if cte_name is set for subquery node, AST -> String serialization will only print cte name.
     /// But CTE is defined only for top-level query part, so may not be sent.
     /// Removing cte_name forces subquery to be always printed.
-    removeCTEs(ast);
+    auto ast = queryNodeToSelectQuery(query_node, /*set_subquery_cte_name=*/false);
     return ast;
 }
 
@@ -174,9 +182,9 @@ StreamLocalLimits getLimitsForStorage(const Settings & settings, const SelectQue
 {
     StreamLocalLimits limits;
     limits.mode = LimitsMode::LIMITS_TOTAL;
-    limits.size_limits = SizeLimits(settings.max_rows_to_read, settings.max_bytes_to_read, settings.read_overflow_mode);
-    limits.speed_limits.max_execution_time = settings.max_execution_time;
-    limits.timeout_overflow_mode = settings.timeout_overflow_mode;
+    limits.size_limits = SizeLimits(settings[Setting::max_rows_to_read], settings[Setting::max_bytes_to_read], settings[Setting::read_overflow_mode]);
+    limits.speed_limits.max_execution_time = settings[Setting::max_execution_time];
+    limits.timeout_overflow_mode = settings[Setting::timeout_overflow_mode];
 
     /** Quota and minimal speed restrictions are checked on the initiating server of the request, and not on remote servers,
       *  because the initiating server has a summary of the execution of the request on all servers.
@@ -189,14 +197,14 @@ StreamLocalLimits getLimitsForStorage(const Settings & settings, const SelectQue
       */
     if (options.to_stage == QueryProcessingStage::Complete)
     {
-        limits.speed_limits.min_execution_rps = settings.min_execution_speed;
-        limits.speed_limits.min_execution_bps = settings.min_execution_speed_bytes;
+        limits.speed_limits.min_execution_rps = settings[Setting::min_execution_speed];
+        limits.speed_limits.min_execution_bps = settings[Setting::min_execution_speed_bytes];
     }
 
-    limits.speed_limits.max_execution_rps = settings.max_execution_speed;
-    limits.speed_limits.max_execution_bps = settings.max_execution_speed_bytes;
-    limits.speed_limits.timeout_before_checking_execution_speed = settings.timeout_before_checking_execution_speed;
-    limits.speed_limits.max_estimated_execution_time = settings.max_estimated_execution_time;
+    limits.speed_limits.max_execution_rps = settings[Setting::max_execution_speed];
+    limits.speed_limits.max_execution_bps = settings[Setting::max_execution_speed_bytes];
+    limits.speed_limits.timeout_before_checking_execution_speed = settings[Setting::timeout_before_checking_execution_speed];
+    limits.speed_limits.max_estimated_execution_time = settings[Setting::max_estimated_execution_time];
 
     return limits;
 }
@@ -214,7 +222,7 @@ StorageLimits buildStorageLimits(const Context & context, const SelectQueryOptio
     if (!options.ignore_limits)
     {
         limits = getLimitsForStorage(settings, options);
-        leaf_limits = SizeLimits(settings.max_rows_to_read_leaf, settings.max_bytes_to_read_leaf, settings.read_overflow_mode_leaf);
+        leaf_limits = SizeLimits(settings[Setting::max_rows_to_read_leaf], settings[Setting::max_bytes_to_read_leaf], settings[Setting::read_overflow_mode_leaf]);
     }
 
     return {limits, leaf_limits};
@@ -276,6 +284,14 @@ bool queryHasArrayJoinInJoinTree(const QueryTreeNodePtr & query_node)
             case QueryTreeNodeType::ARRAY_JOIN:
             {
                 return true;
+            }
+            case QueryTreeNodeType::CROSS_JOIN:
+            {
+                auto & cross_join_node = join_tree_node_to_process->as<CrossJoinNode &>();
+                for (const auto & expr : cross_join_node.getTableExpressions())
+                    join_tree_nodes_to_process.push_back(expr);
+
+                break;
             }
             case QueryTreeNodeType::JOIN:
             {
@@ -343,6 +359,14 @@ bool queryHasWithTotalsInAnySubqueryInJoinTree(const QueryTreeNodePtr & query_no
                 join_tree_nodes_to_process.push_back(array_join_node.getTableExpression());
                 break;
             }
+            case QueryTreeNodeType::CROSS_JOIN:
+            {
+                auto & cross_join_node = join_tree_node_to_process->as<CrossJoinNode &>();
+                for (const auto & expr : cross_join_node.getTableExpressions())
+                    join_tree_nodes_to_process.push_back(expr);
+
+                break;
+            }
             case QueryTreeNodeType::JOIN:
             {
                 auto & join_node = join_tree_node_to_process->as<JoinNode &>();
@@ -389,14 +413,18 @@ QueryTreeNodePtr replaceTableExpressionsWithDummyTables(
         if (table_node || table_function_node)
         {
             const auto & storage_snapshot = table_node ? table_node->getStorageSnapshot() : table_function_node->getStorageSnapshot();
-            auto get_column_options = GetColumnsOptions(GetColumnsOptions::All).withExtendedObjects().withVirtuals();
+            const auto & storage = storage_snapshot->storage;
 
-            StoragePtr storage_dummy = std::make_shared<StorageDummy>(
-                storage_snapshot->storage.getStorageID(),
-                ColumnsDescription(storage_snapshot->getColumns(get_column_options)),
-                storage_snapshot);
+            auto storage_dummy = std::make_shared<StorageDummy>(
+                storage.getStorageID(),
+                /// To preserve information about alias columns, column description must be extracted directly from storage metadata.
+                storage_snapshot->metadata->getColumns(),
+                storage_snapshot,
+                storage.supportsReplication());
 
             auto dummy_table_node = std::make_shared<TableNode>(std::move(storage_dummy), context);
+            if (table_node && table_node->hasTableExpressionModifiers())
+                dummy_table_node->getTableExpressionModifiers() = table_node->getTableExpressionModifiers();
 
             if (result_replacement_map)
                 result_replacement_map->emplace(table_expression, dummy_table_node);
@@ -471,14 +499,19 @@ FilterDAGInfo buildFilterInfo(QueryTreeNodePtr filter_query_tree,
 
 ASTPtr parseAdditionalResultFilter(const Settings & settings)
 {
-    const String & additional_result_filter = settings.additional_result_filter;
+    const String & additional_result_filter = settings[Setting::additional_result_filter];
     if (additional_result_filter.empty())
         return {};
 
     ParserExpression parser;
     auto additional_result_filter_ast = parseQuery(
-                parser, additional_result_filter.data(), additional_result_filter.data() + additional_result_filter.size(),
-                "additional result filter", settings.max_query_size, settings.max_parser_depth, settings.max_parser_backtracks);
+        parser,
+        additional_result_filter.data(),
+        additional_result_filter.data() + additional_result_filter.size(),
+        "additional result filter",
+        settings[Setting::max_query_size],
+        settings[Setting::max_parser_depth],
+        settings[Setting::max_parser_backtracks]);
     return additional_result_filter_ast;
 }
 

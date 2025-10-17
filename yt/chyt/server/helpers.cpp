@@ -37,6 +37,7 @@
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <Parsers/ASTSubquery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
+#include <Parsers/ASTExpressionList.h>
 
 #include <util/string/escape.h>
 
@@ -107,6 +108,8 @@ void RegisterNewUser(
         user->access.grant(DB::AccessType::CREATE_FUNCTION);
         user->access.grant(DB::AccessType::DROP_FUNCTION);
     }
+
+    user->authentication_methods.emplace_back(DB::AuthenticationType::NO_PASSWORD);
 
     accessControl.tryInsert(std::move(user));
 }
@@ -323,31 +326,31 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
 
 TQuerySettingsPtr ParseCustomSettings(
     const TQuerySettingsPtr baseSettings,
-    const DB::Settings::Range& customSettings,
+    const DB::SettingsChanges& settingsChanges,
     const TLogger& logger)
 {
     const auto& Logger = logger;
 
     auto node = ConvertToNode(baseSettings);
-    for (const auto& setting : customSettings) {
-        auto settingName = TString(setting.getName());
-        YT_VERIFY(settingName.StartsWith("chyt"));
-        if (!settingName.StartsWith("chyt.") && !settingName.StartsWith("chyt_")) {
+    for (const auto& change : settingsChanges) {
+        if (DB::Settings::hasBuiltin(change.name)) {
+            continue;
+        }
+        YT_VERIFY(change.name.starts_with("chyt"));
+        if (!change.name.starts_with("chyt.") && !change.name.starts_with("chyt_")) {
             THROW_ERROR_EXCEPTION(
                 "Invalid setting name %Qv; CHYT settings should start with \"chyt.\" prefix",
-                settingName);
+                change.name);
         }
-
-        TYPath ypath = "/" + settingName.substr(/*strlen("chyt.")*/ 5);
+        TYPath ypath = "/" + change.name.substr(/*strlen("chyt.")*/ 5);
         for (auto& character : ypath) {
             if (character == '.') {
                 character = '/';
             }
         }
 
-        auto field = setting.getValue();
+        auto field = change.value;
         YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
-
         auto modifiedNode = FindNodeByYPath(node, ypath);
 
         INodePtr patchNode;

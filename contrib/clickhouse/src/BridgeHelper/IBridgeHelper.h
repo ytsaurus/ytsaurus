@@ -1,11 +1,12 @@
 #pragma once
 
 #include <Interpreters/Context.h>
-#include <DBPoco/Logger.h>
-#include <DBPoco/Util/AbstractConfiguration.h>
-#include <DBPoco/Net/HTTPRequest.h>
 #include <Common/ShellCommand.h>
 
+#include <DBPoco/Logger.h>
+#include <DBPoco/Net/HTTPRequest.h>
+#include <DBPoco/URI.h>
+#include <DBPoco/Util/AbstractConfiguration.h>
 
 namespace DB
 {

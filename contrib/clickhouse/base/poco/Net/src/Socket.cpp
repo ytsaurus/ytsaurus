@@ -78,132 +78,131 @@ int Socket::select(SocketList& readList, SocketList& writeList, SocketList& exce
 
 	int epollfd = -1;
 	{
-		struct epoll_event eventsIn[epollSize];
-		memset(eventsIn, 0, sizeof(eventsIn));
-		struct epoll_event* eventLast = eventsIn;
-		for (SocketList::iterator it = readList.begin(); it != readList.end(); ++it)
-		{
-			DB_poco_socket_t sockfd = it->sockfd();
-			if (sockfd != DB_POCO_INVALID_SOCKET)
-			{
-				struct epoll_event* e = eventsIn;
-				for (; e != eventLast; ++e)
-				{
-					if (reinterpret_cast<Socket*>(e->data.ptr)->sockfd() == sockfd)
-						break;
-				}
-				if (e == eventLast)
-				{
-					e->data.ptr = &(*it);
-					++eventLast;
-				}
-				e->events |= EPOLLIN;
-			}
-		}
+        std::vector<epoll_event> eventsIn(epollSize);
+        struct epoll_event * eventLast = eventsIn.data();
+        for (SocketList::iterator it = readList.begin(); it != readList.end(); ++it)
+        {
+            DB_poco_socket_t sockfd = it->sockfd();
+            if (sockfd != DB_POCO_INVALID_SOCKET)
+            {
+                struct epoll_event * e = eventsIn.data();
+                for (; e != eventLast; ++e)
+                {
+                    if (reinterpret_cast<Socket *>(e->data.ptr)->sockfd() == sockfd)
+                        break;
+                }
+                if (e == eventLast)
+                {
+                    e->data.ptr = &(*it);
+                    ++eventLast;
+                }
+                e->events |= EPOLLIN;
+            }
+        }
 
-		for (SocketList::iterator it = writeList.begin(); it != writeList.end(); ++it)
-		{
-			DB_poco_socket_t sockfd = it->sockfd();
-			if (sockfd != DB_POCO_INVALID_SOCKET)
-			{
-				struct epoll_event* e = eventsIn;
-				for (; e != eventLast; ++e)
-				{
-					if (reinterpret_cast<Socket*>(e->data.ptr)->sockfd() == sockfd)
-						break;
-				}
-				if (e == eventLast)
-				{
-					e->data.ptr = &(*it);
-					++eventLast;
-				}
-				e->events |= EPOLLOUT;
-			}
-		}
+        for (SocketList::iterator it = writeList.begin(); it != writeList.end(); ++it)
+        {
+            DB_poco_socket_t sockfd = it->sockfd();
+            if (sockfd != DB_POCO_INVALID_SOCKET)
+            {
+                struct epoll_event * e = eventsIn.data();
+                for (; e != eventLast; ++e)
+                {
+                    if (reinterpret_cast<Socket *>(e->data.ptr)->sockfd() == sockfd)
+                        break;
+                }
+                if (e == eventLast)
+                {
+                    e->data.ptr = &(*it);
+                    ++eventLast;
+                }
+                e->events |= EPOLLOUT;
+            }
+        }
 
-		for (SocketList::iterator it = exceptList.begin(); it != exceptList.end(); ++it)
-		{
-			DB_poco_socket_t sockfd = it->sockfd();
-			if (sockfd != DB_POCO_INVALID_SOCKET)
-			{
-				struct epoll_event* e = eventsIn;
-				for (; e != eventLast; ++e)
-				{
-					if (reinterpret_cast<Socket*>(e->data.ptr)->sockfd() == sockfd)
-						break;
-				}
-				if (e == eventLast)
-				{
-					e->data.ptr = &(*it);
-					++eventLast;
-				}
-				e->events |= EPOLLERR;
-			}
-		}
+        for (SocketList::iterator it = exceptList.begin(); it != exceptList.end(); ++it)
+        {
+            DB_poco_socket_t sockfd = it->sockfd();
+            if (sockfd != DB_POCO_INVALID_SOCKET)
+            {
+                struct epoll_event * e = eventsIn.data();
+                for (; e != eventLast; ++e)
+                {
+                    if (reinterpret_cast<Socket *>(e->data.ptr)->sockfd() == sockfd)
+                        break;
+                }
+                if (e == eventLast)
+                {
+                    e->data.ptr = &(*it);
+                    ++eventLast;
+                }
+                e->events |= EPOLLERR;
+            }
+        }
 
-		epollSize = eventLast - eventsIn;
-		if (epollSize == 0) return 0;
+        epollSize = eventLast - eventsIn.data();
+        if (epollSize == 0)
+            return 0;
 
-		epollfd = epoll_create(1);
-		if (epollfd < 0)
-		{
-			SocketImpl::error("Can't create epoll queue");
-		}
+        epollfd = epoll_create(1);
+        if (epollfd < 0)
+        {
+            SocketImpl::error("Can't create epoll queue");
+        }
 
-		for (struct epoll_event* e = eventsIn; e != eventLast; ++e)
-		{
-			DB_poco_socket_t sockfd = reinterpret_cast<Socket*>(e->data.ptr)->sockfd();
-			if (sockfd != DB_POCO_INVALID_SOCKET)
-			{
-				if (epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, e) < 0)
-				{
-					::close(epollfd);
-					SocketImpl::error("Can't insert socket to epoll queue");
-				}
-			}
-		}
-	}
+        for (struct epoll_event * e = eventsIn.data(); e != eventLast; ++e)
+        {
+            DB_poco_socket_t sockfd = reinterpret_cast<Socket *>(e->data.ptr)->sockfd();
+            if (sockfd != DB_POCO_INVALID_SOCKET)
+            {
+                if (epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, e) < 0)
+                {
+                    ::close(epollfd);
+                    SocketImpl::error("Can't insert socket to epoll queue");
+                }
+            }
+        }
+    }
 
-	struct epoll_event eventsOut[epollSize];
-	memset(eventsOut, 0, sizeof(eventsOut));
+    std::vector<epoll_event> eventsOut(epollSize);
 
-	DBPoco::Timespan remainingTime(timeout);
-	int rc;
-	do
-	{
-		DBPoco::Timestamp start;
-		rc = epoll_wait(epollfd, eventsOut, epollSize, remainingTime.totalMilliseconds());
-		if (rc < 0 && SocketImpl::lastError() == DB_POCO_EINTR)
-		{
- 			DBPoco::Timestamp end;
-			DBPoco::Timespan waited = end - start;
-			if (waited < remainingTime)
-				remainingTime -= waited;
-			else
-				remainingTime = 0;
-		}
-	}
-	while (rc < 0 && SocketImpl::lastError() == DB_POCO_EINTR);
+    DBPoco::Timespan remainingTime(timeout);
+    int rc;
+    do
+    {
+        DBPoco::Timestamp start;
+        rc = epoll_wait(epollfd, eventsOut.data(), epollSize, remainingTime.totalMilliseconds());
+        if (rc < 0 && SocketImpl::lastError() == DB_POCO_EINTR)
+        {
+            DBPoco::Timestamp end;
+            DBPoco::Timespan waited = end - start;
+            if (waited < remainingTime)
+                remainingTime -= waited;
+            else
+                remainingTime = 0;
+        }
+    } while (rc < 0 && SocketImpl::lastError() == DB_POCO_EINTR);
 
-	::close(epollfd);
-	if (rc < 0) SocketImpl::error();
+    ::close(epollfd);
+    if (rc < 0)
+        SocketImpl::error();
 
- 	SocketList readyReadList;
-	SocketList readyWriteList;
-	SocketList readyExceptList;
-	for (int n = 0; n < rc; ++n)
-	{
-		if (eventsOut[n].events & EPOLLERR)
-			readyExceptList.push_back(*reinterpret_cast<Socket*>(eventsOut[n].data.ptr));
-		if (eventsOut[n].events & EPOLLIN)
-			readyReadList.push_back(*reinterpret_cast<Socket*>(eventsOut[n].data.ptr));
-		if (eventsOut[n].events & EPOLLOUT)
-			readyWriteList.push_back(*reinterpret_cast<Socket*>(eventsOut[n].data.ptr));
-	}
-	std::swap(readList, readyReadList);
-	std::swap(writeList, readyWriteList);
-	std::swap(exceptList, readyExceptList);
-	return readList.size() + writeList.size() + exceptList.size();
+    SocketList readyReadList;
+    SocketList readyWriteList;
+    SocketList readyExceptList;
+    for (int n = 0; n < rc; ++n)
+    {
+        if (eventsOut[n].events & EPOLLERR)
+            readyExceptList.push_back(*reinterpret_cast<Socket *>(eventsOut[n].data.ptr));
+        if (eventsOut[n].events & EPOLLIN)
+            readyReadList.push_back(*reinterpret_cast<Socket *>(eventsOut[n].data.ptr));
+        if (eventsOut[n].events & EPOLLOUT)
+            readyWriteList.push_back(*reinterpret_cast<Socket *>(eventsOut[n].data.ptr));
+    }
+    std::swap(readList, readyReadList);
+    std::swap(writeList, readyWriteList);
+    std::swap(exceptList, readyExceptList);
+    return readList.size() + writeList.size() + exceptList.size();
 
 #elif defined(DB_POCO_HAVE_FD_POLL)
 	typedef DBPoco::SharedPtr<pollfd, DBPoco::ReferenceCounter, DBPoco::ReleaseArrayPolicy<pollfd> > SharedPollArray;

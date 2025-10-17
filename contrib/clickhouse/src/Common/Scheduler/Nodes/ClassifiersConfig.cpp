@@ -5,11 +5,6 @@
 namespace DB
 {
 
-namespace ErrorCodes
-{
-    extern const int RESOURCE_NOT_FOUND;
-}
-
 ClassifierDescription::ClassifierDescription(const DBPoco::Util::AbstractConfiguration & config, const String & config_prefix)
 {
     DBPoco::Util::AbstractConfiguration::Keys keys;
@@ -31,10 +26,11 @@ ClassifiersConfig::ClassifiersConfig(const DBPoco::Util::AbstractConfiguration &
 
 const ClassifierDescription & ClassifiersConfig::get(const String & classifier_name)
 {
+    static ClassifierDescription empty;
     if (auto it = classifiers.find(classifier_name); it != classifiers.end())
         return it->second;
     else
-        throw Exception(ErrorCodes::RESOURCE_NOT_FOUND, "Unknown workload classifier '{}' to access resources", classifier_name);
+        return empty;
 }
 
 }

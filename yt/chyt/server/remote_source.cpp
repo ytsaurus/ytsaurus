@@ -8,9 +8,18 @@
 #include <Core/Settings.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
-#include <Parsers/queryToString.h>
 #include <Processors/Sources/RemoteSource.h>
 #include <QueryPipeline/RemoteQueryExecutor.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool extremes;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -139,7 +148,7 @@ DB::Pipe CreateRemoteSource(
 
     auto* queryContext = GetQueryContext(context);
 
-    std::string query = queryToString(queryAst);
+    std::string query = queryAst->formatWithSecretsOneLine();
 
     auto scalars = context->getQueryContext()->getScalars();
 
@@ -216,7 +225,7 @@ DB::Pipe CreateRemoteSource(
     bool asyncQuerySending = false;
     if (!isInsert && processingStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
-        addExtremes = context->getSettingsRef().extremes;
+        addExtremes = context->getSettingsRef()[DB::Setting::extremes];
     }
 
     auto remoteSource = std::make_shared<DB::RemoteSource>(

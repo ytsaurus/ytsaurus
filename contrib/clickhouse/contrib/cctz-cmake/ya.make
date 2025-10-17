@@ -5,13 +5,12 @@ LIBRARY()
 LICENSE(
     Apache-2.0 AND
     BSL-1.0 AND
-    CC0-1.0 AND
     MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 PEERDIR(
     library/cpp/clickhouse_deps/incbin_stub

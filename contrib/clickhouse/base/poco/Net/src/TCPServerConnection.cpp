@@ -18,7 +18,6 @@
 
 
 using DBPoco::Exception;
-using DBPoco::ErrorHandler;
 
 
 namespace DBPoco {
@@ -31,9 +30,7 @@ TCPServerConnection::TCPServerConnection(const StreamSocket& socket):
 }
 
 
-TCPServerConnection::~TCPServerConnection()
-{
-}
+TCPServerConnection::~TCPServerConnection() = default;
 
 
 void TCPServerConnection::start()

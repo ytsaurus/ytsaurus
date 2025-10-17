@@ -1,13 +1,13 @@
 #include <Storages/MergeTree/MergeTreeIndexMinMax.h>
 
-#include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ExpressionAnalyzer.h>
-#include <Interpreters/TreeRewriter.h>
 
-#include <Parsers/ASTFunction.h>
+#include <Common/FieldAccurateComparison.h>
+#include <Common/quoteString.h>
 
-#include <DBPoco/Logger.h>
-#include <Common/FieldVisitorsAccurateComparison.h>
+#include <Columns/ColumnNullable.h>
+
+#include <IO/ReadHelpers.h>
 
 namespace DB
 {
@@ -145,9 +145,9 @@ void MergeTreeIndexAggregatorMinMax::update(const Block & block, size_t * pos, s
         else
         {
             hyperrectangle[i].left
-                = applyVisitor(FieldVisitorAccurateLess(), hyperrectangle[i].left, field_min) ? hyperrectangle[i].left : field_min;
+                = accurateLess(hyperrectangle[i].left, field_min) ? hyperrectangle[i].left : field_min;
             hyperrectangle[i].right
-                = applyVisitor(FieldVisitorAccurateLess(), hyperrectangle[i].right, field_max) ? field_max : hyperrectangle[i].right;
+                = accurateLess(hyperrectangle[i].right, field_max) ? field_max : hyperrectangle[i].right;
         }
     }
 
@@ -157,17 +157,17 @@ void MergeTreeIndexAggregatorMinMax::update(const Block & block, size_t * pos, s
 namespace
 {
 
-KeyCondition buildCondition(const IndexDescription & index, const ActionsDAG * filter_actions_dag, ContextPtr context)
+KeyCondition buildCondition(const IndexDescription & index, const ActionsDAGWithInversionPushDown & filter_dag, ContextPtr context)
 {
-    return KeyCondition{filter_actions_dag, context, index.column_names, index.expression};
+    return KeyCondition{filter_dag, context, index.column_names, index.expression};
 }
 
 }
 
 MergeTreeIndexConditionMinMax::MergeTreeIndexConditionMinMax(
-    const IndexDescription & index, const ActionsDAG * filter_actions_dag, ContextPtr context)
+    const IndexDescription & index, const ActionsDAGWithInversionPushDown & filter_dag, ContextPtr context)
     : index_data_types(index.data_types)
-    , condition(buildCondition(index, filter_actions_dag, context))
+    , condition(buildCondition(index, filter_dag, context))
 {
 }
 
@@ -198,16 +198,17 @@ MergeTreeIndexAggregatorPtr MergeTreeIndexMinMax::createIndexAggregator(const Me
 }
 
 MergeTreeIndexConditionPtr MergeTreeIndexMinMax::createIndexCondition(
-    const ActionsDAG * filter_actions_dag, ContextPtr context) const
+    const ActionsDAG::Node * predicate, ContextPtr context) const
 {
-    return std::make_shared<MergeTreeIndexConditionMinMax>(index, filter_actions_dag, context);
+    ActionsDAGWithInversionPushDown filter_dag(predicate, context);
+    return std::make_shared<MergeTreeIndexConditionMinMax>(index, filter_dag, context);
 }
 
 MergeTreeIndexFormat MergeTreeIndexMinMax::getDeserializedFormat(const IDataPartStorage & data_part_storage, const std::string & relative_path_prefix) const
 {
-    if (data_part_storage.exists(relative_path_prefix + ".idx2"))
+    if (data_part_storage.existsFile(relative_path_prefix + ".idx2"))
         return {2, ".idx2"};
-    else if (data_part_storage.exists(relative_path_prefix + ".idx"))
+    if (data_part_storage.existsFile(relative_path_prefix + ".idx"))
         return {1, ".idx"};
     return {0 /* unknown */, ""};
 }

@@ -152,6 +152,11 @@ void TCPServer::run()
                         ErrorHandler::logMessage(Message::PRIO_WARNING, "Filtered out connection from " + ss.peerAddress().toString());
                     }
                 }
+                // Termination request
+                catch (DBPoco::InvalidArgumentException&)
+                {
+                    break;
+                }
                 catch (DBPoco::Exception& exc)
                 {
                     ErrorHandler::handle(exc);
