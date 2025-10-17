@@ -8,7 +8,6 @@
 #include <Interpreters/Context.h>
 #include <Parsers/parseQuery.h>
 #include <Parsers/ExpressionListParsers.h>
-#include <Parsers/formatAST.h>
 
 #include <DBPoco/Util/AbstractConfiguration.h>
 #include <DBPoco/Util/XMLConfiguration.h>
@@ -24,7 +23,7 @@ static TLogger Logger("Test");
 
 class TComputedColumnPredicatePopulationTest
     : public ::testing::Test
-    , public ::testing::WithParamInterface<std::tuple<TTableSchemaPtr, TString, TString, TString>>
+    , public ::testing::WithParamInterface<std::tuple<TTableSchemaPtr, std::string, std::string, std::string>>
 {
 protected:
     DB::ContextPtr CreateQueryContext() const
@@ -46,7 +45,7 @@ TEST_P(TComputedColumnPredicatePopulationTest, Test)
     for (auto deducedStatementMode : TEnumTraits<EDeducedStatementMode>::GetDomainValues()) {
         settings->DeducedStatementMode = deducedStatementMode;
         auto resultAst = PopulatePredicateWithComputedColumns(originalAst->clone(), schema, CreateQueryContext(), preparedSets, settings, Logger);
-        auto resultPredicate = TString(DB::serializeAST(*resultAst));
+        auto resultPredicate = resultAst->formatForLogging();
         if (deducedStatementMode == EDeducedStatementMode::In) {
             EXPECT_EQ(expectedPredicateWithIn, resultPredicate);
         } else {

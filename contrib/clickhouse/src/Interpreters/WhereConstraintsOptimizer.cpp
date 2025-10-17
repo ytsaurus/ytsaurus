@@ -9,7 +9,6 @@
 #include <Parsers/ASTSelectQuery.h>
 #include <DBPoco/Logger.h>
 
-#include <Parsers/queryToString.h>
 
 namespace DB
 {

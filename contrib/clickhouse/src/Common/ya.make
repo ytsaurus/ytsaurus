@@ -5,13 +5,12 @@ LIBRARY()
 LICENSE(
     Apache-2.0 AND
     BSL-1.0 AND
-    CC0-1.0 AND
     MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 PEERDIR(
     contrib/clickhouse/base/base
@@ -34,8 +33,8 @@ PEERDIR(
     contrib/libs/lzma
     contrib/libs/miniselect
     contrib/libs/re2
+    contrib/libs/simdjson
     contrib/libs/snappy
-    contrib/libs/sparsehash
     contrib/libs/zstd
     contrib/restricted/abseil-cpp
     contrib/restricted/aws/aws-c-auth
@@ -77,7 +76,7 @@ ADDINCL(
     contrib/libs/libunwind/include
     contrib/libs/lz4
     contrib/libs/miniselect/include
-    contrib/libs/sparsehash/src
+    contrib/libs/simdjson/include
     contrib/libs/zstd/include
     contrib/restricted/cityhash-1.0.2
     contrib/restricted/fast_float/include
@@ -110,7 +109,6 @@ CFLAGS(
     -DCARES_STATICLIB
     -DENABLE_MULTITARGET_CODE=1
     -DINCBIN_SILENCE_BITCODE_WARNING
-    -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
     -DLZ4_FAST_DEC_LOOP=1
     -DPOCO_ENABLE_CPP11
     -DPOCO_OS_FAMILY_UNIX
@@ -143,6 +141,7 @@ SRCS(
     src/Common/CaresPTRResolver.cpp
     src/Common/CgroupsMemoryUsageObserver.cpp
     src/Common/ClickHouseRevision.cpp
+    src/Common/ColumnsHashing.cpp
     src/Common/ConcurrencyControl.cpp
     src/Common/Config/AbstractConfigurationComparison.cpp
     src/Common/Config/ConfigHelper.cpp
@@ -172,11 +171,14 @@ SRCS(
     src/Common/ExternalLoaderStatus.cpp
     src/Common/FST.cpp
     src/Common/FailPoint.cpp
+    src/Common/FieldAccurateComparison.cpp
     src/Common/FieldBinaryEncoding.cpp
     src/Common/FieldVisitorConvertToNumber.cpp
     src/Common/FieldVisitorDump.cpp
     src/Common/FieldVisitorHash.cpp
+    src/Common/FieldVisitorScale.cpp
     src/Common/FieldVisitorSum.cpp
+    src/Common/FieldVisitorToJSONElement.cpp
     src/Common/FieldVisitorToString.cpp
     src/Common/FieldVisitorWriteBinary.cpp
     src/Common/FileChecker.cpp
@@ -187,21 +189,30 @@ SRCS(
     src/Common/GetPriorityForLoadBalancing.cpp
     src/Common/HTTPConnectionPool.cpp
     src/Common/HTTPHeaderFilter.cpp
+    src/Common/Histogram.cpp
     src/Common/HostResolvePool.cpp
     src/Common/IO.cpp
     src/Common/IPv6ToBinary.cpp
     src/Common/IntervalKind.cpp
     src/Common/JSONBuilder.cpp
+    src/Common/JSONParsers/DummyJSONParser.cpp
+    src/Common/JSONParsers/SimdJSONParser.cpp
     src/Common/Jemalloc.cpp
     src/Common/KnownObjectNames.cpp
+    src/Common/LatencyBuckets.cpp
+    src/Common/LibSSHInitializer.cpp
+    src/Common/LibSSHLogger.cpp
     src/Common/LockMemoryExceptionInThread.cpp
     src/Common/Logger.cpp
     src/Common/LoggingFormatStringHelpers.cpp
     src/Common/Macros.cpp
     src/Common/MatchGenerator.cpp
+    src/Common/MemorySpillScheduler.cpp
     src/Common/MemoryStatisticsOS.cpp
     src/Common/MemoryTracker.cpp
     src/Common/MemoryTrackerBlockerInThread.cpp
+    src/Common/MemoryTrackerUtils.cpp
+    src/Common/MemoryWorker.cpp
     src/Common/NamePrompter.cpp
     src/Common/NetlinkMetricsProvider.cpp
     src/Common/ObjectStorageKey.cpp
@@ -224,18 +235,20 @@ SRCS(
     src/Common/RWLock.cpp
     src/Common/RemoteHostFilter.cpp
     src/Common/RemoteProxyConfigurationResolver.cpp
+    src/Common/ReplicasReconnector.cpp
     src/Common/SSHWrapper.cpp
     src/Common/Scheduler/Nodes/ClassifiersConfig.cpp
-    src/Common/Scheduler/Nodes/DynamicResourceManager.cpp
+    src/Common/Scheduler/Nodes/CustomResourceManager.cpp
     src/Common/Scheduler/Nodes/FairPolicy.cpp
     src/Common/Scheduler/Nodes/FifoQueue.cpp
+    src/Common/Scheduler/Nodes/IOResourceManager.cpp
     src/Common/Scheduler/Nodes/PriorityPolicy.cpp
     src/Common/Scheduler/Nodes/SemaphoreConstraint.cpp
     src/Common/Scheduler/Nodes/ThrottlerConstraint.cpp
-    src/Common/Scheduler/Nodes/registerResourceManagers.cpp
     src/Common/Scheduler/Nodes/registerSchedulerNodes.cpp
-    src/Common/Scheduler/ResouceLink.cpp
     src/Common/Scheduler/ResourceRequest.cpp
+    src/Common/Scheduler/SchedulingSettings.cpp
+    src/Common/Scheduler/createResourceManager.cpp
     src/Common/SensitiveDataMasker.cpp
     src/Common/SettingsChanges.cpp
     src/Common/SharedMutex.cpp
@@ -243,8 +256,10 @@ SRCS(
     src/Common/ShellCommandSettings.cpp
     src/Common/ShellCommandsHolder.cpp
     src/Common/SignalHandlers.cpp
+    src/Common/SipHash.cpp
     src/Common/StackTrace.cpp
     src/Common/StatusFile.cpp
+    src/Common/StopToken.cpp
     src/Common/StringUtils.cpp
     src/Common/StudentTTest.cpp
     src/Common/SymbolIndex.cpp
@@ -267,6 +282,8 @@ SRCS(
     src/Common/WeakHash.cpp
     src/Common/XMLUtils.cpp
     src/Common/ZooKeeper/IKeeper.cpp
+    src/Common/ZooKeeper/KeeperException.cpp
+    src/Common/ZooKeeper/KeeperFeatureFlags.cpp
     src/Common/ZooKeeper/TestKeeper.cpp
     src/Common/ZooKeeper/ZooKeeper.cpp
     src/Common/ZooKeeper/ZooKeeperArgs.cpp
@@ -298,9 +315,10 @@ SRCS(
     src/Common/getMappedArea.cpp
     src/Common/getMaxFileDescriptorCount.cpp
     src/Common/getMultipleKeysFromConfig.cpp
-    src/Common/getNumberOfPhysicalCPUCores.cpp
+    src/Common/getNumberOfCPUCoresToUse.cpp
     src/Common/getRandomASCIIString.cpp
     src/Common/hasLinuxCapability.cpp
+    src/Common/intExp.cpp
     src/Common/iota.cpp
     src/Common/isLocalAddress.cpp
     src/Common/isValidUTF8.cpp
@@ -321,7 +339,6 @@ SRCS(
     src/Common/thread_local_rng.cpp
     src/Common/tryGetFileNameByFileDescriptor.cpp
     src/Common/waitForPid.cpp
-    src/Coordination/KeeperFeatureFlags.cpp
     src/IO/AIO.cpp
     src/IO/Archives/ArchiveUtils.cpp
     src/IO/Archives/LibArchiveReader.cpp
@@ -332,6 +349,7 @@ SRCS(
     src/IO/Archives/createArchiveReader.cpp
     src/IO/Archives/createArchiveWriter.cpp
     src/IO/Archives/hasRegisteredArchiveFileExtension.cpp
+    src/IO/Ask.cpp
     src/IO/AsyncReadCounters.cpp
     src/IO/AsynchronousReadBufferFromFile.cpp
     src/IO/AsynchronousReadBufferFromFileDescriptor.cpp
@@ -345,7 +363,7 @@ SRCS(
     src/IO/CachedInMemoryReadBufferFromFile.cpp
     src/IO/CascadeWriteBuffer.cpp
     src/IO/CompressionMethod.cpp
-    src/IO/ConcatSeekableReadBuffer.cpp
+    src/IO/ConcatReadBufferFromFile.cpp
     src/IO/ConnectionTimeouts.cpp
     src/IO/DoubleConverter.cpp
     src/IO/FileEncryptionCommon.cpp
@@ -364,6 +382,7 @@ SRCS(
     src/IO/MMapReadBufferFromFileDescriptor.cpp
     src/IO/MMapReadBufferFromFileWithCache.cpp
     src/IO/MMappedFile.cpp
+    src/IO/MMappedFileCache.cpp
     src/IO/MMappedFileDescriptor.cpp
     src/IO/MemoryReadWriteBuffer.cpp
     src/IO/MySQLBinlogEventReadBuffer.cpp
@@ -386,8 +405,10 @@ SRCS(
     src/IO/ReadBufferFromIStream.cpp
     src/IO/ReadBufferFromMemory.cpp
     src/IO/ReadBufferFromPocoSocket.cpp
+    src/IO/ReadBufferFromPocoSocketChunked.cpp
     src/IO/ReadBufferFromS3.cpp
     src/IO/ReadHelpers.cpp
+    src/IO/ReadSettings.cpp
     src/IO/ReadWriteBufferFromHTTP.cpp
     src/IO/S3/AWSLogger.cpp
     src/IO/S3/BlobStorageLogWriter.cpp
@@ -397,10 +418,14 @@ SRCS(
     src/IO/S3/PocoHTTPClientFactory.cpp
     src/IO/S3/ProviderType.cpp
     src/IO/S3/Requests.cpp
+    src/IO/S3/S3Capabilities.cpp
     src/IO/S3/URI.cpp
     src/IO/S3/copyS3File.cpp
+    src/IO/S3/deleteFileFromS3.cpp
     src/IO/S3/getObjectInfo.cpp
+    src/IO/S3AuthSettings.cpp
     src/IO/S3Common.cpp
+    src/IO/S3RequestSettings.cpp
     src/IO/S3Settings.cpp
     src/IO/SeekableReadBuffer.cpp
     src/IO/SharedThreadPools.cpp
@@ -426,9 +451,12 @@ SRCS(
     src/IO/WriteBufferFromHTTP.cpp
     src/IO/WriteBufferFromOStream.cpp
     src/IO/WriteBufferFromPocoSocket.cpp
+    src/IO/WriteBufferFromPocoSocketChunked.cpp
     src/IO/WriteBufferFromS3.cpp
+    src/IO/WriteBufferFromString.cpp
     src/IO/WriteBufferValidUTF8.cpp
     src/IO/WriteHelpers.cpp
+    src/IO/WriteSettings.cpp
     src/IO/ZlibDeflatingWriteBuffer.cpp
     src/IO/ZlibInflatingReadBuffer.cpp
     src/IO/ZstdDeflatingAppendableWriteBuffer.cpp

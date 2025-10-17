@@ -15,12 +15,11 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReadFromYTStep
-    : public DB::ReadFromStorageStep
+    : public DB::ReadFromPreparedSource
 {
 public:
     TReadFromYTStep(
         DB::Pipe pipe,
-        DB::ContextPtr context,
         const DB::SelectQueryInfo& queryInfo,
         std::vector<std::shared_ptr<IChytIndexStat>> indexStats,
         const std::vector<TTablePtr>& tables);

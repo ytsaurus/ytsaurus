@@ -26,11 +26,11 @@ void RegisterClickHouseSingletons()
     DB::registerFormats();
     DB::registerFunctions();
     DB::registerAggregateFunctions();
-    DB::registerTableFunctions();
+    DB::registerTableFunctions(/*use_legacy_mongodb_integration*/ false);
     DB::registerStorageMemory(DB::StorageFactory::instance());
     DB::registerStorageBuffer(DB::StorageFactory::instance());
     DB::registerStorageDictionary(DB::StorageFactory::instance());
-    DB::registerDictionaries();
+    DB::registerDictionaries(/*use_legacy_mongodb_integration*/ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

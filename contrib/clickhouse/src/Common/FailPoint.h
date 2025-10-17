@@ -14,6 +14,7 @@
 #  error #include <fiu.h>
 #  error #include <fiu-control.h>
 #pragma clang diagnostic pop
+
 #else
 #define fiu_do_on(name, action)
 #endif

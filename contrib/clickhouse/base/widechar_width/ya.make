@@ -11,7 +11,7 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 ADDINCL(
     GLOBAL contrib/clickhouse/base/widechar_width

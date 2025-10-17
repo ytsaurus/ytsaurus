@@ -10,6 +10,7 @@
 #include <library/cpp/iterator/enumerate.h>
 
 #include <Core/Block.h>
+#include <Columns/IColumn.h>
 
 namespace NYT::NClickHouseServer {
 

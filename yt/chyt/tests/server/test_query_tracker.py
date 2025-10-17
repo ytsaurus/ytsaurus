@@ -380,8 +380,8 @@ class TestQueriesChyt(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         for _ in range(10):
             write_table("<append=%true>//tmp/t", [{"a": i} for i in range(100)])
-        with Clique(1, export_query_log=True, alias="*ch_alias") as clique:
-            settings = {"clique": "ch_alias", "cluster": "primary"}
+        with Clique(1, export_query_log=True) as clique:
+            settings = {"clique": clique.alias, "cluster": "primary"}
             query = """ SELECT * FROM `//tmp/t` WHERE NOT ignore(sleep(1));"""
             query = start_query("chyt", query, settings=settings)
             time.sleep(2)

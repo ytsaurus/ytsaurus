@@ -14,10 +14,11 @@
 #include <unordered_set>
 #include <DBPoco/Timestamp.h>
 
+
 namespace DB
 {
 
-struct InMemoryDirectoryPathMap;
+class InMemoryDirectoryPathMap;
 struct UnlinkMetadataFileOperationOutcome;
 using UnlinkMetadataFileOperationOutcomePtr = std::shared_ptr<UnlinkMetadataFileOperationOutcome>;
 
@@ -60,11 +61,9 @@ public:
 
     MetadataStorageType getType() const override { return MetadataStorageType::Plain; }
 
-    bool exists(const std::string & path) const override;
-
-    bool isFile(const std::string & path) const override;
-
-    bool isDirectory(const std::string & path) const override;
+    bool existsFile(const std::string & path) const override;
+    bool existsDirectory(const std::string & path) const override;
+    bool existsFileOrDirectory(const std::string & path) const override;
 
     uint64_t getFileSize(const String & path) const override;
     std::optional<uint64_t> getFileSizeIfExists(const String & path) const override;
@@ -76,6 +75,7 @@ public:
     DiskPtr getDisk() const { return {}; }
 
     StoredObjects getStorageObjects(const std::string & path) const override;
+    std::optional<StoredObjects> getStorageObjectsIfExist(const std::string & path) const override;
 
     DBPoco::Timestamp getLastModified(const std::string & path) const override;
     std::optional<DBPoco::Timestamp> getLastModifiedIfExists(const String & path) const override;
@@ -98,9 +98,10 @@ protected:
     ObjectMetadataEntryPtr getObjectMetadataEntryWithCache(const std::string & path) const;
 };
 
-class MetadataStorageFromPlainObjectStorageTransaction final : public IMetadataTransaction, private MetadataOperationsHolder
+
+class MetadataStorageFromPlainObjectStorageTransaction : public IMetadataTransaction, private MetadataOperationsHolder
 {
-private:
+protected:
     MetadataStorageFromPlainObjectStorage & metadata_storage;
     ObjectStoragePtr object_storage;
 
@@ -143,4 +144,5 @@ public:
 
     bool supportsChmod() const override { return false; }
 };
+
 }

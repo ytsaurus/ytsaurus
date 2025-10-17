@@ -16,6 +16,8 @@
 
 #include <DBPoco/URI.h>
 
+#include <IO/Operators.h>
+
 #include <base/getFQDNOrHostName.h>
 
 #include <util/string/cast.h>
@@ -58,7 +60,7 @@ class THttpHandler
 {
 public:
     THttpHandler(THost* host, DB::IServer& server, const DB::HTTPServerRequest& request)
-        : DB::DynamicQueryHandler(server, "query")
+        : DB::DynamicQueryHandler(server, DB::HTTPHandlerConnectionConfig{}, "query")
         , Host_(host)
         , Server_(server)
     {
@@ -153,7 +155,7 @@ public:
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
         RegisterNewUser(
             Server_.context()->getAccessControl(),
-            TString(userName),
+            userName,
             Host_->GetUserDefinedDatabaseNames(),
             Host_->HasUserDefinedSqlObjectStorage());
         YT_LOG_DEBUG("User registered");

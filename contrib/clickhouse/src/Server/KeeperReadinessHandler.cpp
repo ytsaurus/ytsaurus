@@ -32,7 +32,8 @@ void KeeperReadinessHandler::handleRequest(HTTPServerRequest & /*request*/, HTTP
 
         auto status = is_leader || is_follower || is_observer;
 
-        DBPoco::JSON::Object json, details;
+        DBPoco::JSON::Object json;
+        DBPoco::JSON::Object details;
 
         details.set("role", data.getRole());
         details.set("hasLeader", keeper_dispatcher->hasLeader());

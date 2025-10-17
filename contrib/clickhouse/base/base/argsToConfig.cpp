@@ -53,10 +53,9 @@ void argsToConfig(const DBPoco::Util::Application::ArgVec & argv,
                 key = arg.substr(key_start);
             continue;
         }
-        else
-        {
-            key = "";
-        }
+
+        key = "";
+
 
         if (key_start == std::string::npos)
             continue;

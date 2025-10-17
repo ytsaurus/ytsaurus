@@ -44,7 +44,7 @@ private:
     void tryLogSplit(const DBPoco::Message & msg);
 
     using ChannelPtr = DBPoco::AutoPtr<DBPoco::Channel>;
-    /// Handler and its pointer casted to extended interface
+    /// Handler and its pointer cast to extended interface
     using ExtendedChannelPtrPair = std::pair<ChannelPtr, ExtendedLogChannel *>;
     std::map<std::string, ExtendedChannelPtrPair> channels;
 

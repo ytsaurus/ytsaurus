@@ -36,6 +36,11 @@ DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> clone(const DBPoco::Util::A
     return res;
 }
 
+DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> createEmpty()
+{
+    return new DBPoco::Util::XMLConfiguration();
+}
+
 bool getBool(const DBPoco::Util::AbstractConfiguration & config, const std::string & key, bool default_, bool empty_as)
 {
     if (!config.has(key))

@@ -11,6 +11,8 @@
 
 #include <library/cpp/iterator/functools.h>
 
+#include <Columns/IColumn.h>
+
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeNullable.h>
 

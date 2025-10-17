@@ -460,9 +460,9 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         username = "simple-dimple"
         create_user(username)
 
-        with Clique(1, alias="ch_alias") as clique:
+        with Clique(1) as clique:
             allowance = {"subjects": [username], "action": "allow", "permissions": ["use"]}
-            yt_set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", [allowance])
+            yt_set(f"//sys/access_control_object_namespaces/chyt/{clique.alias}/principal/@acl", [allowance])
             # We expect token to be used as a username.
 
             correct_auth_response = clique.make_query_via_proxy(

@@ -1,4 +1,6 @@
-#ifdef FUZZING_MODE
+#include <clickhouse_config.h>
+
+#if USE_FUZZING_MODE
 
 #include <Functions/IFunction.h>
 #include <Functions/FunctionFactory.h>

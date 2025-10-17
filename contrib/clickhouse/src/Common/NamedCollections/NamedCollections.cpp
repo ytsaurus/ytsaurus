@@ -6,6 +6,8 @@
 #include <Common/NamedCollections/NamedCollectionConfiguration.h>
 #include <DBPoco/Util/AbstractConfiguration.h>
 
+#include <fmt/ranges.h>
+
 
 namespace DB
 {

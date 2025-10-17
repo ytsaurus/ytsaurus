@@ -20,11 +20,21 @@
 #include <Functions/UserDefined/UserDefinedSQLObjectsStorageBase.h>
 #include <Functions/UserDefined/UserDefinedSQLObjectType.h>
 #include <Interpreters/Context.h>
-#include <Parsers/formatAST.h>
 #include <Parsers/parseQuery.h>
 #include <Parsers/ParserCreateFunctionQuery.h>
 
 #include <magic_enum.hpp>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsUInt64 max_parser_depth;
+extern const SettingsUInt64 max_parser_backtracks;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -188,7 +198,7 @@ private:
 
         YT_LOG_DEBUG("Storing user-defined object (Path: %v)", path);
 
-        auto createStatement = TString(DB::serializeAST(*createObjectQuery));
+        auto createStatement = TString(createObjectQuery->formatWithSecretsOneLine());
 
         TCreateNodeOptions options;
         options.Attributes = CreateEphemeralAttributes();
@@ -368,8 +378,8 @@ private:
                 createObjectQuery.data() + createObjectQuery.size(),
                 "" /*description*/,
                 0 /*maxQuerySize*/,
-                GlobalContext_->getSettingsRef().max_parser_depth,
-                GlobalContext_->getSettingsRef().max_parser_backtracks);
+                GlobalContext_->getSettingsRef()[DB::Setting::max_parser_depth],
+                GlobalContext_->getSettingsRef()[DB::Setting::max_parser_backtracks]);
         } catch (const std::exception& ex) {
             auto errorStatement = Format("create function %v as () -> throwIf(true, 'Failed to parse user defined function %v: %v')", objectName, objectName, ex.what());
             ast = DB::parseQuery(
@@ -378,8 +388,8 @@ private:
                 errorStatement.data() + errorStatement.size(),
                 "" /*description*/,
                 0 /*maxQuerySize*/,
-                GlobalContext_->getSettingsRef().max_parser_depth,
-                GlobalContext_->getSettingsRef().max_parser_backtracks);
+                GlobalContext_->getSettingsRef()[DB::Setting::max_parser_depth],
+                GlobalContext_->getSettingsRef()[DB::Setting::max_parser_backtracks]);
         }
         return ast;
     }

@@ -24,8 +24,11 @@ target_compile_options(base-poco-XML PUBLIC
 target_compile_options(base-poco-XML PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_OS_FAMILY_UNIX
+  -DPRIVATE
+  -DXML_GE=0
   -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
   -D_LIBUNWIND_IS_NATIVE_ONLY
+  -D_poco_xml
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 

@@ -12,6 +12,7 @@
 #include <Interpreters/Cache/FileCacheFactory.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
+#include <Processors/ISource.h>
 #include <Processors/QueryPlan/QueryPlan.h>
 #include <Processors/QueryPlan/SourceStepWithFilter.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
@@ -20,6 +21,10 @@ namespace fs = std::filesystem;
 
 namespace DB
 {
+namespace Setting
+{
+    extern const SettingsBool traverse_shadow_remote_data_paths;
+}
 
 namespace ErrorCodes
 {
@@ -128,7 +133,7 @@ public:
         const Block & header,
         UInt64 max_block_size_)
         : SourceStepWithFilter(
-            {.header = header},
+            header,
             column_names_,
             query_info_,
             storage_snapshot_,
@@ -195,7 +200,7 @@ void StorageSystemRemoteDataPaths::read(
 
 void ReadFromSystemRemoteDataPaths::initializePipeline(QueryPipelineBuilder & pipeline, const BuildQueryPipelineSettings & /*settings*/)
 {
-    const auto & header = getOutputStream().header;
+    const auto & header = getOutputHeader();
     auto source = std::make_shared<SystemRemoteDataPathsSource>(std::move(disks), header, max_block_size, context);
     source->setStorageLimits(storage_limits);
     processors.emplace_back(source);
@@ -218,7 +223,7 @@ bool SystemRemoteDataPathsSource::nextDisk()
         /// cases when children of a directory get deleted while traversal is running.
         current.names.push_back({"store", nullptr});
         current.names.push_back({"data", nullptr});
-        if (context->getSettingsRef().traverse_shadow_remote_data_paths)
+        if (context->getSettingsRef()[Setting::traverse_shadow_remote_data_paths])
             current.names.push_back({"shadow", skipPredicateForShadowDir});
 
         /// Start and move to the first file
@@ -267,13 +272,13 @@ bool SystemRemoteDataPathsSource::nextFile()
         {
             const auto & disk = disks[current_disk].second;
 
-            /// Files or directories can disappear due to concurrent operations
-            if (!disk->exists(current_path))
-                continue;
-
             /// Stop if current path is a file
-            if (disk->isFile(current_path))
+            if (disk->existsFile(current_path))
                 return true;
+
+            /// Files or directories can disappear due to concurrent operations
+            if (!disk->existsFileOrDirectory(current_path))
+                continue;
 
             /// If current path is a directory list its contents and step into it
             std::vector<std::string> children;
@@ -399,7 +404,7 @@ Chunk SystemRemoteDataPathsSource::generate()
 
             if (cache)
             {
-                auto cache_paths = cache->tryGetCachePaths(cache->createKeyForPath(object.remote_path));
+                auto cache_paths = cache->tryGetCachePaths(FileCacheKey::fromPath(object.remote_path));
                 col_cache_paths->insert(Array(cache_paths.begin(), cache_paths.end()));
             }
             else

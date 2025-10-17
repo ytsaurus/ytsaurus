@@ -3,6 +3,22 @@
 #include <Common/Exception.h>
 #include <Core/Settings.h>
 
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsUInt64 connections_with_failover_max_tries;
+extern const SettingsUInt64 distributed_connections_pool_size;
+extern const SettingsSeconds connect_timeout;
+extern const SettingsSeconds max_execution_time;
+extern const SettingsSeconds receive_timeout;
+extern const SettingsSeconds send_timeout;
+extern const SettingsLoadBalancing load_balancing;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -66,17 +82,19 @@ IClusterNodePtr CreateClusterNode(
 
     ConnectionPoolPtrs pools;
     auto timeouts = ConnectionTimeouts()
-        .withConnectionTimeout(Cluster::saturate(settings.connect_timeout, settings.max_execution_time))
-        .withReceiveTimeout(Cluster::saturate(settings.receive_timeout, settings.max_execution_time))
-        .withSendTimeout(Cluster::saturate(settings.send_timeout, settings.max_execution_time));
+        .withConnectionTimeout(Cluster::saturate(settings[Setting::connect_timeout], settings[Setting::max_execution_time]))
+        .withReceiveTimeout(Cluster::saturate(settings[Setting::receive_timeout], settings[Setting::max_execution_time]))
+        .withSendTimeout(Cluster::saturate(settings[Setting::send_timeout], settings[Setting::max_execution_time]));
 
     pools.push_back(std::make_shared<ConnectionPool>(
-        settings.distributed_connections_pool_size,
+        settings[Setting::distributed_connections_pool_size],
         name.Host,
         name.Port,
         "" /*defaultDatabase*/,
         std::string(InternalRemoteUserName.data()) /*user*/,
         "" /*password*/,
+        "notchunked" /*proto_send_chunked*/,
+        "notchunked" /*proto_recv_chunked*/,
         "" /*quota_key*/,
         "" /*cluster*/,
         "" /*cluster_secret*/,
@@ -86,8 +104,8 @@ IClusterNodePtr CreateClusterNode(
 
     auto connection = std::make_shared<ConnectionPoolWithFailover>(
         std::move(pools),
-        settings.load_balancing,
-        settings.connections_with_failover_max_tries);
+        settings[Setting::load_balancing],
+        settings[Setting::connections_with_failover_max_tries]);
 
     return std::make_shared<TClusterNode>(
         name,

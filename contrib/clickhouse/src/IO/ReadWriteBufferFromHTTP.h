@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <Core/Field.h>
 #include <IO/ConnectionTimeouts.h>
 #include <IO/HTTPCommon.h>
 #include <IO/ParallelReadBuffer.h>
@@ -90,6 +91,9 @@ private:
     std::unique_ptr<ReadBuffer> impl;
 
     std::vector<DBPoco::Net::HTTPCookie> cookies;
+
+    std::map<String, String> response_headers;
+
     HTTPHeaderEntries http_header_entries;
     std::function<void(size_t)> next_callback;
 
@@ -187,6 +191,8 @@ public:
 
     HTTPFileInfo getFileInfo();
     static HTTPFileInfo parseFileInfo(const DBPoco::Net::HTTPResponse & response, size_t requested_range_begin);
+
+    Map getResponseHeaders() const;
 };
 
 using ReadWriteBufferFromHTTPPtr = std::unique_ptr<ReadWriteBufferFromHTTP>;

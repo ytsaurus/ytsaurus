@@ -22,7 +22,7 @@ import pytest
 
 
 class TestInputFetching(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 10
 
     @authors("max42", "evgenstf")
     @pytest.mark.parametrize("where_prewhere", ["where", "prewhere"])

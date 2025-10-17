@@ -18,6 +18,16 @@
 #include <Interpreters/executeQuery.h>
 #include <Processors/Executors/PullingPipelineExecutor.h>
 
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsSeconds max_execution_time;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
