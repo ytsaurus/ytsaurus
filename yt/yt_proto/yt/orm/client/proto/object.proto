@@ -374,14 +374,17 @@ message TCommonHistoryOptions
 
 message THistoryTableOptions
 {
+    reserved 3, 5, 6, 10;
+    reserved "time_mode";
+    reserved "use_uuid_in_key";
+    reserved "no_hash";
+    reserved "use_deprecated_hashing";
+
     // Needed for migration without write downtime. Details in YTORM-513.
     // NB!: It is considered to be used only during the migration, when history is write-only,
     // so, if you intend to use it longer, modify configs accordingly (e.g. |history_last_trim_time_per_table| option).
     optional string primary_table_name = 1;
     optional string index_table_name = 2;
-
-    reserved "time_mode";
-    reserved 3;
 
     // Specifies time with which history would be committed.
     // By default, history events are committed with commit start time.
@@ -391,12 +394,6 @@ message THistoryTableOptions
     //
     // NB! This option may change the order of events.
     optional EHistoryCommitTime commit_time = 4;
-
-    reserved "use_uuid_in_key";
-    reserved 5;
-
-    reserved "no_hash";
-    reserved 6;
 
     // Primary key columns group for history table.
     // "default" used if value not set.
@@ -409,12 +406,6 @@ message THistoryTableOptions
     // For query efficiency db should store negative event types
     // for ascending optimized databases and positive for descending.
     optional bool do_not_optimize_event_type_order = 9;
-
-    // Old history implementation used different column sets
-    // in farm_hash for primary and index tables. That led to
-    // occasionally omitting some events after switching.
-    // reads from primary to index table.
-    optional bool use_deprecated_hashing = 10;
 
     // Specifies `max_inline_hunk_size` attribute for `value` column in history table.
     optional uint64 value_column_max_inline_hunk_size = 11;
