@@ -1997,7 +1997,9 @@ bool TPoolTreeOperationElement::AreDetailedLogsEnabled() const
 {
     bool enabledDueToStarvation = TreeConfig_->EnableDetailedLogsForStarvingOperations &&
         PersistentAttributes_.StarvationStatus != EStarvationStatus::NonStarving;
-    return RuntimeParameters_->EnableDetailedLogs || enabledDueToStarvation;
+    bool enabledSinceSingleAllocation = TreeConfig_->EnableDetailedLogsForSingleAllocationVanillaOperations &&
+        IsSingleAllocationVanillaOperation();
+    return RuntimeParameters_->EnableDetailedLogs || enabledDueToStarvation || enabledSinceSingleAllocation;
 }
 
 TString TPoolTreeOperationElement::GetId() const
