@@ -98,7 +98,7 @@ DEFINE_REFCOUNTED_TYPE(TJobResourcesConfig)
  struct TJobResourcesWithDiskConfig
     : public TJobResourcesConfig
  {
-    i64 DiskSpace;
+    std::optional<i64> DiskSpace;
 
     REGISTER_YSON_STRUCT(TJobResourcesWithDiskConfig);
 
