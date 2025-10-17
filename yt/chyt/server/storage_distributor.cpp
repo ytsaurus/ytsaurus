@@ -932,7 +932,7 @@ public:
         if (toStage != DB::QueryProcessingStage::Complete) {
             THROW_ERROR_EXCEPTION(
                 "Unexpected query processing stage: %v; "
-                "it's a bug; please, fill a ticket in CHYT queue",
+                "it's a bug; please, fill an issue in CHYT queue",
                 toString(toStage));
         }
 

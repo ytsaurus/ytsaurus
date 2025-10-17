@@ -159,7 +159,6 @@ private:
     bool EnableMinMaxOptimization_ = false;
 
     bool Prepared_ = false;
-    bool OnlyAnalyze_;
 
     int KeyColumnCount_ = 0;
     bool JoinedByKeyColumns_ = false;
