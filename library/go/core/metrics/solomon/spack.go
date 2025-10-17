@@ -71,29 +71,53 @@ type spackMetric struct {
 	metric Metric
 }
 
+func (se *spackEncoder) addValue(value string) error {
+	if _, ok := se.valuesIdx[value]; ok {
+		return nil
+	}
+
+	se.valuesIdx[value] = se.valueCounter
+	se.valueCounter++
+
+	if _, err := se.labelValuePool.WriteString(value); err != nil {
+		return err
+	}
+	if err := se.labelValuePool.WriteByte(0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (se *spackEncoder) addName(name string) error {
+	if _, ok := se.namesIdx[name]; ok {
+		return nil
+	}
+
+	se.namesIdx[name] = se.nameCounter
+	se.nameCounter++
+
+	if _, err := se.labelNamePool.WriteString(name); err != nil {
+		return err
+	}
+	if err := se.labelNamePool.WriteByte(0); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // addToLabelPools adds a label name and value to the encoder's label pools if they don't already exist.
 // This method is used to deduplicate label names and values across all metrics.
 func (se *spackEncoder) addToLabelPools(name, value string) error {
-	if _, ok := se.namesIdx[name]; !ok {
-		se.namesIdx[name] = se.nameCounter
-		se.nameCounter++
-		if _, err := se.labelNamePool.WriteString(name); err != nil {
-			return err
-		}
-		if err := se.labelNamePool.WriteByte(0); err != nil {
-			return err
-		}
+	err := se.addName(name)
+	if err != nil {
+		return err
 	}
 
-	if _, ok := se.valuesIdx[value]; !ok {
-		se.valuesIdx[value] = se.valueCounter
-		se.valueCounter++
-		if _, err := se.labelValuePool.WriteString(value); err != nil {
-			return err
-		}
-		if err := se.labelValuePool.WriteByte(0); err != nil {
-			return err
-		}
+	err = se.addValue(value)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -185,6 +209,22 @@ func (s *spackMetric) writeMetric(w io.Writer, version spackVersion) error {
 	return nil
 }
 
+func (s *spackMetric) calculateMetricFlags() uint8 {
+	var flags uint8
+	if s.metric.isMemOnly() {
+		flags |= uint8(memOnlyFlag)
+	}
+	return flags
+}
+
+func (s *spackMetric) getMetricNameValue() string {
+	value := s.metric.Name()
+	if lvalue, ok := s.metric.getLabels()[s.metric.getNameTag()]; ok {
+		value = lvalue
+	}
+	return value
+}
+
 func (s *spackMetric) reset() {
 	s.flags = 0
 	s.nameValueIndex = 0
@@ -243,47 +283,81 @@ func NewSpackEncoder(ctx context.Context, compression CompressionType, metrics *
 }
 
 func (se *spackEncoder) writeLabels() ([]*spackMetric, error) {
-	spackMetrics := make([]*spackMetric, len(se.metrics.metrics))
-
-	commonLabels := se.metrics.CommonLabels()
-	for name, value := range commonLabels {
-		if err := se.addToLabelPools(name, value); err != nil {
-			return nil, err
-		}
+	if err := se.processCommonLabels(); err != nil {
+		return nil, err
 	}
 
+	spackMetrics := make([]*spackMetric, len(se.metrics.metrics))
 	for idx, metric := range se.metrics.metrics {
-		m := se.metricsPool.Get().(*spackMetric)
-		m.metric = metric
-		var flagsByte byte
-		var err error
-		if se.version >= version12 {
-			err = se.addToLabelPools(metric.getNameTag(), metric.Name())
-			m.nameValueIndex = se.valuesIdx[metric.getNameTag()]
-		} else {
-			err = m.writeLabel(se, metric.getNameTag(), metric.Name())
-		}
-		if metric.isMemOnly() {
-			flagsByte |= byte(memOnlyFlag)
-		}
-		m.flags = flagsByte
-
+		sMetric, err := se.processMetric(metric)
 		if err != nil {
 			return nil, err
 		}
-
-		for name, value := range metric.getLabels() {
-			if commonValue, exists := commonLabels[name]; exists && commonValue == value {
-				continue
-			}
-			if err = m.writeLabel(se, name, value); err != nil {
-				return nil, err
-			}
-		}
-		spackMetrics[idx] = m
+		spackMetrics[idx] = sMetric
 	}
 
 	return spackMetrics, nil
+}
+
+func (se *spackEncoder) processCommonLabels() error {
+	commonLabels := se.metrics.CommonLabels()
+	for name, value := range commonLabels {
+		if err := se.addToLabelPools(name, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (se *spackEncoder) processMetric(metric Metric) (*spackMetric, error) {
+	m := se.metricsPool.Get().(*spackMetric)
+	m.metric = metric
+	m.flags = m.calculateMetricFlags()
+
+	if err := se.processMetricNameTag(m); err != nil {
+		return nil, err
+	}
+
+	for name, value := range metric.getLabels() {
+		if name == metric.getNameTag() {
+			continue
+		}
+		if cValue, ok := se.metrics.CommonLabels()[name]; ok && cValue == value {
+			continue
+		}
+		if err := m.writeLabel(se, name, value); err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
+}
+
+func (se *spackEncoder) processMetricNameTag(m *spackMetric) error {
+	switch se.version {
+	case version11:
+		return se.processNameTagV11(m)
+	case version12:
+		return se.processNameTagV12(m)
+	default:
+		return xerrors.Errorf("unsupported version: %v", se.version)
+	}
+}
+
+func (se *spackEncoder) processNameTagV11(m *spackMetric) error {
+	return m.writeLabel(se, m.metric.getNameTag(), m.getMetricNameValue())
+}
+
+func (se *spackEncoder) processNameTagV12(m *spackMetric) error {
+	value := m.getMetricNameValue()
+
+	err := se.addValue(value)
+	if err != nil {
+		return err
+	}
+
+	m.nameValueIndex = se.valuesIdx[value]
+	return nil
 }
 
 func (se *spackEncoder) Encode(w io.Writer) (written int, err error) {
