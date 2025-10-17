@@ -365,8 +365,9 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
             ]
 
             assert any(projection["value"] > 0 for projection in job_descriptor_projections)
+            assert all(projection["tags"]["host"] == "" for projection in job_descriptor_projections)
             assert all(
-                "host" not in projection["tags"] and "slot_index" not in projection["tags"]
+                "slot_index" not in projection["tags"]
                 for projection in job_descriptor_projections)
 
         def check_slot_index_sensor_values(projections):
