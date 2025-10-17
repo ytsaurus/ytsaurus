@@ -1816,6 +1816,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         queryOptions,
         requestFeatureFlags);
 
+    statistics.MemoryUsage.Set(memoryChunkProvider->GetMaxAllocated(), queryOptions.StatisticsAggregation);
+
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();
 
