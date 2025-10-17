@@ -92,6 +92,7 @@ public abstract class AbstractLookupRowsRequest<
                 builder.body().setPath(ByteString.copyFromUtf8(getPath()));
                 builder.body().addAllColumns(getLookupColumns());
                 builder.body().setKeepMissingRows(getKeepMissingRows());
+                builder.body().setEnablePartialResult(getEnablePartialResult());
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());
                 }
@@ -131,6 +132,7 @@ public abstract class AbstractLookupRowsRequest<
                 builder.body().setPath(ByteString.copyFromUtf8(getPath()));
                 builder.body().addAllColumns(getLookupColumns());
                 builder.body().setKeepMissingRows(getKeepMissingRows());
+                builder.body().setEnablePartialResult(getEnablePartialResult());
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());
                 }
