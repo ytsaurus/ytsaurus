@@ -64,7 +64,7 @@ NYT::TSharedRange<TUnversionedRow> ConvertPreparedSetToSharedRange(const DB::Dat
     auto tupleType = dynamic_pointer_cast<const DB::DataTypeTuple>(constantNode->getResultType());
     auto tupleElementTypes = tupleType->getElements();
 
-    const auto& tupleValues = constantNode->getValue().safeGet<const DB::Tuple&>();
+    const auto& tupleValues = constantNode->getValue().safeGet<DB::Tuple>();
     std::vector<DB::Field> convertedValues;
     convertedValues.reserve(tupleValues.size());
     for (const auto& [value, data] : Zip(tupleValues, tupleElementTypes)) {
@@ -173,14 +173,9 @@ std::optional<ExpressionConvertionResult> ConnverterImpl(
             result->DataType = (desiredDataType != nullptr) ? desiredDataType : constantDataType;
             result->ValueType = (desiredValueType.has_value() ? *desiredValueType : constantValueType);
 
-            TUnversionedValue value;
-            ToUnversionedValue(
-                field,
-                result->DataType,
-                settings,
-                &value);
-
-            result->Expression = New<NYT::NQueryClient::TLiteralExpression>(result->ValueType, value);
+            result->Expression = New<NYT::NQueryClient::TLiteralExpression>(
+                result->ValueType,
+                ToUnversionedOwningValue(field,result->DataType, settings));
 
             break;
         }

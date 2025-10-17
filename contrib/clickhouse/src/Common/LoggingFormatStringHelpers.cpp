@@ -9,11 +9,11 @@
     throw std::runtime_error(error);
 }
 
-std::unordered_map<UInt64, std::pair<time_t, size_t>> LogFrequencyLimiterIml::logged_messages;
-time_t LogFrequencyLimiterIml::last_cleanup = 0;
-std::mutex LogFrequencyLimiterIml::mutex;
+std::unordered_map<UInt64, std::pair<time_t, size_t>> LogFrequencyLimiterImpl::logged_messages;
+time_t LogFrequencyLimiterImpl::last_cleanup = 0;
+std::mutex LogFrequencyLimiterImpl::mutex;
 
-void LogFrequencyLimiterIml::log(DBPoco::Message & message)
+void LogFrequencyLimiterImpl::log(DBPoco::Message & message)
 {
 #if 0
     std::string_view pattern = message.getFormatString();
@@ -70,7 +70,7 @@ void LogFrequencyLimiterIml::log(DBPoco::Message & message)
         channel->log(message);
 }
 
-void LogFrequencyLimiterIml::cleanup(time_t too_old_threshold_s)
+void LogFrequencyLimiterImpl::cleanup(time_t too_old_threshold_s)
 {
     time_t now = time(nullptr);
     time_t old = now - too_old_threshold_s;
@@ -99,20 +99,18 @@ LogSeriesLimiter::LogSeriesLimiter(LoggerPtr logger_, size_t allowed_count_, tim
     }
 
     time_t now = time(nullptr);
+    static const time_t cleanup_delay_s = 600;
+    time_t cutoff_time = now - cleanup_delay_s; // entries older than this are stale
+
     UInt128 name_hash = sipHash128(logger->name().c_str(), logger->name().size());
 
     std::lock_guard lock(mutex);
 
-    if (last_cleanup == 0)
-        last_cleanup = now;
-
     auto & series_records = getSeriesRecords();
 
-    static const time_t cleanup_delay_s = 600;
-    if (last_cleanup + cleanup_delay_s >= now)
+    if (last_cleanup < cutoff_time) // will also be triggered when last_cleanup is zero
     {
-        time_t old = now - cleanup_delay_s;
-        std::erase_if(series_records, [old](const auto & elem) { return get<0>(elem.second) < old; });
+        std::erase_if(series_records, [cutoff_time](const auto & elem) { return get<0>(elem.second) < cutoff_time; });
         last_cleanup = now;
     }
 

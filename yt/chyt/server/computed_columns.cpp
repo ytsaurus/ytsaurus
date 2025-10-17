@@ -40,10 +40,21 @@
 #include <Interpreters/InDepthNodeVisitor.h>
 #include <Interpreters/TreeRewriter.h>
 #include <Interpreters/ActionsVisitor.h>
+#include <Interpreters/Set.h>
 
 #include <DataTypes/DataTypeTuple.h>
 
 #include <library/cpp/iterator/functools.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool transform_null_in;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB
 
 namespace NYT::NClickHouseServer {
 
@@ -279,7 +290,7 @@ private:
 
         // Part below is done similarly to DB::makeExplicitSet.
         const auto& context = Data_.getContext();
-        auto setElementKeys = DB::Set::getElementTypes(dataTypes, context->getSettingsRef().transform_null_in);
+        auto setElementKeys = DB::Set::getElementTypes(dataTypes, context->getSettingsRef()[DB::Setting::transform_null_in]);
         auto setKey = literal->getTreeHash(/*ignore_aliases*/ true);
         if (Data_.PreparedSets.findTuple(setKey, setElementKeys)) {
             // Already prepared.
@@ -294,7 +305,7 @@ private:
             YT_ABORT();
         }
 
-        Data_.PreparedSets.addFromTuple(setKey, block, context->getSettingsRef());
+        Data_.PreparedSets.addFromTuple(setKey, literal, block.getColumnsWithTypeAndName(), context->getSettingsRef());
     }
 
     DB::ASTPtr PrepareInStatement(const TInclusionStatement& resultStatement)
@@ -438,7 +449,7 @@ private:
 
                 if (isLhsTuple) {
                     if (constField.getType() == DB::Field::Types::Tuple) {
-                        constTuple = constField.safeGet<const DB::Tuple&>();
+                        constTuple = constField.safeGet<DB::Tuple>();
                     } else {
                         continue;
                     }

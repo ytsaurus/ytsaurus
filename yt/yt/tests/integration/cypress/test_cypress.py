@@ -1326,7 +1326,7 @@ class TestCypress(YTEnvSetup):
         # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/t2/@type") == "int64_node")
         assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
-        assert get("//tmp/t2&/@type") == "link" if not self.ENABLE_TMP_ROOTSTOCK else "sequoia_link"
+        assert get("//tmp/t2&/@type") == "link"
         assert not get("//tmp/t2&/@broken")
 
         set("//tmp/t1", 2)
@@ -1565,10 +1565,9 @@ class TestCypress(YTEnvSetup):
         id = get("//tmp/b&/@id")
         # TODO(danilalexeev): Change to 'assert' once the GUQM sync is implemented.
         wait(lambda: get("//tmp/b/@type") == "map_node")
-        expected_type = "link" if not self.ENABLE_TMP_ROOTSTOCK else "sequoia_link"
-        assert get("//tmp/b&/@type") == expected_type
+        assert get("//tmp/b&/@type") == "link"
         assert get("#{0}/@type".format(id)) == "map_node"
-        assert get("#{0}&/@type".format(id)) == expected_type
+        assert get("#{0}&/@type".format(id)) == "link"
 
     @authors("kiselyovp")
     def test_escaped_symbols(self):
@@ -1781,7 +1780,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_node_children_limit(self):
         set("//sys/@config/cypress_manager/max_node_child_count", 100)
         create("map_node", "//tmp/test_node")

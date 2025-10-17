@@ -62,6 +62,10 @@ public:
     //! When finished, action will not be destroyed for the specified amount of time.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, ExpirationTimeout);
 
+    //! If specified, action will mount resharded tablets to the same cell
+    //! trying to keep preloaded chunk data and update metadata caches.
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(InplaceReshard);
+
 public:
     using TObject::TObject;
 
@@ -87,6 +91,17 @@ private:
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTabletAction)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCreateTabletActionOptions
+{
+    bool SkipFreezing = false;
+    TGuid CorrelationId;
+    TInstant ExpirationTime;
+    std::optional<TDuration> ExpirationTimeout;
+    bool InplaceReshard = false;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

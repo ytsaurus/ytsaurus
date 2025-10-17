@@ -64,6 +64,7 @@ public:
         auto optionalKeepFinished = attributes->FindAndRemove<bool>("keep_finished");
         auto optionalExpirationTime = attributes->FindAndRemove<TInstant>("expiration_time");
         auto optionalExpirationTimeout = attributes->FindAndRemove<TDuration>("expiration_timeout");
+        auto inplaceReshard = attributes->GetAndRemove<bool>("inplace_reshard", false);
 
         if (static_cast<int>(optionalKeepFinished.has_value()) +
             static_cast<int>(optionalExpirationTime.has_value()) +
@@ -98,14 +99,17 @@ public:
         return tabletManager->GetTabletActionManager()->CreateTabletAction(
             hintId,
             kind,
-            tablets,
-            cells,
-            pivotKeys,
+            std::move(tablets),
+            std::move(cells),
+            std::move(pivotKeys),
             tabletCount,
-            skipFreezing,
-            correlationId,
-            expirationTime,
-            optionalExpirationTimeout);
+            TCreateTabletActionOptions{
+                .SkipFreezing = skipFreezing,
+                .CorrelationId = correlationId,
+                .ExpirationTime = expirationTime,
+                .ExpirationTimeout = optionalExpirationTimeout,
+                .InplaceReshard = inplaceReshard,
+            });
     }
 
 private:

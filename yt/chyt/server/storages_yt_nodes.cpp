@@ -11,15 +11,18 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <Columns/IColumn.h>
+
+#include <Core/NamesAndTypes.h>
+
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 
 #include <Processors/Sources/SourceFromSingleChunk.h>
+
 #include <Storages/VirtualColumnsDescription.h>
 #include <Storages/System/IStorageSystemOneBlock.h>
-
-#include <Core/NamesAndTypes.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -79,7 +82,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const auto& connection = client->GetNativeConnection();
     TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, masterReadOptions);
 
@@ -145,7 +148,7 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
     TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, masterReadOptions);
 

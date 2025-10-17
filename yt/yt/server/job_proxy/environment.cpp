@@ -509,6 +509,10 @@ public:
             launcher->EnableMemoryTracking();
         }
 
+        if (!Options_.Places.empty()) {
+            launcher->SetPlaces(Options_.Places);
+        }
+
         launcher->SetThreadLimit(Options_.ThreadLimit);
         launcher->SetCwd(workingDirectory);
 

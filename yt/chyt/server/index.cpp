@@ -1,5 +1,10 @@
 #include "index.h"
 
+#include <Storages/SelectQueryInfo.h>
+#include <Storages/MergeTree/MergeTreeIOSettings.h>
+
+#include <Interpreters/ExpressionActions.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +58,9 @@ TClickHouseIndex::TClickHouseIndex(
     DB::ContextPtr context)
     : Description_(std::move(description))
     , Index_(DB::MergeTreeIndexFactory::instance().get(Description_))
-    , Condition_(Index_->createIndexCondition(query.filter_actions_dag.get(), context))
+    , Condition_(Index_->createIndexCondition(
+        query.filter_actions_dag ? query.filter_actions_dag.get()->getOutputs().front() : nullptr,
+        context))
 { }
 
 DB::MergeTreeIndexAggregatorPtr TClickHouseIndex::CreateAggregator() const

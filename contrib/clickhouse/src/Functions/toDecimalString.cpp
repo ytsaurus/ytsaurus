@@ -48,6 +48,11 @@ public:
         return std::make_shared<DataTypeString>();
     }
 
+    DataTypePtr getReturnTypeForDefaultImplementationForDynamic() const override
+    {
+        return std::make_shared<DataTypeString>();
+    }
+
     bool useDefaultImplementationForConstants() const override { return true; }
 
 private:
@@ -149,7 +154,7 @@ private:
         /// Catch this here to give user a more reasonable error.
         if (precision > 60)
             throw DB::Exception(DB::ErrorCodes::CANNOT_PRINT_FLOAT_OR_DOUBLE_NUMBER,
-                                "Too high precision requested for Float, must not be more than 60, got {}", Int8(precision));
+                                "Too high precision requested for Float, must not be more than 60, got {}", Int16(precision));
 
         DB::DoubleConverter<false>::BufferType buffer;
         double_conversion::StringBuilder builder{buffer, sizeof(buffer)};
@@ -272,7 +277,7 @@ second argument is the desired number of digits in fractional part. Returns Stri
 
         )",
             .examples{{"toDecimalString", "SELECT toDecimalString(2.1456,2)", ""}},
-            .categories{"String"}
+            .category{"Type Conversion"}
         }, FunctionFactory::Case::Insensitive);
 }
 

@@ -676,6 +676,11 @@ public:
         return Occupant_->EstimateChangelogMediumBytes(payload);
     }
 
+    TTransactionManagerDynamicConfigPtr GetTransactionManagerDynamicConfig() override
+    {
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->TransactionManager;
+    }
+
 private:
     const TTabletNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;

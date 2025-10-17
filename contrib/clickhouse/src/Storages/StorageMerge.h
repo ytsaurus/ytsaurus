@@ -57,8 +57,10 @@ public:
     bool supportsFinal() const override { return true; }
     bool supportsSubcolumns() const override { return true; }
     bool supportsDynamicSubcolumns() const override { return true; }
-    bool supportsPrewhere() const override { return tableSupportsPrewhere(); }
+    bool supportsPrewhere() const override;
     std::optional<NameSet> supportedPrewhereColumns() const override;
+
+    bool canMoveConditionsToPrewhere() const override;
 
     QueryProcessingStage::Enum
     getQueryProcessingStage(ContextPtr, QueryProcessingStage::Enum, const StorageSnapshotPtr &, SelectQueryInfo &) const override;
@@ -184,6 +186,7 @@ public:
 
     /// Returns `false` if requested reading cannot be performed.
     bool requestReadingInOrder(InputOrderInfoPtr order_info_);
+    const InputOrderInfoPtr & getInputOrder() const { return order_info; }
 
     void applyFilters(ActionDAGNodes added_filter_nodes) override;
 
@@ -222,6 +225,7 @@ private:
         const StorageSnapshotPtr & storage_snapshot,
         Names required_column_names,
         Names & column_names_as_aliases,
+        bool & is_smallest_column_requested,
         Aliases & aliases) const;
 
     /// An object of this helper class is created
@@ -279,7 +283,8 @@ private:
         QueryProcessingStage::Enum processed_stage,
         UInt64 max_block_size,
         const StorageWithLockAndName & storage_with_lock,
-        Names && real_column_names,
+        const Names & real_column_names_read_from_the_source_table,
+        bool & is_smallest_column_requested,
         const RowPolicyDataOpt & row_policy_data_opt,
         ContextMutablePtr modified_context,
         size_t streams_num) const;
@@ -301,7 +306,8 @@ private:
         const Aliases & aliases,
         const RowPolicyDataOpt & row_policy_data_opt,
         ContextPtr context,
-        ChildPlan & child);
+        ChildPlan & child,
+        bool is_smallest_column_requested);
 
     StorageMerge::StorageListWithLocks getSelectedTables(
         ContextPtr query_context,

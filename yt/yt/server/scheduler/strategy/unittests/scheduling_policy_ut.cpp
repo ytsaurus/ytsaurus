@@ -482,7 +482,8 @@ public:
 
     const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const override
     {
-        YT_UNIMPLEMENTED();
+        static const std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs;
+        return briefVanillaTaskSpecs;
     }
 
     const TOperationOptionsPtr& GetOperationOptions() const override
@@ -615,6 +616,7 @@ protected:
             strategyHost.Get(),
             TreeConfig_,
             NProfiling::TProfiler());
+        SchedulingPolicy_->Initialize();
     }
 
     TPoolTreeRootElementPtr CreateTestRootElement(IStrategyHost* strategyHost)

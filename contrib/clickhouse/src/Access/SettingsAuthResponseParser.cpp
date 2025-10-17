@@ -28,7 +28,7 @@ SettingsAuthResponseParser::parse(const DBPoco::Net::HTTPResponse & response, st
     try
     {
         DBPoco::Dynamic::Var json = parser.parse(*body_stream);
-        DBPoco::JSON::Object::Ptr obj = json.extract<DBPoco::JSON::Object::Ptr>();
+        const DBPoco::JSON::Object::Ptr & obj = json.extract<DBPoco::JSON::Object::Ptr>();
         DBPoco::JSON::Object::Ptr settings_obj = obj->getObject(settings_key);
 
         if (settings_obj)

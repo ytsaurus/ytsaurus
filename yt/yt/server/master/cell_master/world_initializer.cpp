@@ -103,8 +103,6 @@ public:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         hydraManager->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
-        hydraManager->SubscribeStartLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStartEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStartEpoch, MakeWeak(this)));
         hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopEpoch, MakeWeak(this)));
         hydraManager->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TWorldInitializer::OnStopEpoch, MakeWeak(this)));
         hydraManager->SubscribeAutomatonLeaderRecoveryComplete(BIND_NO_PROPAGATE(&TWorldInitializer::OnRecoveryComplete, MakeWeak(this)));
@@ -114,6 +112,11 @@ public:
     bool IsInitialized() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        // Make the behavior deterministic within mutations.
+        if (NHydra::HasMutationContext()) {
+            UpdateCachedInitialized();
+        }
 
         return Initialized_.load();
     }
@@ -187,12 +190,6 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UpdateCachedInitialized();
-    }
-
-    void OnStartEpoch()
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
         CachedStateUpdateExecutor_->Start();
     }
 

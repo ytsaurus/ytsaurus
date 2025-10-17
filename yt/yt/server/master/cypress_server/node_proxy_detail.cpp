@@ -562,7 +562,10 @@ void TNontemplateCypressNodeProxyBase::LogAcdUpdate(TInternedAttributeKey key, c
 {
     TObjectProxyBase::LogAcdUpdate(key, value);
 
-    if (!GetThisImpl()->IsBeingCreated()) {
+    const auto* impl = GetThisImpl();
+    // TODO(h0pless): this is not quite correct since multiple changes may get
+    // encapsulated into a single Hive mutation.
+    if (impl->GetRevision() != NHydra::GetCurrentHydraContext()->GetVersion().ToRevision()) {
         NSecurityServer::LogAcdUpdate(key.Unintern(), GetPath(), value);
     }
 }
@@ -1727,17 +1730,32 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
     auto hintId = FromProto<TNodeId>(request->hint_id());
+    IAttributeDictionaryPtr explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = FromProto(request->node_attributes());
+    }
 
     context->SetRequestInfo(
         "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
-        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v",
+        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v, ExplicitAttributeCount: %v, ExplicitInternedAttributeKeys: %v",
         type,
         ignoreExisting,
         lockExisting,
         recursive,
         force,
         ignoreTypeMismatch,
-        hintId);
+        hintId,
+        request->node_attributes().attributes_size(),
+        [&] {
+            std::vector<std::string> explicitInternedAttributeKeys;
+            if (explicitAttributes) {
+                explicitInternedAttributeKeys = explicitAttributes->ListKeys();
+                std::erase_if(explicitInternedAttributeKeys, [] (const std::string& key) {
+                    return TInternedAttributeKey::Lookup(key) == InvalidInternedAttribute;
+                });
+            }
+            return explicitInternedAttributeKeys;
+        }());
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1826,11 +1844,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         intendedParentNode = cypressManager->GetVersionedNode(node->GetParent(), Transaction_);
-    }
-
-    IAttributeDictionaryPtr explicitAttributes;
-    if (request->has_node_attributes()) {
-        explicitAttributes = FromProto(request->node_attributes());
     }
 
     ValidateCreatePermissions(node, replace, explicitAttributes.Get());
@@ -3240,19 +3253,9 @@ void TCypressMapNodeProxy::Clear()
 
 int TCypressMapNodeProxy::GetChildCount() const
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
-
-    int result = 0;
-    for (const auto* node : originators) {
-        const auto* mapNode = node->As<TCypressMapNode>();
-        result += mapNode->ChildCountDelta();
-
-        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
-            break;
-        }
-    }
-    return result;
+    return NCypressServer::GetNodeChildCount(
+        TrunkNode_->As<TCypressMapNode>(),
+        Transaction_);
 }
 
 std::vector<std::pair<std::string, INodePtr>> TCypressMapNodeProxy::GetChildren() const
@@ -3657,20 +3660,9 @@ void TSequoiaMapNodeProxy::ListSelf(
 
 int TSequoiaMapNodeProxy::GetChildCount() const
 {
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
-
-    int result = 0;
-    for (const auto* node : originators) {
-        const auto* mapNode = node->As<TSequoiaMapNode>();
-        result += mapNode->ChildCountDelta();
-
-        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
-            break;
-        }
-    }
-
-    return result;
+    return NCypressServer::GetNodeChildCount(
+        TrunkNode_->As<TCypressMapNode>(),
+        Transaction_);
 }
 
 void TSequoiaMapNodeProxy::Clear()

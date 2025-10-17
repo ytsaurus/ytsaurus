@@ -814,12 +814,14 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         // Snapshot list of treeIds.
-        std::vector<std::string> treeIds;
-        treeIds.reserve(std::size(IdToTree_));
+        auto treeIds = GetKeys(IdToTree_);
+
         THashMap<std::string, TJobResourcesWithDiskConfigPtr> guaranteedJobResources;
+        guaranteedJobResources.reserve(IdToTree_.size());
         for (auto [treeId, tree] : IdToTree_) {
-            treeIds.push_back(treeId);
-            guaranteedJobResources.emplace(treeId, tree->GetConfig()->GuaranteedJobResources);
+            if (const auto& guaranteedResources = tree->GetConfig()->GuaranteedJobResources) {
+                guaranteedJobResources.emplace(treeId, guaranteedResources);
+            }
         }
 
         fluent
@@ -1296,7 +1298,7 @@ public:
             }
 
             bool zeroGuarantee = considerGuaranteesForSingleTree &&
-                Dominates(TResourceVector::SmallEpsilon(), estimatedGuaranteeShare);
+                Dominates(TResourceVector::Epsilon(), estimatedGuaranteeShare);
 
             auto newDemand = neededResources.GetNeededResourcesForTree(treeId);
             auto newDemandShare = TResourceVector::FromJobResources(newDemand, totalResourceLimits);

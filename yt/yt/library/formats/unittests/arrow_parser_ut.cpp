@@ -1277,6 +1277,52 @@ TEST(TArrowParserTest, BlockingInput)
     ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
 }
 
+TEST(TArrowParserTest, AnyColumn)
+{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Any),
+        TColumnSchema("string", EValueType::Any),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    auto data = MakeIntAndStringArrow({1, 2, 3}, {"foo", "bar", "yt"});
+    parser->Read(data);
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 3);
+
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(0, "integer")), 1);
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(0, "string")), "foo");
+
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(1, "integer")), 2);
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(1, "string")), "bar");
+
+    ASSERT_EQ(GetInt64(collectedRows.GetRowValue(2, "integer")), 3);
+    ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "string")), "yt");
+}
+
+TEST(TArrowParserTest, WrongListInput)
+{
+    auto tableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+        TColumnSchema("integer", EValueType::Any),
+        TColumnSchema("string", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+    });
+
+    TCollectingValueConsumer collectedRows(tableSchema);
+
+    auto parser = CreateParserForArrow(&collectedRows);
+
+    auto data = MakeIntAndStringArrow({1, 2, 3}, {"foo", "bar", "yt"});
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        parser->Read(data),
+        std::exception,
+        "Unexpected arrow type in complex type \"binary\", there was no metadata found with the key \'YtType\' and the value \'yson\'");
+}
+
 TEST(TArrowParserTest, EmptyStruct)
 {
     auto tableSchema = New<TTableSchema>(std::vector{

@@ -3070,13 +3070,15 @@ class TestQueryRpcProxy(TestQuery):
         reshard_table(path, [[]] + [[i] for i in range(10, length * 10, 10)])
         sync_mount_table(path)
         insert_rows(path, [{"key": i, "value": i} for i in range(length * 10)])
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/cluster_connection", {})
+        set("//sys/rpc_proxies/@config/cluster_connection/disable_adaptive_ordered_schemaful_reader", True)
+        time.sleep(1)
         select_rows(f"* from [{path}] where key > 500 limit 10")
         statistics = [get(f"{path}/@tablets/{i}/performance_counters/dynamic_row_read_count") for i in range(length)]
         assert all(map(lambda x : x == 0, statistics[:(length//2)]))
         assert statistics[length//2] != 0
         assert all(map(lambda x : x == 0, statistics[(length//2+2):]))
-        set("//sys/rpc_proxies/@config", {})
-        set("//sys/rpc_proxies/@config/cluster_connection", {})
         set("//sys/rpc_proxies/@config/cluster_connection/disable_adaptive_ordered_schemaful_reader", False)
         time.sleep(1)
         select_rows(f"* from [{path}] where key > 500 limit 10")

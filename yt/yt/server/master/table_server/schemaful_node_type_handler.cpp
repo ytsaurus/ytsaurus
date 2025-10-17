@@ -59,7 +59,6 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoBranch(
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
     tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
-    branchedNode->SetSchemaRevision(originatingNode->GetSchemaRevision());
 }
 
 template <class TImpl>
@@ -68,7 +67,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* branchedNode)
 {
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
-    tableManager->MergeTableSchema(originatingNode, branchedNode);
+    tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     tableManager->ResetTableSchema(branchedNode);
 
@@ -117,6 +116,7 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Explicit instantiations.
 template class TSchemafulNodeTypeHandlerBase<TChaosReplicatedTableNode>;
 template class TSchemafulNodeTypeHandlerBase<TReplicatedTableNode>;
 template class TSchemafulNodeTypeHandlerBase<TTableNode>;

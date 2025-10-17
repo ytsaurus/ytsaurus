@@ -1,8 +1,8 @@
+#include <base/EnumReflection.h>
+#include <Common/Exception.h>
 #include <Common/ShellCommandSettings.h>
 
-#include <magic_enum.hpp>
 #include <DBPoco/String.h>
-#include <Common/Exception.h>
 
 namespace DB
 {

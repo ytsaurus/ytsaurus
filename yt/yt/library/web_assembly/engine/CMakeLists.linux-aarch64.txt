@@ -72,7 +72,9 @@ target_link_libraries(library-web_assembly-engine.global PUBLIC
 
 target_sources(library-web_assembly-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/compartment.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/data_transfer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/function.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/memory_pool.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/engine/type_builder.cpp
 )
 

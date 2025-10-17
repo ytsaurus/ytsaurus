@@ -75,7 +75,7 @@ ColumnsWithTypeAndName FunctionNode::getArgumentColumns() const
             argument_column.type = argument->getResultType();
 
         if (constant && !isNotCreatable(argument_column.type))
-            argument_column.column = argument_column.type->createColumnConst(1, constant->getValue());
+            argument_column.column = constant->getColumn();
 
         argument_columns.push_back(std::move(argument_column));
     }
@@ -88,6 +88,7 @@ void FunctionNode::resolveAsFunction(FunctionBasePtr function_value)
     function_name = function_value->getName();
     function = std::move(function_value);
     kind = FunctionKind::ORDINARY;
+    nulls_action = NullsAction::EMPTY;
 }
 
 void FunctionNode::resolveAsAggregateFunction(AggregateFunctionPtr aggregate_function_value)
@@ -95,6 +96,12 @@ void FunctionNode::resolveAsAggregateFunction(AggregateFunctionPtr aggregate_fun
     function_name = aggregate_function_value->getName();
     function = std::move(aggregate_function_value);
     kind = FunctionKind::AGGREGATE;
+    /**  When the function is resolved, we do not need the nulls action anymore.
+      * The only thing that the nulls action does is map from one function to another.
+      * Thus, the nulls action is encoded in the function name and does not make sense anymore.
+      * Keeping the nulls action may lead to incorrect comparison of functions, e.g., count() and count() IGNORE NULLS are the same function.
+      */
+    nulls_action = NullsAction::EMPTY;
 }
 
 void FunctionNode::resolveAsWindowFunction(AggregateFunctionPtr window_function_value)
@@ -173,9 +180,9 @@ bool FunctionNode::isEqualImpl(const IQueryTreeNode & rhs, CompareOptions compar
 
     if (lhs_result_type && rhs_result_type && !lhs_result_type->equals(*rhs_result_type))
         return false;
-    else if (lhs_result_type && !rhs_result_type)
+    if (lhs_result_type && !rhs_result_type)
         return false;
-    else if (!lhs_result_type && rhs_result_type)
+    if (!lhs_result_type && rhs_result_type)
         return false;
 
     return true;
@@ -197,11 +204,7 @@ void FunctionNode::updateTreeHashImpl(HashState & hash_state, CompareOptions com
         return;
 
     if (auto result_type = getResultType())
-    {
-        auto result_type_name = result_type->getName();
-        hash_state.update(result_type_name.size());
-        hash_state.update(result_type_name);
-    }
+        updateHashForType(hash_state, result_type);
 }
 
 QueryTreeNodePtr FunctionNode::cloneImpl() const
@@ -249,17 +252,19 @@ ASTPtr FunctionNode::toASTImpl(const ConvertToASTOptions & options) const
     /// Avoid cast for `IN tuple(...)` expression.
     /// Tuples could be quite big, and adding a type may significantly increase query size.
     /// It should be safe because set type for `column IN tuple` is deduced from `column` type.
-    if (isNameOfInFunction(function_name) && argument_nodes.size() > 1 &&  argument_nodes[1]->getNodeType() == QueryTreeNodeType::CONSTANT)
+    if (isNameOfInFunction(function_name) && argument_nodes.size() > 1 && argument_nodes[1]->getNodeType() == QueryTreeNodeType::CONSTANT
+        && !static_cast<const ConstantNode *>(argument_nodes[1].get())->hasSourceExpression())
     {
         auto argument_list_ast = std::make_shared<ASTExpressionList>();
         argument_list_ast->children.resize(argument_nodes.size());
         argument_list_ast->children[0] = argument_nodes[0]->toAST(new_options);
         new_options.add_cast_for_constants = false;
         argument_list_ast->children[1] = argument_nodes[1]->toAST(new_options);
-        
+
         function_ast->children.push_back(argument_list_ast);
-    } else 
+    } else {
         function_ast->children.push_back(arguments.toAST(new_options));
+    }
     function_ast->arguments = function_ast->children.back();
 
     auto window_node = getWindowNode();

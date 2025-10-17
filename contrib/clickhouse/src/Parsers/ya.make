@@ -5,13 +5,12 @@ LIBRARY()
 LICENSE(
     Apache-2.0 AND
     BSL-1.0 AND
-    CC0-1.0 AND
     MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 PEERDIR(
     contrib/clickhouse/base/poco/Crypto
@@ -24,7 +23,6 @@ PEERDIR(
     contrib/libs/fmt
     contrib/libs/miniselect
     contrib/libs/re2
-    contrib/libs/sparsehash
     contrib/restricted/abseil-cpp
     contrib/restricted/boost/circular_buffer
     contrib/restricted/boost/container_hash
@@ -36,24 +34,20 @@ PEERDIR(
     contrib/restricted/boost/multi_index
     contrib/restricted/boost/program_options
     contrib/restricted/cityhash-1.0.2
-    contrib/restricted/dragonbox
     contrib/restricted/magic_enum
 )
 
 ADDINCL(
     contrib/clickhouse/base
     contrib/clickhouse/base/pcg-random
-    contrib/clickhouse/base/poco/Crypto/include
     contrib/clickhouse/base/poco/Foundation/include
     contrib/clickhouse/base/poco/Net/include
-    contrib/clickhouse/base/poco/NetSSL_OpenSSL/include
     contrib/clickhouse/base/poco/Util/include
     contrib/clickhouse/contrib/pdqsort
     contrib/clickhouse/includes/configs
     contrib/clickhouse/src
     contrib/libs/double-conversion
     contrib/libs/miniselect/include
-    contrib/libs/sparsehash/src
     contrib/restricted/cityhash-1.0.2
 )
 
@@ -108,6 +102,8 @@ SRCS(
     ASTCreateIndexQuery.cpp
     ASTCreateNamedCollectionQuery.cpp
     ASTCreateQuery.cpp
+    ASTCreateResourceQuery.cpp
+    ASTCreateWorkloadQuery.cpp
     ASTDataType.cpp
     ASTDatabaseOrNone.cpp
     ASTDeleteQuery.cpp
@@ -118,6 +114,8 @@ SRCS(
     ASTDropIndexQuery.cpp
     ASTDropNamedCollectionQuery.cpp
     ASTDropQuery.cpp
+    ASTDropResourceQuery.cpp
+    ASTDropWorkloadQuery.cpp
     ASTExpressionList.cpp
     ASTFunction.cpp
     ASTFunctionWithKeyValueArguments.cpp
@@ -131,6 +129,7 @@ SRCS(
     ASTObjectTypeArgument.cpp
     ASTOptimizeQuery.cpp
     ASTOrderByElement.cpp
+    ASTParallelWithQuery.cpp
     ASTPartition.cpp
     ASTProjectionDeclaration.cpp
     ASTProjectionSelectQuery.cpp
@@ -165,6 +164,7 @@ SRCS(
     ASTWithAlias.cpp
     ASTWithElement.cpp
     Access/ASTAuthenticationData.cpp
+    Access/ASTCheckGrantQuery.cpp
     Access/ASTCreateQuotaQuery.cpp
     Access/ASTCreateRoleQuery.cpp
     Access/ASTCreateRowPolicyQuery.cpp
@@ -182,6 +182,7 @@ SRCS(
     Access/ASTShowCreateAccessEntityQuery.cpp
     Access/ASTShowGrantsQuery.cpp
     Access/ASTUserNameWithHost.cpp
+    Access/ParserCheckGrantQuery.cpp
     Access/ParserCreateQuotaQuery.cpp
     Access/ParserCreateRoleQuery.cpp
     Access/ParserCreateRowPolicyQuery.cpp
@@ -200,6 +201,7 @@ SRCS(
     Access/ParserShowGrantsQuery.cpp
     Access/ParserShowPrivilegesQuery.cpp
     Access/ParserUserNameWithHost.cpp
+    Access/parseAccessRightsElements.cpp
     Access/parseUserName.cpp
     CommonParsers.cpp
     CreateQueryUUIDs.cpp
@@ -267,6 +269,9 @@ SRCS(
     ParserCreateFunctionQuery.cpp
     ParserCreateIndexQuery.cpp
     ParserCreateQuery.cpp
+    ParserCreateResourceQuery.cpp
+    ParserCreateWorkloadEntity.cpp
+    ParserCreateWorkloadQuery.cpp
     ParserDataType.cpp
     ParserDatabaseOrNone.cpp
     ParserDeleteQuery.cpp
@@ -278,12 +283,16 @@ SRCS(
     ParserDropIndexQuery.cpp
     ParserDropNamedCollectionQuery.cpp
     ParserDropQuery.cpp
+    ParserDropResourceQuery.cpp
+    ParserDropWorkloadQuery.cpp
     ParserExplainQuery.cpp
     ParserExternalDDLQuery.cpp
     ParserInsertQuery.cpp
     ParserKillQueryQuery.cpp
     ParserOptimizeQuery.cpp
+    ParserParallelWithQuery.cpp
     ParserPartition.cpp
+    ParserPreparedStatement.cpp
     ParserProjectionSelectQuery.cpp
     ParserQuery.cpp
     ParserQueryWithOutput.cpp
@@ -311,10 +320,8 @@ SRCS(
     ParserWatchQuery.cpp
     ParserWithElement.cpp
     QueryParameterVisitor.cpp
-    QueryWithOutputSettingsPushDownVisitor.cpp
     SelectUnionMode.cpp
     TokenIterator.cpp
-    formatAST.cpp
     formatSettingName.cpp
     getInsertQuery.cpp
     isDiskFunction.cpp
@@ -326,7 +333,6 @@ SRCS(
     parseIntervalKind.cpp
     parseQuery.cpp
     queryNormalization.cpp
-    queryToString.cpp
     toOneLineQuery.cpp
 )
 

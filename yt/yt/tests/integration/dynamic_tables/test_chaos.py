@@ -80,6 +80,14 @@ class TestChaos(ChaosTestBase):
         },
     }
 
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
@@ -4659,9 +4667,9 @@ class TestChaos(ChaosTestBase):
         card_id = get("//tmp/crt/@replication_card_id")
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids, ordered=True, schema=schema)
@@ -4684,10 +4692,10 @@ class TestChaos(ChaosTestBase):
             wait(lambda: _check(replica, 18))
 
         replicas.append({
-            "cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q1",
+            "cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1",
         })
         replicas.append({
-            "cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2",
+            "cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2",
         })
 
         new_replica_ids = [
@@ -5274,6 +5282,29 @@ class TestChaosNativeProxy(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 0
     NUM_NODES = 5
 
+    DELTA_DRIVER_CONFIG = {
+        "enable_read_from_async_replicas": True,
+        "chaos_residency_cache": {
+            "enable_client_mode" : True,
+        },
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+    }
+
     @authors("osidorkin")
     def test_partial_pull_rows(self):
         metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -5471,6 +5502,23 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
 
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
+        },
+    }
+
     DELTA_RPC_DRIVER_CONFIG = {
         "table_mount_cache": {
             "expire_after_successful_update_time": 0,
@@ -5480,8 +5528,12 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             "expiration_period": 0,
         },
     }
+
     DELTA_RPC_PROXY_CONFIG = {
         "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5493,8 +5545,12 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             },
         },
     }
+
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
+            "chaos_residency_cache": {
+                "enable_client_mode": True,
+            },
             "replication_card_cache": {
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
@@ -5691,6 +5747,14 @@ class TestChaosMetaCluster(ChaosTestBase):
                     "replication_card_keep_alive_period": 0,
                 },
                 "leftover_migration_period": 5,
+            },
+        },
+    }
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
             },
         },
     }
@@ -6252,6 +6316,7 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
         assert len(replication_card["coordinators"]) == 1
         assert cell_id1 in replication_card["coordinators"]
         assert replication_card["coordinators"][cell_id1] == "revoking"
+        wait(lambda: cell_id1 not in self._get_chaos_cell_orchid(cell_id, "/chaos_manager/coordinators"))
 
         execute_command(
             "forsake_chaos_coordinator",
@@ -6355,6 +6420,14 @@ class ChaosClockBase(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
     USE_PRIMARY_CLOCKS = False
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
 
     DELTA_NODE_CONFIG = {
         "tablet_node": {
@@ -6653,6 +6726,14 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 class TestChaosSingleCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
+
+    DELTA_MASTER_CACHE_CONFIG = {
+        "cluster_connection": {
+            "chaos_residency_cache": {
+                "use_has_chaos_object": True,
+            },
+        },
+    }
 
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):

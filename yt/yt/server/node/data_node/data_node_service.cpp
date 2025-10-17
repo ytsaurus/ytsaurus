@@ -299,7 +299,7 @@ private:
         options.EnableMultiplexing = request->enable_multiplexing();
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
-        options.UseProbePutBlocks = request->use_probe_put_blocks();
+        options.UseProbePutBlocks = GetDynamicConfig()->UseProbePutBlocks && request->use_probe_put_blocks();
 
         context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v, UseProbePutBlocks: %v",
             sessionId,
@@ -1774,7 +1774,7 @@ private:
 
         auto chunkReadSession = CreateOffloadedChunkReadSession(
             Bootstrap_,
-            std::move(chunk),
+            chunk,
             readSessionId,
             workloadDescriptor,
             std::move(columnFilter),
@@ -1798,9 +1798,8 @@ private:
             netThrottling.Enabled,
             netThrottling.QueueSize);
 
-        //TODO(tea-mur): IO tracking for LookupRows
         context->ReplyFrom(chunkReadSession->Lookup(request->Attachments())
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TSharedRef& result) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this), chunk = std::move(chunk)] (const TSharedRef& result) {
                 response->Attachments().push_back(result);
                 response->set_fetched_rows(true);
 
@@ -1812,6 +1811,21 @@ private:
                         std::memory_order::relaxed);
                 }
                 ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
+
+                 auto bytesReadFromDisk =
+                    chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+                    chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
+                const auto& ioTracker = Bootstrap_->GetIOTracker();
+
+                if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+                    auto ioRequests =
+                        chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed) +
+                        chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed);
+
+                    ioTracker->Enqueue(
+                        TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = ioRequests},
+                        MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId(), readSessionId));
+                }
 
                 context->SetComplete();
 

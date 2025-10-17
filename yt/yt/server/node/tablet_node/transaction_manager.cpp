@@ -340,8 +340,7 @@ public:
     {
         auto token = transaction->GetExternalizationToken();
 
-        auto it = TokenToExternalizedTransactions_.find(token);
-        YT_VERIFY(it != TokenToExternalizedTransactions_.end());
+        auto it = GetIteratorOrCrash(TokenToExternalizedTransactions_, token);
         EraseOrCrash(it->second, transaction);
 
         if (it->second.empty()) {
@@ -883,6 +882,18 @@ public:
     void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
         TTransactionManagerBase::RegisterTransactionActionHandlers(std::move(descriptor));
+    }
+
+    void ValidateMaximumTransactionCount() const override
+    {
+        i64 currentTransactionsCount = GetTransactionCount();
+        i64 maxTransactionsCount = Host_->GetTransactionManagerDynamicConfig()->MaxParallelTransactionCount
+            .value_or(Config_->MaxParallelTransactionCount);
+        if (currentTransactionsCount > maxTransactionsCount) {
+            THROW_ERROR_EXCEPTION("Max transaction count exceeded")
+                << TErrorAttribute("current_transactions_count", currentTransactionsCount)
+                << TErrorAttribute("max_transactions_count", maxTransactionsCount);
+        }
     }
 
 private:
@@ -1660,6 +1671,12 @@ private:
 
         auto timestamp = heap.front()->GetCommitTimestamp();
         MinCommitTimestamp_ = std::min(timestamp, MinCommitTimestamp_.value_or(timestamp));
+    }
+
+    i64 GetTransactionCount() const
+    {
+        // Not counting externalized transactions here because they only happens during tablets moving.
+        return TransientTransactionMap_.size() + PersistentTransactionMap_.size();
     }
 
     void ValidateNotDecommissioned(TTransaction* transaction)

@@ -1,6 +1,7 @@
 #include "nbd_chunk_handler.h"
 
 #include "location.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
@@ -18,6 +19,19 @@ namespace NYT::NDataNode {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NIO;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = DataNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EState,
+    (Uninitialized)
+    (Initialized)
+    (Initializing)
+    (Finalizing)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,11 +68,17 @@ public:
         return TAsyncLockWriterGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
                 if (std::exchange(State_, EState::Initializing) != EState::Uninitialized) {
+                    YT_LOG_WARNING("Creating not uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v",
+                        ChunkId_,
+                        ChunkPath_,
+                        ChunkSize_,
+                        State_);
+
                     THROW_ERROR_EXCEPTION("Creating not uninitialized nbd chunk handler")
-                    << TErrorAttribute("chunk_id", ChunkId_)
-                    << TErrorAttribute("chunk_path", ChunkPath_)
-                    << TErrorAttribute("chunk_size", ChunkSize_)
-                    << TErrorAttribute("state", State_);
+                        << TErrorAttribute("chunk_id", ChunkId_)
+                        << TErrorAttribute("chunk_path", ChunkPath_)
+                        << TErrorAttribute("chunk_size", ChunkSize_)
+                        << TErrorAttribute("state", State_);
                 }
 
                 auto openFuture = IOEngine_->Open(
@@ -91,6 +111,12 @@ public:
         return TAsyncLockWriterGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockWriterTraits>>&& guard) {
                 if (std::exchange(State_, EState::Finalizing) != EState::Initialized) {
+                    YT_LOG_WARNING("Destroying not initialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, State: %v",
+                        ChunkId_,
+                        ChunkPath_,
+                        ChunkSize_,
+                        State_);
+
                     THROW_ERROR_EXCEPTION("Destroying not initialized nbd chunk handler")
                         << TErrorAttribute("chunk_id", ChunkId_)
                         << TErrorAttribute("chunk_path", ChunkPath_)
@@ -118,6 +144,15 @@ public:
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>&& guard) {
                 if (State_ != EState::Initialized) {
+                    YT_LOG_WARNING("Read from uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v",
+                        ChunkId_,
+                        ChunkPath_,
+                        ChunkSize_,
+                        offset,
+                        length,
+                        cookie,
+                        State_);
+
                     THROW_ERROR_EXCEPTION("Read from uninitialized nbd chunk handler")
                         << TErrorAttribute("chunk_id", ChunkId_)
                         << TErrorAttribute("chunk_path", ChunkPath_)
@@ -166,6 +201,15 @@ public:
         return TAsyncLockReaderGuard::Acquire(&Lock_)
             .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (TIntrusivePtr<TAsyncReaderWriterLockGuard<TAsyncLockReaderTraits>>&& guard) {
                 if (State_ != EState::Initialized) {
+                    YT_LOG_WARNING("Write to uninitialized nbd chunk handler (ChunkId: %v, ChunkPath: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %v, State: %v",
+                        ChunkId_,
+                        ChunkPath_,
+                        ChunkSize_,
+                        offset,
+                        block.Size(),
+                        cookie,
+                        State_);
+
                     THROW_ERROR_EXCEPTION("Write to uninitialized nbd chunk handler")
                         << TErrorAttribute("chunk_id", ChunkId_)
                         << TErrorAttribute("chunk_path", ChunkPath_)
@@ -221,13 +265,6 @@ private:
     const IThroughputThrottlerPtr ReadThrottler_;
     const IThroughputThrottlerPtr WriteThrottler_;
 
-    enum EState
-    {
-        Uninitialized,
-        Initialized,
-        Initializing,
-        Finalizing,
-    };
     EState State_ = EState::Uninitialized;
     // This lock is needed to create and destory NBD chunk with exclusive access.
     TAsyncReaderWriterLock Lock_;

@@ -312,13 +312,14 @@ void ValidateDynamicTableTimestamp(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
-std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> CollectTableInputChunks(
+TInputTableInfo CollectInputTableInfo(
     const TRichYPath& path,
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
     TTransactionId transactionId,
     std::vector<i32> extensionTags,
+    const TGetUserObjectBasicAttributesOptions& getBasicAttributesOptions,
     const TLogger& logger)
 {
     auto Logger = logger.WithTag("Path: %v", path.GetPath());
@@ -330,7 +331,8 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
         {&userObject},
         transactionId,
         Logger,
-        EPermission::Read);
+        EPermission::Read,
+        getBasicAttributesOptions);
 
     if (userObject.Type != EObjectType::Table) {
         THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -399,7 +401,17 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
         inputChunks.push_back(New<TInputChunk>(chunkSpec, schema->GetKeyColumnCount()));
     }
 
-    return {std::move(inputChunks), std::move(schema), dynamic};
+    auto rlsReadSpec = TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
+        schema,
+        userObject.RowLevelAcl,
+        Logger());
+
+    return TInputTableInfo{
+        .Chunks = std::move(inputChunks),
+        .Schema = std::move(schema),
+        .Dynamic = dynamic,
+        .RlsReadSpec = std::move(rlsReadSpec)
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

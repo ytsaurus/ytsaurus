@@ -47,7 +47,6 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
-#include <yt/yt/server/master/sequoia_server/context.h>
 #include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
 
 #include <yt/yt/server/master/security_server/proto/security_manager.pb.h>
@@ -2374,11 +2373,6 @@ public:
             "User pending for removal was mentioned in validating permission for object (User: %v, ObjectId: %v)",
             user->GetName(),
             object->GetId());
-
-        // TODO(cherepashka): remove after acl & inherited attributes are implemented in Sequoia.
-        if (GetSequoiaContext()) {
-            return;
-        }
 
         if (IsPermissionValidationSuppressed()) {
             return;

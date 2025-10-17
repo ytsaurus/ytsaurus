@@ -130,7 +130,8 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(
         mergedFilters = whereFilters ? whereFilters : prewhereFilters;
     }
 
-    DB::KeyCondition keyCondition(mergedFilters.get(), context, std::move(columnNames), primaryKeyExpression);
+    DB::ActionsDAGWithInversionPushDown invertedDAG(mergedFilters ? mergedFilters->getOutputs().front() : nullptr, context);
+    DB::KeyCondition keyCondition(invertedDAG, context, std::move(columnNames), primaryKeyExpression);
 
     auto statisticsSampleCallback = BIND([weakContext = MakeWeak(GetQueryContext(context))] (const TStatisticPath& path, i64 sample) {
         if (auto queryContext = weakContext.Lock()) {

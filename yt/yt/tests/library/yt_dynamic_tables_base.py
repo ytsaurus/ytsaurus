@@ -324,6 +324,13 @@ class DynamicTablesBase(YTEnvSetup):
 
         wait(check)
 
+    def _enable_data_node_lookup(self, path):
+        set("{}/@enable_data_node_lookup".format(path), True)
+        if exists("{}/@chunk_reader".format(path)):
+            set("{}/@chunk_reader/prefer_local_replicas".format(path), False)
+        else:
+            set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
+
     def _get_store_chunk_ids(self, path):
         for _ in range(5):
             try:

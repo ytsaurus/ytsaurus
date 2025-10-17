@@ -18,7 +18,9 @@
 #define DB_Net_HTTPResponse_INCLUDED
 
 
+#include <map>
 #include <vector>
+
 #include "DBPoco/Net/HTTPCookie.h"
 #include "DBPoco/Net/HTTPMessage.h"
 #include "DBPoco/Net/Net.h"
@@ -179,6 +181,8 @@ namespace Net
         ///
         /// May throw an exception in case of a malformed
         /// Set-Cookie header.
+
+        void getHeaders(std::map<std::string, std::string> & headers) const;
 
         void write(std::ostream & ostr) const;
         /// Writes the HTTP response to the given

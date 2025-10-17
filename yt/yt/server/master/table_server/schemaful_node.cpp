@@ -14,7 +14,6 @@ void TSchemafulNode::Save(NCellMaster::TSaveContext& context) const
 
     Save(context, Schema_);
     Save(context, SchemaMode_);
-    Save(context, SchemaRevision_);
 }
 
 void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
@@ -24,8 +23,10 @@ void TSchemafulNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Schema_);
     Load(context, SchemaMode_);
     // COMPAT(theevilbird)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::AddSchemaRevision) {
-        Load(context, SchemaRevision_);
+    if (context.GetVersion() >= NCellMaster::EMasterReign::AddSchemaRevision &&
+        context.GetVersion() < NCellMaster::EMasterReign::RemoveSchemaRevision) {
+        NHydra::TRevision tmpRevision;
+        Load(context, tmpRevision);
     }
 }
 

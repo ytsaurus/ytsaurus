@@ -1556,8 +1556,15 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
     };
 
     auto decreaseHierarchicalResourceUsagePrecommit = [&] (const TJobResources& precommittedResources, TControllerEpoch scheduleAllocationEpoch) {
-        if (IsOperationEnabled(element) && scheduleAllocationEpoch == element->GetControllerEpoch()) {
+        auto operationEnabled = IsOperationEnabled(element);
+        if (operationEnabled && scheduleAllocationEpoch == element->GetControllerEpoch()) {
             element->DecreaseHierarchicalResourceUsagePrecommit(precommittedResources);
+        } else if (!operationEnabled) {
+            YT_LOG_DEBUG(
+                "Failed to decrease resource usage precommit because operation is disabled "
+                "(OperationId: %v, PrecommittedResources: %v)",
+                element->GetId(),
+                precommittedResources);
         }
     };
 
@@ -2315,6 +2322,9 @@ TSchedulingPolicy::TSchedulingPolicy(
     , ScheduleAllocationsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
     , OperationCountByPreemptionPriorityBufferedProducer_(New<TBufferedProducer>())
     , SchedulingSegmentManager_(TreeId_, Config_->SchedulingSegments, Logger, Profiler_)
+{ }
+
+void TSchedulingPolicy::Initialize()
 {
     InitSchedulingProfilingCounters();
 
@@ -3618,10 +3628,12 @@ void TSchedulingPolicy::PublishFairShareAtOperation(
     // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
     // It is necessary since some allocation's resource usage may increase before the next fair share update,
     // and in this case we don't want any allocations to become preemptible
-    bool dominantFairShareEqualToDominantDemandShare =
-        TResourceVector::Near(element->Attributes().FairShare.Total, element->Attributes().DemandShare, NVectorHdrf::RatioComparisonPrecision) &&
-            !Dominates(TResourceVector::Epsilon(), element->Attributes().DemandShare);
-    bool currentPreemptibleValue = !dominantFairShareEqualToDominantDemandShare;
+    bool operationDemandFullySatisfied = TResourceVector::Near(
+        element->Attributes().FairShare.Total,
+        element->Attributes().DemandShare,
+        NVectorHdrf::Epsilon);
+    bool currentPreemptibleValue = !operationDemandFullySatisfied ||
+        Dominates(TResourceVector::Epsilon(), element->Attributes().DemandShare);
 
     const auto& operationSharedState = postUpdateContext->StaticAttributesList.AttributesOf(element).OperationSharedState;
     operationSharedState->PublishFairShare(element->Attributes().FairShare.Total);

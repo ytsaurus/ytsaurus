@@ -109,6 +109,13 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Type:
+                // NB: users don't know what is "sequoia_link" so it's better to
+                // return just "link" here.
+                BuildYsonFluently(consumer)
+                    .Value(EObjectType::Link);
+                return true;
+
             default:
                 break;
         }

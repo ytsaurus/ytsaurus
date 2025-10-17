@@ -63,6 +63,10 @@ func (c Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
+func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (bool, error) {
+	return false, nil
+}
+
 func (c *Controller) UpdateState() (changed bool, err error) {
 	var controllerParameter string
 	err = c.ytc.GetNode(context.Background(), c.root.Attr("controller_parameter"), &controllerParameter, nil)

@@ -50,10 +50,9 @@ unmanagedSecret:
     key: token
 ```
 
-## Встроенные задачи (`jobs`)
+## Встроенные задачи { #jobs }
 
 Каждая задача задаётся структурой:
-- `name`: Уникальное имя задачи
 - `enabled`: Включена ли задача
 - `args`: Аргументы командной строки
 - `schedule`: Расписание в формате cron
@@ -64,19 +63,17 @@ unmanagedSecret:
 ```bash
 helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
   --version {{cron-version}} \
-  --set jobs[1].enabled=true \
-  --set jobs[1].args[5]="tmp_files"
+  --set jobs.clear_tmp_location.enabled=true \
+  --set jobs.clear_tmp_location.schedule="*/30 * * * *"
 ```
 
-Индексация массива `jobs` идёт с нуля — следите за порядком задач.
-
-## Пользовательские задачи
+## Пользовательские задачи { #additionalJobs }
 
 Можно определить собственные задачи:
 
 ```yaml
 additionalJobs:
-  - name: my_cleanup
+  my_cleanup:
     enabled: true
     args:
       - clear_tmp
@@ -93,7 +90,7 @@ yt:
   token: my-secret-token
 
 jobs:
-  - name: clear_tmp_files
+  clear_tmp_files:
     enabled: true
     args:
       - clear_tmp

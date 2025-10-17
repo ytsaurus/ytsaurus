@@ -135,5 +135,5 @@ class TestSqlUdf(ClickHouseTestBase):
 
             time.sleep(1.5)
 
-            with raises_yt_error("Function with name 'linear_equation' does not exist"):
+            with raises_yt_error("Function with name `linear_equation` does not exist"):
                 clique.make_query("select linear_equation(number, 5) as result from numbers(1)")

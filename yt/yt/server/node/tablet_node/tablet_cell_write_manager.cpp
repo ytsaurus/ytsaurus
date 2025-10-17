@@ -209,6 +209,8 @@ public:
             TTransaction* transaction = nullptr;
             bool updateReplicationProgress = false;
             if (atomicity == EAtomicity::Full) {
+                transactionManager->ValidateMaximumTransactionCount();
+
                 transaction = transactionManager->GetOrCreateTransactionOrThrow(
                     params.TransactionId,
                     params.TransactionStartTimestamp,

@@ -276,6 +276,8 @@ public:
 
     void ExportSymbol(const std::string& name)
     {
+        YT_VERIFY(!Compiled_);
+
         YT_VERIFY(ExportedSymbols_.insert(name).second);
     }
 
@@ -296,32 +298,44 @@ public:
 
     bool IsSymbolLoaded(const std::string& symbol)
     {
+        YT_VERIFY(!Compiled_);
+
         return LoadedSymbols_.count(symbol) != 0;
     }
 
     void AddLoadedSymbol(const std::string& symbol)
     {
+        YT_VERIFY(!Compiled_);
+
         LoadedSymbols_.insert(symbol);
     }
 
     bool IsFunctionLoaded(const std::string& function) const
     {
+        YT_VERIFY(!Compiled_);
         return LoadedFunctions_.count(function) != 0;
     }
 
     void AddLoadedFunction(const std::string& function)
     {
+        YT_VERIFY(!Compiled_);
+
         LoadedFunctions_.insert(function);
     }
 
-    bool IsModuleLoaded(TRef data) const
+    bool IsModuleLoaded(const TSharedRef& data) const
     {
-        return LoadedModules_.count(TStringBuf(data.Begin(), data.Size())) != 0;
+        YT_VERIFY(!Compiled_);
+        return LoadedModules_.count(data.ToStringBuf()) != 0;
     }
 
-    void AddLoadedModule(TRef data)
+    void AddLoadedModule(TSharedRef data)
     {
-        LoadedModules_.insert(TString(TStringBuf(data.Begin(), data.Size())));
+        YT_VERIFY(!Compiled_);
+
+        if (LoadedModules_.insert(data.ToStringBuf()).second) {
+            LoadedModulesStorage_.push_back(std::move(data));
+        }
     }
 
     void BuildWebAssembly()
@@ -349,8 +363,15 @@ private:
     void Finalize()
     {
         YT_VERIFY(!Compiled_);
+
         Compile();
         Compiled_ = true;
+
+        LoadedFunctions_.clear();
+        LoadedModules_.clear();
+        LoadedSymbols_.clear();
+        LoadedModulesStorage_.clear();
+        ExportedSymbols_.clear();
     }
 
     // See YT-8035 for details why we are clearing COMDAT.
@@ -376,7 +397,7 @@ private:
         llvm::ModuleAnalysisManager moduleAnalysisManager;
         llvm::ModulePassManager modulePassManager;
         auto mustPreserveGV = [&] (const llvm::GlobalValue& gv) -> bool {
-            auto name = TString(gv.getName().str());
+            auto name = gv.getName().str();
             return ExportedSymbols_.count(name) > 0;
         };
         llvm::PassBuilder passBuilder;
@@ -595,7 +616,8 @@ private:
     std::set<std::string> LoadedFunctions_;
     std::set<std::string> LoadedSymbols_;
 
-    THashSet<std::string, THash<TStringBuf>, TEqualTo<>> LoadedModules_;
+    THashSet<TStringBuf> LoadedModules_;
+    std::vector<TSharedRef> LoadedModulesStorage_;
 
     bool Compiled_ = false;
 
@@ -670,14 +692,14 @@ void TCGModule::AddLoadedFunction(const std::string& function)
     Impl_->AddLoadedFunction(function);
 }
 
-bool TCGModule::IsModuleLoaded(TRef data) const
+bool TCGModule::IsModuleLoaded(const TSharedRef& data) const
 {
     return Impl_->IsModuleLoaded(data);
 }
 
-void TCGModule::AddLoadedModule(TRef data)
+void TCGModule::AddLoadedModule(TSharedRef data)
 {
-    Impl_->AddLoadedModule(data);
+    Impl_->AddLoadedModule(std::move(data));
 }
 
 void TCGModule::BuildWebAssembly()

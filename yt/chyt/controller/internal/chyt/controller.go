@@ -113,8 +113,8 @@ func (c *Config) getDefaultMemory() uint64 {
 }
 
 type chytOpletInfo struct {
-	ChytRunningVersion     string `yson:"chyt_running_version"`
-	ChytRunningVersionPath string `yson:"chyt_running_version_path"`
+	CHYTRunningVersion     string `yson:"chyt_running_version"`
+	CHYTRunningVersionPath string `yson:"chyt_running_version_path"`
 }
 
 type Controller struct {
@@ -296,8 +296,8 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 			return
 		}
 	} else {
-		opletInfo.ChytRunningVersion = "LocalVersion"
-		opletInfo.ChytRunningVersionPath = filepath.Join(*c.config.LocalBinariesDir, "ytserver-clickhouse")
+		opletInfo.CHYTRunningVersion = "LocalVersion"
+		opletInfo.CHYTRunningVersionPath = filepath.Join(*c.config.LocalBinariesDir, "ytserver-clickhouse")
 	}
 	oplet.SetOpletInfo(opletInfo)
 
@@ -371,6 +371,31 @@ func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	return speclet, nil
 }
 
+func (c *Controller) CheckState(ctx context.Context, oplet *strawberry.Oplet) (bool, error) {
+	speclet := oplet.ControllerSpeclet().(Speclet)
+	if !speclet.RestartOnVersionDriftOrDefault() {
+		return false, nil
+	}
+
+	cypressVersionPath, err := c.resolveSymlink(ctx, CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault()))
+	if err != nil {
+		return false, err
+	}
+	specifiedVersionPath := filepath.Base(cypressVersionPath.String())
+
+	briefInfo := oplet.GetBriefInfo()
+	var controllerInfo chytOpletInfo
+	err = yson.Unmarshal(briefInfo.OpletInfo, &controllerInfo)
+	if err != nil {
+		return false, err
+	}
+
+	if controllerInfo.CHYTRunningVersionPath != specifiedVersionPath {
+		return true, nil
+	}
+	return false, nil
+}
+
 func (c *Controller) UpdateState() (changed bool, err error) {
 	connectionChanged, err := c.updateClusterConnection(context.Background())
 	if err != nil {
@@ -436,6 +461,13 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "chyt_version",
 					Type:         strawberry.TypeString,
 					CurrentValue: speclet.CHYTVersion,
+				},
+				{
+					Title:        "Restart on version drift",
+					Name:         "restart_on_version_drift",
+					Type:         strawberry.TypeBool,
+					CurrentValue: speclet.RestartOnVersionDrift,
+					DefaultValue: speclet.RestartOnVersionDriftOrDefault(),
 				},
 				{
 					Title:        "Enable geodata",
@@ -570,10 +602,10 @@ func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) 
 		return nil, err
 	}
 
-	opletInfo := chytOpletInfo{ChytRunningVersion: s.Description.Artifacts.CH.Version}
+	opletInfo := chytOpletInfo{CHYTRunningVersion: s.Description.Artifacts.CH.Version}
 	for _, fp := range s.Tasks.Instances.FilePaths {
 		if fp.FileName == "ytserver-clickhouse" {
-			opletInfo.ChytRunningVersionPath = fp.Path.String()
+			opletInfo.CHYTRunningVersionPath = fp.Path.String()
 			break
 		}
 	}

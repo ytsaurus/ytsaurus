@@ -350,6 +350,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                     auto lowerValue = lower[expressionIndex];
                     auto upperValue = upper[expressionIndex];
                     lowerValue.Id = keyColumnIndex;
+                    upperValue.Id = keyColumnIndex;
 
                     current = Append({
                             TConstraint::Make(

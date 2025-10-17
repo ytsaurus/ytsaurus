@@ -10,6 +10,8 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 
+#include <Planner/TableExpressionData.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +101,8 @@ public:
         const TStorageContext* storageContext,
         const DB::SelectQueryInfo& queryInfo,
         const NLogging::TLogger& logger,
-        bool onlyAnalyze = false);
+        bool onlyAnalyze = false,
+        bool hasVirtualColumns = false);
 
     //! TQueryAnalyzer should be prepared before CreateSecondaryQuery,
     //! GetOptimizedQueryProcessingStage and Analyze methods are called.
@@ -134,6 +137,7 @@ private:
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger;
     const bool OnlyAnalyze_;
+    const bool HasVirtualColumns_;
 
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;

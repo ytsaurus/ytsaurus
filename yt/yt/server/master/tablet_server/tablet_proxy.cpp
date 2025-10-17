@@ -194,7 +194,7 @@ private:
         context->SetRequestInfo();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->CancelTabletTransition(GetThisImpl()->As<TTablet>());
+        tabletManager->CancelTabletTransition(GetThisImpl<TTablet>());
 
         context->Reply();
     }

@@ -191,6 +191,7 @@ const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetD
 
 PHOENIX_DEFINE_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, (NPhoenix::_));
 
+// Explicit instantiations.
 template class TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
 template class TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
 

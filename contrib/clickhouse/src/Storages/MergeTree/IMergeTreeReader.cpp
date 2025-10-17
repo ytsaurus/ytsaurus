@@ -9,6 +9,8 @@
 #include <Columns/ColumnArray.h>
 #include <Interpreters/inplaceBlockConversions.h>
 #include <Interpreters/Context.h>
+#include <Interpreters/ExpressionActions.h>
+#include <Databases/enableAllExperimentalSettings.h>
 
 
 namespace DB
@@ -180,17 +182,21 @@ void IMergeTreeReader::evaluateMissingDefaults(Block additional_columns, Columns
             }
         }
 
+        auto context_copy = Context::createCopy(data_part_info_for_read->getContext());
+        /// Default/materialized expression can contain experimental/suspicious types that can be disabled in current context.
+        /// We should not perform any checks during reading from an existing table.
+        enableAllExperimentalSettings(context_copy);
         auto dag = DB::evaluateMissingDefaults(
             additional_columns, full_requested_columns,
             storage_snapshot->metadata->getColumns(),
-            data_part_info_for_read->getContext());
+            context_copy);
 
         if (dag)
         {
-            dag->addMaterializingOutputActions();
+            dag->addMaterializingOutputActions(/*materialize_sparse=*/ false);
             auto actions = std::make_shared<ExpressionActions>(
                 std::move(*dag),
-                ExpressionActionsSettings::fromSettings(data_part_info_for_read->getContext()->getSettingsRef()));
+                ExpressionActionsSettings(context_copy->getSettingsRef()));
             actions->execute(additional_columns);
         }
 

@@ -94,8 +94,9 @@ void HTTPServerConnection::run()
         {
             break;
         }
-        catch (const DBPoco::Net::MessageException &)
+        catch (const DBPoco::Net::MessageException & e)
         {
+            LOG_DEBUG(LogFrequencyLimiter(getLogger("HTTPServerConnection"), 10), "HTTP request failed: {}: {}", HTTPResponse::HTTP_REASON_BAD_REQUEST, e.displayText());
             sendErrorResponse(session, DBPoco::Net::HTTPResponse::HTTP_BAD_REQUEST);
         }
         catch (const DBPoco::Net::NetException & e)
@@ -112,7 +113,6 @@ void HTTPServerConnection::run()
             else
                 throw;
         }
-
         catch (const DBPoco::Exception &)
         {
             if (session.networkException())

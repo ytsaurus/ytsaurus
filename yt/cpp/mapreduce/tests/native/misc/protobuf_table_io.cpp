@@ -936,5 +936,64 @@ TEST_P(TProtobufTableIoTest, Proto3Optional)
     EXPECT_EQ(readValues[0].ShortDebugString(), row.ShortDebugString());
 }
 
+TEST_P(TProtobufTableIoTest, DatetimeToProto)
+{
+    SKIP_TEST_IF(true, "Enable test after YT-26446 deploy");
+
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TConfig::Get()->ProtobufFormatWithDescriptors = GetParam();
+
+    auto schema = TTableSchema()
+        .Strict(false)
+        .AddColumn(TColumnSchema()
+            .Name("date").Type(EValueType::VT_DATE))
+        .AddColumn(TColumnSchema()
+            .Name("date32").Type(EValueType::VT_DATE32))
+        .AddColumn(TColumnSchema()
+            .Name("datetime").Type(EValueType::VT_DATETIME))
+        .AddColumn(TColumnSchema()
+            .Name("datetime64").Type(EValueType::VT_DATETIME64))
+        .AddColumn(TColumnSchema()
+            .Name("timestamp").Type(EValueType::VT_TIMESTAMP))
+        .AddColumn(TColumnSchema()
+            .Name("timestamp64").Type(EValueType::VT_TIMESTAMP64));
+
+    {
+        auto writer = client->CreateTableWriter<TNode>(
+            TRichYPath(workingDir + "/table").Schema(schema));
+
+        auto row = TNode()
+            ("date", 1)
+            ("date32", 2)
+            ("datetime", 3)
+            ("datetime64", 4)
+            ("timestamp", 5)
+            ("timestamp64", 6);
+
+        writer->AddRow(row);
+        writer->Finish();
+    }
+
+    auto reader = client->CreateTableReader<TAllDatetimeRow>(
+        TRichYPath(workingDir + "/table").Schema(schema));
+
+    TVector<TAllDatetimeRow> results;
+    for (auto& cursor : *reader) {
+        results.push_back(cursor.GetRow());
+    }
+
+    EXPECT_EQ(results.size(), 1u);
+
+    const auto& readResult = results.front();
+    EXPECT_EQ(readResult.date(), 1u);
+    EXPECT_EQ(readResult.date32(), 2);
+    EXPECT_EQ(readResult.datetime(), 3u);
+    EXPECT_EQ(readResult.datetime64(), 4);
+    EXPECT_EQ(readResult.timestamp(), 5u);
+    EXPECT_EQ(readResult.timestamp64(), 6);
+}
+
 INSTANTIATE_TEST_SUITE_P(WithDescriptors, TProtobufTableIoTest, ::testing::Values(true));
 INSTANTIATE_TEST_SUITE_P(WithoutDescriptors, TProtobufTableIoTest, ::testing::Values(false));

@@ -122,6 +122,7 @@ SRCS(
     tablet_node/dynamic_store_bits.cpp
     tablet_node/error_manager.cpp
     tablet_node/failing_on_rotation_reader.cpp
+    tablet_node/fetch_rows.cpp
     tablet_node/hedging_manager_registry.cpp
     tablet_node/helpers.cpp
     tablet_node/hint_manager.cpp

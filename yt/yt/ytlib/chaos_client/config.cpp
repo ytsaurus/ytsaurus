@@ -6,8 +6,11 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChaosResidencyCacheConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_has_chaos_object", &TThis::UseHasChaosObject)
+        .Default(false);
+}
 
 void TChaosResidencyCacheConfig::ApplyDynamicInplace(const TChaosResidencyCacheDynamicConfigPtr& dynamicConfig)
 {

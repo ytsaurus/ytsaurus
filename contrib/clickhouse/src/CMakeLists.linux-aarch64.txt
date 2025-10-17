@@ -31,7 +31,6 @@ target_compile_options(contrib-clickhouse-src PRIVATE
   -DBOOST_TIMER_ENABLE_DEPRECATED=1
   -DENABLE_MULTITARGET_CODE=1
   -DINCBIN_SILENCE_BITCODE_WARNING
-  -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
   -DLZ4_FAST_DEC_LOOP=1
   -DPOCO_ENABLE_CPP11
   -DPOCO_OS_FAMILY_UNIX
@@ -59,7 +58,6 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Data/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
@@ -67,7 +65,6 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/expected/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/libdivide-cmake
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
@@ -96,7 +93,6 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   base-poco-Crypto
-  base-poco-Data
   base-poco-Foundation
   base-poco-JSON
   base-poco-Net
@@ -124,7 +120,6 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-miniselect
   contrib-libs-msgpack
   contrib-libs-pocketfft
-  libs-poco-MongoDB
   contrib-libs-rapidjson
   contrib-libs-re2
   contrib-libs-simdjson
@@ -151,7 +146,6 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   restricted-boost-program_options
   contrib-restricted-cityhash-1.0.2
   restricted-clickhouse-deps-morton-nd
-  dragonbox
   contrib-restricted-fast_float
   contrib-restricted-magic_enum
   contrib-restricted-murmurhash
@@ -236,7 +230,10 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionCramersVBiasCorrected.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDeltaSum.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDeltaSumTimestamp.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDistinctDynamicTypes.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionDistinctJSONPaths.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionEntropy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionEstimateCompressionRatio.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionExponentialMovingAverage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionFactory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/AggregateFunctions/AggregateFunctionFlameGraph.cpp
@@ -334,6 +331,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/ConstantNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/FunctionNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/IQueryTreeNode.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/Identifier.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/IdentifierNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/InterpolateNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/JoinNode.cpp
@@ -380,6 +378,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/Resolve/IdentifierResolver.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/Resolve/QueryAnalysisPass.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/Resolve/QueryAnalyzer.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/Resolve/TypoCorrection.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/SetUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/SortNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/TableExpressionModifiers.cpp
@@ -391,10 +390,12 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/WindowFunctionsUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/WindowNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Analyzer/createUniqueAliasesIfNecessary.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupConcurrencyCheck.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationCleaner.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationFileInfos.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationKeeperMapTables.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationLocal.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationRemote.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationOnCluster.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationReplicatedAccess.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationReplicatedSQLObjects.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupCoordinationReplicatedTables.cpp
@@ -413,20 +414,26 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_Default.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_Disk.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_File.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_Memory.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_Null.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupIO_S3.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupImpl.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupInMemory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupKeeperSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupStatus.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupsInMemoryHolder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/BackupsWorker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/DDLAdjustingForBackupVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/IBackupEntriesLazyBatch.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreCoordinationLocal.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreCoordinationRemote.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreCoordinationOnCluster.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestoreSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/RestorerFromBackup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/SettingsFieldOptionalString.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/SettingsFieldOptionalUInt64.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/SettingsFieldOptionalUUID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/WithRetries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Backups/registerBackupEngineAzureBlobStorage.cpp
@@ -453,8 +460,10 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/LocalConnection.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/MultiplexedConnections.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/PacketReceiver.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/ProgressTable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/ReplxxLineReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/Suggest.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/TerminalKeystrokeInterceptor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/TestHint.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Client/TestTags.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Columns/Collator.cpp
@@ -487,6 +496,10 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/NamedCollections/NamedCollections.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/NamedCollections/NamedCollectionsFactory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/NamedCollections/NamedCollectionsMetadataStorage.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Workload/WorkloadEntityDiskStorage.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Workload/WorkloadEntityKeeperStorage.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Workload/WorkloadEntityStorageBase.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/Scheduler/Workload/createWorkloadEntityStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/CachedCompressedReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/CheckingCompressedReadBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressedReadBuffer.cpp
@@ -510,24 +523,25 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/CompressionFactoryAdditions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/ICompressionCodec.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/LZ4_decompress_faster.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/ParallelCompressedWriteBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Compression/getCompressionCodecForFile.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/BackgroundSchedulePool.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/BackgroundSchedulePoolTaskHolder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/BaseSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/Block.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/BlockInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/BlockMissingValues.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/BlockNameMap.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/ColumnWithTypeAndName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/ExternalResultDescription.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/ExternalTable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/Field.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/FormatFactorySettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/InterpolateDescription.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/Joins.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/Authentication.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/IMySQLReadPacket.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/IMySQLWritePacket.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/MySQLCharset.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/MySQLClient.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/MySQLGtid.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/MySQLReplication.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/MySQLUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/PacketEndpoint.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/MySQL/PacketsConnection.cpp
@@ -539,6 +553,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/NamesAndTypes.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/PlainRanges.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/PostgreSQLProtocol.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/QualifiedTableName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/QueryProcessingStage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/Range.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/ServerSettings.cpp
@@ -548,10 +563,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/SettingsEnums.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/SettingsFields.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/SettingsQuirks.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/SettingsTierType.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/SortCursor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/SortDescription.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Core/UUID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Daemon/BaseDaemon.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Daemon/GitHash.generated.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Daemon/GraphiteWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Daemon/SentryWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/DataTypeAggregateFunction.cpp
@@ -592,6 +608,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/IDataType.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Native.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/NestedUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/NullableUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/ObjectUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/ISerialization.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/DataTypes/Serializations/JSONDataParser.cpp
@@ -644,7 +661,15 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DDLDependencyVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DDLLoadingDependencyVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DDLRenamingVisitor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/DatabaseDataLake.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/DatabaseDataLakeSettings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/GlueCatalog.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/HTTPBasedCatalogUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/ICatalog.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/RestCatalog.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DataLake/UnityCatalog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseAtomic.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseBackup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseDictionary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseFactory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabaseFilesystem.cpp
@@ -662,22 +687,12 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/DatabasesOverlay.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/IDatabase.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/LoadingStrictnessLevel.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/DatabaseMaterializedMySQL.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/DatabaseMySQL.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/FetchTablesColumnsList.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MaterializeMetadata.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MaterializedMySQLSettings.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MaterializedMySQLSyncThread.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MySQLBinlog.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MySQLBinlogClient.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MySQLBinlogClientFactory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/MySQLBinlogEventsDispatcher.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/tryConvertStringLiterals.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/tryParseTableIDFromDDL.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/MySQL/tryQuoteUnrecognizedTokens.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/NormalizeAndEvaluateConstantsVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesDependencyGraph.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/TablesLoader.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/enableAllExperimentalSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/registerDatabases.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Databases/removeWhereConditionPlaceholder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/CacheDictionary.cpp
@@ -714,6 +729,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/IPAddressDictionary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/LibraryDictionarySource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/MongoDBDictionarySource.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/MongoDBPocoLegacyDictionarySource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/MySQLDictionarySource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/NullDictionarySource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/PolygonDictionary.cpp
@@ -745,10 +761,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/registerDictionaries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/registerHashedDictionary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Dictionaries/registerRangeHashedDictionary.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskBackup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskEncrypted.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskEncryptedTransaction.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskFactory.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskFomAST.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskFromAST.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskLocal.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskLocalCheckThread.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/DiskSelector.cpp
@@ -774,7 +791,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/LocalDirectorySyncGuard.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Cached/CachedObjectStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Cached/registerDiskCache.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/CommonPathPrefixKeyGenerator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorageCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/DiskObjectStorageMetadata.cpp
@@ -796,7 +812,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/ObjectStorageIteratorAsync.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/RegisterDiskObjectStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/DiskS3Utils.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/S3Capabilities.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/S3ObjectStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/diskSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/StoredObject.cpp
@@ -823,6 +838,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/NativeReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/NativeWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/ParsedTemplateFormatString.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/PrettyFormatHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufSchemas.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/ProtobufSerializer.cpp
@@ -839,6 +855,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/registerFormats.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/registerWithNamesAndTypes.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Formats/verbosePrintString.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/GatherUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/concat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/createArraySink.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/GatherUtils/createArraySource.cpp
@@ -877,6 +894,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/UserDefinedSQLObjectsZooKeeperStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/UserDefined/createUserDefinedSQLObjectsStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide/divide.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCheckGrantQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateQuotaQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRoleQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterCreateRowPolicyQuery.cpp
@@ -891,8 +909,10 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowCreateAccessEntityQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowGrantsQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/InterpreterShowPrivilegesQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Access/getValidUntilFromAST.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionLocksManager.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionsDAG.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionsMatcher.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ActionsVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AddIndexConstraintsOptimizer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/AggregateDescription.cpp
@@ -920,10 +940,12 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/IFileCachePriority.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/LRUFileCachePriority.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/Metadata.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/QueryCache.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/QueryConditionCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/QueryLimit.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/QueryResultCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/SLRUFileCachePriority.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cache/WriteBufferToFileSegment.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CancellationChecker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ClientInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Cluster.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ClusterDiscovery.cpp
@@ -939,12 +961,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ConvertStringsToEnumVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CrashLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/CrossToInnerJoinVisitor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DDLOnClusterQueryStatusSource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DDLTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DDLWorker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DNSCacheUpdater.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DatabaseAndTableWithAlias.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DatabaseCatalog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DirectJoin.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DistributedQueryStatusSource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/DuplicateOrderByVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/EmbeddedDictionaries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ErrorLog.cpp
@@ -990,6 +1014,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateIndexQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateNamedCollectionQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateResourceQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterCreateWorkloadQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDeleteQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDescribeCacheQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDescribeQuery.cpp
@@ -997,6 +1023,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropIndexQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropNamedCollectionQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropResourceQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterDropWorkloadQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterExistsQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterExplainQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterExternalDDLQuery.cpp
@@ -1004,6 +1032,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterInsertQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterKillQueryQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterOptimizeQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterParallelWithQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterRenameQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSelectIntersectExceptQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/InterpreterSelectQuery.cpp
@@ -1028,10 +1057,12 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JIT/CompileDAG.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JIT/CompiledExpressionCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JIT/compileFunction.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinSwitcher.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinToSubqueryTransformVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/JoinedTables.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/LatencyLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/Lemmatizers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/LogicalExpressionsOptimizer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MarkTableIdentifiersVisitor.cpp
@@ -1043,7 +1074,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MutationsNonDeterministicHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/MySQL/InterpretersMySQLDDLQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/NormalizeSelectWithUnionQueryVisitor.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/NullableUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ObjectStorageQueueLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/OpenTelemetrySpanLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/OptimizeDateOrDateTimeConverterWithPreimageVisitor.cpp
@@ -1060,12 +1090,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ProfileEventsExt.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryAliasesVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryLog.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryMetricLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryNormalizer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryThreadLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/QueryViewsLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RemoveInjectiveFunctionsVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RenameColumnVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ReplaceQueryParameterVisitor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ReplicatedDatabaseQueryStatusSource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RequiredSourceColumnsData.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RequiredSourceColumnsVisitor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/RewriteArrayExistsFunctionVisitor.cpp
@@ -1092,6 +1124,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TableOverrideUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TablesStatus.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TemporaryDataOnDisk.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TemporaryReplaceTableName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TextLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/ThreadStatusExt.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/TraceCollector.cpp
@@ -1112,9 +1145,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/castColumn.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/convertFieldToType.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/createBlockSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/createSubcolumnsExtractionActions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/evaluateConstantExpression.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/executeDDLQueryOnCluster.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/executeQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/formatWithPossiblyHidingSecrets.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getClusterName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getColumnFromBlock.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Interpreters/getCustomKeyFilterForParallelReplicas.cpp
@@ -1149,6 +1184,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/PlannerExpressionAnalysis.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/PlannerJoinTree.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/PlannerJoins.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/PlannerJoinsLogical.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/PlannerSorting.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/PlannerWindowFunctions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Planner/Utils.cpp
@@ -1205,6 +1241,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactColumnsBlockOutputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactEachRowRowInputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactEachRowRowOutputFormat.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactEachRowWithProgressRowOutputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactRowInputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONCompactRowOutputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/JSONEachRowRowInputFormat.cpp
@@ -1236,8 +1273,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ParquetMetadataInputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PostgreSQLOutputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrettyBlockOutputFormat.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrettyCompactBlockOutputFormat.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrettySpaceBlockOutputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/PrometheusTextOutputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ProtobufListInputFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Formats/Impl/ProtobufListOutputFormat.cpp
@@ -1276,8 +1311,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/GraphiteRollupSortedAlgorithm.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/IMergingAlgorithmWithDelayedChunk.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/IMergingAlgorithmWithSharedChunks.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/MergeTreeReadInfo.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/MergedData.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/MergingSortedAlgorithm.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/ReplacingSortedAlgorithm.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/RowRef.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/SummingSortedAlgorithm.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/Algorithms/VersionedCollapsingAlgorithm.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Merges/IMergingTransform.cpp
@@ -1289,12 +1327,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ArrayJoinStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/BufferChunksTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/BuildQueryPipelineSettings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ConvertingActions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/CreateSetAndFilterOnTheFlyStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/CreatingSetsStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/CubeStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/DistinctStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/DistributedCreateLocalPlan.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ExpressionStep.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ExtractColumnsStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ExtremesStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/FillingStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/FilterStep.cpp
@@ -1303,15 +1343,18 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ITransformingStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/IntersectOrExceptStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/JoinStep.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/JoinStepLogical.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/LimitByStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/LimitStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/MergingAggregatedStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/OffsetStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/QueryPlanOptimizationSettings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/Utils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/actionsDAGUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/addPlansForSets.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/applyOrder.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/calculateHashTableCacheKeys.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/convertOuterJoinToInnerJoin.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/distinctReadInOrder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/enableMemoryBoundMerging.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/filterPushDown.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/liftUpArrayJoin.cpp
@@ -1319,6 +1362,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/liftUpUnion.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/limitPushDown.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/mergeExpressions.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/optimizeJoin.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/optimizePrewhere.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/optimizePrimaryKeyConditionAndLimit.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/optimizeReadInOrder.cpp
@@ -1329,10 +1373,15 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/removeRedundantDistinct.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/removeRedundantSorting.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/splitFilter.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/updateQueryConditionCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/useDataParallelAggregation.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Optimizations/useVectorSearch.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ParallelReplicasLocalPlan.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/PartsSplitter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/QueryIdHolder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/QueryPlan.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/QueryPlanSerializationSettings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/QueryPlanStepRegistry.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadFromLoopStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadFromMemoryStorageStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadFromMergeTree.cpp
@@ -1343,14 +1392,19 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadFromSystemNumbersStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/ReadNothingStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/RollupStep.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/Serialization.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/SetsSerialization.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/SortingStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/SourceStepWithFilter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/TotalsHavingStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/UnionStep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/WindowStep.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/QueryPlan/resolveStorages.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/ResizeProcessor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sinks/SinkToStorage.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/SourceWithKeyCondition.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/DelayedSource.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/MongoDBPocoLegacySource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/MongoDBSource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/MySQLSource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Sources/PostgreSQLSource.cpp
@@ -1373,13 +1427,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CheckConstraintsTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CheckSortedTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ColumnGathererTransform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ColumnPermuteTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CopyTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CountingTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CreateSetAndFilterOnTheFlyTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CreatingSetsTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/CubeTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DeduplicationTokenTransforms.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctSortedChunkTransform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctSortedStreamTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctSortedTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/DistinctTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ExceptionKeepingTransform.cpp
@@ -1407,10 +1462,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/ScatterByPartitionTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/SortingTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/SquashingTransform.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/StreamInQueryCacheTransform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/StreamInQueryResultCacheTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/TTLCalcTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/TTLTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/TotalsHavingTransform.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/VirtualRowTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/WatermarkTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/WindowTransform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Processors/Transforms/buildPushingToViewsChain.cpp
@@ -1432,6 +1488,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/narrowPipe.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/QueryPipeline/printPipeline.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/CertificateReloader.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/ClientEmbedded/ClientEmbedded.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/ClientEmbedded/ClientEmbeddedRunner.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/ClientEmbedded/PtyClientDescriptorSet.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/CloudPlacementInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/GRPCServer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Server/HTTP/HTMLForm.cpp
@@ -1480,6 +1539,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/SchemaCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Cache/registerRemoteFileMetadatas.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ColumnDefault.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ColumnDependency.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ColumnsDescription.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ConstraintsDescription.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Distributed/DistributedAsyncInsertBatch.cpp
@@ -1505,30 +1565,47 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MaterializedView/RefreshTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MemorySettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ActiveDataPartSet.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/AllMergeSelector.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/AlterConversions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/AsyncBlockIDsCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/BackgroundJobsAssignee.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Backup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/BoolMask.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/CompactionStatistics.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/ConstructFuturePart.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergePredicates/DistributedMergePredicate.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergePredicates/MergeTreeMergePredicate.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergePredicates/ReplicatedMergeTreeMergePredicate.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectorApplier.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectors/AllMergeSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectors/MergeSelectorFactory.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectors/SimpleMergeSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectors/TTLMergeSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectors/TrivialMergeSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/MergeSelectors/registerMergeSelectors.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/PartProperties.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/PartsCollectors/Common.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/PartsCollectors/MergeTreePartsCollector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/Compaction/PartsCollectors/ReplicatedMergeTreePartsCollector.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DataPartStorageOnDiskBase.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DataPartStorageOnDiskFull.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DataPartsExchange.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DeserializationPrefixesCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/DropPartsRanges.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/EphemeralLockInZooKeeper.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/FutureMergedMutatedPart.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/GinIndexStore.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IExecutableTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergeTreeDataPart.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergeTreeDataPartWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergeTreeReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IMergedBlockOutputStream.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/IPartMetadataManager.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/InsertBlockInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/KeyCondition.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MarkRange.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeFromLogEntryTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeList.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergePlainMergeTreeTask.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeProjectionPartsTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeBackgroundExecutor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeBlockReadUtils.cpp
@@ -1552,6 +1629,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexBloomFilterText.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexFullText.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranularity.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranularityAdaptive.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranularityConstant.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexGranularityInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexHypothesis.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexHypothesisMergedCondition.cpp
@@ -1559,7 +1638,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexMinMax.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexReader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexSet.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndexVectorSimilarity.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeIndices.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeMarksLoader.cpp
@@ -1580,6 +1658,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeReaderCompactSingleBuffer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeReaderStream.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeReaderWide.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeReadersChain.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeSelectAlgorithms.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeSelectProcessor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MergeTreeSequentialSource.cpp
@@ -1597,10 +1676,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MutatePlainMergeTreeTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/MutateTask.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ParallelReplicasReadingCoordinator.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartMetadataManagerOrdinary.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartMovesBetweenShardsOrchestrator.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartitionActionBlocker.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PartitionPruner.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PinnedPartUUIDs.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/PrimaryIndexCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/RPNBuilder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/RangesInDataPart.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedFetchList.cpp
@@ -1620,10 +1700,8 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ReplicatedMergeTreeTableMetadata.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/RequestResponse.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/RowOrderOptimizer.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/SimpleMergeSelector.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/TTLMergeSelector.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/StorageFromMergeTreeDataPart.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/TemporaryParts.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/VectorSimilarityCondition.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/ZeroCopyLock.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/checkDataPart.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/MergeTree/registerStorageMergeTree.cpp
@@ -1634,20 +1712,30 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/NamedCollectionsHelpers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/Azure/Configuration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/Common.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/DeltaLake/KernelHelper.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/DeltaLake/KernelUtils.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/DeltaLake/TableSnapshot.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/DeltaLake/getSchemaFromSnapshot.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/DeltaLakeMetadata.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/DeltaLakeMetadataDeltaKernel.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/HudiMetadata.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/IcebergMetadata.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/registerDataLakeStorages.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/Iceberg/IcebergMetadata.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/Iceberg/ManifestFile.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/Iceberg/PartitionPruning.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/Iceberg/SchemaProcessor.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/DataLakes/Iceberg/Utils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/AsynchronousReadBufferFromHDFS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/Configuration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/HDFSCommon.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/HDFSErrorWrapper.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/ReadBufferFromHDFS.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/HDFS/WriteBufferFromHDFS.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/Local/Configuration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/ReadBufferIterator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/S3/Configuration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/StorageObjectStorage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/StorageObjectStorageCluster.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/StorageObjectStorageSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/StorageObjectStorageSink.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/StorageObjectStorageSource.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/ObjectStorage/Utils.cpp
@@ -1675,6 +1763,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Statistics/ConditionSelectivityEstimator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Statistics/Statistics.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Statistics/StatisticsCountMinSketch.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Statistics/StatisticsMinMax.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Statistics/StatisticsTDigest.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/Statistics/StatisticsUniq.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StatisticsDescription.cpp
@@ -1683,11 +1772,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageDistributed.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageDummy.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageExecutable.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageExternalDistributed.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageFactory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageFile.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageFileCluster.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageFromMergeTreeDataPart.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageFuzzJSON.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageFuzzQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageGenerateRandom.cpp
@@ -1698,14 +1785,14 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageLogSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageLoop.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMaterializedMySQL.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMaterializedView.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMemory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMerge.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMergeTree.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMergeTreeIndex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMongoDB.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMongoDBSocketFactory.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMongoDBPocoLegacy.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMongoDBPocoLegacySocketFactory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageMySQL.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StorageNull.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/StoragePostgreSQL.cpp
@@ -1759,9 +1846,11 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemFunctions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemGrants.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemGraphite.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemHistogramMetrics.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemJemalloc.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemKafkaConsumers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemKeywords.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemLatencyBuckets.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemLicenses.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemLicenses.generated.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMacros.cpp
@@ -1771,9 +1860,10 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemModels.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMoves.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMutations.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemMySQLBinlogs.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemNamedCollections.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemNumbers.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemObjectStorageQueue.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemObjectStorageQueueSettings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemOne.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemPartMovesBetweenShards.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemParts.cpp
@@ -1783,7 +1873,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemProcesses.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemProjectionParts.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemProjectionPartsColumns.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQueryCache.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemProjections.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQueryConditionCache.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQueryResultCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQuotaLimits.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQuotaUsage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemQuotas.cpp
@@ -1792,10 +1884,10 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemReplicas.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemReplicatedFetches.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemReplicationQueue.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemResources.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRoleGrants.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRoles.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemRowPolicies.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemS3Queue.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemScheduler.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemSchemaInferenceCache.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemServerSettings.cpp
@@ -1816,6 +1908,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemUsers.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemViewRefreshes.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemWarnings.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemWorkloads.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemZeros.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemZooKeeper.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/StorageSystemZooKeeperConnection.cpp
@@ -1823,6 +1916,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/attachSystemTables.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/getQueriedColumnsMaskAndHeader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/TTLDescription.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/TableZnodeInfo.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/TimeSeries/PrometheusRemoteReadProtocol.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/TimeSeries/PrometheusRemoteWriteProtocol.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/TimeSeries/TimeSeriesColumnsValidator.cpp
@@ -1836,7 +1930,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/buildQueryTreeForShard.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/checkAndGetLiteralArgument.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/extractKeyExpressionList.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/extractTableFunctionArgumentsFromSelectQuery.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/extractTableFunctionFromSelectQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/getStructureOfRemoteTable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/prepareReadingFromFormat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/registerStorages.cpp
@@ -1862,6 +1956,7 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMerge.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMergeTreeIndex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMongoDB.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMongoDBPocoLegacy.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionMySQL.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionNull.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionNumbers.cpp
@@ -1878,7 +1973,6 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionView.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionViewIfPermitted.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/TableFunctionZeros.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/registerDataLakeTableFunctions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/TableFunctions/registerTableFunctions.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/DirectoryWatcherBase.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/FileLogConsumer.cpp
@@ -1929,7 +2023,6 @@ target_compile_options(contrib-clickhouse-src.global PRIVATE
   -DBOOST_TIMER_ENABLE_DEPRECATED=1
   -DENABLE_MULTITARGET_CODE=1
   -DINCBIN_SILENCE_BITCODE_WARNING
-  -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
   -DLZ4_FAST_DEC_LOOP=1
   -DPOCO_ENABLE_CPP11
   -DPOCO_OS_FAMILY_UNIX
@@ -1957,7 +2050,6 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/pcg-random
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Crypto/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Data/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
@@ -1965,7 +2057,6 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Redis/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Util/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/expected/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/libdivide-cmake
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/pdqsort
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
@@ -1994,7 +2085,6 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   base-poco-Crypto
-  base-poco-Data
   base-poco-Foundation
   base-poco-JSON
   base-poco-Net
@@ -2022,7 +2112,6 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-miniselect
   contrib-libs-msgpack
   contrib-libs-pocketfft
-  libs-poco-MongoDB
   contrib-libs-rapidjson
   contrib-libs-re2
   contrib-libs-simdjson
@@ -2049,7 +2138,6 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   restricted-boost-program_options
   contrib-restricted-cityhash-1.0.2
   restricted-clickhouse-deps-morton-nd
-  dragonbox
   contrib-restricted-fast_float
   contrib-restricted-magic_enum
   contrib-restricted-murmurhash
@@ -2065,6 +2153,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/CastOverloadResolver.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/DateTimeTransforms.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionChar.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionDynamicAdaptor.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFQDN.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFactory.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionFile.cpp
@@ -2083,6 +2172,11 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCodingULID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsCodingUUID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion_impl0.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion_impl1.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion_impl2.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion_impl3.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsConversion_reg.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsEmbeddedDictionaries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsExternalDictionaries.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/FunctionsHashingInt.cpp
@@ -2106,6 +2200,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/GregorianDate.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/HTMLCharacterReference.generated.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/IFunction.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/IFunctionAdaptors.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONArrayLength.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/JSONPaths.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/URL/URLHierarchy.cpp
@@ -2192,6 +2287,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayJoin.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayMap.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayNorm.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayNormalizedGini.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPopBack.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPopFront.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/arrayPushBack.cpp
@@ -2218,6 +2314,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasAny.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/hasSubstr.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/indexOf.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/indexOfAssumeSorted.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/length.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/mapOp.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/array/mapPopulateSeries.cpp
@@ -2260,7 +2357,6 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/blockSize.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/byteSize.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/byteSwap.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/canonicalRand.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/caseWithExpression.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/castOrDefault.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/catboostEvaluate.cpp
@@ -2269,6 +2365,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/checkHyperscanRegexp.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/clamp.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/coalesce.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/compareSubstrings.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/concat.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/concatWithSeparator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/connectionId.cpp
@@ -2283,6 +2380,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/coverage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentDatabase.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentProfiles.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentQueryID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentRoles.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentSchemas.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/currentUser.cpp
@@ -2337,11 +2435,13 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/formatRow.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromDaysSinceYearZero.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromModifiedJulianDay.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Micro.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Milli.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fromUnixTimestamp64Nano.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/fuzzBits.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/gcd.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/generateSerialID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/generateSnowflakeID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/generateULID.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/generateUUIDv4.cpp
@@ -2354,6 +2454,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getClientHTTPHeader.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getFuzzerData.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getMacro.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getMaxTableNameLength.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getScalar.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getServerPort.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/getSetting.cpp
@@ -2414,6 +2515,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/hilbertDecode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/hilbertEncode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/hypot.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/icebergTruncate.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/identity.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/idna.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/if.cpp
@@ -2426,6 +2528,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/initcap.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/initcapUTF8.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/initialQueryID.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/initialQueryStartTime.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/initializeAggregation.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/intDiv.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/intDivOrZero.cpp
@@ -2510,7 +2613,6 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizeQuery.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizeString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/normalizedQueryHash.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/notEmpty.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/notEquals.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/notILike.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/notLike.cpp
@@ -2518,6 +2620,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/now64.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/nowInBlock.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/nullIf.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/overlay.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/padString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/parseDateTime.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/parseReadableSize.cpp
@@ -2546,6 +2649,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/radians.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/rand.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/rand64.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/randCanonical.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/randConstant.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/randDistribution.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/randomFixedString.cpp
@@ -2593,7 +2697,6 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/sin.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/sinh.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/sleep.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/sleepEachRow.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/snowflake.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/snowflakeIDToDateTime.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/soundex.cpp
@@ -2656,6 +2759,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toModifiedJulianDay.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonday.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonth.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toMonthNumSinceEpoch.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toNullable.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toQuarter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toRelativeDayNum.cpp
@@ -2683,6 +2787,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTime.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTimezone.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toTypeName.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Micro.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Milli.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toUnixTimestamp64Nano.cpp
@@ -2691,6 +2796,7 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMMDD.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYYYYMMDDhhmmss.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYear.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/toYearNumSinceEpoch.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/today.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/tokenExtractors.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/transform.cpp

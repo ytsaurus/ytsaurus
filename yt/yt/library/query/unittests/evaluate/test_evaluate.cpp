@@ -158,13 +158,8 @@ TQueryStatistics DoExecuteQuery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TRow> OrderRowsBy(TRange<TRow> rows, TRange<std::string> columns, const TTableSchema& tableSchema)
+std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<int>& indexes)
 {
-    std::vector<int> indexes;
-    for (const auto& column : columns) {
-        indexes.push_back(tableSchema.GetColumnIndexOrThrow(column));
-    }
-
     std::vector<TRow> result(rows.begin(), rows.end());
     std::sort(result.begin(), result.end(), [&] (TRow lhs, TRow rhs) {
         for (auto index : indexes) {
@@ -177,6 +172,16 @@ std::vector<TRow> OrderRowsBy(TRange<TRow> rows, TRange<std::string> columns, co
         return false;
     });
     return result;
+}
+
+std::vector<TRow> OrderRowsBy(TRange<TRow> rows, TRange<std::string> columns, const TTableSchema& tableSchema)
+{
+    std::vector<int> indexes;
+    for (const auto& column : columns) {
+        indexes.push_back(tableSchema.GetColumnIndexOrThrow(column));
+    }
+
+    return OrderRowsBy(rows, indexes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,6 +265,22 @@ TResultMatcher OrderedResultMatcher(std::vector<TOwningRow> expectedResult, std:
             EXPECT_EQ(expectedResult.size(), result.Size());
 
             auto sortedResult = OrderRowsBy(result, columns, tableSchema);
+
+            for (int i = 0; i < std::ssize(expectedResult); ++i) {
+                EXPECT_EQ(sortedResult[i], expectedResult[i]);
+            }
+        };
+}
+
+TResultMatcher OrderedResultMatcher(std::vector<TOwningRow> expectedResult, const std::vector<int>& indexes)
+{
+    return [
+            expectedResult = std::move(expectedResult),
+            indexes = std::move(indexes)
+        ] (TRange<TRow> result, const TTableSchema& /*schema*/) {
+            EXPECT_EQ(expectedResult.size(), result.Size());
+
+            auto sortedResult = OrderRowsBy(result, indexes);
 
             for (int i = 0; i < std::ssize(expectedResult); ++i) {
                 EXPECT_EQ(sortedResult[i], expectedResult[i]);

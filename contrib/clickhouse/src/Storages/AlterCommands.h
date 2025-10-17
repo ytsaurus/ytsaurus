@@ -238,6 +238,9 @@ public:
     /// Check if commands have any full-text index or a (legacy) inverted index
     static bool hasFullTextIndex(const StorageInMemoryMetadata & metadata);
     static bool hasLegacyInvertedIndex(const StorageInMemoryMetadata & metadata);
+
+    /// Check if commands have any vector similarity index
+    static bool hasVectorSimilarityIndex(const StorageInMemoryMetadata & metadata);
 };
 
 }

@@ -22,6 +22,7 @@ target_compile_options(base-poco-Util PUBLIC
 )
 
 target_compile_options(base-poco-Util PRIVATE
+  -DPOCO_HAVE_FD_EPOLL
   -DPOCO_ENABLE_CPP11
   -DPOCO_OS_FAMILY_UNIX
   -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
@@ -36,6 +37,7 @@ target_include_directories(base-poco-Util PUBLIC
 target_include_directories(base-poco-Util PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Foundation/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/JSON/include
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/Net/include
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/poco/XML/include
 )
 

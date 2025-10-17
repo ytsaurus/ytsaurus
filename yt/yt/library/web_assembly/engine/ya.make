@@ -4,8 +4,10 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     GLOBAL compartment.cpp
+    GLOBAL data_transfer.cpp
     GLOBAL function.cpp
     intrinsics.cpp
+    GLOBAL memory_pool.cpp
     GLOBAL type_builder.cpp
 )
 

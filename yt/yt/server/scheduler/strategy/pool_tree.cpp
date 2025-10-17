@@ -68,7 +68,6 @@ using NVectorHdrf::TFairShareUpdateExecutor;
 using NVectorHdrf::TFairShareUpdateOptions;
 using NVectorHdrf::TFairShareUpdateContext;
 using NVectorHdrf::SerializeDominant;
-using NVectorHdrf::RatioComparisonPrecision;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,6 +317,8 @@ public:
         RootElement_ = New<TPoolTreeRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
         ProfileManager_->RegisterPool(RootElement_);
+
+        SchedulingPolicy_->Initialize();
 
         YT_LOG_INFO("Pool tree created");
     }
@@ -3177,7 +3178,7 @@ private:
                     .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow", pool->GetTotalResourceLimits() * resourceFlowRatio)
                     .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_ratio_volume", pool->GetAccumulatedResourceRatioVolume())
                     .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_volume", pool->GetAccumulatedResourceVolume());
-                if (burstRatio > resourceFlowRatio + RatioComparisonPrecision) {
+                if (burstRatio > resourceFlowRatio + NVectorHdrf::LargeEpsilon) {
                     fluent
                         .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_burst_usage_duration_seconds",
                             pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));

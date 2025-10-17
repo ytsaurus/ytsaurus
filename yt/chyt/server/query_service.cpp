@@ -31,6 +31,20 @@
 #include <Processors/Executors/CompletedPipelineExecutor.h>
 #include <Processors/Executors/PullingAsyncPipelineExecutor.h>
 
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsUInt64 max_query_size;
+extern const SettingsUInt64 max_parser_depth;
+extern const SettingsUInt64 max_parser_backtracks;
+extern const SettingsBool allow_settings_after_format_in_insert;
+extern const SettingsBool implicit_select;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
@@ -265,11 +279,14 @@ private:
 
         const auto& settings = context->getSettingsRef();
 
-        auto parseRes = splitMultipartQuery(input, queries,
-            settings.max_query_size,
-            settings.max_parser_depth,
-            settings.max_parser_backtracks,
-            settings.allow_settings_after_format_in_insert);
+        auto parseRes = DB::splitMultipartQuery(
+            input,
+            queries,
+            settings[DB::Setting::max_query_size],
+            settings[DB::Setting::max_parser_depth],
+            settings[DB::Setting::max_parser_backtracks],
+            settings[DB::Setting::allow_settings_after_format_in_insert],
+            settings[DB::Setting::implicit_select]);
         if (!parseRes.second) {
             THROW_ERROR_EXCEPTION("Cannot parse and execute query part %Qv", parseRes.first);
         }

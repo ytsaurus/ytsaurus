@@ -9,6 +9,7 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <Columns/IColumn.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/IDataType.h>
 #include <Interpreters/InterpreterSelectQueryAnalyzer.h>
@@ -20,6 +21,18 @@
 #include <Storages/IStorage.h>
 #include <TableFunctions/ITableFunction.h>
 #include <TableFunctions/TableFunctionFactory.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsUInt64 max_result_rows;
+extern const SettingsUInt64 max_result_bytes;
+extern const SettingsBool extremes;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -66,9 +79,9 @@ std::vector<TString> ExtractPathsFromSubquery(
     // See getSubqueryContext in Interpreters/InterpreterSelectQuery.cpp.
     auto subqueryContext = DB::Context::createCopy(context);
     DB::Settings subquerySettings = context->getSettingsCopy();
-    subquerySettings.max_result_rows = 0;
-    subquerySettings.max_result_bytes = 0;
-    subquerySettings.extremes = false;
+    subquerySettings[DB::Setting::max_result_rows] = 0;
+    subquerySettings[DB::Setting::max_result_bytes] = 0;
+    subquerySettings[DB::Setting::extremes] = false;
     subqueryContext->setSettings(std::move(subquerySettings));
 
     auto interpreter = DB::InterpreterSelectQueryAnalyzer(

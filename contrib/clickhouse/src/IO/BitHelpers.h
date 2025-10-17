@@ -5,6 +5,7 @@
 #include <base/types.h>
 #include <Common/BitHelpers.h>
 #include <Common/Exception.h>
+#include <Common/transformEndianness.h>
 
 #include <cstring>
 #include <cassert>

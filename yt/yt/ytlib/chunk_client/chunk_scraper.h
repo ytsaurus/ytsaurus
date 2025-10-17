@@ -26,7 +26,6 @@ struct TScrapedChunkInfo
 };
 
 void FormatValue(TStringBuilderBase* builder, const TScrapedChunkInfo& info, TStringBuf spec);
-std::ostream& operator<<(std::ostream& out, const TScrapedChunkInfo& info);
 
 static constexpr TChunkScraperAvailabilityPolicy MetadataAvailablePolicy = TMetadataAvailablePolicy{};
 

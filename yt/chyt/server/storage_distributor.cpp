@@ -54,13 +54,14 @@
 #include <Interpreters/InterpreterSelectQueryAnalyzer.h>
 #include <Interpreters/JoinedTables.h>
 #include <Interpreters/ProcessList.h>
+#include <Interpreters/ExpressionActions.h>
+
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/ASTSelectQuery.h>
-#include <Parsers/queryToString.h>
 #include <Processors/ConcatProcessor.h>
 #include <Processors/ResizeProcessor.h>
 #include <Processors/Sinks/NullSink.h>
@@ -69,6 +70,7 @@
 #include <Planner/Planner.h>
 #include <Storages/StorageFactory.h>
 #include <Storages/StorageMerge.h>
+#include <Storages/MergeTree/MergeTreeData.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
 #include <Analyzer/createUniqueAliasesIfNecessary.h>
@@ -76,6 +78,35 @@
 #include <library/cpp/iterator/functools.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsUInt64 distributed_push_down_limit;
+extern const SettingsUInt64 distributed_group_by_no_merge;
+extern const SettingsUInt64 max_concurrent_queries_for_user;
+extern const SettingsUInt64 max_insert_threads;
+extern const SettingsUInt64 max_memory_usage_for_user;
+extern const SettingsUInt64 max_result_bytes;
+extern const SettingsUInt64 max_result_rows;
+extern const SettingsUInt64 max_query_size;
+extern const SettingsUInt64 max_network_bandwidth;
+extern const SettingsUInt64 max_network_bytes;
+
+extern const SettingsBool use_query_cache;
+extern const SettingsBool optimize_move_to_prewhere;
+
+extern const SettingsSeconds max_execution_time;
+extern const SettingsMilliseconds queue_max_wait_ms;
+
+extern const SettingsMaxThreads max_threads;
+
+extern const SettingsDistributedProductMode distributed_product_mode;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -98,37 +129,31 @@ DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
 {
     auto newSettings = settings;
 
-    newSettings.queue_max_wait_ms = DB::Cluster::saturate(
-        newSettings.queue_max_wait_ms,
-        settings.max_execution_time);
+    newSettings[DB::Setting::queue_max_wait_ms] = DB::Cluster::saturate(
+        newSettings[DB::Setting::queue_max_wait_ms],
+        settings[DB::Setting::max_execution_time]);
 
     // Does not matter on remote servers, because queries are sent under different user.
-    newSettings.max_concurrent_queries_for_user = 0;
-    newSettings.max_concurrent_queries_for_user.changed = true;
+    newSettings[DB::Setting::max_concurrent_queries_for_user] = 0;
     // Same as above.
-    newSettings.max_memory_usage_for_user = 0;
-    newSettings.max_memory_usage_for_user.changed = true;
+    newSettings[DB::Setting::max_memory_usage_for_user] = 0;
 
     // Result limits should not be processed in secondary queries
     // because its results are not final.
     // Otherwise, queries like 'insert into ...' will loose rows (CHYT-621).
-    newSettings.max_result_bytes = 0;
-    newSettings.max_result_bytes.changed = true;
+    newSettings[DB::Setting::max_result_bytes] = 0;
     // Same as above.
-    newSettings.max_result_rows = 0;
-    newSettings.max_result_rows.changed = true;
+    newSettings[DB::Setting::max_result_rows] = 0;
 
     // TODO(dakovalkov): Remove it after CHYT-670.
     // Disable query size limit for secondary queries manually
     // because serialized 'ytSubquery(...)' can be large.
-    newSettings.max_query_size = 0;
-    newSettings.max_query_size.changed = true;
+    newSettings[DB::Setting::max_query_size] = 0;
 
     // All secondary queries are the same and have the same query hash, but they
     // process different data slices. Therefore, the query cache might only be used
     // for initial queries.
-    newSettings.use_query_cache = false;
-    newSettings.use_query_cache.changed = true;
+    newSettings[DB::Setting::use_query_cache] = false;
 
     return newSettings;
 }
@@ -136,10 +161,10 @@ DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
 DB::ThrottlerPtr CreateNetThrottler(const DB::Settings& settings)
 {
     DB::ThrottlerPtr throttler;
-    if (settings.max_network_bandwidth || settings.max_network_bytes) {
+    if (settings[DB::Setting::max_network_bandwidth] || settings[DB::Setting::max_network_bytes]) {
         throttler = std::make_shared<DB::Throttler>(
-            settings.max_network_bandwidth,
-            settings.max_network_bytes,
+            settings[DB::Setting::max_network_bandwidth],
+            settings[DB::Setting::max_network_bytes],
             "Limit for bytes to send or receive over network exceeded.");
     }
     return throttler;
@@ -346,7 +371,7 @@ public:
         YT_LOG_INFO("Starting distribution (RealColumnNames_: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             RealColumnNames_,
             CliqueNodes_.size(),
-            static_cast<ui64>(settings.max_threads),
+            static_cast<ui64>(settings[DB::Setting::max_threads]),
             ThreadSubqueries_.size());
 
         // Wait for creation of query read transaction (if it's initialized asynchronously)
@@ -419,7 +444,7 @@ public:
                     updatedActionsDAGOutputs.push_back(&renameActionsDAG.addAlias(*outputNode, columnName));
                 }
                 renameActionsDAG.getOutputs() = std::move(updatedActionsDAGOutputs);
-                auto renameExpression = std::make_shared<DB::ExpressionActions>(std::move(renameActionsDAG), DB::ExpressionActionsSettings::fromContext(Context_));
+                auto renameExpression = std::make_shared<DB::ExpressionActions>(std::move(renameActionsDAG), DB::ExpressionActionsSettings(Context_));
                 pipe.addSimpleTransform([&] (const DB::Block& header) {
                     return std::make_shared<DB::ExpressionTransform>(header, renameExpression);
                 });
@@ -541,12 +566,12 @@ private:
 
     void PrepareInput()
     {
-        QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger);
+        QueryAnalyzer_.emplace(Context_, StorageContext_, QueryInfo_, Logger, false, !VirtualColumnNames_.empty());
         QueryAnalyzer_->Prepare();
         QueryAnalysisResult_.emplace(QueryAnalyzer_->Analyze());
 
         SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
+        SpecTemplate_.InitialQuery = QueryInfo_.query->formatForLogging();
         SpecTemplate_.QuerySettings = StorageContext_->Settings;
         SpecTemplate_.QuerySettings->Execution->EnableInputSpecsPulling = SuitableForPullInputSpecsMode();
         SpecTemplate_.QuerySettings->NeedOnlyDistinct &= QueryAnalyzer_->NeedOnlyDistinct();
@@ -659,7 +684,7 @@ private:
 
         i64 inputStreamsPerSecondaryQuery = QueryContext_->Settings->Execution->InputStreamsPerSecondaryQuery;
         if (inputStreamsPerSecondaryQuery <= 0) {
-            inputStreamsPerSecondaryQuery = Context_->getSettingsRef().max_threads;
+            inputStreamsPerSecondaryQuery = Context_->getSettingsRef()[DB::Setting::max_threads];
         }
         NTracing::GetCurrentTraceContext()->AddTag(
             "chyt.input_streams_per_secondary_query",
@@ -985,10 +1010,10 @@ public:
 
         // Handle some CH-native options.
         // We do not really need them, but it's not difficult to mimic the original behaviour.
-        if (chSettings.distributed_group_by_no_merge) {
+        if (chSettings[DB::Setting::distributed_group_by_no_merge]) {
             // DISTRIBUTED_GROUP_BY_NO_MERGE_AFTER_AGGREGATION = 2
-            if (chSettings.distributed_group_by_no_merge == 2) {
-                if (chSettings.distributed_push_down_limit) {
+            if (chSettings[DB::Setting::distributed_group_by_no_merge] == 2) {
+                if (chSettings[DB::Setting::distributed_push_down_limit]) {
                     return DB::QueryProcessingStage::WithMergeableStateAfterAggregationAndLimit;
                 } else {
                     return DB::QueryProcessingStage::WithMergeableStateAfterAggregation;
@@ -1063,7 +1088,7 @@ public:
         size_t numStreams) override
     {
         auto pipe = read(columnNames, storageSnapshot, queryInfo, context, processedStage, maxBlockSize, numStreams);
-        auto readStep = std::make_unique<TReadFromYTStep>(std::move(pipe), context, queryInfo, IndexStats_, GetTables());
+        auto readStep = std::make_unique<TReadFromYTStep>(std::move(pipe), queryInfo, IndexStats_, GetTables());
         queryPlan.addStep(std::move(readStep));
     }
 
@@ -1093,7 +1118,7 @@ public:
 
         auto* queryContext = GetQueryContext(context);
 
-        if (context->getSettingsRef().max_insert_threads > 1) {
+        if (context->getSettingsRef()[DB::Setting::max_insert_threads] > 1) {
             if (table->Dynamic) {
                 THROW_ERROR_EXCEPTION("Parallel write is not supported for dynamic tables, set max_insert_threads = 1");
             }
@@ -1243,8 +1268,9 @@ public:
         // for preparer (like required columns or select query info).
 
         DB::InterpreterSelectQueryAnalyzer selectInterpreter(select->clone(), context, DB::SelectQueryOptions().analyze());
-
-        auto selectQueryInfo = selectInterpreter.getPlanner().buildSelectQueryInfo();
+        auto selectQueryInfo = DB::buildSelectQueryInfo(
+            selectInterpreter.getQueryTree(),
+            selectInterpreter.getPlanner().getPlannerContext());
 
         auto* queryNode = selectQueryInfo.query_tree->as<DB::QueryNode>();
         YT_VERIFY(queryNode);
@@ -1350,7 +1376,7 @@ public:
             THROW_ERROR_EXCEPTION("Context has expired (getColumnSizes)");
         }
 
-        if (!context->getSettingsRef().optimize_move_to_prewhere) {
+        if (!context->getSettingsRef()[DB::Setting::optimize_move_to_prewhere]) {
             YT_LOG_DEBUG("optimize_move_to_prewhere is disabled, returning empty columnar statistics");
             return {};
         }
@@ -1494,8 +1520,8 @@ private:
 
         ValidateReadPermissions(realColumnNames, Tables_, queryContext);
 
-        auto& settings = context->getSettingsRef();
-        if (settings.distributed_product_mode.changed && settings.distributed_product_mode == DB::DistributedProductMode::DENY) {
+        auto& distributedProductMode = context->getSettingsRef()[DB::Setting::distributed_product_mode];
+        if (distributedProductMode.changed && distributedProductMode == DB::DistributedProductMode::DENY) {
             THROW_ERROR_EXCEPTION("CHYT does not support distributed_product_mode = DENY");
         }
 

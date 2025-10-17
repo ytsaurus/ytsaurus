@@ -422,7 +422,8 @@ public:
 
     const std::optional<TBriefVanillaTaskSpecMap>& GetMaybeBriefVanillaTaskSpecs() const override
     {
-        YT_UNIMPLEMENTED();
+        static const std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs;
+        return briefVanillaTaskSpecs;
     }
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override
@@ -1190,7 +1191,7 @@ TEST_F(TPoolTreeElementTest, TestIncorrectStatusDueToPrecisionError)
 
     EXPECT_EQ(pool->Attributes().UsageShare, pool->Attributes().DemandShare);
     EXPECT_TRUE(Dominates(
-        pool->Attributes().DemandShare + TResourceVector::SmallEpsilon(),
+        pool->Attributes().DemandShare + TResourceVector::Epsilon(),
         pool->Attributes().FairShare.Total));
 
     EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus());

@@ -274,7 +274,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaMode));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaRevision));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkWriter)
         .SetCustom(true)
         .SetReplicated(true));
@@ -534,11 +533,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         case EInternedAttributeKey::SchemaMode:
             BuildYsonFluently(consumer)
                 .Value(table->GetSchemaMode());
-            return true;
-
-        case EInternedAttributeKey::SchemaRevision:
-            BuildYsonFluently(consumer)
-                .Value(table->GetSchemaRevision());
             return true;
 
         case EInternedAttributeKey::SortedBy:
@@ -2132,6 +2126,11 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp = FromProto<TTimestamp>(request->clip_timestamp());
     }
 
+    auto maxSchemaMemoryUsageToLog = Bootstrap_
+        ->GetDynamicConfig()
+        ->TableManager
+        ->MaxSchemaMemoryUsageToLog;
+
     const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, "
         "ClipTimestamp: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
@@ -2142,7 +2141,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ClipTimestamp,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        tableManager->GetHeavyTableSchemaSync(options.Schema));
+        MakeTableSchemaTruncatedFormatter(tableManager->GetHeavyTableSchemaSync(options.Schema), maxSchemaMemoryUsageToLog));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     auto* table = LockThisImpl();

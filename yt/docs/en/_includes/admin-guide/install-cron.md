@@ -50,10 +50,9 @@ unmanagedSecret:
     key: token
 ```
 
-## Built-in Jobs (`jobs`)
+## Built-in Jobs { #jobs }
 
 Each job is defined by the following structure:
-- `name`: a unique job name
 - `enabled`: whether the job is enabled
 - `args`: command-line arguments
 - `schedule`: cron-format schedule
@@ -64,19 +63,17 @@ Example of enabling a job:
 ```bash
 helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
   --version {{cron-version}} \
-  --set jobs[1].enabled=true \
-  --set jobs[1].args[5]="tmp_files"
+  --set jobs.clear_tmp_location.enabled=true \
+  --set jobs.clear_tmp_location.schedule="*/30 * * * *"
 ```
 
-Array indexing of `jobs` starts at zero—keep track of the job order.
-
-## Custom Jobs
+## Custom Jobs { #additionalJobs }
 
 You can define your own jobs:
 
 ```yaml
 additionalJobs:
-  - name: my_cleanup
+  my_cleanup:
     enabled: true
     args:
       - clear_tmp
@@ -93,7 +90,7 @@ yt:
   token: my-secret-token
 
 jobs:
-  - name: clear_tmp_files
+  clear_tmp_files:
     enabled: true
     args:
       - clear_tmp

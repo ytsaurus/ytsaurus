@@ -85,9 +85,9 @@ bool ExternalLoaderXMLConfigRepository::exists(const std::string & definition_en
 }
 
 DBPoco::AutoPtr<DBPoco::Util::AbstractConfiguration> ExternalLoaderXMLConfigRepository::load(
-    const std::string & config_file)
+    const std::string & config_file_path)
 {
-    ConfigProcessor config_processor{config_file};
+    ConfigProcessor config_processor{config_file_path};
     ConfigProcessor::LoadedConfig preprocessed = config_processor.loadConfig();
     config_processor.savePreprocessedConfig(preprocessed, app_path);
     return preprocessed.configuration;

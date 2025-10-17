@@ -52,6 +52,17 @@
 
 #include <util/system/env.h>
 
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsSeconds receive_timeout;
+extern const SettingsSeconds send_timeout;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,8 +255,12 @@ private:
         AsynchronousMetrics_ = std::make_unique<DB::ServerAsynchronousMetrics>(
             ServerContext_,
             /*update_period_seconds*/ 60,
+            /*update_heavy_metrics_*/ true,
             /*heavy_metrics_update_period_seconds*/ 120,
-            dummy_protocol_server_metric_func);
+            dummy_protocol_server_metric_func,
+            // TODO(buyval01): investigate new opportunities
+            /*update_jemalloc_epoch_*/ false,
+            /*update_rss_*/ false);
 
         YT_LOG_DEBUG("Asynchronous metrics set up");
 
@@ -343,7 +358,7 @@ private:
 
         YT_LOG_DEBUG("Setting up query cache");
 
-        ServerContext_->setQueryCache(
+        ServerContext_->setQueryResultCache(
             Config_->QueryCache->MaxSizeInBytes,
             Config_->QueryCache->MaxEntries,
             Config_->QueryCache->MaxEntrySizeInBytes,
@@ -375,12 +390,6 @@ private:
         DB::SystemLogSettings settings{};
         settings.engine = Config_->QueryLog->Engine;
 
-        // At each flush, the engine monitors changes in the query_log table schema.
-        // In case of changes, it tries to recreate the table. The comparison does not ignore atlering commnets:
-        // https://github.com/ClickHouse/ClickHouse/pull/48350/files#diff-02543fded55c372fe0f4b432547d205ef3ed48b55717659c7e34d29550c8d9eaR557
-        // So we need to duplicate the original comment.
-        settings.engine += " COMMENT \'Contains information about executed queries, for example, start time, duration of processing, error messages.\'";
-
         settings.queue_settings.database = "system";
         settings.queue_settings.table = "query_log";
 
@@ -407,8 +416,8 @@ private:
             DBPoco::Net::SocketAddress socketAddress;
             socketAddress = DBPoco::Net::SocketAddress(DBPoco::Net::SocketAddress::Family::IPv6, port);
             DBPoco::Net::ServerSocket socket(socketAddress);
-            socket.setReceiveTimeout(settings.receive_timeout);
-            socket.setSendTimeout(settings.send_timeout);
+            socket.setReceiveTimeout(settings[DB::Setting::receive_timeout]);
+            socket.setSendTimeout(settings[DB::Setting::send_timeout]);
 
             return socket;
         };
@@ -421,7 +430,7 @@ private:
             DBPoco::Timespan keepAliveTimeout(Config_->KeepAliveTimeout, 0);
 
             DBPoco::Net::HTTPServerParams::Ptr httpParams = new DBPoco::Net::HTTPServerParams();
-            httpParams->setTimeout(settings.receive_timeout);
+            httpParams->setTimeout(settings[DB::Setting::receive_timeout]);
             httpParams->setKeepAliveTimeout(keepAliveTimeout);
 
             Servers_.emplace_back(std::make_unique<DB::HTTPServer>(

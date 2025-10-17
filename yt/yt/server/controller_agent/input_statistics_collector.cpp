@@ -10,6 +10,28 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class TChunk>
+void AddChunkImpl(TInputStatistics& statistics, const TChunk& chunk, bool isPrimary)
+{
+    if (isPrimary) {
+        statistics.PrimaryDataWeight += chunk->GetDataWeight();
+        statistics.PrimaryCompressedDataSize += chunk->GetCompressedDataSize();
+    } else {
+        statistics.ForeignDataWeight += chunk->GetDataWeight();
+        statistics.ForeignCompressedDataSize += chunk->GetCompressedDataSize();
+    }
+
+    statistics.UncompressedDataSize += chunk->GetUncompressedDataSize();
+    statistics.RowCount += chunk->GetRowCount();
+    statistics.CompressedDataSize += chunk->GetCompressedDataSize();
+    statistics.DataWeight += chunk->GetDataWeight();
+    ++statistics.ChunkCount;
+}
+
+} // namespace
+
 void TInputStatistics::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, ChunkCount);
@@ -29,24 +51,6 @@ void TInputStatistics::RegisterMetadata(auto&& registrar)
 PHOENIX_DEFINE_TYPE(TInputStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class TChunk>
-void AddChunkImpl(TInputStatistics& statistics, const TChunk& chunk, bool isPrimary)
-{
-    if (isPrimary) {
-        statistics.PrimaryDataWeight += chunk->GetDataWeight();
-        statistics.PrimaryCompressedDataSize += chunk->GetCompressedDataSize();
-    } else {
-        statistics.ForeignDataWeight += chunk->GetDataWeight();
-        statistics.ForeignCompressedDataSize += chunk->GetCompressedDataSize();
-    }
-
-    statistics.UncompressedDataSize += chunk->GetUncompressedDataSize();
-    statistics.RowCount += chunk->GetRowCount();
-    statistics.CompressedDataSize += chunk->GetCompressedDataSize();
-    statistics.DataWeight += chunk->GetDataWeight();
-    ++statistics.ChunkCount;
-}
 
 void TInputStatisticsCollector::AddChunk(const TInputChunkPtr& inputChunk, bool isPrimary) noexcept
 {

@@ -411,6 +411,12 @@ class TestIoEngine(YTEnvSetup):
     def test_probe_put_blocks(self):
         REPLICATION_FACTOR = self.NUM_NODES
 
+        update_nodes_dynamic_config({
+            "data_node": {
+                "use_probe_put_blocks": True
+            }
+        })
+
         create(
             "table",
             "//tmp/test",

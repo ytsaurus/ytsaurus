@@ -229,11 +229,6 @@ void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)
     NativeContentRevision_ = revision;
 }
 
-bool TCypressNode::IsBeingCreated() const
-{
-    return GetRevision() == NHydra::GetCurrentHydraContext()->GetVersion().ToRevision();
-}
-
 bool TCypressNode::CanCacheResolve() const
 {
     if (!TrunkNode_->LockingState().TransactionToExclusiveLocks.empty()) {

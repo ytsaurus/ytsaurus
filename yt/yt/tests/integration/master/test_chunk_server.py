@@ -936,6 +936,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
     def _wait_for_profiler_ready(self):
         wait(lambda: self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") is not None)
+        wait(lambda: self._get_locations_being_disposed_count() == 0)
 
     def _get_locations_being_disposed_count(self):
         return self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") + self._get_profiler_gauge("node_tracker/chunk_locations_awaiting_disposal")
@@ -947,8 +948,12 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "testing_options": {
                     "full_heartbeat_session_sleep_duration": 2000,
                 },
-            }
+            },
+            "node_tracker": {
+                "pending_restart_lease_timeout": 100000
+            },
         })
+        self._wait_for_profiler_ready()
 
         create("table", "//tmp/t", attributes={"replication_factor": 3})
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
@@ -961,8 +966,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         add_maintenance("cluster_node", node, "pending_restart", "")
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
-
-        self._wait_for_profiler_ready()
 
         self.Env.kill_service("node", indexes=[node_index])
 
@@ -996,7 +999,10 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "testing_options": {
                     "full_heartbeat_session_sleep_duration": 2000,
                 },
-            }
+            },
+            "node_tracker": {
+                "pending_restart_lease_timeout": 100000,
+            },
         })
 
         create("table", "//tmp/t", attributes={"replication_factor": 3})
@@ -1011,12 +1017,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         add_maintenance("cluster_node", node, "pending_restart", "")
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
 
-        self._wait_for_profiler_ready()
         self.Env.kill_service("node", indexes=[node_index])
-
-        import sys
-        x = get(f"#{chunk_id}/@stored_replicas")
-        print("XXX", x, file=sys.stderr)
 
         self.Env.start_nodes()
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "restarted")
@@ -1029,6 +1030,18 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
     @authors("grphil")
     def test_lost_location_during_restart(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "full_heartbeat_session_sleep_duration": 2000,
+                },
+            },
+            "node_tracker": {
+                "pending_restart_lease_timeout": 100000,
+            },
+        })
+        self._wait_for_profiler_ready()
+
         create("table", "//tmp/t", attributes={"replication_factor": 3})
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
 
@@ -1041,12 +1054,10 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         set("//sys/@config/node_tracker/max_locations_being_disposed", 0)
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
 
-        self._wait_for_profiler_ready()
         assert self._get_locations_being_disposed_count() == 0
 
         add_maintenance("cluster_node", node, "pending_restart", "")
         self.Env.kill_service("node", indexes=[node_index])
-        sleep(1)  # Wait for node to go offline
 
         shutil.rmtree(self.Env.configs["node"][node_index]["data_node"]["store_locations"][0]["path"])
 
@@ -1068,8 +1079,12 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "testing_options": {
                     "full_heartbeat_session_sleep_duration": 2000,
                 },
-            }
+            },
+            "node_tracker": {
+                "pending_restart_lease_timeout": 100000,
+            },
         })
+        self._wait_for_profiler_ready()
 
         create("table", "//tmp/t1", attributes={"replication_factor": 1})
         write_table("//tmp/t1", {"a": "b"}, table_writer={"upload_replication_factor": 1})
@@ -1082,7 +1097,6 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
 
         self.Env.kill_service("node", indexes=[chunk1_node_index])
 
-        self._wait_for_profiler_ready()
         wait(lambda: self._get_locations_being_disposed_count() == 0)
         wait(lambda: get("//sys/cluster_nodes/{}/@state".format(chunk1_node)) == "offline")
 
@@ -1132,7 +1146,10 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
                 "testing_options": {
                     "full_heartbeat_session_sleep_duration": 1000,
                 },
-            }
+            },
+            "node_tracker": {
+                "pending_restart_lease_timeout": 100000
+            },
         })
 
         create("table", "//tmp/t1", attributes={"replication_factor": 1})

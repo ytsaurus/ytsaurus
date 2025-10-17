@@ -39,10 +39,15 @@ bool TTableSchemaCache::CanCacheError(const TError& /*error*/) noexcept
     return false;
 }
 
-TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(const TCompactTableSchemaPtr& compactTableSchema)
+TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(
+    const TCompactTableSchemaPtr& compactTableSchema,
+    bool doCache)
 {
     auto schemaOrError = ConvertToHeavyTableSchema(compactTableSchema);
-    Set(compactTableSchema, schemaOrError);
+    if (doCache) {
+        Set(compactTableSchema, schemaOrError);
+    }
+
     return schemaOrError;
 }
 

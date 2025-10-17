@@ -279,10 +279,12 @@ TSharedRef TJobProxy::DumpSensors()
         if (host) {
             tags = tags
                 // Alternative to host tag.
-                .WithAlternativeTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor}, /*alternativeTo*/ -2);
+                .WithAlternativeTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor}, /*alternativeTo*/ -2)
+                .WithRequiredTag(NProfiling::TTag{"host", ""});
         } else {
             tags = tags
-                .WithTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor});
+                .WithTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor})
+                .WithRequiredTag(NProfiling::TTag{"host", ""});
         }
     }
 
@@ -1517,6 +1519,14 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .ThreadLimit = options.ThreadLimit,
         .EnableRootVolumeDiskQuota = Config_->EnableRootVolumeDiskQuota,
     };
+
+    if (Config_->RestrictPortoPlace) {
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+    } else {
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        // TODO(yuryalekseev): Remove this after tasklets move to using default place.
+        environmentOptions.Places.push_back("***");
+    }
 
     if (options.EnableCoreDumps) {
         environmentOptions.SlotCoreWatcherDirectory = NFS::CombinePaths({GetSlotPath(), "cores"});

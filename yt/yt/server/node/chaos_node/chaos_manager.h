@@ -18,6 +18,12 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EExistenceResult, ui8,
+    ((Available)   (0))
+    ((Absent)      (1))
+    ((NonExistent) (2))
+);
+
 struct IChaosManager
     : public virtual TRefCounted
 {
@@ -138,7 +144,8 @@ struct IChaosManager
 
     virtual NTransactionSupervisor::ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const = 0;
 
-    virtual TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) = 0;
+    virtual TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) const = 0;
+    virtual EExistenceResult IsChaosObjectExistent(TChaosObjectId chaosObjectId) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

@@ -62,6 +62,8 @@ target_link_libraries(clickhouse-base-base PUBLIC
 
 target_sources(clickhouse-base-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/Decimal.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/GitHash.generated.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/IPv4andIPv6.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/JSON.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/Numa.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/StringRef.cpp
@@ -85,5 +87,6 @@ target_sources(clickhouse-base-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/sleep.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/terminalColors.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/throwError.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/wide_integer_to_string.cpp
 )
 

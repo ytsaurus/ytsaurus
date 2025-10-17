@@ -483,6 +483,8 @@ struct TStrategyTreeConfig
 
     bool EnableDetailedLogsForStarvingOperations;
 
+    bool EnableDetailedLogsForSingleAllocationVanillaOperations;
+
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
 
     REGISTER_YSON_STRUCT(TStrategyTreeConfig);

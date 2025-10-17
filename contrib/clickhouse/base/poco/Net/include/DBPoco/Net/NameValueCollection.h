@@ -19,6 +19,7 @@
 
 
 #include <cstddef>
+#include <vector>
 #include "DBPoco/ListMap.h"
 #include "DBPoco/Net/Net.h"
 #include "DBPoco/String.h"

@@ -70,17 +70,22 @@ class TestResponseKeeper(YTEnvSetup):
     @authors("grphil")
     def test_too_much_space(self):
         set("//sys/@config/cell_master/response_keeper/expiration_timeout", 1000000)
-        mutation_id = generate_uuid()
-        table_id = create("table", "//tmp/t", mutation_id=mutation_id)
-
-        assert table_id == create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
-
-        set("//sys/@config/cell_master/response_keeper/max_responses_space", 0)
 
         def get_responses_space():
             leader_address = get_active_primary_master_leader_address(self)
             profiler = profiler_factory().at_primary_master(leader_address)
             return profiler.gauge("object_server/response_keeper/kept_response_space").get()
+
+        wait(lambda: get_responses_space() is not None)
+
+        mutation_id = generate_uuid()
+        table_id = create("table", "//tmp/t", mutation_id=mutation_id)
+
+        wait(lambda: get_responses_space() > 0)
+
+        assert table_id == create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
+
+        set("//sys/@config/cell_master/response_keeper/max_responses_space", 0)
 
         wait(lambda: get_responses_space() == 0)
 

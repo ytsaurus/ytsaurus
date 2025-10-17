@@ -2052,6 +2052,82 @@ func (*TRspGetChannelFailureError) Descriptor() ([]byte, []int) {
 	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{47}
 }
 
+type TReqManuallyCanceledByServer struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TReqManuallyCanceledByServer) Reset() {
+	*x = TReqManuallyCanceledByServer{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[48]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqManuallyCanceledByServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqManuallyCanceledByServer) ProtoMessage() {}
+
+func (x *TReqManuallyCanceledByServer) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[48]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqManuallyCanceledByServer.ProtoReflect.Descriptor instead.
+func (*TReqManuallyCanceledByServer) Descriptor() ([]byte, []int) {
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{48}
+}
+
+type TRspManuallyCanceledByServer struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TRspManuallyCanceledByServer) Reset() {
+	*x = TRspManuallyCanceledByServer{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[49]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspManuallyCanceledByServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspManuallyCanceledByServer) ProtoMessage() {}
+
+func (x *TRspManuallyCanceledByServer) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[49]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspManuallyCanceledByServer.ProtoReflect.Descriptor instead.
+func (*TRspManuallyCanceledByServer) Descriptor() ([]byte, []int) {
+	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP(), []int{49}
+}
+
 var File_yt_yt_core_rpc_unittests_lib_test_service_proto protoreflect.FileDescriptor
 
 var file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDesc = []byte{
@@ -2179,6 +2255,10 @@ var file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDesc = []byte{
 	0x12, 0x72, 0x65, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x41, 0x64, 0x64, 0x72,
 	0x65, 0x73, 0x73, 0x22, 0x1c, 0x0a, 0x1a, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x43, 0x68,
 	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72, 0x6f,
+	0x72, 0x22, 0x1e, 0x0a, 0x1c, 0x54, 0x52, 0x65, 0x71, 0x4d, 0x61, 0x6e, 0x75, 0x61, 0x6c, 0x6c,
+	0x79, 0x43, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x65, 0x64, 0x42, 0x79, 0x53, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x22, 0x1e, 0x0a, 0x1c, 0x54, 0x52, 0x73, 0x70, 0x4d, 0x61, 0x6e, 0x75, 0x61, 0x6c, 0x6c,
+	0x79, 0x43, 0x61, 0x6e, 0x63, 0x65, 0x6c, 0x65, 0x64, 0x42, 0x79, 0x53, 0x65, 0x72, 0x76, 0x65,
 	0x72, 0x42, 0x3d, 0x5a, 0x3b, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65,
 	0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74,
 	0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x72, 0x70, 0x63, 0x2f, 0x75, 0x6e, 0x69, 0x74, 0x74,
@@ -2197,7 +2277,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescGZIP() []byte {
 	return file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDescData
 }
 
-var file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
 var file_yt_yt_core_rpc_unittests_lib_test_service_proto_goTypes = []interface{}{
 	(*TReqSomeCall)(nil),                  // 0: NTestRpc.TReqSomeCall
 	(*TRspSomeCall)(nil),                  // 1: NTestRpc.TRspSomeCall
@@ -2247,12 +2327,14 @@ var file_yt_yt_core_rpc_unittests_lib_test_service_proto_goTypes = []interface{}
 	(*TRspCustomMetadata)(nil),            // 45: NTestRpc.TRspCustomMetadata
 	(*TReqGetChannelFailureError)(nil),    // 46: NTestRpc.TReqGetChannelFailureError
 	(*TRspGetChannelFailureError)(nil),    // 47: NTestRpc.TRspGetChannelFailureError
-	nil,                                   // 48: NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
-	(*misc.TGuid)(nil),                    // 49: NYT.NProto.TGuid
+	(*TReqManuallyCanceledByServer)(nil),  // 48: NTestRpc.TReqManuallyCanceledByServer
+	(*TRspManuallyCanceledByServer)(nil),  // 49: NTestRpc.TRspManuallyCanceledByServer
+	nil,                                   // 50: NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
+	(*misc.TGuid)(nil),                    // 51: NYT.NProto.TGuid
 }
 var file_yt_yt_core_rpc_unittests_lib_test_service_proto_depIdxs = []int32{
-	49, // 0: NTestRpc.TRspPassCall.mutation_id:type_name -> NYT.NProto.TGuid
-	48, // 1: NTestRpc.TRspCustomMetadata.parsed_custom_metadata:type_name -> NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
+	51, // 0: NTestRpc.TRspPassCall.mutation_id:type_name -> NYT.NProto.TGuid
+	50, // 1: NTestRpc.TRspCustomMetadata.parsed_custom_metadata:type_name -> NTestRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
 	2,  // [2:2] is the sub-list for method output_type
 	2,  // [2:2] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
@@ -2842,6 +2924,30 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 				return nil
 			}
 		}
+		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqManuallyCanceledByServer); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_core_rpc_unittests_lib_test_service_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspManuallyCanceledByServer); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2849,7 +2955,7 @@ func file_yt_yt_core_rpc_unittests_lib_test_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yt_yt_core_rpc_unittests_lib_test_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   49,
+			NumMessages:   51,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

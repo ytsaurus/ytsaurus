@@ -5,13 +5,12 @@ LIBRARY()
 LICENSE(
     Apache-2.0 AND
     BSL-1.0 AND
-    CC0-1.0 AND
     MIT
 )
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(24.8.14.39)
+VERSION(25.3.6.56)
 
 PEERDIR(
     contrib/clickhouse/base/poco/JSON
@@ -22,6 +21,7 @@ ADDINCL(
     GLOBAL contrib/clickhouse/base/poco/Util/include
     contrib/clickhouse/base/poco/Foundation/include
     contrib/clickhouse/base/poco/JSON/include
+    contrib/clickhouse/base/poco/Net/include
     contrib/clickhouse/base/poco/XML/include
 )
 
@@ -36,6 +36,12 @@ IF (OS_DARWIN)
 ELSEIF (OS_LINUX)
     CFLAGS(
         GLOBAL -DOS_LINUX
+    )
+ENDIF()
+
+IF (OS_LINUX)
+    CFLAGS(
+        -DPOCO_HAVE_FD_EPOLL
     )
 ENDIF()
 

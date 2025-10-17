@@ -1,6 +1,6 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: tzdata
-Version: 2025.1
+Version: 2025.2
 Summary: Provider of IANA time zone data
 Home-page: https://github.com/python/tzdata
 Author: Python Software Foundation
@@ -18,6 +18,7 @@ Requires-Python: >=2
 Description-Content-Type: text/x-rst
 License-File: LICENSE
 License-File: licenses/LICENSE_APACHE
+Dynamic: license-file
 
 tzdata: Python package providing IANA time zone data
 ====================================================

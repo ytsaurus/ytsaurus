@@ -1,32 +1,46 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <Common/VariableContext.h>
+
+namespace DB
+{
+class PageCache;
+class TraceCollector;
+}
 
 /// To be able to temporarily stop memory tracking from current thread.
 struct MemoryTrackerBlockerInThread
 {
 private:
-    static thread_local uint64_t counter;
     static thread_local VariableContext level;
 
-    VariableContext previous_level;
-
-    /// level_ - block in level and above
-    explicit MemoryTrackerBlockerInThread(VariableContext level_);
+    std::optional<VariableContext> previous_level;
 
 public:
-    explicit MemoryTrackerBlockerInThread();
-    ~MemoryTrackerBlockerInThread();
+    /// level_ - block in level and above
+    explicit MemoryTrackerBlockerInThread(VariableContext level_ = VariableContext::User);
 
-    MemoryTrackerBlockerInThread(const MemoryTrackerBlockerInThread &) = delete;
-    MemoryTrackerBlockerInThread & operator=(const MemoryTrackerBlockerInThread &) = delete;
+    MemoryTrackerBlockerInThread(MemoryTrackerBlockerInThread &&) noexcept;
+    MemoryTrackerBlockerInThread & operator=(MemoryTrackerBlockerInThread &&) noexcept;
+
+    void reset();
+
+    ~MemoryTrackerBlockerInThread();
 
     static bool isBlocked(VariableContext current_level)
     {
-        return counter > 0 && current_level >= level;
+        return current_level >= level;
     }
 
-    friend class MemoryTracker;
-    friend struct AllocationTrace;
+    static bool isBlockedAny()
+    {
+        return level < VariableContext::Max;
+    }
+
+    static VariableContext getLevel()
+    {
+        return level;
+    }
 };

@@ -357,6 +357,8 @@ message TUserJobSpec
     optional bool is_secondary_distributed = 87;
 
     optional bool close_stdout_if_unused = 88;
+
+    optional bool restrict_porto_place = 89;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

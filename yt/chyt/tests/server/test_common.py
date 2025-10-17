@@ -615,6 +615,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 clique, query_log_path, "select min(a) from '//tmp/t/1' group by a having a < 1", 5, [{"min(a)": 0}]
             )
 
+            self.make_query_and_check_block_rows(
+                clique, query_log_path, "select min($table_name) from '//tmp/t/1'", 6, [{"min($table_name)": "1"}]
+            )
+
             settings = {"chyt.execution.allow_string_min_max_optimization": 0}
             self.make_query_and_check_block_rows(
                 clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "4"}], settings
@@ -2095,14 +2099,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 "wait_end_of_query": 1,
                 "buffer_size": 1024 ** 2,
             }
-            expected_result = [{"number": i} for i in range(1000)]
-
-            assert clique.make_query(query.format(1000), settings=settings, verbose=False) == expected_result
-
-            # TODO: Should fail since buffer_size is exceeded and temporary data disk space limit is 1 byte,
-            # but works for now because of https://github.com/ClickHouse/ClickHouse/issues/58826
-            # with raises_yt_error(QueryFailedError):
-            #     clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
+            # NB: Should fail since buffer_size is exceeded and temporary data disk space limit is 1 byte.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query.format(1000 * 1000), settings=settings, verbose=False)
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

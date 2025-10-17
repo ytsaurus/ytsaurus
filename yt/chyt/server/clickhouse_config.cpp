@@ -83,7 +83,8 @@ void TDictionaryConfig::Register(TRegistrar registrar)
 void TSystemLogConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("engine", &TThis::Engine)
-        .Default("ENGINE = SystemLogTableExporter");
+    // TODO(buyval01) : add validation to COMMENT section and usage of native CH comment in case of absent
+        .Default("ENGINE = SystemLogTableExporter COMMENT 'CHYT test'");
     registrar.Parameter("flush_interval_milliseconds", &TThis::FlushIntervalMilliseconds)
         .Default(100);
 }
@@ -123,13 +124,13 @@ void TPocoOpenSslConfig::Register(TRegistrar registrar)
 void TQueryCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_size_in_bytes", &TThis::MaxSizeInBytes)
-        .Default(DB::DEFAULT_QUERY_CACHE_MAX_SIZE);
+        .Default(DB::DEFAULT_QUERY_RESULT_CACHE_MAX_SIZE);
     registrar.Parameter("max_entries", &TThis::MaxEntries)
-        .Default(DB::DEFAULT_QUERY_CACHE_MAX_ENTRIES);
+        .Default(DB::DEFAULT_QUERY_RESULT_CACHE_MAX_ENTRIES);
     registrar.Parameter("max_entry_size_in_bytes", &TThis::MaxEntrySizeInBytes)
-        .Default(DB::DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_BYTES);
+        .Default(DB::DEFAULT_QUERY_RESULT_CACHE_MAX_ENTRY_SIZE_IN_BYTES);
     registrar.Parameter("max_entry_size_in_rows", &TThis::MaxEntrySizeInRows)
-        .Default(DB::DEFAULT_QUERY_CACHE_MAX_ENTRY_SIZE_IN_ROWS);
+        .Default(DB::DEFAULT_QUERY_RESULT_CACHE_MAX_ENTRY_SIZE_IN_ROWS);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

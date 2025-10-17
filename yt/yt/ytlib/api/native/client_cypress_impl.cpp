@@ -621,7 +621,7 @@ protected:
         // This adds every node exactly once.
         nodesToFetch.push_back(NodeIdToChildrenMapping_[0].NodeId);
         for (const auto& nodeMetadata : NodeIdToChildrenMapping_) {
-            for (auto child : nodeMetadata.Children) {
+            for (const auto& child : nodeMetadata.Children) {
                 nodesToFetch.push_back(child.Id);
             }
         }
@@ -876,7 +876,7 @@ protected:
     }
 
     template <class TOptions>
-    void MaterializeNodes(const TOptions& options, std::optional<TNodeId> portalExitId = std::nullopt)
+    void MaterializeNodes(const TOptions& options, TNodeId portalExitId = {})
     {
         YT_LOG_DEBUG("Starting the materialization phase");
 
@@ -904,7 +904,7 @@ protected:
 
             // TODO(h0pless): Handle scions here when adding Sequoia externalization.
             if (portalExitId && nodeId == SrcNodeId_) {
-                ToProto(req->mutable_existing_node_id(), *portalExitId);
+                ToProto(req->mutable_existing_node_id(), portalExitId);
             }
 
             if (auto inheritedAttributesOverrideIt = NodeToInheritedAttributesOverride_.find(FromProto<TNodeId>(serializedNode->node_id()));
@@ -936,7 +936,7 @@ protected:
             "Failed to materialize nodes on destination");
 
         auto rspsOrError = batchRspOrError.Value()->GetResponses<TMasterYPathProxy::TRspMaterializeNode>();
-        for (auto rspOrError : rspsOrError) {
+        for (const auto& rspOrError : rspsOrError) {
             auto rsp = rspOrError.Value();
             auto oldNodeId = FromProto<TNodeId>(rsp->old_node_id());
             auto newNodeId = FromProto<TNodeId>(rsp->new_node_id());
@@ -971,7 +971,7 @@ protected:
             auto* entry = req->add_node_id_to_children();
             ToProto(entry->mutable_node_id(), updatedNodeId);
 
-            for (auto child : nodeIdToChildren.Children) {
+            for (const auto& child : nodeIdToChildren.Children) {
                 auto updatedChildId = GetOrCrash(SrcToDstNodeIdMapping_, child.Id);
                 auto* childEntry = entry->add_children();
                 childEntry->set_key(child.Key);
@@ -1249,7 +1249,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of portal exit node");
         const auto& batchRsp = batchRspOrError.Value();
 
-        for (auto rspOrError : batchRsp->GetResponses<TObjectYPathProxy::TRspGet>()) {
+        for (const auto& rspOrError : batchRsp->GetResponses<TObjectYPathProxy::TRspGet>()) {
             const auto& rsp = rspOrError.Value();
             *std::any_cast<TYsonString*>(rsp->Tag()) = TYsonString(rsp->value());
         }
@@ -2429,7 +2429,7 @@ private:
 
     void UploadChunks()
     {
-        auto proxy = Client_->CreateWriteProxy<TChunkServiceProxy>(DstObject_.ExternalCellTag);
+        auto proxy = Client_->CreateChunkServiceWriteProxy(DstObject_.ExternalCellTag);
 
         auto batchReq = proxy.ExecuteBatch();
         NRpc::GenerateMutationId(batchReq);

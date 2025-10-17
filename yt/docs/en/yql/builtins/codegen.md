@@ -25,7 +25,7 @@ S-expressions are written as follows in text form:
 
 ## FormatCode
 
-Code serialization as [S-expressions](/docs/s_expressions). The code must not contain free function arguments, i.e. to serialize the lambda function code, you must pass it in its entirety, not expressions that potentially contain lambda function arguments.
+Code serialization as S-expressions. The code must not contain free function arguments, i.e. to serialize the lambda function code, you must pass it in its entirety, not expressions that potentially contain lambda function arguments.
 
 #### Examples
 

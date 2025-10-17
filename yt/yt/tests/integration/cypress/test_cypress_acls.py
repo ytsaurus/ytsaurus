@@ -304,7 +304,6 @@ class CheckPermissionBase(YTEnvSetup):
         assert response4["action"] == "deny"
 
     @authors("babenko", "levysotsky")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize("rename_columns", [False, True])
     def test_inaccessible_columns_yt_11619(self, rename_columns):
         create_user("u")
@@ -468,7 +467,6 @@ class TestCypressAcls(CheckPermissionBase):
         self._test_allowing_acl("//tmp/p/a", "guest", "//tmp/p", "guest")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_schema_acl1(self):
         create_user("u")
         create("table", "//tmp/t1", authenticated_user="u")
@@ -477,7 +475,6 @@ class TestCypressAcls(CheckPermissionBase):
             create("table", "//tmp/t2", authenticated_user="u")
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_schema_acl2(self):
         create_user("u")
         start_transaction(authenticated_user="u")
@@ -512,7 +509,6 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/dir/@acl") == old_acl
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_account_acl(self):
         create_account("a")
         create_user("u")
@@ -677,7 +673,6 @@ class TestCypressAcls(CheckPermissionBase):
         assert read_table("//tmp/a/b/c", tx=tx, authenticated_user="u") == []
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     @pytest.mark.xfail(run=False, reason="In progress")
     def test_snapshot_remove(self):
         set("//tmp/a", {"b": {"c": "d"}})
@@ -691,7 +686,6 @@ class TestCypressAcls(CheckPermissionBase):
         assert get(path, authenticated_user="u", tx=tx) == "d"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     @pytest.mark.xfail(run=False, reason="In progress")
     def test_snapshot_no_inherit(self):
         set("//tmp/a", "b")
@@ -847,7 +841,6 @@ class TestCypressAcls(CheckPermissionBase):
             set("//sys/users/u1/@name", "u2")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_deny_create(self):
         create_user("u")
         with pytest.raises(YtError):
@@ -955,7 +948,6 @@ class TestCypressAcls(CheckPermissionBase):
         remove("//tmp/d", authenticated_user="u")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_account1(self):
         create_account("a")
         create_user("u")
@@ -967,7 +959,6 @@ class TestCypressAcls(CheckPermissionBase):
             copy("//tmp/x", "//tmp/y", authenticated_user="u", preserve_account=True)
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_account2(self):
         create_account("a")
         create_user("u")
@@ -980,7 +971,6 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/y/@account") == "a"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_account3(self):
         create_account("a")
         create_user("u")
@@ -1680,7 +1670,6 @@ class TestCypressAcls(CheckPermissionBase):
         assert new_attribute_revision > old_attribute_revision
 
     @authors("kvk1920")
-    @not_implemented_in_sequoia
     def test_medium_permission_validation(self):
         create_domestic_medium("prohibited")
         create_user("u")

@@ -100,11 +100,9 @@ void TCellBundleTypeHandlerBase<TImpl>::CheckInvariants(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class
-TCellBundleTypeHandlerBase<NTabletServer::TTabletCellBundle>;
-
-template class
-TCellBundleTypeHandlerBase<NChaosServer::TChaosCellBundle>;
+// Explicit instantiations.
+template class TCellBundleTypeHandlerBase<NTabletServer::TTabletCellBundle>;
+template class TCellBundleTypeHandlerBase<NChaosServer::TChaosCellBundle>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

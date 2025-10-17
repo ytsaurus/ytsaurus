@@ -1,5 +1,6 @@
 #include <Common/OptimizedRegularExpression.h>
 #include <Common/typeid_cast.h>
+#include <Core/Settings.h>
 #include <Storages/StorageMerge.h>
 #include <Storages/checkAndGetLiteralArgument.h>
 #include <Parsers/ASTFunction.h>
@@ -7,8 +8,8 @@
 #include <Analyzer/FunctionNode.h>
 #include <Analyzer/TableFunctionNode.h>
 #include <Interpreters/evaluateConstantExpression.h>
-#include <Interpreters/Context.h>
 #include <Interpreters/DatabaseCatalog.h>
+#include <Interpreters/Context.h>
 #include <Access/ContextAccess.h>
 #include <TableFunctions/TableFunctionFactory.h>
 #include <TableFunctions/registerTableFunctions.h>
@@ -23,6 +24,11 @@ namespace ErrorCodes
     extern const int BAD_ARGUMENTS;
 }
 
+namespace Setting
+{
+    extern const SettingsUInt64 merge_table_max_tables_to_look_for_schema_inference;
+}
+
 namespace
 {
 
@@ -31,7 +37,7 @@ namespace
     throw Exception(
         ErrorCodes::BAD_ARGUMENTS,
         "Error while executing table function merge. Either there is no database, which matches regular expression `{}`, or there are "
-        "no tables in database matches `{}`, which fit tables expression: {}",
+        "no tables in the database matches `{}`, which fit tables expression: {}",
         source_database_regexp,
         source_database_regexp,
         source_table_regexp);
@@ -125,7 +131,7 @@ ColumnsDescription TableFunctionMerge::getActualTableStructure(ContextPtr contex
         source_database_name_or_regexp,
         database_is_regexp,
         source_table_regexp,
-        0/* max_tables_to_look feature is not backported */);
+        context->getSettingsRef()[Setting::merge_table_max_tables_to_look_for_schema_inference]);
     if (res.empty())
         throwNoTablesMatchRegexp(source_database_name_or_regexp, source_table_regexp);
 
@@ -133,11 +139,11 @@ ColumnsDescription TableFunctionMerge::getActualTableStructure(ContextPtr contex
 }
 
 
-StoragePtr TableFunctionMerge::executeImpl(const ASTPtr & /*ast_function*/, ContextPtr context, const std::string & table_name, ColumnsDescription /*cached_columns*/, bool is_insert_query) const
+StoragePtr TableFunctionMerge::executeImpl(const ASTPtr & /*ast_function*/, ContextPtr context, const std::string & table_name, ColumnsDescription /*cached_columns*/, bool /*is_insert_query*/) const
 {
     auto res = std::make_shared<StorageMerge>(
         StorageID(getDatabaseName(), table_name),
-        getActualTableStructure(context, is_insert_query),
+        ColumnsDescription{},
         String{},
         source_database_name_or_regexp,
         database_is_regexp,

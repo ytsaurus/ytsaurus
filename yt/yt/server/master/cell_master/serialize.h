@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSchemaDivergence)                                          (3042))  // h0pless
     ((FixSequoiaAccountInheritance)                                 (3043))  // babenko
     ((FixAccountInSequoiaCopy)                                      (3044))  // babenko
+    ((SupportMaxNodeChildCountInSequoia)                            (3045))  // babenko
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
@@ -153,6 +154,10 @@ DEFINE_ENUM(EMasterReign,
     ((SetClipTimestampInAlter)                                      (3106))  // alexelexa
     ((SecondaryIndexAcd)                                            (3107))  // sabdenovch
     ((RestartedNodeState)                                           (3108))  // grphil
+    ((SequoiaLinkIsLink)                                            (3109))  // kvk1920
+    ((RemoveSchemaRevision)                                         (3110))  // theevilbird
+    ((ObjectAccessControlInSequoia)                                 (3111))  // danilalexeev
+    ((InplaceReshard)                                               (3112))  // atalmenev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

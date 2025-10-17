@@ -3,10 +3,10 @@
 #include "interconnect_address.h"
 #include "interconnect_nameserver_base.h"
 #include "events_local.h"
-#include "logging.h"
 
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/core/log.h>
+#include <contrib/ydb/library/actors/interconnect/logging/logging.h>
 
 namespace NActors {
 

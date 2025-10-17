@@ -12,6 +12,8 @@
 #include "table.h"
 #include "virtual_column.h"
 
+#include <cmath>
+
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
@@ -74,13 +76,14 @@
 #include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ytree/convert.h>
 
-#include <Storages/MergeTree/KeyCondition.h>
-#include <Storages/VirtualColumnsDescription.h>
+#include <library/cpp/iterator/functools.h>
+
+#include <Columns/IColumn.h>
+
 #include <DataTypes/DataTypeNullable.h>
 
-#include <cmath>
-
-#include <library/cpp/iterator/functools.h>
+#include <Storages/MergeTree/KeyCondition.h>
+#include <Storages/VirtualColumnsDescription.h>
 
 namespace NYT::NClickHouseServer {
 

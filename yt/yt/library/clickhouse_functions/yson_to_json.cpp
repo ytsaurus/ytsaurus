@@ -15,6 +15,16 @@
 #include <Functions/FunctionHelpers.h>
 #include <Functions/IFunction.h>
 
+namespace DB::ErrorCodes {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::ErrorCodes
+
 namespace NYT::NClickHouseServer {
 
 using namespace NYTree;

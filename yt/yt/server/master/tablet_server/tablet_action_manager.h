@@ -86,14 +86,11 @@ struct ITabletActionManager
     virtual TTabletAction* CreateTabletAction(
         NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
-        const std::vector<TTabletBaseRawPtr>& tablets,
-        const std::vector<TTabletCellRawPtr>& cells,
-        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
+        std::vector<TTabletBaseRawPtr> tablets,
+        std::vector<TTabletCellRawPtr> cells,
+        std::vector<NTableClient::TLegacyOwningKey> pivotKeys,
         const std::optional<int>& tabletCount,
-        bool skipFreezing,
-        TGuid correlationId,
-        TInstant expirationTime,
-        std::optional<TDuration> expirationTimeout) = 0;
+        TCreateTabletActionOptions options) = 0;
 
     virtual void CreateOrphanedTabletAction(TTabletBase* tablet, bool freeze) = 0;
 

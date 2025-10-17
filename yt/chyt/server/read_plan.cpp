@@ -10,6 +10,19 @@
 #include <Functions/IFunction.h>
 #include <Storages/MergeTree/MergeTreeSelectProcessor.h>
 #include <Interpreters/ActionsDAG.h>
+#include <Interpreters/ExpressionActions.h>
+#include <Interpreters/ExpressionActionsSettings.h>
+
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool enable_multiple_prewhere_read_steps;
+extern const SettingsShortCircuitFunctionEvaluation short_circuit_function_evaluation;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
 
 namespace NYT::NClickHouseServer {
 
@@ -144,14 +157,14 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
     const DB::PrewhereInfoPtr& prewhereInfo,
     const DB::Settings& settings)
 {
-    bool enableMultiplePrewhereReadSteps = settings.enable_multiple_prewhere_read_steps;
+    bool enableMultiplePrewhereReadSteps = settings[DB::Setting::enable_multiple_prewhere_read_steps];
 
     // Do not split conditions with short circuit functions to multiple prewhere steps,
     // because short circuit works only within one step.
     // E.g. `user_id = 1 and toDate(dt) = '1999-10-01'` should not be splited,
     // because `toDate` may throw an exception.
     if (enableMultiplePrewhereReadSteps &&
-        settings.short_circuit_function_evaluation != DB::ShortCircuitFunctionEvaluation::DISABLE &&
+        settings[DB::Setting::short_circuit_function_evaluation] != DB::ShortCircuitFunctionEvaluation::DISABLE &&
         HasShortCircuitActions(prewhereInfo->prewhere_actions))
     {
         enableMultiplePrewhereReadSteps = false;
@@ -159,8 +172,10 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
 
     auto prewhereActions = DB::MergeTreeSelectProcessor::getPrewhereActions(
         prewhereInfo,
-        DB::ExpressionActionsSettings::fromSettings(settings, DB::CompileExpressions::yes),
-        enableMultiplePrewhereReadSteps);
+        DB::ExpressionActionsSettings(settings, DB::CompileExpressions::yes),
+        enableMultiplePrewhereReadSteps,
+        // TODO(buyval01): investigate
+        /*force_short_circuit_execution*/ false);
 
     std::vector<TReadStepWithFilter> steps;
     steps.reserve(prewhereActions.steps.size() + 1);

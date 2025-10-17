@@ -99,7 +99,8 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
 
 void TDistributedJobManager::OnOperationRevived()
 {
-    for (auto& [cookie, group] : CookieToGroup_) {
+    auto cookieToGroupCopy = CookieToGroup_;
+    for (auto& [cookie, group] : cookieToGroupCopy) {
         if (group.Pending) {
             Task_->GetTaskHost()->AbortJob(group.MainJobId, EAbortReason::CookieGroupDisbanded);
         }

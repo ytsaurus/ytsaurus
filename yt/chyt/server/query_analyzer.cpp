@@ -77,6 +77,17 @@
 #include <library/cpp/string_utils/base64/base64.h>
 #include <library/cpp/iterator/enumerate.h>
 
+namespace DB::Setting {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const SettingsBool extremes;
+extern const SettingsUInt64 limit;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace DB::Setting
+
 namespace NYT::NClickHouseServer {
 
 using namespace NChunkPools;
@@ -804,23 +815,25 @@ TQueryAnalyzer::TQueryAnalyzer(
     const TStorageContext* storageContext,
     const DB::SelectQueryInfo& queryInfo,
     const TLogger& logger,
-    bool onlyAnalyze)
+    bool onlyAnalyze,
+    bool hasVirtualColumns)
     : DB::WithContext(std::move(context))
     , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
     , OnlyAnalyze_(onlyAnalyze)
+    , HasVirtualColumns_(hasVirtualColumns)
 {
     // When the query is not processed by InterpreterSelectQueryAnalyzer,
     // SelectQueryInfo does not contain query_tree and planner_context.
     // So we initialize them ourselves.
     if (!QueryInfo_.query_tree) {
-        auto analyzedQueryInfo = DB::InterpreterSelectQueryAnalyzer(
+        auto interperter = DB::InterpreterSelectQueryAnalyzer(
             QueryInfo_.query,
             getContext(),
-            DB::SelectQueryOptions().analyze()).getPlanner().buildSelectQueryInfo();
-        QueryInfo_.query_tree = analyzedQueryInfo.query_tree;
-        QueryInfo_.planner_context  = analyzedQueryInfo.planner_context;
+            DB::SelectQueryOptions().analyze());
+        QueryInfo_.query_tree = interperter.getQueryTree();
+        QueryInfo_.planner_context  = interperter.getPlanner().getPlannerContext();
     }
     ParseQuery();
 }
@@ -1046,7 +1059,7 @@ void TQueryAnalyzer::ParseQuery()
 
     auto tableExpressionsStack = DB::buildTableExpressionsStack(selectQuery->getJoinTree());
 
-    if (tableExpressionsStack.size() == 1) {
+    if (tableExpressionsStack.size() == 1 && !HasVirtualColumns_) {
         TCheckMinMaxOptimizationVisitor minMaxVisitor;
         minMaxVisitor.visit(QueryInfo_.query_tree);
         EnableMinMaxOptimization_ = minMaxVisitor.EnableMinMaxOptimization();
@@ -1064,6 +1077,11 @@ void TQueryAnalyzer::ParseQuery()
             break;
         }
 
+        if (tableExpressionNodeType == DB::QueryTreeNodeType::CROSS_JOIN) {
+            YT_LOG_DEBUG("Query is a cross join");
+            Join_ = true;
+            CrossJoin_ = true;
+        }
         if (tableExpressionNodeType == DB::QueryTreeNodeType::JOIN) {
             Join_ = true;
             const auto& joinNode = tableExpression->as<DB::JoinNode&>();
@@ -1076,13 +1094,11 @@ void TQueryAnalyzer::ParseQuery()
                 YT_LOG_DEBUG("Query is a right or full join");
                 RightOrFullJoin_ = true;
             }
-            if (joinKind == DB::JoinKind::Cross) {
-                YT_LOG_DEBUG("Query is a cross join");
-                CrossJoin_ = true;
-            }
+        }
 
-            // When distributing requests, we can only affect the execution of the first join,
-            // so after it, the other parts in the JoinTree can be ignored.
+        // When distributing requests, we can only affect the execution of the first join,
+        // so after it, the other parts in the JoinTree can be ignored.
+        if (Join_) {
             break;
         }
 
@@ -1195,7 +1211,7 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     if (DB::hasWindowFunctionNodes(QueryInfo_.query_tree)) {
         return;
     }
-    if (getContext()->getSettingsRef().extremes) {
+    if (getContext()->getSettingsRef()[DB::Setting::extremes]) {
         return;
     }
 
@@ -1285,7 +1301,7 @@ void TQueryAnalyzer::InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNa
 
     // Read in order makes no sense without any limits specified.
     // The whole table will probably be read anyway.
-    if (!queryNode->hasLimit() && !getContext()->getSettingsRef().limit) {
+    if (!queryNode->hasLimit() && !getContext()->getSettingsRef()[DB::Setting::limit]) {
         return;
     }
 
@@ -1445,7 +1461,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
                 }
             }
 
-            keyCondition.emplace(filterActionsDAG.get(), getContext(), schema->GetKeyColumns(), primaryKeyExpression);
+            DB::ActionsDAGWithInversionPushDown invertedDAG(filterActionsDAG ? filterActionsDAG->getOutputs().front() : nullptr, getContext());
+            keyCondition.emplace(invertedDAG, getContext(), schema->GetKeyColumns(), primaryKeyExpression);
 
             if (settings->Execution->EnableReadRangeInferring && TableExpressions_.size() == 1 && selectQuery->getWhere()) {
                 result.KeyReadRanges = InferReadRange(selectQuery->getWhere(), storage->GetSchema());
