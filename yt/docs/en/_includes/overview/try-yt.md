@@ -102,9 +102,9 @@ Regardless of the installation method, the required system components will be de
   {% note warning "Resource requirements" %}
 
   To successfully deploy {{product-name}} on a Kubernetes cluster, the host machine must have:
-  - At least four CPU cores.
-  - At least 8 GB of RAM.
-  - At least 30 GB of disk space.
+  - at least 4 CPU cores;
+  - at least 8 GB of RAM;
+  - at least 30 GB of disk space.
 
   {% endnote %}
 
