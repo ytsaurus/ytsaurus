@@ -384,6 +384,7 @@ public:
         bool ChooseLocationBasedOnIOWeight = false;
         std::vector<double> IoWeights = {1.};
         std::vector<int> SessionCountLimits = {1024};
+        bool UseProbePutBlocks = false;
     };
 
     explicit TDataNodeTest(const TDataNodeTestParams& testParams)
@@ -541,6 +542,7 @@ public:
         }
 
         DataNodeService_ = CreateDataNodeService(DataNodeBootstrap_->GetConfig()->DataNode, DataNodeBootstrap_.Get());
+        DataNodeBootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->UseProbePutBlocks = TestParams_.UseProbePutBlocks;
         ChannelFactory_ = CreateTestChannelFactory(
             THashMap<std::string, IServicePtr>{{DataNodeServiceAddress, DataNodeService_}},
             THashMap<std::string, IServicePtr>());

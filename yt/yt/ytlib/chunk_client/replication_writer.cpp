@@ -1607,7 +1607,9 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
         writer->ShiftWindow(options);
     } else if (nodesWithPossibleToSendBlocks.empty() &&
         // Retry ProbePutBlocks requests only if they were preempted.
-        std::ssize(nodesWithRequestedResources) < writer->AliveNodeCount_)
+        std::ssize(nodesWithRequestedResources) < writer->AliveNodeCount_ ||
+        // Always send ProbePutBlocks in order to get smaller memory to process that group
+        !ProbeStartTime_.has_value())
     {
         ProbePutBlocks(writer, options);
         // ProbePutBlocks request before retries.
