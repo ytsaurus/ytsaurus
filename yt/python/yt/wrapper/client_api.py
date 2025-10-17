@@ -31,7 +31,7 @@ from .table import TempTable  # noqa
 from .transform import transform  # noqa
 from .job_commands import (  # noqa
     run_job_shell, get_job_stderr, get_job_input, get_job_input_paths,
-    dump_job_context, list_jobs, get_job, get_job_spec)
+    dump_job_context, list_jobs, get_job, get_job_spec, get_job_trace)
 from .etc_commands import execute_batch, get_supported_features  # noqa
 from .ypath import TablePath  # noqa
 from .http_helpers import get_user_name  # noqa
