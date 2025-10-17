@@ -4652,9 +4652,9 @@ class TestChaos(ChaosTestBase):
         card_id = get("//tmp/crt/@replication_card_id")
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids, ordered=True, schema=schema)
@@ -4677,10 +4677,10 @@ class TestChaos(ChaosTestBase):
             wait(lambda: _check(replica, 18))
 
         replicas.append({
-            "cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q1",
+            "cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1",
         })
         replicas.append({
-            "cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2",
+            "cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2",
         })
 
         new_replica_ids = [
