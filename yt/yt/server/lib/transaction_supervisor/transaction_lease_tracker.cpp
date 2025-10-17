@@ -328,6 +328,7 @@ private:
             .Timeout = request.Timeout,
             .UserDeadline = request.Deadline,
             .ExpirationHandler = request.ExpirationHandler,
+            .LastPingTime = TInstant::Now(),
         });
         YT_VERIFY(inserted);
 
@@ -364,6 +365,7 @@ private:
 
         if (auto descriptor = FindDescriptor(shard, request.TransactionId)) {
             descriptor->Timeout = request.Timeout;
+            DoRenewLease(shard, descriptor);
 
             YT_LOG_DEBUG("Transaction timeout set (TransactionId: %v, Timeout: %v)",
                 request.TransactionId,
@@ -373,13 +375,21 @@ private:
 
     void RenewLease(TShard* shard, TTransactionDescriptor* descriptor)
     {
-        if (!descriptor->TimedOut) {
-            UnregisterDeadline(shard, descriptor);
-            RegisterDeadline(shard, descriptor);
-
+        descriptor->LastPingTime = TInstant::Now();
+        if (DoRenewLease(shard, descriptor)) {
             YT_LOG_DEBUG("Transaction lease renewed (TransactionId: %v)",
                 descriptor->TransactionId);
         }
+    }
+
+    bool DoRenewLease(TShard* shard, TTransactionDescriptor* descriptor)
+    {
+        auto timedOut = descriptor->TimedOut;
+        if (!timedOut) {
+            UnregisterDeadline(shard, descriptor);
+            RegisterDeadline(shard, descriptor);
+        }
+        return !timedOut;
     }
 
     void ProcessPingRequest(TShard* rootShard, const TPingRequest& request)
@@ -486,7 +496,6 @@ private:
 
     void RegisterDeadline(TShard* shard, TTransactionDescriptor* descriptor)
     {
-        descriptor->LastPingTime = TInstant::Now();
         descriptor->Deadline = descriptor->Timeout
             ? descriptor->LastPingTime + *descriptor->Timeout
             : TInstant::Max();

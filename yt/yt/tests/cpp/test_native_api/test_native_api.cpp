@@ -1377,6 +1377,14 @@ public:
         }
         nativeConnection->Reconfigure(config);
     }
+
+    static void ReconfigureDefaultTimeout(TDuration timeout)
+    {
+        auto nativeConnection = dynamic_cast<NNative::IConnection*>(Connection_.Get());
+        auto config = CloneYsonStruct(nativeConnection->GetConfig());
+        config->TransactionManager->DefaultTransactionTimeout = timeout;
+        nativeConnection->Reconfigure(config);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1402,6 +1410,28 @@ TEST_F(TPingTransactionsTest, Basic)
     EXPECT_FALSE(unknownPingResult.IsOK());
     EXPECT_TRUE(pingResult1.IsOK());
     EXPECT_TRUE(pingResult2.IsOK());
+}
+
+TEST_F(TPingTransactionsTest, StartWithTimeout)
+{
+    ReconfigureDefaultTimeout(TDuration::Seconds(5));
+
+    auto startAttributes = CreateEphemeralAttributes();
+    startAttributes->Set("timeout", TDuration::Seconds(30));
+
+    auto startOptions = TTransactionStartOptions{
+        .Ping = false,
+        .Attributes = std::move(startAttributes),
+    };
+    auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
+        .ValueOrThrow();
+
+    Sleep(TDuration::Seconds(6));
+
+    EXPECT_NO_THROW(WaitFor(tx->Commit())
+        .ValueOrThrow());
+
+    ReconfigureDefaultTimeout(TDuration::Seconds(30));
 }
 
 TEST_F(TPingTransactionsTest, MaxBatchSize)
