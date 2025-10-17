@@ -21,6 +21,9 @@ struct TRemoveOperationRequest
     //! This field should not be empty in remove request
     //! but it can be None in archive request.
     std::optional<TInstant> RemovalStartTime;
+
+    //! Error for failed removal.
+    std::optional<TError> RemovalError;
 };
 
 struct TArchiveOperationRequest
