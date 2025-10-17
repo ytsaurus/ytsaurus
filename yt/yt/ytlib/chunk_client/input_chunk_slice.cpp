@@ -807,8 +807,8 @@ void FormatValue(TStringBuilderBase* builder, const TInputChunkSlicePtr& slice, 
 {
     Format(
         builder,
-        "ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, "
-        "CompressedDataSize: %v, UncompressedDataSize: %v, PartIndex: %v",
+        "{ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, "
+        "CompressedDataSize: %v, UncompressedDataSize: %v, PartIndex: %v}",
         slice->GetInputChunk()->GetChunkId(),
         slice->IsLegacy ? ToString(slice->LegacyLowerLimit()) : ToString(slice->LowerLimit()),
         slice->IsLegacy ? ToString(slice->LegacyUpperLimit()) : ToString(slice->UpperLimit()),

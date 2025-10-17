@@ -2434,7 +2434,7 @@ protected:
             }
         }
 
-        if (const auto *partitionLocalities = PartitionsLocalityByNodeId_.FindPtr(nodeId)) {
+        if (const auto* partitionLocalities = PartitionsLocalityByNodeId_.FindPtr(nodeId)) {
             if (!partitionLocalities->empty()) {
                 return std::make_from_tuple<TLocalityEntry>(*partitionLocalities->begin());
             }

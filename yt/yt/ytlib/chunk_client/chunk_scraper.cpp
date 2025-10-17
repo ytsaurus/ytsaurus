@@ -34,15 +34,10 @@ using NYT::FromProto;
 void FormatValue(TStringBuilderBase* builder, const TScrapedChunkInfo& info, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
-        "ScrapedChunkInfo(ChunkId: %v, Replicas: %v, Availability: %v)",
+        "{ChunkId: %v, Replicas: %v, Availability: %v}",
         info.ChunkId,
         info.Replicas,
         info.Availability);
-}
-
-std::ostream& operator<<(std::ostream& out, const TScrapedChunkInfo& info)
-{
-    return out << Format("%v", info);
 }
 
 void FormatValue(TStringBuilderBase* builder, TChunkScraperAvailabilityPolicy policy, TStringBuf /*spec*/)
@@ -194,8 +189,6 @@ class TUnavailableFirstQueue final
     : public IChunkScraperQueue
 {
 public:
-    TUnavailableFirstQueue() = default;
-
     std::vector<TChunkId> ExtractBatch(int maxBatchSize) override
     {
         auto unavailableBatch = UnavailableQueue_.ExtractBatch(maxBatchSize);

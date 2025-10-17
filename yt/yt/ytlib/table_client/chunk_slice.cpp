@@ -509,7 +509,7 @@ void ValidateChunkFormat(EChunkFormat chunkFormat, TChunkId chunkId)
 
 void FormatValue(TStringBuilderBase* builder, const TChunkSlice& slice, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v",
+    builder->AppendFormat("{LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v}",
         slice.LowerLimit,
         slice.UpperLimit,
         slice.RowCount,
