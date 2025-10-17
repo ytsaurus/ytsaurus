@@ -63,7 +63,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TGenericChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -76,13 +76,13 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TGenericChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
         NChunkClient::ESessionType sessionType,
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
+        TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica = {});
 
     TNodeList GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex);
 
@@ -90,7 +90,7 @@ public:
     // on different location of the same node.
     TChunkLocation* GetRemovalTarget(
         TChunkPtrWithReplicaAndMediumIndex replica,
-        const TChunkLocationPtrWithReplicaInfoList& replicas);
+        const TStoredChunkReplicaList& replicas);
 
     template <typename TGenericChunk>
     int GetMaxReplicasPerRack(
@@ -220,7 +220,7 @@ private:
     TNodeList GetWriteTargets(
         TDomesticMedium* medium,
         TGenericChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
@@ -229,13 +229,13 @@ private:
         const TNodeList* forbiddenNodes = nullptr,
         const TNodeList* allocatedNodes = nullptr,
         const std::optional<std::string>& preferredHostName = {},
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {},
+        TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica = {},
         bool systemAllocation = false);
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,

@@ -1116,7 +1116,7 @@ private:
 
     TNodeId GenerateNodeId()
     {
-        return GenerateCounterId(NodeIdGenerator_, InvalidNodeId, MaxNodeId);
+        return GenerateCounterId(NodeIdGenerator_, InvalidNodeId, MaxRealNodeId);
     }
 
     static TYPath GetNodePath(const std::string& address)
@@ -1947,6 +1947,16 @@ private:
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
+            }
+
+            // COMPAT(achulkov2, cherepashka): This is not supposed to happen on any real cluster. The code below is a safety precation to avoid
+            // damage to the cluster in such an unimaginalbe case. Updating a cluster from such a state will require custom builds,
+            // but it is so unlikely that any cluster has had so many nodes that we consider it impossible.
+            if (node->GetId() > MaxRealNodeId) {
+                YT_LOG_FATAL(
+                    "Existing node id is too large (NodeId: %v, MaxRealNodeId: %v)",
+                    node->GetId(),
+                    MaxRealNodeId);
             }
 
             node->RebuildTags();

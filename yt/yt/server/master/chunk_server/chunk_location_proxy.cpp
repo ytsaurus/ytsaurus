@@ -138,6 +138,7 @@ private:
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
                 if (medium->IsOffshore()) {
+                    // TODO(cherepashka): allow this when offshore media will be implemented, but do not forget to forbid it for journal chunks.
                     THROW_ERROR_EXCEPTION("Chunk location medium cannot be overridden with offshore medium")
                         << TErrorAttribute("location_id", location->GetId())
                         << TErrorAttribute("medium_index", medium->GetIndex())

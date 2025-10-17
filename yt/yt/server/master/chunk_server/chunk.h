@@ -5,6 +5,7 @@
 #include "chunk_replica.h"
 #include "chunk_tree.h"
 #include "incumbency_epoch.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -168,19 +169,19 @@ public:
     int GetParentCount() const;
     bool HasParents() const;
 
-    TRange<TChunkLocationPtrWithReplicaInfo> StoredReplicas() const;
+    TRange<TAugmentedStoredChunkReplicaPtr> StoredReplicas() const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
     TRange<TNodeId> LastSeenReplicas() const;
 
     void AddReplica(
-        TChunkLocationPtrWithReplicaInfo replica,
-        const TDomesticMedium* medium,
+        TAugmentedStoredChunkReplicaPtr replica,
+        const TMedium* medium,
         bool approved);
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
 
-    void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
+    void ApproveReplica(TAugmentedStoredChunkReplicaPtr replica);
     int GetApprovedReplicaCount() const;
 
     // COMPAT(ifsmirnov)
@@ -414,9 +415,9 @@ private:
 
         virtual ~TReplicasDataBase() = default;
 
-        virtual TRange<TChunkLocationPtrWithReplicaInfo> GetStoredReplicas() const = 0;
-        virtual TMutableRange<TChunkLocationPtrWithReplicaInfo> MutableStoredReplicas() = 0;
-        virtual void AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica) = 0;
+        virtual TRange<TAugmentedStoredChunkReplicaPtr> GetStoredReplicas() const = 0;
+        virtual TMutableRange<TAugmentedStoredChunkReplicaPtr> MutableStoredReplicas() = 0;
+        virtual void AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica) = 0;
         virtual void RemoveStoredReplica(int replicaIndex) = 0;
 
         //! Null entries are InvalidNodeId.
@@ -431,9 +432,7 @@ private:
     struct TReplicasData
         : public TReplicasDataBase
     {
-        using TStoredReplicas = TCompactVector<TChunkLocationPtrWithReplicaInfo, TypicalStoredReplicaCount>;
-
-        TStoredReplicas StoredReplicas;
+        TStoredChunkReplicaList StoredReplicas;
 
         std::array<TNodeId, MaxLastSeenReplicaCount> LastSeenReplicas;
 
@@ -448,9 +447,9 @@ private:
         TMutableRange<TNodeId> MutableLastSeenReplicas() override;
 
         //! Null entries are InvalidNodeId.
-        TRange<TChunkLocationPtrWithReplicaInfo> GetStoredReplicas() const override;
-        TMutableRange<TChunkLocationPtrWithReplicaInfo> MutableStoredReplicas() override;
-        void AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica) override;
+        TRange<TAugmentedStoredChunkReplicaPtr> GetStoredReplicas() const override;
+        TMutableRange<TAugmentedStoredChunkReplicaPtr> MutableStoredReplicas() override;
+        void AddStoredReplica(TAugmentedStoredChunkReplicaPtr replica) override;
         void RemoveStoredReplica(int replicaIndex) override;
 
         void Load(NCellMaster::TLoadContext& context) override;
@@ -465,9 +464,6 @@ private:
     static constexpr int ErasureChunkLastSeenReplicaCount = 16;
     static_assert(ErasureChunkLastSeenReplicaCount >= ::NErasure::MaxTotalPartCount, "ErasureChunkLastSeenReplicaCount < NErasure::MaxTotalPartCount");
     using TErasureChunkReplicasData = TReplicasData<ErasureChunkTypicalReplicaCount, ErasureChunkLastSeenReplicaCount>;
-
-    // COMPAT(gritukan)
-    static constexpr int OldLastSeenReplicaCount = 16;
 
     //! This additional indirection helps to save up some space since
     //! no replicas are being maintained for foreign chunks.

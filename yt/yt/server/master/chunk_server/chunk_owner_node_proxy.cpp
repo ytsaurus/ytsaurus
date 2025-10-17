@@ -139,8 +139,8 @@ void CanonizeCellTags(TCellTagList* cellTags)
         cellTags->end());
 }
 
-void PopulateChunkSpecWithReplicas(
-    const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
+static void PopulateChunkSpecWithReplicas(
+    const TStoredChunkReplicaList& chunkReplicas,
     bool fetchParityReplicas,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -153,12 +153,17 @@ void PopulateChunkSpecWithReplicas(
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    auto addReplica = [&] (TChunkLocationPtrWithReplicaInfo replica)  {
+    auto addReplica = [&] (const TAugmentedStoredChunkReplicaPtr& replica)  {
+        auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+        if (!locationReplica) {
+            // TODO(cherepashka): actually return medium replicas in chunk specs, once more logic is here.
+            return false;
+        }
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        const auto* location = replica.GetPtr();
-        replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), location->GetEffectiveMediumIndex());
+        const auto* location = locationReplica->AsChunkLocationPtr();
+        replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), replica.GetEffectiveMediumIndex());
         nodeDirectoryBuilder->Add(replica);
         return true;
     };
@@ -266,7 +271,7 @@ void BuildReplicalessChunkSpec(
 void BuildChunkSpec(
     TBootstrap* bootstrap,
     TChunk* chunk,
-    const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
+    const TStoredChunkReplicaList& chunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,
@@ -443,9 +448,9 @@ private:
                 return false;
             }
 
-            const auto& replicas = chunkReplicasOrError.Value();
+            const auto& chunkReplicas = chunkReplicasOrError.Value();
             PopulateChunkSpecWithReplicas(
-                replicas,
+                chunkReplicas,
                 FetchContext_.FetchParityReplicas,
                 &NodeDirectoryBuilder_,
                 &chunkSpec);
@@ -1050,7 +1055,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                     int chosenMediumReplicaCount = 0;
 
                     for (auto replica : replicas) {
-                        int mediumIndex = replica.GetPtr()->GetEffectiveMediumIndex();
+                        int mediumIndex = replica.GetEffectiveMediumIndex();
                         if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
                             chosenMediumIndex = mediumIndex;
                             ++chosenMediumReplicaCount;
