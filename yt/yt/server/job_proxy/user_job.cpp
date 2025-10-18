@@ -34,6 +34,8 @@
 
 #include <yt/yt/server/lib/user_job/config.h>
 
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
 #include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/server/tools/proc.h>

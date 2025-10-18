@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, set, create_pool, write_file, read_table, write_table, map, vanilla, get_job,
     update_nodes_dynamic_config, update_controller_agent_config, remember_controller_agent_config,
-    run_test_vanilla, sync_create_cells)
+    run_test_vanilla, sync_create_cells, extract_statistic_v2)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
 
@@ -13,6 +13,7 @@ from yt_helpers import read_structured_log, write_log_barrier
 import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import YtError, update
+from yt.test_helpers import are_almost_equal
 import pytest
 
 import string
@@ -309,6 +310,43 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
                        event["statistics"]["job_proxy"]["cumulative_max_memory"]["last"]
 
 ###############################################################################################
+
+
+class TestUserJobReserveStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 4,
+            },
+        },
+    }
+
+    @authors("aleksandr.gaev")
+    def test_cpu_reserve_statistics(self):
+        cpu_limits = [0.02, 0.3, 1, 1.15, 2]
+
+        for cpu_limit in cpu_limits:
+            op = run_test_vanilla(
+                "sleep 0.1",
+                job_count=1,
+                track=True,
+                task_patch={"cpu_limit": cpu_limit},
+            )
+
+            statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+            cpu_reserve_millicores = extract_statistic_v2(
+                statistics,
+                "user_job.cpu_reserve_millicores",
+                job_state="completed",
+                job_type=None,
+            )
+
+            assert cpu_reserve_millicores is not None
+            assert are_almost_equal(cpu_reserve_millicores / 1000.0, cpu_limit)
 
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
@@ -975,6 +1013,35 @@ class TestSchedulerGpu(YTEnvSetup):
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
         assert next(iter(jobs.values()))["address"] == gpu_node
+
+    @authors("aleksandr.gaev")
+    def test_gpu_reserve_statistics(self):
+        gpu_limits = [0, 1, 2]
+
+        for gpu_limit in gpu_limits:
+            op = run_test_vanilla(
+                "sleep 0.1",
+                job_count=1,
+                track=True,
+                task_patch={
+                    "gpu_limit": gpu_limit,
+                    "enable_gpu_layers": False,
+                },
+            )
+
+            statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+            gpu_reserve = extract_statistic_v2(
+                statistics,
+                "user_job.gpu_reserve",
+                job_state="completed",
+                job_type=None,
+            )
+
+            if gpu_limit == 0:
+                assert gpu_reserve is None
+            else:
+                assert gpu_reserve is not None
+                assert gpu_reserve == gpu_limit
 
     @authors("ignat")
     def test_strong_guarantee_resources(self):
