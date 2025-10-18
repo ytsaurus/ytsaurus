@@ -10,6 +10,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = StrategyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TResourceTreeElement::TResourceTreeElement(
     TResourceTree* resourceTree,
     const TString& id,
@@ -117,21 +121,43 @@ bool TResourceTreeElement::AreResourceLimitsSpecified() const
     return ResourceLimitsSpecified_;
 }
 
-bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
+// NB(eshcherbin): All detailed logs are temporarily added to find a rare data race with precommit. See: YT-24063.
+bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(
+    const TJobResources& delta,
+    bool enableDetailedLogs)
 {
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
+        YT_LOG_DEBUG_IF(enableDetailedLogs,
+            "Skipping local resource usage precommmit because element has no specified resource limits "
+            "(Id: %v, Delta: %v)",
+            Id_,
+            delta);
+
         return true;
     }
 
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
+        YT_LOG_DEBUG_IF(enableDetailedLogs,
+            "Unable to increase local resource usage precommit because element is not alive "
+            "(Id: %v, Delta: %v)",
+            Id_,
+            delta);
+
         return false;
     }
 
     ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsagePrecommit_ += delta;
+
+    YT_LOG_DEBUG_IF(enableDetailedLogs,
+        "Successfully increased local resource usage precommit "
+        "(Id: %v, Delta: %v, ResourceUsagePrecommit: %v)",
+        Id_,
+        delta,
+        ResourceUsagePrecommit_);
 
     if (Kind_ == EResourceTreeElementKind::Operation) {
         YT_VERIFY(Dominates(ResourceUsagePrecommit_, TJobResources()));

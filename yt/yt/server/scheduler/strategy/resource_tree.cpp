@@ -109,6 +109,9 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
 
     IncrementStructureLockReadCount();
 
+    // TODO(eshcherbin): As a last resort, add a special lock (separate from ResourceUsageLock_) which would guarantee that
+    // all hierarchical precommit changes that originate from this operation are finished before resources are released.
+    YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
     YT_VERIFY(element->Initialized_);
     YT_VERIFY(element->Parent_);
 
@@ -125,7 +128,7 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
             FormatResources(usage),
             FormatResources(usagePrecommit));
 
-        DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_, -usagePrecommit);
+        DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_, -usagePrecommit, /*enableDetailedLogs*/ true);
         DoIncreaseHierarchicalResourceUsage(element->Parent_, -usage);
     } else {
         // Relaxed way to release resources.
@@ -162,6 +165,7 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 
     IncrementStructureLockReadCount();
 
+    YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
     YT_VERIFY(element->Initialized_);
 
     DoIncreaseHierarchicalResourceUsage(element, delta);
@@ -201,6 +205,12 @@ void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTr
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!element->GetAlive()) {
+        YT_LOG_DEBUG(
+            "Unable to increase resource usage precommit hierarchically because element is not alive "
+            "(Id: %v, Delta: %v)",
+            element->GetId(),
+            delta);
+
         return;
     }
 
@@ -215,20 +225,22 @@ void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTr
 
 void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
     const TResourceTreeElementPtr& element,
-    const TJobResources& delta)
+    const TJobResources& delta,
+    bool enableDetailedLogs)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(element->Initialized_);
 
-    auto increaseLocalResourceUsagePrecommit = [element] (auto* current, const TJobResources& delta) {
-        bool success = current->IncreaseLocalResourceUsagePrecommit(delta);
+    auto increaseLocalResourceUsagePrecommit = [element, enableDetailedLogs] (auto* current, const TJobResources& delta) {
+        bool success = current->IncreaseLocalResourceUsagePrecommit(delta, enableDetailedLogs);
         YT_LOG_DEBUG_UNLESS(
             success,
             "Local increase of usage precommit failed (Delta: %v, CurrentElement: %v, SourceElement: %v)",
             delta,
             current->GetId(),
             element->GetId());
+
         return success;
     };
 
@@ -238,8 +250,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     auto* current = element->Parent_.Get();
     while (current) {
-        bool success = increaseLocalResourceUsagePrecommit(current, delta);
-        YT_ASSERT(success);
+        YT_VERIFY(increaseLocalResourceUsagePrecommit(current, delta));
         current = current->Parent_.Get();
     }
 }
@@ -260,6 +271,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
 
     IncrementStructureLockReadCount();
 
+    YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
     YT_VERIFY(element->Initialized_);
 
     auto availableResourceLimits = TJobResources::Infinite();
@@ -305,6 +317,7 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
     IncrementStructureLockReadCount();
 
+    YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
     YT_VERIFY(element->Initialized_);
 
     auto commitLocalResourceUsage = [element] (auto* current, const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources) {
@@ -325,8 +338,7 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
     auto* current = element->Parent_.Get();
     while (current) {
-        bool success = commitLocalResourceUsage(current, resourceUsageDelta, precommittedResources);
-        YT_ASSERT(success);
+        YT_VERIFY(commitLocalResourceUsage(current, resourceUsageDelta, precommittedResources));
         current = current->Parent_.Get();
     }
 }
