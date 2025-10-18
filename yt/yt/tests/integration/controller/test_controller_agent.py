@@ -291,7 +291,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                 out=out,
                 spec={
                     "testing": {
-                        "allocation_size": 20 * 1024 ** 2,
+                        "allocation_size": 30 * 1024 ** 2,
                         "allocation_release_delay": 1000 ** 2,
                     }
                 },
