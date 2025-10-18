@@ -77,7 +77,10 @@ private:
     std::atomic<bool> EnableUsageLockProfiling = false;
 
     // For testing.
-    std::optional<TDuration> DelayInsideResourceUsageInitializationInTree_;
+    std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay_;
+    std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay_;
+    std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_;
+    std::optional<TDuration> ResourceTreeRevertResourceUsagePrecommitRandomDelay_;
 
     THashSet<TResourceTreeElementPtr> AliveElements_;
 
