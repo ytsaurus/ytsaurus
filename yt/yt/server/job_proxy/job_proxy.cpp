@@ -280,11 +280,11 @@ TSharedRef TJobProxy::DumpSensors()
             tags = tags
                 // Alternative to host tag.
                 .WithAlternativeTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor}, /*alternativeTo*/ -2)
-                .WithRequiredTag(NProfiling::TTag{"host", ""});
+                .WithExtensionTag(NProfiling::TTag{"host", ""}, /*extensionTo*/ -1);
         } else {
             tags = tags
-                .WithTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor})
-                .WithRequiredTag(NProfiling::TTag{"host", ""});
+                .WithRequiredTag(NProfiling::TTag{"job_descriptor", jobProxyDescriptor})
+                .WithExtensionTag(NProfiling::TTag{"host", ""}, /*extensionTo*/ -1);
         }
     }
 
