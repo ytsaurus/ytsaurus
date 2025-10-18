@@ -283,7 +283,10 @@ struct TTreeTestingOptions
 {
     TDelayConfigPtr DelayInsideFairShareUpdate;
 
-    std::optional<TDuration> DelayInsideResourceUsageInitializationInTree;
+    std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
+    std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;
+    std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
+    std::optional<TDuration> ResourceTreeRevertResourceUsagePrecommitRandomDelay;
 
     REGISTER_YSON_STRUCT(TTreeTestingOptions);
 
@@ -490,6 +493,10 @@ struct TStrategyTreeConfig
     bool EnableDetailedLogsForSingleAllocationVanillaOperations;
 
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
+
+    // Testing options.
+    bool EnablePreliminaryResourceLimitsCheck;
+    bool EnableResourceTreeRandomSleeps;
 
     REGISTER_YSON_STRUCT(TStrategyTreeConfig);
 

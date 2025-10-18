@@ -436,7 +436,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
             "default",
             {
                 "testing_options": {
-                    "delay_inside_resource_usage_initialization_in_tree": 2000,
+                    "resource_tree_initialize_resource_usage_delay": 2000,
                 },
             })
 
@@ -2493,6 +2493,53 @@ class TestEphemeralPools(YTEnvSetup):
         with raises_yt_error("must match regular expression"):
             run_test_vanilla(":", track=True, spec={"pool": "a+b"})
         run_test_vanilla(":", track=True, spec={"pool": "a-_.b"})
+
+    @authors("ignat")
+    @pytest.mark.timeout(300)
+    def test_resource_tree_races(self):
+        update_pool_tree_config("default", {
+            "default_parent_pool": "research",
+            "max_ephemeral_pools_per_user": 3,
+            "enable_preliminary_resource_limits_check": False,
+            "testing_options": {
+                "resource_tree_release_resource_random_delay": 200,
+                "resource_tree_increase_local_resource_usage_random_delay": 10,
+                "resource_tree_revert_resource_usage_precommit_random_delay": 200,
+            },
+        })
+
+        create_pool(
+            "research",
+            attributes={
+                "create_ephemeral_subpools": True,
+                "ephemeral_subpool_config": {
+                    "resource_limits": {"cpu": 2},
+                },
+                "resource_limits": {"cpu": 1},
+            })
+
+        for i in range(20):
+            ops = []
+            for j in range(3):
+                op = run_test_vanilla(
+                    command="sleep 0.5",
+                    spec={
+                        "pool": "pool" + str(j),
+                        "testing": {
+                            "schedule_allocation_delay_scheduler": {"duration": 1000, "type": "async"},
+                        },
+                    },
+                    task_patch={"cpu_limit": 1.0},
+                    track=False,
+                    job_count=5)
+                ops.append(op)
+
+            time.sleep(0.3)
+
+            for op in ops:
+                op.abort()
+
+            time.sleep(1.0)
 
 
 @pytest.mark.enabled_multidaemon

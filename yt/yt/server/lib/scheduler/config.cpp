@@ -340,7 +340,13 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("delay_inside_fair_share_update", &TThis::DelayInsideFairShareUpdate)
         .Default();
 
-    registrar.Parameter("delay_inside_resource_usage_initialization_in_tree", &TThis::DelayInsideResourceUsageInitializationInTree)
+    registrar.Parameter("resource_tree_initialize_resource_usage_delay", &TThis::ResourceTreeInitializeResourceUsageDelay)
+        .Default();
+    registrar.Parameter("resource_tree_release_resource_random_delay", &TThis::ResourceTreeReleaseResourcesRandomDelay)
+        .Default();
+    registrar.Parameter("resource_tree_increase_local_resource_usage_random_delay", &TThis::ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay)
+        .Default();
+    registrar.Parameter("resource_tree_revert_resource_usage_precommit_random_delay", &TThis::ResourceTreeRevertResourceUsagePrecommitRandomDelay)
         .Default();
 }
 
@@ -647,6 +653,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
+        .Default(true);
+
+    registrar.Parameter("enable_preliminary_resource_limits_check", &TThis::EnablePreliminaryResourceLimitsCheck)
         .Default(true);
 
     registrar.Postprocessor([&] (TStrategyTreeConfig* config) {

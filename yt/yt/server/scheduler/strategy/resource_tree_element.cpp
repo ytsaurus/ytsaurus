@@ -7,6 +7,7 @@
 namespace NYT::NScheduler::NStrategy {
 
 using namespace NConcurrency;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +149,15 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(
         return false;
     }
 
+    return IncreaseLocalResourceUsagePrecommitUnsafe(delta, enableDetailedLogs);
+}
+
+bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitUnsafe(
+    const TJobResources& delta,
+    bool enableDetailedLogs)
+{
+    Y_UNUSED(enableDetailedLogs);
+
     ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsagePrecommit_ += delta;
@@ -262,6 +272,17 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
         return false;
     }
 
+    return IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(delta, allowLimitsOvercommit, availableResourceLimitsOutput);
+}
+
+bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
+    const TJobResources& delta,
+    bool allowLimitsOvercommit,
+    TJobResources* availableResourceLimitsOutput)
+{
+    YT_ASSERT(availableResourceLimitsOutput);
+    *availableResourceLimitsOutput = TJobResources::Infinite();
+
     if (SpecifiedResourceLimits_) {
         auto resourceDiscount = allowLimitsOvercommit
             ? SpecifiedResourceLimitsOvercommitTolerance_
@@ -280,6 +301,11 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     ResourceUsagePrecommit_ += delta;
 
     return true;
+}
+
+TWriterGuard<TPaddedReaderWriterSpinLock> TResourceTreeElement::AcquireWriteLock()
+{
+    return WriterGuard(ResourceUsageLock_);
 }
 
 void TResourceTreeElement::MarkInitialized()
