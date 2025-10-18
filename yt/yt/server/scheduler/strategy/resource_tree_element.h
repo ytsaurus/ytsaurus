@@ -48,6 +48,8 @@ public:
     inline bool GetAlive() const;
     inline void SetNonAlive();
 
+    NThreading::TWriterGuard<NThreading::TPaddedReaderWriterSpinLock> AcquireWriteLock();
+
     inline const TString& GetId();
 
     void MarkInitialized();
@@ -79,7 +81,16 @@ private:
         bool allowLimitsOvercommit,
         TJobResources* availableResourceLimitsOutput);
 
+    bool IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
+        const TJobResources& delta,
+        bool allowLimitsOvercommit,
+        TJobResources* availableResourceLimitsOutput);
+
     bool IncreaseLocalResourceUsagePrecommit(
+        const TJobResources& delta,
+        bool enableDetailedLogs = false);
+
+    bool IncreaseLocalResourceUsagePrecommitUnsafe(
         const TJobResources& delta,
         bool enableDetailedLogs = false);
 
