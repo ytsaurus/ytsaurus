@@ -378,7 +378,7 @@ class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
 
             assert any(projection["value"] > 0 for projection in slot_index_projections)
             assert all(
-                "host" in projection["tags"] and "job_descriptor" not in projection["tags"]
+                projection["tags"].get("host", "") == "node.yt.test" and "job_descriptor" not in projection["tags"]
                 for projection in slot_index_projections)
 
         socket_file = self.run_job_proxy(enable_rpc_proxy=True, enable_monitoring=True)
