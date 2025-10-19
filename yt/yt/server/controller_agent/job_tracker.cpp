@@ -727,6 +727,10 @@ TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
 template <CInvocable<void(const TError&)> TCallback>
 void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
 {
+    if (Future_.IsSet()) {
+        return;
+    }
+
     auto callback = BIND([onCanceled = std::forward<TCallback>(onCanceled)] (const TError& error) mutable {
         if (error.IsOK()) {
             return;
@@ -741,7 +745,7 @@ void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
     Future_.Subscribe(std::move(callback));
 
     // NB(pogorelov): Canceling request should not cancel barrier.
-    WaitFor(Future_.ToImmediatelyCancelable(/*propagateCancelation*/ false)).ThrowOnError();
+    WaitForFast(Future_.ToImmediatelyCancelable(/*propagateCancelation*/ false)).ThrowOnError();
 }
 
 void TJobTracker::TInBarrier::Cancel(const TError& error) const
@@ -1317,7 +1321,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
             .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
             .Run();
 
-        jobInfoOrError = WaitFor(
+        jobInfoOrError = WaitForFast(
             std::move(asyncJobInfo));
 
         if (Config_->TestingOptions) {
