@@ -156,8 +156,6 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitUnsafe(
     const TJobResources& delta,
     bool enableDetailedLogs)
 {
-    Y_UNUSED(enableDetailedLogs);
-
     ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsagePrecommit_ += delta;
@@ -268,10 +266,6 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
 
     auto guard = WriterGuard(ResourceUsageLock_);
 
-    if (!Alive_) {
-        return false;
-    }
-
     return IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(delta, allowLimitsOvercommit, availableResourceLimitsOutput);
 }
 
@@ -280,6 +274,10 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(
     bool allowLimitsOvercommit,
     TJobResources* availableResourceLimitsOutput)
 {
+    if (!Alive_) {
+        return false;
+    }
+
     YT_ASSERT(availableResourceLimitsOutput);
     *availableResourceLimitsOutput = TJobResources::Infinite();
 
