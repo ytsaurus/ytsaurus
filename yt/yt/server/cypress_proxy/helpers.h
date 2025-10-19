@@ -167,7 +167,7 @@ private:
 
 NYTree::IConstAttributeDictionaryPtr CalculateInheritedAttributes(
     TNodeAncestry ancestry,
-    const TNodeIdToAttributes& inheritableAttributes);
+    const TNodeIdToConstAttributes& inheritableAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

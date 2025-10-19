@@ -155,7 +155,7 @@ TNodeId CreateIntermediateMapNodes(
 TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const TAbsolutePath& sourceRootPath,
-    const TNodeIdToAttributes& sourceInheritableAttributes,
+    const TNodeIdToConstAttributes& sourceInheritableAttributes,
     const TAbsolutePath& destinationRootPath,
     TNodeId destinationSubtreeParentId,
     const IAttributeDictionary* destinationInheritedAttributes,
