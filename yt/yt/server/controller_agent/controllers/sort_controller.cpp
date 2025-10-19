@@ -488,9 +488,8 @@ protected:
         TPartitionTask(
             TSortControllerBase* controller,
             std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-            std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
             int level)
-            : TTask(controller, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
+            : TTask(controller, std::move(outputStreamDescriptors), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
             , Level_(level)
         {
@@ -2755,7 +2754,7 @@ protected:
                 PartitionsByLevels_.resize(level + 1);
             }
 
-            auto levelPartitionIndex = PartitionsByLevels_[level].size();
+            int levelPartitionIndex = std::ssize(PartitionsByLevels_[level]);
             auto partition = New<TPartition>(this, level, levelPartitionIndex);
             PartitionsByLevels_[level].push_back(partition);
             for (int childIndex = 0; childIndex < std::ssize(partitionTreeSkeleton->Children); ++childIndex) {
@@ -3291,7 +3290,7 @@ private:
             MaxPartitionFactor_,
             SimpleSort_);
 
-        BuildPartitionTree(PartitionCount_,MaxPartitionFactor_);
+        BuildPartitionTree(PartitionCount_, MaxPartitionFactor_);
 
         AssignPartitionKeysToPartitions(partitionKeys, /*setManiac*/ true);
 
@@ -3339,8 +3338,7 @@ private:
 
             PartitionTasks_[partitionTaskLevel] = New<TPartitionTask>(
                 this,
-                std::vector<TOutputStreamDescriptorPtr>{shuffleStreamDescriptor},
-                std::vector<TInputStreamDescriptorPtr>{},
+                /*outputStreamDescriptors*/ std::vector<TOutputStreamDescriptorPtr>{shuffleStreamDescriptor},
                 partitionTaskLevel);
         }
 
@@ -4247,7 +4245,7 @@ private:
         CreateSortedMergeTask();
 
         // NB: Here we register tasks in order of descending priority.
-        PreparePartitionTasks(RootPartitionPoolJobSizeConstraints_);
+        PreparePartitionTasks();
 
         PrepareSortTasks();
 
@@ -4258,14 +4256,14 @@ private:
         SetupPartitioningCompletedCallbacks();
     }
 
-    void PreparePartitionTasks(const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
+    void PreparePartitionTasks()
     {
         bool useJobSizeAdjuster = Spec_->Ordered
             ? Config_->EnableOrderedPartitionMapJobSizeAdjustment
             : Config_->EnablePartitionMapJobSizeAdjustment;
 
         InitPartitionPool(
-            partitionJobSizeConstraints,
+            RootPartitionPoolJobSizeConstraints_,
             useJobSizeAdjuster
                 ? Options_->PartitionJobSizeAdjuster
                 : nullptr,
@@ -4299,8 +4297,7 @@ private:
             }
             PartitionTasks_[partitionTaskLevel] = New<TPartitionTask>(
                 this,
-                partitionStreamDescriptors,
-                std::vector<TInputStreamDescriptorPtr>{},
+                /*outputStreamDescriptors*/ partitionStreamDescriptors,
                 partitionTaskLevel);
         }
 
@@ -4314,13 +4311,13 @@ private:
             partitionTask->RegisterInGraph();
         }
 
-        ProcessInputs(PartitionTasks_[0], partitionJobSizeConstraints);
+        ProcessInputs(PartitionTasks_[0], RootPartitionPoolJobSizeConstraints_);
         FinishTaskInput(PartitionTasks_[0]);
 
         YT_LOG_INFO("Map-reducing with partitioning (PartitionCount: %v, PartitionJobCount: %v, PartitionDataWeightPerJob: %v)",
             GetFinalPartitions().size(),
-            partitionJobSizeConstraints->GetJobCount(),
-            partitionJobSizeConstraints->GetDataWeightPerJob());
+            RootPartitionPoolJobSizeConstraints_->GetJobCount(),
+            RootPartitionPoolJobSizeConstraints_->GetDataWeightPerJob());
     }
 
     TOutputStreamDescriptorPtr GetSortedMergeStreamDescriptor() const override
