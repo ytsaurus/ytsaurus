@@ -697,7 +697,7 @@ void TInheritedAttributesCalculator::ChangeNode(TAbsolutePath path, const IAttri
 
 IConstAttributeDictionaryPtr CalculateInheritedAttributes(
     TRange<TCypressNodeDescriptor> ancestry,
-    const TNodeIdToAttributes& inheritableAttributes)
+    const TNodeIdToConstAttributes& inheritableAttributes)
 {
     YT_VERIFY(!ancestry.Empty());
     TInheritedAttributesCalculator calculator;

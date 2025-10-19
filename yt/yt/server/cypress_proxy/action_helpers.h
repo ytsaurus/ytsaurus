@@ -70,7 +70,7 @@ NCypressClient::TNodeId CreateIntermediateMapNodes(
 NCypressClient::TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
     const NSequoiaClient::TAbsolutePath& sourceRootPath,
-    const TNodeIdToAttributes& sourceInheritableAttributes,
+    const TNodeIdToConstAttributes& sourceInheritableAttributes,
     const NSequoiaClient::TAbsolutePath& destinationRootPath,
     NCypressClient::TNodeId destinationSubtreeParentId,
     const NYTree::IAttributeDictionary* destinationInheritedAttributes,

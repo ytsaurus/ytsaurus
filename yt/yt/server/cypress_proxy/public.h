@@ -95,10 +95,12 @@ DEFINE_ENUM(EUserWorkloadType,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequestExecutedPayload;
-
 struct TForwardToMasterPayload;
 
-using TInvokeResult = std::variant<TRequestExecutedPayload, TForwardToMasterPayload>;
+using TInvokeResult = std::variant<
+    TRequestExecutedPayload,
+    TForwardToMasterPayload
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,7 +187,7 @@ using TUserDescriptorPtr = std::shared_ptr<const TUserDescriptor>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TNodeIdToAttributes = THashMap<NCypressClient::TNodeId, NYTree::IConstAttributeDictionaryPtr>;
+using TNodeIdToConstAttributes = THashMap<NCypressClient::TNodeId, NYTree::IConstAttributeDictionaryPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
