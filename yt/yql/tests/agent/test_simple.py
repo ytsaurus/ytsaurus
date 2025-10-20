@@ -1733,7 +1733,7 @@ class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
 @authors("staketd")
 class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
     YQL_SUBPROCESSES_COUNT = 8
-../ytsaurus/yt/yql/tools/
+
 
 @authors("a-romanov")
 class TestsDDL(TestQueriesYqlSimpleBase):
@@ -1849,6 +1849,8 @@ class TestsDDL(TestQueriesYqlSimpleBase):
     ]
 }"""
                }])
+
+
 @authors("mpereskokova")
 class TestStackOverflowWithProcesses(TestStackOverflow):
     YQL_SUBPROCESSES_COUNT = 8
