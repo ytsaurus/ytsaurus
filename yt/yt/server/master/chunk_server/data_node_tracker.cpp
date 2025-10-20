@@ -636,6 +636,17 @@ public:
     {
         YT_VERIFY(hintId || Bootstrap_->IsPrimaryMaster());
 
+        auto it = ChunkLocationUuidToLocation_.find(locationUuid);
+        if (it != ChunkLocationUuidToLocation_.end()) {
+            auto* oldLocation = it->second;
+            if (!IsObjectAlive(oldLocation)) {
+                YT_LOG_ALERT("Creating location with existing uuid (Uuid: %v)",
+                    locationUuid);
+                MaybeUnregisterChunkLocationUuid(oldLocation->GetId(), locationUuid);
+            } else {
+                YT_ABORT();
+            }
+        }
         auto objectId = hintId ? hintId : ObjectIdFromChunkLocationIndex(GenerateChunkLocationIndex());
 
         auto locationHolder = TPoolAllocator::New<TChunkLocation>(objectId);
@@ -704,7 +715,7 @@ public:
 
 
         // COMPAT(aleksandra-zh): change to UnregisterChunkLocationUuid.
-        MaybeUnregisterChunkLocationUuid(location->GetUuid());
+        MaybeUnregisterChunkLocationUuid(location->GetId(), location->GetUuid());
     }
 
     const TChunkLocationUuidMap& ChunkLocationUuidMap() const override
@@ -777,7 +788,7 @@ private:
     }
 
     // COMPAT(aleksandra-zh).
-    void MaybeUnregisterChunkLocationUuid(TChunkLocationUuid uuid)
+    void MaybeUnregisterChunkLocationUuid(TObjectId locationId, TChunkLocationUuid uuid)
     {
         // For locations zombified before the update, but destroyed after.
         auto uuidToLocationIt = ChunkLocationUuidToLocation_.find(uuid);
@@ -785,6 +796,12 @@ private:
             YT_LOG_ALERT("Zombie location is not present in ChunkLocationUuidToLocation_ (LocationUuid: %v)",
                 uuid);
         } else {
+            if (uuidToLocationIt->second->GetId() != locationId) {
+                YT_LOG_ALERT("There is already a new location in ChunkLocationUuidToLocation_ (LocationId: %v, LocationUuid: %v)",
+                    locationId,
+                    uuid);
+                return;
+            }
             ChunkLocationUuidToLocation_.erase(uuidToLocationIt);
         }
 
