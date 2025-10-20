@@ -58,6 +58,8 @@
 #include <yql/essentials/sql/v1/proto_parser/antlr4_ansi/proto_parser.h>
 #include <yql/essentials/parser/pg_wrapper/interface/parser.h>
 
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/library/program/config.h>
@@ -745,24 +747,34 @@ public:
         std::vector<TQueryFile> files,
         int executeMode) noexcept override
     {
-        auto finalCleaning = Finally([&] {
-            auto guard = WriterGuard(ProgressSpinLock_);
-            // throwing of FiberCancellationException should keep queryId in ActiveQueriesProgress_
-            if (ActiveQueriesProgress_.contains(queryId)) {
-                ActiveQueriesProgress_[queryId].Finished = true;
-            }
-            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished";
-        });
+        TQueryResult result;
 
-        try {
-            return GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
-        } catch (const std::exception& ex) {
-            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished with errors";
-            ExtractQuery(queryId, /*force*/ true);
-            return TQueryResult{
-                .YsonError = MessageToYtErrorYson(ex.what()),
-            };
-        }
+        auto coroutine = NConcurrency::TCoroutine<void()>(
+            BIND([&](NConcurrency::TCoroutine<void()>& /*self*/){
+                auto finalCleaning = Finally([&] {
+                    auto guard = WriterGuard(ProgressSpinLock_);
+                    // throwing of FiberCancellationException should keep queryId in ActiveQueriesProgress_
+                    if (ActiveQueriesProgress_.contains(queryId)) {
+                        ActiveQueriesProgress_[queryId].Finished = true;
+                    }
+                    YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished";
+                });
+
+                try {
+                    result = GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
+                } catch (const std::exception& ex) {
+                    YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished with errors";
+                    ExtractQuery(queryId, /*force*/ true);
+                    result = TQueryResult{
+                        .YsonError = MessageToYtErrorYson(ex.what()),
+                    };
+                }
+            }),
+            NConcurrency::EExecutionStackKind::Large);
+        coroutine.Run();
+        YT_VERIFY(coroutine.IsCompleted());
+
+        return result;
     }
 
     TQueryResult GetProgress(TQueryId queryId) noexcept override

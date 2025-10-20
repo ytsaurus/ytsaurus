@@ -53,6 +53,48 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
         return False
 
 
+class TestStackOverflow(TestQueriesYqlSimpleBase):
+    @authors("mpereskokova")
+    def test_stack_overflow(self, query_tracker, yql_agent):
+
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "x", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "x", "type": "string"}]
+        })
+        rows1 = [{"x": str(i)} for i in range(1024)]
+        rows2 = [{"x": str(i)} for i in range(256)]
+
+        write_table("//tmp/t1", rows1)
+        write_table("//tmp/t2", rows2)
+
+        query = self.start_query("yql", """
+            $src = "//tmp/t1";
+            $small_table = "//tmp/t2";
+
+            DEFINE ACTION $split_by_dataset($ds) AS
+                $out = "//tmp" || $ds;
+
+                INSERT INTO $out WITH TRUNCATE
+                SELECT *
+                FROM $src
+                WHERE x = $ds;
+
+                COMMIT;
+            END DEFINE;
+
+            $datasets = (
+                SELECT AGGREGATE_LIST(x)
+                FROM $small_table
+            );
+
+            EVALUATE FOR $row IN $datasets
+                DO $split_by_dataset($row);
+        """, settings={"execution_mode": "validate"})
+        query.track()
+
+
 class TestNotTableResult(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     def test_not_table_result(self, query_tracker, yql_agent):
@@ -1682,4 +1724,9 @@ class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
 
 @authors("staketd")
 class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
+    YQL_SUBPROCESSES_COUNT = 8
+
+
+@authors("mpereskokova")
+class TestStackOverflowWithProcesses(TestStackOverflow):
     YQL_SUBPROCESSES_COUNT = 8
