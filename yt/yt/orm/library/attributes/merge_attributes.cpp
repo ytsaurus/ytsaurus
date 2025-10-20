@@ -136,7 +136,8 @@ std::optional<std::tuple<TStringBuf, TStringBuf>> SplitByAsterisk(const NYPath::
 std::vector<TAttributeValue> ExpandWildcardValueLists(
     std::vector<TAttributeValue> attributeValues,
     EYsonFormat format,
-    EMergeAttributesMode mergeAttributesMode)
+    EMergeAttributesMode mergeAttributesMode,
+    std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback)
 {
     std::vector<TAttributeValue> result;
     THashMap<NYPath::TYPath, std::vector<TAttributeValue>> attributesToExpand;
@@ -162,10 +163,24 @@ std::vector<TAttributeValue> ExpandWildcardValueLists(
             case EMergeAttributesMode::New:
                 value = NewMergeValueLists(std::move(attributesOnPath), format);
                 break;
-            case EMergeAttributesMode::Compare:
+            case EMergeAttributesMode::Compare: {
                 value = NewMergeValueLists(attributesOnPath, format);
                 auto oldValue = MergeValueLists(std::move(attributesOnPath), format);
                 YT_VERIFY(NYTree::AreNodesEqual(NYTree::ConvertToNode(oldValue), NYTree::ConvertToNode(value)));
+                break;
+            }
+            case EMergeAttributesMode::CompareCallback: {
+                value = MergeValueLists(attributesOnPath, format);
+                auto newValue = NewMergeValueLists(attributesOnPath, format);
+                if (!NYTree::AreNodesEqual(NYTree::ConvertToNode(value), NYTree::ConvertToNode(newValue))) {
+                    std::vector<NYPath::TYPath> mismatchedPaths;
+                    mismatchedPaths.reserve(attributesOnPath.size());
+                    for (const auto& attributeValue : attributesOnPath) {
+                        mismatchedPaths.push_back(attributeValue.Path);
+                    }
+                    mismatchCallback(/*expandWildcardsMismatched*/ true, std::move(mismatchedPaths));
+                }
+            }
         }
         result.push_back(TAttributeValue{
             .Path = path,
@@ -689,7 +704,8 @@ TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
     NYson::EYsonFormat format,
     EDuplicatePolicy duplicatePolicy,
-    EMergeAttributesMode mergeAttributesMode)
+    EMergeAttributesMode mergeAttributesMode,
+    std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback)
 {
     for (const auto& attribute : attributeValues) {
         THROW_ERROR_EXCEPTION_UNLESS(attribute.Value.GetType() == EYsonType::Node,
@@ -708,7 +724,11 @@ TYsonString MergeAttributes(
         return attributeValues.back().Value;
     }
 
-    auto expandedAttributeValues = ExpandWildcardValueLists(std::move(attributeValues), format, mergeAttributesMode);
+    auto expandedAttributeValues = ExpandWildcardValueLists(
+        std::move(attributeValues),
+        format,
+        mergeAttributesMode,
+        mismatchCallback);
 
     bool hasPrefixes = HasPrefixes(expandedAttributeValues);
     if (hasPrefixes || hasEtcs) {
@@ -717,11 +737,25 @@ TYsonString MergeAttributes(
                 return MergeAttributeValuesAsNodes(std::move(expandedAttributeValues), format, duplicatePolicy);
             case EMergeAttributesMode::New:
                 return MergeAttributeValuesWithPrefixes(std::move(expandedAttributeValues), format, duplicatePolicy);
-            case EMergeAttributesMode::Compare:
+            case EMergeAttributesMode::Compare: {
                 auto oldResult = MergeAttributeValuesAsNodes(expandedAttributeValues, format, duplicatePolicy);
                 auto newResult = MergeAttributeValuesWithPrefixes(std::move(expandedAttributeValues), format, duplicatePolicy);
                 YT_VERIFY(NYTree::AreNodesEqual(NYTree::ConvertToNode(oldResult), NYTree::ConvertToNode(newResult)));
                 return newResult;
+            }
+            case EMergeAttributesMode::CompareCallback: {
+                auto oldResult = MergeAttributeValuesAsNodes(expandedAttributeValues, format, duplicatePolicy);
+                auto newResult = MergeAttributeValuesWithPrefixes(std::move(expandedAttributeValues), format, duplicatePolicy);
+                if (!NYTree::AreNodesEqual(NYTree::ConvertToNode(oldResult), NYTree::ConvertToNode(newResult))) {
+                    std::vector<NYPath::TYPath> mismatchedPaths;
+                    mismatchedPaths.reserve(expandedAttributeValues.size());
+                    for (const auto& attribute : expandedAttributeValues) {
+                        mismatchedPaths.push_back(attribute.Path);
+                    }
+                    mismatchCallback(/*expandWildcardsMismatched*/ false, std::move(mismatchedPaths));
+                }
+                return oldResult;
+            }
         }
     } else {
         return MergeAttributeValuesAsStrings(std::move(expandedAttributeValues), format);
