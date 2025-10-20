@@ -1,5 +1,6 @@
 
 #include "folding_profiler.h"
+#include "cg_cache.h"
 
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
@@ -37,33 +38,13 @@ using NCodegen::EOptimizationLevel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCachedCGQueryImage
-    : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
-{
-    const std::string Fingerprint;
-    const TCGQueryImage Image;
-
-    TCachedCGQueryImage(
-        const llvm::FoldingSetNodeID& id,
-        std::string fingerprint,
-        TCGQueryImage image)
-        : TAsyncCacheValueBase(id)
-        , Fingerprint(std::move(fingerprint))
-        , Image(std::move(image))
-    { }
-};
-
-using TCachedCGQueryImagePtr = TIntrusivePtr<TCachedCGQueryImage>;
-
 class TEvaluator
-    : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQueryImage>
-    , public IEvaluator
+    : public IEvaluator
 {
 public:
     TEvaluator(
-        const TExecutorConfigPtr& config,
-        const NProfiling::TProfiler& profiler)
-        : TAsyncSlruCacheBase(config->CGCache, profiler.WithPrefix("/cg_cache"))
+        const TExecutorConfigPtr& /*config*/,
+        const NProfiling::TProfiler& /*profiler*/)
     { }
 
     TQueryStatistics Run(
@@ -213,43 +194,13 @@ private:
             .OmitJoinPredicate = true,
             .OmitOffsetAndLimit = !considerLimit,
         });
-        auto compileWithLogging = [&] {
-            NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
-            YT_LOG_DEBUG("Started compiling fragment");
-            TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
-            auto image = makeCodegenQuery();
-            auto cachedImage = New<TCachedCGQueryImage>(id, queryFingerprint, std::move(image));
-            YT_LOG_DEBUG("Finished compiling fragment");
-            return cachedImage;
-        };
 
-        TCachedCGQueryImagePtr cachedQueryImage;
-        if (enableCodeCache) {
-            auto cookie = BeginInsert(id);
-            if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Codegen cache miss: generating query evaluator");
-
-                try {
-                    cookie.EndInsert(compileWithLogging());
-                } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Failed to compile a query fragment");
-                    cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
-                }
-            }
-
-            cachedQueryImage = WaitForFast(cookie.GetValue())
-                .ValueOrThrow();
-
-            // Query fingerprints can differ when folding ids are equal in the following case:
-            // WHERE predicate is split into multiple predicates which are evaluated before join and after it.
-            // Example:
-            // from [a] a join [b] b where a.k and b.k
-            // from [a] a join [b] b where b.k and a.k
-        } else {
-            YT_LOG_DEBUG("Codegen cache disabled");
-
-            cachedQueryImage = compileWithLogging();
-        }
+        // Query fingerprints can differ when folding ids are equal in the following case:
+        // WHERE predicate is split into multiple predicates which are evaluated before join and after it.
+        // Example:
+        // from [a] a join [b] b where a.k and b.k
+        // from [a] a join [b] b where b.k and a.k
+        auto cachedQueryImage = TCodegenCacheSingleton::Compile(enableCodeCache, id, queryFingerprint, makeCodegenQuery, &statistics.CodegenTime, Logger);
 
         NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
         TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);

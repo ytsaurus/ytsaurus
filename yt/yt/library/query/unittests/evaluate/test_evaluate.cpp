@@ -1,6 +1,9 @@
 #include "test_evaluate.h"
 
 #include <yt/yt/library/query/base/query_helpers.h>
+
+#include <yt/yt/library/query/engine/query_engine_config.h>
+
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
@@ -11,6 +14,8 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <library/cpp/testing/hook/hook.h>
 
 namespace NYT::NQueryClient {
 
@@ -1023,6 +1028,16 @@ void TQueryEvaluateTest::EvaluateFullCoordinatedGroupBy(
             EvaluateFullCoordinatedGroupByImpl(query, dataSplit, sources, resultMatcher, EExecutionBackend::WebAssembly);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_TEST_HOOK_AFTER_RUN(GTEST_YT_QUERY_ENGINE_SHUTDOWN)
+{
+    // Address sanitizer assumes that the cached objects have leaked
+    // even though these objects are stored inside LeakyRefCountedSingleton.
+    // Therefore, we manually clear the cache at the end of all tests.
+    TCodegenCacheSingleton::TearDownForTests();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@ PROTO_NAMESPACE(yt)
 
 SRCS(
     GLOBAL append_function_implementation.cpp
+    cg_cache.cpp
     cg_fragment_compiler.cpp
     cg_helpers.cpp
     cg_ir_builder.cpp
@@ -24,6 +25,7 @@ SRCS(
     web_assembly_caller.cpp
     web_assembly_data_transfer.cpp
     web_assembly_type_builder.cpp
+    GLOBAL query_engine_config.cpp  # TODO(dtorilov): Fix static initializer and remove this GLOBAL.
 )
 
 IF (OPENSOURCE)
