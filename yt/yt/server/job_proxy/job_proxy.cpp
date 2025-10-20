@@ -1506,6 +1506,14 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnableRootVolumeDiskQuota = Config_->EnableRootVolumeDiskQuota,
     };
 
+    if (Config_->RestrictPortoPlace) {
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+    } else {
+        environmentOptions.Places.push_back(NFS::CombinePaths(Config_->SlotPath, "place"));
+        // TODO(yuryalekseev): Remove this after tasklets move to using default place.
+        environmentOptions.Places.push_back("***");
+    }
+
     if (options.EnableCoreDumps) {
         environmentOptions.SlotCoreWatcherDirectory = NFS::CombinePaths({GetSlotPath(), "cores"});
         environmentOptions.CoreWatcherDirectory = NFS::CombinePaths({GetPreparationPath(), "cores"});

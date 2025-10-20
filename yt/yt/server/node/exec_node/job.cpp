@@ -354,6 +354,7 @@ TJob::TJob(
     , Interruptible_(JobSpecExt_.interruptible())
     , AbortJobIfAccountLimitExceeded_(JobSpecExt_.abort_job_if_account_limit_exceeded())
     , RootVolumeDiskQuotaEnabled_(JobSpecExt_.enable_root_volume_disk_quota())
+    , RestrictPortoPlace_(UserJobSpec_ ? UserJobSpec_->restrict_porto_place() : false)
     , HasUserJobSpec_(UserJobSpec_ != nullptr)
     , TmpfsVolumeInfos_(ParseTmpfsVolumeInfos(UserJobSpec_))
     , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
@@ -3269,6 +3270,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     proxyInternalConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
     proxyInternalConfig->EnableRootVolumeDiskQuota = RootVolumeDiskQuotaEnabled_;
+    proxyInternalConfig->RestrictPortoPlace = RestrictPortoPlace_;
 
     return proxyInternalConfig;
 }

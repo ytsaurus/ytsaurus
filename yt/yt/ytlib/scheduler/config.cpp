@@ -1375,6 +1375,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("enable_fixed_user_id", &TThis::EnableFixedUserId)
         .Default(false);
 
+    registrar.Parameter("restrict_porto_place", &TThis::RestrictPortoPlace)
+        .Default(false);
+
     registrar.Parameter("sidecars", &TThis::Sidecars)
         .Default();
 

@@ -1535,6 +1535,9 @@ struct TUserJobSpec
     //! Map consisting of pairs <sidecar_name, sidecar_spec>.
     THashMap<TString, TSidecarJobSpecPtr> Sidecars;
 
+    //! Restrict places allowed for porto volumes and layers.
+    bool RestrictPortoPlace;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);
