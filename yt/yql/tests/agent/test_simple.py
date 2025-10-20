@@ -1669,7 +1669,7 @@ class TestDeclare(TestQueriesYqlBase):
 
         query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"}}"})
         query.track()
-        assert query.read_result(1)[0]["result"] == "test-st../ytsaurus/yt/yql/tools/ring"
+        assert query.read_result(1)[0]["result"] == "test-string"
 
         query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"};\"$some_unused_var\"={\"Data\"=\"111\"}}"})
         query.track()
