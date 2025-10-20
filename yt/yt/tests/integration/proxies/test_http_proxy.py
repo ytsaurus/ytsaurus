@@ -1691,7 +1691,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
         if "logging" in config:
             config["logging"]["flush_period"] = 100
             config["logging"]["rules"].append(
@@ -2427,7 +2427,7 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         self.driver = Driver(driver_config)
 
     @classmethod
-    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
         config["addresses"] = [["default", "localhost"], ["fastbone", "fb-localhost"]]
 
     @authors("nadya73")

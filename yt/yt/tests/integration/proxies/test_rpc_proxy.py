@@ -233,7 +233,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_rpc_proxy_config(cls, config, multidaemon_config, proxy_index):
+    def modify_rpc_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
         if "logging" in config:
             config["logging"]["rules"].append(
                 {

@@ -457,11 +457,11 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
         pass
 
     @classmethod
-    def modify_rpc_proxy_config(cls, config, multidaemon_config, proxy_index):
+    def modify_rpc_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
         pass
 
     @classmethod
@@ -1287,7 +1287,7 @@ class YTEnvSetup(object):
 
             update_inplace(config, cls.get_param("DELTA_HTTP_PROXY_CONFIG", cluster_index))
             cls.update_timestamp_provider_config(config, cluster_index)
-            cls.modify_http_proxy_config(config, multidaemon_config, index)
+            cls.modify_http_proxy_config(config, cluster_index, multidaemon_config, index)
             multidaemon_config["daemons"][f"http_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["rpc_proxy"]):
@@ -1296,7 +1296,7 @@ class YTEnvSetup(object):
 
             update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
             cls.update_timestamp_provider_config(config, cluster_index)
-            cls.modify_rpc_proxy_config(config, multidaemon_config, index)
+            cls.modify_rpc_proxy_config(config, cluster_index, multidaemon_config, index)
             multidaemon_config["daemons"][f"rpc_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cypress_proxy"]):
