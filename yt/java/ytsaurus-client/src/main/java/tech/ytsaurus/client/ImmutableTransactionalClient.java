@@ -10,8 +10,9 @@ import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.MultiLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
 import tech.ytsaurus.client.rows.ConsumerSource;
-import tech.ytsaurus.client.rows.LookupRowsResult;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResultV2;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResultV2;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 
@@ -29,6 +30,12 @@ public interface ImmutableTransactionalClient {
             YTreeRowSerializer<T> serializer
     );
 
+    CompletableFuture<UnversionedLookupRowsResultV2> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request);
+
+    CompletableFuture<VersionedLookupRowsResultV2> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request);
+
+    CompletableFuture<List<UnversionedLookupRowsResultV2>> multiLookupRowsV2(MultiLookupRowsRequest request);
+
     @Deprecated
     default <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest.Builder<?, ?> request,
@@ -44,59 +51,7 @@ public interface ImmutableTransactionalClient {
             YTreeRowSerializer<T> serializer
     );
 
-    <T> CompletableFuture<LookupRowsResult<List<T>>> lookupRowsWithPartialResult(
-            AbstractLookupRowsRequest<?, ?> request,
-            YTreeRowSerializer<T> serializer
-    );
-
-    default <T> CompletableFuture<LookupRowsResult<List<T>>> lookupRowsWithPartialResult(
-            AbstractLookupRowsRequest.Builder<?, ?> request,
-            YTreeRowSerializer<T> serializer
-    ) {
-        return lookupRowsWithPartialResult(request.build(), serializer);
-    }
-
-    CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
-            AbstractLookupRowsRequest<?, ?> request
-    );
-
-    default CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
-            AbstractLookupRowsRequest.Builder<?, ?> request
-    ) {
-        return lookupRowsWithPartialResult(request.build());
-    }
-
-    CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
-            AbstractLookupRowsRequest<?, ?> request
-    );
-
-    default CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
-            AbstractLookupRowsRequest.Builder<?, ?> request
-    ) {
-        return versionedLookupRowsWithPartialResult(request.build());
-    }
-
-    <T> CompletableFuture<List<LookupRowsResult<List<T>>>> multiLookupRowsWithPartialResult(
-            MultiLookupRowsRequest request,
-            YTreeRowSerializer<T> serializer
-    );
-
-    default <T> CompletableFuture<List<LookupRowsResult<List<T>>>> multiLookupRowsWithPartialResult(
-            MultiLookupRowsRequest.Builder request,
-            YTreeRowSerializer<T> serializer
-    ) {
-        return multiLookupRowsWithPartialResult(request.build(), serializer);
-    }
-
-    CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
-            MultiLookupRowsRequest request
-    );
-
-    default CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
-            MultiLookupRowsRequest.Builder request
-    ) {
-        return multiLookupRowsWithPartialResult(request.build());
-    }
+    
 
     CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request);
 

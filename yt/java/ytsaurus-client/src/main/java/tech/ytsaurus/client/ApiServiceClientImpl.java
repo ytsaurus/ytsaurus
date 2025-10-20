@@ -133,8 +133,9 @@ import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
-import tech.ytsaurus.client.rows.LookupRowsResult;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedLookupRowsResultV2;
+import tech.ytsaurus.client.rows.VersionedLookupRowsResultV2;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
@@ -623,6 +624,16 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
+    public CompletableFuture<UnversionedLookupRowsResultV2> lookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return onStarted(request, lookupRowsImpl(request, response ->
+                UnversionedLookupRowsResultV2.builder()
+                        .setResponse(response)
+                        .setHeavyExecutor(heavyExecutor)
+                        .setSerializationResolver(serializationResolver)
+                        .build()));
+    }
+
+    @Override
     public <T> CompletableFuture<List<T>> lookupRows(
             AbstractLookupRowsRequest<?, ?> request,
             YTreeRowSerializer<T> serializer
@@ -664,106 +675,28 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 }));
     }
 
-    @Override
-    public <T> CompletableFuture<LookupRowsResult<List<T>>> lookupRowsWithPartialResult(
-            AbstractLookupRowsRequest<?, ?> request,
-            YTreeRowSerializer<T> serializer
-    ) {
-        request = request.toBuilder().setEnablePartialResult(true).build();
-        return lookupRowsImpl(request, response -> {
-            final ConsumerSourceRet<T> result = ConsumerSource.list();
-            ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
-                    response.attachments(), serializer, result, serializationResolver);
-            return new LookupRowsResult<>(result.get(), response.body().getUnavailableKeyIndexesList());
-        });
-    }
 
-    @Override
-    public CompletableFuture<LookupRowsResult<UnversionedRowset>> lookupRowsWithPartialResult(
-            AbstractLookupRowsRequest<?, ?> request
-    ) {
-        request = request.toBuilder().setEnablePartialResult(true).build();
-        return lookupRowsImpl(request, response -> {
-            UnversionedRowset rowset = ApiServiceUtil.deserializeUnversionedRowset(
-                    response.body().getRowsetDescriptor(), response.attachments());
-            return new LookupRowsResult<>(rowset, response.body().getUnavailableKeyIndexesList());
-        });
-    }
 
-    @Override
-    public <T> CompletableFuture<List<LookupRowsResult<List<T>>>> multiLookupRowsWithPartialResult(
-            MultiLookupRowsRequest request,
-            YTreeRowSerializer<T> serializer
-    ) {
-        {
-            List<MultiLookupRowsSubrequest> subrequestsWithFlag = new ArrayList<>(request.getSubrequests().size());
-            for (var sr : request.getSubrequests()) {
-                subrequestsWithFlag.add(sr.toBuilder().setEnablePartialResult(true).build());
-            }
-            request = request.toBuilder().setSubrequests(subrequestsWithFlag).build();
-        }
-        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReaderWithPartialResult(
-                response,
-                (rowsetDescriptor, attachments, unavailableKeyIndexes) -> {
-                    final ConsumerSourceRet<T> result = ConsumerSource.list();
-                    ApiServiceUtil.deserializeUnversionedRowset(
-                            rowsetDescriptor,
-                            attachments,
-                            serializer,
-                            result,
-                            serializationResolver
-                    );
-                    return new LookupRowsResult<>(result.get(), unavailableKeyIndexes);
-                }
-        )));
-    }
-
-    @Override
-    public CompletableFuture<List<LookupRowsResult<UnversionedRowset>>> multiLookupRowsWithPartialResult(
-            MultiLookupRowsRequest request
-    ) {
-        {
-            List<MultiLookupRowsSubrequest> subrequestsWithFlag = new ArrayList<>(request.getSubrequests().size());
-            for (var sr : request.getSubrequests()) {
-                subrequestsWithFlag.add(sr.toBuilder().setEnablePartialResult(true).build());
-            }
-            request = request.toBuilder().setSubrequests(subrequestsWithFlag).build();
-        }
-        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReaderWithPartialResult(
-                response,
-                (rowsetDescriptor, attachments, unavailableKeyIndexes) -> {
-                    UnversionedRowset rowset = ApiServiceUtil.deserializeUnversionedRowset(
-                            rowsetDescriptor, attachments);
-                    return new LookupRowsResult<>(rowset, unavailableKeyIndexes);
-                }
-        )));
-    }
-
-    private <T> List<T> multiLookupResponseReaderWithPartialResult(
-            RpcClientResponse<TRspMultiLookup> response,
-            TriFunction<TRowsetDescriptor, List<byte[]>, List<Integer>, T> resultDeserializer
-    ) {
-        List<T> result = new ArrayList<>(response.body().getSubresponsesCount());
-        int beginAttachmentIndex = 0;
-        for (var subresponse : response.body().getSubresponsesList()) {
-            int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
-            result.add(
-                    resultDeserializer.apply(
-                            subresponse.getRowsetDescriptor(),
-                            response.attachments().subList(beginAttachmentIndex, endAttachmentIndex),
-                            subresponse.getUnavailableKeyIndexesList()
-                    )
-            );
-            beginAttachmentIndex = endAttachmentIndex;
-        }
-        return result;
-    }
 
     @Override
     public CompletableFuture<List<UnversionedRowset>> multiLookupRows(MultiLookupRowsRequest request) {
         return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReader(
                 response,
                 ApiServiceUtil::deserializeUnversionedRowset
+        )));
+    }
+
+    @Override
+    public CompletableFuture<List<UnversionedLookupRowsResultV2>> multiLookupRowsV2(MultiLookupRowsRequest request) {
+        return onStarted(request, multiLookupImpl(request, response -> multiLookupResponseReaderWithUnavailableIndexes(
+                response,
+                (rowsetDescriptor, attachments, unavailableKeyIndexes) -> UnversionedLookupRowsResultV2.builder()
+                        .setRowsetDescriptor(rowsetDescriptor)
+                        .setAttachments(attachments)
+                        .setUnavailableKeyIndexes(unavailableKeyIndexes)
+                        .setHeavyExecutor(heavyExecutor)
+                        .setSerializationResolver(serializationResolver)
+                        .build()
         )));
     }
 
@@ -828,6 +761,26 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return result;
     }
 
+    private <T> List<T> multiLookupResponseReaderWithUnavailableIndexes(
+            RpcClientResponse<TRspMultiLookup> response,
+            TriFunction<TRowsetDescriptor, List<byte[]>, List<Integer>, T> resultDeserializer
+    ) {
+        List<T> result = new ArrayList<>(response.body().getSubresponsesCount());
+        int beginAttachmentIndex = 0;
+        for (var subresponse : response.body().getSubresponsesList()) {
+            int endAttachmentIndex = beginAttachmentIndex + subresponse.getAttachmentCount();
+            result.add(
+                    resultDeserializer.apply(
+                            subresponse.getRowsetDescriptor(),
+                            response.attachments().subList(beginAttachmentIndex, endAttachmentIndex),
+                            subresponse.getUnavailableKeyIndexesList()
+                    )
+            );
+            beginAttachmentIndex = endAttachmentIndex;
+        }
+        return result;
+    }
+
 
     @Override
     public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?, ?> request) {
@@ -836,16 +789,14 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public CompletableFuture<LookupRowsResult<VersionedRowset>> versionedLookupRowsWithPartialResult(
-            AbstractLookupRowsRequest<?, ?> request
-    ) {
-        request = request.toBuilder().setEnablePartialResult(true).build();
-        return onStarted(request, versionedLookupRowsImpl(request, response -> {
-            VersionedRowset rowset = ApiServiceUtil.deserializeVersionedRowset(
-                    response.body().getRowsetDescriptor(), response.attachments());
-            return new LookupRowsResult<>(rowset, response.body().getUnavailableKeyIndexesList());
-        }));
+    public CompletableFuture<VersionedLookupRowsResultV2> versionedLookupRowsV2(AbstractLookupRowsRequest<?, ?> request) {
+        return onStarted(request, versionedLookupRowsImpl(request, response ->
+                VersionedLookupRowsResultV2.builder()
+                        .setResponse(response)
+                        .setHeavyExecutor(heavyExecutor)
+                        .build()));
     }
+
 
     private <T> CompletableFuture<T> versionedLookupRowsImpl(
             AbstractLookupRowsRequest<?, ?> request,
