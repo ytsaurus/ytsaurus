@@ -146,6 +146,13 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/ngrams.cpp
+    NAME ngrams
+    SYMBOLS
+        make_ngrams
+)
+
+LLVM_BC(
     udf/regex.cpp
     NAME regex
     SYMBOLS
