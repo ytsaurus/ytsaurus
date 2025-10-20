@@ -157,7 +157,7 @@ std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& 
     return {};
 }
 
-const TString& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
+TString TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
 {
     static const TString defaultMediumName = "default";
     return defaultMediumName;

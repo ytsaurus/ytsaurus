@@ -63,15 +63,18 @@ struct TPrefixExternalSourceSpec
 {
     //! URI prefix, e.g. "s3://bucket/prefix".
     std::string PrefixUri;
+
     //! Whether to include files in subdirectories of the given prefix.
     //! True by default.
     bool Recursive;
+
     //! Filter patterns to *include* file paths in external source.
     //! Paths matching any of these patterns will be included.
     //! If empty, all files are included.
     //! Patterns apply to the relative path (key minus the prefix), e.g., `path/to/file` for key `prefix/path/to/file` under prefix `s3://bucket/prefix`.
     //! NB: Inclusion is applied before exclusion, i.e. if a path matches both an include and an exclude pattern, it will be excluded.
     std::vector<NRe2::TRe2Ptr> IncludeRegexes;
+
     //! Filter patterns to *exclude* file paths from external source.
     //! Paths matching any of these patterns will be excluded.
     //! If empty, no files are excluded.

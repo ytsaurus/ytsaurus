@@ -7,19 +7,21 @@ from yt.common import YtError
 from yt.yson import YsonList, YsonEntity
 
 from yt_commands import (
-    authors, make_random_string, sync_create_cells, create_user, add_member, make_ace,
+    authors, sync_create_cells, create_user, add_member, make_ace,
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
     copy, move, get_singular_chunk_id, wait, get, concatenate,
     get_account_disk_space_limit, set_account_disk_space_limit,
     write_table, read_table, sync_mount_table, insert_rows, sync_flush_table, attach_table,
     map, merge, select_rows, lookup_rows, print_debug, write_file, read_file,
-    sort, partition_tables, map_reduce, reduce, ls,
-    start_transaction, commit_transaction, abort_transaction)
+    sort, partition_tables, map_reduce, reduce, ls, create_account,
+    start_transaction, commit_transaction, abort_transaction, raises_yt_error)
 
 from yt_commands import PrefixExternalSourceSpec, FilesExternalSourceSpec
 
 from yt.test_helpers import assert_items_equal
 from yt_type_helpers import optional_type, make_schema, make_column, struct_type, list_type, normalize_schema_v3
+
+import yt_error_codes
 
 import time
 import pytest
@@ -28,6 +30,7 @@ import uuid
 import logging
 import random
 import builtins
+import string
 
 import boto3
 from botocore.exceptions import ClientError
@@ -47,6 +50,12 @@ logging.getLogger("boto3").setLevel(logging.INFO)
 
 KB = 1024
 MB = 1024 * KB
+GB = 1024 * MB
+
+################################################################################
+
+ASCII_LETTERS_BYTES = string.ascii_letters.encode("ascii")
+TRANSLATE_TABLE = bytes([ASCII_LETTERS_BYTES[b % len(ASCII_LETTERS_BYTES)] for b in range(256)])
 
 ################################################################################
 
@@ -88,6 +97,10 @@ class TestS3MediumBase(YTEnvSetup):
     EXTRA_BUCKET_COUNT = 2
     EXTRA_BUCKETS = [uuid.uuid4().hex for _ in range(EXTRA_BUCKET_COUNT)]
 
+    # NB: The buckets defined above S3_MEDIA and EXTRA_BUCKETS are created for each test
+    # invocation and cleaned up afterwards. In order to avoid interference between tests,
+    # these are the *only* buckets that should be used in all the tests.
+
     S3_CLIENT = None
 
     DELTA_MASTER_CONFIG = {
@@ -123,6 +136,11 @@ class TestS3MediumBase(YTEnvSetup):
             },
         },
     }
+
+    @classmethod
+    def make_random_string(cls, length):
+        assert length >= 0
+        return os.urandom(length).translate(TRANSLATE_TABLE).decode("ascii")
 
     @classmethod
     def get_buckets(cls):
@@ -240,9 +258,6 @@ class TestS3MediumBase(YTEnvSetup):
 
         cls.setup_s3_client()
 
-        for bucket in cls.get_buckets():
-            cls.create_bucket(bucket)
-
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
 
         create_domestic_medium("hdd1")
@@ -254,16 +269,17 @@ class TestS3MediumBase(YTEnvSetup):
 
     @classmethod
     def teardown_class(cls):
-        super(TestS3MediumBase, cls).teardown_class()
-
-        for bucket in cls.get_buckets():
-            cls.clear_bucket(bucket)
-
         cls.teardown_s3_client()
+
+        super(TestS3MediumBase, cls).teardown_class()
 
     def setup_method(self, method):
         super(TestS3MediumBase, self).setup_method(method)
 
+        for bucket in self.get_buckets():
+            self.create_bucket(bucket)
+
+        # NB(achulkov2): I don't remember the specifics, but some cleanup/setup logic clears these configs, so we need to set them again.
         for i in range(len(self.S3_MEDIA)):
             set(f"//sys/media/{self.get_s3_medium_name(i)}/@config", self.get_s3_medium_config(i))
 
@@ -273,6 +289,12 @@ class TestS3MediumBase(YTEnvSetup):
 
         # Necessary for the tests involving dynamic tables.
         sync_create_cells(1)
+
+    def teardown_method(self, method):
+        for bucket in self.get_buckets():
+            self.clear_bucket(bucket)
+
+        super(TestS3MediumBase, self).teardown_method(method)
 
 
 ################################################################################
@@ -331,7 +353,7 @@ class TestS3Medium(TestS3MediumBase):
         many_blocks = [{f"row_{i}": f"value_{i}"} for i in range(1000)]
         write_table("<append=%true>//tmp/t", many_blocks, table_writer={"block_size": 64, "min_part_size": 6 * MB})
 
-        multiple_parts = [{"key": make_random_string(length=MB // 2)} for i in range(25)]
+        multiple_parts = [{"key": self.make_random_string(length=MB // 2)} for i in range(25)]
         write_table("<append=%true>//tmp/t", multiple_parts, table_writer={"block_size": 3 * MB, "min_part_size": 6 * MB})
 
         assert read_table("//tmp/t", verbose=False) == [{"a": "b"}, {"c": "d"}] + many_blocks + multiple_parts
@@ -1068,8 +1090,7 @@ class TestAttachTable(TestAttachTableBase):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
 
         with pytest.raises(YtError, match="At least one source must be specified"):
-            attach_table("//tmp/imported",
-                         source_uris=[])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([]))
 
     @authors("pavel-bash")
     def test_attach_non_existing_medium(self):
@@ -1081,9 +1102,7 @@ class TestAttachTable(TestAttachTableBase):
 
         medium_name = "definitely_no_such_medium"
         with pytest.raises(YtError, match=f'Node has no child with key "{medium_name}"'):
-            attach_table("//tmp/imported",
-                         source_uris=[f"s3://{bucket}/foo.parquet"],
-                         medium=medium_name)
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]), medium=medium_name)
 
     @authors("faucct")
     def test_attach_with_compression_and_read(self):
@@ -1100,8 +1119,8 @@ class TestAttachTable(TestAttachTableBase):
             row_group_size=row_count // row_group_count, compression="gzip",
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/bar.parquet"])
-        assert read_table("//tmp/imported") == data
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/bar.parquet"]))
+        assert_items_equal(read_table("//tmp/imported"), data)
 
     @authors("faucct")
     def test_attach_and_read(self):
@@ -1113,9 +1132,9 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records(records))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
-        assert read_table("//tmp/imported") == records
+        assert_items_equal(read_table("//tmp/imported"), records)
 
     @authors("faucct")
     def test_attach_to_wrong_medium(self):
@@ -1128,7 +1147,7 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match='Cannot attach external data to table on non-offshore medium "default"'):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_wrong_bucket(self):
@@ -1136,7 +1155,7 @@ class TestAttachTable(TestAttachTableBase):
         bucket = self.get_s3_medium_bucket()
 
         with pytest.raises(YtError, match="Got status code 404 Not Found"):
-            attach_table("//tmp/imported", source_uris=[f"s3://not-{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://not-{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_with_schema_and_read(self):
@@ -1160,9 +1179,9 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records(records))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
-        assert read_table("//tmp/imported") == records
+        assert_items_equal(read_table("//tmp/imported"), records)
         assert get(f"#{get("//tmp/imported/@chunk_ids")[0]}/@schema") == make_schema(schema, strict=True, unique_keys=False)
 
     @authors("faucct")
@@ -1181,7 +1200,7 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match='Column "y" is found in input schema but is missing in output schema'):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_with_not_nullable_schema(self):
@@ -1197,7 +1216,7 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match='Type of ".<optional-element>" field is modified in non backward compatible manner'):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_with_not_required_schema(self):
@@ -1212,7 +1231,7 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records(records))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_with_erasure_codec(self):
@@ -1225,7 +1244,7 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match='Cannot attach external data to table with erasure codec'):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     def test_attach_with_mismatching_weak_schema(self):
@@ -1241,7 +1260,7 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match='Column "x" input type is incompatible with output type'):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("faucct")
     @pytest.mark.parametrize("allow_incompatible_source_schemas", [True, False])
@@ -1260,14 +1279,16 @@ class TestAttachTable(TestAttachTableBase):
 
         if not allow_incompatible_source_schemas:
             with pytest.raises(YtError, match='Column "x" first schema type is incompatible with second schema type'):
-                attach_table("//tmp/imported",
-                             source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
-                             allow_incompatible_source_schemas=allow_incompatible_source_schemas)
+                attach_table(
+                    "//tmp/imported",
+                    FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"]),
+                    allow_incompatible_source_schemas=allow_incompatible_source_schemas)
             return
 
-        attach_table("//tmp/imported",
-                     source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
-                     allow_incompatible_source_schemas=allow_incompatible_source_schemas)
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"]),
+            allow_incompatible_source_schemas=allow_incompatible_source_schemas)
 
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
@@ -1291,9 +1312,8 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record2]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"]))
 
-        # TODO(achulkov2): Order is guaranteed, we don't need to use the helper.
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
     @authors("faucct")
@@ -1307,13 +1327,13 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record1]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=self.dump_arrow_table_as_bytes(
             pa.Table.from_pandas(pandas.DataFrame.from_records([record2]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/bar.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/bar.parquet"]))
 
         assert_items_equal(read_table("//tmp/imported"), [record2])
 
@@ -1328,12 +1348,12 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record1]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=self.dump_arrow_table_as_bytes(
             pa.Table.from_pandas(pandas.DataFrame.from_records([record2]))
         ))
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/bar.parquet"])
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/bar.parquet"]))
 
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
@@ -1349,13 +1369,13 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=self.dump_arrow_table_as_bytes(
             pa.Table.from_pandas(pandas.DataFrame.from_records([record2]))
         ))
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/bar.parquet"])
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/bar.parquet"]))
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.jsonl", Body='{"x": 3, "y": "d"}\n')
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/bar.jsonl"])
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/bar.jsonl"]))
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.csv", Body='x,y\n4,c\n')
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/bar.csv"])
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/bar.csv"]))
 
         assert_items_equal(read_table("//tmp/imported"), [record1, record2, {"x": 3, "y": "d"}, {"x": 4, "y": "c"}])
 
@@ -1372,7 +1392,7 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record1, record2]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
         secret_access_key = get(f"//sys/media/{self.get_s3_medium_name()}/@config/secret_access_key")
         set(f"//sys/media/{self.get_s3_medium_name()}/@config/secret_access_key", "foo")
 
@@ -1402,7 +1422,7 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record1, record2]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
         map(
             command="cat",
             in_="//tmp/imported",
@@ -1428,7 +1448,7 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records([record1, record2]))
         ))
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
         map(
@@ -1462,7 +1482,7 @@ class TestAttachTable(TestAttachTableBase):
         }
 
         create("table", "//tmp/imported", attributes=attributes)
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
         create("table", "//tmp/output", attributes=attributes)
 
@@ -1498,7 +1518,7 @@ class TestAttachTable(TestAttachTableBase):
         }
 
         create("table", "//tmp/imported", attributes=attributes)
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
         create("table", "//tmp/intermediate", attributes={
             "primary_medium": self.get_s3_medium_name(),
@@ -1550,7 +1570,7 @@ class TestAttachTable(TestAttachTableBase):
         }
 
         create("table", "//tmp/imported", attributes=attributes)
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
         create("table", "//tmp/intermediate", attributes={
             "primary_medium": self.get_s3_medium_name(),
@@ -1568,7 +1588,7 @@ class TestAttachTable(TestAttachTableBase):
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"col":"a"}\n{"col":"b"}\n')
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]))
 
         assert_items_equal(read_table("//tmp/imported"), [{"col": "a"}, {"col": "b"}])
 
@@ -1579,7 +1599,7 @@ class TestAttachTable(TestAttachTableBase):
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b"col\na\nb\n")
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.csv"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]))
 
         assert_items_equal(read_table("//tmp/imported"), [{"col": "a"}, {"col": "b"}])
 
@@ -1598,7 +1618,7 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b"a\n43\n15\n")
 
         with pytest.raises(YtError, match="Table schemas are incompatible"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.csv"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]))
 
     @authors("achulkov2")
     def test_sorted_attach_weak_schema(self):
@@ -1607,7 +1627,7 @@ class TestAttachTable(TestAttachTableBase):
         write_table("//tmp/imported", [{"a": 43, "b": 5}, {"a": 15, "b": 7}])
         sort(in_="//tmp/imported", out="//tmp/imported", sort_by=["a"])
 
-        assert read_table("//tmp/imported") == [{"a": 15, "b": 7}, {"a": 43, "b": 5}]
+        assert_items_equal(read_table("//tmp/imported"), [{"a": 15, "b": 7}, {"a": 43, "b": 5}])
         # Column "a" was automatically inferred, since it is the sort key.
         assert len(get("//tmp/imported/@schema")) == 1
         assert get("//tmp/imported/@sorted")
@@ -1617,7 +1637,7 @@ class TestAttachTable(TestAttachTableBase):
 
         bucket = self.get_s3_medium_bucket()
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b"a\n27\n99\n")
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.csv"])
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]))
 
         assert get("//tmp/imported/@schema") == make_schema([], strict=False, unique_keys=False)
         assert get("//tmp/imported/@schema_mode")
@@ -1631,17 +1651,17 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b"a\n15\n43\n")
 
         with pytest.raises(YtError, match="Table schemas are incompatible"):
-            attach_table("<chunk_sort_columns=[a]>//tmp/imported", source_uris=[f"s3://{bucket}/foo.csv"])
+            attach_table("<chunk_sort_columns=[a]>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]))
 
     @authors("achulkov2")
     def test_attach_wrong_uri(self):
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
 
         with pytest.raises(YtError, match="unexpected scheme"):
-            attach_table("//tmp/imported", source_uris=["ftp://example.com/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec(["ftp://example.com/foo.parquet"]))
 
         with pytest.raises(YtError, match="Cannot deduce external source format"):
-            attach_table("//tmp/imported", source_uris=["s3://my-bucket/foo.brakozyabra"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec(["s3://my-bucket/foo.brakozyabra"]))
 
     @authors("achulkov2")
     def test_external_transaction_commit(self):
@@ -1652,16 +1672,16 @@ class TestAttachTable(TestAttachTableBase):
         bucket = self.get_s3_medium_bucket()
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"col":"a"}\n{"col":"b"}\n')
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"], tx=tx)
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), tx=tx)
 
         assert not exists("//tmp/imported")
         assert exists("//tmp/imported", tx=tx)
 
-        assert read_table("//tmp/imported", tx=tx) == [{"col": "a"}, {"col": "b"}]
+        assert_items_equal(read_table("//tmp/imported", tx=tx), [{"col": "a"}, {"col": "b"}])
 
         commit_transaction(tx)
 
-        assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}]
+        assert_items_equal(read_table("//tmp/imported"), [{"col": "a"}, {"col": "b"}])
 
     @authors("achulkov2")
     def test_external_transaction_abort(self):
@@ -1672,7 +1692,7 @@ class TestAttachTable(TestAttachTableBase):
         bucket = self.get_s3_medium_bucket()
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"col":"a"}\n{"col":"b"}\n')
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"], tx=tx)
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), tx=tx)
 
         assert not exists("//tmp/imported")
         assert exists("//tmp/imported", tx=tx)
@@ -1681,7 +1701,7 @@ class TestAttachTable(TestAttachTableBase):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        assert read_table("//tmp/imported", tx=tx) == [{"col": "a"}, {"col": "b"}]
+        assert_items_equal(read_table("//tmp/imported", tx=tx), [{"col": "a"}, {"col": "b"}])
 
         abort_transaction(tx)
 
@@ -1702,14 +1722,15 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo2.jsonl", Body=b'{"col":"b"}\n')
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo3.jsonl", Body=b'{"col":"c"}\n')
 
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/foo1.jsonl"], tx=tx1)
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/foo2.jsonl"], tx=tx2)
-        attach_table("<append=%true>//tmp/imported", source_uris=[f"s3://{bucket}/foo3.jsonl"], tx=tx3)
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo1.jsonl"]), tx=tx1)
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo2.jsonl"]), tx=tx2)
+        attach_table("<append=%true>//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo3.jsonl"]), tx=tx3)
 
         commit_transaction(tx2)
         commit_transaction(tx1)
         commit_transaction(tx3)
 
+        # Single chunk per attach, so order is guaranteed.
         assert read_table("//tmp/imported") == [{"col": "b"}, {"col": "a"}, {"col": "c"}]
 
     @authors("achulkov2")
@@ -1722,8 +1743,8 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket1, Key="foo.jsonl", Body=b'{"col":"a"}\n')
         self.S3_CLIENT.put_object(Bucket=bucket2, Key="bar.jsonl", Body=b'{"col":"b"}\n')
 
-        attach_table("//tmp/imported", source_uris=[f"s3://{bucket1}/foo.jsonl", f"s3://{bucket2}/bar.jsonl"])
-        assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}]
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket1}/foo.jsonl", f"s3://{bucket2}/bar.jsonl"]))
+        assert_items_equal(read_table("//tmp/imported"), [{"col": "a"}, {"col": "b"}])
 
     @authors("pavel-bash")
     @pytest.mark.parametrize("table_should_exist_before", [True, False])
@@ -1741,10 +1762,11 @@ class TestAttachTable(TestAttachTableBase):
         set(f"//sys/media/{self.get_s3_medium_name()}/@acl", [make_ace("deny", "u", "use")])
 
         with pytest.raises(YtError, match="User has no access to medium"):
-            attach_table("//tmp/imported",
-                         source_uris=["s3://foo/foo.parquet"],
-                         medium=(None if table_should_exist_before else self.get_s3_medium_name()),
-                         authenticated_user="u")
+            attach_table(
+                "//tmp/imported",
+                FilesExternalSourceSpec(["s3://foo/foo.parquet"]),
+                medium=(None if table_should_exist_before else self.get_s3_medium_name()),
+                authenticated_user="u")
 
     @authors("pavel-bash")
     def test_table_exists_specify_same_medium(self):
@@ -1756,10 +1778,11 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records(records))
         ))
 
-        attach_table("//tmp/imported",
-                     source_uris=[f"s3://{bucket}/foo.parquet"],
-                     medium=self.get_s3_medium_name())
-        assert read_table("//tmp/imported") == records
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]),
+            medium=self.get_s3_medium_name())
+        assert_items_equal(read_table("//tmp/imported"), records)
 
     @authors("pavel-bash")
     def test_table_exists_specify_another_medium(self):
@@ -1773,9 +1796,10 @@ class TestAttachTable(TestAttachTableBase):
 
         error_match = f'its medium "{self.get_s3_medium_name()}" is not the same as the specified one "{self.get_s3_medium_name(1)}"'
         with pytest.raises(YtError, match=error_match):
-            attach_table("//tmp/imported",
-                         source_uris=[f"s3://{bucket}/foo.parquet"],
-                         medium=self.get_s3_medium_name(1))
+            attach_table(
+                "//tmp/imported",
+                FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]),
+                medium=self.get_s3_medium_name(1))
 
     @authors("pavel-bash")
     @pytest.mark.parametrize("medium_index", [0, 1])
@@ -1786,11 +1810,12 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records(records))
         ))
 
-        attach_table("//tmp/imported",
-                     source_uris=[f"s3://{bucket}/foo.parquet"],
-                     medium=self.get_s3_medium_name(medium_index))
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]),
+            medium=self.get_s3_medium_name(medium_index))
 
-        assert read_table("//tmp/imported") == records
+        assert_items_equal(read_table("//tmp/imported"), records)
 
         new_table_media = get("//tmp/imported/@media")
         assert len(new_table_media) == 1
@@ -1807,8 +1832,7 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match="check that it exists or specify medium in the parameters"):
-            attach_table("//tmp/imported",
-                         source_uris=[f"s3://{bucket}/foo.parquet"])
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]))
 
     @authors("pavel-bash")
     def test_attach_non_existing_table_wrong_medium(self):
@@ -1819,9 +1843,10 @@ class TestAttachTable(TestAttachTableBase):
         ))
 
         with pytest.raises(YtError, match='Cannot attach external data to table on non-offshore medium "default"'):
-            attach_table("//tmp/imported",
-                         source_uris=[f"s3://{bucket}/foo.parquet"],
-                         medium="default")
+            attach_table(
+                "//tmp/imported",
+                FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]),
+                medium="default")
 
     @authors("pavel-bash")
     @pytest.mark.parametrize("allow_incompatible_source_schemas", [True, False])
@@ -1838,16 +1863,18 @@ class TestAttachTable(TestAttachTableBase):
 
         if not allow_incompatible_source_schemas:
             with pytest.raises(YtError, match='Column "x" first schema type is incompatible with second schema type'):
-                attach_table("//tmp/imported",
-                             source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
-                             allow_incompatible_source_schemas=allow_incompatible_source_schemas,
-                             medium=self.get_s3_medium_name())
+                attach_table(
+                    "//tmp/imported",
+                    FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"]),
+                    allow_incompatible_source_schemas=allow_incompatible_source_schemas,
+                    medium=self.get_s3_medium_name())
             return
 
-        attach_table("//tmp/imported",
-                     source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
-                     allow_incompatible_source_schemas=allow_incompatible_source_schemas,
-                     medium=self.get_s3_medium_name())
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"]),
+            allow_incompatible_source_schemas=allow_incompatible_source_schemas,
+            medium=self.get_s3_medium_name())
 
         assert_items_equal(read_table("//tmp/imported"), [record1, record2])
 
@@ -1940,16 +1967,16 @@ class TestAttachTable(TestAttachTableBase):
 
         attach_table(
             "//tmp/imported",
-            source_uris=[f"s3://{bucket}/foo.jsonl", f"s3://{bucket}/bar.jsonl", f"s3://{bucket}/baz.jsonl", f"s3://{bucket}/bat.jsonl"],
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl", f"s3://{bucket}/bar.jsonl", f"s3://{bucket}/baz.jsonl", f"s3://{bucket}/bat.jsonl"]),
             medium=self.get_s3_medium_name())
 
-        assert read_table("//tmp/imported") == [
+        assert_items_equal(read_table("//tmp/imported"), [
             {"x": 1},
             {"y": "2"},
             {"z": {"a": 3, "b": 4}},
             {"t": {"a": 3, "b": 4, "e": YsonEntity(), "f": YsonEntity()}},
             {"t": {"a": YsonEntity(), "b": YsonEntity(), "e": 3, "f": 4}}
-        ]
+        ])
 
         assert_items_equal(normalize_schema_v3(get("//tmp/imported/@schema")), make_schema([
             make_column("x", optional_type("int64")),
@@ -1973,7 +2000,7 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"x": 1}\n{"x": "2"}\n')
 
         with pytest.raises(YtError, match="JSON parse error"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"], medium=self.get_s3_medium_name())
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), medium=self.get_s3_medium_name())
 
     @authors("achulkov2")
     def test_csv_schema_inference(self):
@@ -1985,15 +2012,15 @@ class TestAttachTable(TestAttachTableBase):
 
         attach_table(
             "//tmp/imported",
-            source_uris=[f"s3://{bucket}/foo.csv", f"s3://{bucket}/bar.csv", f"s3://{bucket}/baz.csv"],
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.csv", f"s3://{bucket}/bar.csv", f"s3://{bucket}/baz.csv"]),
             medium=self.get_s3_medium_name())
 
-        assert read_table("//tmp/imported") == [
+        assert_items_equal(read_table("//tmp/imported"), [
             {"x": "a"},
             {"y": 2},
             {"z.a": 3.0, "z.b": 4},
             {"z.a": 1.0, "z.b": 5}
-        ]
+        ])
 
         assert_items_equal(normalize_schema_v3(get("//tmp/imported/@schema")), make_schema([
             make_column("x", optional_type("string")),
@@ -2013,9 +2040,10 @@ class TestAttachTable(TestAttachTableBase):
             pa.Table.from_pandas(pandas.DataFrame.from_records(data.record2))
         ))
 
-        attach_table("//tmp/imported",
-                     source_uris=[f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"],
-                     medium=self.get_s3_medium_name())
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet", f"s3://{bucket}/bar.parquet"]),
+            medium=self.get_s3_medium_name())
 
         assert_items_equal(read_table("//tmp/imported"), [*data.record1, *data.record2])
         for chunk_id in get("//tmp/imported/@chunk_ids"):
@@ -2028,14 +2056,15 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.custom", Body=b'{"col":"a"}\n{"col":"b"}\n')
 
         with pytest.raises(YtError, match="Cannot deduce external source format"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.custom"], medium=self.get_s3_medium_name())
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.custom"]), medium=self.get_s3_medium_name())
 
-        attach_table("//tmp/imported",
-                     source_uris=[f"s3://{bucket}/foo.custom"],
-                     medium=self.get_s3_medium_name(),
-                     source_format="jsonl")
+        attach_table(
+            "//tmp/imported",
+            FilesExternalSourceSpec([f"s3://{bucket}/foo.custom"]),
+            medium=self.get_s3_medium_name(),
+            source_format="jsonl")
 
-        assert read_table("//tmp/imported") == [{"col": "a"}, {"col": "b"}]
+        assert_items_equal(read_table("//tmp/imported"), [{"col": "a"}, {"col": "b"}])
 
     @authors("achulkov2")
     def test_invalid_json(self):
@@ -2044,17 +2073,17 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=b'{"col":"a"}\n{"col":"b"\n')
 
         with pytest.raises(YtError, match="JSON parse error"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.jsonl"], medium=self.get_s3_medium_name())
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), medium=self.get_s3_medium_name())
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.json", Body=b'{"col":"a"}\n{"col":"b"\n')
 
         with pytest.raises(YtError, match="JSON parse error"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.json"], medium=self.get_s3_medium_name())
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.json"]), medium=self.get_s3_medium_name())
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.bar", Body=b'{"col":"a"}\n{"col":"b"\n')
 
         with pytest.raises(YtError, match="JSON parse error"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.bar"], medium=self.get_s3_medium_name(), source_format="jsonl")
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.bar"]), medium=self.get_s3_medium_name(), source_format="jsonl")
 
     @authors("achulkov2")
     def test_invalid_csv(self):
@@ -2063,16 +2092,148 @@ class TestAttachTable(TestAttachTableBase):
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.csv", Body=b'c1, c2\na,b,c,d\n')
 
         with pytest.raises(YtError, match="CSV parse error"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.csv"], medium=self.get_s3_medium_name())
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.csv"]), medium=self.get_s3_medium_name())
 
-    @authors("achulkov2")
+    @authors("achulkov2_forgot_to_lock_laptop")
     def test_invalid_parquet(self):
         bucket = self.get_s3_medium_bucket()
 
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=b'not a parquet')
 
         with pytest.raises(YtError, match="not a parquet file"):
-            attach_table("//tmp/imported", source_uris=[f"s3://{bucket}/foo.parquet"], medium=self.get_s3_medium_name())
+            attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.parquet"]), medium=self.get_s3_medium_name())
+
+    @authors("achulkov2")
+    def test_many_files(self):
+        bucket = self.get_s3_medium_bucket()
+
+        NUM_FILES = 300
+        for i in range(NUM_FILES):
+            self.S3_CLIENT.put_object(Bucket=bucket, Key=f"test_many_files/foo_{i}.jsonl", Body=f'{{"col":"{i}"}}\n')
+
+        attach_table("//tmp/imported", PrefixExternalSourceSpec(prefix_uri=f"s3://{bucket}/test_many_files/"), medium=self.get_s3_medium_name(), attach_mode="parallel")
+
+        assert_items_equal(read_table("//tmp/imported"), [{"col": str(i)} for i in range(NUM_FILES)])
+
+    @authors("achulkov2")
+    def test_many_files_single_parsing_error(self):
+        bucket = self.get_s3_medium_bucket()
+        test_dir = "test_many_files_single_parsing_error"
+
+        NUM_FILES = 100
+        for i in range(NUM_FILES):
+            key = f"{test_dir}/foo_{i}.jsonl" if i == 42 else f"{test_dir}/foo_{i}.parquet"
+            self.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=self.dump_arrow_table_as_bytes(
+                pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": str(i)}]))
+            ))
+
+        with pytest.raises(YtError, match="JSON parse error"):
+            attach_table("//tmp/imported", PrefixExternalSourceSpec(prefix_uri=f"s3://{bucket}/{test_dir}/"), medium=self.get_s3_medium_name(), attach_mode="parallel")
+
+    @authors("achulkov2")
+    def test_many_files_incompatible_schema(self):
+        bucket = self.get_s3_medium_bucket()
+        test_dir = "test_many_files_incompatible_schema"
+
+        NUM_FILES = 300
+        for i in range(NUM_FILES):
+            key = f"{test_dir}/foo_{i}.parquet"
+            if i == 42:
+                self.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=self.dump_arrow_table_as_bytes(
+                    pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": i}]))
+                ))
+            else:
+                self.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=self.dump_arrow_table_as_bytes(
+                    pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": str(i)}]))
+                ))
+
+        with pytest.raises(YtError, match="incompatible"):
+            attach_table("//tmp/imported", PrefixExternalSourceSpec(prefix_uri=f"s3://{bucket}/{test_dir}/"), medium=self.get_s3_medium_name(), attach_mode="parallel")
+
+    @authors("achulkov2")
+    def test_many_files_weak_schema(self):
+        bucket = self.get_s3_medium_bucket()
+        test_dir = "test_many_files_weak_schema"
+
+        NUM_FILES = 100
+        for i in range(NUM_FILES):
+            key = f"{test_dir}/foo_{i}.parquet"
+            if i == 42:
+                self.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=self.dump_arrow_table_as_bytes(
+                    pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": i}]))
+                ))
+            else:
+                self.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=self.dump_arrow_table_as_bytes(
+                    pa.Table.from_pandas(pandas.DataFrame.from_records([{"col": str(i)}]))
+                ))
+
+        attach_table(
+            "//tmp/imported",
+            PrefixExternalSourceSpec(prefix_uri=f"s3://{bucket}/{test_dir}/"),
+            medium=self.get_s3_medium_name(),
+            attach_mode="parallel",
+            allow_incompatible_source_schemas=True)
+
+        assert_items_equal(read_table("//tmp/imported"), [{"col": str(i)} if i != 42 else {"col": 42} for i in range(NUM_FILES)])
+        assert get("//tmp/imported/@schema") == make_schema([], strict=False, unique_keys=False)
+        assert get("//tmp/imported/@schema_mode") == "weak"
+
+    @authors("achulkov2")
+    def test_many_files_failed_chunk_service_request(self):
+        bucket = self.get_s3_medium_bucket()
+        test_dir = "test_many_files_failed_chunk_service_request"
+
+        NUM_FILES = 300
+
+        create_account(
+            "s3_test_account_with_limits",
+            attributes={
+                "resource_limits": {
+                    "disk_space_per_medium": {
+                        self.get_s3_medium_name(): 1 * GB,
+                    },
+                    "chunk_count": NUM_FILES * 2 // 3,
+                    "node_count": 1000,
+                }
+            },
+        )
+
+        for i in range(NUM_FILES):
+            self.S3_CLIENT.put_object(Bucket=bucket, Key=f"{test_dir}/foo_{i}.jsonl", Body=f'{{"col":"{i}"}}\n')
+
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name(), "account": "s3_test_account_with_limits"})
+
+        with raises_yt_error(yt_error_codes.AccountLimitExceeded):
+            attach_table("//tmp/imported", PrefixExternalSourceSpec(prefix_uri=f"s3://{bucket}/{test_dir}/"), medium=self.get_s3_medium_name(), attach_mode="parallel")
+
+    @authors("achulkov2")
+    def test_sequential_attach(self):
+        bucket = self.get_s3_medium_bucket()
+
+        NUM_FILES = 30
+
+        file_keys = [f"test_sequential_attach_mode/foo_{i}.jsonl" for i in range(NUM_FILES)]
+
+        for i, key in enumerate(file_keys):
+            self.S3_CLIENT.put_object(Bucket=bucket, Key=key, Body=f'{{"col":"{i}"}}\n')
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/{key}" for key in file_keys]), medium=self.get_s3_medium_name(), attach_mode="sequential")
+
+        assert read_table("//tmp/imported") == [{"col": str(i)} for i in range(NUM_FILES)]
+
+    @authors("achulkov2")
+    def test_quota_accounting(self):
+        bucket = self.get_s3_medium_bucket()
+
+        body = b'{"col":"a"}\n{"col":"b"}\n'
+
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.jsonl", Body=body)
+
+        attach_table("//tmp/imported", FilesExternalSourceSpec([f"s3://{bucket}/foo.jsonl"]), medium=self.get_s3_medium_name())
+
+        account = get("//tmp/imported/@account")
+        used_space = get(f"//sys/accounts/{account}/@resource_usage/disk_space_per_medium/{self.get_s3_medium_name()}")
+        assert used_space >= len(body)
 
 
 ################################################################################
@@ -2139,10 +2300,16 @@ class TestAttachTableApiSpecification(TestAttachTableBase):
         cls.put_object(bucket2, "first_level_dir_4/f18.jsonl", b'{"col":"q"}\n\n', "q")
         cls.put_object(bucket2, "first_level_dir_4/f19.brakozyabra", b'{"col":"r"}\n\n', "r")
 
-    @classmethod
-    def setup_class(cls):
-        super(TestAttachTableApiSpecification, cls).setup_class()
-        cls.init_source_files()
+    def setup_method(self, method):
+        super(TestAttachTableApiSpecification, self).setup_method(method)
+
+        self.init_source_files()
+
+    def teardown_method(self, method):
+        self.LETTER_TO_URI.clear()
+
+        # This will remove all created files.
+        super(TestAttachTableApiSpecification, self).teardown_method(method)
 
     @classmethod
     def check_source_spec(cls, source_spec, expected_row_letters, **kwargs):
@@ -2232,7 +2399,7 @@ class TestAttachTableApiSpecification(TestAttachTableBase):
         bucket = self.get_s3_medium_bucket()
 
         # Keep in mind, you are matching the relative path from the prefix, not the full S3 key.
-        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[rf"first_level_dir_0/f1\.jsonl"]), "a")
+        self.check_source_spec(PrefixExternalSourceSpec(f"s3://{bucket}", include_regexes=[r"first_level_dir_0/f1\.jsonl"]), "a")
 
         # Invalid regex.
         with pytest.raises(YtError, match="Error parsing RE2 regex"):
@@ -2314,6 +2481,40 @@ class TestAttachTableApiSpecification(TestAttachTableBase):
             assert attached_chunk_info["source_format"] in ("jsonl", "csv")
             assert attached_chunk_info["chunk_format"] in ("table_unversioned_arrow_csv", "table_unversioned_arrow_json_lines")
             assert attached_chunk_info["source_uri"].endswith(attached_chunk_info["source_format"])
+
+    @authors("achulkov2")
+    def test_source_order(self):
+        bucket = self.get_s3_medium_bucket()
+
+        attach_table("//tmp/attached", source_spec=FilesExternalSourceSpec([
+            f"s3://{bucket}/first_level_dir_0/f2.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f1.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f3.csv",
+        ]), medium=self.get_s3_medium_name(), attach_mode="sequential")
+        assert read_table("//tmp/attached") == [{"col": x} for x in "bac"]
+
+        attach_table("//tmp/attached", source_spec=FilesExternalSourceSpec([
+            f"s3://{bucket}/first_level_dir_0/f2.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f1.jsonl",
+            f"s3://{bucket}/first_level_dir_0/f3.csv",
+        ]), medium=self.get_s3_medium_name(), attach_mode="sequential", source_order="lex_desc")
+        assert read_table("//tmp/attached") == [{"col": x} for x in "cba"]
+
+        attach_table(
+            "//tmp/attached2",
+            source_spec=PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_0/", recursive=False),
+            medium=self.get_s3_medium_name(),
+            attach_mode="sequential",
+            source_order="lex_asc")
+        assert read_table("//tmp/attached2") == [{"col": x} for x in "abc"]
+
+        attach_table(
+            "//tmp/attached3",
+            source_spec=PrefixExternalSourceSpec(f"s3://{bucket}/first_level_dir_0/", recursive=False),
+            medium=self.get_s3_medium_name(),
+            attach_mode="sequential",
+            source_order="lex_desc")
+        assert read_table("//tmp/attached3") == [{"col": x} for x in "cba"]
 
 
 ################################################################################

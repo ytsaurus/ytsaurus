@@ -89,7 +89,10 @@ void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaI
 
     replica->Value_ = value.replica();
     replica->ChunkLocationUuid_ = FromProto<TGuid>(value.location_uuid());
-    replica->SourceUri_ = value.replica_spec().source_uri();
+    // NB: This will overwrite the `Value_` field.
+    if (value.has_replica_spec()) {
+        FromProto(static_cast<TChunkReplicaWithMedium*>(replica), value.replica_spec());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

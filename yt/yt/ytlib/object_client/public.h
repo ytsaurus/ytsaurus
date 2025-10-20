@@ -31,6 +31,7 @@ DEFINE_ENUM(EMasterFeature,
     ((OverlayedJournals)            (0))
     ((Portals)                      (1))
     ((PortalExitSynchronization)    (2))
+    ((OffshoreReplicaSourceUri)     (3))
 );
 
 // Some objects must be created and removed atomically.

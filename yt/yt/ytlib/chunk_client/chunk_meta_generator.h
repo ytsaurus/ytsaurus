@@ -17,7 +17,9 @@ struct IChunkMetaGenerator
     //! The only method allowed to make asynchronous calls.
     virtual void Generate() = 0;
 
-    virtual i64 GetUncompressedSize() const = 0;
+    //! Accessors to various generated statistics.
+    virtual i64 GetUncompressedDataSize() const = 0;
+    virtual i64 GetCompressedDataSize() const = 0;
 
     //! Static accessors to the generated objects.
     virtual TRefCountedChunkMetaPtr GetChunkMeta() const = 0;

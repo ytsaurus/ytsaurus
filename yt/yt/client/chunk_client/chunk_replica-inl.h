@@ -106,7 +106,9 @@ Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, NProto::TChunkReplicaSpec protoReplica)
 {
     replica->Value_ = protoReplica.value();
-    replica->SourceUri_ = protoReplica.source_uri();
+    if (protoReplica.has_source_uri()) {
+        replica->SourceUri_ = protoReplica.source_uri();
+    }
 }
 
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica)

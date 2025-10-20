@@ -57,7 +57,7 @@ public:
     void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
-    const TString& GetMediumNameByIndex(int mediumIndex) const override;
+    TString GetMediumNameByIndex(int mediumIndex) const override;
 
     TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
     void SerializeResources(const NScheduler::TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override;

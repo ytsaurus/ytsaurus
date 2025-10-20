@@ -5907,6 +5907,8 @@ private:
         if (request->has_source_format()) {
             options.SourceFormat = CheckedEnumCast<NChunkClient::EExternalSourceFormat>(request->source_format());
         }
+        options.AttachMode = CheckedEnumCast<NApi::EAttachTableMode>(request->attach_mode());
+        options.SourceOrder = CheckedEnumCast<NApi::EAttachTableSourceOrder>(request->source_order());
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

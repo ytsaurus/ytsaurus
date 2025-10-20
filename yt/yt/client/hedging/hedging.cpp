@@ -93,6 +93,7 @@ public:
     // Unsupported methods.
     UNSUPPORTED_METHOD(TFuture<ITransactionPtr>, StartTransaction, (NTransactionClient::ETransactionType, const TTransactionStartOptions&));
     UNSUPPORTED_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (const TRichYPath&, const TTableWriterOptions&));
+    UNSUPPORTED_METHOD(TFuture<TAttachTableResult>, AttachTable, (const NYPath::TRichYPath&, const NTableClient::TExternalSourceSpec&, const TAttachTableOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, SetNode, (const TYPath&, const NYson::TYsonString&, const TSetNodeOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, MultisetAttributesNode, (const TYPath&, const IMapNodePtr&, const TMultisetAttributesNodeOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, RemoveNode, (const TYPath&, const TRemoveNodeOptions&));

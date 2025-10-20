@@ -143,6 +143,7 @@ public:
             BIND_NO_PROPAGATE(&TChunkService::OnUserRequestThrottlerConfigChanged, MakeWeak(this)));
 
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
+        DeclareServerFeature(EMasterFeature::OffshoreReplicaSourceUri);
     }
 
 private:

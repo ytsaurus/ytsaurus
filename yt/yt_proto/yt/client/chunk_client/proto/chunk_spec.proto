@@ -11,7 +11,7 @@ option go_package = "go.ytsaurus.tech/yt/go/proto/client/chunk_client";
 message TChunkReplicaSpec
 {
     required fixed64 value = 1;
-    required string source_uri = 2;
+    optional string source_uri = 2;
 }
 
 // Describes a portion of table chunk.

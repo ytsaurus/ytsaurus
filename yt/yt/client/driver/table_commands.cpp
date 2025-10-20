@@ -346,6 +346,18 @@ void TAttachTableCommand::Register(TRegistrar registrar)
             return command->Options.SourceFormat;
         })
         .Optional(/*init*/ false);
+    registrar.ParameterWithUniversalAccessor<EAttachTableMode>(
+        "attach_mode",
+        [] (TThis* command) -> auto& {
+            return command->Options.AttachMode;
+        })
+        .Optional(/*init*/ false);
+    registrar.ParameterWithUniversalAccessor<EAttachTableSourceOrder>(
+        "source_order",
+        [] (TThis* command) -> auto& {
+            return command->Options.SourceOrder;
+        })
+        .Optional(/*init*/ false);
 
     registrar.Postprocessor([] (TThis* command) {
         // COMPAT(achulkov2)

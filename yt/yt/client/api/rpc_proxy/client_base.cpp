@@ -807,6 +807,8 @@ TFuture<TAttachTableResult> TClientBase::AttachTable(
     if (options.SourceFormat) {
         req->set_source_format(ToProto<int>(*options.SourceFormat));
     }
+    req->set_attach_mode(ToProto<int>(options.AttachMode));
+    req->set_source_order(ToProto<int>(options.SourceOrder));
 
     ToProto(req->mutable_transactional_options(), options);
 

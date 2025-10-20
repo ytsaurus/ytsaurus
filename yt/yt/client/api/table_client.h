@@ -49,13 +49,49 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+DEFINE_ENUM(EAttachTableMode,
+    (Sequential)
+    (Parallel)
+);
+
+DEFINE_ENUM(EAttachTableSourceOrder,
+    // Source URIs are processed in the order they are produced from the source spec.
+    (None)
+    // Source URIs are processed in lexicographical order.
+    (LexAsc)
+    // Source URIs are processed in reverse lexicographical order.
+    (LexDesc)
+);
+
 struct TAttachTableOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
 {
+    //! If true, allows attaching tables even if their source schemas are incompatible.
+    //! If the destination table does not exist, it will be created with an empty weak schema.
     bool AllowIncompatibleSourceSchemas = false;
+
+    //! If the destination table does not exist, it will be created with this medium as primary.
+    //! Otherwise, the medium of the existing table is used and must match the value of this field, if specified.
     std::optional<TString> Medium;
+
+    //! If set, overrides the source format deduced from source URI file extensions.
+    //! This override is applied to *all* source URIs, so there is no way to attach
+    //! a table with mixed source formats via this option.
+    //! This option is useful if your source URIs do not have standard file extensions.
     std::optional<NChunkClient::EExternalSourceFormat> SourceFormat;
+
+    //! Controls how source URIs produced from the specified source spec are processed.
+    //! In sequential mode, sources are attached to the table one by one in the order specified by `source_order`.
+    //! In parallel mode (default), multiple sources can be attached concurrently, so there are no ordering guarantees.
+    //! NB: It makes no sense to use sequential mode if the ordering of source URIs is not guaranteed either by
+    //! the source spec itself (e.g. it is an explicit list of source URIs) or by the source order option below.
+    EAttachTableMode AttachMode = EAttachTableMode::Parallel;
+
+    //! Controls the order in which source URIs are fed into the attach process.
+    //! In *sequential* attach mode, this guarantees that data from sources will appear in the table in the specified order.
+    //! By default sources are processed in the order they are produced from the source spec, which may be unspecified.
+    EAttachTableSourceOrder SourceOrder = EAttachTableSourceOrder::None;
 };
 
 struct TAttachedChunkInfo

@@ -2752,6 +2752,10 @@ message TReqAttachTable
 
     optional int32 source_format = 5; // NChunkClient::EExternalSourceFormat
 
+    optional int32 attach_mode = 6; // NTableClient::EAttachTableMode
+
+    optional int32 source_order = 7; // NTableClient::EAttachTableSourceOrder
+
     optional TTransactionalOptions transactional_options = 100;
 }
 

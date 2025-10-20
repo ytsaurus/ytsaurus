@@ -161,8 +161,8 @@ protected:
 
     virtual void FillMiscExt(NProto::TMiscExt& ext, i64 metaSize)
     {
-        ext.set_uncompressed_data_size(GetUncompressedSize());
-        ext.set_compressed_data_size(GetUncompressedSize());
+        ext.set_uncompressed_data_size(GetUncompressedDataSize());
+        ext.set_compressed_data_size(GetUncompressedDataSize());
         // TODO(achulkov2): Find a better approximation?
         ext.set_data_weight(GetDataWeight());
         ext.set_meta_size(metaSize);
@@ -208,7 +208,12 @@ protected:
         return chunkFileSize;
     }
 
-    i64 GetUncompressedSize() const override
+    i64 GetUncompressedDataSize() const override
+    {
+        return GetUnderlyingFileSize();
+    }
+
+    i64 GetCompressedDataSize() const override
     {
         return GetUnderlyingFileSize();
     }
@@ -272,7 +277,7 @@ protected:
         auto* dataBlockMeta = ext.add_data_blocks();
         dataBlockMeta->set_row_count(GetRowCount());
         dataBlockMeta->set_chunk_row_count(GetRowCount());
-        dataBlockMeta->set_uncompressed_size(GetUncompressedSize());
+        dataBlockMeta->set_uncompressed_size(GetUncompressedDataSize());
         dataBlockMeta->set_block_index(0);
     }
 };
