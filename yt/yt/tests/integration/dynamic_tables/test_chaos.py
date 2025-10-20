@@ -1359,6 +1359,7 @@ class TestChaos(ChaosTestBase):
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
         ]
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids, schema=schema)
@@ -1394,8 +1395,8 @@ class TestChaos(ChaosTestBase):
         wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
 
         # Trigger era switch so chaos caches get updated
-        alter_table_replica(replica_ids[0], enabled=False)
-        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
+        alter_table_replica(replica_ids[2], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
 
         assert len(_get_in_sync_replicas("//tmp/t")) == 1
         assert len(_get_in_sync_replicas("//tmp/crt")) == 1

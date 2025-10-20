@@ -84,6 +84,22 @@ def get_job_stderr(operation_id, job_id, client=None):
         client=client)
 
 
+def get_job_trace(operation_id, job_id,
+                  trace_id=None, from_time=None, to_time=None, client=None):
+    """Get traces of the specified job."""
+    params = {"operation_id": operation_id, "job_id": job_id}
+    set_param(params, "trace_id", trace_id)
+    set_param(params, "from_time", from_time)
+    set_param(params, "to_time", to_time)
+
+    return make_request(
+        "get_job_trace",
+        params,
+        return_content=False,
+        use_heavy_proxy=True,
+        client=client)
+
+
 def get_job_input(job_id, client=None):
     """Get full input of the specified job.
 

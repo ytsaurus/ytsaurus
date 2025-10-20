@@ -2076,6 +2076,21 @@ def add_get_job_stderr_parser(add_parser):
     add_hybrid_argument(parser, "operation_id", help="operation id, for example: 876084ca-efd01a47-3e8-7a62e787")
 
 
+@copy_docstring_from(yt.get_job_trace)
+def get_job_trace(**kwargs):
+    write_silently(chunk_iter_stream(yt.get_job_trace(**kwargs), yt.config["read_buffer_size"]))
+
+
+def add_get_job_trace_parser(add_parser):
+    parser = add_parser("get-job-trace", get_job_trace)
+    operation_id_args(parser, dest="operation_id")
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("trace_id", help="trace id")
+
+    add_time_argument(parser, "--from-time", help="lower limit for event's timestamp")
+    add_time_argument(parser, "--to-time", help="upper limit for event's timestamp")
+
+
 @copy_docstring_from(yt.get_job_input)
 def get_job_input(**kwargs):
     write_silently(chunk_iter_stream(yt.get_job_input(**kwargs), yt.config["read_buffer_size"]))

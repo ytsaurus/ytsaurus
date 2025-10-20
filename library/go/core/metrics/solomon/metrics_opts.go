@@ -3,11 +3,12 @@ package solomon
 import "time"
 
 type MetricsOpts struct {
-	useNameTag bool
-	tags       map[string]string
-	timestamp  *time.Time
-	memOnly    bool
-	rated      bool
+	useNameTag   bool
+	tags         map[string]string
+	timestamp    *time.Time
+	memOnly      bool
+	rated        bool
+	commonLabels map[string]string
 }
 
 type MetricOpt func(*MetricsOpts)
@@ -39,5 +40,11 @@ func WithMemOnly() func(*MetricsOpts) {
 func WithRated(rated bool) func(*MetricsOpts) {
 	return func(m *MetricsOpts) {
 		m.rated = rated
+	}
+}
+
+func WithCommonLabels(labels map[string]string) func(*MetricsOpts) {
+	return func(m *MetricsOpts) {
+		m.commonLabels = labels
 	}
 }

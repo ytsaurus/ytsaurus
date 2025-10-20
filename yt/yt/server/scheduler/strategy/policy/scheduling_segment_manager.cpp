@@ -210,7 +210,6 @@ TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
         operationState->SchedulingSegment = segment;
         operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingSegmentModules;
         if (IsModuleAwareSchedulingSegment(segment)) {
-            YT_LOG_INFO("XXX (SpecifiedSchedulingSegmentModules: %v, AllModules: %v)", operationState->SpecifiedSchedulingSegmentModules, Config_->GetModules());
             if (operationState->SpecifiedSchedulingSegmentModules) {
                 bool hasKnownModule = false;
                 for (const auto& module : *operationState->SpecifiedSchedulingSegmentModules) {

@@ -633,10 +633,11 @@ public: \
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options),
         (operationIdOrAlias, jobId, options))
-    IMPLEMENT_METHOD(std::vector<TJobTraceEvent>, GetJobTrace, (
+    IMPLEMENT_METHOD(NConcurrency::IAsyncZeroCopyInputStreamPtr, GetJobTrace, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        NJobTrackerClient::TJobId jobId,
         const TGetJobTraceOptions& options),
-        (operationIdOrAlias, options))
+        (operationIdOrAlias, jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobFailContext, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         NScheduler::TJobId jobId,
@@ -1490,11 +1491,6 @@ private:
         NScheduler::TJobId jobId,
         TInstant deadline,
         const THashSet<TString>& attributes);
-
-    std::vector<TJobTraceEvent> DoGetJobTraceFromTraceEventsTable(
-        NScheduler::TOperationId operationId,
-        const TGetJobTraceOptions& options,
-        TInstant deadline);
 
     NJobProberClient::TJobProberServiceProxy CreateNodeJobProberServiceProxy(
         NRpc::IChannelPtr nodeChannel);

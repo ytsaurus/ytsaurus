@@ -19,6 +19,7 @@
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
+#include <util/generic/hash_multi_map.h>
 #include <util/generic/noncopyable.h>
 
 namespace NYT::NControllerAgent {
@@ -30,11 +31,21 @@ DEFINE_ENUM(EJobStage,
     (Finished)
 );
 
+DEFINE_ENUM(ESettleJobRequestStage,
+    (WaitingOnBarrier)
+    (WaitingForController)
+    (WaitingForDelay)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobTracker
     : public TRefCounted
 {
+    class TAllocationInfo;
+    void FinishAllocationAndClearJobs(TAllocationInfo& allocationInfo);
+    void FinishAllocation(TAllocationInfo& allocationInfo, TSchedulerToAgentAllocationEvent&& event);
+
 public:
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NProto::TReqHeartbeat,
@@ -87,6 +98,9 @@ private:
     TEnumIndexedArray<EJobStage, std::array<NProfiling::TCounter, 2>> HeartbeatStatisticsBytes_;
     NProfiling::TGauge HeartbeatEnqueuedControllerEvents_;
     std::atomic<i64> EnqueuedControllerEventCount_ = 0;
+    NProfiling::TGauge SettleJobRequestWaitingOnBarriers_;
+    std::atomic<int> SettleJobRequestWaitingOnBarriersCount_ = 0;
+    NProfiling::TCounter CancelledSettleJobRequestWaitingOnBarrierCount_;
     NProfiling::TCounter HeartbeatCount_;
     NProfiling::TCounter StaleHeartbeatCount_;
     NProfiling::TCounter ReceivedJobCount_;
@@ -159,18 +173,53 @@ private:
 
     struct TFinishedJobInfo { };
 
-    struct TOutBarrier
+
+    class TInBarrier;
+
+    class TOutBarrier
     {
-        TPromise<void> Promise;
-        TGuid Id = TGuid::Create();
+    public:
+        TOutBarrier() = default;
+        // NB(pogorelov): We have to define it in header since class is private :(
+        friend void FormatValue(TStringBuilderBase* builder, const TOutBarrier& outBarrier, TStringBuf /*format*/)
+        {
+            builder->AppendFormat("{Id: %v, CreatedAt: %v}", outBarrier.Id_, outBarrier.CreatedAt_);
+        }
+
+        void Release();
+
+        bool IsEmpty() const;
+
+        void Init();
+
+    private:
+        TPromise<void> Promise_;
+        TGuid Id_ = TGuid::Create();
+        TInstant CreatedAt_ = TInstant::Now();
+
+        friend class TInBarrier;
     };
 
-    struct TInBarrier
+    class TInBarrier
     {
-        TFuture<void> Future;
-        TGuid Id;
-
+    public:
         TInBarrier(const TOutBarrier& outBarrier);
+
+        // NB(pogorelov): We have to define it in header since class is private :(
+        friend void FormatValue(TStringBuilderBase* builder, const TInBarrier& inBarrier, TStringBuf /*format*/)
+        {
+            builder->AppendFormat("{Id: %v, OutBarrierCreationTime: %v}", inBarrier.Id_, inBarrier.OutBarrierCreationTime_);
+        }
+
+        template <CInvocable<void(const TError&)> TCallback>
+        void Wait(TCallback&& onCanceled) const;
+
+        void Cancel(const TError& error) const;
+
+    private:
+        TFuture<void> Future_;
+        TGuid Id_;
+        TInstant OutBarrierCreationTime_;
     };
 
     class TAllocationInfo
@@ -205,9 +254,6 @@ private:
         void EraseRunningJobOrCrash();
         bool EraseFinishedJob(TJobId jobId);
 
-        void FinishAndClearJobs() noexcept;
-        void Finish(TSchedulerToAgentAllocationEvent&& event);
-
         TSchedulerToAgentAllocationEvent ConsumePostponedEventOrCrash();
         template <class TEventType>
         TEventType ConsumePostponedEventOrCrash();
@@ -229,6 +275,14 @@ private:
         std::optional<TSchedulerToAgentAllocationEvent> PostponedAllocationEvent_;
 
         std::optional<TInBarrier> NewJobSettlingBarrier_;
+
+        friend void TJobTracker::FinishAllocationAndClearJobs(TAllocationInfo& allocationInfo);
+        friend void TJobTracker::FinishAllocation(TAllocationInfo& allocationInfo, TSchedulerToAgentAllocationEvent&& event);
+
+        // We do not want to call these methods directly because we want to use job tracker's methods
+        // (which among other things, cancel settle job requests).
+        void FinishAndClearJobs() noexcept;
+        void Finish(TSchedulerToAgentAllocationEvent&& event);
     };
 
     struct TNodeJobs
@@ -273,6 +327,20 @@ private:
     THashMap<TOperationId, TOperationInfo> RegisteredOperations_;
 
     NYTree::IYPathServicePtr OrchidService_;
+
+    struct TSettleJobRequestInfo
+    {
+        const TGuid RequestId;
+        const TAllocationId AllocationId;
+        const TOperationId OperationId;
+        const std::optional<TJobId> LastJobId;
+        ESettleJobRequestStage Stage;
+        const NRpc::IServiceContextPtr RequestContext;
+
+        const TInstant ProcessingStartTime = TInstant::Now();
+    };
+
+    THashMap<TAllocationId, THashMultiMap<TGuid, TSettleJobRequestInfo>> SettleJobRequestInfos_;
 
     struct THeartbeatCounters
     {
@@ -440,6 +508,8 @@ private:
         const NLogging::TLogger& Logger,
         TNonNullPtr<THeartbeatCounters> heartbeatCounters);
 
+    void WaitForNewSettleJobBarrier(TAllocationInfo& allocationInfo, const NLogging::TLogger& Logger);
+
     void DoRegisterOperation(
         TOperationId operationId,
         TWeakPtr<IOperationController> operationController);
@@ -549,6 +619,8 @@ private:
     void ProcessOperationContext(TOperationUpdatesProcessingContext operationUpdatesProcessingContext);
     void ProcessOperationContexts(THashMap<TOperationId, TOperationUpdatesProcessingContext> operationUpdatesProcessingContext);
 
+    void CancelAllocationSettleJobRequests(TAllocationId allocationId);
+
     void DoInitialize(IInvokerPtr cancelableInvoker);
     void SetIncarnationId(TIncarnationId incarnationId);
     void DoCleanup();
@@ -559,6 +631,7 @@ private:
     class TJobTrackerAllocationOrchidService;
     class TJobTrackerJobOrchidService;
     class TJobTrackerOperationOrchidService;
+    class TJobTrackerInflightSettleJobRequestsOrchidService;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTracker)

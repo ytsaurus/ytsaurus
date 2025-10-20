@@ -121,7 +121,7 @@ public:
     //! parent. Does _not_ S-lock destination's parent.
     NCypressClient::TNodeId CopySubtree(
         const TSubtree& sourceSubtree,
-        const TNodeIdToAttributes& sourceInheritableAttributs,
+        const TNodeIdToConstAttributes& sourceInheritableAttributs,
         NSequoiaClient::TAbsolutePathBuf destinationRoot,
         NCypressClient::TNodeId destinationSubtreeRootParentId,
         const NYTree::IAttributeDictionary* destinationInheritedAttributes,
@@ -320,11 +320,11 @@ public:
     const TUserDescriptorPtr& GetCurrentAuthenticatedUser() const;
 
     // TODO(kvk1920): don't use native client. Fetch from Sequoia tables instead.
-    TNodeIdToAttributes FetchInheritableAttributes(
+    TNodeIdToConstAttributes FetchInheritableAttributes(
         TRange<TCypressNodeDescriptor> nodes,
         bool duringCopy,
         const NApi::NNative::IClientPtr& client);
-    TNodeIdToAttributes FetchInheritableAttributes(
+    TNodeIdToConstAttributes FetchInheritableAttributes(
         std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
         bool duringCopy,
         const NApi::NNative::IClientPtr& client);

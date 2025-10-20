@@ -1133,6 +1133,18 @@ class YtClient(ClientState):
             operation_id, job_id,
             client=self)
 
+    def get_job_trace(
+            self,
+            operation_id, job_id,
+            trace_id=None, from_time=None, to_time=None):
+        """
+        Get traces of the specified job.
+        """
+        return client_api.get_job_trace(
+            operation_id, job_id,
+            client=self,
+            trace_id=trace_id, from_time=from_time, to_time=to_time)
+
     def get_operation(
             self,
             operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None):

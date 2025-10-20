@@ -3,6 +3,8 @@
 #include "private.h"
 #include "resource_tree_element.h"
 
+#include <yt/yt/core/utilex/random.h>
+
 namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +34,10 @@ void TResourceTree::UpdateConfig(const TStrategyTreeConfigPtr& config)
 
     EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
     EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
-    DelayInsideResourceUsageInitializationInTree_ = config->TestingOptions->DelayInsideResourceUsageInitializationInTree;
+    ResourceTreeInitializeResourceUsageDelay_ = config->TestingOptions->ResourceTreeInitializeResourceUsageDelay;
+    ResourceTreeReleaseResourcesRandomDelay_ = config->TestingOptions->ResourceTreeReleaseResourcesRandomDelay;
+    ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_ = config->TestingOptions->ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
+    ResourceTreeRevertResourceUsagePrecommitRandomDelay_ = config->TestingOptions->ResourceTreeRevertResourceUsagePrecommitRandomDelay;
 }
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
@@ -127,6 +132,10 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
             element->GetId(),
             FormatResources(usage),
             FormatResources(usagePrecommit));
+
+        if (ResourceTreeReleaseResourcesRandomDelay_) {
+            Sleep(RandomDuration(*ResourceTreeReleaseResourcesRandomDelay_));
+        }
 
         DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_, -usagePrecommit, /*enableDetailedLogs*/ true);
         DoIncreaseHierarchicalResourceUsage(element->Parent_, -usage);
@@ -250,6 +259,9 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     auto* current = element->Parent_.Get();
     while (current) {
+        if (ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_) {
+            Sleep(RandomDuration(*ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay_));
+        }
         YT_VERIFY(increaseLocalResourceUsagePrecommit(current, delta));
         current = current->Parent_.Get();
     }
@@ -269,6 +281,8 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
 
     auto guard = ReaderGuard(StructureLock_);
 
+    auto elementGuard = element->AcquireWriteLock();
+
     IncrementStructureLockReadCount();
 
     YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
@@ -278,7 +292,15 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
 
     TResourceTreeElement* failedParent = nullptr;
 
-    TResourceTreeElement* currentElement = element.Get();
+    {
+        TJobResources localAvailableResourceLimits;
+        if (!element->IncreaseLocalResourceUsagePrecommitWithCheckUnsafe(delta, allowLimitsOvercommit, &localAvailableResourceLimits)) {
+            return EResourceTreeIncreaseResult::ResourceLimitExceeded;
+        }
+        availableResourceLimits = Min(availableResourceLimits, localAvailableResourceLimits);
+    }
+
+    TResourceTreeElement* currentElement = element->Parent_.Get();
     while (currentElement) {
         TJobResources localAvailableResourceLimits;
         if (!currentElement->IncreaseLocalResourceUsagePrecommitWithCheck(delta, allowLimitsOvercommit, &localAvailableResourceLimits)) {
@@ -290,9 +312,14 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     }
 
     if (failedParent) {
-        currentElement = element.Get();
+        YT_VERIFY(element->IncreaseLocalResourceUsagePrecommitUnsafe(-delta));
+        currentElement = element->Parent_.Get();
         while (currentElement != failedParent) {
-            currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
+            if (ResourceTreeRevertResourceUsagePrecommitRandomDelay_) {
+                // NB: under RWLock only synchronous sleep is allowed.
+                Sleep(RandomDuration(*ResourceTreeRevertResourceUsagePrecommitRandomDelay_));
+            }
+            YT_VERIFY(currentElement->IncreaseLocalResourceUsagePrecommit(-delta));
             currentElement = currentElement->Parent_.Get();
         }
         return EResourceTreeIncreaseResult::ResourceLimitExceeded;
@@ -432,8 +459,8 @@ void TResourceTree::InitializeResourceUsageFor(
 {
     YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-    if (DelayInsideResourceUsageInitializationInTree_) {
-        Sleep(*DelayInsideResourceUsageInitializationInTree_);
+    if (ResourceTreeInitializeResourceUsageDelay_) {
+        Sleep(*ResourceTreeInitializeResourceUsageDelay_);
     }
 
     // This method called from Control thread with list of descendant operations elements.

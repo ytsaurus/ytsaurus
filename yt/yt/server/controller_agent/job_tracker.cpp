@@ -29,6 +29,8 @@
 
 #include <library/cpp/yt/misc/variant.h>
 
+#include <util/generic/hash_multi_map.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NConcurrency;
@@ -49,6 +51,7 @@ namespace {
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, JobTrackerProfiler, ControllerAgentProfiler().WithPrefix("/job_tracker"));
 YT_DEFINE_GLOBAL(const NProfiling::TProfiler, NodeHeartbeatProfiler, JobTrackerProfiler().WithPrefix("/node_heartbeat"));
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SettleJobRequestProfiler, JobTrackerProfiler().WithPrefix("/settle_job"));
 
 EJobStage JobStageFromJobState(EJobState jobState) noexcept
 {
@@ -306,6 +309,11 @@ public:
                     })
                 .EndMap()
                 .Item("postponed_allocation_event").Value(ToString(allocation->GetPostponedEvent()))
+                .OptionalItem(
+                    "new_job_settling_barrier",
+                    allocation->GetNewJobSettlingBarrier() ?
+                    std::optional(ToString(*allocation->GetNewJobSettlingBarrier())) :
+                    std::nullopt)
             .EndMap();
         }
 
@@ -546,6 +554,80 @@ private:
     const TJobTracker* const JobTracker_;
 };
 
+class TJobTracker::TJobTrackerInflightSettleJobRequestsOrchidService
+    : public TVirtualMapBase
+{
+public:
+    explicit TJobTrackerInflightSettleJobRequestsOrchidService(const TJobTracker* jobTracker)
+        : TVirtualMapBase(/*owningNode*/ nullptr)
+        , JobTracker_(jobTracker)
+    { }
+
+    i64 GetSize() const override
+    {
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        return ssize(JobTracker_->SettleJobRequestInfos_);
+    }
+
+    std::vector<std::string> GetKeys(i64 limit) const override
+    {
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, GetSize()));
+
+        for (const auto& [allocationId, requestInfos] : JobTracker_->SettleJobRequestInfos_) {
+            if (std::ssize(keys) >= limit) {
+                return keys;
+            }
+            keys.push_back(ToString(allocationId));
+        }
+
+        return keys;
+    }
+
+    IYPathServicePtr FindItemService(const std::string& key) const override
+    {
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+
+        auto allocationId = TAllocationId(TGuid::FromString(key));
+
+        auto allocationIt = JobTracker_->SettleJobRequestInfos_.find(allocationId);
+        if (allocationIt == JobTracker_->SettleJobRequestInfos_.end()) {
+            return nullptr;
+        }
+
+        const auto& requestInfos = allocationIt->second;
+
+        TYsonString allocationYson = BuildYsonStringFluently().BeginMap()
+            .Item("allocation_id").Value(allocationId)
+            .Item("requests").BeginList()
+                .Do([&] (TFluentList fluent) {
+                    for (const auto& [requestId, requestInfo] : requestInfos) {
+                        fluent.Item().BeginMap()
+                            .Item("request_id").Value(requestInfo.RequestId)
+                            .Item("operation_id").Value(requestInfo.OperationId)
+                            .OptionalItem("last_job_id", requestInfo.LastJobId)
+                            .Item("stage").Value(requestInfo.Stage)
+                            .Item("processing_start_time").Value(requestInfo.ProcessingStartTime)
+                        .EndMap();
+                    }
+                })
+            .EndList()
+        .EndMap();
+
+        auto producer = TYsonProducer(BIND([yson = std::move(allocationYson)] (IYsonConsumer* consumer) {
+            consumer->OnRaw(yson);
+        }));
+
+        return IYPathService::FromProducer(std::move(producer));
+    }
+
+private:
+    const TJobTracker* const JobTracker_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobTracker::TAllocationInfo*
@@ -618,10 +700,58 @@ bool TJobTracker::TNodeInfo::CheckHeartbeatSequenceNumber(ui64 sequenceNumber)
     return false;
 }
 
+void TJobTracker::TOutBarrier::Release()
+{
+    Promise_.Set();
+}
+
+bool TJobTracker::TOutBarrier::IsEmpty() const
+{
+    return !Promise_;
+}
+
+void TJobTracker::TOutBarrier::Init()
+{
+    if (!Promise_) {
+        Promise_ = NewPromise<void>();
+    }
+}
+
 TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
-    : Future(outBarrier.Promise)
-    , Id(outBarrier.Id)
+    // NB(pogorelov): We must not cancel "out barrier" but should be able to cancel "in barrier".
+    : Future_(outBarrier.Promise_.ToFuture().ToImmediatelyCancelable(/*propagateCancelation*/ false))
+    , Id_(outBarrier.Id_)
+    , OutBarrierCreationTime_(outBarrier.CreatedAt_)
 { }
+
+template <CInvocable<void(const TError&)> TCallback>
+void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
+{
+    if (Future_.IsSet()) {
+        return;
+    }
+
+    auto callback = BIND([onCanceled = std::forward<TCallback>(onCanceled)] (const TError& error) mutable {
+        if (error.IsOK()) {
+            return;
+        }
+
+        if (error.GetCode() == NYT::EErrorCode::Canceled) {
+            std::forward<TCallback>(onCanceled)(error);
+        } else {
+            YT_LOG_ALERT(error, "Unexpected exception while waiting for in barrier");
+        }
+    });
+    Future_.Subscribe(std::move(callback));
+
+    // NB(pogorelov): Canceling request should not cancel barrier.
+    WaitForFast(Future_.ToImmediatelyCancelable(/*propagateCancelation*/ false)).ThrowOnError();
+}
+
+void TJobTracker::TInBarrier::Cancel(const TError& error) const
+{
+    Future_.Cancel(error);
+}
 
 TJobTracker::TAllocationInfo::TAllocationInfo(
     TOperationId operationId,
@@ -749,28 +879,6 @@ bool TJobTracker::TAllocationInfo::EraseFinishedJob(TJobId jobId)
     return FinishedJobs_.erase(jobId);
 }
 
-void TJobTracker::TAllocationInfo::FinishAndClearJobs() noexcept
-{
-    RunningJob_.reset();
-    FinishedJobs_.clear();
-    Finished_ = true;
-}
-
-void TJobTracker::TAllocationInfo::Finish(TSchedulerToAgentAllocationEvent&& event)
-{
-    YT_LOG_FATAL_IF(
-        Finished_ || PostponedAllocationEvent_,
-        "Event happened to already finished allocation (AllocationId: %v, Finished: %v, CurrentPostponedEvent: %v, NodeId: %v, NewEvent: %v)",
-        AllocationId,
-        Finished_,
-        PostponedAllocationEvent_,
-        NodeIdFromAllocationId(AllocationId),
-        event);
-
-    Finished_ = true;
-    PostponedAllocationEvent_ = std::move(event);
-}
-
 TSchedulerToAgentAllocationEvent TJobTracker::TAllocationInfo::ConsumePostponedEventOrCrash()
 {
     YT_VERIFY(PostponedAllocationEvent_);
@@ -810,6 +918,36 @@ const std::optional<TJobTracker::TInBarrier>& TJobTracker::TAllocationInfo::GetN
     return NewJobSettlingBarrier_;
 }
 
+void TJobTracker::TAllocationInfo::FinishAndClearJobs() noexcept
+{
+    RunningJob_.reset();
+    FinishedJobs_.clear();
+    Finished_ = true;
+
+    if (auto barrier = GetNewJobSettlingBarrier()) {
+        barrier->Cancel(TError("Allocation finished"));
+    }
+}
+
+void TJobTracker::TAllocationInfo::Finish(TSchedulerToAgentAllocationEvent&& event)
+{
+    YT_LOG_FATAL_IF(
+        Finished_ || PostponedAllocationEvent_,
+        "Event happened to already finished allocation (AllocationId: %v, Finished: %v, CurrentPostponedEvent: %v, NodeId: %v, NewEvent: %v)",
+        AllocationId,
+        Finished_,
+        PostponedAllocationEvent_,
+        NodeIdFromAllocationId(AllocationId),
+        event);
+
+    Finished_ = true;
+    PostponedAllocationEvent_ = std::move(event);
+
+    if (auto barrier = GetNewJobSettlingBarrier()) {
+        barrier->Cancel(TError("Allocation finished with event %v", GetPostponedEvent()));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
@@ -821,6 +959,8 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     , HeartbeatProtoMessageBytes_(NodeHeartbeatProfiler().WithHot().Counter("/proto_message_bytes"))
     , HeartbeatDataStatisticsBytes_(NodeHeartbeatProfiler().WithHot().Counter("/data_statistics_bytes"))
     , HeartbeatEnqueuedControllerEvents_(NodeHeartbeatProfiler().WithHot().GaugeSummary("/enqueued_controller_events"))
+    , SettleJobRequestWaitingOnBarriers_(SettleJobRequestProfiler().GaugeSummary("/settle_job_request_waiting_on_barriers"))
+    , CancelledSettleJobRequestWaitingOnBarrierCount_(SettleJobRequestProfiler().WithHot().Counter("/cancelled_settle_job_request_waiting_on_barrier_count"))
     , HeartbeatCount_(NodeHeartbeatProfiler().WithHot().Counter("/count"))
     , StaleHeartbeatCount_(NodeHeartbeatProfiler().WithHot().Counter("/stale_count"))
     , ReceivedJobCount_(NodeHeartbeatProfiler().WithHot().Counter("/job_count"))
@@ -859,6 +999,9 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
                 .Counter("/job_result_bytes");
         }
     }
+
+    constexpr int SupposedSettleJobRequestConcurrencyLimit = 10000;
+    SettleJobRequestInfos_.reserve(SupposedSettleJobRequestConcurrencyLimit);
 }
 
 TFuture<void> TJobTracker::Initialize()
@@ -1045,112 +1188,172 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         allocationId,
         lastJobId);
 
-    SwitchTo(GetCancelableInvokerOrThrow());
+    TErrorOr<TJobStartInfo> jobInfoOrError;
 
-    THROW_ERROR_EXCEPTION_IF(
-        !IncarnationId_,
-        NControllerAgent::EErrorCode::AgentDisconnected,
-        "Controller agent disconnected");
+    // We do not use cancelable invoker here for next reasons:
+    // 1) All invokers we wait callbacks processed in are cancelable, so our request will be canceled (indirectly).
+    // 2) We want guard destructors to be called from job invoker. (Here we rely on the fact that servers are never stopped via Shutdown.)
+    SwitchTo(GetInvoker());
 
-    if (incarnationId != IncarnationId_) {
-        THROW_ERROR_EXCEPTION(
-            NControllerAgent::EErrorCode::IncarnationMismatch,
-            "Controller agent incarnation mismatch: expected %v, got %v)",
-            IncarnationId_,
-            incarnationId);
+    {
+        class TSettleJobRequestGuard
+        {
+        public:
+            TSettleJobRequestGuard(
+                TJobTracker& jobTracker,
+                TAllocationId allocationId,
+                TOperationId operationId,
+                std::optional<TJobId> lastJobId,
+                const TCtxSettleJobPtr& context)
+                : JobTracker_(jobTracker)
+                , AllocationId_(allocationId)
+                , OperationId_(operationId)
+                , LastJobId_(lastJobId)
+            {
+                YT_ASSERT_INVOKER_AFFINITY(JobTracker_.GetInvoker());
+
+                AllocationInfosIt_ = JobTracker_.SettleJobRequestInfos_.emplace(allocationId, THashMultiMap<TGuid, TSettleJobRequestInfo>()).first;
+
+                RequestInfoIt_ = JobTracker_.SettleJobRequestInfos_[allocationId].emplace(context->GetRequestId(), TSettleJobRequestInfo{
+                    .RequestId = context->GetRequestId(),
+                    .AllocationId = allocationId,
+                    .OperationId = operationId,
+                    .LastJobId = lastJobId,
+                    .Stage = ESettleJobRequestStage::WaitingOnBarrier,
+                    .RequestContext = context,
+                });
+            }
+
+            ~TSettleJobRequestGuard()
+            {
+                YT_ASSERT_INVOKER_AFFINITY(JobTracker_.GetInvoker());
+
+                JobTracker_.SettleJobRequestInfos_[AllocationId_].erase(RequestInfoIt_);
+                if (JobTracker_.SettleJobRequestInfos_[AllocationId_].empty()) {
+                    JobTracker_.SettleJobRequestInfos_.erase(AllocationInfosIt_);
+                }
+            }
+
+            void SetStage(ESettleJobRequestStage stage)
+            {
+                YT_ASSERT_INVOKER_AFFINITY(JobTracker_.GetInvoker());
+
+                RequestInfoIt_->second.Stage = stage;
+            }
+
+        private:
+            TJobTracker& JobTracker_;
+            TAllocationId AllocationId_;
+            TOperationId OperationId_;
+            std::optional<TJobId> LastJobId_;
+
+            THashMultiMap<TGuid, TSettleJobRequestInfo>::iterator RequestInfoIt_;
+            THashMap<TAllocationId, THashMultiMap<TGuid, TSettleJobRequestInfo>>::iterator AllocationInfosIt_;
+        };
+
+        TSettleJobRequestGuard SettleJobRequestGuard(*this, allocationId, operationId, lastJobId, context);
+
+        THROW_ERROR_EXCEPTION_IF(
+            !IncarnationId_,
+            NControllerAgent::EErrorCode::AgentDisconnected,
+            "Controller agent disconnected");
+
+        if (incarnationId != IncarnationId_) {
+            THROW_ERROR_EXCEPTION(
+                NControllerAgent::EErrorCode::IncarnationMismatch,
+                "Controller agent incarnation mismatch: expected %v, got %v)",
+                IncarnationId_,
+                incarnationId);
+        }
+
+        auto* nodeInfo = FindNodeInfo(nodeId);
+        if (!nodeInfo) {
+            YT_LOG_INFO("Node is not registered in job tracker; skip settle job request");
+
+            THROW_ERROR_EXCEPTION("Node is not registered in job tracker")
+                << TErrorAttribute("incarnation_id", IncarnationId_);
+        }
+
+        auto* allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
+        if (!allocationInfo) {
+            YT_LOG_INFO("Allocation is unknown; skip settle job request");
+
+            THROW_ERROR_EXCEPTION("No such allocation %v", allocationId);
+        }
+
+        if (allocationInfo->IsFinished()) {
+            YT_LOG_INFO("Allocation is already finished; skip settle job request");
+
+            THROW_ERROR_EXCEPTION("Allocation %v is already finished", allocationId);
+        }
+
+        WaitForNewSettleJobBarrier(*allocationInfo, Logger);
+
+        auto operationIt = RegisteredOperations_.find(operationId);
+        if (operationIt == std::end(RegisteredOperations_)) {
+            YT_LOG_INFO("Operation is not registered in job tracker; skip settle job request");
+
+            THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+        }
+
+        const auto& operationInfo = operationIt->second;
+
+        auto operationController = operationInfo.OperationController.Lock();
+        if (!operationController) {
+            YT_LOG_INFO("Operation controller is already reset, skip settle job request");
+
+            THROW_ERROR_EXCEPTION("Operation %v controller is already reset", operationId);
+        }
+
+        if (!operationInfo.JobsReady) {
+            YT_LOG_INFO("Operation jobs are not ready yet, skip settle job request");
+
+            THROW_ERROR_EXCEPTION("Operation %v jobs are not ready yet", operationId);
+        }
+
+        SettleJobRequestGuard.SetStage(ESettleJobRequestStage::WaitingForController);
+
+        auto asyncJobInfo = BIND(
+            &IOperationController::SettleJob,
+            operationController,
+            allocationId,
+            lastJobId)
+            .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
+            .Run();
+
+        jobInfoOrError = WaitForFast(
+            std::move(asyncJobInfo));
+
+        if (Config_->TestingOptions) {
+            SettleJobRequestGuard.SetStage(ESettleJobRequestStage::WaitingForDelay);
+            MaybeDelay(Config_->TestingOptions->DelayInSettleJob);
+        }
+
+        // NB(pogorelov): Node may be unregistered concurrently.
+        nodeInfo = FindNodeInfo(nodeId);
+        if (!nodeInfo) {
+            YT_LOG_INFO("Node has been unregistered from job tracker during settle job request processing");
+
+            THROW_ERROR_EXCEPTION("Node has been unregistered from job tracker during settle job request processing")
+                << TErrorAttribute("incarnation_id", IncarnationId_);
+        }
+
+        // NB(pogorelov): Allocation may finish concurrently.
+        allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
+        if (!allocationInfo) {
+            // Means that allocation has finished concurrently. Such a job will be aborted in controller.
+            YT_LOG_INFO("Allocation is unknown at the end of request processing; skip settle job request");
+
+            THROW_ERROR_EXCEPTION("No such allocation %v", allocationId);
+        }
+
+        if (allocationInfo->IsFinished()) {
+            YT_LOG_INFO("Allocation is already finished; skip settle job request");
+
+            THROW_ERROR_EXCEPTION("Allocation %v is already finished", allocationId);
+        }
+
     }
-
-    auto* nodeInfo = FindNodeInfo(nodeId);
-    if (!nodeInfo) {
-        YT_LOG_INFO("Node is not registered in job tracker; skip settle job request");
-
-        THROW_ERROR_EXCEPTION("Node is not registered in job tracker")
-            << TErrorAttribute("incarnation_id", IncarnationId_);
-    }
-
-    auto* allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
-    if (!allocationInfo) {
-        YT_LOG_INFO("Allocation is unknown; skip settle job request");
-
-        THROW_ERROR_EXCEPTION("No such allocation %v", allocationId);
-    }
-
-    if (allocationInfo->IsFinished()) {
-        YT_LOG_INFO("Allocation is already finished; skip settle job request");
-
-        THROW_ERROR_EXCEPTION("Allocation %v is already finished", allocationId);
-    }
-
-    if (const auto& newJobSettlingBarrier = allocationInfo->GetNewJobSettlingBarrier()) {
-        YT_LOG_DEBUG(
-            "Waiting for new job settling barrier (BarrierId: %v)",
-            newJobSettlingBarrier->Id);
-
-        // NB(pogorelov): Wait for all previous job events are processed by controller.
-        WaitFor(newJobSettlingBarrier->Future).ThrowOnError();
-    }
-
-    auto operationIt = RegisteredOperations_.find(operationId);
-    if (operationIt == std::end(RegisteredOperations_)) {
-        YT_LOG_INFO("Operation is not registered in job tracker; skip settle job request");
-
-        THROW_ERROR_EXCEPTION("No such operation %v", operationId);
-    }
-
-    const auto& operationInfo = operationIt->second;
-
-    auto operationController = operationInfo.OperationController.Lock();
-    if (!operationController) {
-        YT_LOG_INFO("Operation controller is already reset, skip settle job request");
-
-        THROW_ERROR_EXCEPTION("Operation %v controller is already reset", operationId);
-    }
-
-    if (!operationInfo.JobsReady) {
-        YT_LOG_INFO("Operation jobs are not ready yet, skip settle job request");
-
-        THROW_ERROR_EXCEPTION("Operation %v jobs are not ready yet", operationId);
-    }
-
-    auto asyncJobInfo = BIND(
-        &IOperationController::SettleJob,
-        operationController,
-        allocationId,
-        lastJobId)
-        .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
-        .Run();
-
-    auto jobInfoOrError = WaitFor(
-        std::move(asyncJobInfo));
-
-    if (Config_->TestingOptions) {
-        MaybeDelay(Config_->TestingOptions->DelayInSettleJob);
-    }
-
-    // NB(pogorelov): Node may be unregistered concurrently.
-    nodeInfo = FindNodeInfo(nodeId);
-    if (!nodeInfo) {
-        YT_LOG_INFO("Node has been unregistered from job tracker during settle job request processing");
-
-        THROW_ERROR_EXCEPTION("Node has been unregistered from job tracker during settle job request processing")
-            << TErrorAttribute("incarnation_id", IncarnationId_);
-    }
-
-    // NB(pogorelov): Allocation may finish concurrently.
-    allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
-    if (!allocationInfo) {
-        // Means that allocation has finished concurrently. Such a job will be aborted in controller.
-        YT_LOG_INFO("Allocation is unknown at the end of request processing; skip settle job request");
-
-        THROW_ERROR_EXCEPTION("No such allocation %v", allocationId);
-    }
-
-    if (allocationInfo->IsFinished()) {
-        YT_LOG_INFO("Allocation is already finished; skip settle job request");
-
-        THROW_ERROR_EXCEPTION("Allocation %v is already finished", allocationId);
-    }
-
     SwitchTo(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
     if (!jobInfoOrError.IsOK() || !jobInfoOrError.Value().JobSpecBlob) {
@@ -1352,6 +1555,8 @@ NYTree::IYPathServicePtr TJobTracker::CreateOrchidService() const
     service->AddChild("jobs", New<TJobTrackerJobOrchidService>(this));
 
     service->AddChild("operations", New<TJobTrackerOperationOrchidService>(this));
+
+    service->AddChild("inflight_settle_job_requests", New<TJobTrackerInflightSettleJobRequestsOrchidService>(this));
 
     return service->Via(GetInvoker());
 }
@@ -1619,7 +1824,7 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                 "JobId: %v",
                 jobId);
 
-            auto newJobStage = JobStageFromJobState(jobSummary.JobSummary->State);
+            const auto newJobStage = JobStageFromJobState(jobSummary.JobSummary->State);
 
             auto increaseJobMessageSizes = [&] (bool isKnownJob) {
                 int index = static_cast<int>(isKnownJob);
@@ -1648,8 +1853,10 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                     // NB(pogorelov): We store jobs only if event is not throttled.
                     // (Actually, for now we never throttle finish jobs at all.)
                     if (!wasJobEventThrottled) {
-                        YT_VERIFY(operationUpdatesProcessingContext.ContextProcessedBarrier.Promise);
-                        allocation.SetNewJobSettlingBarrier(operationUpdatesProcessingContext.ContextProcessedBarrier);
+                        YT_VERIFY(!operationUpdatesProcessingContext.ContextProcessedBarrier.IsEmpty());
+                        if (!allocation.IsFinished() && newJobStage == EJobStage::Finished) {
+                            allocation.SetNewJobSettlingBarrier(operationUpdatesProcessingContext.ContextProcessedBarrier);
+                        }
                     }
 
                     continue;
@@ -1939,14 +2146,12 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
 
     auto& operationUpdatesProcessingContext = it->second;
     if (!inserted) {
-        if (createBarrier && !operationUpdatesProcessingContext.ContextProcessedBarrier.Promise) {
-            operationUpdatesProcessingContext.ContextProcessedBarrier = TOutBarrier{
-                .Promise = NewPromise<void>(),
-            };
+        if (createBarrier && operationUpdatesProcessingContext.ContextProcessedBarrier.IsEmpty()) {
+            operationUpdatesProcessingContext.ContextProcessedBarrier.Init();
 
             YT_LOG_DEBUG(
-                "Added context processing barrier (BarrierId: %v)",
-                operationUpdatesProcessingContext.ContextProcessedBarrier.Id);
+                "Added context processing barrier (Barrier: %v)",
+                operationUpdatesProcessingContext.ContextProcessedBarrier);
         }
         return operationUpdatesProcessingContext;
     }
@@ -1988,13 +2193,11 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
     operationUpdatesProcessingContext.OperationController = std::move(operationController);
 
     if (createBarrier) {
-        operationUpdatesProcessingContext.ContextProcessedBarrier = TOutBarrier{
-            .Promise = NewPromise<void>(),
-        };
+        operationUpdatesProcessingContext.ContextProcessedBarrier.Init();
 
         YT_LOG_DEBUG(
-            "Created context processing barrier (BarrierId: %v)",
-            operationUpdatesProcessingContext.ContextProcessedBarrier.Id);
+            "Created context processing barrier (Barrier: %v)",
+            operationUpdatesProcessingContext.ContextProcessedBarrier);
     }
 
     return operationUpdatesProcessingContext;
@@ -2204,6 +2407,68 @@ void TJobTracker::ProcessGracefulAbortRequest(
             .AbortReason = requestOptions.Reason,
             .Graceful = true,
         });
+}
+
+void TJobTracker::WaitForNewSettleJobBarrier(TAllocationInfo& allocationInfo, const NLogging::TLogger& Logger)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    if (const auto& newJobSettlingBarrier = allocationInfo.GetNewJobSettlingBarrier()) {
+        YT_LOG_DEBUG(
+            "Waiting for new job settling barrier (Barrier: %v)",
+            newJobSettlingBarrier);
+
+        class TBarierAwaiter
+        {
+        public:
+            TBarierAwaiter(TJobTracker& jobTracker, const TInBarrier& barrier, const NLogging::TLogger& Logger)
+                : JobTracker_(jobTracker)
+                , Barrier_(barrier)
+                , Logger(Logger)
+            { }
+
+            void operator()()
+            {
+                YT_ASSERT_INVOKER_AFFINITY(JobTracker_.GetCancelableInvoker());
+
+                AccountWaitingOnBarrier(/*created*/ true);
+
+                Barrier_.Wait(/*onCanceled*/ [jobTracker = &JobTracker_, Logger = this->Logger] (const TError& error) {
+                    YT_LOG_DEBUG(
+                        error,
+                        "Cancelled new job settling barrier");
+                    jobTracker->CancelledSettleJobRequestWaitingOnBarrierCount_.Increment();
+                });
+            }
+
+            ~TBarierAwaiter()
+            {
+                // NB(pogorelov): Currently cancelable invokers have one crappy property:
+                // when the invoker is canceled, stack objects destructors might be called from finalizer invoker.
+                // So SettleJobRequestWaitingOnBarriersCount_ should be atomic.
+                AccountWaitingOnBarrier(/*created*/ false);
+            }
+
+        private:
+            TJobTracker& JobTracker_;
+            // NB(pogorelov): Do not use in destructor.
+            const TInBarrier& Barrier_;
+            const NLogging::TLogger& Logger;
+
+            void AccountWaitingOnBarrier(bool created)
+            {
+                if (created) {
+                    JobTracker_.SettleJobRequestWaitingOnBarriersCount_.fetch_add(1, std::memory_order::relaxed);
+                } else {
+                    JobTracker_.SettleJobRequestWaitingOnBarriersCount_.fetch_sub(1, std::memory_order::relaxed);
+                }
+                JobTracker_.SettleJobRequestWaitingOnBarriers_.Update(JobTracker_.SettleJobRequestWaitingOnBarriersCount_);
+            }
+        };
+
+        // NB(pogorelov): Wait for all previous job events related to this allocation are processed by controller.
+        TBarierAwaiter(*this, *newJobSettlingBarrier, Logger)();
+    }
 }
 
 void TJobTracker::DoRegisterOperation(
@@ -2596,10 +2861,11 @@ std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded
 
     if (allocation.ShouldBeRemoved()) {
         YT_LOG_INFO(
-            "Removing allocation (OperationId: %v, AllocationId: %v, PostponedEvent: %v)",
+            "Removing allocation (OperationId: %v, AllocationId: %v, PostponedEvent: %v, Barrier: %v)",
             operationId,
             allocationId,
-            allocation.GetPostponedEvent());
+            allocation.GetPostponedEvent(),
+            allocation.GetNewJobSettlingBarrier());
 
         auto result = std::move(allocation);
 
@@ -2981,7 +3247,7 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const std::string& nodeAddress,
                     });
             }
 
-            allocation.FinishAndClearJobs();
+            FinishAllocationAndClearJobs(allocation);
 
             YT_VERIFY(EraseAllocationIfNeeded(nodeJobs, allocationIt));
         }
@@ -3118,7 +3384,7 @@ void TJobTracker::ProcessAllocationEvent(
 
     auto& allocation = allocationIt->second;
 
-    allocation.Finish(TSchedulerToAgentAllocationEvent{std::move(allocationEvent)});
+    FinishAllocation(allocation, TSchedulerToAgentAllocationEvent{std::move(allocationEvent)});
 
     if (!allocation.GetRunningJob()) {
         skipAllocationEvent("Event happened on empty allocation", allocation.template ConsumePostponedEventOrCrash<TAllocationEvent>(), nodeInfo, allocationIt);
@@ -3334,12 +3600,12 @@ void TJobTracker::ProcessOperationContext(TOperationUpdatesProcessingContext con
             ] () mutable {
                 const auto& Logger = operationUpdatesProcessingContext.OperationLogger;
 
-                if (operationUpdatesProcessingContext.ContextProcessedBarrier.Promise) {
+                if (!operationUpdatesProcessingContext.ContextProcessedBarrier.IsEmpty()) {
                     YT_LOG_DEBUG(
-                        "Releasing context processing barrier (BarrierId: %v)",
-                        operationUpdatesProcessingContext.ContextProcessedBarrier.Id);
+                        "Releasing context processing barrier (Barrier: %v)",
+                        operationUpdatesProcessingContext.ContextProcessedBarrier);
 
-                    operationUpdatesProcessingContext.ContextProcessedBarrier.Promise.Set();
+                    operationUpdatesProcessingContext.ContextProcessedBarrier.Release();
                 }
 
                 for (auto& jobSummary : operationUpdatesProcessingContext.JobSummaries) {
@@ -3416,6 +3682,37 @@ void TJobTracker::ProcessOperationContexts(THashMap<TOperationId, TOperationUpda
     for (auto& [operationId, operationUpdatesProcessingContext] : contexts) {
         ProcessOperationContext(std::move(operationUpdatesProcessingContext));
     }
+}
+
+void TJobTracker::CancelAllocationSettleJobRequests(TAllocationId allocationId)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    if (auto it = SettleJobRequestInfos_.find(allocationId); it != end(SettleJobRequestInfos_)) {
+        for (auto& requestInfo : it->second) {
+            requestInfo.second.RequestContext->Cancel();
+        }
+    }
+}
+
+// NB(pogorelov): FinishAndClearJobs() and FinishAllocation() will cancel barriers
+// that is already set or canceled by CancelAllocationSettleJobRequests.
+// But removing barrier cancelation from these methods would make code inconsistent.
+void TJobTracker::FinishAllocationAndClearJobs(TAllocationInfo& allocationInfo)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    CancelAllocationSettleJobRequests(allocationInfo.AllocationId);
+
+    allocationInfo.FinishAndClearJobs();
+}
+void TJobTracker::FinishAllocation(TAllocationInfo& allocationInfo, TSchedulerToAgentAllocationEvent&& event)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    CancelAllocationSettleJobRequests(allocationInfo.AllocationId);
+
+    allocationInfo.Finish(std::move(event));
 }
 
 void TJobTracker::DoInitialize(IInvokerPtr cancelableInvoker)

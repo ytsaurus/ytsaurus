@@ -283,7 +283,10 @@ struct TTreeTestingOptions
 {
     TDelayConfigPtr DelayInsideFairShareUpdate;
 
-    std::optional<TDuration> DelayInsideResourceUsageInitializationInTree;
+    std::optional<TDuration> ResourceTreeInitializeResourceUsageDelay;
+    std::optional<TDuration> ResourceTreeReleaseResourcesRandomDelay;
+    std::optional<TDuration> ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay;
+    std::optional<TDuration> ResourceTreeRevertResourceUsagePrecommitRandomDelay;
 
     REGISTER_YSON_STRUCT(TTreeTestingOptions);
 
@@ -486,6 +489,10 @@ struct TStrategyTreeConfig
     bool EnableDetailedLogsForSingleAllocationVanillaOperations;
 
     bool ConsiderSingleAllocationVanillaOperationsAsGang;
+
+    // Testing options.
+    bool EnablePreliminaryResourceLimitsCheck;
+    bool EnableResourceTreeRandomSleeps;
 
     REGISTER_YSON_STRUCT(TStrategyTreeConfig);
 
@@ -743,7 +750,12 @@ struct TOperationsCleanerConfig
     bool DisconnectOnFinishedOperationFetchFailure;
 
     //! Timeout to remove operation from Cypress before setting an alert.
-    TDuration OperationRemovalTimeoutStuckThreshold;
+    TDuration OperationRemovalStuckTimeout;
+
+    //! Time the operation stays in operations cleaner if we can't remove it.
+    //! For example, if operation was removed not by operations cleaner.
+    //! This timeout should give enough time to set corresponding alert.
+    TDuration OperationRemovalDropTimeout;
 
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
 

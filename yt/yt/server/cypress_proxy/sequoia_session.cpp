@@ -726,7 +726,7 @@ const TUserDescriptorPtr& TSequoiaSession::GetCurrentAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
-TNodeIdToAttributes TSequoiaSession::FetchInheritableAttributes(
+TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
     TRange<TCypressNodeDescriptor> nodes,
     bool duringCopy,
     const NNative::IClientPtr& client)
@@ -734,7 +734,7 @@ TNodeIdToAttributes TSequoiaSession::FetchInheritableAttributes(
     return FetchInheritableAttributes({nodes}, duringCopy, client);
 }
 
-TNodeIdToAttributes TSequoiaSession::FetchInheritableAttributes(
+TNodeIdToConstAttributes TSequoiaSession::FetchInheritableAttributes(
     std::initializer_list<TRange<TCypressNodeDescriptor>> nodeRanges,
     bool duringCopy,
     const NNative::IClientPtr& client)
@@ -1017,7 +1017,7 @@ void TSequoiaSession::DetachAndRemoveSubtree(
 
 TNodeId TSequoiaSession::CopySubtree(
     const TSubtree& sourceSubtree,
-    const TNodeIdToAttributes& sourceInheritableAttributes,
+    const TNodeIdToConstAttributes& sourceInheritableAttributes,
     TAbsolutePathBuf destinationRoot,
     TNodeId destinationSubtreeRootParentId,
     const IAttributeDictionary* destinationInheritedAttributes,

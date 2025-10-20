@@ -333,7 +333,13 @@ void TTreeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("delay_inside_fair_share_update", &TThis::DelayInsideFairShareUpdate)
         .Default();
 
-    registrar.Parameter("delay_inside_resource_usage_initialization_in_tree", &TThis::DelayInsideResourceUsageInitializationInTree)
+    registrar.Parameter("resource_tree_initialize_resource_usage_delay", &TThis::ResourceTreeInitializeResourceUsageDelay)
+        .Default();
+    registrar.Parameter("resource_tree_release_resource_random_delay", &TThis::ResourceTreeReleaseResourcesRandomDelay)
+        .Default();
+    registrar.Parameter("resource_tree_increase_local_resource_usage_random_delay", &TThis::ResourceTreeIncreaseLocalResourceUsagePrecommitRandomDelay)
+        .Default();
+    registrar.Parameter("resource_tree_revert_resource_usage_precommit_random_delay", &TThis::ResourceTreeRevertResourceUsagePrecommitRandomDelay)
         .Default();
 }
 
@@ -636,6 +642,9 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("consider_single_allocation_vanilla_operations_as_gang", &TThis::ConsiderSingleAllocationVanillaOperationsAsGang)
         .Default(true);
 
+    registrar.Parameter("enable_preliminary_resource_limits_check", &TThis::EnablePreliminaryResourceLimitsCheck)
+        .Default(true);
+
     registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
@@ -920,8 +929,10 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("disconnect_on_finished_operation_fetch_failure", &TThis::DisconnectOnFinishedOperationFetchFailure)
         .Default(true);
-    registrar.Parameter("operation_removal_timeout_stuck_threshold", &TThis::OperationRemovalTimeoutStuckThreshold)
+    registrar.Parameter("operation_removal_stuck_timeout", &TThis::OperationRemovalStuckTimeout)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("operation_removal_drop_timeout", &TThis::OperationRemovalDropTimeout)
+        .Default(TDuration::Minutes(10));
 
     registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
         if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {
@@ -929,6 +940,13 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
                 "\"min_archivation_retry_sleep_delay\"")
                 << TErrorAttribute("min_archivation_retry_sleep_delay", config->MinArchivationRetrySleepDelay)
                 << TErrorAttribute("max_archivation_retry_sleep_delay", config->MaxArchivationRetrySleepDelay);
+        }
+
+        if (config->OperationRemovalDropTimeout <= config->OperationRemovalStuckTimeout) {
+            THROW_ERROR_EXCEPTION("\"operation_removal_drop_timeout\" must be greater than "
+                "\"operation_removal_stuck_timeout\"")
+                << TErrorAttribute("operation_removal_drop_timeout", config->OperationRemovalDropTimeout)
+                << TErrorAttribute("operation_removal_stuck_timeout", config->OperationRemovalStuckTimeout);
         }
     });
 }

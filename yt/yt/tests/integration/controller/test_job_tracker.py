@@ -504,6 +504,176 @@ class TestJobTracker(YTEnvSetup):
 
         op.track()
 
+    @authors("pogorelov")
+    def test_inflight_settle_job_requests_orchid_empty_state(self):
+        # Test that orchid shows empty state when no inflight requests
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        orchid_path = self._get_job_tracker_orchid_path(controller_agent_address) + "/inflight_settle_job_requests"
+
+        # Should be empty initially
+        assert len(ls(orchid_path)) == 0
+
+    @authors("pogorelov")
+    def test_inflight_settle_job_requests_orchid_with_delay_in_settle_job(self):
+        update_controller_agent_config(
+            "job_tracker/testing_options/delay_in_settle_job",
+            {
+                "duration": 3000,
+                "type": "async",
+            },
+        )
+
+        op = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+        )
+
+        op.ensure_running()
+
+        controller_agent_address = self._get_controller_agent(op)
+        orchid_path = self._get_job_tracker_orchid_path(controller_agent_address) + "/inflight_settle_job_requests"
+
+        # Wait for inflight settle job requests to appear
+        wait(lambda: len(ls(orchid_path)) > 0)
+
+        # Get the allocation ID from the operation
+        operation_info = self._get_operation_info(op)
+        assert len(operation_info["allocations"]) == 1
+        allocation_id = operation_info["allocations"][0]
+
+        # Check that the allocation appears in inflight settle job requests
+        assert allocation_id in ls(orchid_path)
+
+        # Get detailed information about the allocation's settle job requests
+        allocation_info = get(orchid_path + "/" + allocation_id)
+        assert allocation_info["allocation_id"] == allocation_id
+        assert "requests" in allocation_info
+        assert len(allocation_info["requests"]) > 0
+
+        # Check structure of individual request
+        request = allocation_info["requests"][0]
+        assert "request_id" in request
+        assert request["operation_id"] == op.id
+        assert request["stage"] == "waiting_for_delay"
+        assert "processing_start_time" in request
+
+        # Wait for requests to complete
+        wait(lambda: len(ls(orchid_path)) == 0)
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_inflight_settle_job_requests_orchid_with_controller_settle_job_delay(self):
+        op = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 3000,
+                        "type": "sync",
+                    },
+                },
+            },
+        )
+
+        op.ensure_running()
+
+        controller_agent_address = self._get_controller_agent(op)
+        orchid_path = self._get_job_tracker_orchid_path(controller_agent_address) + "/inflight_settle_job_requests"
+
+        # Wait for inflight settle job requests to appear
+        wait(lambda: len(ls(orchid_path)) > 0)
+
+        # Get the allocation ID from the operation
+        operation_info = self._get_operation_info(op)
+        assert len(operation_info["allocations"]) == 1
+        allocation_id = operation_info["allocations"][0]
+
+        # Check that the allocation appears in inflight settle job requests
+        assert allocation_id in ls(orchid_path)
+
+        # Get detailed information about the allocation's settle job requests
+        allocation_info = get(orchid_path + "/" + allocation_id)
+        assert allocation_info["allocation_id"] == allocation_id
+        assert "requests" in allocation_info
+        assert len(allocation_info["requests"]) > 0
+
+        # Check structure of individual request
+        request = allocation_info["requests"][0]
+        assert "request_id" in request
+        assert request["operation_id"] == op.id
+        assert request["stage"] == "waiting_for_controller"
+        assert "processing_start_time" in request
+
+        # Wait for requests to complete
+        wait(lambda: len(ls(orchid_path)) == 0)
+
+        op.track()
+
+    @authors("pogorelov")
+    def test_settle_job_timeout(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        profiler = profiler_factory().at_controller_agent(controller_agent)
+
+        timed_out_settle_job_counter = profiler.counter(
+            "rpc/server/timed_out_request_count", tags={"yt_service": "JobTrackerService", "method": "SettleJob"})
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "settle_jobs_timeout": 1000,
+                }
+            }
+        })
+
+        op = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 2000,  # (longer than timeout)
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        op.ensure_running()
+
+        wait(lambda: timed_out_settle_job_counter.get_delta() >= 1, timeout=10)
+
+    @authors("pogorelov")
+    def test_settle_job_cancellation_on_allocation_abort(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        profiler = profiler_factory().at_controller_agent(controller_agent)
+
+        cancelled_settle_job_counter = profiler.counter("rpc/server/canceled_request_count", tags={"yt_service": "JobTrackerService", "method": "SettleJob"})
+
+        op = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 3000,
+                        "type": "sync",
+                    },
+                },
+            },
+        )
+
+        op.ensure_running()
+
+        orchid_path = self._get_job_tracker_orchid_path(controller_agent) + "/inflight_settle_job_requests"
+        wait(lambda: len(ls(orchid_path)) > 0, timeout=10)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            # Wait for the settle job request to be cancelled due to allocation abort (node heartbeat timeout).
+            wait(lambda: cancelled_settle_job_counter.get_delta() >= 1, timeout=10)
+            wait(lambda: len(ls(orchid_path)) == 0)
+
 
 @pytest.mark.enabled_multidaemon
 class TestJobTrackerRaces(YTEnvSetup):
