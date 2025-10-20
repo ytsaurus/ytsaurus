@@ -161,7 +161,7 @@ func (rut *ResourceUsageTable) buildSelectorDiff(ctx context.Context, newerRUT *
 	}
 
 	removedFields := map[string]struct{}{
-		"direct_child_count": {},
+		"direct_child_count": {}, "versioned_resource_usage": {}, "resource_usage": {},
 	}
 
 	isExcluded := func(field string) bool {
