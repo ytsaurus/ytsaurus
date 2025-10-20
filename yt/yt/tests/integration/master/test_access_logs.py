@@ -625,6 +625,37 @@ class TestAccessLog(YTEnvSetup):
             log_filter["tx_methods"] = True
         self._validate_entries_against_log(expected, cell_tag_to_log_filter=cell_tag_to_log_filter)
 
+    @authors("shakurov")
+    def test_non_latin(self):
+        src_basename = "синхрофазотрон"
+        dst_basename = "недоколлайдер"
+
+        # This is piece of AppendYPathLiteral, essentially.
+        def ypath_escape(s):
+            result = []
+            for b in s.encode('utf-8'):
+                result.append('\\x')
+                result.append(f'{b >> 4:x}')
+                result.append(f'{b & 0xf:x}')
+            return ''.join(result)
+        src_basename_escaped = ypath_escape(src_basename)
+        dst_basename_escaped = ypath_escape(dst_basename)
+
+        create("table", f"//tmp/access_log/{src_basename}", recursive=True)
+        copy(f"//tmp/access_log/{src_basename}", f"//tmp/access_log/{dst_basename}")
+        log_list = [
+            {
+                "path": f"//tmp/access_log/{src_basename_escaped}",
+                "original_path": f"//tmp/access_log/{src_basename_escaped}",
+                "destination_path": f"//tmp/access_log/{dst_basename_escaped}",
+                "original_destination_path": f"//tmp/access_log/{dst_basename_escaped}",
+                "type": "table",
+                "method": "Copy",
+            }
+        ]
+        self._validate_entries_against_log(log_list)
+
+
 ##################################################################
 
 
