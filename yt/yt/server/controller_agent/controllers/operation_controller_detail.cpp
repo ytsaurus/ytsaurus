@@ -4728,24 +4728,40 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
         }
     }
 
-    // Check invoker wait time.
-    bool waitTimeThrottlingActive = false;
+    // Check schedule allocation invoker wait time.
+    bool scheduleAllocationWaitTimeThrottlingActive = false;
     {
         auto scheduleAllocationInvokerStatistics = GetInvokerStatistics(Config_->ScheduleAllocationControllerQueue);
-        auto scheduleJobWaitTime = scheduleAllocationInvokerStatistics.TotalTimeEstimate;
-        waitTimeThrottlingActive = scheduleJobWaitTime > Config_->ScheduleAllocationTotalTimeThreshold;
+        auto scheduleAllocationWaitTime = scheduleAllocationInvokerStatistics.TotalTimeEstimate;
+        bool waitTimeThrottlingActive = scheduleAllocationWaitTime > Config_->ScheduleAllocationThrottling.ScheduleAllocationTotalTimeThreshold;
 
         if (waitTimeThrottlingActive || forceLogging) {
             YT_LOG_DEBUG(
-                "Throttling status for wait time "
+                "Throttling status for schedule allocation wait time "
                 "(ScheduleAllocationWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
-                scheduleJobWaitTime,
-                Config_->ScheduleAllocationTotalTimeThreshold,
+                scheduleAllocationWaitTime,
+                Config_->ScheduleAllocationThrottling.ScheduleAllocationTotalTimeThreshold,
                 waitTimeThrottlingActive);
         }
     }
 
-    return jobSpecThrottlingActive || waitTimeThrottlingActive;
+    bool jobEventsWaitTimeThrottlingActive = false;
+    {
+        auto jobEventsInvokerStatistics = GetInvokerStatistics(Config_->JobEventsControllerQueue);
+        auto jobEventsWaitTime = jobEventsInvokerStatistics.TotalTimeEstimate;
+        bool waitTimeThrottlingActive = jobEventsWaitTime > Config_->ScheduleAllocationThrottling.JobEventsTotalTimeThreshold;
+
+        if (waitTimeThrottlingActive || forceLogging) {
+            YT_LOG_DEBUG(
+                "Throttling status for job events wait time "
+                "(JobEventsWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
+                jobEventsWaitTime,
+                Config_->ScheduleAllocationThrottling.JobEventsTotalTimeThreshold,
+                waitTimeThrottlingActive);
+        }
+    }
+
+    return jobSpecThrottlingActive || scheduleAllocationWaitTimeThrottlingActive || jobEventsWaitTimeThrottlingActive;
 }
 
 bool TOperationControllerBase::ShouldSkipRunningJobEvents() const noexcept
