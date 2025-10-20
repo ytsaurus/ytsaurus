@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
-    authors, create, ls, get, set, copy, move, remove, create_domestic_medium, exists, multiset_attributes,
+    assert_yt_error, authors, create, ls, get, set, copy, move, remove, create_domestic_medium, exists, multiset_attributes,
     create_account, create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member,
     remove_group, remove_user, start_transaction, lock, read_table, write_table, alter_table, map,
     set_account_disk_space_limit, raises_yt_error, gc_collect, build_snapshot, create_access_control_object_namespace,
@@ -2340,19 +2340,19 @@ class TestRowAcls(YTEnvSetup):
         create_user("u")
 
         row_access_predicate = None
-        error = None
+        expected_error = None
         if invalid_reason == "non_existent_column":
             row_access_predicate = "non_existent = 2"
-            error = "Undefined reference"
+            expected_error = "Undefined reference"
         elif invalid_reason == "column_type_invalid":
             row_access_predicate = "col1 = \"str\""
-            error = "Type mismatch in expression"
+            expected_error = "Type mismatch in expression"
         elif invalid_reason == "not_boolean":
             row_access_predicate = "col1 + 1"
-            error = "result type to be boolean"
+            expected_error = "result type to be boolean"
         else:
             row_access_predicate = ")col1 == 2("
-            error = "syntax error"
+            expected_error = "syntax error"
 
         self._create_and_write_table(
             [
@@ -2362,8 +2362,12 @@ class TestRowAcls(YTEnvSetup):
         )
 
         if mode == "fail":
-            with raises_yt_error(error):
-                assert self._read("u")
+            try:
+                self._read("u")
+                assert False, "Did not raise exception"
+            except Exception as e:
+                assert_yt_error(e, expected_error)
+                assert_yt_error(e, "and ACE has inapplicable_row_access_predicate_mode=fail")
         else:
             assert self._read("u") == []
 

@@ -44,7 +44,7 @@ public:
 private:
     struct TTrivialDeny
     {
-        inline void Persist(const auto& /*context*/)
+        void Persist(const auto& /*context*/)
         { }
     };
 

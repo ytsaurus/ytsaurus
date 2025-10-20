@@ -58,7 +58,7 @@ bool ValidatePredicateApplicability(
             case EInapplicableRowAccessPredicateMode::Fail: {
                 auto error = TError(
                     "One of row-level ACE's predicate is inapplicable to the table schema "
-                    "and ACE has %v=%v",
+                    "and ACE has %v=%lv",
                     TSerializableAccessControlEntry::InapplicableRowAccessPredicateModeKey,
                     EInapplicableRowAccessPredicateMode::Fail)
                     << ex;

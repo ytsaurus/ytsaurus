@@ -6,7 +6,8 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 message TRlsReadSpec
 {
-    message TTrivialDeny {}
+    message TTrivialDeny
+    { }
 
     oneof predicate_or_trivial_deny {
         string predicate = 1;
