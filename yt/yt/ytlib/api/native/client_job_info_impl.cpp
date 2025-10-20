@@ -64,6 +64,8 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <library/cpp/json/json_writer.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NApi::NNative {
@@ -301,6 +303,163 @@ private:
 
 DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 DEFINE_REFCOUNTED_TYPE(TJobInputReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobTraceReader
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TJobTraceReader(
+        IClientPtr archiveClient,
+        TOperationId operationId,
+        TJobId jobId,
+        const TGetJobTraceOptions& options,
+        TInstant deadline,
+        i64 batchSize,
+        const NLogging::TLogger& logger)
+        : OperationsArchiveClient_(archiveClient)
+        , OperationId_(operationId)
+        , JobId_(jobId)
+        , Options_(options)
+        , Deadline_(deadline)
+        , BatchSize_(batchSize)
+        , JsonWriter_(&JsonStream_, /*formatOutput*/ false)
+        , Logger(logger)
+    { }
+
+    // NB(bystrovserg): Final string will have the following format:
+    // [{event1},{event2},...,{eventN}]
+    TFuture<TSharedRef> Read() override
+    {
+        if (EndOfTrace_) {
+            return MakeFuture<TSharedRef>(TSharedRef());
+        }
+
+        auto query = GetJobTraceEventsQuery();
+        auto selectOptions = GetDefaultSelectRowsOptions(Deadline_, AsyncLastCommittedTimestamp);
+
+        return OperationsArchiveClient_->SelectRows(query, selectOptions).ApplyUnique(BIND(
+            [this, this_ = MakeStrong(this)] (TSelectRowsResult&& result) {
+            const auto& rowset = result.Rowset;
+            const auto& idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
+            const auto& records = ToRecords<NRecords::TJobTraceEvent>(rowset->GetRows(), idMapping);
+
+            // TODO(bystrovserg): Ideally, we should buffer the stream here and return
+            // strings with fixed size. But for now, the main use of get-job-trace
+            // is to read the whole trace and process it afterwards, so for now we can skip this part.
+            return TSharedRef::FromString(FormatTraceEvents(records));
+        }));
+    }
+
+private:
+    const IClientPtr OperationsArchiveClient_;
+    const TOperationId OperationId_;
+    const TJobId JobId_;
+    const TGetJobTraceOptions Options_;
+    const TInstant Deadline_;
+    const i64 BatchSize_;
+
+    TStringStream JsonStream_;
+    NJson::TJsonWriter JsonWriter_;
+
+    const NLogging::TLogger& Logger;
+
+    i64 BatchNumber_ = 0;
+
+    i64 LastEventIndex_ = 0;
+    ui64 LastTraceIdHi_ = 0;
+    ui64 LastTraceIdLo_ = 0;
+
+    bool EndOfTrace_ = false;
+
+    std::string FormatTraceEvents(const std::vector<NRecords::TJobTraceEvent>& records)
+    {
+        if (BatchNumber_ == 0) {
+            JsonWriter_.OpenArray();
+        }
+
+        for (const auto& record : records) {
+            JsonWriter_.UnsafeWrite(record.Event);
+        }
+
+        ++BatchNumber_;
+        if (!records.empty()) {
+            LastEventIndex_ = records.back().Key.EventIndex;
+            LastTraceIdHi_ = records.back().Key.TraceIdHi;
+            LastTraceIdLo_ = records.back().Key.TraceIdLo;
+        }
+
+        YT_LOG_DEBUG("Read job trace events batch (LastTraceId: %v, LastEventIndex: %v, BatchNumber: %v)",
+            TGuid(LastTraceIdHi_, LastTraceIdLo_),
+            LastEventIndex_,
+            BatchNumber_);
+
+        if (std::ssize(records) < BatchSize_) {
+            EndOfTrace_ = true;
+            JsonWriter_.CloseArray();
+        }
+
+        JsonWriter_.Flush();
+        auto resultString = JsonStream_.Str();
+        JsonStream_.Clear();
+        return resultString;
+    }
+
+    std::string GetJobTraceEventsQuery()
+    {
+        NQueryClient::TQueryBuilder builder;
+        builder.SetSource(GetOperationsArchiveJobTraceEventsPath());
+
+        builder.AddSelectExpression("trace_id_hi");
+        builder.AddSelectExpression("trace_id_lo");
+        builder.AddSelectExpression("event_index");
+        builder.AddSelectExpression("event");
+
+        builder.AddWhereConjunct(Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            OperationId_.Underlying().Parts64[0],
+            OperationId_.Underlying().Parts64[1]));
+
+        builder.AddWhereConjunct(Format(
+            "(job_id_hi, job_id_lo) = (%vu, %vu)",
+            JobId_.Underlying().Parts64[0],
+            JobId_.Underlying().Parts64[1]));
+
+        if (Options_.TraceId) {
+            builder.AddWhereConjunct(Format(
+                "(trace_id_hi, trace_id_lo) = (%vu, %vu)",
+                Options_.TraceId->Underlying().Parts64[0],
+                Options_.TraceId->Underlying().Parts64[1]));
+        }
+        if (Options_.FromTime) {
+            builder.AddWhereConjunct(Format("event_time >= %v", Options_.FromTime->MicroSeconds()));
+        }
+        if (Options_.ToTime) {
+            builder.AddWhereConjunct(Format("event_time <= %v", Options_.ToTime->MicroSeconds()));
+        }
+
+        if (Options_.TraceId) {
+            builder.AddWhereConjunct(Format(
+                "(trace_id_hi, trace_id_lo) = (%vu, %vu)",
+                Options_.TraceId->Underlying().Parts64[0],
+                Options_.TraceId->Underlying().Parts64[1]));
+        }
+
+        builder.AddOrderByExpression("trace_id_hi, trace_id_lo, event_index");
+
+        if (BatchNumber_ > 0) {
+            builder.AddWhereConjunct(Format(
+                "(trace_id_hi, trace_id_lo, event_index) > (%vu, %vu, %v)",
+                LastTraceIdHi_,
+                LastTraceIdLo_,
+                LastEventIndex_));
+        }
+
+        builder.SetLimit(BatchSize_);
+        return builder.Build();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1160,83 +1319,15 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
-    TOperationId operationId,
-    const TGetJobTraceOptions& options,
-    TInstant deadline)
-{
-    NQueryClient::TQueryBuilder builder;
-    builder.SetSource(GetOperationsArchiveJobTraceEventsPath());
-
-    builder.AddSelectExpression("operation_id_hi");
-    builder.AddSelectExpression("operation_id_lo");
-    builder.AddSelectExpression("job_id_hi");
-    builder.AddSelectExpression("job_id_lo");
-    builder.AddSelectExpression("trace_id_hi");
-    builder.AddSelectExpression("trace_id_lo");
-    builder.AddSelectExpression("event_index");
-    builder.AddSelectExpression("event");
-    builder.AddSelectExpression("event_time");
-
-    builder.AddWhereConjunct(Format(
-        "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
-        operationId.Underlying().Parts64[0],
-        operationId.Underlying().Parts64[1]));
-
-    if (options.JobId) {
-        builder.AddWhereConjunct(Format(
-            "(job_id_hi, job_id_lo) = (%vu, %vu)",
-            options.JobId->Underlying().Parts64[0],
-            options.JobId->Underlying().Parts64[1]));
-    }
-    if (options.TraceId) {
-        builder.AddWhereConjunct(Format(
-            "(trace_id_hi, trace_id_lo) = (%vu, %vu)",
-            options.TraceId->Underlying().Parts64[0],
-            options.TraceId->Underlying().Parts64[1]));
-    }
-    if (options.FromEventIndex) {
-        builder.AddWhereConjunct(Format("event_index >= %v", *options.FromEventIndex));
-    }
-    if (options.ToEventIndex) {
-        builder.AddWhereConjunct(Format("event_index <= %v", *options.ToEventIndex));
-    }
-    if (options.FromTime) {
-        builder.AddWhereConjunct(Format("event_time >= %v", *options.FromEventIndex));
-    }
-    if (options.ToTime) {
-        builder.AddWhereConjunct(Format("event_time <= %v", *options.ToTime));
-    }
-
-    auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
-    auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
-        .ValueOrThrow()
-        .Rowset;
-
-    auto idMapping = NRecords::TJobTraceEvent::TRecordDescriptor::TPartialIdMapping(rowset->GetNameTable());
-    auto records = ToRecords<NRecords::TJobTraceEvent>(rowset->GetRows(), idMapping);
-
-    std::vector<TJobTraceEvent> traceEvents;
-    traceEvents.reserve(records.size());
-    for (const auto& record : records) {
-        traceEvents.push_back(TJobTraceEvent{
-            .OperationId = TOperationId(TGuid(record.Key.OperationIdHi, record.Key.OperationIdLo)),
-            .JobId = TJobId(TGuid(record.Key.JobIdHi, record.Key.JobIdLo)),
-            .TraceId = TJobTraceId(TGuid(record.Key.TraceIdHi, record.Key.TraceIdLo)),
-            .EventIndex = record.Key.EventIndex,
-            .Event = record.Event,
-            .EventTime = TInstant::MicroSeconds(record.EventTime),
-        });
-    }
-    return traceEvents;
-}
-
-std::vector<TJobTraceEvent> TClient::DoGetJobTrace(
+IAsyncZeroCopyInputStreamPtr TClient::DoGetJobTrace(
     const TOperationIdOrAlias& operationIdOrAlias,
+    TJobId jobId,
     const TGetJobTraceOptions& options)
 {
-    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTraceTimeout);
     auto deadline = timeout.ToDeadLine();
+
+    auto batchSize = Connection_->GetConfig()->GetJobTraceBatchSize;
 
     TOperationId operationId;
     Visit(operationIdOrAlias.Payload,
@@ -1253,7 +1344,7 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTrace(
         EPermissionSet(EPermission::Read),
         /*ignoreMissingOperation*/ false);
 
-    return DoGetJobTraceFromTraceEventsTable(operationId, options, deadline);
+    return New<TJobTraceReader>(GetOperationsArchiveClient(), operationId, jobId, options, deadline, batchSize, Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

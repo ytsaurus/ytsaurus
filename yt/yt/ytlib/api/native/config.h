@@ -295,6 +295,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultGetOperationRetryInterval;
     TDuration DefaultListJobsTimeout;
     TDuration DefaultGetJobTimeout;
+    TDuration DefaultGetJobTraceTimeout;
     TDuration DefaultListOperationsTimeout;
     TDuration DefaultListOperationEventsTimeout;
     TDuration DefaultPullRowsTimeout;
@@ -396,6 +397,8 @@ struct TConnectionDynamicConfig
 
     //! Enables strict access validation in operation info commands.
     bool StrictOperationInfoAccessValidation;
+
+    i64 GetJobTraceBatchSize;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

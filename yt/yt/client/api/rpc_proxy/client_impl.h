@@ -302,8 +302,9 @@ public:
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobStderrOptions& options) override;
 
-    TFuture<std::vector<TJobTraceEvent>> GetJobTrace(
+    TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> GetJobTrace(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobTraceOptions& options) override;
 
     TFuture<TSharedRef> GetJobFailContext(

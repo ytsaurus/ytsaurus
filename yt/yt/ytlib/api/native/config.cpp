@@ -332,6 +332,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_get_job_timeout", &TThis::DefaultGetJobTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_get_job_trace_timeout", &TThis::DefaultGetJobTraceTimeout)
+        .Default(TDuration::Minutes(10));
     registrar.Parameter("default_list_operations_timeout", &TThis::DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_list_operation_events_timeout", &TThis::DefaultListOperationEventsTimeout)
@@ -516,6 +518,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
         .Default(false);
+
+    registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
+        .Default(25'000)
+        .GreaterThan(0);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

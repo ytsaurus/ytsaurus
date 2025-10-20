@@ -629,9 +629,10 @@ def get_job_stderr(operation_id, job_id, **kwargs):
     return execute_command("get_job_stderr", kwargs)
 
 
-def get_job_trace(operation_id, **kwargs):
+def get_job_trace(operation_id, job_id, **kwargs):
     kwargs["operation_id"] = operation_id
-    return execute_command("get_job_trace", kwargs, parse_yson=True)
+    kwargs["job_id"] = job_id
+    return execute_command("get_job_trace", kwargs)
 
 
 def get_job_stderr_paged(operation_id, job_id, **kwargs):
