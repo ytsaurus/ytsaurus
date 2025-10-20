@@ -1534,7 +1534,7 @@ class TestMaxYqlVersionConfigAttr(TestQueriesYqlSimpleBase):
     def test_yql_versions_throws(self, query_tracker, yql_agent):
         with raises_yt_error() as err:
             query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
-            query.track()../ytsaurus/yt/yql/tools/
+            query.track()
         assert err[0].contains_text("Invalid YQL language version")
 
         with raises_yt_error() as err:
@@ -1644,7 +1644,7 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersion(TestGetQueryTrackerInfoBase):
         self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
         self._test_qt_info_with_incorrect_yqla_stage()
 
-../ytsaurus/yt/yql/tools/
+
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBase):
     MAX_YQL_VERSION = "some invalid version name. should be set to maximum availible in facade"
 
@@ -1695,7 +1695,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWi
 
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
-class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestG../ytsaurus/yt/yql/tools/etQueryTrackerInfoWithoutMaxYqlVersion):
+class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
