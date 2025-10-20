@@ -1850,5 +1850,5 @@ class TestsDDL(TestQueriesYqlSimpleBase):
 }"""
                }])
 @authors("mpereskokova")
-class TestStackOverflowWithProcesses(TestStackOverfl../ytsaurus/yt/yql/tools/ow):
+class TestStackOverflowWithProcesses(TestStackOverflow):
     YQL_SUBPROCESSES_COUNT = 8
