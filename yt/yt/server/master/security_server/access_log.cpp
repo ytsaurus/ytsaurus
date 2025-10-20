@@ -26,9 +26,12 @@ using namespace NCypressServer;
 using namespace NObjectClient;
 using namespace NLogging;
 using namespace NTransactionServer;
+using namespace NYPath;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = SecurityServerLogger;
 
 static constexpr int AccessLogStackBufferSize = 1024;
 
@@ -106,7 +109,27 @@ void LogAccess(
 
     const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
-    const auto& targetSuffix = GetRequestTargetYPath(context->RequestHeader());
+    auto maybeAlert = [&] (const TErrorOr<TYPath>& ypathOrError, const auto& unparsedYPath, TStringBuf ypathType) {
+        if (!ypathOrError.IsOK()) {
+            YT_LOG_ALERT(ypathOrError,
+                "Failed to parse YPath while logging access "
+                "(NodeId: %v, Path: %v, TransactionId: %v, UnparsedYPathType: %v, UnparsedYPath: %v)",
+                id,
+                path,
+                GetObjectId(transaction),
+                ypathType,
+                unparsedYPath);
+            return true;
+        }
+        return false;
+    };
+
+    const auto& unparsedTargetSuffix = GetRequestTargetYPath(context->RequestHeader());
+    auto targetSuffixOrError = TryEscapeNonAsciiYPathLiterals(unparsedTargetSuffix);
+    const auto* targetSuffix = maybeAlert(targetSuffixOrError, unparsedTargetSuffix, "target_suffix")
+        ? nullptr
+        : &targetSuffixOrError.Value();
+
     auto targetSuffixIsForDestinationPath =
         context->GetMethod() == "Move" ||
         context->GetMethod() == "Copy" ||
@@ -114,19 +137,19 @@ void LogAccess(
         context->GetMethod() == "AssembleTreeCopy";
 
     auto doPath = [&] (auto fluent, TYPathBuf path, bool appendTargetSuffix) {
-        if (!appendTargetSuffix) {
+        if (!appendTargetSuffix || !targetSuffix || targetSuffix->empty()) {
             fluent.Value(path);
             return;
         }
 
         // Try to avoid allocation.
-        if (path.size() + targetSuffix.size() <= AccessLogStackBufferSize) {
+        if (path.size() + targetSuffix->size() <= AccessLogStackBufferSize) {
             TRawFormatter<AccessLogStackBufferSize> fullPath;
             fullPath.AppendString(path);
-            fullPath.AppendString(targetSuffix);
+            fullPath.AppendString(*targetSuffix);
             fluent.Value(TStringBuf(fullPath.GetData(), fullPath.GetBytesWritten()));
         } else {
-            fluent.Value(path + targetSuffix);
+            fluent.Value(path + *targetSuffix);
         }
     };
 
@@ -152,7 +175,11 @@ void LogAccess(
             }
 
             if (originalPath && !originalPath->empty()) {
-                fluent.Item("original_path").Value(*originalPath);
+                const auto& unparsedOriginalPath = ::NYT::FromProto<TYPath>(*originalPath);
+                auto originalPathOrError = TryEscapeNonAsciiYPathLiterals(unparsedOriginalPath);
+                if (!maybeAlert(originalPathOrError, unparsedOriginalPath, "original_path")) {
+                    fluent.Item("original_path").Value(originalPathOrError.Value());
+                }
             }
         })
         .Do([&] (auto fluent) {
@@ -165,7 +192,11 @@ void LogAccess(
                     });
                     // COMPAT(shakurov)
                     if (targetSuffixIsForDestinationPath && ypathExt.has_original_target_path()) {
-                        fluent.Item("original_destination_path").Value(ypathExt.original_target_path());
+                        const auto& unparsedOriginalDestinationPath = ::NYT::FromProto<TYPath>(ypathExt.original_target_path());
+                        auto originalDestinationPathOrError = TryEscapeNonAsciiYPathLiterals(unparsedOriginalDestinationPath);
+                        if (!maybeAlert(originalDestinationPathOrError, unparsedOriginalDestinationPath, "original_destination_path")) {
+                            fluent.Item("original_destination_path").Value(originalDestinationPathOrError.Value());
+                        }
                     }
                 } else {
                     fluent.Item(attrName).Value(attrValue);
