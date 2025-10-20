@@ -233,12 +233,7 @@ public:
                 NbdThreadPool_->GetInvoker());
 
             // Create block caches to read from Cypress.
-            NApi::NNative::TConnectionOptions connectionOptions;
-            connectionOptions.ConnectionInvoker = NbdThreadPool_->GetInvoker();
-            auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
-            connection->GetNodeDirectorySynchronizer()->Start();
-            connection->GetClusterDirectorySynchronizer()->Start();
-
+            auto connection = ClusterNodeBootstrap_->GetClusterNodeBootstrap()->GetConnection();
             auto clientOptions = NYT::NApi::NNative::TClientOptions::FromUser(NSecurityClient::RootUserName);
             auto client = connection->CreateNativeClient(clientOptions);
 
