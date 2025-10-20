@@ -1,14 +1,13 @@
 #pragma once
 
-#include <yt/yt/library/event_log/public.h>
-
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TStaticTableEventLogManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TEventLogManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(IEventLogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

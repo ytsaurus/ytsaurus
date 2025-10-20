@@ -948,7 +948,7 @@ struct TSchedulerConfig
 
     TTestingOptionsPtr TestingOptions;
 
-    NEventLog::TEventLogManagerConfigPtr EventLog;
+    NEventLog::TStaticTableEventLogManagerConfigPtr EventLog;
 
     NYTree::IMapNodePtr SpecTemplate;
 

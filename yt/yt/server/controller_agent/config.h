@@ -911,7 +911,7 @@ struct TControllerAgentConfig
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
-    NEventLog::TEventLogManagerConfigPtr EventLog;
+    NEventLog::TStaticTableEventLogManagerConfigPtr EventLog;
 
     //! Controller agent-to-scheduler heartbeat timeout.
     TDuration SchedulerHandshakeRpcTimeout;

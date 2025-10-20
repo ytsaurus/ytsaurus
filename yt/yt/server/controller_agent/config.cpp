@@ -871,7 +871,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("event_log", &TThis::EventLog)
         .DefaultCtor([] {
-            auto config = New<NEventLog::TEventLogManagerConfig>();
+            auto config = New<NEventLog::TStaticTableEventLogManagerConfig>();
             config->Enable = false;
             config->MaxRowWeight = 128_MB;
             config->Path = "//sys/scheduler/event_log";
