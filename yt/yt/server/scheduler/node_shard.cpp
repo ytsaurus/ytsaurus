@@ -24,6 +24,7 @@
 #include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>

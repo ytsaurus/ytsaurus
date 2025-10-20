@@ -76,6 +76,7 @@ DEFINE_ENUM(EMergeAttributesMode,
     (Old)
     (New)
     (Compare)
+    (CompareCallback)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

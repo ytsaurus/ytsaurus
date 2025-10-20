@@ -65,7 +65,8 @@ NYson::TYsonString MergeAttributes(
     std::vector<TAttributeValue> attributeValues,
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
     EDuplicatePolicy duplicatePolicy = EDuplicatePolicy::PrioritizeColumn,
-    EMergeAttributesMode mergeAttributesMode = EMergeAttributesMode::Old);
+    EMergeAttributesMode mergeAttributesMode = EMergeAttributesMode::Old,
+    std::function<void(bool, std::vector<NYPath::TYPath>)> mismatchCallback = [] (bool, std::vector<NYPath::TYPath>) {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

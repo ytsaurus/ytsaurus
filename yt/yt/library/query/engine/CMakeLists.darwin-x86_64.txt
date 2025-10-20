@@ -143,6 +143,7 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/7a47f85ab18a02cf85eac9e7eaef32cc.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/29ae66e84dba37e8d9e0429b1ea6cc4c.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ae8ea72e9db378ab4660d75de0739397.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/0e66a16ecbe144c42e59b052ca3a2843.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/4098a667798572d45e16d8737bd03167.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/b8258f5da4c628a0c84fb6f3a8751d7f.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/2f4db4d38233bde1408120deabbd356f.cpp
@@ -382,6 +383,32 @@ add_custom_command(
   -o
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/str_conv_optimized.bc
   -internalize-public-api-list=numeric_to_string#parse_int64#parse_uint64#parse_double
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_merged.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/ngrams.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/ngrams.cpp.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_merged.bc
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_optimized.bc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_merged.bc
+  -o
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_optimized.bc
+  -internalize-public-api-list=make_ngrams
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 
@@ -1256,6 +1283,14 @@ llvm_compile_cxx(library-query-engine.global
 )
 
 llvm_compile_cxx(library-query-engine.global
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/ngrams.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/ngrams.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+
+llvm_compile_cxx(library-query-engine.global
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/udf/regex.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/udf/regex.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1468,6 +1503,15 @@ resources(library-query-engine.global
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/str_conv_optimized.bc
   KEYS
   /llvm_bc/str_conv
+  OPTS
+)
+
+resources(library-query-engine.global
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/0e66a16ecbe144c42e59b052ca3a2843.cpp
+  INPUTS
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/ngrams_optimized.bc
+  KEYS
+  /llvm_bc/ngrams
   OPTS
 )
 

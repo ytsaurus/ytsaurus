@@ -26,6 +26,7 @@
 #include <yt/yt/server/lib/misc/job_reporter.h>
 #include <yt/yt/server/lib/misc/operation_events_reporter.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -35,6 +36,7 @@
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/event_log/config.h>
 #include <yt/yt/ytlib/event_log/event_log.h>
 
 #include <yt/yt/ytlib/scheduler/disk_resources.h>

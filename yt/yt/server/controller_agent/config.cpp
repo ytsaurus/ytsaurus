@@ -785,6 +785,14 @@ void TRemoteOperationsConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+void TScheduleAllocationThrottlingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("schedule_allocation_total_time_threshold", &TThis::ScheduleAllocationTotalTimeThreshold)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("job_events_total_time_threshold", &TThis::JobEventsTotalTimeThreshold)
+        .Default(TDuration::Seconds(5));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TControllerAgentConfig::Register(TRegistrar registrar)
@@ -863,7 +871,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("event_log", &TThis::EventLog)
         .DefaultCtor([] {
-            auto config = New<NEventLog::TEventLogManagerConfig>();
+            auto config = New<NEventLog::TStaticTableEventLogManagerConfig>();
             config->Enable = false;
             config->MaxRowWeight = 128_MB;
             config->Path = "//sys/scheduler/event_log";
@@ -1211,11 +1219,11 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("invoker_pool_total_time_aggregation_period", &TThis::InvokerPoolTotalTimeAggregationPeriod)
         .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("schedule_allocation_total_time_threshold", &TThis::ScheduleAllocationTotalTimeThreshold)
-        .Alias("schedule_job_wait_time_threshold")
-        .Default(TDuration::Seconds(5));
     registrar.Parameter("job_events_total_time_threshold", &TThis::JobEventsTotalTimeThreshold)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("schedule_allocation_throttling", &TThis::ScheduleAllocationThrottling)
+        .Default();
 
     registrar.Parameter("allow_users_group_read_intermediate_data", &TThis::AllowUsersGroupReadIntermediateData)
         .Default(false);

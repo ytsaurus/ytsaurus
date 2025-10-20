@@ -15,6 +15,7 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/api/transaction.h>

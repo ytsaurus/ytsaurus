@@ -2631,6 +2631,46 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
     }
 }
 
+void MakeNgrams(TExpressionContext* context, TValue* result, TValue* textVM, TValue* gramLengthVM)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* textAtHost = PtrFromVM(compartment, textVM);
+    auto* gramLengthAtHost = PtrFromVM(compartment, gramLengthVM);
+
+    if (textAtHost->Type == EValueType::Null || gramLengthAtHost->Type == EValueType::Null) {
+        *PtrFromVM(compartment, result) = MakeUnversionedNullValue();
+        return;
+    }
+
+    const i64 gramLength = gramLengthAtHost->Data.Int64;
+    THROW_ERROR_EXCEPTION_UNLESS(gramLength > 0,
+        "Invalid gram length %v",
+        gramLength);
+
+    const char* textBegin = PtrFromVM(compartment, textAtHost->Data.String, textAtHost->Length);
+    const char* textEnd = textBegin + textAtHost->Length;
+
+    NDetail::TContextStringOutput output(context);
+    NYson::TYsonWriter writer(&output);
+
+    writer.OnBeginList();
+
+    for (i64 ngramStart = 0; ngramStart < textAtHost->Length - gramLength + 1; ++ngramStart) {
+        auto gramView = TStringBuf(textBegin + ngramStart, textBegin + ngramStart + gramLength);
+        writer.OnStringScalar(gramView);
+    }
+
+    const char* tailStart = std::max(textBegin, textBegin + textAtHost->Length - gramLength + 1);
+    while (tailStart < textEnd) {
+        writer.OnStringScalar(TStringBuf(tailStart, textEnd));
+        tailStart++;
+    }
+
+    writer.OnEndList();
+
+    *PtrFromVM(compartment, result) = MakeUnversionedStringLikeValue(EValueType::Composite, output.GetView());
+}
+
 void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypePtr* type)
 {
     auto* compartment = GetCurrentCompartment();
@@ -4511,6 +4551,7 @@ REGISTER_ROUTINE(AnyToString);
 REGISTER_ROUTINE(MakeMap);
 REGISTER_ROUTINE(MakeList);
 REGISTER_ROUTINE(Split);
+REGISTER_ROUTINE(MakeNgrams);
 REGISTER_ROUTINE(ListContains);
 REGISTER_ROUTINE(ListHasIntersection);
 REGISTER_ROUTINE(AnyToYsonString);

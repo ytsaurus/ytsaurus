@@ -220,6 +220,11 @@ class TestParseYpath(object):
             assert path.attributes["cluster"] == "some"
             assert str(path) == "//my/path"
 
+            path = YPath(str_type("some://my/path[:#1]"))
+            assert path.attributes["cluster"] == "some"
+            assert str(path) == "//my/path"
+            assert path.attributes["ranges"][0]["upper_limit"]["row_index"] == 1
+
             path = YPath(str_type("some://my/path/to/file.txt"))
             assert path.attributes["cluster"] == "some"
             assert str(path) == "//my/path/to/file.txt"
@@ -260,6 +265,12 @@ class TestParseYpath(object):
             path = YPath("replica://primary://tmp/queue")
             assert path.attributes["cluster"] == "replica"
             assert str(path) == "//primary://tmp/queue"
+
+            with set_config_option("prefix", YPath("//my/path/")):
+                path = YPath("table[:#1]")
+                assert str(path) == "//my/path/table"
+                assert "cluster" not in path.attributes
+                assert path.attributes["ranges"][0]["upper_limit"]["row_index"] == 1
 
             with pytest.raises(YPathError, match=r'cluster name contains illegal symbol'):
                 path = YPath(str_type("bad+cluster!name://home/mytable"))

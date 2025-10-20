@@ -25,6 +25,8 @@
 
 #include <yt/yt/client/security_client/acl.h>
 
+#include <yt/yt/ytlib/event_log/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/table_client/schemaless_buffered_table_writer.h>
@@ -43,6 +45,7 @@
 
 #include <yt/yt/client/scheduler/spec_patch.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>

@@ -61,6 +61,48 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
         return False
 
 
+class TestStackOverflow(TestQueriesYqlSimpleBase):
+    @authors("mpereskokova")
+    def test_stack_overflow(self, query_tracker, yql_agent):
+
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "x", "type": "string"}]
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [{"name": "x", "type": "string"}]
+        })
+        rows1 = [{"x": str(i)} for i in range(1024)]
+        rows2 = [{"x": str(i)} for i in range(256)]
+
+        write_table("//tmp/t1", rows1)
+        write_table("//tmp/t2", rows2)
+
+        query = self.start_query("yql", """
+            $src = "//tmp/t1";
+            $small_table = "//tmp/t2";
+
+            DEFINE ACTION $split_by_dataset($ds) AS
+                $out = "//tmp" || $ds;
+
+                INSERT INTO $out WITH TRUNCATE
+                SELECT *
+                FROM $src
+                WHERE x = $ds;
+
+                COMMIT;
+            END DEFINE;
+
+            $datasets = (
+                SELECT AGGREGATE_LIST(x)
+                FROM $small_table
+            );
+
+            EVALUATE FOR $row IN $datasets
+                DO $split_by_dataset($row);
+        """, settings={"execution_mode": "validate"})
+        query.track()
+
+
 class TestNotTableResult(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     def test_not_table_result(self, query_tracker, yql_agent):
@@ -1492,7 +1534,7 @@ class TestMaxYqlVersionConfigAttr(TestQueriesYqlSimpleBase):
     def test_yql_versions_throws(self, query_tracker, yql_agent):
         with raises_yt_error() as err:
             query = self.start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
-            query.track()
+            query.track()../ytsaurus/yt/yql/tools/
         assert err[0].contains_text("Invalid YQL language version")
 
         with raises_yt_error() as err:
@@ -1602,7 +1644,7 @@ class TestGetQueryTrackerInfoWithoutMaxYqlVersion(TestGetQueryTrackerInfoBase):
         self._check_qt_info(get_query_tracker_info(attributes=["engines_info"], settings={"some_unused_settings": "some_unused_settings"}))
         self._test_qt_info_with_incorrect_yqla_stage()
 
-
+../ytsaurus/yt/yql/tools/
 class TestGetQueryTrackerInfoWithInvalidMaxYqlVersion(TestGetQueryTrackerInfoBase):
     MAX_YQL_VERSION = "some invalid version name. should be set to maximum availible in facade"
 
@@ -1627,7 +1669,7 @@ class TestDeclare(TestQueriesYqlBase):
 
         query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"}}"})
         query.track()
-        assert query.read_result(1)[0]["result"] == "test-string"
+        assert query.read_result(1)[0]["result"] == "test-st../ytsaurus/yt/yql/tools/ring"
 
         query = self.start_query("yql", query_text, settings={"declared_parameters": "{\"$VAR\"={\"Data\"=\"test-string\"};\"$some_unused_var\"={\"Data\"=\"111\"}}"})
         query.track()
@@ -1653,7 +1695,7 @@ class TestGetQueryTrackerInfoWithMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWi
 
 @authors("kirsiv40")
 @pytest.mark.enabled_multidaemon
-class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestGetQueryTrackerInfoWithoutMaxYqlVersion):
+class TestGetQueryTrackerInfoWithoutMaxYqlVersionRpcProxy(TestG../ytsaurus/yt/yql/tools/etQueryTrackerInfoWithoutMaxYqlVersion):
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
@@ -1691,7 +1733,7 @@ class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
 @authors("staketd")
 class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
     YQL_SUBPROCESSES_COUNT = 8
-
+../ytsaurus/yt/yql/tools/
 
 @authors("a-romanov")
 class TestsDDL(TestQueriesYqlSimpleBase):
@@ -1705,7 +1747,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
         self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
 
-    def test_error_double_create(self, query_tracker, yql_agent):
+    def test_error_double_create(self, query_tracker, yql_agent):../ytsaurus/yt/yql/tools/
         self._test_simple_query_error("""
             create table `//tmp/t0` (xyz Text);
             create table `//tmp/t0` (xyz Text);
@@ -1765,7 +1807,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         true
       ],
       [
-        "subkey",
+        "subkey",../ytsaurus/yt/yql/tools/
         true
       ]
     ]
@@ -1797,7 +1839,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
   "Sorted":
     [
       [
-        "key",
+        "key",../ytsaurus/yt/yql/tools/
         true
       ],
       [
@@ -1807,3 +1849,6 @@ class TestsDDL(TestQueriesYqlSimpleBase):
     ]
 }"""
                }])
+@authors("mpereskokova")
+class TestStackOverflowWithProcesses(TestStackOverfl../ytsaurus/yt/yql/tools/ow):
+    YQL_SUBPROCESSES_COUNT = 8

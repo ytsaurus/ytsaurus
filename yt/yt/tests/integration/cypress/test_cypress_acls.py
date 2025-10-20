@@ -135,7 +135,7 @@ class CheckPermissionBase(YTEnvSetup):
             attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]},
         )
         create("map_node", "//tmp/m/s")
-        create("map_node", "//tmp/m/s/r")
+        create("document", "//tmp/m/s/r")
         assert check_permission("guest", "remove", "//tmp/m/s/r")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m/s")["action"] == "allow"
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"

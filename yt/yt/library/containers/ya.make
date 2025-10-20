@@ -18,7 +18,9 @@ SRCS(
 
 PEERDIR(
     library/cpp/porto/proto
+
     yt/yt/library/process
+
     yt/yt/core
 )
 

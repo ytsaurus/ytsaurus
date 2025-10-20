@@ -77,12 +77,13 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-yt-core
   yt-core-http
   yt-library-auth_server
-  yt-library-numeric
+  yt-library-event_log
   yt-library-heavy_schema_validation
+  yt-library-min_hash_digest
+  yt-library-numeric
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
-  yt-library-min_hash_digest
   yt-client-logging
   yt-library-formats
   yt-library-orchid
@@ -1808,12 +1809,13 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-yt-core
   yt-core-http
   yt-library-auth_server
-  yt-library-numeric
+  yt-library-event_log
   yt-library-heavy_schema_validation
+  yt-library-min_hash_digest
+  yt-library-numeric
   yt-library-quantile_digest
   library-tvm-service
   yt-library-xor_filter
-  yt-library-min_hash_digest
   yt-client-logging
   yt-library-formats
   yt-library-orchid
