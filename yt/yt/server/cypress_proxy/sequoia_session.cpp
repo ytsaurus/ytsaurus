@@ -444,7 +444,8 @@ TSequoiaSessionPtr TSequoiaSession::Start(
         if (doomedTransactionRecords[0].has_value()) {
             THROW_ERROR_EXCEPTION(
                 NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                "Transaction is marked as doomed");
+                "Transaction %v is marked as doomed",
+                cypressTransactionId);
         }
 
         cypressTransactions.resize(2 + record->AncestorIds.size());
