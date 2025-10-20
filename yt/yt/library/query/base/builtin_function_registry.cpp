@@ -238,6 +238,16 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue,
         true);
 
+    builder->RegisterFunction(
+        "make_ngrams",
+        "make_ngrams",
+        {},
+        std::vector<TType>{EValueType::String, EValueType::Int64},
+        EValueType::Null,
+        OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
+        "ngrams",
+        ECallingConvention::UnversionedValue);
+
     const TTypeParameter typeParameter = 0;
     auto anyConstraints = std::unordered_map<TTypeParameter, TUnionType>();
     anyConstraints[typeParameter] = {

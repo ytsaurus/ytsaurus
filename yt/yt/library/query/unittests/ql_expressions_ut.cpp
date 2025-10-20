@@ -3233,6 +3233,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     const auto& exprString = std::get<1>(param);
     const auto& expected = std::get<2>(param);
 
+    if (std::string(exprString).starts_with("make_ngrams") && DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
     auto schema = New<TTableSchema>(std::vector{
         TColumnSchema("i1", EValueType::Int64),
         TColumnSchema("i2", EValueType::Int64),
@@ -3254,13 +3258,14 @@ TEST_P(TEvaluateExpressionTest, Basic)
     EvaluateExpression(expr, rowString, schema, &result, buffer, /*enableWebAssembly*/ false);
     EXPECT_EQ(result, expected);
 
-    // TODO(dtorilov): build and link is_finite and *_localtime udf
+    // TODO(dtorilov): build and link is_finite and *_localtime and *_valid_utf8 and make_ngrams udfs
     if (auto function = expr->As<TFunctionExpression>();
         function && (
             function->FunctionName == "is_finite" ||
             function->FunctionName.ends_with("_localtime") ||
             function->FunctionName.ends_with("_tz") ||
-            function->FunctionName.ends_with("_valid_utf8")))
+            function->FunctionName.ends_with("_valid_utf8") ||
+            function->FunctionName == "make_ngrams"))
     {
         return;
     }
@@ -3541,6 +3546,10 @@ INSTANTIATE_TEST_SUITE_P(
             "l=[12;-2;3]",
             "any_to_yson_string(l)",
             MakeString("[12;-2;3;]")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=neverending_story",
+            "make_ngrams(s1, 3)",
+            MakeComposite("[nev; eve; ver; ere; ren; end; ndi; din; ing; ng_; g_s; _st; sto; tor; ory; ry; y]")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
             "is_finite(d1)",
