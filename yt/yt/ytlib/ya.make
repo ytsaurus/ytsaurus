@@ -784,12 +784,13 @@ PEERDIR(
     yt/yt/core
     yt/yt/core/http
     yt/yt/library/auth_server
-    yt/yt/library/numeric
+    yt/yt/library/event_log
     yt/yt/library/heavy_schema_validation
+    yt/yt/library/min_hash_digest
+    yt/yt/library/numeric
     yt/yt/library/quantile_digest
     yt/yt/library/tvm/service
     yt/yt/library/xor_filter
-    yt/yt/library/min_hash_digest
     yt/yt/client
     yt/yt/client/logging
     yt/yt/library/formats

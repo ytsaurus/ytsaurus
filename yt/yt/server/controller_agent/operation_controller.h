@@ -24,7 +24,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/event_log/public.h>
+#include <yt/yt/library/event_log/public.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 

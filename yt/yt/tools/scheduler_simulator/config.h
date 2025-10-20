@@ -98,7 +98,7 @@ DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
 struct TRemoteEventLogConfig
     : public NYTree::TYsonStruct
 {
-    NEventLog::TEventLogManagerConfigPtr EventLogManager;
+    NEventLog::TStaticTableEventLogManagerConfigPtr EventLogManager;
 
     std::optional<TString> ConnectionFilename;
     NApi::NNative::TConnectionCompoundConfigPtr Connection;

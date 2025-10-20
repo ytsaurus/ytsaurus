@@ -16,6 +16,7 @@ RECURSE(
     dynamic_config
     erasure
     error_skeleton
+    event_log
     formats
     fusion
     fusion

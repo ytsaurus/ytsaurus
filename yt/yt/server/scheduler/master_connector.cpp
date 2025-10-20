@@ -35,6 +35,7 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
