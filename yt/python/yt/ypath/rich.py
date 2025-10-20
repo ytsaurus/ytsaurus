@@ -200,6 +200,9 @@ class RichYPath(object):
         cluster_separator_index = path.index(b':')
         cluster_name = path[0:cluster_separator_index]
 
+        if b"[" in cluster_name and b"]" in path[cluster_separator_index:]:
+            return path
+
         if len(cluster_name) == 0:
             raise YPathError("Path {0} does not start with a valid root-designator, cluster://path short-form assumed; "
                              "cluster name cannot be empty".format(path))
