@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
@@ -22,7 +22,6 @@ using namespace NConcurrency;
 #ifdef _linux_
 using namespace NContainers;
 #endif
-using namespace NDataNode;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTools;
@@ -40,7 +39,8 @@ class TPortoJobDirectoryManager
 {
 public:
     TPortoJobDirectoryManager(
-        const TVolumeManagerConfigPtr& config,
+        const TJobDirectoryManagerDynamicConfigPtr& config,
+        bool enableDiskQuota,
         const TString& path,
         int locationIndex)
         : Path_(path)
@@ -48,7 +48,7 @@ public:
             config->PortoExecutor,
             Format("jobdir%v", locationIndex),
             ExecNodeProfiler().WithPrefix("/job_directory/porto")))
-        , EnableDiskQuota_(config->EnableDiskQuota)
+        , EnableDiskQuota_(enableDiskQuota)
     {
         // Collect and drop all existing volumes.
         auto volumePaths = WaitFor(Executor_->ListVolumePaths())
@@ -78,6 +78,11 @@ public:
     TFuture<void> CreateTmpfsDirectory(const TString& path, const TJobDirectoryProperties& properties) override
     {
         return DoCreateVolume(path, properties, true);
+    }
+
+    void OnDynamicConfigChanged(const TJobDirectoryManagerDynamicConfigPtr& newConfig) override
+    {
+        Executor_->OnDynamicConfigChanged(newConfig->PortoExecutor);
     }
 
     TFuture<void> CleanDirectories(const TString& pathPrefix) override
@@ -117,7 +122,7 @@ public:
 private:
     const TString Path_;
     const IPortoExecutorPtr Executor_;
-    const bool EnableDiskQuota_ = false;
+    const bool EnableDiskQuota_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::set<TString> ManagedVolumes_;
@@ -156,11 +161,12 @@ private:
 };
 
 IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(
-    TVolumeManagerConfigPtr config,
+    TJobDirectoryManagerDynamicConfigPtr config,
+    bool enableDiskQuota,
     const TString& path,
     int locationIndex)
 {
-    return New<TPortoJobDirectoryManager>(std::move(config), path, locationIndex);
+    return New<TPortoJobDirectoryManager>(std::move(config), enableDiskQuota, path, locationIndex);
 }
 
 #endif
@@ -270,6 +276,11 @@ public:
         })
         .AsyncVia(Invoker_)
         .Run();
+    }
+
+    void OnDynamicConfigChanged(const TJobDirectoryManagerDynamicConfigPtr& /*newConfig*/) override
+    {
+        // Nothing to do for simple job directory manager.
     }
 
 private:

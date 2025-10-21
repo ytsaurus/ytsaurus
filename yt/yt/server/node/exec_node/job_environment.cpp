@@ -571,7 +571,11 @@ public:
 
     IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) override
     {
-        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
+        return CreatePortoJobDirectoryManager(
+            Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->JobDirectoryManager,
+            Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota,
+            path,
+            locationIndex);
     }
 
     TFuture<std::vector<TShellCommandResult>> RunCommands(

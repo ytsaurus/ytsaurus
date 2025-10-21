@@ -124,6 +124,12 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
 
 void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("job_directory_manager", &TThis::JobDirectoryManager)
+        .DefaultNew();
+
+    registrar.Parameter("volume_manager", &TThis::VolumeManager)
+        .DefaultNew();
+
     registrar.Parameter("disable_jobs_on_gpu_check_failure", &TThis::DisableJobsOnGpuCheckFailure)
         .Default(true);
 
@@ -184,10 +190,29 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
+void TTmpfsLayerCacheDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLayerCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("volume_porto_executor", &TThis::VolumePortoExecutor)
+        .DefaultNew();
+
+    registrar.Parameter("layer_porto_executor", &TThis::LayerPortoExecutor)
+        .DefaultNew();
+
     registrar.Parameter("delay_after_layer_imported", &TThis::DelayAfterLayerImported)
         .Default();
+
+    registrar.Parameter("layer_import_concurrency", &TThis::LayerImportConcurrency)
+        .Default(2)
+        .GreaterThan(0)
+        .LessThanOrEqual(10);
 
     registrar.Parameter("enable_async_layer_removal", &TThis::EnableAsyncLayerRemoval)
         .Default(true);
@@ -198,10 +223,30 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_operation_with_layer_failed", &TThis::AbortOnOperationWithLayerFailed)
         .Default(false);
 
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
+    registrar.Parameter("tmpfs_cache", &TThis::TmpfsCache)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
+{
+
     registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
         .Default(false);
 
-    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+    registrar.Parameter("layer_cache", &TThis::LayerCache)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobDirectoryManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
         .DefaultNew();
 }
 
@@ -905,9 +950,6 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("slot_manager", &TThis::SlotManager)
-        .DefaultNew();
-
-    registrar.Parameter("volume_manager", &TThis::VolumeManager)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)

@@ -438,11 +438,9 @@ DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheDynamicConfig)
 struct TVolumeManagerConfig
     : public NYTree::TYsonStruct
 {
-    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
     std::vector<TLayerLocationConfigPtr> LayerLocations;
     bool EnableLayersCache;
     double CacheCapacityFraction;
-    int LayerImportConcurrency;
 
     //! Enforce disk space limits for Porto volumes.
     bool EnableDiskQuota;

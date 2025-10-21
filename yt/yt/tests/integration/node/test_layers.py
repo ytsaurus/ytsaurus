@@ -1177,9 +1177,13 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "exec_node": {
-                "volume_manager": {
-                    "delay_after_layer_imported": 60000,
-                },
+                "slot_manager": {
+                    "volume_manager": {
+                        "layer_cache": {
+                            "delay_after_layer_imported": 60000,
+                        },
+                    },
+                }
             },
         })
 
@@ -1823,11 +1827,13 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
                         },
                     },
                 },
-                "volume_manager": {
-                    "abort_on_operation_with_volume_failed": True,
-                    "abort_on_operation_with_layer_failed": True,
-                    "throw_on_prepare_volume": True,
-                },
+                "slot_manager": {
+                    "volume_manager": {
+                        "abort_on_operation_with_volume_failed": True,
+                        "abort_on_operation_with_layer_failed": True,
+                        "throw_on_prepare_volume": True,
+                    },
+                }
             },
         })
 

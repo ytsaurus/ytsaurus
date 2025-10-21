@@ -4,7 +4,7 @@
 #include "porto_helpers.h"
 #include "private.h"
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -154,6 +154,18 @@ TString FormatEnablePorto(EEnablePorto value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+DEFINE_ENUM(EPortoActionKind,
+    (Api)
+    (Poll)
+    (Reconfigure)
+);
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPortoExecutor
     : public IPortoExecutor
 {
@@ -163,10 +175,10 @@ public:
         std::string threadNameSuffix,
         const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
-        , Queue_(New<TActionQueue>(Format("Porto:%v", threadNameSuffix)))
+        , Queue_(CreateEnumIndexedFairShareActionQueue<EPortoActionKind>(Format("Porto:%v", threadNameSuffix)))
         , Profiler_(profiler)
         , PollExecutor_(New<TPeriodicExecutor>(
-            Queue_->GetInvoker(),
+            Queue_->GetInvoker(EPortoActionKind::Poll),
             BIND(&TPortoExecutor::DoPoll, MakeWeak(this)),
             Config_->PollPeriod))
     {
@@ -198,7 +210,20 @@ public:
 
     void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig) override
     {
-        DynamicConfig_.Store(newConfig);
+        YT_LOG_DEBUG(
+            "Enqueue Porto reconfiguration (ApiTimeout: %v, ApiDiskTimeout: %v)",
+            newConfig->ApiTimeout.Seconds(),
+            newConfig->ApiDiskTimeout.Seconds());
+
+        Queue_->GetInvoker(EPortoActionKind::Reconfigure)->Invoke(BIND([this, this_ = MakeStrong(this), config = newConfig] () {
+            YT_LOG_DEBUG(
+                "Reconfiguring Porto (ApiTimeout: %v, ApiDiskTimeout: %v)",
+                config->ApiTimeout.Seconds(),
+                config->ApiDiskTimeout.Seconds());
+            DynamicConfig_.Store(config);
+            Api_->SetTimeout(config->ApiTimeout.Seconds());
+            Api_->SetDiskTimeout(config->ApiDiskTimeout.Seconds());
+        }));
     }
 
 private:
@@ -210,7 +235,7 @@ private:
     {
         YT_LOG_DEBUG("Enqueue Porto API action (Command: %v)", command);
         return BIND(Method, MakeStrong(this), std::forward<TArgs2>(args)...)
-            .AsyncVia(Queue_->GetInvoker())
+            .AsyncVia(Queue_->GetInvoker(EPortoActionKind::Api))
             .Run();
     };
 
@@ -444,14 +469,9 @@ public:
             place);
     }
 
-    IInvokerPtr GetInvoker() const override
-    {
-        return Queue_->GetInvoker();
-    }
-
 private:
     const TPortoExecutorDynamicConfigPtr Config_;
-    const TActionQueuePtr Queue_;
+    const IEnumIndexedFairShareActionQueuePtr<EPortoActionKind> Queue_;
     const NProfiling::TProfiler Profiler_;
     const std::unique_ptr<Porto::TPortoApi> Api_ = std::make_unique<Porto::TPortoApi>();
     const TPeriodicExecutorPtr PollExecutor_;

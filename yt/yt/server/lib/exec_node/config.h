@@ -140,6 +140,10 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 struct TSlotManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
+    TJobDirectoryManagerDynamicConfigPtr JobDirectoryManager;
+
+    TVolumeManagerDynamicConfigPtr VolumeManager;
+
     bool DisableJobsOnGpuCheckFailure;
 
     //! Enforce disk space limits in periodic disk resources update.
@@ -189,22 +193,27 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVolumeManagerDynamicConfig
+struct TJobDirectoryManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    //! For testing.
-    std::optional<TDuration> DelayAfterLayerImported;
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
 
-    bool EnableAsyncLayerRemoval;
+    REGISTER_YSON_STRUCT(TJobDirectoryManagerDynamicConfig);
 
-    bool AbortOnOperationWithVolumeFailed;
+    static void Register(TRegistrar registrar);
+};
 
-    bool AbortOnOperationWithLayerFailed;
+DEFINE_REFCOUNTED_TYPE(TJobDirectoryManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVolumeManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{;
+    TLayerCacheDynamicConfigPtr LayerCache;
 
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
-
-    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
@@ -212,6 +221,50 @@ struct TVolumeManagerDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLayerCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    NContainers::TPortoExecutorDynamicConfigPtr VolumePortoExecutor;
+    NContainers::TPortoExecutorDynamicConfigPtr LayerPortoExecutor;
+
+    //! For testing.
+    std::optional<TDuration> DelayAfterLayerImported;
+
+    int LayerImportConcurrency;
+
+    bool EnableAsyncLayerRemoval;
+
+    bool AbortOnOperationWithVolumeFailed;
+
+    bool AbortOnOperationWithLayerFailed;
+
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
+    TTmpfsLayerCacheDynamicConfigPtr TmpfsCache;
+
+    REGISTER_YSON_STRUCT(TLayerCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLayerCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTmpfsLayerCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
+
+    REGISTER_YSON_STRUCT(TTmpfsLayerCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -827,8 +880,6 @@ struct TExecNodeDynamicConfig
     TMasterConnectorDynamicConfigPtr MasterConnector;
 
     TSlotManagerDynamicConfigPtr SlotManager;
-
-    TVolumeManagerDynamicConfigPtr VolumeManager;
 
     TGpuManagerDynamicConfigPtr GpuManager;
 
