@@ -211,6 +211,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_cypress_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_distributed_table_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_distributed_file_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_dynamic_tables_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_file_cache_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_files_impl.cpp
@@ -381,9 +382,11 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/election/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/event_log/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/event_log/event_log.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_output.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_fragment_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory_synchronizer.cpp

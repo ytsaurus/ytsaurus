@@ -615,6 +615,21 @@ public:
         const TDistributedWriteSessionFinishOptions& options),
         (sessionWithResults, options))
 
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteFileSessionWithCookies>, StartDistributedWriteFileSession, (
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteFileSessionStartOptions& options),
+        (path, options))
+
+    DELEGATE_METHOD(TFuture<void>, PingDistributedWriteFileSession, (
+        const NFileClient::TSignedDistributedWriteFileSessionPtr& session,
+        const TDistributedWriteFileSessionPingOptions& options),
+        (session, options))
+
+    DELEGATE_METHOD(TFuture<void>, FinishDistributedWriteFileSession, (
+        const TDistributedWriteFileSessionWithResults& sessionWithResults,
+        const TDistributedWriteFileSessionFinishOptions& options),
+        (sessionWithResults, options))
+
 #undef DELEGATE_METHOD
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD
