@@ -1748,7 +1748,7 @@ private:
             return TStatus::Error;
         }
 
-        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtWriteTable::idx_DataSink)), TYtTable(table), ctx)) {
+        if (!EnsureDataSinkClusterMatchesTable(TYtDSink(input->ChildPtr(TYtCreateTable::idx_DataSink)), TYtTable(table), ctx)) {
             return TStatus::Error;
         }
 
@@ -1785,7 +1785,7 @@ private:
             TExprNode::TPtr newTable;
             if (const auto status = UpdateTableMeta(table, newTable, State_->TablesData, false, State_->Types->UseTableMetaFromGraph, useNativeYtDefaultColumnOrder, ctx); TStatus::Ok != status.Level) {
                 if (TStatus::Error != status.Level && newTable != table) {
-                    output = ctx.ChangeChild(*input, TYtWriteTable::idx_Table, std::move(newTable));
+                    output = ctx.ChangeChild(*input, TYtCreateTable::idx_Table, std::move(newTable));
                 }
                 return status.Combine(TStatus::Repeat);
             }
@@ -1795,7 +1795,7 @@ private:
             YQL_ENSURE(tableInfo.Meta);
             if (tableInfo.Meta->DoesExist || !initial) {
                 ctx.AddError(TIssue(ctx.GetPosition(create.Table().Pos()), TStringBuilder() <<
-                    "Table " << tableInfo.Name << " is already exists."));
+                    "Table " << tableInfo.Name << " already exists."));
                 return TStatus::Error;
             }
 

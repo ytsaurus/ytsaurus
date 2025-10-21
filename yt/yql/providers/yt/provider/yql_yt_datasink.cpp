@@ -272,7 +272,8 @@ public:
             auto children = node->ChildrenList();
             children.resize(6U);
             const auto settings = node->Child(4U);
-            children[3U] = NYql::GetSetting(*settings, EYtSettingType::Columns)->TailPtr();
+            const auto columns = NYql::GetSetting(*settings, EYtSettingType::Columns);
+            children[3U] = columns ? columns->TailPtr() : ctx.NewList(node->Pos(), {});
             const auto keys = NYql::GetSetting(*settings, EYtSettingType::OrderBy);
             children[4U] = keys ? keys->TailPtr() : ctx.NewList(node->Pos(), {});
             children.back() = NYql::RemoveSettings(*settings, EYtSettingType::Columns | EYtSettingType::OrderBy | EYtSettingType::Mode, ctx);

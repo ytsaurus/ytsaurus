@@ -1747,7 +1747,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
         self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
 
-    def test_error_double_create(self, query_tracker, yql_agent):../ytsaurus/yt/yql/tools/
+    def test_error_double_create(self, query_tracker, yql_agent):
         self._test_simple_query_error("""
             create table `//tmp/t0` (xyz Text);
             create table `//tmp/t0` (xyz Text);
@@ -1807,7 +1807,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
         true
       ],
       [
-        "subkey",../ytsaurus/yt/yql/tools/
+        "subkey",
         true
       ]
     ]
@@ -1839,7 +1839,7 @@ class TestsDDL(TestQueriesYqlSimpleBase):
   "Sorted":
     [
       [
-        "key",../ytsaurus/yt/yql/tools/
+        "key",
         true
       ],
       [
