@@ -77,6 +77,10 @@ struct IVolumeManager
     virtual TFuture<void> DisableLayerCache(const TError& reason) = 0;
 
     virtual bool IsEnabled() const = 0;
+
+    virtual void OnDynamicConfigChanged(
+        const TVolumeManagerDynamicConfigPtr& oldConfig,
+        const TVolumeManagerDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)
