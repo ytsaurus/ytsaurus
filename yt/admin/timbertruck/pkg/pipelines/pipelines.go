@@ -51,6 +51,10 @@ type Transform[In any, Out any] interface {
 	//   Transform can modify meta, e.g. a transform that merges rows can output a range in the file for the merged result.
 	// - `in` input element from source stream
 	// - `out` output stream
+	//
+	// Ownership and lifetime contract for data passed via `emit`:
+	// The value passed to `emit` is valid only until `emit` returns; downstream MUST NOT retain
+	// references to it beyond `emit`. If downstream needs to store the value, it MUST make its own copy.
 	Process(ctx context.Context, meta RowMeta, in In, emit EmitFunc[Out])
 
 	// Close finishes the work, flushes the results and releases all aquired resources.

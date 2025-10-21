@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
@@ -148,6 +149,7 @@ type BufferedWriter struct {
 
 	stopFlush chan struct{}
 	wg        sync.WaitGroup
+	closeOnce sync.Once
 }
 
 func NewBufferedWriter(target io.WriteCloser, bufSize int) *BufferedWriter {
@@ -189,8 +191,20 @@ func (bw *BufferedWriter) flushLoop() {
 }
 
 func (bw *BufferedWriter) Close() error {
-	close(bw.stopFlush)
-	bw.wg.Wait()
-	_ = bw.Flush()
-	return bw.target.Close()
+	var err error
+	bw.closeOnce.Do(func() {
+		close(bw.stopFlush)
+		bw.wg.Wait()
+		_ = bw.Flush()
+		err = bw.target.Close()
+	})
+	return err
+}
+
+func OpenBufferedLogWriter(path string, bufSize int) (*BufferedWriter, error) {
+	logFile, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open log file: %w", err)
+	}
+	return NewBufferedWriter(logFile, bufSize), nil
 }

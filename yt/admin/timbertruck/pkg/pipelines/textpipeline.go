@@ -48,7 +48,7 @@ func NewTextPipeline(
 	}
 
 	if options.BufferLimit <= options.LineLimit {
-		panic(fmt.Sprintf("bad options %v; options.LineLimit MUST BE > options.LineLimit", options))
+		panic(fmt.Sprintf("bad options %v; options.BufferLimit MUST BE > options.LineLimit", options))
 	}
 
 	file, err := openLogFile(logger, filepath, position)

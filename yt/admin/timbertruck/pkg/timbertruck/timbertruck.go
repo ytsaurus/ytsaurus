@@ -157,6 +157,15 @@ func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFun
 	handler.logger.Info("Pipeline added")
 }
 
+// AddAndRunStream adds a new stream and launches its handler immediately.
+// It can be called while Serve(ctx) is running.
+//
+// Note: this method is not concurrent safe.
+func (tt *TimberTruck) AddAndRunStream(ctx context.Context, config StreamConfig, newPipeline NewPipelineFunc) error {
+	tt.AddStream(config, newPipeline)
+	return tt.initializeStream(ctx, &tt.handlers[len(tt.handlers)-1])
+}
+
 func (tt *TimberTruck) Serve(ctx context.Context) error {
 	deprecatedStreams := tt.deprecatedStreams()
 
@@ -196,6 +205,36 @@ func (tt *TimberTruck) Serve(ctx context.Context) error {
 	tt.logger.Info("Serving")
 
 	return tt.fsWatcher.Run(ctx)
+}
+
+// BoundActiveTasks marks all active tasks for specified streams as bounded,
+// using current time plus LogCompletionDelay as BoundTime.
+func (tt *TimberTruck) BoundActiveTasks(streamNames []string, boundTime time.Time) {
+	if len(streamNames) == 0 {
+		return
+	}
+
+	streamSet := make(map[string]struct{})
+	for _, name := range streamNames {
+		streamSet[name] = struct{}{}
+	}
+
+	for i := range tt.handlers {
+		stream := tt.handlers[i].config.Name
+		if _, ok := streamSet[stream]; !ok {
+			continue
+		}
+		if err := tt.datastore.BoundAllTasks(stream, boundTime); err != nil {
+			tt.logger.Warn("Failed to bound all tasks for stream", "stream", stream, "error", err)
+		} else {
+			tt.logger.Info("Bound all active tasks for stream", "stream", stream, "bound_time", boundTime)
+		}
+	}
+}
+
+// ListActiveTasks returns all active tasks from the datastore.
+func (tt *TimberTruck) ListActiveTasks() ([]Task, error) {
+	return tt.datastore.ListActiveTasks()
 }
 
 // deprecatedStreams returns a set of deprecated stream names.
@@ -648,6 +687,7 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 						break loop
 					}
 				case <-ctx.Done():
+					// Context is done, but task is not bound yet. We should not call NotifyComplete.
 					return
 				}
 			}
