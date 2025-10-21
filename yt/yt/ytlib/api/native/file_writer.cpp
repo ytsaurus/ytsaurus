@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/file_client/file_chunk_writer.h>
 #include <yt/yt/ytlib/file_client/file_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
@@ -150,7 +151,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        auto writerOptions = New<TMultiChunkWriterOptions>();
+        TMultiChunkWriterOptionsPtr writerOptions;
 
         TUserObject userObject(Path_);
 
@@ -201,17 +202,8 @@ private:
 
             auto rsp = rspOrError.Value();
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-            auto attributesCompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
-            auto attributesErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
 
-            writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
-            writerOptions->MediumName = attributes->Get<std::string>("primary_medium");
-            writerOptions->Account = attributes->Get<std::string>("account");
-            writerOptions->CompressionCodec = Path_.GetCompressionCodec().value_or(attributesCompressionCodec);
-            writerOptions->ErasureCodec = Path_.GetErasureCodec().value_or(attributesErasureCodec);
-            // COMPAT(gritukan)
-            writerOptions->EnableStripedErasure = attributes->Get<bool>("enable_striped_erasure", false);
-            writerOptions->MemoryUsageTracker = MemoryUsageTracker_;
+            writerOptions = GetWriterOptions(attributes, Path_, MemoryUsageTracker_);
 
             YT_LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);
