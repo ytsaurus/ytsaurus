@@ -85,7 +85,7 @@ public:
         return YQL_PROFILE_BIND_VAL(future, profileScope);
     }
 
-    TFuture<TRunResult> Prepare(const TExprNode::TPtr& node, TExprContext& ctx, TPrepareOptions&& options) const final {
+    TFuture<TRunResult> Prepare(const TExprNode::TPtr& node, TExprContext& ctx, TPrepareOptions&& options) final {
         auto profileScope = YQL_PROFILE_FUNC_VAL(TRACE);
         auto future = Slave_->Prepare(node, ctx, std::move(options));
         return YQL_PROFILE_BIND_VAL(future, profileScope);
@@ -200,6 +200,11 @@ public:
     TFuture<TLayersSnapshotResult> SnapshotLayers(TSnapshotLayersOptions&& options) final {
         YQL_PROFILE_FUNC(TRACE);
         return Slave_->SnapshotLayers(std::move(options));
+    }
+
+    TFuture<TDumpResult> Dump(TDumpOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->Dump(std::move(options));
     }
 
 private:
