@@ -22,9 +22,9 @@ class TRlsReadSpec
 public:
     TRlsReadSpec() = default;
 
-    static std::optional<TRlsReadSpec> BuildFromRlAclAndTableSchema(
+    static std::optional<TRlsReadSpec> BuildFromRowLevelAclAndTableSchema(
         const TTableSchemaPtr& tableSchema,
-        const std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>& rlAcl,
+        const std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>& rowLevelAcl,
         const NLogging::TLogger& logger);
 
     bool IsTrivialDeny() const;

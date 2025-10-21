@@ -179,7 +179,7 @@ public:
     void AdjustSchemas(const NTableClient::TTableSchema::TSystemColumnOptions& systemColumnOptions);
 
     bool CanInterruptJobs() const;
-    bool HasRlAcl() const;
+    bool HasRowLevelAcl() const;
 
     void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task);
     NChunkClient::TInputChunkPtr GetInputChunk(NChunkClient::TChunkId chunkId, int chunkIndex) const;

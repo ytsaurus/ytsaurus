@@ -187,7 +187,7 @@ struct TUserObject
 
     std::optional<std::string> Account;
 
-    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RlAcl;
+    std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>> RowLevelAcl;
 
     virtual ~TUserObject() = default;
 

@@ -176,8 +176,8 @@ template <class T>
             fillResult(response->mutable_columns()->add_items(), result);
         }
     }
-    if (checkResponse.RlAcl) {
-        ToProto(response->mutable_rl_acl()->mutable_items(), *checkResponse.RlAcl);
+    if (checkResponse.RowLevelAcl) {
+        ToProto(response->mutable_row_level_acl()->mutable_items(), *checkResponse.RowLevelAcl);
     }
 
     context->SetResponseInfo("Action: %v", checkResponse.Action);

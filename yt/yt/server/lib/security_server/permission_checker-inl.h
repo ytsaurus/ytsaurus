@@ -56,8 +56,8 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
         }
     }
 
-    if (ace.Expression && !Response_.RlAcl) {
-        Response_.RlAcl.emplace();
+    if (ace.Expression && !Response_.RowLevelAcl) {
+        Response_.RowLevelAcl.emplace();
     }
 
     if (!CheckInheritanceMode(ace.InheritanceMode, depth)) {
@@ -111,7 +111,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::ProcessAce(
                 }
             }
         } else if (ace.Expression) {
-            Response_.RlAcl->emplace_back(
+            Response_.RowLevelAcl->emplace_back(
                 *ace.Expression,
                 ace.InapplicableExpressionMode
                     .value_or(NSecurityClient::EInapplicableExpressionMode::Fail));
@@ -168,10 +168,10 @@ TPermissionCheckResponse TPermissionChecker<TAccessControlEntry, TCallback>::Get
 
     if (FullReadExplicitlyGranted_) {
         // No need to mention RL ACEs if we are allowed to FullRead.
-        Response_.RlAcl.reset();
+        Response_.RowLevelAcl.reset();
     }
 
-    if (Response_.RlAcl && FullReadRequested_) {
+    if (Response_.RowLevelAcl && FullReadRequested_) {
         // NB(coteeq): Presence of RL ACE alters the behaviour of non-row ACEs.
         // When RL ACEs are present, non-row allowances do not actually allow FullRead.
         // This hack is not pretty, but it exists for RL ACEs to be consistent with columnar ACEs.
@@ -233,7 +233,7 @@ void TPermissionChecker<TAccessControlEntry, TCallback>::SetDeny(
             SetDeny(&result, subjectId, objectId);
         }
     }
-    Response_.RlAcl.reset();
+    Response_.RowLevelAcl.reset();
     ShouldProceed_ = false;
 }
 
