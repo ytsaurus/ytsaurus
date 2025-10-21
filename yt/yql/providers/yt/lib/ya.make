@@ -1,7 +1,9 @@
 RECURSE(
     config_clusters
+    dump_helpers
     errors
     expr_traits
+    full_capture
     graph_reorder
     hash
     infer_schema
