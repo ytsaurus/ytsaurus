@@ -1261,12 +1261,12 @@ private:
                 locationUuid,
                 request->statistics());
 
-            futures.push_back(request->Invoke());
-
             // For testing purposes.
             if (auto duration = GetNodeDynamicConfig()->TestingOptions->FullHeartbeatSessionSleepDuration) {
                 TDelayedExecutor::WaitForDuration(*duration);
             }
+
+            futures.push_back(request->Invoke());
         }
 
         return AllSet(std::move(futures))

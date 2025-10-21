@@ -743,11 +743,6 @@ class TestNodePendingRestartBase(YTEnvSetup):
 
 class TestNodePendingRestart(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # Kill specific components.
-    DELTA_MASTER_CONFIG = {
-        "logging": {
-            "abort_on_alert": False,
-        },
-    }
 
     @authors("danilalexeev")
     def test_pending_restart_request(self):
@@ -941,6 +936,15 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
     def _get_locations_being_disposed_count(self):
         return self._get_profiler_gauge("node_tracker/chunk_locations_being_disposed") + self._get_profiler_gauge("node_tracker/chunk_locations_awaiting_disposal")
 
+    def _wait_chunk_is_replicated(self, chunk_id, replicas_count):
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replicas_count)
+        import sys
+        print("HJJKHJKH", self.is_sequoia_used(), file=sys.stderr)
+        if self.is_sequoia_used():
+            wait(lambda: len(get(f"#{chunk_id}/@unapproved_sequoia_replicas")) == 0)
+        else:
+            wait(lambda: get(f"#{chunk_id}/@approved_replica_count") == replicas_count)
+
     @authors("grphil")
     def test_restarted_state(self):
         update_nodes_dynamic_config({
@@ -959,7 +963,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+        self._wait_chunk_is_replicated(chunk_id, 3)
 
         node = get(f"#{chunk_id}/@stored_replicas")[0]
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
@@ -1009,7 +1013,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+        self._wait_chunk_is_replicated(chunk_id, 3)
 
         node = get(f"#{chunk_id}/@stored_replicas")[0]
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
@@ -1046,7 +1050,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+        self._wait_chunk_is_replicated(chunk_id, 3)
 
         node = get(f"#{chunk_id}/@stored_replicas")[0]
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
@@ -1090,7 +1094,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         write_table("//tmp/t1", {"a": "b"}, table_writer={"upload_replication_factor": 1})
 
         chunk1 = get_singular_chunk_id("//tmp/t1")
-        wait(lambda: len(get(f"#{chunk1}/@stored_replicas")) == 1)
+        self._wait_chunk_is_replicated(chunk1, 1)
 
         chunk1_node = get(f"#{chunk1}/@stored_replicas")[0]
         chunk1_node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(chunk1_node))
@@ -1104,7 +1108,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         write_table("//tmp/t2", {"a": "b"}, table_writer={"upload_replication_factor": 1})
 
         chunk2 = get_singular_chunk_id("//tmp/t2")
-        wait(lambda: len(get(f"#{chunk2}/@stored_replicas")) == 1)
+        self._wait_chunk_is_replicated(chunk2, 1)
 
         node = get(f"#{chunk2}/@stored_replicas")[0]
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
@@ -1156,7 +1160,7 @@ class TestNoDisposalForRestartingNodes(TestNodePendingRestart):
         write_table("//tmp/t1", {"a": "b"}, table_writer={"upload_replication_factor": 1})
 
         chunk = get_singular_chunk_id("//tmp/t1")
-        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 1)
+        self._wait_chunk_is_replicated(chunk, 1)
 
         node1 = str(get(f"#{chunk}/@stored_replicas")[0])
         node1_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node1))
@@ -1231,6 +1235,31 @@ class TestNoDisposalForRestartingNodesSequoia(TestNoDisposalForRestartingNodes):
                 "replicas_percentage": 100,
                 "fetch_replicas_from_sequoia": True,
                 "enable": True
+            }
+        },
+    }
+
+
+class TestNoDisposalForRestartingNodesSequoiaOnly(TestNoDisposalForRestartingNodes):
+    USE_SEQUOIA = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "no_restarting_nodes_disposal": True,
+            "profiling_period": 100,
+        },
+        "chunk_manager": {
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": True,
+            },
+            "replica_approve_timeout": 5000,
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+                "store_sequoia_replicas_on_master": False,
+                "processed_removed_sequoia_replicas_on_master": False,
+                "validate_sequoia_replicas_fetch": False,
             }
         },
     }
