@@ -3827,3 +3827,31 @@ TEST(Operations, MiscOptions)
     EXPECT_EQ(spec["pool_trees"], TNode::CreateList().Add("default"));
     EXPECT_EQ(spec["weight"].AsDouble(), 2.0);
 }
+
+TEST(Operations, ProtoFormatColumnFilter_YTADMINREQ_53390)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    const auto inputPath = workingDir + "/input";
+    const auto outputPath = workingDir + "/output";
+
+    const auto input = std::vector{TNode()("column", "foo"), TNode()("column", "bar")};
+    {
+        auto writer = client->CreateTableWriter<TNode>(inputPath);
+        for (const auto& row : input) {
+            writer->AddRow(row);
+        }
+        writer->Finish();
+    }
+
+    client->Map(
+        TMapOperationSpec()
+            .AddInput<TEmbedding>(inputPath)
+            .AddOutput<TEmbedding>(outputPath),
+        ::MakeIntrusive<TIdProtoMapper<TEmbedding>>());
+
+    auto output = ReadTable(client, outputPath);
+
+    ASSERT_EQ(input, output);
+}
