@@ -415,9 +415,6 @@ void TTableSchemaCacheDynamicConfig::Register(TRegistrar registrar)
 
 void TVolumeManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
-        .DefaultNew();
-
     registrar.Parameter("layer_locations", &TThis::LayerLocations);
 
     registrar.Parameter("enable_layers_cache", &TThis::EnableLayersCache)
@@ -427,11 +424,6 @@ void TVolumeManagerConfig::Register(TRegistrar registrar)
         .Default(0.8)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1);
-
-    registrar.Parameter("layer_import_concurrency", &TThis::LayerImportConcurrency)
-        .Default(2)
-        .GreaterThan(0)
-        .LessThanOrEqual(10);
 
     registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
         .Default(true);
