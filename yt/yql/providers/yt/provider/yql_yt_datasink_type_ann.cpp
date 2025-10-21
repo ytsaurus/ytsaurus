@@ -1753,7 +1753,7 @@ private:
         }
 
         const auto columns = input->ChildPtr(TYtCreateTable::idx_Columns);
-        if (!EnsureTupleMinSize(*columns, 1U, ctx)) {
+        if (!EnsureTuple(*columns, ctx)) {
             return TStatus::Error;
         }
 
