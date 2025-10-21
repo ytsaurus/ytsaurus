@@ -275,8 +275,8 @@ struct TStoreCompactorDynamicConfig
 
     TStoreBackgroundActivityOrchidConfigPtr Orchid;
 
-    std::string CompactionFairSharePool;
-    std::string PartitioningFairSharePool;
+    std::optional<std::string> CompactionFairSharePool;
+    std::optional<std::string> PartitioningFairSharePool;
 
     bool ScheduleNewTasksAfterTaskCompletion;
 

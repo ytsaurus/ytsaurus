@@ -1185,8 +1185,8 @@ private:
     const IYPathServicePtr OrchidService_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNamesLock_);
-    std::string CompactionFairSharePool_;
-    std::string PartitioningFairSharePool_;
+    std::optional<std::string> CompactionFairSharePool_;
+    std::optional<std::string> PartitioningFairSharePool_;
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -2276,14 +2276,14 @@ private:
     {
         auto guard = ReaderGuard(PoolNamesLock_);
 
-        if (partition && !PartitioningFairSharePool_.empty()) {
+        if (partition && PartitioningFairSharePool_.has_value()) {
             return Bootstrap_->GetQueryPoolInvoker(
-                PartitioningFairSharePool_,
+                *PartitioningFairSharePool_,
                 ToString(readSessionId));
         }
-        if (!partition && !CompactionFairSharePool_.empty()) {
+        if (!partition && CompactionFairSharePool_.has_value()) {
             return Bootstrap_->GetQueryPoolInvoker(
-                CompactionFairSharePool_,
+                *CompactionFairSharePool_,
                 ToString(readSessionId));
         }
 
