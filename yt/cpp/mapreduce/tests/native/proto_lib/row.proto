@@ -115,3 +115,13 @@ message TAllDatetimeRow
     optional int64 datetime64 = 5;
     optional int64 timestamp64 = 6;
 }
+
+message TEmbedded
+{
+    required string column = 1;
+}
+
+message TEmbedding
+{
+    required TEmbedded embedded = 1 [(NYT.flags) = EMBEDDED];
+}

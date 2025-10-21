@@ -21,7 +21,7 @@ using namespace NYT::NTesting;
 
 REGISTER_MAPPER(TIdMapper)
 REGISTER_REDUCER(TIdReducer)
-REGISTER_MAPPER(TIdProtoMapper)
+REGISTER_MAPPER(TIdProtoMapper<TNumberRecord>)
 REGISTER_REDUCER(TIdProtoReducer)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,7 @@ template <typename T>
     if constexpr (std::is_same_v<T, TNode>) {
         return new TIdMapper;
     } else if constexpr (std::is_same_v<T, TNumberRecord>) {
-        return new TIdProtoMapper;
+        return new TIdProtoMapper<TNumberRecord>;
     } else {
         static_assert(TDependentFalse<T>, "Unknown type");
     }
@@ -267,7 +267,7 @@ TEST(RemoteClusters, OperationsWithTransaction)
         TMapOperationSpec()
             .AddInput<TNumberRecord>(TRichYPath(firstTestingDir + "/input1").Cluster(GetClusterName(firstClient).AsString()))
             .AddOutput<TNumberRecord>(secondTestingDir + "/output"),
-        new TIdProtoMapper);
+        new TIdProtoMapper<TNumberRecord>);
     tx->Commit();
 
     {
