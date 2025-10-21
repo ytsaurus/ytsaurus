@@ -434,6 +434,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_eden_data_size_for_splitting", &TThis::MaxEdenDataSizeForSplitting)
         .Default(500_MB);
 
+    registrar.Parameter("validate_row_index_in_chaos_replication", &TThis::ValidateRowIndexInChaosReplication)
+        .Default(false);
+
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 

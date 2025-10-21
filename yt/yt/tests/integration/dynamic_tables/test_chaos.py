@@ -4688,7 +4688,15 @@ class TestChaos(ChaosTestBase):
             self._create_chaos_table_replica(replicas[-2], table_path="//tmp/crt", catchup=False),
             self._create_chaos_table_replica(replicas[-1], table_path="//tmp/crt", catchup=False),
         ]
-        self._create_replica_tables(replicas[-2:], new_replica_ids, ordered=True, schema=schema)
+
+        # Trimmed row counts are required for strict row index validation.
+        self._create_replica_tables(
+            replicas[-2:],
+            new_replica_ids,
+            ordered=True,
+            schema=schema,
+            trimmed_row_counts=[len(values)],
+            tablet_count=1)
 
         self._sync_replication_era(card_id)
 

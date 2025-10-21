@@ -173,7 +173,9 @@ class ChaosTestBase(DynamicTablesBase):
                                schema=None,
                                pivot_keys=None,
                                replication_progress=None,
-                               tablet_cell_bundle=None):
+                               tablet_cell_bundle=None,
+                               trimmed_row_counts=None,
+                               tablet_count=None):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
@@ -191,6 +193,16 @@ class ChaosTestBase(DynamicTablesBase):
                 kwargs["replication_progress"] = replication_progress
             if tablet_cell_bundle:
                 kwargs["tablet_cell_bundle"] = tablet_cell_bundle
+            if replica["content_type"] == "queue":
+                if trimmed_row_counts:
+                    kwargs["trimmed_row_counts"] = trimmed_row_counts
+            if tablet_count:
+                if ordered:
+                    kwargs["tablet_count"] = tablet_count
+                else:
+                    raise AttributeError(
+                        "tablet_count is only supported for ordered tables, for other types use pivot keys instead"
+                    )
             create_table(path, **kwargs)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
@@ -306,8 +318,13 @@ class ChaosTestBase(DynamicTablesBase):
     def _update_mount_config(self, attributes):
         if "mount_config" not in attributes:
             attributes["mount_config"] = {}
-        if "replication_progress_update_tick_period" not in attributes["mount_config"]:
-            attributes["mount_config"]["replication_progress_update_tick_period"] = 100
+
+        defaults = {
+            "replication_progress_update_tick_period": 100,
+            "validate_row_index_in_chaos_replication": True,
+        }
+
+        attributes["mount_config"] = defaults | attributes["mount_config"]
 
     def _create_sorted_table(self, path, **attributes):
         self._update_mount_config(attributes)
