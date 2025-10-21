@@ -389,6 +389,10 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
+        # The first update of EMA counter may not change rates due to lack of information about previous timestamps.
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
         sleep(5)
         assert all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets"))
 
