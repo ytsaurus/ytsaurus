@@ -766,6 +766,9 @@ struct TJobProxyConfig
     //! Forward variables from job proxy environment to user job.
     bool ForwardAllEnvironmentVariables;
 
+    //! Defines environment variables for job proxy, optionally exported to user job.
+    std::vector<NJobProxy::TEnvironmentVariableConfigPtr> EnvironmentVariables;
+
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 
     static void Register(TRegistrar registrar);
