@@ -37,14 +37,14 @@ namespace wide
 
 constexpr bool supportsBitInt256()
 {
-#if defined(__x86_64__)
+#if defined(__x86_64__) && defined(ENABLE_C23_BITINT_256)
     return true;
 #else
     return false;
 #endif
 }
 
-#if defined(__x86_64__)
+#if defined(__x86_64__) && defined(ENABLE_C23_BITINT_256)
 /// TODO C23 standardized _BitInt(N). Theoretically, it is not necessary to restrict the platform to x86.
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wbit-int-extension"
