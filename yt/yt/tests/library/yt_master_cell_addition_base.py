@@ -711,10 +711,10 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
     def check_map_reduce_avialibility(self):
         def _check_basic_map_reduce():
             data = [{"foo": i} for i in range(3)]
-            create("table", "//tmp/in")
+            create("table", "//tmp/in", force=True)
             write_table("//tmp/in", data)
             assert read_table("//tmp/in") == data
-            create("table", "//tmp/out")
+            create("table", "//tmp/out", force=True)
 
             map_reduce(
                 mapper_command="cat",
@@ -723,9 +723,6 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
                 out="//tmp/out",
                 sort_by=["foo"]
             )
-
-            remove("//tmp/in")
-            remove("//tmp/out")
 
         _check_basic_map_reduce()
 
