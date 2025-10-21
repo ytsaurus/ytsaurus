@@ -731,7 +731,7 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
         yield
 
-        _check_basic_map_reduce()
+        wait(lambda: self.do_with_retries(_check_basic_map_reduce))
 
     def check_transactions(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 12})
