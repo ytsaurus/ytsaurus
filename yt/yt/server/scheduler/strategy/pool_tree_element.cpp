@@ -357,11 +357,6 @@ TResourceTreeElement::TDetailedResourceUsage TPoolTreeElement::GetInstantDetaile
     return  ResourceTreeElement_->GetDetailedResourceUsage();
 }
 
-double TPoolTreeElement::GetMaxShareRatio() const
-{
-    return MaxComponent(GetMaxShare());
-}
-
 double TPoolTreeElement::GetResourceDominantUsageShareAtUpdate() const
 {
     return MaxComponent(Attributes_.UsageShare);
@@ -537,9 +532,7 @@ void TPoolTreeElement::CheckForStarvationImpl(
 
 TJobResources TPoolTreeElement::ComputeResourceLimits() const
 {
-    auto limits = Min(
-        GetSchedulingTagFilterResourceLimits(),
-        GetMaxShareResourceLimits());
+    auto limits = GetSchedulingTagFilterResourceLimits();
     if (MaybeSpecifiedResourceLimits_) {
         limits = Min(limits, *MaybeSpecifiedResourceLimits_);
     }
@@ -589,11 +582,6 @@ TJobResources TPoolTreeElement::GetSchedulingTagFilterResourceLimits() const
 TJobResources TPoolTreeElement::GetTotalResourceLimits() const
 {
     return TotalResourceLimits_;
-}
-
-TJobResources TPoolTreeElement::GetMaxShareResourceLimits() const
-{
-    return GetTotalResourceLimits() * GetMaxShare();
 }
 
 TJobResourcesConfigPtr TPoolTreeElement::GetSpecifiedResourceLimitsOvercommitToleranceConfig() const
@@ -1361,11 +1349,6 @@ const NVectorHdrf::TJobResourcesConfig* TPoolTreePoolElement::GetStrongGuarantee
     return Config_->StrongGuaranteeResources.Get();
 }
 
-TResourceVector TPoolTreePoolElement::GetMaxShare() const
-{
-    return TResourceVector::FromDouble(Config_->MaxShareRatio.value_or(1.0));
-}
-
 EIntegralGuaranteeType TPoolTreePoolElement::GetIntegralGuaranteeType() const
 {
     return Config_->IntegralGuarantees->GuaranteeType;
@@ -2053,11 +2036,6 @@ const NVectorHdrf::TJobResourcesConfig* TPoolTreeOperationElement::GetStrongGuar
     return Spec_->StrongGuaranteeResources.Get();
 }
 
-TResourceVector TPoolTreeOperationElement::GetMaxShare() const
-{
-    return TResourceVector::FromDouble(Spec_->MaxShareRatio.value_or(1.0));
-}
-
 const TStrategyOperationStatePtr& TPoolTreeOperationElement::GetStrategyOperationState() const
 {
     return StrategyOperationState_;
@@ -2647,11 +2625,6 @@ std::optional<double> TPoolTreeRootElement::GetSpecifiedWeight() const
 TJobResources TPoolTreeRootElement::GetSpecifiedStrongGuaranteeResources() const
 {
     return TotalResourceLimits_;
-}
-
-TResourceVector TPoolTreeRootElement::GetMaxShare() const
-{
-    return TResourceVector::Ones();
 }
 
 std::optional<double> TPoolTreeRootElement::GetSpecifiedFairShareStarvationTolerance() const

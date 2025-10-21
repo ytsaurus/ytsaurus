@@ -1449,7 +1449,7 @@ void TScheduleAllocationsContext::PrescheduleAllocationAtCompositeElement(
         return;
     }
 
-    if (TreeSnapshot_->TreeConfig()->EnableSchedulingTags && !CanSchedule(StaticAttributesOf(element).SchedulingTagFilterIndex)) {
+    if (!CanSchedule(StaticAttributesOf(element).SchedulingTagFilterIndex)) {
         onDeactivated(EDeactivationReason::UnmatchedSchedulingTag);
         return;
     }
@@ -1939,7 +1939,7 @@ bool TScheduleAllocationsContext::CheckForDeactivation(
         return false;
     }
 
-    if (treeConfig->EnableSchedulingTags && !CanSchedule(StaticAttributesOf(element).SchedulingTagFilterIndex)) {
+    if (!CanSchedule(StaticAttributesOf(element).SchedulingTagFilterIndex)) {
         OnOperationDeactivated(element, EDeactivationReason::UnmatchedSchedulingTag);
         return false;
     }

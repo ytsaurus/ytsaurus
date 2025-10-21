@@ -176,9 +176,6 @@ struct TSchedulableConfig
 {
     std::optional<double> Weight;
 
-    // Specifies resource limits in terms of a share of all cluster resources.
-    std::optional<double> MaxShareRatio;
-
     // Specifies resource limits in absolute values.
     TJobResourcesConfigPtr ResourceLimits;
 

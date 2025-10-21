@@ -2532,9 +2532,6 @@ void TSchedulableConfig::Register(TRegistrar registrar)
         .Default()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
 
-    registrar.Parameter("max_share_ratio", &TThis::MaxShareRatio)
-        .Default()
-        .InRange(0.0, 1.0);
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
 
