@@ -255,13 +255,10 @@ public:
     virtual ESchedulableStatus GetStatus() const;
 
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
-    // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
-    virtual TResourceVector GetMaxShare() const = 0;
 
     virtual TJobResources GetSpecifiedResourceFlow() const;
     virtual TJobResources GetSpecifiedBurstGuaranteeResources() const;
 
-    double GetMaxShareRatio() const;
     double GetResourceDominantUsageShareAtUpdate() const;
     double GetAccumulatedResourceRatioVolume() const;
     TResourceVolume GetAccumulatedResourceVolume() const;
@@ -283,7 +280,6 @@ public:
     //! Const getters which are used in InitializeUpdate and PreUpdate methods.
     TJobResources GetSchedulingTagFilterResourceLimits() const;
     TJobResources GetTotalResourceLimits() const;
-    TJobResources GetMaxShareResourceLimits() const;
 
     virtual TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const = 0;
     virtual TJobResourcesConfigPtr GetSpecifiedResourceLimitsOvercommitToleranceConfig() const;
@@ -633,9 +629,6 @@ public:
 
     ESchedulableStatus GetStatus() const override;
 
-    // Used for diagnostics only.
-    TResourceVector GetMaxShare() const override;
-
     //! Trunk node interface.
     TPoolConfigPtr GetConfig() const;
     void SetConfig(TPoolConfigPtr config);
@@ -843,7 +836,6 @@ public:
     void UpdateControllerConfig(const TStrategyOperationControllerConfigPtr& config);
 
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
-    TResourceVector GetMaxShare() const override;
 
     const TStrategyOperationStatePtr& GetStrategyOperationState() const;
 
@@ -1016,7 +1008,6 @@ public:
 
     // Used for diagnostics purposes.
     TJobResources GetSpecifiedStrongGuaranteeResources() const override;
-    TResourceVector GetMaxShare() const override;
 
     std::vector<EFifoSortParameter> GetFifoSortParameters() const override;
 

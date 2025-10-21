@@ -913,11 +913,6 @@ TEST_F(TPoolTreeElementTest, TestResourceLimits)
     poolAConfig->ResourceLimits->Memory = poolAResourceLimits.GetMemory();
     poolA->SetConfig(poolAConfig);
 
-    const double maxShareRatio = 0.9;
-    auto poolBConfig = poolB->GetConfig();
-    poolBConfig->MaxShareRatio = maxShareRatio;
-    poolB->SetConfig(poolBConfig);
-
     {
         DoFairShareUpdate(strategyHost.Get(), rootElement);
 
@@ -927,9 +922,6 @@ TEST_F(TPoolTreeElementTest, TestResourceLimits)
         EXPECT_EQ(poolAResourceLimits, poolA->GetResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
 
-        auto poolBResourceLimits = nodeResources * maxShareRatio;
-        EXPECT_EQ(poolBResourceLimits, poolB->GetResourceLimits());
-        EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
     }
 }
 
@@ -1026,42 +1018,6 @@ TEST_F(TPoolTreeElementTest, TestSchedulingTagFilterResourceLimits)
             operationElementX->GetSchedulingTagFilterResourceLimits());
         EXPECT_EQ(nodeResources1 + nodeResources2 + nodeResources3 + nodeResources134,
             operationElementY->GetSchedulingTagFilterResourceLimits());
-    }
-}
-
-TEST_F(TPoolTreeElementTest, TestFractionalResourceLimits)
-{
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(10);
-    nodeResources.SetCpu(11.17);
-    nodeResources.SetMemory(100);
-
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-
-    auto rootElement = CreateTestRootElement(strategyHost.Get());
-
-    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-
-    const double maxShareRatio = 0.99;
-
-    auto poolConfig = poolA->GetConfig();
-    poolConfig->MaxShareRatio = maxShareRatio;
-    poolA->SetConfig(poolConfig);
-
-    TJobResourcesWithQuota poolResourceLimits;
-    poolResourceLimits.SetUserSlots(10);
-    poolResourceLimits.SetCpu(11.06);
-    poolResourceLimits.SetMemory(99);
-
-    {
-        DoFairShareUpdate(strategyHost.Get(), rootElement);
-
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetResourceLimits());
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
-
-        EXPECT_EQ(poolResourceLimits.ToJobResources(), poolA->GetResourceLimits());
-        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
     }
 }
 
