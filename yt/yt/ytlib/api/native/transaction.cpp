@@ -1455,7 +1455,13 @@ private:
                 .User = client->GetOptions().GetAuthenticatedUser(),
                 .Permission = NYTree::EPermission::Write,
             };
-            auto future = permissionCache->Get(permissionKey);
+            // NB(coteeq): It's ok to drop TPermissionValue (via `AsVoid` cast)
+            // because we did not set `TPermissionKey::IsCallerRlsAware`, so we
+            // are sure that `TPermissionValue::RowLevelAcl` is nullopt.
+            //
+            // Note also that this is not a compat. The key here requests "write"
+            // permission, so it should never receive row-level acl in the response.
+            auto future = permissionCache->Get(permissionKey).AsVoid();
             auto result = future.TryGet();
             if (!result || !result->IsOK()) {
                 futures->push_back(std::move(future));

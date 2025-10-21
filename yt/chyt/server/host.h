@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/client/security_client/acl.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/ytree/permission.h>
@@ -26,6 +28,8 @@ class THost
     : public TRefCounted
 {
 public:
+    using TRowLevelAcl = std::optional<std::vector<NSecurityClient::TRowLevelAccessControlEntry>>;
+
     THost(
         IInvokerPtr controlInvoker,
         TPorts ports,
@@ -42,7 +46,9 @@ public:
 
     void ValidateCliquePermission(const TString& user, NYTree::EPermission permission) const;
 
-    void ValidateTableReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
+    std::vector<TRowLevelAcl> ValidateTableReadPermissionsAndGetRowLevelAcl(
+        const std::vector<NYPath::TRichYPath>& paths,
+        const TString& user);
 
     //! Get object attributes via local cache.
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(

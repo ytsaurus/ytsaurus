@@ -174,7 +174,10 @@ void ValidateReadPermissions(
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
     }
-    queryContext->Host->ValidateTableReadPermissions(tablePathsWithColumns, queryContext->User);
+    auto rowLevelAclPerTable = queryContext->Host->ValidateTableReadPermissionsAndGetRowLevelAcl(tablePathsWithColumns, queryContext->User);
+    for (const auto& [index, table] : SEnumerate(tables)) {
+        table->RowLevelAcl = rowLevelAclPerTable[index];
+    }
 }
 
 TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distributionSeed, bool isDistributedJoin)
