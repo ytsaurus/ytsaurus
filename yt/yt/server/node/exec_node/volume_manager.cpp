@@ -507,17 +507,13 @@ public:
                 LocationQueue_->GetInvoker(),
                 Logger,
                 profiler);
-
-            DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
-                healthChecker = HealthChecker_, healthCheckerConfig] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-                        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
-                        healthChecker->Reconfigure(healthCheckerConfig->ApplyDynamic(*newConfig->ExecNode->VolumeManager->DiskHealthChecker));
-                }));
         }
     }
 
     TFuture<void> Initialize()
     {
+        DynamicConfig_.Store(DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager->LayerCache);
+
         return BIND(&TLayerLocation::DoInitialize, MakeStrong(this))
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
@@ -742,9 +738,28 @@ public:
         return Config_->ResidesOnTmpfs;
     }
 
+    void OnDynamicConfigChanged(
+        const TLayerCacheDynamicConfigPtr& oldConfig,
+        const TLayerCacheDynamicConfigPtr& newConfig)
+    {
+        if (*newConfig == *oldConfig) {
+            return;
+        }
+
+        DynamicConfig_.Store(newConfig);
+
+        VolumeExecutor_->OnDynamicConfigChanged(newConfig->VolumePortoExecutor);
+        LayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+
+        if (HealthChecker_) {
+            HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*newConfig->DiskHealthChecker));
+        }
+    }
+
 private:
     const NDataNode::TLayerLocationConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    TAtomicIntrusivePtr<TLayerCacheDynamicConfig> DynamicConfig_;
     const IPortoExecutorPtr VolumeExecutor_;
     const IPortoExecutorPtr LayerExecutor_;
 
@@ -845,12 +860,7 @@ private:
                 YT_LOG_DEBUG(
                     "Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
-                auto async = DynamicConfigManager_
-                    ->GetConfig()
-                    ->ExecNode
-                    ->VolumeManager
-                    ->EnableAsyncLayerRemoval;
-                WaitFor(LayerExecutor_->RemoveLayer(layerName, PlacePath_, async))
+                WaitFor(LayerExecutor_->RemoveLayer(layerName, PlacePath_, DynamicConfig_.Acquire()->EnableAsyncLayerRemoval))
                     .ThrowOnError();
                 continue;
             }
@@ -1065,6 +1075,8 @@ private:
     {
         ValidateEnabled();
 
+        auto dynamicConfig = DynamicConfig_.Acquire();
+
         auto Logger = ExecNodeLogger()
             .WithTag("Tag: %v, LayerId: %v", tag, layerId);
 
@@ -1125,7 +1137,7 @@ private:
 
             DoFinalizeLayerImport(layerMeta, tag);
 
-            if (auto delay = DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->DelayAfterLayerImported) {
+            if (auto delay = dynamicConfig->DelayAfterLayerImported) {
                 TDelayedExecutor::WaitForDuration(*delay);
             }
 
@@ -1147,7 +1159,7 @@ private:
 
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithLayerFailed) {
+            if (dynamicConfig->AbortOnOperationWithLayerFailed) {
                 YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
@@ -1157,6 +1169,8 @@ private:
 
     void DoRemoveLayer(const TLayerId& layerId)
     {
+        auto config = DynamicConfig_.Acquire();
+
         auto layerPath = GetLayerPath(layerId);
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
@@ -1175,12 +1189,7 @@ private:
         try {
             YT_LOG_INFO("Removing layer");
 
-            auto async = DynamicConfigManager_
-                ->GetConfig()
-                ->ExecNode
-                ->VolumeManager
-                ->EnableAsyncLayerRemoval;
-            YT_UNUSED_FUTURE(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async));
+            YT_UNUSED_FUTURE(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, config->EnableAsyncLayerRemoval));
 
             NFS::Remove(layerMetaPath);
 
@@ -1205,7 +1214,7 @@ private:
                 << ex;
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithLayerFailed) {
+            if (config->AbortOnOperationWithLayerFailed) {
                 YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
@@ -1366,7 +1375,7 @@ private:
                     break;
             }
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {
+            if (DynamicConfig_.Acquire()->AbortOnOperationWithVolumeFailed) {
                 YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
@@ -1620,7 +1629,7 @@ private:
 
             Disable(error);
 
-            if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->AbortOnOperationWithVolumeFailed) {
+            if (DynamicConfig_.Acquire()->AbortOnOperationWithVolumeFailed) {
                 YT_LOG_FATAL(error);
             } else {
                 THROW_ERROR(error);
@@ -2241,12 +2250,11 @@ public:
                 ? static_cast<i64>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction)
                 : 0),
             ExecNodeProfiler().WithPrefix("/layer_cache"))
-        , Config_(config)
         , DynamicConfigManager_(dynamicConfigManager)
         , ArtifactCache_(std::move(artifactCache))
         , ControlInvoker_(std::move(controlInvoker))
         , LayerLocations_(std::move(layerLocations))
-        , Semaphore_(New<TAsyncSemaphore>(config->LayerImportConcurrency))
+        , TmpfsExecutor_(std::move(tmpfsExecutor))
         , ProfilingExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND_NO_PROPAGATE(&TLayerCache::OnProfiling, MakeWeak(this)),
@@ -2268,27 +2276,29 @@ public:
 
         RegularTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
-            Config_->RegularTmpfsLayerCache,
+            config->RegularTmpfsLayerCache,
             DynamicConfigManager_,
             ControlInvoker_,
             memoryUsageTracker,
             "regular",
-            tmpfsExecutor,
+            TmpfsExecutor_,
             absorbLayer);
 
         NirvanaTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
-            Config_->NirvanaTmpfsLayerCache,
+            config->NirvanaTmpfsLayerCache,
             DynamicConfigManager_,
             ControlInvoker_,
             memoryUsageTracker,
             "nirvana",
-            tmpfsExecutor,
+            TmpfsExecutor_,
             absorbLayer);
     }
 
     TFuture<void> Initialize()
     {
+        Semaphore_ = New<TAsyncSemaphore>(
+            DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager->LayerCache->LayerImportConcurrency);
         for (const auto& location : LayerLocations_) {
             for (const auto& layerMeta : location->GetAllLayers()) {
                 TArtifactKey key;
@@ -2459,12 +2469,29 @@ public:
         .EndMap();
     }
 
+    void OnDynamicConfigChanged(
+        const TLayerCacheDynamicConfigPtr& oldConfig,
+        const TLayerCacheDynamicConfigPtr& newConfig)
+    {
+        if (*newConfig == *oldConfig) {
+            return;
+        }
+
+        Semaphore_->SetTotal(newConfig->LayerImportConcurrency);
+
+        for (const auto& location : LayerLocations_) {
+            location->OnDynamicConfigChanged(oldConfig, newConfig);
+        }
+
+        TmpfsExecutor_->OnDynamicConfigChanged(newConfig->TmpfsCache->PortoExecutor);
+    }
+
 private:
-    const NDataNode::TVolumeManagerConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const IVolumeArtifactCachePtr ArtifactCache_;
     const IInvokerPtr ControlInvoker_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
+    const IPortoExecutorPtr TmpfsExecutor_;
 
     TAsyncSemaphorePtr Semaphore_;
 
@@ -2911,6 +2938,9 @@ public:
 
     TFuture<void> Initialize()
     {
+        auto dynamicConfig = DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager;
+        DynamicConfig_.Store(dynamicConfig);
+
         if (Bootstrap_) {
             Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
         }
@@ -2926,11 +2956,11 @@ public:
                 DynamicConfigManager_,
                 locationConfig->DiskHealthChecker,
                 CreatePortoExecutor(
-                    Config_->VolumeManager->PortoExecutor,
+                    dynamicConfig->LayerCache->VolumePortoExecutor,
                     Format("volume%v", index),
                     ExecNodeProfiler().WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
                 CreatePortoExecutor(
-                    Config_->VolumeManager->PortoExecutor,
+                    dynamicConfig->LayerCache->LayerPortoExecutor,
                     Format("layer%v", index),
                     ExecNodeProfiler().WithPrefix("/location_layers/porto").WithTag("location_id", id)),
                 id);
@@ -2946,7 +2976,7 @@ public:
         }
 
         auto tmpfsExecutor = CreatePortoExecutor(
-            Config_->VolumeManager->PortoExecutor,
+            dynamicConfig->LayerCache->TmpfsCache->PortoExecutor,
             "tmpfs_layer",
             ExecNodeProfiler().WithPrefix("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(
@@ -2995,7 +3025,7 @@ public:
             userSandboxOptions.VirtualSandboxData.has_value(),
             userSandboxOptions.SandboxNbdRootVolumeData.has_value());
 
-        if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
+        if (DynamicConfig_.Acquire()->ThrowOnPrepareVolume) {
             auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
             YT_LOG_DEBUG(
                 error,
@@ -3138,10 +3168,24 @@ public:
         }
     }
 
+    void OnDynamicConfigChanged(
+        const TVolumeManagerDynamicConfigPtr& oldConfig,
+        const TVolumeManagerDynamicConfigPtr& newConfig) override
+    {
+        if (*newConfig == *oldConfig) {
+            return;
+        }
+
+        DynamicConfig_.Store(newConfig);
+
+        LayerCache_->OnDynamicConfigChanged(oldConfig->LayerCache, newConfig->LayerCache);
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const NDataNode::TDataNodeConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    TAtomicIntrusivePtr<TVolumeManagerDynamicConfig> DynamicConfig_;
     const IVolumeArtifactCachePtr ArtifactCache_;
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;

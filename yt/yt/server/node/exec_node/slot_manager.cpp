@@ -313,7 +313,7 @@ void TSlotManager::OnDynamicConfigChanged(
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (auto& location : Locations_) {
-        location->UpdateHealthCheckerConfig(newConfig->DiskHealthChecker);
+        location->OnDynamicConfigChanged(newConfig);
     }
 
     DynamicConfig_.Store(newConfig);
@@ -329,6 +329,10 @@ void TSlotManager::OnDynamicConfigChanged(
         } else {
             Alerts_.DisarmAlert(ESlotManagerAlertType::GpuCheckFailed);
         }
+    }
+
+    if (auto volumeManager = RootVolumeManager_.Acquire()) {
+        volumeManager->OnDynamicConfigChanged(oldConfig->VolumeManager, newConfig->VolumeManager);
     }
 
     Bootstrap_->GetJobInvoker()->Invoke(

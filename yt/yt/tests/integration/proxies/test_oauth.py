@@ -88,8 +88,8 @@ class TestOAuthBase(YTEnvSetup):
     # This is annoying, but we set blackbox_token_authenticator in default_config for
     # some reason. This way we avoid 10 second timeouts in each authentication call.
     @classmethod
-    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
-        super(TestOAuthBase, cls).modify_http_proxy_config(config, multidaemon_config, proxy_index)
+    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
+        super(TestOAuthBase, cls).modify_http_proxy_config(config, cluster_index, multidaemon_config, proxy_index)
 
         if config.get("auth", {}).get("blackbox_token_authenticator"):
             del config["auth"]["blackbox_token_authenticator"]

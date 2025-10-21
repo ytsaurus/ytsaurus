@@ -660,6 +660,9 @@
     "name": "yt.UserSlots"
   },
   {
+    "name": "yt.ValidateClusters"
+  },
+  {
     "name": "yt.ValidatePool"
   },
   {
@@ -1023,6 +1026,9 @@
     "name": "DisableSimpleColumns"
   },
   {
+    "name": "DisableSimplePg"
+  },
+  {
     "name": "DisableStrictJoinKeyTypes"
   },
   {
@@ -1180,6 +1186,9 @@
   },
   {
     "name": "SimpleColumns"
+  },
+  {
+    "name": "SimplePg"
   },
   {
     "name": "StrictJoinKeyTypes"

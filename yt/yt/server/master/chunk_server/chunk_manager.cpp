@@ -3514,6 +3514,17 @@ private:
 
         for (const auto& replica : location->Replicas()) {
             const auto* chunk = replica.GetPtr();
+            if (!IsObjectAlive(chunk)) {
+                // If the chunk is destroyed, all replicas for this chunk should be removed from location in TChunkManager::DestroyChunk.
+                YT_LOG_ALERT(
+                    "Restarted location has dead chunk replica (NodeId: %v, LocationUuid: %v)",
+                    node->GetId(),
+                    location->GetUuid());
+                THROW_ERROR_EXCEPTION(
+                    "Restarted location has dead chunk replica")
+                    << TErrorAttribute("node_id", node->GetId())
+                    << TErrorAttribute("location_uuid", location->GetUuid());
+            }
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
                 continue;
             }
@@ -3535,8 +3546,8 @@ private:
 
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunkIdWithIndex.Id)) {
                 YT_LOG_ALERT(
-                    "Processing restarted location Sequoia chunk in non-Sequoia way (NodeId: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
-                    node->GetId(),
+                    "Processing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                    node->GetDefaultAddress(),
                     location->GetUuid(),
                     chunkIdWithIndex.Id,
                     chunkIdWithIndex.ReplicaIndex);
@@ -3548,21 +3559,6 @@ private:
                     << TErrorAttribute("replica_index", chunkIdWithIndex.ReplicaIndex);
             }
 
-            auto* chunk = FindChunk(chunkIdWithIndex.Id);
-            if (!IsObjectAlive(chunk)) {
-                YT_LOG_ALERT(
-                    "Restarted location has dead chunk replica (NodeId: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
-                    node->GetId(),
-                    location->GetUuid(),
-                    chunkIdWithIndex.Id,
-                    chunkIdWithIndex.ReplicaIndex);
-                THROW_ERROR_EXCEPTION(
-                    "Restarted location has dead chunk replica")
-                    << TErrorAttribute("node_id", node->GetId())
-                    << TErrorAttribute("location_uuid", location->GetUuid())
-                    << TErrorAttribute("chunk_id", chunkIdWithIndex.Id)
-                    << TErrorAttribute("replica_index", chunkIdWithIndex.ReplicaIndex);
-            }
             if (!existingReplicas.contains(chunkIdWithIndex)) {
                 YT_VERIFY(FromProto<TChunkLocationIndex>(chunkInfo.location_index()) == location->GetIndex());
                 if (auto* chunk = ProcessAddedChunk(
@@ -3583,16 +3579,23 @@ private:
         // We need to remove all existing replicas that were not reported, which means that existingReplicas set still contains them.
         // We collect them to separate vector because location->Replicas() is modified when replica is removed.
         std::vector<TChunkPtrWithReplicaIndex> replicasToRemove;
+
+        auto storeSequoiaReplicasOnMaster = GetDynamicConfig()->SequoiaChunkReplicas->StoreSequoiaReplicasOnMaster;
         for (const auto& replica : location->Replicas()) {
             const auto* chunk = replica.GetPtr();
             if (ChunkReplicaFetcher_->CanHaveSequoiaReplicas(chunk->GetId())) {
-                YT_LOG_ALERT(
-                    "Removing restarted location disappeared Sequoia chunk in nonSequoia way (NodeId: %v, LocationUuid: %v,ChunkId: %v, ReplicaIndex: %v)",
-                    node->GetId(),
-                    location->GetUuid(),
-                    chunk->GetId(),
-                    replica.GetReplicaIndex());
-                continue;
+                if (storeSequoiaReplicasOnMaster) {
+                    // All sequoia replicas are processed in TChunkManager::HydraPrepareModifyReplicas.
+                    // If there are some changed Sequoia replicas, they should be already processed and here we should ignore them.
+                    continue;
+                } else {
+                    YT_LOG_ALERT(
+                        "Removing restarted location Sequoia chunk in non-Sequoia way (NodeAddress: %v, LocationUuid: %v, ChunkId: %v, ReplicaIndex: %v)",
+                        node->GetDefaultAddress(),
+                        location->GetUuid(),
+                        chunk->GetId(),
+                        replica.GetReplicaIndex());
+                }
             }
 
             if (existingReplicas.contains(TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()))) {

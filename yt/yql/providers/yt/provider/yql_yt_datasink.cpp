@@ -213,7 +213,8 @@ public:
                     }
 
                     cluster = TString(node.Child(1)->Content());
-                    if (*cluster != "$all" && *cluster != YtUnspecifiedCluster && !State_->Gateway->GetClusterServer(*cluster)) {
+                    const bool validate = State_->Configuration->ValidateClusters.Get().GetOrElse(DEFAULT_VALIDATE_CLUSTERS);
+                    if (validate && *cluster != "$all" && *cluster != YtUnspecifiedCluster && !State_->Gateway->GetClusterServer(*cluster)) {
                         ctx.AddError(TIssue(ctx.GetPosition(node.Child(1)->Pos()), TStringBuilder() << "Unknown cluster: " << *cluster));
                         return false;
                     }
@@ -646,6 +647,10 @@ public:
 
     IYtflowOptimization* GetYtflowOptimization() override {
         return State_->YtflowOptimization_.Get();
+    }
+
+    bool IsFullCaptureReady() override {
+        return State_->FullCapture_ ? State_->FullCapture_->IsReady() : false;
     }
 
 private:

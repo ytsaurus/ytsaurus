@@ -4,7 +4,7 @@ from yt.environment.helpers import assert_items_equal
 from yt.environment.default_config import get_dynamic_node_config
 
 from yt_commands import (
-    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, sync_create_cells,
+    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, remote_copy, sync_create_cells,
     read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
@@ -271,6 +271,18 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
+    NUM_CONTROLLER_AGENTS_REMOTE_0 = 0
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
         "delay_master_cell_directory_start": True,
@@ -280,6 +292,11 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         },
         "sync_directories_on_connect": False,
     }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestDynamicMasterCellPropagation, cls).setup_class(cls)
+        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -357,6 +374,20 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
+    def check_remote_copy(self):
+        yield
+
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+        wait(lambda: self.do_with_retries(lambda: create("table", "//tmp/t2", attributes={"external_cell_tag": 13})))
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
     @authors("cherepashka")
     def test_add_cell(self):
         self.execute_checks_with_cell_addition(downtime=False)
@@ -365,29 +396,13 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 ##################################################################
 
 
-class TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration(MasterCellAdditionBase):
+class TestMasterCellDynamicPropagationDuringNodeRegistration(MasterCellAdditionBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
     NUM_NODES = 4
-
-    @authors("cherepashka")
-    def test_registration_after_synchronization(self):
-        self.Env.kill_nodes()
-        self._enable_last_cell(downtime=False, wait_for_nodes=False)
-        # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
-        # and attempt of starting cellar/data/tablet heartbeats before actual registration.
-        # This shouldn't crash node.
-        self.Env.start_nodes()
-
-
-class TestMasterCellDynamicPropagationDuringDataNodeRegistration(TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration):
-    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
-    PATCHED_CONFIGS = []
-    STASHED_CELL_CONFIGS = []
-    CELL_IDS = builtins.set()
 
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
@@ -401,12 +416,25 @@ class TestMasterCellDynamicPropagationDuringDataNodeRegistration(TestMasterCellD
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        config["flavors"] = ["data"]
+        if not hasattr(cls, "node_counter"):
+            cls.node_counter = 0
+        if cls.node_counter % 2 == 0:
+            config["flavors"] = ["data"]
+        cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
 
         cls._collect_cell_ids_and_maybe_stash_last_cell(
             config["cluster_connection"],
             cluster_index,
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @authors("cherepashka")
+    def test_registration_after_synchronization(self):
+        self.Env.kill_nodes()
+        self._enable_last_cell(downtime=False, wait_for_nodes=False)
+        # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
+        # and attempt of starting cellar/data/tablet heartbeats before actual registration.
+        # This shouldn't crash node.
+        self.Env.start_nodes()
 
 
 ##################################################################

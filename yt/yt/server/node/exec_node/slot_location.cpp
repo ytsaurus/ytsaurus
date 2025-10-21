@@ -104,11 +104,12 @@ TSlotLocation::TSlotLocation(
         .AddProducer("", MakeCopyMetricBuffer_);
 }
 
-void TSlotLocation::UpdateHealthCheckerConfig(const NServer::TDiskHealthCheckerDynamicConfigPtr& config)
+void TSlotLocation::OnDynamicConfigChanged(const TSlotManagerDynamicConfigPtr& config)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config));
+    HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config->DiskHealthChecker));
+    JobDirectoryManager_->OnDynamicConfigChanged(config->JobDirectoryManager);
 }
 
 TFuture<void> TSlotLocation::Initialize()

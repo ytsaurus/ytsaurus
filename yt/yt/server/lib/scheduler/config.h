@@ -336,9 +336,6 @@ struct TStrategyTreeConfig
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
-    //! To investigate CPU load of node shard threads.
-    bool EnableSchedulingTags;
-
     //! Backoff for printing tree scheduling info in heartbeat.
     TDuration HeartbeatTreeSchedulingInfoLogBackoff;
 

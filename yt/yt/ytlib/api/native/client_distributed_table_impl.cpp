@@ -24,6 +24,8 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/ytlib/api/native/distributed_write_facade_base.h>
+
 #include <yt/yt/client/table_client/table_upload_options.h>
 
 #include <yt/yt/client/signature/generator.h>
@@ -213,6 +215,252 @@ void SortAndValidateDistributedWriteResults(
     }
 }
 
+struct TDistributedTableSessionTraits {
+    using TStartOptions = TDistributedWriteSessionStartOptions;
+    using TPingOptions = TDistributedWriteSessionPingOptions;
+    using TFinishOptions = TDistributedWriteSessionFinishOptions;
+
+    using TSession = TDistributedWriteSession;
+    using TWriteFragmentResult = TWriteFragmentResult;
+
+    using TSessionWithCookies = TDistributedWriteSessionWithCookies;
+    using TSessionWithResults = TDistributedWriteSessionWithResults;
+
+    using TSignedSessionPtr = TSignedDistributedWriteSessionPtr;
+    using TSignedCookiePtr = TSignedWriteFragmentCookiePtr;
+
+    inline static const EObjectType ObjectType = EObjectType::Table;
+};
+
+static_assert(CDistributedWriteFacadeTraits<TDistributedTableSessionTraits>,
+    "TDistributedTableSessionTraits must follow CDistributedWriteFacadeTraits concept");
+
+class TDistributedWriteTableStartFacade
+    : public TDistributedWriteStartFacadeBase<TDistributedWriteTableStartFacade, TDistributedTableSessionTraits>
+{
+    using TBase = TDistributedWriteStartFacadeBase<TDistributedWriteTableStartFacade, TDistributedTableSessionTraits>;
+    using TTraits = TDistributedTableSessionTraits;
+
+    friend class TDistributedWriteStartFacadeBase<TDistributedWriteTableStartFacade, TDistributedTableSessionTraits>;
+
+public:
+    TDistributedWriteTableStartFacade(
+        const IClientPtr& client,
+        const NLogging::TLogger& logger)
+        : TBase(client, logger)
+        , Client_(client)
+        , Logger(logger)
+    { }
+
+protected:
+    INodePtr RequestExtendedObjectAttributes(
+        const TRichYPath& path,
+        TCellTag externalCellTag,
+        const TYPath& objectIdPath,
+        const TUserObject& userObject)
+    {
+        auto nodeWithAttributes = NTableClient::NDetail::GetTableAttributes(
+            Client_,
+            path.GetPath(),
+            externalCellTag,
+            objectIdPath,
+            userObject);
+
+        const auto& attributes = nodeWithAttributes->Attributes();
+        if (attributes.Get<bool>("dynamic")) {
+            THROW_ERROR_EXCEPTION("\"distributed_write_sessions\" API is not supported for dynamic tables; use \"insert_rows\" instead");
+        }
+
+        TableUploadOptions_ = GetTableUploadOptions(
+            path,
+            attributes,
+            attributes.Get<TTableSchemaPtr>("schema"),
+            attributes.Get<i64>("row_count"));
+
+        ChunkSchema_ = NTableClient::NDetail::GetChunkSchema(path, TableUploadOptions_);
+
+        return nodeWithAttributes;
+    }
+
+    std::tuple<TMasterTableSchemaId, TTransactionId> BeginUpload(
+        const TRichYPath& path,
+        TCellTag nativeCellTag,
+        const TYPath& objectIdPath,
+        TTransactionId transactionId)
+    {
+        return NTableClient::NDetail::BeginTableUpload(
+            Client_,
+            path.GetPath(),
+            nativeCellTag,
+            objectIdPath,
+            transactionId,
+            TableUploadOptions_,
+            ChunkSchema_,
+            Logger,
+            /*setUploadTransactionTimeout*/ false);
+    }
+
+    TChunkListId RequestUploadParameters(
+        const TRichYPath& path,
+        TCellTag externalCellTag,
+        const TYPath& objectIdPath,
+        TTransactionId uploadTransactionId)
+    {
+        auto [writerLastKey, rootChunkListId, maxHeavyColumns] = NTableClient::NDetail::GetTableUploadParams(
+            Client_,
+            path.GetPath(),
+            externalCellTag,
+            objectIdPath,
+            uploadTransactionId,
+            TableUploadOptions_,
+            Logger);
+
+        WriterLastKey_ = std::move(writerLastKey);
+        MaxHeavyColumns_ = maxHeavyColumns;
+
+        return rootChunkListId;
+    }
+
+    TTraits::TSession CreateSession(
+        TTransactionId masterTransactionId,
+        TTransactionId uploadTransactionId,
+        TChunkListId rootChunkListId,
+        const TRichYPath& path,
+        TObjectId objectId,
+        TCellTag externalCellTag,
+        NTableClient::TMasterTableSchemaId chunkSchemaId,
+        TTimestamp timestamp,
+        INodePtr attributes)
+    {
+        return TDistributedWriteSession(
+            masterTransactionId,
+            uploadTransactionId,
+            rootChunkListId,
+            path,
+            objectId,
+            externalCellTag,
+            chunkSchemaId,
+            ChunkSchema_,
+            static_cast<bool>(WriterLastKey_) ? std::optional(WriterLastKey_) : std::nullopt,
+            MaxHeavyColumns_,
+            timestamp,
+            attributes->Attributes());
+    }
+
+private:
+    const IClientPtr Client_;
+    const NLogging::TLogger Logger;
+
+    // Additional data to be reused within hooks
+    TTableSchemaPtr ChunkSchema_;
+    TTableUploadOptions TableUploadOptions_;
+    TUnversionedOwningRow WriterLastKey_;
+    int MaxHeavyColumns_;
+};
+
+class TDistributedWriteTablePingFacade
+    : public TDistributedWritePingFacadeBase<TDistributedWriteTablePingFacade, TDistributedTableSessionTraits>
+{
+    using TBase = TDistributedWritePingFacadeBase<TDistributedWriteTablePingFacade, TDistributedTableSessionTraits>;
+    using TTraits = TDistributedTableSessionTraits;
+
+    friend class TDistributedWritePingFacadeBase<TDistributedWriteTablePingFacade, TDistributedTableSessionTraits>;
+
+public:
+    explicit TDistributedWriteTablePingFacade(const IClientPtr& client)
+        : TBase(client)
+    { }
+
+protected:
+    TTransactionId GetMasterTransaction(const TTraits::TSession& session)
+    {
+        return session.MainTransactionId;
+    }
+};
+
+class TDistributedWriteTableFinishFacade
+    : public TDistributedWriteFinishFacadeBase<TDistributedWriteTableFinishFacade, TDistributedTableSessionTraits>
+{
+    using TBase = TDistributedWriteFinishFacadeBase<TDistributedWriteTableFinishFacade, TDistributedTableSessionTraits>;
+    using TTraits = TDistributedTableSessionTraits;
+
+    friend class TDistributedWriteFinishFacadeBase<TDistributedWriteTableFinishFacade, TDistributedTableSessionTraits>;
+
+public:
+    TDistributedWriteTableFinishFacade(
+        const IClientPtr& client,
+        const NLogging::TLogger& logger)
+        : TBase(client, logger)
+        , Client_(client)
+        , Logger(logger)
+    { }
+
+protected:
+    TTransactionId GetMasterTransaction(const TTraits::TSession& session) {
+        return session.MainTransactionId;
+    }
+
+    TObjectId GetObjectId(const TTraits::TSession& session) {
+        return session.PatchInfo.ObjectId;
+    }
+
+    NYPath::TRichYPath GetPath(const TTraits::TSession& session) {
+        return session.PatchInfo.RichPath;
+    }
+
+    NObjectClient::TCellTag GetExternalCellTag(const TTraits::TSession& session) {
+        return session.PatchInfo.ExternalCellTag;
+    }
+
+    void SortResults(
+        TNonNullPtr<std::vector<typename TTraits::TWriteFragmentResult>> results,
+        const TTraits::TSession& session)
+    {
+        auto tableUploadOptions = GetTableUploadOptions(session);
+        // Sorted output generated by user operation requires rearranging.
+        if (tableUploadOptions.TableSchema->IsSorted()) {
+            SortAndValidateDistributedWriteResults(
+                results,
+                session.PatchInfo,
+                tableUploadOptions,
+                Logger);
+        }
+    }
+
+    void EndUpload(
+        const TTraits::TSession& session,
+        const NChunkClient::NProto::TDataStatistics& dataStatistics)
+    {
+        const auto& patchInfo = session.PatchInfo;
+        auto tableUploadOptions = GetTableUploadOptions(session);
+
+        NTableClient::NDetail::EndTableUpload(
+            Client_,
+            patchInfo.RichPath,
+            CellTagFromId(patchInfo.ObjectId),
+            FromObjectId(patchInfo.ObjectId),
+            session.UploadTransactionId,
+            tableUploadOptions,
+            dataStatistics);
+    }
+
+private:
+    const IClientPtr Client_;
+    const NLogging::TLogger Logger;
+
+    TTableUploadOptions GetTableUploadOptions(const TTraits::TSession& session)
+    {
+        const auto& patchInfo = session.PatchInfo;
+        auto attributes = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
+
+        return NYT::GetTableUploadOptions(
+            patchInfo.RichPath,
+            *attributes,
+            attributes->Get<TTableSchemaPtr>("schema"),
+            attributes->Get<i64>("row_count"));
+    }
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,299 +469,29 @@ TDistributedWriteSessionWithCookies TClient::DoStartDistributedWriteSession(
     const TRichYPath& richPath,
     const TDistributedWriteSessionStartOptions& options)
 {
-    const auto& path = richPath.GetPath();
-
-    TTransactionStartOptions transactionStartOptions;
-    transactionStartOptions.Timeout = options.Timeout;
-    if (options.TransactionId) {
-        transactionStartOptions.ParentId = options.TransactionId;
-        transactionStartOptions.Ping = true;
-        transactionStartOptions.PingAncestors = options.PingAncestors;
-    }
-
-    auto transaction = WaitFor(
-        StartTransaction(
-            NTransactionClient::ETransactionType::Master,
-            transactionStartOptions))
-        .ValueOrThrow();
-
-    TUserObject userObject(path);
-
-    GetUserObjectBasicAttributes(
+    TDistributedWriteTableStartFacade facade(
         MakeStrong(this),
-        {&userObject},
-        transaction->GetId(),
-        Logger,
-        EPermission::Write);
-
-    if (userObject.Type != EObjectType::Table) {
-        THROW_ERROR_EXCEPTION(
-            "Invalid type of %v: expected %Qlv, actual %Qlv",
-            path,
-            EObjectType::Table,
-            userObject.Type);
-    }
-
-    auto objectId = userObject.ObjectId;
-    auto nativeCellTag = CellTagFromId(objectId);
-    auto externalCellTag = userObject.ExternalCellTag;
-    auto objectIdPath = FromObjectId(objectId);
-
-    TTableSchemaPtr chunkSchema;
-    TTableUploadOptions tableUploadOptions;
-    INodePtr nodeWithAttributes;
-
-    {
-        YT_LOG_DEBUG("Requesting extended table attributes");
-
-        nodeWithAttributes = NTableClient::NDetail::GetTableAttributes(
-            MakeStrong(this),
-            path,
-            externalCellTag,
-            objectIdPath,
-            userObject);
-
-        const auto& attributes = nodeWithAttributes->Attributes();
-
-        if (attributes.Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("\"distributed_write_sessions\" API is not supported for dynamic tables; use \"insert_rows\" instead");
-        }
-
-        tableUploadOptions = GetTableUploadOptions(
-            richPath,
-            attributes,
-            attributes.Get<TTableSchemaPtr>("schema"),
-            attributes.Get<i64>("row_count"));
-
-        chunkSchema = NTableClient::NDetail::GetChunkSchema(richPath, tableUploadOptions);
-
-        YT_LOG_DEBUG("Extended attributes received (Attributes: %v)", ConvertToYsonString(attributes, EYsonFormat::Text));
-    }
-
-    auto [chunkSchemaId, uploadTransactionId] = NTableClient::NDetail::BeginTableUpload(
-        MakeStrong(this),
-        path,
-        nativeCellTag,
-        objectIdPath,
-        transaction->GetId(),
-        tableUploadOptions,
-        chunkSchema,
-        Logger,
-        /*setUploadTransactionTimeout*/ false);
-
-    auto [writerLastKey, rootChunkListId, maxHeavyColumns] = NTableClient::NDetail::GetTableUploadParams(
-        MakeStrong(this),
-        path,
-        externalCellTag,
-        objectIdPath,
-        uploadTransactionId,
-        tableUploadOptions,
         Logger);
-
-    auto timestamp = WaitFor(GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
-        .ValueOrThrow();
-
-    auto session = TDistributedWriteSession(
-        /*mainTransactionId*/ transaction->GetId(),
-        uploadTransactionId,
-        rootChunkListId,
-        std::move(richPath),
-        objectId,
-        /*externalCellTag*/ externalCellTag,
-        chunkSchemaId,
-        std::move(chunkSchema),
-        static_cast<bool>(writerLastKey) ? std::optional(std::move(writerLastKey)) : std::nullopt,
-        maxHeavyColumns,
-        timestamp,
-        nodeWithAttributes->Attributes());
-
-    std::vector<TSignedWriteFragmentCookiePtr> cookies;
-    cookies.reserve(options.CookieCount);
-
-    auto signatureGenerator = GetNativeConnection()->GetSignatureGenerator();
-
-    for (int i = 0; i < options.CookieCount; ++i) {
-        cookies.emplace_back(signatureGenerator->Sign(ConvertToYsonString(session.CookieFromThis()).ToString()));
-    }
-
-    TDistributedWriteSessionWithCookies result;
-    result.Session = TSignedDistributedWriteSessionPtr(signatureGenerator->Sign(ConvertToYsonString(session).ToString()));
-    result.Cookies = std::move(cookies);
-
-    // NB(pavook): we pass the transaction to the user here, and expect it to be attached,
-    // so it shouldn't be auto-aborted anymore.
-    transaction->Detach();
-
-    return result;
+    return facade.StartSession(richPath, options);
 }
 
 void TClient::DoPingDistributedWriteSession(
     TSignedDistributedWriteSessionPtr session,
     const TDistributedWriteSessionPingOptions& options)
 {
-    Y_UNUSED(options);
-    YT_VERIFY(session);
-    auto concreteSession = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(session.Underlying()->Payload()));
-
-    // NB(arkady-e1ppa): AutoAbort = false by default.
-    auto mainTransaction = static_cast<IClient*>(this)->AttachTransaction(concreteSession.MainTransactionId);
-
-    WaitFor(mainTransaction->Ping())
-        .ThrowOnError();
+    TDistributedWriteTablePingFacade facade(
+        MakeStrong(this));
+    facade.PingSession(session, options);
 }
 
 void TClient::DoFinishDistributedWriteSession(
     const TDistributedWriteSessionWithResults& sessionWithResults,
-    const TDistributedWriteSessionFinishOptions& /*options*/)
+    const TDistributedWriteSessionFinishOptions& options)
 {
-    YT_VERIFY(sessionWithResults.Session);
-
-    auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
-
-    const auto& patchInfo = session.PatchInfo;
-    const auto& path = patchInfo.RichPath.GetPath();
-
-    auto attributes = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
-
-    TTransactionAttachOptions attachOptions = {};
-    attachOptions.AutoAbort = true;
-    auto transaction = AttachTransaction(session.MainTransactionId, attachOptions);
-
-    const auto tableUploadOptions = GetTableUploadOptions(
-        patchInfo.RichPath,
-        *attributes,
-        attributes->Get<TTableSchemaPtr>("schema"),
-        attributes->Get<i64>("row_count"));
-
-    NChunkClient::NProto::TDataStatistics dataStatistics = {};
-
-    // Attach chunk lists part.
-    {
-        YT_LOG_INFO(
-            "Attaching participants' chunks (Path: %v)",
-            path);
-
-        auto channel = GetMasterChannelOrThrow(
-            EMasterChannelKind::Leader,
-            patchInfo.ExternalCellTag);
-        TChunkServiceProxy proxy(channel);
-
-        // Split large outputs into separate requests.
-        NChunkClient::NProto::TReqAttachChunkTrees* req = nullptr;
-        TChunkServiceProxy::TReqExecuteBatchPtr batchReq;
-
-        auto flushRequest = [&] (bool requestStatistics) {
-            if (!batchReq) {
-                return;
-            }
-
-            if (req) {
-                req->set_request_statistics(requestStatistics);
-                req = nullptr;
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
-                "Error attaching chunks to output table %v",
-                path);
-
-            const auto& batchRsp = batchRspOrError.Value();
-            const auto& subresponses = batchRsp->attach_chunk_trees_subresponses();
-
-            if (requestStatistics) {
-                for (const auto& rsp : subresponses) {
-                    dataStatistics += rsp.statistics();
-                }
-            }
-
-            batchReq.Reset();
-        };
-
-        int currentRequestSize = 0;
-        THashSet<TChunkTreeId> addedChunkTrees;
-
-        const auto& config = GetNativeConnection()->GetConfig()->DistributedWriteDynamicConfig;
-        auto addChunkTree = [&] (TChunkTreeId chunkTreeId) {
-            if (batchReq && currentRequestSize >= config->MaxChildrenPerAttachRequest) {
-                // NB: Static tables do not need statistics for intermediate requests.
-                flushRequest(false);
-                currentRequestSize = 0;
-            }
-
-            ++currentRequestSize;
-
-            if (!req) {
-                if (!batchReq) {
-                    batchReq = proxy.ExecuteBatch();
-                    GenerateMutationId(batchReq);
-                    SetSuppressUpstreamSync(&batchReq->Header(), true);
-                    // COMPAT(shakurov): prefer proto ext (above).
-                    batchReq->set_suppress_upstream_sync(true);
-                }
-                req = batchReq->add_attach_chunk_trees_subrequests();
-                ToProto(req->mutable_parent_id(), session.RootChunkListId);
-            }
-
-            ToProto(req->add_child_ids(), chunkTreeId);
-        };
-
-        std::vector<TWriteFragmentResult> writeResults;
-        writeResults.reserve(std::ssize(sessionWithResults.Results));
-        for (const auto& signedResult : sessionWithResults.Results) {
-            YT_VERIFY(signedResult);
-            writeResults.push_back(ConvertTo<TWriteFragmentResult>(TYsonStringBuf(signedResult.Underlying()->Payload())));
-        }
-
-        if (tableUploadOptions.TableSchema->IsSorted()) {
-            // Sorted output generated by user operation requires rearranging.
-
-            SortAndValidateDistributedWriteResults(
-                &writeResults,
-                patchInfo,
-                tableUploadOptions,
-                Logger);
-
-            for (const auto& writeResult : writeResults) {
-                addChunkTree(writeResult.ChunkListId);
-            }
-        } else {
-            YT_LOG_DEBUG(
-                "Attaching chunk tree ids in an arbitrary order (ChunkTreeCount: %v, Table: %v)",
-                std::ssize(writeResults),
-                path);
-
-            for (const auto& writeResult : writeResults) {
-                if (!addedChunkTrees.insert(writeResult.ChunkListId).second) {
-                    THROW_ERROR_EXCEPTION("Duplicate chunk list ids")
-                        << TErrorAttribute("session_id", writeResult.SessionId)
-                        << TErrorAttribute("cookie_id", writeResult.CookieId)
-                        << TErrorAttribute("chunk_list_id", writeResult.ChunkListId);
-                }
-                addChunkTree(writeResult.ChunkListId);
-            }
-        }
-
-        // NB: Don't forget to ask for the statistics in the last request.
-        flushRequest(true);
-
-        YT_LOG_INFO(
-            "Distributed writers' chunks attached (Path: %v, Statistics: %v)",
-            path,
-            dataStatistics);
-    }
-
-    NYT::NTableClient::NDetail::EndTableUpload(
+    TDistributedWriteTableFinishFacade facade(
         MakeStrong(this),
-        path,
-        CellTagFromId(patchInfo.ObjectId),
-        FromObjectId(patchInfo.ObjectId),
-        session.UploadTransactionId,
-        tableUploadOptions,
-        std::move(dataStatistics));
-
-    WaitFor(transaction->Commit())
-        .ThrowOnError();
+        Logger);
+    facade.FinishSession(sessionWithResults, options);
 }
 
 TFuture<ITableFragmentWriterPtr> TClient::CreateTableFragmentWriter(

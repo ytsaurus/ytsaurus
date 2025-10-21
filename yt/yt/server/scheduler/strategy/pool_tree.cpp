@@ -3436,8 +3436,6 @@ private:
                 fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lowest_starving_ancestor", element->GetLowestStarvingAncestor()->GetId());
             })
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "weight", element->GetWeight())
-            // COMPAT(eshcherbin, YT-24083): Deprecate old *_ratio and *_share terms.
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_share_ratio", element->GetMaxShareRatio())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_resource", attributes.DominantResource)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_usage", element->GetResourceUsageAtUpdate())

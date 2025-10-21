@@ -190,7 +190,7 @@ public:
         return FileGateway_->Run(node, ctx, std::move(options));
     }
 
-    TFuture<TRunResult> Prepare(const TExprNode::TPtr& node, TExprContext& ctx, TPrepareOptions&& options) const final {
+    TFuture<TRunResult> Prepare(const TExprNode::TPtr& node, TExprContext& ctx, TPrepareOptions&& options) final {
         return FileGateway_->Prepare(node, ctx, std::move(options));
     }
 
@@ -318,6 +318,10 @@ public:
 
     TFuture<TLayersSnapshotResult> SnapshotLayers(TSnapshotLayersOptions&& options) final {
         return NativeGateway_->SnapshotLayers(std::move(options));
+    }
+
+    TFuture<TDumpResult> Dump(TDumpOptions&& options) override {
+        return FileGateway_->Dump(std::move(options));
     }
 
 private:

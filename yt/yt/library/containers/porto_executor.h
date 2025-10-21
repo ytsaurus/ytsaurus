@@ -133,8 +133,6 @@ struct IPortoExecutor
         bool async) = 0;
     virtual TFuture<std::vector<TString>> ListLayers(const TString& place) = 0;
 
-    virtual IInvokerPtr GetInvoker() const = 0;
-
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed);
 };
 

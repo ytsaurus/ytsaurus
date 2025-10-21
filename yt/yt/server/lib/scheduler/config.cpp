@@ -409,9 +409,6 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(0.2)
         .GreaterThanOrEqual(0);
 
-    registrar.Parameter("enable_scheduling_tags", &TThis::EnableSchedulingTags)
-        .Default(true);
-
     registrar.Parameter("heartbeat_tree_scheduling_info_log_period", &TThis::HeartbeatTreeSchedulingInfoLogBackoff)
         .Default(TDuration::MilliSeconds(100));
 

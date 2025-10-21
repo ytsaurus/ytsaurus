@@ -423,6 +423,8 @@ EOF
         replacement: '$servicelabel'
       - target_label: cluster
         replacement: '$cluster_name'
+      - source_labels: [__address__]
+        target_label: pod
 EOF
     done
 

@@ -14,6 +14,7 @@ from yt.subprocess_wrapper import Popen, PIPE
 from yt.wrapper.errors import YtRetriableError, YtConfigError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
+from yt.wrapper.spec_builders import MapSpecBuilder, MapperSpecBuilder
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
@@ -2097,6 +2098,29 @@ def test_operations_with_other_cluster(yt_env_multicluster_v4):  # noqa
         source_table=TABLE_CLUSTER_2,
         destination_table=TABLE_LOCAL,
     )
+
+    assert client_2.exists(TABLE_CLUSTER_2)
+    assert client_1.exists(TABLE_LOCAL)
+
+    # NOTE(abodrov): Test MapSpecBuilder works even without a client
+    client_1.remove(TABLE_LOCAL)
+
+    assert not client_1.exists(TABLE_LOCAL)
+
+    options_override = {
+        "pickling/framework": "cloudpickle",
+        "proxy/url": env_1.config["proxy"]["url"],
+    }
+
+    with set_config_options(options_override):
+        mapper_spec_builder = MapperSpecBuilder().command(SimpleMapper())
+        spec_builder = (
+            MapSpecBuilder()
+            .input_table_paths(TABLE_CLUSTER_2)
+            .output_table_paths(TABLE_LOCAL)
+            .mapper(mapper_spec_builder)
+        )
+        yt.run_operation(spec_builder)
 
     assert client_2.exists(TABLE_CLUSTER_2)
     assert client_1.exists(TABLE_LOCAL)

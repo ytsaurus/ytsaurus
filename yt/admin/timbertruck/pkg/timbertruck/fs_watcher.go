@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"path"
+	"sync"
 )
 
 type FileEvent int32
@@ -14,10 +15,11 @@ const (
 )
 
 type FsWatcher struct {
-	watcher    *InotifyWatcher
-	logger     *slog.Logger
+	watcher *InotifyWatcher
+	logger  *slog.Logger
+
 	handlerMap map[string][]chan FileEvent
-	started    bool
+	mu         sync.RWMutex
 }
 
 func NewFsWatcher(logger *slog.Logger) (fsWatcher *FsWatcher, err error) {
@@ -29,7 +31,6 @@ func NewFsWatcher(logger *slog.Logger) (fsWatcher *FsWatcher, err error) {
 		watcher:    watcher,
 		logger:     logger,
 		handlerMap: make(map[string][]chan FileEvent),
-		started:    false,
 	}
 	return
 }
@@ -42,9 +43,8 @@ func (w *FsWatcher) Close() {
 }
 
 func (w *FsWatcher) AddLogPath(logFilePath string, ch chan FileEvent) (err error) {
-	if w.started {
-		panic("Cannot AddLogPath when watcher is launched")
-	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	logDir := path.Dir(logFilePath)
 	err = w.watcher.Add(logDir)
 	if err != nil {
@@ -64,7 +64,6 @@ func (w *FsWatcher) trySendEvent(ch chan<- FileEvent, event FileEvent, path stri
 }
 
 func (w *FsWatcher) Run(ctx context.Context) error {
-	w.started = true
 	ctxDone := ctx.Done()
 	w.logger.Info("Launched FsWatcher")
 loop:
@@ -76,7 +75,9 @@ loop:
 			if !ok {
 				break loop
 			}
+			w.mu.RLock()
 			handlers, ok := w.handlerMap[event.Name]
+			w.mu.RUnlock()
 			if !ok {
 				continue
 			}

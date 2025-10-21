@@ -250,7 +250,7 @@ def _request_schemas(paths, client):
     def get_client_for_cluster(cluster_name=None):
         if cluster_name not in batch_client_by_cluster:
             # NB: assumes that cluster_name == yt_proxy
-            if not cluster_name or cluster_name == client.config["proxy"]["url"]:
+            if not cluster_name or cluster_name == get_config(client)["proxy"]["url"]:
                 batch_client_by_cluster[cluster_name] = create_batch_client(raise_errors=False, client=client)
             else:
                 from yt.wrapper import YtClient

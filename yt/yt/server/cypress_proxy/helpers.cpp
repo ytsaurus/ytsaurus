@@ -357,7 +357,7 @@ TError CheckPrerequisiteTransactions(
 
     auto doomedTransactionRowsOrError = WaitFor(sequoiaClient->LookupRows(doomedTransactionKeys));
     THROW_ERROR_EXCEPTION_IF_FAILED(doomedTransactionRowsOrError, "Failed to check prerequisite transactions");
-    auto doomedTransactionRows = doomedTransactionRowsOrError.Value();
+    const auto& doomedTransactionRows = doomedTransactionRowsOrError.Value();
     for (int index = 0; index < std::ssize(doomedTransactionRows); ++index) {
         if (doomedTransactionRows[index].has_value()) {
             ThrowTransactionIsDoomed(prerequisiteTransactionIds[index], /*isPrerequisite*/ true);

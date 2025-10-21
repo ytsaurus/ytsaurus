@@ -20,6 +20,7 @@ IF (NOT OPENSOURCE)
         hwinfo
         infra_cli
         infra_noc
+        jobtruck
         libs
         luigi
         scheduler_codicils

@@ -11,7 +11,7 @@ namespace NYT::NTesting {
 class TAlwaysFailingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter*)
+    void Do(TReader* reader, TWriter*) override
     {
         for (; reader->IsValid(); reader->Next()) {
         }
@@ -23,7 +23,7 @@ public:
 class TIdMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             writer->AddRow(reader->GetRow());
@@ -34,7 +34,7 @@ public:
 class TIdReducer : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TReader* reader, TWriter* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             writer->AddRow(reader->GetRow());
@@ -42,11 +42,13 @@ public:
     }
 };
 
+template <typename TProto>
+    requires std::is_base_of_v<::google::protobuf::Message, TProto>
 class TIdProtoMapper
-    : public IMapper<TTableReader<TNumberRecord>, TTableWriter<TNumberRecord>>
+    : public IMapper<TTableReader<TProto>, TTableWriter<TProto>>
 {
 public:
-    void Do(TReader* reader, TWriter* writer)
+    void Do(TTableReader<TProto>* reader, TTableWriter<TProto>* writer) override
     {
         for (; reader->IsValid(); reader->Next()) {
             writer->AddRow(reader->GetRow());
@@ -75,7 +77,7 @@ public:
         : SleepDuration_(sleepDuration)
     { }
 
-    virtual void Do(TReader*, TWriter* ) override
+    void Do(TReader*, TWriter* ) override
     {
         Sleep(SleepDuration_);
     }
@@ -90,7 +92,8 @@ class THugeStderrMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode
 {
 public:
     THugeStderrMapper() = default;
-    virtual void Do(TReader*, TWriter*) override {
+    void Do(TReader*, TWriter*) override
+    {
         TString err(1024 * 1024 * 10, 'a');
         Cerr.Write(err);
         Cerr.Flush();
