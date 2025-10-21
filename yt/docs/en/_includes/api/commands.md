@@ -582,6 +582,7 @@ Parameters:
 | `recursive` | No | `false` | Whether to create the skipped levels (map nodes) at the destination path. |
 | `force` | No | `false` | Allows you to specify an existing node to be replaced, as the destination path. |
 | `preserve_account` | No | `false` | Whether to keep the accounts of the source nodes or use the account at the destination path. |
+| `preserve_expiration_time` | No | `false` | Whether to copy the [`expiration_time`](../../user-guide/storage/cypress.md#TTL) attribute or leave it empty. |
 | `preserve_expiration_timeout` | No | `false` | Whether to copy the [`expiration_timeout`](../../user-guide/storage/cypress.md#TTL) attribute or leave it empty. |
 
 Input data:
