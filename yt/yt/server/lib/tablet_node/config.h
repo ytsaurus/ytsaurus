@@ -325,6 +325,8 @@ struct TCustomTableMountConfig
 
     i64 MaxEdenDataSizeForSplitting;
 
+    bool ValidateRowIndexInChaosReplication;
+
     TTestingTableMountConfig Testing;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);

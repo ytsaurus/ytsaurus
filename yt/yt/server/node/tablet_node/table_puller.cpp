@@ -888,6 +888,30 @@ private:
 
                     previousTimestamp = rowTimestamp;
                 }
+
+                if (endReplicationRowIndexes.size() > 1) {
+                    THROW_ERROR_EXCEPTION("Ordered pull from multiple tablets")
+                        << HardErrorAttribute;
+                }
+
+                if (MountConfig_->ValidateRowIndexInChaosReplication && !endReplicationRowIndexes.empty()) {
+                    i64 currentRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
+                    i64 endReplicationRowIndex = endReplicationRowIndexes.begin()->second;
+                    if (currentRowCount + rowCount != endReplicationRowIndex) {
+                        YT_LOG_ALERT(
+                            "Ordered pull row index mismatch "
+                            "(CurrentRowCount: %v, ResultSetRowCount: %v, EndReplicationRowIndex: %v)",
+                            currentRowCount,
+                            rowCount,
+                            endReplicationRowIndex);
+
+                        THROW_ERROR_EXCEPTION("Ordered pull row index mismatch")
+                            << TErrorAttribute("current_row_count", currentRowCount)
+                            << TErrorAttribute("result_set_row_count", rowCount)
+                            << TErrorAttribute("end_replication_row_index", endReplicationRowIndex)
+                            << HardErrorAttribute;
+                    }
+                }
             }
 
             // Update progress even if no rows pulled.
