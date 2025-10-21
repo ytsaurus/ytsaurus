@@ -165,6 +165,35 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEnvironmentVariableConfig
+    : public NYTree::TYsonStruct
+{
+    TString Name;
+
+    //! Load value from present variable, have priority if specified and defined.
+    std::optional<TString> EnvironmentVariable;
+
+    //! Load value from file content.
+    std::optional<TString> FileName;
+
+    //! Exact value, cannot be combined with file_name.
+    std::optional<TString> Value;
+
+    //! Forward or not this variable into user job environment.
+    //! Default behavior is controlled by option "forward_all_environment_variables".
+    std::optional<bool> ForwardToUserJob;
+
+    TString LoadValue() const;
+
+    REGISTER_YSON_STRUCT(TEnvironmentVariableConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TEnvironmentVariableConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TContainerGpuConfig
     : public NYTree::TYsonStruct
 {
@@ -459,6 +488,9 @@ struct TJobProxyInternalConfig
 
     //! Forward variables from job proxy environment to user job.
     bool ForwardAllEnvironmentVariables;
+
+    //! Defines environment variables for job proxy, optionally exported to user job.
+    std::vector<TEnvironmentVariableConfigPtr> EnvironmentVariables;
 
     std::optional<double> ContainerCpuLimit;
 
