@@ -160,6 +160,8 @@ public:
         TFullHeartbeatContextPtr context,
         TRange<TChunkLocationIndex> locationDirectory)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         static_assert(
             std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr> ||
             std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>);
@@ -273,6 +275,8 @@ public:
         const TNode* node,
         const TCtxFullHeartbeatPtr& context) override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         if (node->GetLocalState() == ENodeState::Restarted) {
             YT_LOG_ALERT("Restarted node sent full heartbeat (NodeId: %v, NodeAddress: %v)", node->GetId(), node->GetDefaultAddress());
             THROW_ERROR_EXCEPTION("Full data node heartbeats are not supported for restarted nodes, the node will be disposed for standard registration");
@@ -287,6 +291,8 @@ public:
         const TNode* node,
         const TCtxLocationFullHeartbeatPtr& context) override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         if (!GetDynamicConfig()->EnablePerLocationFullHeartbeats) {
             THROW_ERROR_EXCEPTION("Per-location full data node heartbeats are disabled");
         }
@@ -374,6 +380,8 @@ public:
         TReqFullHeartbeat* request,
         TRspFullHeartbeat* response)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -396,6 +404,8 @@ public:
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         const auto& originalRequest = context->Request();
@@ -474,6 +484,8 @@ public:
         TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response) override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -666,12 +678,16 @@ public:
 
     TChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) const override
     {
+        VerifyPersistentStateRead();
+
         auto it = ChunkLocationUuidToLocation_.find(locationUuid);
         return it == ChunkLocationUuidToLocation_.end() ? nullptr : it->second;
     }
 
     TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) const override
     {
+        VerifyPersistentStateRead();
+
         auto* location = GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
         if (!IsObjectAlive(location)) {
             YT_LOG_ALERT("Zombie location is found using GetChunkLocationByUuid (LocationUuid: %v)",
@@ -682,12 +698,16 @@ public:
 
     TChunkLocation* FindChunkLocationByIndex(TChunkLocationIndex locationIndex) const override
     {
+        VerifyPersistentStateRead();
+
         auto locationId = ObjectIdFromChunkLocationIndex(locationIndex);
         return ChunkLocationMap_.Find(locationId);
     }
 
     TChunkLocation* GetChunkLocationByIndex(TChunkLocationIndex locationIndex) const override
     {
+        VerifyPersistentStateRead();
+
         auto location = FindChunkLocationByIndex(locationIndex);
         YT_VERIFY(IsObjectAlive(location));
         return location;
@@ -833,6 +853,8 @@ private:
     // COMPAT(koloshmet)
     TInstant DanglingLocationsDefaultLastSeenTime_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
     template<class THeartbeatContextPtr>
     struct THeartbeatRequest
         : public TRefCounted
@@ -915,7 +937,10 @@ private:
     }
 
     template <bool FullHeartbeat>
-    TChunkLocation* FindAndValidateLocation(const TNode* node, TGuid uuid) const {
+    TChunkLocation* FindAndValidateLocation(const TNode* node, TGuid uuid) const
+    {
+        VerifyPersistentStateRead();
+
         auto* location = FindChunkLocationByUuid(uuid);
         if (!IsObjectAlive(location)) {
             YT_LOG_ALERT(
@@ -961,99 +986,76 @@ private:
     }
 
     template <bool FullHeartbeat>
-    void AlertAndThrowOnInvalidChunkInfo(
-        const auto& chunkInfo,
-        const TNode* node,
-        int locationDirectorySize) const
+    THashSet<NNodeTrackerClient::TChunkLocationIndex> ValidateAndGetLocationIndexes(
+        const auto& chunkInfos,
+        int locationDirectorySize,
+        const auto& nodeAddress) const
     {
-        using NYT::FromProto;
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
-        static_assert(std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo> || std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkRemoveInfo>,
-            "TChunkInfo must be either TChunkAddInfo or TChunkRemoveInfo");
+        THashSet<NNodeTrackerClient::TChunkLocationIndex> locationIndexes;
+        for (const auto& chunkInfo : chunkInfos) {
+            using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
+            static_assert(std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkAddInfo> || std::is_same_v<TChunkInfo, NChunkClient::NProto::TChunkRemoveInfo>,
+                "TChunkInfo must be either TChunkAddInfo or TChunkRemoveInfo");
 
-        constexpr bool isRemoval = !FullHeartbeat &&
-            std::is_same_v<std::decay_t<decltype(chunkInfo)>, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>>;
+            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
 
-        auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-
-        if constexpr (FullHeartbeat) {
-            if (chunkInfo.caused_by_medium_change()) {
-                YT_LOG_ALERT(
-                    "Data node reported full heartbeat with medium change chunk "
-                    "(ChunkId: %v, NodeAddress: %v)",
-                    chunkId,
-                    node->GetDefaultAddress());
-                THROW_ERROR_EXCEPTION("Full heartbeat contains chunk with medium change");
+            if constexpr (FullHeartbeat) {
+                if (chunkInfo.caused_by_medium_change()) {
+                    YT_LOG_ALERT(
+                        "Data node reported full heartbeat with medium change chunk "
+                        "(ChunkId: %v, NodeAddress: %v)",
+                        chunkId,
+                        nodeAddress);
+                    THROW_ERROR_EXCEPTION("Full heartbeat from node %v contains chunk %v with medium change",
+                        nodeAddress,
+                        chunkId);
+                }
             }
-        }
 
-        if (chunkInfo.has_location_index()) {
-            auto locationIndex = FromProto<NNodeTrackerClient::TChunkLocationIndex>(chunkInfo.location_index());
-            if (chunkInfo.has_location_directory_index()) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with both location index and location directory index "
-                    "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
-                    FullHeartbeat ? "full" : "incremental",
-                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+            if (chunkInfo.has_location_index()) {
+                auto locationIndex = FromProto<NNodeTrackerClient::TChunkLocationIndex>(chunkInfo.location_index());
+                if (chunkInfo.has_location_directory_index()) {
+                    YT_LOG_ALERT(
+                        "Data node reported heartbeat with both location index and location directory index "
+                        "(ChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                        chunkId,
+                        nodeAddress,
+                        locationIndex);
+
+                    THROW_ERROR_EXCEPTION("Heartbeat contains both location index and location directory index");
+                }
+
+                locationIndexes.insert(locationIndex);
+                YT_LOG_TRACE("Data node reported heartbeat with location index (ChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
                     chunkId,
-                    node->GetDefaultAddress(),
+                    nodeAddress,
                     locationIndex);
+            } else {
+                // COMPAT(grphil): remove after location directory is deprecated
+                if (!chunkInfo.has_location_directory_index()) {
+                    YT_LOG_ALERT(
+                        "Data node reported heartbeat with no location index or location directory index "
+                        "(ChunkId: %v, NodeAddress: %v)",
+                        chunkId,
+                        nodeAddress);
 
-                THROW_ERROR_EXCEPTION("%v heartbeat contains both location index and location directory index",
-                    FullHeartbeat ? "Full" : "Incremental");
-            }
+                    THROW_ERROR_EXCEPTION("Heartbeat contains no location index or location directory index");
+                }
+                if (chunkInfo.location_directory_index() < 0 || chunkInfo.location_directory_index() >= locationDirectorySize) {
+                    YT_LOG_ALERT(
+                        "Data node reported heartbeat with invalid location directory index "
+                        "(ChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                        chunkId,
+                        nodeAddress,
+                        chunkInfo.location_directory_index());
 
-            auto location = FindChunkLocationByIndex(locationIndex);
-            if (!location) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with invalid location index "
-                    "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
-                    FullHeartbeat ? "full" : "incremental",
-                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
-                    chunkId,
-                    node->GetDefaultAddress(),
-                    chunkInfo.location_index());
-
-                THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
-                    FullHeartbeat ? "Full" : "Incremental");
-            }
-            YT_LOG_DEBUG(
-                "Data node reported %v heartbeat with location index "
-                "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
-                FullHeartbeat ? "full" : "incremental",
-                FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
-                chunkId,
-                node->GetDefaultAddress(),
-                locationIndex);
-        } else {
-            // COMPAT(grphil): remove after location directory is deprecated
-            if (!chunkInfo.has_location_directory_index()) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with no location index or location directory index "
-                    "(%vChunkId: %v, NodeAddress: %v)",
-                    FullHeartbeat ? "full" : "incremental",
-                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
-                    chunkId,
-                    node->GetDefaultAddress());
-
-                THROW_ERROR_EXCEPTION("%v heartbeat contains no location index or location directory index",
-                    FullHeartbeat ? "Full" : "Incremental");
-            }
-            if (chunkInfo.location_directory_index() < 0 || chunkInfo.location_directory_index() >= locationDirectorySize) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with invalid location directory index "
-                    "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
-                    FullHeartbeat ? "full" : "incremental",
-                    FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
-                    chunkId,
-                    node->GetDefaultAddress(),
-                    chunkInfo.location_directory_index());
-
-                THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
-                    FullHeartbeat ? "Full" : "Incremental");
+                    THROW_ERROR_EXCEPTION("Heartbeat contains an incorrect location index");
+                }
             }
         }
+        return locationIndexes;
     }
 
     template <class TRequest>
@@ -1061,6 +1063,8 @@ private:
         const TNode* node,
         const TRequest& request) const
     {
+        VerifyPersistentStateRead();
+
         static_assert(
             std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>> ||
             std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat>> ||
@@ -1069,19 +1073,37 @@ private:
 
         constexpr bool fullHeartbeat = !std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat>>;
 
-        auto checkLocationIndices = [&] (const auto& chunkInfos, int locationDirectorySize) {
-            for (const auto& chunkInfo : chunkInfos) {
-                AlertAndThrowOnInvalidChunkInfo<fullHeartbeat>(chunkInfo, node, locationDirectorySize);
+        const auto& nodeAddress = node->GetDefaultAddress();
+        auto getLocationIndices = BIND([&] {
+            if constexpr (std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>>) {
+                return ValidateAndGetLocationIndexes<fullHeartbeat>(request.chunks(), request.location_directory_size(), nodeAddress);
+            } else if constexpr (std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat>>) {
+                return ValidateAndGetLocationIndexes<fullHeartbeat>(request.chunks(), 1, nodeAddress);
+            } else {
+                auto addIndexes = ValidateAndGetLocationIndexes<fullHeartbeat>(request.added_chunks(), request.location_directory_size(), nodeAddress);
+                auto removeIndexes = ValidateAndGetLocationIndexes<fullHeartbeat>(request.removed_chunks(), request.location_directory_size(), nodeAddress);
+                addIndexes.insert(removeIndexes.begin(), removeIndexes.end());
+                return addIndexes;
             }
-        };
+        });
 
-        if constexpr (std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqFullHeartbeat>>) {
-            checkLocationIndices(request.chunks(), request.location_directory_size());
-        } else if constexpr (std::is_same_v<TRequest, NYT::NRpc::TTypedServiceRequest<NYT::NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat>>) {
-            checkLocationIndices(request.chunks(), 1);
-        } else {
-            checkLocationIndices(request.added_chunks(), request.location_directory_size());
-            checkLocationIndices(request.removed_chunks(), request.location_directory_size());
+        auto locationIndexes = WaitFor(std::move(getLocationIndices)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run())
+            .ValueOrThrow();
+
+        for (auto locationIndex : locationIndexes) {
+            auto location = FindChunkLocationByIndex(locationIndex);
+            if (!IsObjectAlive(location)) {
+                YT_LOG_ALERT(
+                    "Data node reported heartbeat with invalid location index "
+                    "(NodeAddress: %v, LocationIndex: %v)",
+                    node->GetDefaultAddress(),
+                    locationIndex);
+
+                THROW_ERROR_EXCEPTION("Heartbeat contains an incorrect location index %v",
+                    locationIndex);
+            }
         }
     }
 
@@ -1129,7 +1151,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        auto doSplitRequest = BIND([=] () {
+        auto doSplitRequest = BIND([&] {
             auto preparedRequest = NewWithOffloadedDtor<THeartbeatRequest<THeartbeatContextPtr>>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
             auto& sequoiaRequest = preparedRequest->SequoiaRequest;
@@ -1178,7 +1200,7 @@ private:
             return preparedRequest;
         });
 
-        return WaitFor(doSplitRequest
+        return WaitFor(std::move(doSplitRequest)
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .Run())
             .ValueOrThrow();
