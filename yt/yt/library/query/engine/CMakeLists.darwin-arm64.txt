@@ -66,6 +66,7 @@ target_link_libraries(library-query-engine PUBLIC
 )
 
 target_sources(library-query-engine PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/cg_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/cg_fragment_compiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/cg_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/cg_ir_builder.cpp
@@ -135,6 +136,7 @@ target_sources(library-query-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/builtin_function_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/range_inferrer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/new_range_inferrer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/query_engine_config.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/a0be0a9e87e4702ae1320a576208a851.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/fee4f55767e8a84a948e7ea583dfbe42.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/engine/dda3c4dd6be8a78f1812ae538736ee47.cpp

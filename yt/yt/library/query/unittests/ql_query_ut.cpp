@@ -17,6 +17,7 @@
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
+#include <yt/yt/library/query/engine/query_engine_config.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
@@ -31,6 +32,8 @@
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/testing/hook/hook.h>
 
 #include <util/system/sanitizers.h>
 
@@ -12235,6 +12238,16 @@ TEST_F(TQueryEvaluateTest, BigJoin2)
     EXPECT_THROW_THAT(
         Evaluate(query, splits, sources, ResultMatcher(result)),
         HasSubstr("The number of multi-join groups exceeds the allowed maximum."));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_TEST_HOOK_AFTER_RUN(GTEST_YT_QUERY_ENGINE_SHUTDOWN)
+{
+    // Address sanitizer assumes that the cached objects have leaked
+    // even though these objects are stored inside LeakyRefCountedSingleton.
+    // Therefore, we manually clear the cache at the end of all tests.
+    TCodegenCacheSingleton::TearDownForTests();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
