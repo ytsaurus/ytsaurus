@@ -577,9 +577,8 @@ private:
 
         const auto& serializedNode = request->serialized_node();
         auto mode = FromProto<NCypressClient::ENodeCloneMode>(request->mode());
-        auto newAccountId = request->has_new_account_id()
-            ? std::make_optional(FromProto<TAccountId>(request->new_account_id()))
-            : std::nullopt;
+        auto newAccountId = FromProto<TAccountId>(request->new_account_id());
+        bool preserveAccount = !newAccountId;
         bool preserveCreationTime = request->preserve_creation_time();
         bool preserveExpirationTime = request->preserve_expiration_time();
         bool preserveExpirationTimeout = request->preserve_expiration_timeout();
@@ -593,7 +592,7 @@ private:
             serializedNode.data().size(),
             mode,
             transactionId,
-            !newAccountId.has_value(),
+            preserveAccount,
             preserveCreationTime,
             preserveExpirationTime,
             preserveExpirationTimeout,
@@ -612,7 +611,7 @@ private:
         TAccount* account = nullptr;
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         if (newAccountId) {
-            account = securityManager->GetAccountOrThrow(*newAccountId, /*activeLifeStageOnly*/ true);
+            account = securityManager->GetAccountOrThrow(newAccountId, /*activeLifeStageOnly*/ true);
             const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->ValidateObjectLifeStage(account);
         }
@@ -623,7 +622,7 @@ private:
             transaction,
             account,
             NCypressServer::TNodeFactoryOptions{
-                .PreserveAccount = !newAccountId.has_value(),
+                .PreserveAccount = preserveAccount,
                 .PreserveCreationTime = preserveCreationTime,
                 .PreserveModificationTime = true, // Modification time will be changed when assembling subtree, if needed.
                 .PreserveExpirationTime = preserveExpirationTime,
