@@ -35,21 +35,20 @@
 #include <Analyzer/ColumnNode.h>
 #include <Analyzer/FunctionNode.h>
 #include <Analyzer/Utils.h>
-#include <Planner/Utils.h>
-
 #include <Analyzer/WindowFunctionsUtils.h>
 #include <Analyzer/AggregationUtils.h>
 
 #include <Core/Joins.h>
+#include <Core/InterpolateDescription.h>
 
 #include <Planner/Planner.h>
 #include <Planner/PlannerJoins.h>
+#include <Planner/Utils.h>
 
 #include <Interpreters/CollectJoinOnKeysVisitor.h>
 #include <Interpreters/JoinedTables.h>
 #include <Interpreters/QueryAliasesVisitor.h>
 #include <Interpreters/InterpreterSelectQueryAnalyzer.h>
-#include <Core/InterpolateDescription.h>
 
 
 #include <DataTypes/DataTypeString.h>
