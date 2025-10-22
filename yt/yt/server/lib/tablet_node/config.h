@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/library/heavy_hitters/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,6 +288,7 @@ struct TCustomTableMountConfig
     bool EnableKeyFilterForLookup;
 
     int LookupRpcMultiplexingParallelism;
+    TMisraGriesHeavyHittersConfigPtr LookupHeavyHitters;
 
     bool SingleColumnGroupByDefault;
     bool EnableSegmentMetaInBlocks;

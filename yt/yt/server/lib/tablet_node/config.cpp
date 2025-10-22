@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/library/heavy_hitters/config.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -377,6 +379,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("lookup_rpc_multiplexing_parallelism", &TThis::LookupRpcMultiplexingParallelism)
         .Default(1)
         .InRange(1, 16);
+
+    registrar.Parameter("lookup_heavy_hitters", &TThis::LookupHeavyHitters)
+        .DefaultNew();
 
     registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
         .Default(true);

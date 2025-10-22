@@ -46,6 +46,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <yt/yt/library/heavy_hitters/misra_gries.h>
+
 #include <library/cpp/yt/compact_containers/compact_set.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -56,6 +58,11 @@
 #include <atomic>
 
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TRowHeavyHitters = TMisraGriesHeavyHitters<NTableClient::TUnversionedOwningRow>;
+using TRowHeavyHittersPtr = TIntrusivePtr<TRowHeavyHitters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +134,13 @@ struct TRefCountedReplicationProgress
 };
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedReplicationProgress)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TLookupHeavyHitters {
+    TRowHeavyHittersPtr RowCount;
+    TRowHeavyHittersPtr DataWeight;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -298,6 +312,8 @@ struct TTabletSnapshot
 
     TCompressionDictionaryInfos CompressionDictionaryInfos;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory;
+
+    TLookupHeavyHitters LookupHeavyHitters;
 
     std::string TabletCellBundle;
 
@@ -666,6 +682,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETabletTransactionSerializationType, SerializationType);
 
+    DEFINE_BYREF_RW_PROPERTY(TLookupHeavyHitters, LookupHeavyHitters);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -889,6 +907,8 @@ public:
     bool IsVersionedWriteUnversioned() const;
 
     TPreloadStatistics ComputePreloadStatistics() const;
+
+    static void BuildHeavyHittersOrchidYson(TRowHeavyHittersPtr heavyHitters, NYTree::TFluentList fluent);
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 

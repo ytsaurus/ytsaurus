@@ -1232,6 +1232,122 @@ class TestLookup(TestSortedDynamicTablesBase):
         after = lookup_rows("//tmp/t", keys)[0]
         assert after == before
 
+    @classmethod
+    def _get_key_repr_in_heavy_hitters(self, key: list):
+        res = ", ".join([f'{i}#{f'"{key[i]}"' if type(key[i]) is str else str(key[i])}' for i in range(len(key))])
+        return ''.join(["[", res, "]"])
+
+    @authors("tem-shett")
+    @pytest.mark.parametrize("is_versioned", [False, True])
+    def test_heavy_hitters_simple(self, is_versioned):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "string", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ]
+        )
+        set("//tmp/t/@mount_config/lookup_heavy_hitters", {"enable": True})
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key1": i, "key2": str(i), "value": "a" * (1 + 10 * i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        for _ in range(100):
+            lookup_keys = [{"key1": row["key1"], "key2": row["key2"]} for row in rows]
+            random.shuffle(lookup_keys)
+            lookup_rows("//tmp/t", lookup_keys, versioned=is_versioned, verbose=False)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        heavy_hitters = get(f"//sys/tablets/{tablet_id}/orchid/lookup_heavy_hitters")
+
+        heavy_hitters_row_count_keys = list(map(lambda x: x["key"], heavy_hitters["row_count"]))
+        for row in rows:
+            assert self._get_key_repr_in_heavy_hitters([row["key1"], row["key2"]]) in heavy_hitters_row_count_keys
+
+        for expected_key, actual_key in zip(
+            map(lambda x: x["key"], heavy_hitters["data_weight"]),
+            map(
+                lambda x: self._get_key_repr_in_heavy_hitters([x["key1"], x["key2"]]),
+                sorted(rows, key=lambda x: -len(x["value"])))
+        ):
+            assert expected_key == actual_key
+
+    @authors("tem-shett")
+    @pytest.mark.parametrize("is_versioned", [False, True])
+    def test_heavy_hitters_changeable_parameters(self, is_versioned):
+        def _check(keys_expected, is_weighted: bool):
+            heavy_hitters = get(f"//sys/tablets/{tablet_id}/orchid/lookup_heavy_hitters/{"data_weight" if is_weighted else "row_count"}")
+            if len(keys_expected) != len(heavy_hitters):
+                return False
+            heavy_hitters_keys = list(map(lambda x: x["key"], heavy_hitters))
+            for key in keys_expected:
+                if self._get_key_repr_in_heavy_hitters(key) not in heavy_hitters_keys:
+                    return False
+            return True
+
+        def _make_lookup_queries():
+            for _ in range(100):
+                lookup_keys = [{"key": row["key"]} for row in rows]
+                random.shuffle(lookup_keys)
+                lookup_rows("//tmp/t", lookup_keys, versioned=is_versioned, verbose=False)
+
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@mount_config/lookup_heavy_hitters", {"enable": True})
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        KEY_COUNT = 7
+        rows = [{"key": i, "value": "a" * (3 ** min(KEY_COUNT - 2, i))} for i in range(KEY_COUNT)]
+        insert_rows("//tmp/t", rows)
+
+        _make_lookup_queries()
+        wait(lambda: _check([[i] for i in range(KEY_COUNT)], is_weighted=False))
+
+        # Enable (true -> false)
+        set("//tmp/t/@mount_config/lookup_heavy_hitters/enable", False)
+        remount_table("//tmp/t")
+        wait(lambda: not get(f"//sys/tablets/{tablet_id}/orchid/config/lookup_heavy_hitters/enable"))
+        _make_lookup_queries()
+        wait(lambda: _check([], is_weighted=True))
+        wait(lambda: _check([], is_weighted=False))
+
+        set("//tmp/t/@mount_config/lookup_heavy_hitters/enable", True)
+        remount_table("//tmp/t")
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/config/lookup_heavy_hitters/enable"))
+
+        _make_lookup_queries()
+        lookup_rows("//tmp/t", [{"key": KEY_COUNT - 1}], versioned=not is_versioned, verbose=False)
+
+        # Threshold (0.001 -> 0.3)
+        set("//tmp/t/@mount_config/lookup_heavy_hitters/threshold", 0.3)
+        remount_table("//tmp/t")
+        wait(lambda: _check([[KEY_COUNT - 2], [KEY_COUNT - 1]], is_weighted=True))
+
+        # Default limit (50 -> 1)
+        set("//tmp/t/@mount_config/lookup_heavy_hitters/default_limit", 1)
+        remount_table("//tmp/t")
+        wait(lambda: _check([[KEY_COUNT - 1]], is_weighted=True))
+
+        # Window (10 minutes -> 1 second)
+        time.sleep(5)
+        for _ in range(10):
+            lookup_rows("//tmp/t", [{"key": KEY_COUNT}], versioned=not is_versioned, verbose=False)
+        wait(lambda: _check([[KEY_COUNT - 1]], is_weighted=False))
+        set("//tmp/t/@mount_config/lookup_heavy_hitters/window", 1000)
+        remount_table("//tmp/t")
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/config/lookup_heavy_hitters/window") == 1000)
+        time.sleep(5)
+        for _ in range(10):
+            lookup_rows("//tmp/t", [{"key": KEY_COUNT + 1}], versioned=not is_versioned, verbose=False)
+        wait(lambda: _check([[KEY_COUNT + 1]], is_weighted=False))
+
 
 @pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):

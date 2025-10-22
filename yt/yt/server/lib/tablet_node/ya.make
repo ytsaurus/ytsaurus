@@ -14,6 +14,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/dynamic_config
+    yt/yt/library/heavy_hitters
     yt/yt/ytlib
     yt/yt/server/lib/hive
     yt/yt/server/lib/election
