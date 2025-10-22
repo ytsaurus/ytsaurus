@@ -165,7 +165,6 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "remove", "//tmp/m")["action"] == "deny"
 
     @authors("kiselyovp", "gritukan")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize("superuser", [False, True])
     def test_banned_user_permission(self, superuser):
         create_user("u")
