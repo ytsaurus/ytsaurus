@@ -2292,11 +2292,17 @@ public:
             IsVersionedType(currentObject->GetType()) &&
             !cypressManager->IsShardRoot(currentObject))
         {
+            auto permissions = EPermissionSet(EPermission::Read);
+            // TODO(danilalexeev): YT-18520. Support access control to dynamic tables.
+            if (currentObject->IsSequoia()) {
+                permissions |= EPermission::Mount;
+            }
+
             checker.ProcessAce(
                 TAccessControlEntry(
                     ESecurityAction::Allow,
                     GetEveryoneGroup(),
-                    EPermissionSet(EPermission::Read)),
+                    permissions),
                 owner,
                 currentObject,
                 currentDepth);
