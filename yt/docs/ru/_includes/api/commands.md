@@ -582,6 +582,7 @@ OUTPUT "0-4-191-6c07cd58"
 | `recursive`                   | Нет          | `false`                     | Создавать ли пропущенные уровни (map-узлы) по пути назначения.                                           |
 | `force`                       | Нет          | `false`                     | Разрешает указывать в качестве пути назначения уже существующий узел, который должен быть заменен.       |
 | `preserve_account`            | Нет          | `false`                     | Сохранять ли аккаунты исходных узлов или использовать аккаунт пути назначения.                           |
+| `preserve_expiration_time`    | Нет          | `false`                     | Копировать ли атрибут [`expiration_time`](../../user-guide/storage/cypress.md#TTL) или оставлять его пустым. |
 | `preserve_expiration_timeout` | Нет          | `false`                     | Копировать ли атрибут [`expiration_timeout`](../../user-guide/storage/cypress.md#TTL) или оставлять его пустым. |
 
 Входные данные:
