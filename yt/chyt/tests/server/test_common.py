@@ -34,7 +34,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         }
     }
 
-    def make_query_and_check_block_rows(self, clique, query_log_path, query, expected_block_rows, expected_result, settings=None):
+    def make_query_and_check_block_rows(self, clique, query_log_path, query, expected_block_rows, expected_result, expected_queries_count=1, settings=None):
         result = clique.make_query(query, settings=settings, full_response=True)
         assert (result.json()["data"] == expected_result)
         query_id = result.headers["X-ClickHouse-Query-Id"]
@@ -46,10 +46,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
         wait(lambda: len([r for r in read_table(query_log_path) if match(r)]) > 0)
 
         rows = [r for r in read_table(query_log_path) if match(r)]
-        block_rows = sum([
-            row["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
-            for row in rows
-        ])
+        assert (len(rows) == expected_queries_count)
+        block_rows = sum([row["chyt_query_statistics"]["secondary_query_source"]["block_rows"]["sum"] for row in rows])
         assert (block_rows == expected_block_rows)
 
     @authors("evgenstf", "dakovalkov")
@@ -521,7 +519,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t/1", [{"a": None, "b": None, "c": None}])
         write_table("<append=%true>//tmp/t/2", [{"a": None, "b": None, "c": None}])
 
-        with Clique(1, config_patch=patch, export_query_log=True) as clique:
+        with Clique(2, config_patch=patch, export_query_log=True) as clique:
             self.make_query_and_check_block_rows(
                 clique, query_log_path, "select min(a) from '//tmp/t/1'", 2, [{"min(a)": 0}]
             )
@@ -606,29 +604,29 @@ class TestClickHouseCommon(ClickHouseTestBase):
             )
 
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a), count(a) from '//tmp/t/1'", 6, [{"min(a)": 0, "count(a)": 5}]
+                clique, query_log_path, "select min(a), count(a) from '//tmp/t/1'", 6, [{"min(a)": 0, "count(a)": 5}], 2
             )
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a) from '//tmp/t/1' where a > 0", 5, [{"min(a)": 1}]
+                clique, query_log_path, "select min(a) from '//tmp/t/1' where a > 0", 5, [{"min(a)": 1}], 2
             )
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min(a) from '//tmp/t/1' group by a having a < 1", 5, [{"min(a)": 0}]
+                clique, query_log_path, "select min(a) from '//tmp/t/1' group by a having a < 1", 5, [{"min(a)": 0}], 2
             )
 
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select min($table_name) from '//tmp/t/1'", 6, [{"min($table_name)": "1"}]
+                clique, query_log_path, "select min($table_name) from '//tmp/t/1'", 6, [{"min($table_name)": "1"}], 2
             )
 
             settings = {"chyt.execution.allow_string_min_max_optimization": 0}
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "4"}], settings
+                clique, query_log_path, "select max(b) from '//tmp/t/1'", 6, [{"max(b)": "4"}], 2, settings
             )
 
             write_table("<append=%true>//tmp/t/1", {"a": 3, "b": "z" * 200, "c": 3})
 
             # Need to full scan because max string is shortened for statistics.
             self.make_query_and_check_block_rows(
-                clique, query_log_path, "select max(b) from '//tmp/t/1'", 7, [{"max(b)": "z" * 200}]
+                clique, query_log_path, "select max(b) from '//tmp/t/1'", 7, [{"max(b)": "z" * 200}], 2
             )
 
     @authors("evgenstf")
