@@ -128,7 +128,7 @@ public:
 
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
 
-    const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie);
+    const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie) const;
 
     void InvalidateAllJobs();
 

@@ -795,7 +795,7 @@ TChunkStripeStatisticsVector TNewJobManager::GetApproximateStripeStatistics() co
     return job.StripeList()->GetStatistics();
 }
 
-const TChunkStripeListPtr& TNewJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie)
+const TChunkStripeListPtr& TNewJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie) const
 {
     YT_VERIFY(cookie < std::ssize(Jobs_));
     const auto& job = Jobs_[cookie];

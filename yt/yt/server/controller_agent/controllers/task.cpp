@@ -955,8 +955,8 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     }
 
     YT_LOG_DEBUG(
-        "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), CompressedDataSize: %v, RowCount: %v, PartitionTag: %v, Restarted: %v, "
+        "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v, "
+        "Approximate: %v, DataWeight: %v, CompressedDataSize: %v, RowCount: %v, PartitionTag: %v, Restarted: %v, "
         "EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, "
         "CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CookieGroupInfo: %v)",
         joblet->JobId,
@@ -965,10 +965,8 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->JobIndex,
         joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
-        joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->IsApproximate,
         joblet->InputStripeList->TotalDataWeight,
-        joblet->InputStripeList->LocalDataWeight,
         joblet->InputStripeList->TotalCompressedDataSize,
         joblet->InputStripeList->TotalRowCount,
         joblet->InputStripeList->PartitionTag,
