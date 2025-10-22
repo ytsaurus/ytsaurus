@@ -133,12 +133,34 @@ EPerformanceCountedRequestType GetRequestTypeFromQueryKind(EInitialQueryKind que
 class TAdapterBase
 {
 protected:
+    void OnRowWritten(i64 dataWeight)
+    {
+        FoundDataWeight_ += dataWeight;
+
+        if (WeightedLookupHeavyHitters_) {
+            WeightedLookupKeys_.emplace_back(TUnversionedOwningRow(LookupKeys_[KeyIndex_]), dataWeight);
+        }
+
+        ++KeyIndex_;
+        if (WeightedLookupHeavyHitters_ && std::ssize(LookupKeys_) == KeyIndex_) {
+            WeightedLookupHeavyHitters_->RegisterWeighted(
+                WeightedLookupKeys_,
+                TInstant::Now());
+        }
+    }
+
     TDataStatistics DataStatistics_;
     TCodecStatistics DecompressionStatistics_;
     TDuration ResponseCompressionTime_;
     TDuration HunksDecodingTime_;
     int FoundRowCount_ = 0;
     int FoundDataWeight_ = 0;
+
+    TSharedRange<TUnversionedRow> LookupKeys_;
+    int KeyIndex_ = 0;
+
+    TRowHeavyHittersPtr WeightedLookupHeavyHitters_;
+    std::vector<std::pair<TUnversionedOwningRow, double>> WeightedLookupKeys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,7 +183,8 @@ protected:
     { }
 
     TCompressingAdapterBase(TCompressingAdapterBase&& other)
-        : Codec_(other.Codec_)
+        : TAdapterBase(std::move(other))
+        , Codec_(other.Codec_)
         , MemoryUsageTracker_(std::move(other.MemoryUsageTracker_))
     { }
 
@@ -189,6 +212,7 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         const TColumnFilter& columnFilter,
         const TReadTimestampRange& timestampRange,
+        TSharedRange<TUnversionedRow> lookupKeys,
         ICodec* const codec,
         TRowBufferPtr rowBuffer,
         IMemoryUsageTrackerPtr memoryUsageTracker,
@@ -204,7 +228,10 @@ public:
             tabletSnapshot->ColumnEvaluator,
             timestampRange.RetentionTimestamp,
             timestampColumnMapping))
-    { }
+    {
+        LookupKeys_ = std::move(lookupKeys);
+        WeightedLookupHeavyHitters_ = tabletSnapshot->LookupHeavyHitters.DataWeight;
+    }
 
     TUnversionedAdapter(TUnversionedAdapter&& other) = default;
     TUnversionedAdapter& operator=(TUnversionedAdapter&&) = default;
@@ -217,7 +244,7 @@ protected:
     void WriteRow(TUnversionedRow row)
     {
         FoundRowCount_ += static_cast<bool>(row);
-        FoundDataWeight_ += GetDataWeight(row);
+        OnRowWritten(GetDataWeight(row));
         Writer_->WriteSchemafulRow(row);
     }
 };
@@ -231,6 +258,7 @@ public:
         const TColumnFilter& columnFilter,
         const TRetentionConfigPtr& retentionConfig,
         const TReadTimestampRange& timestampRange,
+        TSharedRange<TUnversionedRow> lookupKeys,
         ICodec* const codec,
         TRowBufferPtr rowBuffer,
         IMemoryUsageTrackerPtr memoryUsageTracker)
@@ -246,7 +274,10 @@ public:
             tabletSnapshot->ColumnEvaluator,
             tabletSnapshot->CustomRuntimeData,
             /*mergeRowsOnFlush*/ false))
-    { }
+    {
+        LookupKeys_ = std::move(lookupKeys);
+        WeightedLookupHeavyHitters_ = tabletSnapshot->LookupHeavyHitters.DataWeight;
+    }
 
     TVersionedAdapter(TVersionedAdapter&&) = default;
     TVersionedAdapter& operator=(TVersionedAdapter&&) = default;
@@ -259,7 +290,7 @@ protected:
     void WriteRow(TVersionedRow row)
     {
         FoundRowCount_ += static_cast<bool>(row);
-        FoundDataWeight_ += GetDataWeight(row);
+        OnRowWritten(GetDataWeight(row));
         Writer_->WriteVersionedRow(row);
     }
 };
@@ -1690,6 +1721,17 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
     auto lookupKeys = reader->ReadSchemafulRowset(
         IWireProtocolReader::GetSchemaData(*physicalSchema->ToKeys()),
         /*captureValues*/ false);
+
+    if (tabletSnapshot->Settings.MountConfig->LookupHeavyHitters->Enable) {
+        std::vector<TUnversionedOwningRow> lookupKeysVector;
+        lookupKeysVector.reserve(lookupKeys.Size());
+        for (const auto& key : lookupKeys) {
+            lookupKeysVector.push_back(TUnversionedOwningRow(key));
+        }
+
+        tabletSnapshot->LookupHeavyHitters.RowCount->Register(std::move(lookupKeysVector), TInstant::Now());
+    }
+
     lookupKeys = MakeSharedRange(lookupKeys, lookupKeys, RequestData);
 
     const auto& Logger = lookupSession->Logger;
@@ -1748,6 +1790,7 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                     tabletSnapshot,
                     columnFilter,
                     lookupSession->TimestampRange_,
+                    lookupKeys,
                     lookupSession->ResponseCodec_,
                     rowBuffer,
                     lookupSession->ChunkReadOptions_.MemoryUsageTracker,
@@ -1778,6 +1821,7 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                     columnFilter,
                     lookupSession->RetentionConfig_,
                     lookupSession->TimestampRange_,
+                    lookupKeys,
                     lookupSession->ResponseCodec_,
                     rowBuffer,
                     lookupSession->ChunkReadOptions_.MemoryUsageTracker),
@@ -2435,6 +2479,7 @@ public:
         const TReadTimestampRange& timestampRange,
         const TTimestampReadOptions& timestampReadOptions,
         const TColumnFilter& columnFilter,
+        TSharedRange<TUnversionedRow> lookupKeys,
         TRowBufferPtr rowBuffer)
         : Writer_(pipe->GetWriter())
         , Pipe_(std::move(pipe))
@@ -2444,7 +2489,10 @@ public:
             columnFilter,
             timestampRange.RetentionTimestamp,
             timestampReadOptions))
-    { }
+    {
+        LookupKeys_ = std::move(lookupKeys);
+        WeightedLookupHeavyHitters_ = tabletSnapshot->LookupHeavyHitters.DataWeight;
+    }
 
     TSchemafulPipeAdapter(TSchemafulPipeAdapter&& other) = default;
     TSchemafulPipeAdapter& operator=(TSchemafulPipeAdapter&& other) = default;
@@ -2463,7 +2511,7 @@ protected:
     void WriteRow(TUnversionedRow row)
     {
         FoundRowCount_ += static_cast<bool>(row);
-        FoundDataWeight_ += GetDataWeight(row);
+        OnRowWritten(GetDataWeight(row));
         if (!Writer_->Write(TRange<TUnversionedRow>(&row, size_t(1)))) {
             WaitFor(Writer_->GetReadyEvent())
                 .ThrowOnError();
@@ -2533,6 +2581,7 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         timestampRange,
         timestampReadOptions,
         columnFilter,
+        lookupKeys,
         rowBuffer);
 
     auto pipeWatcher = BIND([pipe = std::move(pipe)] (const TError& error) {

@@ -34,5 +34,6 @@ target_link_libraries(yt-library-heavy_hitters PUBLIC
 
 target_sources(yt-library-heavy_hitters PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/heavy_hitters/misra_gries.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/heavy_hitters/config.cpp
 )
 

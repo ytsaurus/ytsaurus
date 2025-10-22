@@ -1601,6 +1601,9 @@ private:
             compactionHintFetcher->ReconfigureTablet(tablet, settings);
         }
 
+        tablet->LookupHeavyHitters().RowCount->Reconfigure(settings.MountConfig->LookupHeavyHitters);
+        tablet->LookupHeavyHitters().DataWeight->Reconfigure(settings.MountConfig->LookupHeavyHitters);
+
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(settings);
 

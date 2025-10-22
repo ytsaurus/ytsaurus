@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "public.h"
 
 #include <util/datetime/base.h>
@@ -22,9 +23,11 @@ public:
     };
 
     TMisraGriesHeavyHitters(double threshold, TDuration window, i64 defaultLimit);
+    explicit TMisraGriesHeavyHitters(const TMisraGriesHeavyHittersConfigPtr config);
 
     void Register(const std::vector<TKey>& keys, TInstant now);
     void RegisterWeighted(const std::vector<std::pair<TKey, double>>& weightedKeys, TInstant now);
+    void Reconfigure(const TMisraGriesHeavyHittersConfigPtr newConfig);
     TStatistics GetStatistics(TInstant now, std::optional<i64> limit = {}) const;
 
 private:
@@ -37,8 +40,8 @@ private:
         double StatisticsCounter = 0;
     };
 
-    const double Threshold_;
-    const TDuration Window_;
+    double Threshold_;
+    TDuration Window_;
     i64 DefaultLimit_;
     i64 SummarySizeLimit_;
 
@@ -56,12 +59,18 @@ private:
     double MisraGriesDelta_ = 0;
     double TotalCounter_ = 0;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+
 private:
     void DoRegister(const TKey& key, double increment);
     void CleanUpSummary();
     static void UpdateState(std::set<std::pair<double, TSummaryElementRef>>& set, TSummaryElementRef summaryRef, double oldValue, double newValue);
     double GetNormalizationFactor(TInstant now) const;
-    void EnsureSummaryTimestampFreshness(TInstant now);
+    void EnsureSummaryTimestampFreshness(TInstant now, bool force = false);
+    void Clear();
+    void UpdateWindow(TDuration newWindow, TInstant now);
+    void UpdateThreshold(double newThreshold);
+    void UpdateDefaultLimit(i64 newDefaultLimit);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

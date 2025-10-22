@@ -4,8 +4,6 @@
 #include "misra_gries.h"
 #endif
 
-#include <yt/yt/core/misc/collection_helpers.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +14,14 @@ TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(double threshold, TDurati
     , Window_(window)
     , DefaultLimit_(defaultLimit)
     , SummarySizeLimit_(std::min(MaxSummarySize, static_cast<i64>(1.0 / threshold)))
+{ }
+
+template <class TKey>
+TMisraGriesHeavyHitters<TKey>::TMisraGriesHeavyHitters(const TMisraGriesHeavyHittersConfigPtr config)
+    : Threshold_(config->Threshold)
+    , Window_(config->Window)
+    , DefaultLimit_(config->DefaultLimit)
+    , SummarySizeLimit_(std::min(MaxSummarySize, static_cast<i64>(1.0 / Threshold_)))
 { }
 
 template <class TKey>
@@ -49,6 +55,8 @@ void TMisraGriesHeavyHitters<TKey>::DoRegister(const TKey& key, double increment
 template <class TKey>
 void TMisraGriesHeavyHitters<TKey>::Register(const std::vector<TKey>& keys, TInstant now)
 {
+    auto guard = Guard(SpinLock_);
+
     EnsureSummaryTimestampFreshness(now);
     double increment = 1.0 / GetNormalizationFactor(now);
 
@@ -62,6 +70,8 @@ void TMisraGriesHeavyHitters<TKey>::RegisterWeighted(
     const std::vector<std::pair<TKey, double>>& weightedKeys,
     TInstant now)
 {
+    auto guard = Guard(SpinLock_);
+
     EnsureSummaryTimestampFreshness(now);
     double increment = 1.0 / GetNormalizationFactor(now);
 
@@ -73,6 +83,12 @@ void TMisraGriesHeavyHitters<TKey>::RegisterWeighted(
 template <class TKey>
 TMisraGriesHeavyHitters<TKey>::TStatistics TMisraGriesHeavyHitters<TKey>::GetStatistics(TInstant now, std::optional<i64> limit) const
 {
+    auto guard = Guard(SpinLock_);
+
+    if (SortedByMisraGriesCounter_.empty()) {
+        return {};
+    }
+
     double normalizationFactor = GetNormalizationFactor(now);
     auto total = TotalCounter_ * normalizationFactor;
     TStatistics statistics;
@@ -83,6 +99,7 @@ TMisraGriesHeavyHitters<TKey>::TStatistics TMisraGriesHeavyHitters<TKey>::GetSta
     if (limit.has_value()) {
         count = *limit;
     }
+
     while (count != 0 && rit != SortedByStatisticsCounter_.rend()) {
         auto hits = rit->first * normalizationFactor;
         auto ratio = hits / total;
@@ -100,23 +117,23 @@ TMisraGriesHeavyHitters<TKey>::TStatistics TMisraGriesHeavyHitters<TKey>::GetSta
 template <class TKey>
 void TMisraGriesHeavyHitters<TKey>::CleanUpSummary()
 {
-    if (std::ssize(Summary_) < SummarySizeLimit_ || Summary_.empty()) {
-        return;
-    }
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
-    auto minIter = SortedByMisraGriesCounter_.begin();
-    double minValue = minIter->first;
+    while (std::ssize(Summary_) >= SummarySizeLimit_ && !Summary_.empty()) {
+        auto minIter = SortedByMisraGriesCounter_.begin();
+        double minValue = minIter->first;
 
-    MisraGriesDelta_ = minValue;
-    auto it = SortedByMisraGriesCounter_.begin();
-    while (it != SortedByMisraGriesCounter_.end() && it->first <= MisraGriesDelta_) {
-        auto next = std::next(it);
-        auto summaryRef = it->second;
-        auto summaryIter = Summary_.find(summaryRef->first);
-        SortedByStatisticsCounter_.erase(std::pair(summaryIter->second.StatisticsCounter, it->second));
-        Summary_.erase(summaryIter);
-        SortedByMisraGriesCounter_.erase(it);
-        it = next;
+        MisraGriesDelta_ = minValue;
+        auto it = SortedByMisraGriesCounter_.begin();
+        while (it != SortedByMisraGriesCounter_.end() && it->first <= MisraGriesDelta_) {
+            auto next = std::next(it);
+            auto summaryRef = it->second;
+            auto summaryIter = Summary_.find(summaryRef->first);
+            SortedByStatisticsCounter_.erase(std::pair(summaryIter->second.StatisticsCounter, it->second));
+            Summary_.erase(summaryIter);
+            SortedByMisraGriesCounter_.erase(it);
+            it = next;
+        }
     }
 }
 
@@ -140,7 +157,7 @@ void TMisraGriesHeavyHitters<TKey>::UpdateState(
 }
 
 template <class TKey>
-void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now)
+void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now, bool force)
 {
     if ((now - SummaryTimestamp_) / Window_ > MaxWindowCount) {
         SortedByMisraGriesCounter_.clear();
@@ -151,7 +168,7 @@ void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now
         SummaryTimestamp_ = now;
     }
 
-    if ((now - SummaryTimestamp_) / Window_ >= WindowCountToUpdateTimestamp) {
+    if ((now - SummaryTimestamp_) / Window_ >= WindowCountToUpdateTimestamp || force) {
         double normalizationFactor = GetNormalizationFactor(now);
         for (auto iter = Summary_.begin(); iter != Summary_.end(); ++iter) {
             auto oldValue = iter->second;
@@ -167,6 +184,58 @@ void TMisraGriesHeavyHitters<TKey>::EnsureSummaryTimestampFreshness(TInstant now
         MisraGriesDelta_ *= normalizationFactor;
         TotalCounter_ *= normalizationFactor;
         SummaryTimestamp_ = now;
+    }
+}
+
+template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::Clear()
+{
+    SortedByMisraGriesCounter_.clear();
+    SortedByStatisticsCounter_.clear();
+    Summary_.clear();
+    MisraGriesDelta_ = 0;
+    TotalCounter_ = 0;
+}
+
+template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::UpdateWindow(TDuration newWindow, TInstant now)
+{
+    Window_ = newWindow;
+    EnsureSummaryTimestampFreshness(now, /*force*/ true);
+}
+
+template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::UpdateThreshold(double newThreshold)
+{
+    SummarySizeLimit_ = std::min(MaxSummarySize, static_cast<i64>(1.0 / newThreshold));
+    CleanUpSummary();
+}
+
+template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::UpdateDefaultLimit(i64 newDefaultLimit)
+{
+    DefaultLimit_ = newDefaultLimit;
+}
+
+template <class TKey>
+void TMisraGriesHeavyHitters<TKey>::Reconfigure(const TMisraGriesHeavyHittersConfigPtr newConfig)
+{
+    auto guard = Guard(SpinLock_);
+
+    if (!newConfig->Enable) {
+        Clear();
+    }
+
+    if (Window_ != newConfig->Window) {
+        UpdateWindow(newConfig->Window, TInstant::Now());
+    }
+
+    if (Threshold_ != newConfig->Threshold) {
+        UpdateThreshold(newConfig->Threshold);
+    }
+
+    if (DefaultLimit_ != newConfig->DefaultLimit) {
+        UpdateDefaultLimit(newConfig->DefaultLimit);
     }
 }
 

@@ -773,7 +773,10 @@ TTablet::TTablet(
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
     , Logger(TabletNodeLogger().WithTag("TabletId: %v", Id_))
     , Settings_(TTableSettings::CreateNew())
-{ }
+{
+    LookupHeavyHitters_.RowCount = New<TRowHeavyHitters>(Settings_.MountConfig->LookupHeavyHitters);
+    LookupHeavyHitters_.DataWeight = New<TRowHeavyHitters>(Settings_.MountConfig->LookupHeavyHitters);
+}
 
 TTablet::TTablet(
     TTabletId tabletId,
@@ -825,6 +828,8 @@ TTablet::TTablet(
         NextPivotKey_))
     , CumulativeDataWeight_(cumulativeDataWeight)
 {
+    LookupHeavyHitters_.RowCount = New<TRowHeavyHitters>(Settings_.MountConfig->LookupHeavyHitters);
+    LookupHeavyHitters_.DataWeight = New<TRowHeavyHitters>(Settings_.MountConfig->LookupHeavyHitters);
     Initialize();
 }
 
@@ -2021,6 +2026,10 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->OrderedDynamicStoreRotateEpoch = RuntimeData_->OrderedDynamicStoreRotateEpoch.load();
     snapshot->CommitOrdering = CommitOrdering_;
 
+    if (Settings_.MountConfig->LookupHeavyHitters->Enable) {
+        snapshot->LookupHeavyHitters = LookupHeavyHitters();
+    }
+
     snapshot->Eden = Eden_->BuildSnapshot();
     snapshot->ActiveStore = ActiveStore_;
 
@@ -3137,6 +3146,30 @@ TPreloadStatistics TTablet::ComputePreloadStatistics() const
     return result;
 }
 
+void TTablet::BuildHeavyHittersOrchidYson(TRowHeavyHittersPtr heavyHitters, NYTree::TFluentList fluent)
+{
+    auto statistics = heavyHitters->GetStatistics(TInstant::Now()).Fractions;
+    std::vector<std::pair<TUnversionedRow, double>> statisticsSorted;
+    statisticsSorted.reserve(statistics.size());
+    for (auto& [key, ratio] : statistics) {
+        statisticsSorted.emplace_back(std::move(key), ratio);
+    }
+
+    std::sort(
+        statisticsSorted.begin(),
+        statisticsSorted.end(),
+        [] (const auto& lhs, const auto &rhs) { return lhs.second > rhs.second; });
+
+    for (auto& [key, ratio] : statisticsSorted) {
+        fluent
+            .Item()
+                .BeginMap()
+                    .Item("key").Value(ToString(key))
+                    .Item("ratio").Value(ratio)
+                .EndMap();
+    }
+}
+
 void TTablet::BuildOrchidYson(TFluentMap fluent) const
 {
     const auto& storeManager = GetStoreManager();
@@ -3292,7 +3325,18 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     .Item("rebuild_backoff_time").Value(info.RebuildBackoffTime)
                     .Item("building_in_progress").Value(info.BuildingInProgress)
                 .EndMap();
-            });
+            })
+        .Item("lookup_heavy_hitters")
+            .BeginMap()
+                .Item("row_count")
+                .DoList(
+                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().RowCount)
+                )
+                .Item("data_weight")
+                .DoList(
+                    BIND(BuildHeavyHittersOrchidYson, LookupHeavyHitters().DataWeight)
+                )
+            .EndMap();
 }
 
 void TTablet::ResetRowCache(const ITabletSlotPtr& slot)

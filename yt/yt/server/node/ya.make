@@ -207,6 +207,7 @@ PEERDIR(
     yt/yt/library/containers/cri
     yt/yt/library/dns_over_rpc/server
     yt/yt/library/gpu
+    yt/yt/library/heavy_hitters
     yt/yt/library/monitoring
     yt/yt/library/orchid
     yt/yt/library/query/engine

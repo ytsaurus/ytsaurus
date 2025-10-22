@@ -45,6 +45,7 @@ target_link_libraries(server-lib-tablet_node PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-library-dynamic_config
+  yt-library-heavy_hitters
   yt-yt-ytlib
   server-lib-hive
   server-lib-election

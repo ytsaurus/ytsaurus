@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     misra_gries.cpp
+    config.cpp
 )
 
 PEERDIR(
