@@ -304,7 +304,7 @@ void TChunk::AddReplica(
                 medium->GetIndex());
             return;
         }
-        // TODO(cherepashka): allow once offshore media is implemented.
+        // TODO(cherepashka): allow once offshore media are implemented.
         YT_LOG_ALERT(
             "Attempted to add offshore medium stored replica for chunk, ignored "
             "(ChunkId: %v, ReplicaIndex: %v, MediumIndex: %v)",

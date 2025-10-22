@@ -289,7 +289,7 @@ private:
         int replicaIndex,
         EChunkReplicaState replicaState,
         int mediumIndex,
-        bool offshoreMedium)
+        bool mediumIsOffshore)
     {
         auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
         fluent.Item()
@@ -311,7 +311,7 @@ private:
                     fluent
                         .Item("state").Value(replicaState);
                 })
-                .DoIf(offshoreMedium, [&] (TFluentMap fluent) {
+                .DoIf(mediumIsOffshore, [&] (TFluentMap fluent) {
                     fluent
                         .Item("offshore").Value(true);
                 })
@@ -347,7 +347,7 @@ private:
                     replica.GetReplicaIndex(),
                     replica.GetReplicaState(),
                     replica.GetEffectiveMediumIndex(),
-                    /*offshoreMedium*/ replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
+                    /*mediumIsOffshore*/ replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia);
             });
     };
 
@@ -938,7 +938,7 @@ private:
                             replica.GetReplicaIndex(),
                             replica.GetReplicaState(),
                             replica.GetMediumIndex(),
-                            /*offshoreMedium*/ false);
+                            /*mediumIsOffshore*/ false);
                     });
                 return true;
             }

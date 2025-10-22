@@ -82,15 +82,16 @@ int TAugmentedStoredChunkReplicaPtr::GetEffectiveMediumIndex() const
 TChunkLocationUuid TAugmentedStoredChunkReplicaPtr::GetLocationUuid() const
 {
     switch (GetStoredReplicaType()) {
-    case EStoredReplicaType::ChunkLocation: {
-        auto* location = As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr();
-        if (!IsObjectAlive(location)) {
+        case EStoredReplicaType::ChunkLocation: {
+            auto* location = As<EStoredReplicaType::ChunkLocation>()->AsChunkLocationPtr();
+            if (!IsObjectAlive(location)) {
+                return InvalidChunkLocationUuid;
+            }
+            return location->GetUuid();
+        }
+        case EStoredReplicaType::OffshoreMedia: {
             return InvalidChunkLocationUuid;
         }
-        return location->GetUuid();
-    }
-    case EStoredReplicaType::OffshoreMedia:
-        return InvalidChunkLocationUuid;
     }
 }
 
@@ -108,8 +109,9 @@ TNodeId TAugmentedStoredChunkReplicaPtr::GetNodeId() const
             }
             return node->GetId();
         }
-        case EStoredReplicaType::OffshoreMedia:
+        case EStoredReplicaType::OffshoreMedia: {
             return OffshoreNodeId;
+        }
     }
 }
 

@@ -2432,11 +2432,11 @@ void TChunkReplicator::RefreshChunk(
         return;
     }
 
-    if (!ephemeralChunk->IsConfirmed()) {
+    if (ephemeralChunk->IsForeign()) {
         return;
     }
 
-    if (ephemeralChunk->IsForeign()) {
+    if (!ephemeralChunk->IsConfirmed()) {
         return;
     }
 
