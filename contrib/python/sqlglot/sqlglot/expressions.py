@@ -5385,7 +5385,7 @@ class TimeUnit(Expression):
 
     def __init__(self, **args):
         unit = args.get("unit")
-        if type(unit) in self.VAR_LIKE:
+        if type(unit) in self.VAR_LIKE and not (isinstance(unit, Column) and len(unit.parts) != 1):
             args["unit"] = Var(
                 this=(self.UNABBREVIATED_UNIT_NAME.get(unit.name) or unit.name).upper()
             )
@@ -5525,6 +5525,10 @@ class Coth(Func):
     pass
 
 
+class Cos(Func):
+    pass
+
+
 class Csc(Func):
     pass
 
@@ -5546,6 +5550,18 @@ class Sin(Func):
 
 
 class Sinh(Func):
+    pass
+
+
+class Tan(Func):
+    pass
+
+
+class Degrees(Func):
+    pass
+
+
+class Cosh(Func):
     pass
 
 
@@ -5840,6 +5856,7 @@ class ArrayConstructCompact(Func):
 
 
 class ArrayContains(Binary, Func):
+    arg_types = {"this": True, "expression": True, "ensure_variant": False}
     _sql_names = ["ARRAY_CONTAINS", "ARRAY_HAS"]
 
 
@@ -6172,7 +6189,9 @@ class DateTrunc(Func):
         unabbreviate = args.pop("unabbreviate", True)
 
         unit = args.get("unit")
-        if isinstance(unit, TimeUnit.VAR_LIKE):
+        if isinstance(unit, TimeUnit.VAR_LIKE) and not (
+            isinstance(unit, Column) and len(unit.parts) != 1
+        ):
             unit_name = unit.name.upper()
             if unabbreviate and unit_name in TimeUnit.UNABBREVIATED_UNIT_NAME:
                 unit_name = TimeUnit.UNABBREVIATED_UNIT_NAME[unit_name]
@@ -7279,6 +7298,10 @@ class RegexpILike(Binary, Func):
     arg_types = {"this": True, "expression": True, "flag": False}
 
 
+class RegexpFullMatch(Binary, Func):
+    arg_types = {"this": True, "expression": True, "options": False}
+
+
 class RegexpInstr(Func):
     arg_types = {
         "this": True,
@@ -7380,13 +7403,20 @@ class Soundex(Func):
     pass
 
 
+# https://docs.snowflake.com/en/sql-reference/functions/soundex_p123
+class SoundexP123(Func):
+    pass
+
+
 class Split(Func):
     arg_types = {"this": True, "expression": True, "limit": False}
 
 
 # https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.split_part.html
+# https://docs.snowflake.com/en/sql-reference/functions/split_part
+# https://docs.snowflake.com/en/sql-reference/functions/strtok
 class SplitPart(Func):
-    arg_types = {"this": True, "delimiter": True, "part_index": True}
+    arg_types = {"this": True, "delimiter": False, "part_index": False}
 
 
 # Start may be omitted in the case of postgres
@@ -7427,6 +7457,19 @@ class StrPosition(Func):
         "substr": True,
         "position": False,
         "occurrence": False,
+    }
+
+
+# Snowflake: https://docs.snowflake.com/en/sql-reference/functions/search
+# BigQuery: https://cloud.google.com/bigquery/docs/reference/standard-sql/search_functions#search
+class Search(Func):
+    arg_types = {
+        "this": True,  # data_to_search / search_data
+        "expression": True,  # search_query / search_string
+        "json_scope": False,  # BigQuery: JSON_VALUES | JSON_KEYS | JSON_KEYS_AND_VALUES
+        "analyzer": False,  # Both: analyzer / ANALYZER
+        "analyzer_options": False,  # BigQuery: analyzer_options_values
+        "search_mode": False,  # Snowflake: OR | AND
     }
 
 
