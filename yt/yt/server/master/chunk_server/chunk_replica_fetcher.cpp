@@ -431,7 +431,6 @@ public:
             auto masterReplicas = chunk->StoredReplicas();
             std::vector<TSequoiaChunkReplica> replicas;
             for (const auto& masterReplica : masterReplicas) {
-                
                 TSequoiaChunkReplica replica;
                 replica.ChunkId = chunk->GetId();
                 replica.ReplicaIndex = masterReplica.GetReplicaIndex();

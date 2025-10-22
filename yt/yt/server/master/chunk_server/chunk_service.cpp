@@ -976,7 +976,7 @@ private:
                 WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
                     .ThrowOnError();
                 ValidatePeer(EPeerKind::Leader);
-                
+
                 auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
                 if (!chunk->IsConfirmed()) {
                     YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
