@@ -1,44 +1,34 @@
 #pragma once
 
-#include "private.h"
-#include "chunk_pool.h"
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/ytlib/chunk_pools/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
-#include <random>
+#include <yt/yt/client/table_client/chunk_stripe_statistics.h>
 
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(apollo1321): Remove this.
 //! Recalculate stripe list statistics like TotalChunkCount, TotalDataWeight, etc.
-//! If third and/or fourth args are present, they are taken instead of
-//! corresponding values from chunk stripe statistics.
 void AccountStripeInList(
     const TChunkStripePtr& stripe,
-    const TChunkStripeListPtr& list,
-    std::optional<i64> stripeDataWeight = std::nullopt,
-    std::optional<i64> stripeRowCount = std::nullopt,
-    NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId);
+    const TChunkStripeListPtr& list);
 
+// TODO(apollo1321): Remove this.
 //! Add chunk stripe to chunk stripe list and recalculate stripe list statistics like
 //! TotalChunkCount, TotalDataWeight, etc.
-//! If third and/or fourth args are present, they are taken instead of
-//! corresponding values from chunk stripe statistics.
 void AddStripeToList(
     TChunkStripePtr stripe,
-    const TChunkStripeListPtr& list,
-    std::optional<i64> stripeDataWeight = std::nullopt,
-    std::optional<i64> stripeRowCount = std::nullopt,
-    NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId);
+    const TChunkStripeListPtr& list);
 
+// TODO(apollo1321): Move to methods of TChunkStripeList.
 std::vector<NChunkClient::TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& stripeList);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(max42): move this class to unordered_pool.cpp and remove unused methods.
 class TSuspendableStripe
 {
 public:
@@ -75,5 +65,4 @@ void ValidateLogger(const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT;::NChunkPools
-
+} // namespace NYT::NChunkPools
