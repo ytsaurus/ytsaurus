@@ -187,7 +187,7 @@ struct buffered_piece_collection
         // For a point buffer
         point_type m_center;
 
-        piece()
+        piece() /* NOLINT(clang-analyzer-optin.cplusplus.UninitializedObject) */
             : type(strategy::buffer::piece_type_unknown)
             , index(-1)
             , left_index(-1)

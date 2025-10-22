@@ -99,7 +99,7 @@ struct turn_info
 
     Container operations;
 
-    inline turn_info()
+    inline turn_info() /* NOLINT(clang-analyzer-optin.cplusplus.UninitializedObject) */
         : method(method_none)
         , touch_only(false)
         , cluster_id(-1)
