@@ -78,6 +78,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
+        for base in cls.__mro__:
+            cfg = base.__dict__.get("DELTA_HTTP_PROXY_CONFIG")
+            if cfg and "clickhouse" in cfg:
+                cfg["clickhouse"].pop("discovery_cache", None)
+
         super().setup_class(test_name=test_name, run_id=run_id)
         Clique.proxy_https_address = cls._get_proxy_https_address()
         Clique.chyt_https_address = cls._get_chyt_https_address()
@@ -751,6 +756,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
         "clickhouse": {
             "operation_cache": {
                 "refresh_time": 100,
+                "expire_after_successful_update_time": 100,
             },
             "permission_cache": {
                 "refresh_time": 100,
