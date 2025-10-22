@@ -1188,7 +1188,7 @@ protected:
                 std::move(outputStreamDescriptors),
                 std::move(inputStreamDescriptors),
                 isFinalSort)
-            , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput({}))
+            , MultiChunkPoolOutput_(CreateMultiChunkPoolOutput(/*underlyingPools*/ {}))
         { }
 
         TDuration GetLocalityTimeout() const override
@@ -1215,17 +1215,10 @@ protected:
             }
         }
 
-        IChunkPoolOutput::TCookie ExtractCookieForAllocation(
-            const TAllocation& allocation) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& /*allocation*/) override
         {
-            auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
-            auto localityEntry = Controller_->GetLocalityEntry(nodeId);
-            if (localityEntry) {
-                auto partitionIndex = localityEntry->PartitionIndex;
-                return MultiChunkPoolOutput_->ExtractFromPool(partitionIndex, nodeId);
-            } else {
-                return MultiChunkPoolOutput_->Extract(nodeId);
-            }
+            // Input locality is disabled for sort task.
+            return MultiChunkPoolOutput_->Extract();
         }
 
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
@@ -1272,7 +1265,7 @@ protected:
             return Controller_->SortStartThresholdReached_ || IsFinalSort_;
         }
 
-        bool HasInputLocality() const override
+        bool HasInputLocality() const final
         {
             return false;
         }
@@ -1457,9 +1450,8 @@ protected:
         TSortedMergeTask(
             TSortControllerBase* controller,
             std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
-            std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors,
             bool enableKeyGuarantee)
-            : TTask(controller, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
+            : TTask(controller, std::move(outputStreamDescriptors), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
             , MultiChunkPool_(CreateMultiChunkPool({}))
         {
@@ -3833,9 +3825,7 @@ private:
     {
         SortedMergeTask_ = New<TSortedMergeTask>(
             this,
-            GetFinalStreamDescriptors(),
-            // To be filled later.
-            std::vector<TInputStreamDescriptorPtr>{},
+            /*outputStreamDescriptors*/ GetFinalStreamDescriptors(),
             /*enableKeyGuarantee*/ false);
     }
 
@@ -4796,9 +4786,7 @@ private:
     {
         SortedMergeTask_ = New<TSortedMergeTask>(
             this,
-            GetFinalStreamDescriptors(),
-            // To be filled later.
-            std::vector<TInputStreamDescriptorPtr>{},
+            /*outputStreamDescriptors*/ GetFinalStreamDescriptors(),
             /*enableKeyGuarantee*/ true);
     }
 
