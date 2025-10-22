@@ -72,8 +72,8 @@ private:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
     TQueryTrackerProxyConfigPtr ProxyConfig_;
-    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
     const int ExpectedTablesVersion_;
+    std::unordered_map<EQueryEngine, IProxyEngineProviderPtr> EngineProviders_;
     ISearchIndexPtr TimeBasedIndex_;
     ISearchIndexPtr TokenBasedIndex_;
 };

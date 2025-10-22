@@ -337,8 +337,7 @@ TQueryTrackerProxy::TQueryTrackerProxy(
     IClientPtr stateClient,
     TYPath stateRoot,
     TQueryTrackerProxyConfigPtr config,
-    int expectedTablesVersion
-)
+    int expectedTablesVersion)
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
     , ProxyConfig_(std::move(config))
