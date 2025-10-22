@@ -23,6 +23,10 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaIndex value, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v", value.GetPtr()->GetId());
@@ -137,8 +141,8 @@ void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, T
 void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value)
 {
     // Only applicable to offshore replicas. Domestic replicas require real node ids.
-    THROW_ERROR_EXCEPTION_UNLESS(value.GetPtr()->IsOffshore(),
-        "Failed to serialize domestic medium %v",
+    YT_LOG_ALERT_IF(value.GetPtr()->IsOffshore(),
+        "Attempted to serialize domestic medium as offshore (MediumName: %v)",
         value.GetPtr()->GetName());
 
     TChunkReplicaWithMedium replica(

@@ -35,16 +35,19 @@ EStoredReplicaType TAugmentedStoredChunkReplicaPtr::GetStoredReplicaType() const
 
 std::strong_ordering TAugmentedStoredChunkReplicaPtr::operator<=>(const TAugmentedStoredChunkReplicaPtr& other) const
 {
-    auto thisStoredReplicaType = GetStoredReplicaType();
-    auto otherStoredReplicaType = other.GetStoredReplicaType();
+    if (auto cmp = GetStoredReplicaType() <=> other.GetStoredReplicaType(); cmp != 0) {
+        return cmp;
+    }
 
-    auto thisReplicaIndex = GetReplicaIndex();
-    auto otherReplicaIndex = other.GetReplicaIndex();
+    if (auto cmp = GetReplicaIndex() <=> other.GetReplicaIndex(); cmp != 0) {
+        return cmp;
+    }
 
-    auto thisState = GetReplicaState();
-    auto otherState = other.GetReplicaState();
+    if (auto cmp = GetReplicaState() <=> other.GetReplicaState(); cmp != 0) {
+        return cmp;
+    }
 
-    return std::tuple(thisStoredReplicaType, thisReplicaIndex, thisState, GetId()) <=> std::tuple(otherStoredReplicaType, otherReplicaIndex, otherState, other.GetId());
+    return GetId() <=> other.GetId();
 }
 
 TAugmentedStoredChunkReplicaPtr TAugmentedStoredChunkReplicaPtr::ToGenericState() const
@@ -181,8 +184,6 @@ NObjectClient::TObjectId TAugmentedStoredChunkReplicaPtr::GetId() const
 
 TChunkLocationIndex TAugmentedLocationChunkReplicaPtr::GetChunkLocationIndex() const
 {
-    YT_ASSERT(GetStoredReplicaType() == EStoredReplicaType::ChunkLocation);
-
     auto* location = AsChunkLocationPtr();
     if (!IsObjectAlive(location)) {
         return InvalidChunkLocationIndex;

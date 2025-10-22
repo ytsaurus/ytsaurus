@@ -547,20 +547,18 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(
     const TStoredChunkReplicaList& replicas)
 {
     if (chunk->IsErasure()) {
-        auto offshoreReplicaIt = std::find_if(replicas.begin(), replicas.end(), [] (const auto& replica) { return replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia; });
-        if (offshoreReplicaIt != replicas.end()) {
-            TStoredChunkReplicaList offshoreReplicas;
-            for (const auto& replica: replicas) {
-                if (replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia) {
-                    offshoreReplicas.push_back(replica);
-                }
+        TStoredChunkReplicaList offshoreReplicas;
+        for (const auto& replica: replicas) {
+            if (replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia) {
+                offshoreReplicas.push_back(replica);
             }
-            YT_LOG_ALERT(
-                "Erasure chunk has offshore replicas (ChunkId: %v, Replicas: %v, OffshoreReplicas: %v)",
-                chunk->GetId(),
-                replicas,
-                offshoreReplicas);
         }
+        YT_LOG_ALERT_UNLESS(
+            offshoreReplicas.empty(),
+            "Erasure chunk has offshore replicas (ChunkId: %v, Replicas: %v, OffshoreReplicas: %v)",
+            chunk->GetId(),
+            replicas,
+            offshoreReplicas);
     }
 
     auto result = chunk->IsErasure()
@@ -1108,8 +1106,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     for (auto replica : replicas) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
-            auto mediumIndex = replica.GetEffectiveMediumIndex();
-            ++replicaCount[mediumIndex];
+            // TODO(cherepashka): support offshore media.
             continue;
         }
         auto* chunkLocation = locationReplica->AsChunkLocationPtr();
