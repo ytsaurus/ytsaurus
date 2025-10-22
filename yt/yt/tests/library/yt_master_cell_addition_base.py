@@ -8,6 +8,8 @@ from yt_env_setup import (
     MASTERS_SERVICE,
     CHAOS_NODES_SERVICE,
     CYPRESS_PROXIES_SERVICE,
+    RPC_PROXIES_SERVICE,
+    HTTP_PROXIES_SERVICE,
 )
 
 from yt_commands import (
@@ -41,6 +43,26 @@ class MasterCellAdditionBase(YTEnvSetup):
     PRIMARY_CLUSTER_INDEX = 0
 
     REMOVE_LAST_MASTER_BEFORE_START = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "master_cell_directory_synchronizer": {
+                "sync_period": 10000,  # 10 sec
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+            },
+        },
+    }
+
+    DELTA_HTTP_PROXY_CONFIG = {
+        "cluster_connection": {
+            "master_cell_directory_synchronizer": {
+                "sync_period": 10000,  # 10 sec
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+            },
+        },
+    }
 
     DELTA_NODE_CONFIG = {
         "delay_master_cell_directory_start": True,
@@ -166,6 +188,20 @@ class MasterCellAdditionBase(YTEnvSetup):
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
+    def modify_rpc_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @classmethod
+    def modify_http_proxy_config(cls, config, cluster_index, multidaemon_config, proxy_index):
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @classmethod
     def modify_node_config(cls, config, cluster_index):
         cls._collect_cell_ids_and_maybe_stash_last_cell(
             config["cluster_connection"],
@@ -224,6 +260,8 @@ class MasterCellAdditionBase(YTEnvSetup):
             CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
             NODES_SERVICE if cls.NUM_NODES != 0 else None,
             CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
+            RPC_PROXIES_SERVICE if cls.NUM_RPC_PROXIES != 0 and cls.DRIVER_BACKEND != "native" else None,
+            HTTP_PROXIES_SERVICE if cls.NUM_HTTP_PROXIES != 0 and cls.DRIVER_BACKEND != "native" else None,
         ]
 
     @classmethod

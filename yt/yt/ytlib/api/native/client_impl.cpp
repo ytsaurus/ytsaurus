@@ -241,6 +241,8 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     EMasterChannelKind kind,
     TCellTag cellTag)
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     auto effectiveCellTag = (cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
     if (auto channel = FindMasterChannel(kind, effectiveCellTag)) {
         return channel;
@@ -254,13 +256,15 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     }
 
     THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-        cellTag);
+        effectiveCellTag);
 }
 
 IChannelPtr TClient::GetCypressChannelOrThrow(
     EMasterChannelKind kind,
     TCellTag cellTag)
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     auto effectiveCellTag = (cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
     if (auto channel = FindCypressChannel(kind, effectiveCellTag)) {
         return channel;
@@ -273,7 +277,7 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
     auto channel = FindCypressChannel(kind, effectiveCellTag);
     if (!channel) {
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-            cellTag);
+            effectiveCellTag);
     }
 
     return channel;
@@ -340,16 +344,18 @@ IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, TCellTag cellTa
 
 void TClient::InitChannelsOrThrow(EMasterChannelKind kind, TCellTag cellTag)
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     {
         auto wrappedMasterChannel = WrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
         auto guard = WriterGuard(MasterChannelsLock_);
-        EmplaceOrCrash(MasterChannels_[kind], cellTag, std::move(wrappedMasterChannel));
+        MasterChannels_[kind][cellTag] = std::move(wrappedMasterChannel);
     }
 
     {
         auto wrappedCypressChannel = WrapChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag));
         auto guard = WriterGuard(CypressChannelsLock_);
-        EmplaceOrCrash(CypressChannels_[kind], cellTag, std::move(wrappedCypressChannel));
+        CypressChannels_[kind][cellTag] = std::move(wrappedCypressChannel);
     }
 }
 
