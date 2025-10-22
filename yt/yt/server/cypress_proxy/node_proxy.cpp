@@ -1763,8 +1763,7 @@ private:
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
         if (IsRequestMutating(context->RequestHeader()) ||
-            context->GetMethod() == "CheckPermission" ||
-            context->GetMethod() == "GetBasicAttributes")
+            context->GetMethod() == "CheckPermission")
         {
             return TNodeProxy::DoInvoke(context);
         }
