@@ -1,7 +1,7 @@
 #pragma once
 
-#include "private.h"
 #include "chunk_stripe_key.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -63,7 +63,6 @@ struct TChunkStripeList
     bool IsApproximate = false;
 
     i64 TotalDataWeight = 0;
-    i64 LocalDataWeight = 0;
 
     i64 TotalRowCount = 0;
     i64 TotalValueCount = 0;
@@ -71,7 +70,6 @@ struct TChunkStripeList
     i64 TotalCompressedDataSize = 0;
 
     int TotalChunkCount = 0;
-    int LocalChunkCount = 0;
 
     i64 TotalSliceCount = 0;
 

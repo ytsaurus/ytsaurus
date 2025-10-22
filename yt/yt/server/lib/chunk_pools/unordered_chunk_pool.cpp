@@ -463,12 +463,6 @@ public:
 
     void Lost(IChunkPoolOutput::TCookie cookie) override
     {
-        const auto& list = GetStripeList(cookie);
-
-        // No need to respect locality for restarted jobs.
-        list->LocalChunkCount = 0;
-        list->LocalDataWeight = 0;
-
         JobManager_->Lost(cookie);
         CheckCompleted();
     }

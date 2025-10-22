@@ -1,11 +1,8 @@
 #include "chunk_stripe.h"
 
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT::NChunkPools {
 
@@ -144,11 +141,11 @@ void TChunkStripeList::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, PartitionTag);
     PHOENIX_REGISTER_FIELD(3, IsApproximate);
     PHOENIX_REGISTER_FIELD(4, TotalDataWeight);
-    PHOENIX_REGISTER_FIELD(5, LocalDataWeight);
+    PHOENIX_REGISTER_DELETED_FIELD(5, i64, LocalDataWeight, ESnapshotVersion::RemoveUnusedLocalityStatistics);
     PHOENIX_REGISTER_FIELD(6, TotalRowCount);
     PHOENIX_REGISTER_FIELD(7, TotalValueCount);
     PHOENIX_REGISTER_FIELD(8, TotalChunkCount);
-    PHOENIX_REGISTER_FIELD(9, LocalChunkCount);
+    PHOENIX_REGISTER_DELETED_FIELD(9, int, LocalChunkCount, ESnapshotVersion::RemoveUnusedLocalityStatistics);
     PHOENIX_REGISTER_FIELD(10, TotalCompressedDataSize,
         .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {

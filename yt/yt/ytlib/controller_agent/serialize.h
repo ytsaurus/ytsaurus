@@ -83,6 +83,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoveOldUnorderedChunkPoolSlicing)    (302003))
     ((DistributedJobManagers)                (302004))
     ((PerTableInputQuery)                    (302005))
+    ((RemoveUnusedLocalityStatistics)        (302006))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
