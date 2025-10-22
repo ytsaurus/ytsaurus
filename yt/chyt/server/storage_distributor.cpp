@@ -318,7 +318,7 @@ public:
 
         ChooseNodesToDistribute();
 
-        PrepareThreadSubqueries(CliqueNodes_.size());
+        PrepareThreadSubqueries();
 
         PrepareSecondaryQueryAsts();
 
@@ -567,6 +567,7 @@ private:
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = QueryInput_.DataSourceDirectory;
         SpecTemplate_.TableStatistics = std::move(QueryInput_.TableStatistics);
+        SpecTemplate_.QuerySettings->EnableMinMaxOptimization &= SpecTemplate_.TableStatistics.has_value();
 
         const auto& selectQuery = QueryInfo_.query->as<DB::ASTSelectQuery&>();
         if (auto selectSampleSize = selectQuery.sampleSize()) {
@@ -645,8 +646,9 @@ private:
         }
     }
 
-    void PrepareThreadSubqueries(int secondaryQueryCount)
+    void PrepareThreadSubqueries()
     {
+        auto secondaryQueryCount = CliqueNodes_.size();
         NTracing::GetCurrentTraceContext()->AddTag("chyt.secondary_query_count", secondaryQueryCount);
         NTracing::GetCurrentTraceContext()->AddTag(
             "chyt.real_column_names",
@@ -672,6 +674,9 @@ private:
                 "Jobs count for secondary queries was increased due to pull distribution mode (NewJobCount: %v, TaskCountIncreaseFactor: %v)",
                 taskCount,
                 QueryContext_->Settings->Execution->TaskCountIncreaseFactor);
+        }
+        if (SpecTemplate_.QuerySettings->EnableMinMaxOptimization) {
+            taskCount = 1;
         }
 
         ThreadSubqueries_ = BuildThreadSubqueries(
