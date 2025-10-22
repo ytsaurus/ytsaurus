@@ -143,12 +143,10 @@ void TAugmentedStoredChunkReplicaPtr::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    if (context.GetVersion() < NCellMaster::EMasterReign::RefactoringAroundChunkStoredReplicas) {
-        auto chunkLocation = Load<TChunkLocationPtrWithReplicaInfo>(context);
-        *this = TAugmentedStoredChunkReplicaPtr(chunkLocation.GetPtr(), chunkLocation.GetReplicaIndex(), chunkLocation.GetReplicaState());
-    } else {
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::RefactoringAroundChunkStoredReplicas) {
         auto type = Load<EStoredReplicaType>(context);
-        int index = Load<ui8>(context);
+        auto index = Load<int>(context);
         auto state = Load<EChunkReplicaState>(context);
         switch (type) {
             case EStoredReplicaType::ChunkLocation: {
@@ -162,6 +160,9 @@ void TAugmentedStoredChunkReplicaPtr::Load(NCellMaster::TLoadContext& context)
                 break;
             }
         }
+    } else {
+        auto chunkLocation = Load<TChunkLocationPtrWithReplicaInfo>(context);
+        *this = TAugmentedStoredChunkReplicaPtr(chunkLocation.GetPtr(), chunkLocation.GetReplicaIndex(), chunkLocation.GetReplicaState());
     }
 }
 
