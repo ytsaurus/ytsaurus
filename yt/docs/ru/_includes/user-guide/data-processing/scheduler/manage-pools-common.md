@@ -25,7 +25,7 @@
 * `create_ephemeral_subpools` — разрешение создавать [эфемерные пулы](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md#puly-i-derevya-pulov);
 * `ephemeral_subpool_config` — словарь, описывающий конфигурацию виртуальных пулов.
 
-Подробное описание указанных атрибутов см. в разделе [Характеристики пулов](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
+Подробное описание указанных атрибутов см. в разделе [Конфигурация пула](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
 
 ### Валидация
 

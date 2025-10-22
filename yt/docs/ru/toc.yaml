@@ -178,7 +178,7 @@ items:
           items:
             - name: Обзор
               href: user-guide/data-processing/scheduler/scheduler-and-pools.md
-            - name: Характеристики пулов
+            - name: Настройка деревьев пулов
               href: user-guide/data-processing/scheduler/pool-settings.md
             - name: Вычисление fair share ratio
               href: user-guide/data-processing/scheduler/fair-share.md
@@ -194,8 +194,6 @@ items:
               href: user-guide/data-processing/scheduler/memory-digest.md
             - name: Управление вычислительными пулами
               href: user-guide/data-processing/scheduler/manage-pools.md
-            - name: Пример настройки пулов
-              href: user-guide/data-processing/scheduler/pool-examples.md
         - name: Типы операций
           when: audience == "public"
           items:
