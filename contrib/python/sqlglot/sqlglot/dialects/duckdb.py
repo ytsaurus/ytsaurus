@@ -311,6 +311,7 @@ class DuckDB(Dialect):
             "PIVOT_WIDER": TokenType.PIVOT,
             "POSITIONAL": TokenType.POSITIONAL,
             "RESET": TokenType.COMMAND,
+            "ROW": TokenType.STRUCT,
             "SIGNED": TokenType.INT,
             "STRING": TokenType.TEXT,
             "SUMMARIZE": TokenType.SUMMARIZE,
@@ -337,16 +338,14 @@ class DuckDB(Dialect):
     class Parser(parser.Parser):
         MAP_KEYS_ARE_ARBITRARY_EXPRESSIONS = True
 
-        BITWISE = {
-            **parser.Parser.BITWISE,
-            TokenType.TILDA: exp.RegexpLike,
-        }
+        BITWISE = parser.Parser.BITWISE.copy()
         BITWISE.pop(TokenType.CARET)
 
         RANGE_PARSERS = {
             **parser.Parser.RANGE_PARSERS,
             TokenType.DAMP: binary_range_parser(exp.ArrayOverlaps),
             TokenType.CARET_AT: binary_range_parser(exp.StartsWith),
+            TokenType.TILDA: binary_range_parser(exp.RegexpFullMatch),
         }
 
         EXPONENT = {
