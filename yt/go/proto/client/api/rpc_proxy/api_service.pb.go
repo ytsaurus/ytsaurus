@@ -24712,9 +24712,10 @@ type TReqFinishDistributedWriteSession struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	SignedSession               []byte   `protobuf:"bytes,1,req,name=signed_session,json=signedSession" json:"signed_session,omitempty"`                  // YSON-serialized TSignedDistributedWriteSessionPtr
-	SignedWriteResults          [][]byte `protobuf:"bytes,2,rep,name=signed_write_results,json=signedWriteResults" json:"signed_write_results,omitempty"` // vector of YSON-serialized TSignedWriteFragmentResultPtr
-	MaxChildrenPerAttachRequest *int32   `protobuf:"varint,3,req,name=max_children_per_attach_request,json=maxChildrenPerAttachRequest" json:"max_children_per_attach_request,omitempty"`
+	SignedSession      []byte   `protobuf:"bytes,1,req,name=signed_session,json=signedSession" json:"signed_session,omitempty"`                  // YSON-serialized TSignedDistributedWriteSessionPtr
+	SignedWriteResults [][]byte `protobuf:"bytes,2,rep,name=signed_write_results,json=signedWriteResults" json:"signed_write_results,omitempty"` // vector of YSON-serialized TSignedWriteFragmentResultPtr
+	// TODO(achains): Remove after YT-26131
+	MaxChildrenPerAttachRequest *int32 `protobuf:"varint,3,req,name=max_children_per_attach_request,json=maxChildrenPerAttachRequest" json:"max_children_per_attach_request,omitempty"`
 }
 
 func (x *TReqFinishDistributedWriteSession) Reset() {
