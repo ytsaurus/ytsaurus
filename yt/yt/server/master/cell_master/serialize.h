@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSequoiaAccountInheritance)                                 (3043))  // babenko
     ((FixAccountInSequoiaCopy)                                      (3044))  // babenko
     ((SupportMaxNodeChildCountInSequoia)                            (3045))  // babenko
+    ((MountPermissionToSequoiaNodes)                                (3046))  // danilalexeev
     // 25.4 starts here.
     ((Start_25_4)                                                   (3100))  // community bot
     ((HunksInStaticTables)                                          (3101))  // akozhikhov
