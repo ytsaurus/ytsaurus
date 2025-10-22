@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/table_client/row_level_security.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
+#include <yt/yt/ytlib/scheduler/input_query.h>
 
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 #include <yt/yt/client/table_client/table_upload_options.h>
@@ -78,6 +79,7 @@ struct TInputTable
     NScheduler::TClusterName ClusterName;
 
     std::optional<NTableClient::TRlsReadSpec> RlsReadSpec;
+    std::optional<NScheduler::TInputQuerySpec> InputQuerySpec;
 
     //! Set to true when schema of the table is compatible with the output
     //! teleport table and when no special options set that disallow chunk

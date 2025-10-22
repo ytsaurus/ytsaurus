@@ -33,6 +33,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/yt/ytlib/table_client/granule_min_max_filter.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/multi_reader_manager.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
@@ -108,7 +109,8 @@ namespace {
 TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
-    const std::optional<TPartitionTags>& partitionTags)
+    const std::optional<TPartitionTags>& partitionTags,
+    const TDataSourcePtr& dataSource)
 {
     // Download chunk meta.
     std::vector<int> extensionTags{
@@ -121,7 +123,7 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
         TProtoExtensionTag<NProto::THunkChunkRefsExt>::Value,
         TProtoExtensionTag<NProto::THunkChunkMetasExt>::Value,
     };
-    if (chunkReadOptions.GranuleFilter) {
+    if (chunkReadOptions.GranuleFilter || (dataSource->GetInputQuerySpec() && dataSource->GetInputQuerySpec()->CanCreateGranuleFilter())) {
         extensionTags.push_back(TProtoExtensionTag<NProto::TColumnarStatisticsExt>::Value);
     }
 
@@ -164,6 +166,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     std::vector<IReaderFactoryPtr> factories;
     std::vector<IRlsCheckerFactoryPtr> rlsCheckerFactories;
     rlsCheckerFactories.resize(dataSourceDirectory->DataSources().size());
+    std::vector<IGranuleFilterPtr> perDataSourceGranuleFilters;
+    perDataSourceGranuleFilters.resize(dataSourceDirectory->DataSources().size());
 
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
@@ -176,6 +180,15 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
             rlsCheckerFactory = CreateRlsCheckerFactory(
                 *dataSource->GetRlsReadSpec());
         }
+
+        auto& perDataSourceGranuleFilter = perDataSourceGranuleFilters[dataSliceDescriptor.GetDataSourceIndex()];
+        if (!perDataSourceGranuleFilter &&
+            dataSource->GetInputQuerySpec() &&
+            dataSource->GetInputQuerySpec()->CanCreateGranuleFilter())
+        {
+            perDataSourceGranuleFilter = CreateGranuleMinMaxFilter(dataSource->GetInputQuerySpec()->Query, Logger());
+        }
+
         auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource->GetClusterName());
         auto perClusterChunkReadOptions = chunkReaderHost->AdjustClientChunkReadOptions(dataSource->GetClusterName(), chunkReadOptions);
 
@@ -231,7 +244,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
 
-                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, perClusterChunkReadOptions, partitionTags);
+                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, perClusterChunkReadOptions, partitionTags, dataSource);
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;
@@ -246,7 +259,9 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /*isUpper*/ true, keyColumnCount);
                         }
 
-                        if (perClusterChunkReadOptions.GranuleFilter && chunkMeta->ColumnarStatisticsExt()) {
+                        YT_VERIFY(!perDataSourceGranuleFilter || !perClusterChunkReadOptions.GranuleFilter);
+                        const auto& granuleFilter = perDataSourceGranuleFilter ? perDataSourceGranuleFilter : perClusterChunkReadOptions.GranuleFilter;
+                        if (granuleFilter && chunkMeta->ColumnarStatisticsExt()) {
                             TColumnarStatistics allColumnStatistics;
                             FromProto(
                                 &allColumnStatistics,
@@ -254,7 +269,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 chunkMeta->LargeColumnarStatisticsExt() ? &*chunkMeta->LargeColumnarStatisticsExt() : nullptr,
                                 chunkMeta->Misc().row_count());
 
-                            if (perClusterChunkReadOptions.GranuleFilter->CanSkip(allColumnStatistics, chunkMeta->ChunkNameTable())) {
+                            if (granuleFilter->CanSkip(allColumnStatistics, chunkMeta->ChunkNameTable())) {
                                 readRange = TReadRange::MakeEmpty();
                             }
                         }

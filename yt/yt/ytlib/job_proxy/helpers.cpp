@@ -42,7 +42,7 @@ constinit const auto Logger = JobProxyClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunQuery(
-    const TQuerySpec& querySpec,
+    const NScheduler::NProto::TQuerySpec& querySpec,
     const TSchemalessReaderFactory& readerFactory,
     const TSchemalessWriterFactory& writerFactory,
     const std::optional<std::string>& udfDirectory)

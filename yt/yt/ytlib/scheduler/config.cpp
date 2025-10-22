@@ -1,4 +1,6 @@
 #include "config.h"
+#include "helpers.h"
+#include "input_query.h"
 #include "job_resources.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -8,8 +10,6 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
-
-#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
 
@@ -1557,7 +1557,7 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueryFilterOptions::Register(TRegistrar registrar)
+void TInputQueryFilterOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_chunk_filter", &TThis::EnableChunkFilter)
         .Default(false);
@@ -3192,17 +3192,21 @@ PHOENIX_DEFINE_OPAQUE_TYPE(TVanillaTaskSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
 void ToProto(
-    NControllerAgent::NProto::TQueryFilterOptions* protoQueryFilterOptions,
-    const TQueryFilterOptionsPtr& queryFilterOptions)
+    NProto::TQueryFilterOptions* protoQueryFilterOptions,
+    const TInputQueryFilterOptions& queryFilterOptions)
 {
-    protoQueryFilterOptions->set_enable_chunk_filter(queryFilterOptions->EnableChunkFilter);
-    protoQueryFilterOptions->set_enable_row_filter(queryFilterOptions->EnableRowFilter);
+    protoQueryFilterOptions->set_enable_chunk_filter(queryFilterOptions.EnableChunkFilter);
+    protoQueryFilterOptions->set_enable_row_filter(queryFilterOptions.EnableRowFilter);
 }
 
-} // namespace NProto
+void FromProto(
+    TInputQueryFilterOptions* queryFilterOptions,
+    const NProto::TQueryFilterOptions& protoQueryFilterOptions)
+{
+    queryFilterOptions->EnableChunkFilter = protoQueryFilterOptions.enable_chunk_filter();
+    queryFilterOptions->EnableRowFilter = protoQueryFilterOptions.enable_row_filter();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

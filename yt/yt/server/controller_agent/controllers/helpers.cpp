@@ -25,6 +25,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
+#include <yt/yt/library/query/base/query.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 #include <util/string/builder.h>
@@ -105,6 +107,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
         dataSource->SetForeign(inputTable->IsForeign());
         dataSource->SetClusterName(inputTable->ClusterName);
         dataSource->SetRlsReadSpec(inputTable->RlsReadSpec);
+        dataSource->SetInputQuerySpec(inputTable->InputQuerySpec);
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
 

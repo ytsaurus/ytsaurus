@@ -281,7 +281,7 @@ protected:
 
     void InitTeleportableInputTables()
     {
-        if (GetJobType() == EJobType::UnorderedMerge && !Spec_->InputQuery) {
+        if (GetJobType() == EJobType::UnorderedMerge && !HasInputQuery(*Spec_)) {
             for (int index = 0; index < std::ssize(InputManager_->GetInputTables()); ++index) {
                 if (InputManager_->GetInputTables()[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     InputManager_->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
@@ -528,14 +528,11 @@ protected:
 
     void PrepareInputQuery() override
     {
-        if (Spec_->InputQuery) {
+        if (HasInputQuery(*Spec_)) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
                 InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
-            ParseInputQuery(
-                *Spec_->InputQuery,
-                Spec_->InputSchema,
-                Spec_->InputQueryFilterOptions);
+            ParseInputQuery(*Spec_);
         }
     }
 
@@ -557,7 +554,7 @@ protected:
                     ? std::make_optional(GetSpec()->IntermediateDataAccount)
                     : std::nullopt));
 
-        if (Spec_->InputQuery) {
+        if (InputQuerySpec_) {
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
@@ -884,7 +881,7 @@ private:
     // Unsorted helpers.
     bool IsRowCountPreserved() const override
     {
-        return !Spec_->InputQuery &&
+        return !HasInputQuery(*Spec_) &&
             !Spec_->Sampling->SamplingRate &&
             !Spec_->JobIO->TableReader->SamplingRate &&
             !InputManager_->HasRowLevelAcl();
@@ -903,14 +900,11 @@ private:
 
     void PrepareInputQuery() override
     {
-        if (Spec_->InputQuery) {
+        if (HasInputQuery(*Spec_)) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
                 InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
-            ParseInputQuery(
-                *Spec_->InputQuery,
-                Spec_->InputSchema,
-                Spec_->InputQueryFilterOptions);
+            ParseInputQuery(*Spec_);
         }
     }
 
@@ -929,7 +923,7 @@ private:
 
         auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
-                table->TableUploadOptions.TableSchema = InputQuery_->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuerySpec_->Query->GetTableSchema();
             } else {
                 InferSchemaFromInput();
             }

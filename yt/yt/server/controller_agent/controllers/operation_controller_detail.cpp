@@ -7787,16 +7787,46 @@ void TOperationControllerBase::GetUserFilesAttributes()
 void TOperationControllerBase::PrepareInputQuery()
 { }
 
-void TOperationControllerBase::ParseInputQuery(
-    const TString& queryString,
-    const std::optional<TTableSchema>& schema,
-    TQueryFilterOptionsPtr queryFilterOptions)
+bool TOperationControllerBase::HasInputQuery(const NScheduler::TInputlyQueryableSpec& spec) const
 {
+    if (spec.InputQuery) {
+        return true;
+    }
     for (const auto& table : InputManager_->GetInputTables()) {
-        if (table->Path.GetColumns()) {
-            THROW_ERROR_EXCEPTION("Column filter and QL filter cannot appear in the same operation");
+        if (table->Path.GetInputQuery()) {
+            return true;
         }
     }
+    return false;
+}
+
+void TOperationControllerBase::ParseInputQuery(const NScheduler::TInputlyQueryableSpec& spec)
+{
+    bool hasColumnSelector = false;
+    bool hasPerTableInputQuery = false;
+    for (const auto& table : InputManager_->GetInputTables()) {
+        if (table->Path.GetColumns()) {
+            hasColumnSelector = true;
+        }
+        if (table->Path.GetInputQuery()) {
+            hasPerTableInputQuery = true;
+        }
+    }
+
+    if (spec.InputQuery && hasColumnSelector) {
+        THROW_ERROR_EXCEPTION("Column filter and QL filter cannot appear in the same operation");
+    }
+    if (spec.InputQuery && hasPerTableInputQuery) {
+        THROW_ERROR_EXCEPTION("Can't use per-table input_query with operation input_query at the same time");
+    }
+    if (hasPerTableInputQuery && !spec.InputQueryFilterOptions->EnableChunkFilter) {
+        THROW_ERROR_EXCEPTION("Can't use per-table input_query without enable_chunk_filter mode");
+    }
+    if (hasPerTableInputQuery && spec.InputQueryFilterOptions->EnableRowFilter) {
+        // TODO: Implement EnableRowFilter. Should work only without table->Path.GetColumns().
+        THROW_ERROR_EXCEPTION("Can't use per-table input_query with enable_row_filter mode");
+    }
+    // We allow hasPerTableInputQuery && hasColumnSelector because per-table input_query cannot contain ProjectClause.
 
     auto externalCGInfo = New<TExternalCGInfo>();
     auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
@@ -7828,6 +7858,15 @@ void TOperationControllerBase::ParseInputQuery(
         AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
     };
 
+    auto failOnExternalFunctions = [] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
+        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
+        for (const auto& name : names) {
+            if (!typeInferrers->contains(name)) {
+                THROW_ERROR_EXCEPTION("Can't use per-table input_query with UDFs");
+            }
+        }
+    };
+
     auto inferSchema = [&] {
         std::vector<TTableSchemaPtr> schemas;
         for (const auto& table : InputManager_->GetInputTables()) {
@@ -7835,11 +7874,6 @@ void TOperationControllerBase::ParseInputQuery(
         }
         return InferInputSchema(schemas, false);
     };
-
-    auto query = PrepareJobQuery(
-        queryString,
-        schema ? New<TTableSchema>(*schema) : inferSchema(),
-        fetchFunctions);
 
     auto getColumns = [] (const TTableSchema& desiredSchema, const TTableSchema& tableSchema) {
         std::vector<std::string> columns;
@@ -7855,42 +7889,60 @@ void TOperationControllerBase::ParseInputQuery(
             : std::make_optional(std::move(columns));
     };
 
-    // Use query column filter for input tables.
-    bool allowTimestampColumns = false;
-    for (const auto& table : InputManager_->GetInputTables()) {
-        auto columns = getColumns(*query->GetReadSchema(), *table->Schema);
-        if (columns) {
-            table->Path.SetColumns(*columns);
+    auto validateQuery = [] (const NQueryClient::TConstQueryPtr& query, bool allowTimestampColumns) {
+        try {
+            ValidateTableSchema(
+                *query->GetTableSchema(),
+                /*isTableDynamic*/ false,
+                /*options*/ {
+                    .AllowUnversionedUpdateColumns = true,
+                    .AllowTimestampColumns = allowTimestampColumns,
+                    .AllowOperationColumns = true,
+                });
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error validating output schema of input query")
+                << ex;
         }
+    };
 
-        allowTimestampColumns |= table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp;
+    if (spec.InputQuery) {
+        auto query = PrepareJobQuery(
+            *spec.InputQuery,
+            spec.InputSchema ? New<TTableSchema>(*spec.InputSchema) : inferSchema(),
+            fetchFunctions);
+        InputQuerySpec_.emplace(std::move(query), externalCGInfo, spec.InputQueryFilterOptions);
+        bool allowTimestampColumns = AnyOf(InputManager_->GetInputTables(), [] (const auto& table) { return table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp; });
+        validateQuery( InputQuerySpec_->Query, allowTimestampColumns);
+
+        // Use query column filter for input tables.
+        for (const auto& table : InputManager_->GetInputTables()) {
+            auto columns = getColumns(*InputQuerySpec_->Query->GetReadSchema(), *table->Schema);
+            if (columns) {
+                table->Path.SetColumns(*columns);
+            }
+        }
     }
 
-    InputQuery_.emplace(std::move(query), std::move(externalCGInfo), std::move(queryFilterOptions));
+    for (const auto& table : InputManager_->GetInputTables()) {
+        if (auto tableQueryString = table->Path.GetInputQuery()) {
+            auto query = PrepareJobQuery(
+                *tableQueryString,
+                spec.InputSchema ? New<TTableSchema>(*spec.InputSchema) : table->Schema,
+                failOnExternalFunctions);
+            table->InputQuerySpec.emplace(std::move(query), externalCGInfo, spec.InputQueryFilterOptions);
+            bool allowTimestampColumns = table->Path.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp;
+            validateQuery(table->InputQuerySpec->Query, allowTimestampColumns);
 
-    try {
-        ValidateTableSchema(
-            *InputQuery_->Query->GetTableSchema(),
-            /*isTableDynamic*/ false,
-            /*options*/ {
-                .AllowUnversionedUpdateColumns = true,
-                .AllowTimestampColumns = allowTimestampColumns,
-                .AllowOperationColumns = true,
-            });
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error validating output schema of input query")
-            << ex;
+            if (table->InputQuerySpec->Query->ProjectClause) {
+                THROW_ERROR_EXCEPTION("Per-table input_query does not support projections");
+            }
+        }
     }
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)
 {
-    auto* querySpec = jobSpecExt->mutable_input_query_spec();
-    ToProto(querySpec->mutable_query(), InputQuery_->Query);
-    querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max() / 4);
-    querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max() / 4);
-    ToProto(querySpec->mutable_external_functions(), InputQuery_->ExternalCGInfo->Functions);
-    NScheduler::NProto::ToProto(querySpec->mutable_options(), InputQuery_->QueryFilterOptions);
+    ToProto(jobSpecExt->mutable_input_query_spec(), *InputQuerySpec_);
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -8037,7 +8089,7 @@ void TOperationControllerBase::InferInputRanges()
 {
     auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
-    if (!InputQuery_) {
+    if (!InputQuerySpec_ && !AnyOf(InputManager_->GetInputTables(), [] (const auto& table) { return table->InputQuerySpec; })) {
         return;
     }
 
@@ -8061,8 +8113,13 @@ void TOperationControllerBase::InferInputRanges()
             continue;
         }
 
+        const auto& inputQuerySpec = table->InputQuerySpec ? table->InputQuerySpec : InputQuerySpec_;
+        if (!inputQuerySpec) {
+            continue;
+        }
+
         auto inferredRanges = CreateRangeInferrer(
-            InputQuery_->Query->WhereClause,
+            inputQuerySpec->Query->WhereClause,
             table->Schema,
             table->Schema->GetKeyColumns(),
             Host_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),

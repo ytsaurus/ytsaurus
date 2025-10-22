@@ -208,12 +208,9 @@ void TSimpleJobBase::Initialize()
     }
 
     if (JobSpecExt_.has_input_query_spec()) {
-        const auto& inputQuerySpec = JobSpecExt_.input_query_spec();
-        auto query = FromProto<TConstQueryPtr>(inputQuerySpec.query());
-        auto enableChunkFilter = inputQuerySpec.options().enable_chunk_filter();
-
-        if (enableChunkFilter && query->WhereClause) {
-            ChunkReadOptions_.GranuleFilter = CreateGranuleMinMaxFilter(query, Logger());
+        const auto inputQuerySpec = FromProto<TInputQuerySpec>(JobSpecExt_.input_query_spec());
+        if (inputQuerySpec.CanCreateGranuleFilter()) {
+            ChunkReadOptions_.GranuleFilter = CreateGranuleMinMaxFilter(inputQuerySpec.Query, Logger());
         }
     }
 }

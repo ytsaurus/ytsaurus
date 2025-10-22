@@ -1620,18 +1620,18 @@ DEFINE_REFCOUNTED_TYPE(TVanillaTaskSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueryFilterOptions
+struct TInputQueryFilterOptions
     : public virtual NYTree::TYsonStruct
 {
     bool EnableChunkFilter;
     bool EnableRowFilter;
 
-    REGISTER_YSON_STRUCT(TQueryFilterOptions);
+    REGISTER_YSON_STRUCT(TInputQueryFilterOptions);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryFilterOptions)
+DEFINE_REFCOUNTED_TYPE(TInputQueryFilterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1655,7 +1655,7 @@ class TInputlyQueryableSpec
 public:
     std::optional<TString> InputQuery;
     std::optional<NTableClient::TTableSchema> InputSchema;
-    TQueryFilterOptionsPtr InputQueryFilterOptions;
+    TInputQueryFilterOptionsPtr InputQueryFilterOptions;
     TInputQueryOptionsPtr InputQueryOptions;
 
     REGISTER_YSON_STRUCT(TInputlyQueryableSpec);
@@ -2358,13 +2358,13 @@ DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
 void ToProto(
-    NControllerAgent::NProto::TQueryFilterOptions* protoQueryFilterOptions,
-    const TQueryFilterOptionsPtr& queryFilterOptions);
+    NProto::TQueryFilterOptions* protoQueryFilterOptions,
+    const TInputQueryFilterOptions& queryFilterOptions);
 
-} // namespace NProto
+void FromProto(
+    TInputQueryFilterOptions* queryFilterOptions,
+    const NProto::TQueryFilterOptions& protoQueryFilterOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

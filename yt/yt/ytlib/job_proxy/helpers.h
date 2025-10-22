@@ -22,7 +22,7 @@ using TSchemalessMultiChunkWriterFactory = std::function<NTableClient::ISchemale
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunQuery(
-    const NControllerAgent::NProto::TQuerySpec& querySpec,
+    const NScheduler::NProto::TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,
     const NTableClient::TSchemalessWriterFactory& writerFactory,
     const std::optional<std::string>& udfDirectory);
