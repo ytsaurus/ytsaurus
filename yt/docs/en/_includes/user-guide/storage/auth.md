@@ -6,7 +6,9 @@ New users don't have a password, so their first password must be set by the admi
 
 ```bash
 $ yt create user --attr '{name=alex}'
-$ yt set-user-password alex --new-password cone
+$ yt set-user-password alex
+New password: cone
+Retype new password: cone
 ```
 
 The administrator creates a new user named `alex` and sets their password to `cone`.
@@ -14,7 +16,10 @@ The administrator creates a new user named `alex` and sets their password to `co
 The user can then run the `set-user-password` command to change their password to `cube`.
 
 ```bash
-$ yt set-user-password alex --current-password cone --new-password cube
+$ yt set-user-password alex
+Current password for alex: cone
+New password: cube
+Retype new password: cube
 ```
 
 Note that unlike the administrator, the user is required to enter their current password in order to change it. The administrator doesn't need to enter any passwords, neither when setting the user password for the first time nor when changing it later.
@@ -26,7 +31,8 @@ Users need tokens to interact with {{product-name}} via the CLI or the API. To f
 The `issue-token` command issues a new token to the user. Unlike with passwords, a single user can have multiple active tokens. This allows for seamless replacement of one token with another.
 
 ```bash
-$ yt issue-token alex --password cone
+$ yt issue-token alex
+Current password for alex: cone
 "2c5956daecdff8dd45d2561a8679acf5"
 ```
 
@@ -35,7 +41,8 @@ User `alex` was issued token `2c5956daecdff8dd45d2561a8679acf5`. Similar to the 
 Use the `list-user-tokens` command to see the information about user's active tokens. Note that {{product-name}} doesn't store user tokens. In particular, the `list-user-tokens` command returns the SHA-256 hashes of tokens rather than the tokens themselves. For instance,
 
 ```bash
-$ yt list-user-tokens alex --password cone
+$ yt list-user-tokens alex
+Current password for alex: cone
 ["87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574"]
 
 $ echo -n '2c5956daecdff8dd45d2561a8679acf5' | sha256sum
@@ -45,9 +52,12 @@ $ echo -n '2c5956daecdff8dd45d2561a8679acf5' | sha256sum
 With the `revoke-token` command, you can revoke the user's token. To revoke a token, you can specify either the token itself or its SHA-256 hash. The latter option allows using the output of the `list-user-tokens` command to revoke all tokens of that user.
 
 ```bash
-$ yt revoke-token alex --token-sha256 87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574  --password cube
-$ yt revoke-token alex --token 2c5956daecdff8dd45d2561a8679acf5  --password cube
-$ yt list-user-tokens alex --password cube
+$ yt revoke-token alex --token-sha256 87a5d9406ccf6a42cca510d86e43b20e2943aa7ade7e9129f4f4f947e1b02574
+Current password for alex: cone
+$ yt revoke-token alex --token 2c5956daecdff8dd45d2561a8679acf5
+Current password for alex: cone
+$ yt list-user-tokens alex
+Current password for alex: cone
 []
 ```
 
