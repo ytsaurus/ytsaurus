@@ -274,6 +274,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
     for (const auto& tmpfsVolume : options.TmpfsVolumes) {
         // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
         auto tmpfsPath = GetRealPath(CombinePaths(sandboxPath, tmpfsVolume.Path));
+        auto tmpfsPathRelativeToLocation = GetPathRelativeToLocation(tmpfsPath);
         try {
             if (tmpfsPath != sandboxPath) {
                 // If we mount directory inside sandbox, it should not exist.
@@ -302,7 +303,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 
             {
                 auto guard = WriterGuard(SlotsLock_);
-                YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
+                EmplaceOrCrash(TmpfsPaths_, tmpfsPathRelativeToLocation);
             }
 
             result.push_back(tmpfsPath);
@@ -753,8 +754,10 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 {
                     auto guard = WriterGuard(SlotsLock_);
 
-                    auto it = TmpfsPaths_.lower_bound(sandboxPath);
-                    while (it != TmpfsPaths_.end() && it->StartsWith(sandboxPath)) {
+                    auto sandboxPathRelativeToLocation = GetPathRelativeToLocation(sandboxPath);
+
+                    auto it = TmpfsPaths_.lower_bound(sandboxPathRelativeToLocation);
+                    while (it != TmpfsPaths_.end() && it->StartsWith(sandboxPathRelativeToLocation)) {
                         it = TmpfsPaths_.erase(it);
                     }
 
@@ -838,6 +841,23 @@ void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptor& d
 TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
 {
     return CombinePaths(GetSlotPath(slotIndex), GetSandboxRelPath(sandboxKind));
+}
+
+TString TSlotLocation::GetPathRelativeToLocation(const TString& path) const
+{
+    auto fullPath = JoinPaths(path, "/");
+    auto fullLocationPath = JoinPaths(LocationPath_, "/");
+    if (LocationPath_.empty() || fullPath.size() < fullLocationPath.size() || !fullPath.StartsWith(fullLocationPath)) {
+        THROW_ERROR_EXCEPTION("Path %v is not relative to location %v",
+            path,
+            LocationPath_);
+    }
+
+    if (fullPath.size() == fullLocationPath.size()) {
+        return {};
+    }
+
+    return path.substr(LocationPath_.size());
 }
 
 void TSlotLocation::OnArtifactPreparationFailed(
@@ -933,12 +953,21 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
     auto guard = ReaderGuard(SlotsLock_);
 
-    auto it = TmpfsPaths_.upper_bound(path);
-    if (it != TmpfsPaths_.begin()) {
-        --it;
-        if (path == *it || path.StartsWith(*it + "/")) {
-            return true;
+    try {
+        auto pathRelativeToLocation = GetPathRelativeToLocation(path);
+
+        auto it = TmpfsPaths_.upper_bound(pathRelativeToLocation);
+        if (it != TmpfsPaths_.begin()) {
+            --it;
+            if (pathRelativeToLocation == *it || pathRelativeToLocation.StartsWith(*it + "/")) {
+                return true;
+            }
         }
+    } catch (const std::exception& ex) {
+        YT_LOG_INFO(ex, "Failed to get path relative to location (LocationPath: %v, Path: %v)",
+            LocationPath_,
+            path);
+        return false;
     }
 
     return false;

@@ -2670,6 +2670,9 @@ func logListQueriesOptions(o *yt.ListQueriesOptions) []log.Field {
 	if o.Limit != nil {
 		fields = append(fields, log.Any("limit", o.Limit))
 	}
+	if o.SortOrder != nil {
+		fields = append(fields, log.Any("sort_order", o.SortOrder))
+	}
 	if o.Attributes != nil {
 		fields = append(fields, log.Any("attributes", o.Attributes))
 	}

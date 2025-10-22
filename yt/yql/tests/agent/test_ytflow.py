@@ -38,8 +38,6 @@ class TestYtflowBase(TestQueueAgentBase):
     CONSUMER_PATH = '//tmp/main_consumer'
     PRODUCER_PATH = '//tmp/main_producer'
 
-    CURRENT_OUTPUT_TABLE_INDEX = 0
-
     @classmethod
     def modify_yql_agent_config(cls, config):
         config['yql_agent']['ytflow_gateway_config'] = dict(
@@ -87,14 +85,13 @@ pragma Ytflow.YtProducerPath = "{self.PRODUCER_PATH}";
         sync_mount_table(input_table)
 
         output_tables = []
-        for table in output_tables_attrs:
-            current_output_table = self.OUTPUT_TABLE_PATH + str(self.CURRENT_OUTPUT_TABLE_INDEX)
-            table.update(dynamic=True)
-            create("table", current_output_table, attributes=table)
+        for index, output_table_attrs in enumerate(output_tables_attrs):
+            current_output_table = self.OUTPUT_TABLE_PATH + str(index)
+            output_table_attrs.update(dynamic=True)
+            create("table", current_output_table, attributes=output_table_attrs)
             sync_mount_table(current_output_table)
 
             output_tables.append(current_output_table)
-            self.CURRENT_OUTPUT_TABLE_INDEX += 1
 
         insert_rows(input_table, input_rows)
 
@@ -286,9 +283,7 @@ $lambda = ($row) -> {{
     );
 }};
 
-$process_stream = select * without `$timestamp`, `$cumulative_data_weight` from `{self.INPUT_TABLE}`;
-
-$good_stream, $bad_stream = process $process_stream using $lambda(TableRow());
+$good_stream, $bad_stream = process `{self.INPUT_TABLE}` using $lambda(TableRow());
 
 insert into `{self._get_out_table_path(0)}` with truncate
 select * from $good_stream;
@@ -298,15 +293,15 @@ select * from $bad_stream;
 """,
             output_tables_attrs=[
                 dict(
-                    schema=[
+                    schema=self._make_queue_schema([
                         {"name": FIELD_GOOD, "type": "int64"},
-                    ],
+                    ]),
                 ),
                 dict(
-                    schema=[
+                    schema=self._make_queue_schema([
                         {"name": FIELD_BAD, "type": "string"},
-                    ]
-                )
+                    ]),
+                ),
             ],
             expected_output_rows=[
                 [

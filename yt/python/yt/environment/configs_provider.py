@@ -1076,29 +1076,33 @@ def _build_node_configs(multidaemon_config_output,
             )
 
         if yt_config.enable_tls:
-            set_at(config, "exec_node/job_proxy/supervisor_connection", _build_native_bus_config(yt_config))
+            # Pass bus client certificates to job proxy via environment variables.
+            set_at(config, "exec_node/job_proxy/environment_variables", [
+                {
+                    "name": "YT_JOB_PROXY_BUS_CA_BUNDLE",
+                    "file_name": yt_config.internal_ca_cert,
+                    "forward_to_user_job": False,
+                },
+                {
+                    "name": "YT_JOB_PROXY_BUS_CLIENT_CERTIFICATE",
+                    "file_name": yt_config.rpc_client_cert,
+                    "forward_to_user_job": False,
+                },
+                {
+                    "name": "YT_JOB_PROXY_BUS_CLIENT_PRIVATE_KEY",
+                    "file_name": yt_config.rpc_client_cert_key,
+                    "forward_to_user_job": False,
+                },
+            ])
+            set_at(config, "exec_node/job_proxy/cluster_connection", deepcopy(config["cluster_connection"]))
+            bus_config = _build_native_bus_config(yt_config, from_files=False, env_prefix="YT_JOB_PROXY_BUS")
+            set_at(config, "exec_node/job_proxy/cluster_connection/bus_client", bus_config)
+            set_at(config, "exec_node/job_proxy/supervisor_connection", deepcopy(bus_config))
             set_at(config, "exec_node/job_proxy/supervisor_connection/address", "{0}:{1}".format("127.0.0.1", config["rpc_port"]))
 
         if yt_config.jobs_environment_type == "cri":
             # Forward variables set in docker image into user job environment.
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
-
-            # Job proxy needs TLS certificates for bus connections in both directions.
-            bus_certs = (
-                yt_config.internal_ca_cert,
-                yt_config.rpc_cert,
-                yt_config.rpc_cert_key,
-                yt_config.rpc_client_cert,
-                yt_config.rpc_client_cert_key,
-            )
-
-            for cert in bus_certs:
-                if cert is not None:
-                    get_at(config, "exec_node/slot_manager/job_environment/job_proxy_bind_mounts").append({
-                        "internal_path": cert,
-                        "external_path": cert,
-                        "read_only": True,
-                    })
 
         if yt_config.use_slot_user_id:
             start_uid = 10000 + config["rpc_port"]
@@ -1683,27 +1687,32 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
     return configs
 
 
-def _build_native_bus_config(yt_config, is_server=False):
+def _build_native_bus_config(yt_config, is_server=False, from_files=True, env_prefix=None):
     if not yt_config.enable_tls:
         return {
             "encryption_mode": "disabled",
             "verification_mode": "none",
         }
 
-    return {
-        "ca": {
-            "file_name": yt_config.internal_ca_cert,
-        },
-        "cert_chain": {
-            "file_name": yt_config.rpc_cert if is_server else yt_config.rpc_client_cert,
-        },
-        "private_key": {
-            "file_name": yt_config.rpc_cert_key if is_server else yt_config.rpc_client_cert_key,
-        },
+    config = {
         "encryption_mode": "required",
         "verification_mode": "full",
         "peer_alternative_host_name": yt_config.cluster_name,
     }
+
+    if from_files:
+        set_at(config, "ca/file_name", yt_config.internal_ca_cert)
+        set_at(config, "cert_chain/file_name", yt_config.rpc_cert if is_server else yt_config.rpc_client_cert)
+        set_at(config, "private_key/file_name", yt_config.rpc_cert_key if is_server else yt_config.rpc_client_cert_key)
+
+    if env_prefix is not None:
+        # NOTE: Passing via "environment_variable" have priority over "file_name" when both is set.
+        side = "SERVER" if is_server else "CLIENT"
+        set_at(config, "ca/environment_variable", f"{env_prefix}_CA_BUNDLE")
+        set_at(config, "cert_chain/environment_variable", f"{env_prefix}_{side}_CERTIFICATE")
+        set_at(config, "private_key/environment_variable", f"{env_prefix}_{side}_PRIVATE_KEY")
+
+    return config
 
 
 def _build_cluster_connection_config(yt_config,

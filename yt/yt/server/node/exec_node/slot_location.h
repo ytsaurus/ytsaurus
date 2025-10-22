@@ -111,6 +111,9 @@ public:
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
 
+    //! Returns path relative to location-path, that is, a pathname after location-path.
+    TString GetPathRelativeToLocation(const TString& path) const;
+
     //! nullopt in #destinationPath stands for streaming into the pipe.
     void OnArtifactPreparationFailed(
         TJobId jobId,
@@ -160,6 +163,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 
+    //! Tmpfs paths relative to location-path.
     std::set<TString> TmpfsPaths_;
     THashSet<int> SlotsWithQuota_;
     THashMap<int, TUserSandboxOptions> SandboxOptionsPerSlot_;
