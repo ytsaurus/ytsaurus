@@ -41,6 +41,17 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
     DOWNTIME_ALL_COMPONENTS = False
 
 
+class TestMasterCellAdditionWithoutDowntimeRpcProxy(TestMasterCellAdditionWithoutDowntime):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+
 class TestMasterCellsListChangeWithoutDowntime(MasterCellAdditionBaseChecks):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
@@ -391,6 +402,16 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
     @authors("cherepashka")
     def test_add_cell(self):
         self.execute_checks_with_cell_addition(downtime=False)
+
+
+class TestDynamicMasterCellPropagationRpcProxy(TestDynamicMasterCellPropagation):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
 
 
 ##################################################################
