@@ -92,6 +92,7 @@ select a from primary.`//tmp/t` where $f(unwrap(a));
 
 class TestSecureParam(TestQueriesYqlBase):
     @authors("a-romanov")
+    @pytest.mark.timeout(300)
     def test_secure_param(self, query_tracker, yql_agent):
         yql_with_python = """
 $get_secure_param = Python3::get_secure_param(
@@ -110,6 +111,7 @@ select $get_secure_param(SecureParam("token:default_yt")) as sp;
         assert_items_equal(result, [{"sp": "ytct-"}])
 
     @authors("a-romanov")
+    @pytest.mark.timeout(300)
     def test_custom_secret(self, query_tracker, yql_agent):
         yql_with_python = """
 $get_secure_param = Python3::get_secure_param(
