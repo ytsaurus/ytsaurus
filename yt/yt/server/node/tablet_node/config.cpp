@@ -247,6 +247,13 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("schedule_new_tasks_after_task_completion", &TThis::ScheduleNewTasksAfterTaskCompletion)
         .Default(true);
+
+    registrar.Parameter("starving_tables_tasks_ratio", &TThis::StarvingTablesTasksRatio)
+        .InRange(0.0, 1.0)
+        .Default(0.0);
+    registrar.Parameter("background_task_history_window", &TThis::BackgroundTaskHistoryWindow)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

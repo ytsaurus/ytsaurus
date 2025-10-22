@@ -1149,6 +1149,24 @@ public:
         return OrchidService_;
     }
 
+    std::vector<NLsm::TStartedCompactionTask> TakeStartedCompactionTasks() override
+    {
+        auto guard = Guard(StartedTasksSpinLock_);
+
+        std::vector<NLsm::TStartedCompactionTask> tasks;
+        std::swap(tasks, StartedCompactionTasks_);
+        return tasks;
+    }
+
+    std::vector<NLsm::TStartedCompactionTask> TakeStartedPartitioningTasks() override
+    {
+        auto guard = Guard(StartedTasksSpinLock_);
+
+        std::vector<NLsm::TStartedCompactionTask> tasks;
+        std::swap(tasks, StartedPartitioningTasks_);
+        return tasks;
+    }
+
 private:
     friend TCompactionTask;
 
@@ -1179,6 +1197,10 @@ private:
     size_t PartitioningTaskIndex_ = 0; // Queue begin boundary.
     std::vector<std::unique_ptr<TCompactionTask>> CompactionTasks_; // Queue.
     size_t CompactionTaskIndex_ = 0; // Queue begin boundary.
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StartedTasksSpinLock_);
+    std::vector<NLsm::TStartedCompactionTask> StartedCompactionTasks_;
+    std::vector<NLsm::TStartedCompactionTask> StartedPartitioningTasks_;
 
     const TCompactionOrchidPtr CompactionOrchid_;
     const TCompactionOrchidPtr PartitioningOrchid_;
@@ -1629,6 +1651,16 @@ private:
             tabletSnapshot->PhysicalSchema);
 
         task->OnStarted();
+
+        {
+            auto guard = Guard(StartedTasksSpinLock_);
+
+            StartedPartitioningTasks_.push_back({
+                .TablePath = task->Info->TablePath,
+                .Reason = task->Info->Reason,
+            });
+        }
+
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
@@ -2029,6 +2061,16 @@ private:
             tabletSnapshot->PhysicalSchema);
 
         task->OnStarted();
+
+        {
+            auto guard = Guard(StartedTasksSpinLock_);
+
+            StartedCompactionTasks_.push_back({
+                .TablePath = task->Info->TablePath,
+                .Reason = task->Info->Reason,
+            });
+        }
+
         try {
             i64 inputDataSize = 0;
             i64 inputRowCount = 0;

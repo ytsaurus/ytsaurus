@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "partition.h"
+#include "started_tasks_summary.h"
 #include "store.h"
 #include "tablet.h"
 
@@ -47,6 +48,16 @@ public:
         CurrentTimestamp_ = state.CurrentTimestamp;
         Config_ = state.TabletNodeConfig;
         CurrentTime_ = state.CurrentTime;
+
+        TDuration newWindow = state.TabletNodeConfig->BackgroundTaskHistoryWindow;
+        StartedTasksSummary_.CompactionHistory().UpdateWindow(newWindow);
+        StartedTasksSummary_.PartitioningHistory().UpdateWindow(newWindow);
+
+        StartedTasksSummary_.CompactionHistory().RegisterTasks(state.CompactionTasks, CurrentTime_);
+        StartedTasksSummary_.PartitioningHistory().RegisterTasks(state.PartitioningTasks, CurrentTime_);
+
+        SchedulingModeLatch_.Compaction = AdvanceSchedulingModeLatch(SchedulingModeLatch_.Compaction, ssize(state.CompactionTasks));
+        SchedulingModeLatch_.Partitioning = AdvanceSchedulingModeLatch(SchedulingModeLatch_.Partitioning, ssize(state.PartitioningTasks));
     }
 
     TLsmActionBatch BuildLsmActions(
@@ -81,8 +92,14 @@ public:
             std::swap(batch, OverallCompactionRequests_);
         }
 
-        std::sort(batch.Compactions.begin(), batch.Compactions.end());
-        std::sort(batch.Partitionings.begin(), batch.Partitionings.end());
+        batch.Compactions = OrderRequests(
+            batch.Compactions,
+            StartedTasksSummary_.CompactionHistory(),
+            SchedulingModeLatch_.Compaction);
+        batch.Partitionings = OrderRequests(
+            batch.Partitionings,
+            StartedTasksSummary_.PartitioningHistory(),
+            SchedulingModeLatch_.Partitioning);
         return batch;
     }
 
@@ -95,6 +112,117 @@ private:
 
     TLsmActionBatch OverallCompactionRequests_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CompactionRequestsSpinLock_);
+
+    TStartedTasksSummary StartedTasksSummary_;
+    // There are two algorithms: one selects the highest-priority task globally,
+    // while the other selects the highest-priority task for the table with the least accumulated historical value.
+    // If the variable is greater than 0, we use the first algorithm and add a constant;
+    // otherwise, we use the second algorithm and subtract a constant.
+    struct {
+        double Compaction = 0;
+        double Partitioning = 0;
+    } SchedulingModeLatch_;
+
+    double AdvanceSchedulingModeLatch(double latch, int startedTasksCount = 1) const
+    {
+        for (int index = 0; index < startedTasksCount; ++index) {
+            latch += latch < 0
+                ? 1 - Config_->StarvingTablesTasksRatio
+                : -Config_->StarvingTablesTasksRatio;
+        }
+
+        return latch;
+    }
+
+    std::vector<TCompactionRequest> OrderRequests(
+        std::vector<TCompactionRequest> requests,
+        const TBackgroundTaskHistory& tasksHistory,
+        double schedulingModeLatch)
+    {
+        if (requests.empty()) {
+            return {};
+        }
+
+        auto compareRequestIndexes = [&] (int lhs, int rhs) {
+            return requests[lhs] < requests[rhs];
+        };
+
+        std::deque<int> sortedRequestIndexes(requests.size());
+        std::iota(sortedRequestIndexes.begin(), sortedRequestIndexes.end(), 0);
+        std::sort(sortedRequestIndexes.begin(), sortedRequestIndexes.end(), compareRequestIndexes);
+
+        THashMap<TBackgroundTaskHistory::TKey, std::deque<int>> requestsByCategory;
+        for (int index : sortedRequestIndexes) {
+            requestsByCategory[
+                TBackgroundTaskHistory::TKey{requests[index].Tablet->TablePath(), requests[index].Reason}
+            ].push_back(index);
+        }
+
+        std::set<std::pair<double, TBackgroundTaskHistory::TKey>> weightCategorySet;
+        THashMap<TBackgroundTaskHistory::TKey, double> categoryWeights;
+        for (const auto& [category, _] : requestsByCategory) {
+            double weight = tasksHistory.GetWeight(category);
+            categoryWeights[category] = weight;
+            weightCategorySet.emplace(weight, category);
+        }
+
+        std::vector<TCompactionRequest> orderedRequests;
+
+        auto pickRequest = [&] (int requestIndex) {
+            if (requests[requestIndex].Stores.empty()) {
+                // Request has already been processed.
+                return false;
+            }
+
+            TBackgroundTaskHistory::TKey category{requests[requestIndex].Tablet->TablePath(), requests[requestIndex].Reason};
+            double& weight = categoryWeights[category];
+            weightCategorySet.erase({weight, category});
+            weight += 1;
+            weightCategorySet.emplace(weight, category);
+            orderedRequests.push_back(TCompactionRequest{});
+            std::swap(orderedRequests.back(), requests[requestIndex]);
+            return true;
+        };
+
+        while (!sortedRequestIndexes.empty()) {
+            if (schedulingModeLatch < 0) {
+                // Picking the highest priority request for the most starving category.
+                if (weightCategorySet.empty()) {
+                    break;
+                }
+
+                auto [weight, category] = *weightCategorySet.begin();
+                auto& categoryRequests = requestsByCategory[category];
+                while (!categoryRequests.empty()) {
+                    if (pickRequest(categoryRequests.front())) {
+                        categoryRequests.pop_front();
+                        schedulingModeLatch = AdvanceSchedulingModeLatch(schedulingModeLatch);
+                        break;
+                    }
+
+                    categoryRequests.pop_front();
+                }
+
+                if (categoryRequests.empty()) {
+                    weightCategorySet.erase({categoryWeights[category], category});
+                    categoryWeights.erase(category);
+                }
+            } else {
+                // Picking the highest priority request among all categories.
+                while (!sortedRequestIndexes.empty()) {
+                    if (pickRequest(sortedRequestIndexes.front())) {
+                        sortedRequestIndexes.pop_front();
+                        schedulingModeLatch = AdvanceSchedulingModeLatch(schedulingModeLatch);
+                        break;
+                    }
+
+                    sortedRequestIndexes.pop_front();
+                }
+            }
+        }
+
+        return orderedRequests;
+    }
 
     TLsmActionBatch ScanTablet(TTablet* tablet)
     {
