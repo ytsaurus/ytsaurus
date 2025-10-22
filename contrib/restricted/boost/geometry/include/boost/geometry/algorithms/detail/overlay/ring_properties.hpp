@@ -63,7 +63,7 @@ struct ring_properties
         , parent_area(-1)
     {
         this->area = geometry::area(ring_or_box, strategy);
-        valid = geometry::point_on_border(this->point, ring_or_box);
+        valid = geometry::point_on_border(this->point, ring_or_box); /* NOLINT(clang-analyzer-optin.cplusplus.UninitializedObject) */
     }
 
     inline area_type get_area() const

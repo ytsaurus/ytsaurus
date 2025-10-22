@@ -167,7 +167,7 @@ struct buffer_turn_info
         , is_turn_traversable(true)
         , is_linear_end_point(false)
         , within_original(false)
-        , count_in_original(0)
+        , count_in_original(0) /* NOLINT(clang-analyzer-optin.cplusplus.UninitializedObject) */
     {}
 };
 
