@@ -28,6 +28,134 @@ constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Init(const TRowBufferPtr&, TValue* value, NWebAssembly::IWebAssemblyCompartment*)
+{
+    *value = MakeUnversionedNullValue();
+}
+
+template <class T, class Value = TValue>
+T& GetTypedData(Value* value)
+{
+    if constexpr (std::is_same_v<std::decay_t<T>, i64>) {
+        return value->Data.Int64;
+    } else if constexpr (std::is_same_v<std::decay_t<T>, ui64>) {
+        return value->Data.Uint64;
+    } else if constexpr (std::is_same_v<std::decay_t<T>, double>) {
+        return value->Data.Double;
+    } else {
+        static_assert(false, "Unimplemented builtin aggregate");
+    }
+}
+
+template <class T, T Aggregate(T, T)>
+void Update(const TRowBufferPtr&, TValue* state, TRange<TValue> incomingValues, NWebAssembly::IWebAssemblyCompartment*)
+{
+    for (auto value : incomingValues) {
+        if (value.Type != EValueType::Null) {
+            if (state->Type == EValueType::Null) {
+                *state = value;
+            } else {
+                GetTypedData<T>(state) = Aggregate(GetTypedData<T>(state), GetTypedData<T>(&value));
+            }
+        }
+    }
+}
+
+template <class T, T Aggregate(T, T)>
+void Merge(const TRowBufferPtr&, TValue* updatedState, const TValue* incomingState, NWebAssembly::IWebAssemblyCompartment*)
+{
+    if (incomingState->Type == EValueType::Null) {
+        return;
+    }
+
+    if (updatedState->Type == EValueType::Null) {
+        *updatedState = *incomingState;
+    } else {
+        GetTypedData<T>(updatedState) = Aggregate(GetTypedData<T>(updatedState), GetTypedData<const T, const TValue>(incomingState));
+    }
+}
+
+void Finalize(const TRowBufferPtr&, TValue* value, const TValue* state, NWebAssembly::IWebAssemblyCompartment*)
+{
+    *value = *state;
+}
+
+TCGAggregateImage MakeBuiltinAggregate(const std::string& name, EValueType wireType)
+{
+    TCGAggregateCallbacks callbacks;
+    callbacks.Init = BIND(Init);
+    callbacks.Finalize = BIND(Finalize);
+
+    if (name == "sum") {
+        switch (wireType) {
+            case EValueType::Int64:
+                callbacks.Update = BIND(Update<i64, [] (i64 l, i64 r) { return l + r; }>);
+                callbacks.Merge = BIND(Merge<i64, [] (i64 l, i64 r) { return l + r; }>);
+                break;
+
+            case EValueType::Uint64:
+                callbacks.Update = BIND(Update<ui64, [] (ui64 l, ui64 r) { return l + r; }>);
+                callbacks.Merge = BIND(Merge<ui64, [] (ui64 l, ui64 r) { return l + r; }>);
+                break;
+
+            case EValueType::Double:
+                callbacks.Update = BIND(Update<double, [] (double l, double r) { return l + r; }>);
+                callbacks.Merge = BIND(Merge<double, [] (double l, double r) { return l + r; }>);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    } else if (name == "min") {
+        switch (wireType) {
+            case EValueType::Int64:
+                callbacks.Update = BIND(Update<i64, [] (i64 l, i64 r) { return std::min(l, r); }>);
+                callbacks.Merge = BIND(Merge<i64, [] (i64 l, i64 r) { return std::min(l, r); }>);
+                break;
+
+            case EValueType::Uint64:
+                callbacks.Update = BIND(Update<ui64, [] (ui64 l, ui64 r) { return std::min(l, r); }>);
+                callbacks.Merge = BIND(Merge<ui64, [] (ui64 l, ui64 r) { return std::min(l, r); }>);
+                break;
+
+            case EValueType::Double:
+                callbacks.Update = BIND(Update<double, [] (double l, double r) { return std::min(l, r); }>);
+                callbacks.Merge = BIND(Merge<double, [] (double l, double r) { return std::min(l, r); }>);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+    } else if (name == "max") {
+        switch (wireType) {
+            case EValueType::Int64:
+                callbacks.Update = BIND(Update<i64, [] (i64 l, i64 r) { return std::max(l, r); }>);
+                callbacks.Merge = BIND(Merge<i64, [] (i64 l, i64 r) { return std::max(l, r); }>);
+                break;
+
+            case EValueType::Uint64:
+                callbacks.Update = BIND(Update<ui64, [] (ui64 l, ui64 r) { return std::max(l, r); }>);
+                callbacks.Merge = BIND(Merge<ui64, [] (ui64 l, ui64 r) { return std::max(l, r); }>);
+                break;
+
+            case EValueType::Double:
+                callbacks.Update = BIND(Update<double, [] (double l, double r) { return std::max(l, r); }>);
+                callbacks.Merge = BIND(Merge<double, [] (double l, double r) { return std::max(l, r); }>);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    } else {
+        YT_ABORT();
+    }
+
+    return {std::move(callbacks), /*compartment*/ nullptr};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(dtorilov): Consider enabling WebAssembly for column evaluators.
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
@@ -73,16 +201,22 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             }
             auto type = schema->Columns()[index].LogicalType();
             auto wireType = GetWireType(type);
-            column.AggregateImage = CodegenAggregate(
-                GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile(
-                    {type},
-                    type,
-                    type,
-                    aggregateName,
-                    EExecutionBackend::Native),
-                {wireType},
-                wireType,
-                EExecutionBackend::Native);
+            if ((aggregateName == "sum" || aggregateName == "min" || aggregateName == "max") &&
+                IsArithmeticType(wireType))
+            {
+                column.AggregateImage = MakeBuiltinAggregate(aggregateName, wireType);
+            } else {
+                column.AggregateImage = CodegenAggregate(
+                    GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile(
+                        {type},
+                        type,
+                        type,
+                        aggregateName,
+                        EExecutionBackend::Native),
+                    {wireType},
+                    wireType,
+                    EExecutionBackend::Native);
+            }
             column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;
         }
