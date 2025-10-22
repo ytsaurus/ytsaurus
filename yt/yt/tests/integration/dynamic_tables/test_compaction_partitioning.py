@@ -20,6 +20,8 @@ import pytest
 
 import builtins
 
+import collections
+
 from time import sleep, time
 
 ################################################################################
@@ -1282,6 +1284,44 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         remount_table("//tmp/t")
 
         wait(lambda: len(old_chunk_ids.intersection(get("//tmp/t/@chunk_ids"))) == 0)
+
+    @authors("tem-shett")
+    @pytest.mark.parametrize("starving_tables_tasks_ratio", [0.0, 0.5])
+    def test_starving_tables(self, starving_tables_tasks_ratio):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "starving_tables_tasks_ratio": starving_tables_tasks_ratio,
+                }
+            }
+        })
+
+        pivot_keys = [[]] + [[i + 1] for i in range(9)]
+        for table in ["//tmp/t1", "//tmp/t2"]:
+            self._create_simple_table(table, enable_dynamic_store_read=False)
+            set(f"{table}/@tablet_balancer_config/enable_auto_reshard", False)
+            sync_reshard_table(table, pivot_keys)
+            sync_mount_table(table)
+            insert_rows(table, [{"key": i, "value": str(i)} for i in range(10)])
+            sync_flush_table(table)
+            assert get(f"{table}/@chunk_count") == 10
+            set(f"{table}/@mount_config/auto_compaction_period", 1)
+
+        set("//tmp/t2/@max_overlapping_store_count", 10)
+
+        remount_table("//tmp/t1")
+        remount_table("//tmp/t2")
+
+        sleep(5)
+        compacted_tables = collections.defaultdict(int)
+        for task in get(f"//sys/tablet_nodes/{cell_node}/orchid/store_compactor/compaction_tasks/completed_tasks")[-10:]:
+            table = task["table_path"]
+            compacted_tables[table] += 1
+
+        assert len(compacted_tables) == (1 if starving_tables_tasks_ratio == 0.0 else 2)
 
 
 ################################################################################

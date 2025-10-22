@@ -7,6 +7,7 @@ SRCS(
     lsm_backend.cpp
     partition.cpp
     partition_balancer.cpp
+    started_tasks_summary.cpp
     store.cpp
     store_compactor.cpp
     store_rotator.cpp

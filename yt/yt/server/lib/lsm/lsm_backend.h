@@ -75,6 +75,12 @@ private:
     void DoMerge(TLsmActionBatch& other, std::vector<TRequest> TLsmActionBatch::* member);
 };
 
+struct TStartedCompactionTask
+{
+    TString TablePath;
+    EStoreCompactionReason Reason;
+};
+
 struct TTabletCellBundleState
 {
     double ForcedRotationMemoryRatio = 0;
@@ -94,6 +100,9 @@ struct TLsmBackendState
     THashMap<std::string, TTabletCellBundleState> Bundles;
 
     TInstant CurrentTime;
+
+    std::vector<TStartedCompactionTask> CompactionTasks;
+    std::vector<TStartedCompactionTask> PartitioningTasks;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

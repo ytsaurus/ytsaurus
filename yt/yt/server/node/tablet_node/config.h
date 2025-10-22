@@ -280,6 +280,9 @@ struct TStoreCompactorDynamicConfig
 
     bool ScheduleNewTasksAfterTaskCompletion;
 
+    double StarvingTablesTasksRatio;
+    TDuration BackgroundTaskHistoryWindow;
+
     REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
 
     static void Register(TRegistrar registrar);

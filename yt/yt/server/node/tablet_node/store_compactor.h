@@ -17,6 +17,8 @@ struct IStoreCompactor
     virtual void OnBeginSlotScan() = 0;
     virtual void ProcessLsmActionBatch(const NLsm::TLsmActionBatch& batch) = 0;
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+    virtual std::vector<NLsm::TStartedCompactionTask> TakeStartedCompactionTasks() = 0;
+    virtual std::vector<NLsm::TStartedCompactionTask> TakeStartedPartitioningTasks() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStoreCompactor)

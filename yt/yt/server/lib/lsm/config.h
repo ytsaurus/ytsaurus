@@ -18,6 +18,8 @@ struct TLsmTabletNodeConfig
 
     // Store compactor.
     TDuration CompactionBackoffTime;
+    double StarvingTablesTasksRatio;
+    TDuration BackgroundTaskHistoryWindow;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLsmTabletNodeConfig)

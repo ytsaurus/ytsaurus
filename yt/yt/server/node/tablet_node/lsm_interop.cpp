@@ -150,6 +150,8 @@ private:
         lsmConfig->ResamplingPeriod = staticConfig->PartitionBalancer->ResamplingPeriod;
 
         lsmConfig->CompactionBackoffTime = staticConfig->TabletManager->CompactionBackoffTime;
+        lsmConfig->StarvingTablesTasksRatio = dynamicConfig->StoreCompactor->StarvingTablesTasksRatio;
+        lsmConfig->BackgroundTaskHistoryWindow = dynamicConfig->StoreCompactor->BackgroundTaskHistoryWindow;
 
         return lsmConfig;
     }
@@ -202,6 +204,9 @@ private:
 
         backendState.CurrentTime = TInstant::Now();
 
+        backendState.CompactionTasks = StoreCompactor_->TakeStartedCompactionTasks();
+        backendState.PartitioningTasks = StoreCompactor_->TakeStartedPartitioningTasks();
+
         Backend_->StartNewRound(backendState);
     }
 
@@ -213,6 +218,7 @@ private:
 
         auto lsmTablet = New<NLsm::TTablet>();
         lsmTablet->SetId(tablet->GetId());
+        lsmTablet->TablePath() = tablet->GetTablePath();
         lsmTablet->SetCellId(slot->GetCellId());
         lsmTablet->TabletCellBundle() = slot->GetTabletCellBundleName();
         lsmTablet->SetPhysicallySorted(tablet->IsPhysicallySorted());
