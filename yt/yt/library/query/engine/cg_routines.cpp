@@ -3509,6 +3509,182 @@ void DictSumIteration(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void copyString(TExpressionContext* context, TUnversionedValue* result, const char* source, int length)
+{
+    result->Length = length;
+    result->Data.String = AllocateBytes(context, length);
+    ::memcpy(std::bit_cast<void*>(result->Data.String), source, length);
+}
+
+// TODO(dtorilov): Convert pointers here.
+void Greatest(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* first, TUnversionedValue* args, int argsLen)
+{
+    #define FIND_GREATEST(type, cmp) \
+        for (int index = 0; index < argsLen; ++index) { \
+            if (args[index].Type == EValueType::Null) { \
+                ThrowException("Found null argument"); \
+                break; \
+            } \
+            if (cmp(args[greatestIndex].Data.type, args[index].Data.type, args[greatestIndex].Length, args[index].Length)) { \
+                greatestIndex = index; \
+            } \
+        } \
+        if (argsLen == 0 || cmp(args[greatestIndex].Data.type, first->Data.type, args[greatestIndex].Length, first->Length)) { \
+            greatestIndex = -1; \
+        }
+
+    result->Type = first->Type;
+    int greatestIndex = 0;
+
+    switch (first->Type) {
+        case EValueType::Uint64:
+            FIND_GREATEST(
+                Uint64,
+                [] (ui64 lhs, ui64 rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::Int64:
+            FIND_GREATEST(
+                Int64,
+                [] (i64 lhs, i64 rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::Double:
+            FIND_GREATEST(
+                Double,
+                [] (double lhs, double rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::Boolean:
+            FIND_GREATEST(
+                Boolean,
+                [] (bool lhs, bool rhs, size_t /*lhsLen*/, size_t /*rhsLen*/) {
+                    return lhs < rhs;
+                });
+            break;
+
+        case EValueType::String:
+            FIND_GREATEST(
+                String,
+                [] (const char* lhs, const char* rhs, size_t lhsLen, size_t rhsLen) {
+                    int cmpResult = ::memcmp(lhs, rhs, std::min(lhsLen, rhsLen));
+
+                    if (cmpResult == 0) {
+                        if (lhsLen < rhsLen) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+
+                    return cmpResult < 0;
+                });
+            break;
+
+        case EValueType::Null:
+            ThrowException("Found null argument");
+            break;
+
+        default:
+            break;
+    }
+
+    #undef FIND_GREATEST
+
+    switch (first->Type) {
+        case EValueType::String:
+            if (greatestIndex == -1) {
+                copyString(context, result, first->Data.String, first->Length);
+            } else {
+                copyString(context, result, args[greatestIndex].Data.String, args[greatestIndex].Length);
+            }
+
+            break;
+
+        default:
+            if (greatestIndex == -1) {
+                result->Data = first->Data;
+            } else {
+                result->Data = args[greatestIndex].Data;
+            }
+
+            break;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(dtorilov): Convert pointers here.
+void FirstInit(
+    TExpressionContext* context,
+    TUnversionedValue* result)
+{
+    Y_UNUSED(context);
+
+    result->Type = EValueType::Null;
+}
+
+void FirstIteration(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* newValue)
+{
+    if (state->Type == EValueType::Null) {
+        result->Type = newValue->Type;
+        if (newValue->Type == EValueType::String || newValue->Type == EValueType::Any || newValue->Type == EValueType::Composite) {
+            char* permanentData = AllocateBytes(context, newValue->Length);
+            ::memcpy(permanentData, newValue->Data.String, newValue->Length);
+            result->Length = newValue->Length;
+            result->Data.String = permanentData;
+        } else {
+            result->Data = newValue->Data;
+        }
+    } else {
+        result->Type = state->Type;
+        result->Length = state->Length;
+        result->Data = state->Data;
+    }
+}
+
+void FirstUpdate(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* newValue)
+{
+    FirstIteration(context, result, state, newValue);
+}
+
+void FirstMerge(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* dstState,
+    TUnversionedValue* state)
+{
+    FirstIteration(context, result, dstState, state);
+}
+
+void FirstFinalize(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state)
+{
+    Y_UNUSED(context);
+
+    result->Type = state->Type;
+    result->Length = state->Length;
+    result->Data = state->Data;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* state)
 {
     auto* compartment = GetCurrentCompartment();
@@ -4318,6 +4494,11 @@ REGISTER_ROUTINE(YsonLength);
 REGISTER_ROUTINE(LikeOpHelper);
 REGISTER_ROUTINE(CompositeMemberAccessorHelper);
 REGISTER_ROUTINE(DictSumIteration);
+REGISTER_ROUTINE(Greatest);
+REGISTER_ROUTINE(FirstInit);
+REGISTER_ROUTINE(FirstUpdate);
+REGISTER_ROUTINE(FirstMerge);
+REGISTER_ROUTINE(FirstFinalize);
 REGISTER_ROUTINE(CompareYsonValuesHelper);
 REGISTER_ROUTINE(HashYsonValueHelper);
 REGISTER_ROUTINE(CompareAny);
