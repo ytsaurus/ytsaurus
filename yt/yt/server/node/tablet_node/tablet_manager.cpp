@@ -3662,10 +3662,15 @@ private:
                 tabletId,
                 newReplicationEra,
                 era);
-        } else {
+        } else if (era > newReplicationEra) {
             YT_LOG_ALERT("Trying to advance to older era (TabletId: %v, CurrentReplicationEra: %v, NewReplicationEra: %v)",
                 tabletId,
                 era,
+                newReplicationEra);
+        } else {
+            // Might happen if TabletPuller hasn't seen the new era yet.
+            YT_LOG_DEBUG("Replication era is already advanced (TabletId: %v, NewReplicationEra: %v)",
+                tabletId,
                 newReplicationEra);
         }
     }
