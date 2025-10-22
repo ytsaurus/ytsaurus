@@ -400,11 +400,11 @@ protected:
 
     void ValidateCreateOptions(const TReqCreate* request)
     {
-        if (request->ignore_type_mismatch()) {
-            THROW_ERROR_EXCEPTION("Create with \"ignore_type_mismatch\" flag is not supported in Sequoia yet");
+        if (request->ignore_type_mismatch() && !request->ignore_existing()) {
+            THROW_ERROR_EXCEPTION("Cannot specify \"ignore_type_mismatch\" without \"ignore_existing\"");
         }
-        if (request->lock_existing()) {
-            THROW_ERROR_EXCEPTION("Create with \"lock_existing\" flag is not supported in Sequoia yet");
+        if (request->lock_existing() && !request->ignore_existing()) {
+            THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
         }
 
         auto type = FromProto<EObjectType>(request->type());
@@ -818,6 +818,18 @@ protected:
 
         AbortSequoiaSessionForLaterForwardingToMaster(GetThisEffectiveAcl());
     }
+
+    TRange<TCypressNodeDescriptor> GetNodeAncestry(bool replace) const
+    {
+        if (!replace) {
+            return ResolveResult_.NodeAncestry;
+        }
+        auto nodeAncestry = TRange(ResolveResult_.NodeAncestry);
+        THROW_ERROR_EXCEPTION_IF(
+            nodeAncestry.size() == 1,
+            "Missing parent for the node to be replaced");
+        return nodeAncestry.Slice(0, nodeAncestry.size() - 1);
+    }
 };
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, MultisetAttributes)
@@ -1021,10 +1033,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         replace,
         NObjectServer::IsAdministerValidationNeeded(explicitAttributes.Get()));
 
+    auto nodeAncestry = GetNodeAncestry(replace);
     auto inheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
-        ResolveResult_.NodeAncestry,
+        nodeAncestry,
         SequoiaSession_->FetchInheritableAttributes(
-            ResolveResult_.NodeAncestry,
+            nodeAncestry,
             /*duringCopy*/ false,
             GetNativeAuthenticatedClient()));
     auto [targetParentNodeId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
@@ -1190,13 +1203,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
 
+    auto nodeAncestry = GetNodeAncestry(replace);
     auto inheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
-        {ResolveResult_.NodeAncestry, nodesToCopy.Nodes},
+        {nodeAncestry, nodesToCopy.Nodes},
         /*duringCopy*/ true,
         GetNativeAuthenticatedClient());
 
     auto destinationInheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
-        ResolveResult_.NodeAncestry,
+        nodeAncestry,
         inheritableAttributes);
 
     std::vector<TCypressNodeDescriptor> removedNodes;
@@ -1488,10 +1502,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
     // TODO(h0pless): Fetch accounts and inheritable attributes from Sequoia tables once those are replicated.
     // For now Get request to master is good enough. Please note, that it's technically racy.
 
+    auto nodeAncestry = GetNodeAncestry(replace);
     auto inheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
-        ResolveResult_.NodeAncestry,
+        nodeAncestry,
         SequoiaSession_->FetchInheritableAttributes(
-            ResolveResult_.NodeAncestry,
+            nodeAncestry,
             /*duringCopy*/ true,
             GetNativeAuthenticatedClient()));
 
@@ -1684,13 +1699,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
 
     auto unresolvedDestinationSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
+    auto replace = destinationSuffixDirectoryTokens.empty();
+    auto nodeAncestry = GetNodeAncestry(replace);
     // NB: Check for recursive creation was done during LockCopyDestination.
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         destinationSuffixDirectoryTokens,
         NCypressProxy::CalculateInheritedAttributes(
-            ResolveResult_.NodeAncestry,
+            nodeAncestry,
             SequoiaSession_->FetchInheritableAttributes(
-                ResolveResult_.NodeAncestry,
+                nodeAncestry,
                 /*duringCopy*/ false,
                 GetNativeAuthenticatedClient()))
             .Get(),
