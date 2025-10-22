@@ -31,6 +31,12 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("codegen_cache", &TThis::CodegenCache)
         .DefaultNew();
+
+    registrar.Parameter("statistics_aggregation", &TThis::StatisticsAggregation)
+        .Optional();
+
+    registrar.Parameter("use_order_by_in_join_subqueries", &TThis::UseOrderByInJoinSubqueries)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
