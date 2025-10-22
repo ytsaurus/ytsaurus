@@ -258,6 +258,10 @@ private:
             if (NeedTableStatistics_) {
                 TableStatistics_.emplace();
                 for (const auto& tableStatistics : columnarStatisticsFetcher->GetTableStatistics()) {
+                    if (tableStatistics.GetColumnCount() == 0) {
+                        TableStatistics_ = std::nullopt;
+                        break;
+                    }
                     (*TableStatistics_) += tableStatistics;
                 }
                 bool allowString = QueryContext_->Settings->Execution->AllowStringMinMaxOptimization;
@@ -267,15 +271,17 @@ private:
                         if (value.Type == EValueType::String && (!allowString || value.Length == TColumnarStatistics::MaxStringValueLength) ||
                             value.Type == EValueType::Max ||
                             value.Type == EValueType::Min ||
-                            value.Type == EValueType::Null)
-                            {
+                            value.Type == EValueType::Null) {
                             // We can't get correct answer from minmax statistics.
                             return false;
                         }
                     }
                     return true;
                 };
-                if (!TableStatistics_->HasValueStatistics() || !checkValues(TableStatistics_->ColumnMinValues) || !checkValues(TableStatistics_->ColumnMaxValues)) {
+                if (!TableStatistics_.has_value() ||
+                    !TableStatistics_->HasValueStatistics() ||
+                    !checkValues(TableStatistics_->ColumnMinValues) ||
+                    !checkValues(TableStatistics_->ColumnMaxValues)) {
                     TableStatistics_ = std::nullopt;
                 }
             }
