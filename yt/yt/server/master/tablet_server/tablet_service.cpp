@@ -777,7 +777,7 @@ private:
         ValidateNoParentTransaction(transaction);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* table = AsTabletOwnerSafe(cypressManager->FindNode(TVersionedNodeId(tableId)));
+        auto* table = AsTabletOwnerSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
         ValidateUsePermissionOnCellBundle(table);
 
