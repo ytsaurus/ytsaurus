@@ -80,10 +80,6 @@ void FillTrafficStatistics(
     TStatistics& statistics,
     const NChunkClient::TTrafficMeterPtr& trafficMeter)
 {
-    statistics.AddSample(
-        namePrefix / "traffic"_L / "duration_ms"_L,
-        trafficMeter->GetDuration().MilliSeconds());
-
     // Empty data center names aren't allowed, so reducing a null data
     // center to an empty string is safe. And convenient :-)
 
