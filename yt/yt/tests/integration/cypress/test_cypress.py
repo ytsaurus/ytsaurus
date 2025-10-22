@@ -1259,7 +1259,6 @@ class TestCypress(YTEnvSetup):
             create("table", "//tmp/t", ignore_existing=True, force=True)
 
     @authors("gritukan")
-    @not_implemented_in_sequoia
     def test_create_ignore_type_mismatch(self):
         create("map_node", "//tmp/a/b", recursive=True)
         create("map_node", "//tmp/a/b", ignore_existing=True, ignore_type_mismatch=True)
@@ -1267,7 +1266,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/a/b/@type") == "map_node"
 
     @authors("gritukan")
-    @not_implemented_in_sequoia
     def test_create_ignore_type_mismatch_without_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
         with raises_yt_error("Cannot specify \"ignore_type_mismatch\" without \"ignore_existing\""):
@@ -2927,6 +2925,10 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/dir1/dir2/t2")
         assert get("//tmp/dir1/dir2/t2/@compression_codec") == "zlib_6"
 
+        # recreated inherit from ancestors
+        create("table", "//tmp/dir1/t2", force=True)
+        assert get("//tmp/dir1/t2/@compression_codec") == "zstd_1"
+
     @authors("kvk1920", "shakurov")
     def test_inheritable_attributes2(self):
         create_domestic_medium("hdd")
@@ -2972,6 +2974,27 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@optimize_for") == "scan"
         assert get("//tmp/dir1/dir2/t1/@media") == {"hdd": {"replication_factor": 5, "data_parts_only": False}}
         assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
+
+    @authors("koloshmet")
+    def test_inheritable_attributes3(self):
+        create("map_node", "//tmp/dir1")
+        set("//tmp/dir1/@chunk_merger_mode", "deep")
+
+        create("table", "//tmp/dir1/t1", attributes={"chunk_merger_mode": "shallow"})
+        assert get("//tmp/dir1/t1/@chunk_merger_mode") == "shallow"
+
+        create("table", "//tmp/dir1/t2")
+        assert get("//tmp/dir1/t2/@chunk_merger_mode") == "deep"
+
+        create("map_node", "//tmp/dir1/dir2")
+        set("//tmp/dir1/dir2/@chunk_merger_mode", "shallow")
+
+        copy("//tmp/dir1/t1", "//tmp/dir1/dir2/t1")
+        assert get("//tmp/dir1/dir2/t1/@chunk_merger_mode") == "shallow"
+
+        create("table", "//tmp/t4")
+        copy("//tmp/t4", "//tmp/dir1/t1", force=True)
+        assert get("//tmp/dir1/t1/@chunk_merger_mode") == "deep"
 
     @authors("kvk1920", "h0pless")
     # This attribute should be handled in CP like @recursive_resource_usage.
@@ -3784,7 +3807,6 @@ class TestCypress(YTEnvSetup):
         move("//tmp/t1", "//tmp/test/t2", authenticated_user="u")
 
     @authors("avmatrosov")
-    @not_implemented_in_sequoia
     def test_lock_existing_create(self):
         tx = start_transaction()
         create("table", "//tmp/x")
@@ -3803,13 +3825,17 @@ class TestCypress(YTEnvSetup):
         commit_transaction(tx)
         assert len(get("//tmp/x/@locks")) == 0
 
-    @authors("avmatrosov")
-    @not_implemented_in_sequoia
-    def test_lock_existing_errors(self):
+    @authors("koloshmet")
+    def test_lock_existing_create_without_ignore_existing_fail(self):
         create("table", "//tmp/x")
-        create("table", "//tmp/x1")
         with raises_yt_error("Cannot specify \"lock_existing\" without \"ignore_existing\""):
             create("map_node", "//tmp/x", lock_existing=True)
+
+    @authors("koloshmet")
+    @not_implemented_in_sequoia
+    def test_lock_existing_move_errors(self):
+        create("table", "//tmp/x")
+        create("table", "//tmp/x1")
         with raises_yt_error("already exists"):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
