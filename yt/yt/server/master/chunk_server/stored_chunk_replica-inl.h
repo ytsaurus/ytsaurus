@@ -37,6 +37,8 @@ TAugmentedStoredChunkReplicaPtr::TAugmentedStoredChunkReplicaPtr(T* ptr, int ind
 template <EStoredReplicaType type>
 const typename TStoredReplicaTraits<type>::Type* TAugmentedStoredChunkReplicaPtr::As() const
 {
+    static_assert(type == EStoredReplicaType::ChunkLocation || type == EStoredReplicaType::OffshoreMedia);
+
     if (GetStoredReplicaType() != type) {
         return nullptr;
     }
@@ -45,12 +47,9 @@ const typename TStoredReplicaTraits<type>::Type* TAugmentedStoredChunkReplicaPtr
 
     if constexpr (type == EStoredReplicaType::ChunkLocation) {
         return static_cast<const TAugmentedLocationChunkReplicaPtr*>(this);
-    }
-    else if constexpr (type == EStoredReplicaType::OffshoreMedia) {
+    } else if constexpr (type == EStoredReplicaType::OffshoreMedia) {
         return static_cast<const TAugmentedMediumChunkReplicaPtr*>(this);
     }
-
-    Y_UNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
