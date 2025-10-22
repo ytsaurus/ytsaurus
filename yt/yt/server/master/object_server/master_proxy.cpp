@@ -325,6 +325,7 @@ private:
                 toProtoSubject(protoUser->mutable_subject_descriptor(), user);
 
                 ToProto(protoUser->mutable_tags(), user->Tags().GetSourceTags());
+                protoUser->set_banned(user->GetBanned());
 
                 auto limits = user->GetObjectServiceRequestLimits();
                 if (auto limit = limits->ReadRequestRateLimits->Default) {

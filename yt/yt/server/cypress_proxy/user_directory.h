@@ -34,6 +34,7 @@ struct TUserDescriptor
     std::optional<int> ReadRequestRateLimit;
     std::optional<int> WriteRequestRateLimit;
     std::optional<int> QueueSizeLimit;
+    bool Banned = false;
 
     bool operator==(const TUserDescriptor& other) const = default;
 };

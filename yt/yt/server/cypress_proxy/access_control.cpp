@@ -93,7 +93,11 @@ ESecurityAction FastCheckPermission(const TUserDescriptorPtr& user)
     {
         return ESecurityAction::Allow;
     }
-    // TODO(danilalexeev): YT-24575. Deny permission for banned users.
+
+    if (user->Banned) {
+        return ESecurityAction::Deny;
+    }
+
     return ESecurityAction::Undefined;
 }
 

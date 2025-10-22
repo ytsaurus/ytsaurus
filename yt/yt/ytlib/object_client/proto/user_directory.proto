@@ -19,6 +19,7 @@ message TUserDescriptor
     optional int32 read_request_rate_limit = 3;
     optional int32 write_request_rate_limit = 4;
     optional int32 request_queue_size_limit = 5;
+    optional bool banned = 6;
 }
 
 message TUserDirectory

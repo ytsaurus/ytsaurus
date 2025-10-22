@@ -33,6 +33,8 @@ void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUs
     userDescriptor->QueueSizeLimit = YT_OPTIONAL_FROM_PROTO(proto, request_queue_size_limit);
     userDescriptor->ReadRequestRateLimit = YT_OPTIONAL_FROM_PROTO(proto, read_request_rate_limit);
     userDescriptor->WriteRequestRateLimit = YT_OPTIONAL_FROM_PROTO(proto, write_request_rate_limit);
+
+    userDescriptor->Banned = proto.banned();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
