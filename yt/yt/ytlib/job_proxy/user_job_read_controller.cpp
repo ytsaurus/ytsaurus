@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/job_proxy/profiling_reader.h>
 #include <yt/yt/ytlib/job_proxy/profiling_writer.h>
 
+#include <yt/yt/ytlib/scheduler/proto/input_query.pb.h>
+
 #include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/client/table_client/adapters.h>
@@ -428,7 +430,7 @@ private:
     }
 
     TCallback<TFuture<void>()> PrepareInputActionsQuery(
-        const TQuerySpec& querySpec,
+        const NScheduler::NProto::TQuerySpec& querySpec,
         const TFormat& format,
         const IAsyncOutputStreamPtr& asyncOutput)
     {
@@ -577,12 +579,9 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla && !jobSpecExt.user_job_spec().is_secondary_distributed()) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {
-            const auto& inputQuerySpec = jobSpecHelper->GetJobSpecExt().input_query_spec();
-            auto query = FromProto<TConstQueryPtr>(inputQuerySpec.query());
-            auto enableChunkFilter = inputQuerySpec.options().enable_chunk_filter();
-
-            if (enableChunkFilter && query->WhereClause) {
-                chunkReadOptions.GranuleFilter = CreateGranuleMinMaxFilter(query, Logger);
+            const auto inputQuerySpec = FromProto<NScheduler::TInputQuerySpec>(jobSpecHelper->GetJobSpecExt().input_query_spec());
+            if (inputQuerySpec.CanCreateGranuleFilter()) {
+                chunkReadOptions.GranuleFilter = CreateGranuleMinMaxFilter(inputQuerySpec.Query, Logger);
             }
         }
         return New<TUserJobReadController>(

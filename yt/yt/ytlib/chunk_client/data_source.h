@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
+#include <yt/yt/ytlib/scheduler/input_query.h>
 
 #include <yt/yt/ytlib/table_client/row_level_security.h>
 
@@ -48,6 +49,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, Account);
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::TClusterName, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NTableClient::TRlsReadSpec>, RlsReadSpec);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NScheduler::TInputQuerySpec>, InputQuerySpec);
 
     //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.
     NTableClient::TComparator GetComparator() const;

@@ -557,7 +557,7 @@ private:
 
     bool IsRowCountPreserved() const override
     {
-        return !Spec_->InputQuery &&
+        return !HasInputQuery(*Spec_) &&
             !Spec_->Sampling->SamplingRate &&
             !Spec_->JobIO->TableReader->SamplingRate &&
             !InputManager_->HasRowLevelAcl();
@@ -565,7 +565,7 @@ private:
 
     i64 GetMinTeleportChunkSize() const override
     {
-        if (Spec_->ForceTransform || Spec_->InputQuery) {
+        if (Spec_->ForceTransform || HasInputQuery(*Spec_)) {
             return std::numeric_limits<i64>::max() / 4;
         }
         if (!Spec_->CombineChunks) {
@@ -583,14 +583,11 @@ private:
 
     void PrepareInputQuery() override
     {
-        if (Spec_->InputQuery) {
+        if (HasInputQuery(*Spec_)) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
                 InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
-            ParseInputQuery(
-                *Spec_->InputQuery,
-                Spec_->InputSchema,
-                Spec_->InputQueryFilterOptions);
+            ParseInputQuery(*Spec_);
         }
     }
 
@@ -616,7 +613,7 @@ private:
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
-        if (Spec_->InputQuery) {
+        if (InputQuerySpec_) {
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
@@ -642,7 +639,7 @@ private:
 
         auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
-                table->TableUploadOptions.TableSchema = InputQuery_->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuerySpec_->Query->GetTableSchema();
             } else {
                 InferSchemaFromInputOrdered();
             }
@@ -864,7 +861,7 @@ private:
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-        if (Spec_->InputQuery) {
+        if (InputQuerySpec_) {
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
@@ -884,14 +881,11 @@ private:
 
     void PrepareInputQuery() override
     {
-        if (Spec_->InputQuery) {
+        if (HasInputQuery(*Spec_)) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
                 InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
-            ParseInputQuery(
-                *Spec_->InputQuery,
-                Spec_->InputSchema,
-                Spec_->InputQueryFilterOptions);
+            ParseInputQuery(*Spec_);
         }
     }
 

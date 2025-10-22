@@ -4384,14 +4384,11 @@ private:
 
     void PrepareInputQuery() override
     {
-        if (Spec_->InputQuery) {
+        if (HasInputQuery(*Spec_)) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
                 InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->PartitionJobIO->ControlAttributes));
             }
-            ParseInputQuery(
-                *Spec_->InputQuery,
-                Spec_->InputSchema,
-                Spec_->InputQueryFilterOptions);
+            ParseInputQuery(*Spec_);
         }
     }
 
@@ -4410,7 +4407,7 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForMapper());
 
-            if (Spec_->InputQuery) {
+            if (InputQuerySpec_) {
                 WriteInputQueryToJobSpec(jobSpecExt);
             }
 

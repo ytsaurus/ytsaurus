@@ -162,6 +162,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/proto/user_directory.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/input_query.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
@@ -455,6 +456,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/input_query.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/job_resources_with_quota.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/scheduler_channel.cpp
@@ -707,6 +709,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/object_client/proto/user_directory.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/input_query.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h

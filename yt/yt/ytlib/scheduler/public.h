@@ -44,6 +44,7 @@ class TRspGetOperationInfo;
 class TReqGetJobInfo;
 class TRspGetJobInfo;
 class TResourceLimits;
+class TQueryFilterOptions;
 class TQuerySpec;
 class TDiskQuota;
 class TDiskRequest;
@@ -151,7 +152,7 @@ DECLARE_REFCOUNTED_STRUCT(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TTentativeTreeEligibilityConfig)
 DECLARE_REFCOUNTED_STRUCT(TJobCpuMonitorConfig)
 DECLARE_REFCOUNTED_STRUCT(TExperimentOperationSpec)
-DECLARE_REFCOUNTED_STRUCT(TQueryFilterOptions)
+DECLARE_REFCOUNTED_STRUCT(TInputQueryFilterOptions)
 DECLARE_REFCOUNTED_STRUCT(TInputQueryOptions)
 
 using TJobShellOptionsMap = THashMap<

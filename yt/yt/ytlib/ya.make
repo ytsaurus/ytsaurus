@@ -383,11 +383,13 @@ SRCS(
     scheduler/config.cpp
     scheduler/disk_resources.cpp
     scheduler/helpers.cpp
+    scheduler/input_query.cpp
     scheduler/job_resources_helpers.cpp
     scheduler/job_resources_with_quota.cpp
     scheduler/scheduler_channel.cpp
 
     scheduler/proto/allocation.proto
+    scheduler/proto/input_query.proto
     scheduler/proto/resources.proto
     scheduler/proto/rich_transaction_id.proto
     scheduler/proto/pool_ypath.proto

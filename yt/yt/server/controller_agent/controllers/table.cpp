@@ -13,6 +13,7 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NCypressClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +131,10 @@ void TInputTable::RegisterMetadata(auto&& registrar)
     // COMPAT(coteeq)
     PHOENIX_REGISTER_FIELD(7, RlsReadSpec,
         .SinceVersion(ESnapshotVersion::FixRlsSnapshots));
+    // COMPAT(lucius)
+    PHOENIX_REGISTER_FIELD(8, InputQuerySpec,
+        .SinceVersion(ESnapshotVersion::PerTableInputQuery)
+        .template Serializer<TInputQuerySpecSerializer>());
 }
 
 PHOENIX_DEFINE_TYPE(TInputTable);

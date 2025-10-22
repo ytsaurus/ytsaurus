@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup, find_ut_file
 
 from yt_commands import (
     authors, create, create_table, get, read_table, write_table, alter_table, write_local_file, map,
-    assert_statistics, raises_yt_error, wait)
+    assert_statistics, raises_yt_error, wait, sync_create_cells, insert_rows, sync_mount_table,
+    sync_unmount_table, create_dynamic_table, extract_statistic_v2)
 
 from yt_type_helpers import (
     make_column, make_schema, list_type
@@ -120,6 +121,513 @@ class TestJobQuery(YTEnvSetup):
 
         expected = [{"a": "1", "b": "1", "c": None}, {"a": "2", "b": None, "c": "2"}]
         assert_items_equal(read_table("//tmp/t_out"), expected)
+
+    @authors("lucius")
+    def test_query_per_table_single(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table(
+            "//tmp/t1",
+            [
+                {"a": "1", "b": "1"},
+            ],
+            table_writer={"block_size": 1},
+        )
+        write_table(
+            "<append=%true>//tmp/t1",
+            [
+                {"a": "2", "b": "2"},
+                {"a": "2", "b": "3"},
+            ],
+            table_writer={"block_size": 1},
+        )
+
+        def _test(attrs, expected_chunk1, expected_chunk2):
+            op = map(
+                in_=[f"{attrs}//tmp/t1"],
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+            assert_items_equal(read_table("//tmp/t_out"), expected_chunk1 + expected_chunk2)
+            # TODO: Fix issue where the first block is always read even when filtered out.
+            # Dear future reader, if you broke this test, you must have fixed the reader. Feel free to remove 'max' function in next line.
+            expected_block_count = max(1, len(expected_chunk1)) + max(1, len(expected_chunk2))
+            assert extract_statistic_v2(op.get_statistics()["chunk_reader_statistics"], "block_count") == expected_block_count
+
+        _test('<input_query="* WHERE a = \\"0\\"">', [], [])
+        _test('<input_query="* WHERE a = \\"1\\"">', [{"a": "1", "b": "1"}], [])
+        _test(
+            '<input_query="* WHERE a = \\"2\\"">',
+            [],
+            [
+                {"a": "2", "b": "2"},
+                {"a": "2", "b": "3"},
+            ],
+        )
+        _test(
+            '',
+            [
+                {"a": "1", "b": "1"},
+            ],
+            [
+                {"a": "2", "b": "2"},
+                {"a": "2", "b": "3"},
+            ],
+        )
+
+    @authors("lucius")
+    def test_query_per_table_sorted(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string", "sort_order": "ascending"},
+                    {"name": "b", "type": "string", "sort_order": "ascending"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table(
+            "//tmp/t1",
+            [
+                {"a": "1", "b": "1"},
+            ],
+            table_writer={"block_size": 1},
+        )
+        write_table(
+            "<append=%true>//tmp/t1",
+            [
+                {"a": "2", "b": "2"},
+                {"a": "2", "b": "3"},
+            ],
+            table_writer={"block_size": 1},
+        )
+
+        def _test(attrs1, expected):
+            op = map(
+                in_=[f"{attrs1}//tmp/t1"],
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+            assert_items_equal(read_table("//tmp/t_out"), expected)
+            if expected:
+                assert extract_statistic_v2(op.get_statistics()["chunk_reader_statistics"], "block_count") == len(expected)
+            else:
+                assert not op.get_statistics()
+
+        _test('<input_query="* WHERE a = \\"0\\"">', [])
+        _test('<input_query="* WHERE a = \\"1\\"">', [{"a": "1", "b": "1"}])
+        _test('<input_query="* WHERE a = \\"2\\"">', [{"a": "2", "b": "2"}, {"a": "2", "b": "3"}])
+
+    @authors("lucius")
+    def test_query_per_table_double(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table(
+            "//tmp/t1",
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            table_writer={"block_size": 1},
+        )
+        write_table(
+            "//tmp/t2",
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+            table_writer={"block_size": 1},
+        )
+
+        def _test(attrs1, attrs2, expected_chunk1, expected_chunk2):
+            op = map(
+                in_=[f"{attrs1}//tmp/t1", f"{attrs2}//tmp/t2"],
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+            assert_items_equal(read_table("//tmp/t_out"), expected_chunk1 + expected_chunk2)
+            assert len(op.list_jobs()) == 0
+            # TODO: Fix issue where the first block is always read even when filtered out.
+            # Dear future reader, if you broke this test, you must have fixed the reader. Feel free to remove 'max' function in next line.
+            expected_block_count = max(1, len(expected_chunk1)) + max(1, len(expected_chunk2))
+            assert extract_statistic_v2(op.get_statistics()["chunk_reader_statistics"], "block_count") == expected_block_count
+
+        _test(
+            '<input_query="* WHERE b != \\"0\\"">',
+            '<input_query="* WHERE c != \\"0\\"">',
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+        )
+        _test(
+            '<input_query="* WHERE a = \\"0\\"">',
+            '<input_query="* WHERE a = \\"2\\"">',
+            [],
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+        )
+        _test(
+            '<input_query="* WHERE a = \\"1\\"">',
+            '<input_query="* WHERE a = \\"0\\"">',
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            [],
+        )
+        _test(
+            '<input_query="* WHERE a = \\"1\\"">',
+            '',
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+        )
+        _test(
+            '',
+            '<input_query="* WHERE a = \\"2\\"">',
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+        )
+        _test(
+            '<input_query="* WHERE a = \\"0\\"">',
+            '',
+            [],
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+        )
+        _test(
+            '',
+            '<input_query="* WHERE a = \\"0\\"">',
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            [],
+        )
+        _test(
+            '<input_query="* WHERE b = \\"0\\"">',
+            '<input_query="* WHERE c = \\"0\\"">',
+            [],
+            [],
+        )
+        _test(
+            '',
+            '',
+            [
+                {"a": "1", "b": "1"},
+                {"a": "1", "b": "1"},
+            ],
+            [
+                {"a": "2", "c": "2"},
+                {"a": "2", "c": "2"},
+            ],
+        )
+
+    @authors("lucius")
+    def test_query_per_table_columns(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "1", "b": "1"})
+        write_table("//tmp/t2", {"a": "2", "c": "2"})
+
+        def _test(attrs1, attrs2, expected):
+            op = map(
+                in_=[f"{attrs1}//tmp/t1", f"{attrs2}//tmp/t2"],
+                out="//tmp/t_out",
+                command="cat >&2",
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": True,
+                        "format": yson.loads(b"<format=text>yson"),
+                    },
+                    "job_io": {
+                        "control_attributes" : {
+                            "enable_row_index" : True,
+                        },
+                    },
+                },
+            )
+            job_ids = op.list_jobs()
+            assert len(job_ids) == 1
+            stderr_bytes = op.read_stderr(job_ids[0])
+            assert stderr_bytes == expected
+
+        _test(
+            """<input_query="* WHERE b != \\"0\\"";columns=[a]>""",
+            """<input_query="* WHERE c = \\"0\\"">""",
+            b"""<"table_index"=0;>#;
+<"row_index"=0;>#;
+{"a"="1";};
+""")
+        _test(
+            """<input_query="* WHERE b != \\"0\\"";columns=[b]>""",
+            """<input_query="* WHERE c = \\"0\\"">""",
+            b"""<"table_index"=0;>#;
+<"row_index"=0;>#;
+{"b"="1";};
+""")
+        _test(
+            """<input_query="* WHERE b = \\"0\\"";columns=[a]>""",
+            """<input_query="* WHERE c != \\"0\\"">""",
+            b"""<"table_index"=1;>#;
+<"row_index"=0;>#;
+{"a"="2";"c"="2";};
+""")
+        _test(
+            """<input_query="* WHERE b = \\"0\\"";columns=[b]>""",
+            """<input_query="* WHERE c != \\"0\\"">""",
+            b"""<"table_index"=1;>#;
+<"row_index"=0;>#;
+{"a"="2";"c"="2";};
+""")
+
+        _test(
+            """<input_query="* WHERE z != \\"0\\"";rename_columns={b=z}>""",
+            """<input_query="* WHERE c = \\"0\\"">""",
+            b"""<"table_index"=0;>#;
+<"row_index"=0;>#;
+{"a"="1";"z"="1";};
+""")
+        _test(
+            """<input_query="* WHERE b != \\"0\\"";rename_columns={a=z}>""",
+            """<input_query="* WHERE c = \\"0\\"">""",
+            b"""<"table_index"=0;>#;
+<"row_index"=0;>#;
+{"z"="1";"b"="1";};
+""")
+        _test(
+            """<input_query="* WHERE z = \\"0\\"";rename_columns={b=z}>""",
+            """<input_query="* WHERE c != \\"0\\"">""",
+            b"""<"table_index"=1;>#;
+<"row_index"=0;>#;
+{"a"="2";"c"="2";};
+""")
+        _test(
+            """<input_query="* WHERE b = \\"0\\"";rename_columns={a=z}>""",
+            """<input_query="* WHERE c != \\"0\\"">""",
+            b"""<"table_index"=1;>#;
+<"row_index"=0;>#;
+{"a"="2";"c"="2";};
+""")
+
+    @authors("lucius")
+    def test_query_per_table_exception(self):
+        path_in = "//tmp/t1"
+        path_out = "//tmp/t_out"
+        create(
+            "table",
+            path_in,
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create("table", path_out)
+        write_table(path_in, {"a": "1", "b": "1"})
+
+        path_in_with_query = '<input_query="* WHERE a = \\"0\\"">' + path_in
+        command = "cat"
+
+        with raises_yt_error("Can't use per-table input_query with operation input_query at the same time"):
+            map(
+                in_=[path_in_with_query],
+                out=path_out,
+                command=command,
+                spec={
+                    "input_query": "*",
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+        with raises_yt_error("Can't use per-table input_query without enable_chunk_filter mode"):
+            map(
+                in_=[path_in_with_query],
+                out=path_out,
+                command=command,
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": False,
+                        "enable_row_filter": True,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+        with raises_yt_error("Can't use per-table input_query with enable_row_filter mode"):
+            map(
+                in_=[path_in_with_query],
+                out=path_out,
+                command=command,
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": True,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+        with raises_yt_error("Per-table input_query does not support projections"):
+            map(
+                in_=['<input_query="a, b WHERE a = \\"0\\"">' + path_in],
+                out=path_out,
+                command=command,
+                spec={
+                    "input_query_filter_options": {
+                        "enable_chunk_filter": True,
+                        "enable_row_filter": False,
+                    },
+                    "mapper": {
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+    @authors("lucius")
+    def test_query_per_table_dynamic(self):
+        sync_create_cells(1)
+        path_in = "//tmp/t1"
+        create_dynamic_table(
+            path_in,
+            schema=[
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "string"},
+            ],
+        )
+        sync_mount_table(path_in)
+        insert_rows(path_in, [{"a": "1", "b": "1"}])
+        sync_unmount_table(path_in)
+
+        path_out = "//tmp/t_out"
+        create("table", path_out)
+
+        map(
+            in_=['<input_query="* WHERE a = \\"0\\"">' + path_in],
+            out=path_out,
+            command="cat",
+            spec={
+                "input_query_filter_options": {
+                    "enable_chunk_filter": True,
+                    "enable_row_filter": False,
+                },
+                "mapper": {
+                    "enable_input_table_index": False,
+                },
+            },
+        )
+        assert_items_equal(read_table("//tmp/t_out"), [])
 
     @authors("psushin", "lucius")
     def test_query_system_columns(self):

@@ -38,8 +38,6 @@ class TJobSpecExt;
 class TUserJobSpec;
 
 class TTableInputSpec;
-class TQuerySpec;
-class TQueryFilterOptions;
 class TJobProfilerSpec;
 
 class TPartitionJobSpecExt;

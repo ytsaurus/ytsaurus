@@ -37,6 +37,7 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
+#include <yt/yt/ytlib/scheduler/input_query.h>
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
 #include <yt/yt/library/query/base/public.h>
@@ -594,14 +595,7 @@ protected:
 
     THashMap<NScheduler::TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
-    struct TInputQuery
-    {
-        NQueryClient::TQueryPtr Query;
-        NQueryClient::TExternalCGInfoPtr ExternalCGInfo;
-        NScheduler::TQueryFilterOptionsPtr QueryFilterOptions;
-    };
-
-    std::optional<TInputQuery> InputQuery_;
+    std::optional<NScheduler::TInputQuerySpec> InputQuerySpec_;
 
     //! All tasks declared by calling #RegisterTask, in the order of decreasing priority.
     std::vector<TTaskPtr> Tasks_;
@@ -771,10 +765,8 @@ protected:
 
     void FillPrepareResult(TOperationControllerPrepareResult* result);
 
-    void ParseInputQuery(
-        const TString& queryString,
-        const std::optional<NQueryClient::TTableSchema>& schema,
-        NScheduler::TQueryFilterOptionsPtr queryFilterOptions);
+    bool HasInputQuery(const NScheduler::TInputlyQueryableSpec& spec) const;
+    void ParseInputQuery(const NScheduler::TInputlyQueryableSpec& spec);
     void WriteInputQueryToJobSpec(
         NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
     virtual void PrepareInputQuery();
