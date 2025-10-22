@@ -17,54 +17,22 @@ using namespace NTableClient;
 
 void AccountStripeInList(
     const TChunkStripePtr& stripe,
-    const TChunkStripeListPtr& list,
-    std::optional<i64> stripeDataWeight,
-    std::optional<i64> stripeRowCount,
-    TNodeId nodeId)
+    const TChunkStripeListPtr& list)
 {
     auto statistics = stripe->GetStatistics();
-    list->TotalDataWeight += stripeDataWeight.value_or(statistics.DataWeight);
-    list->TotalRowCount += stripeRowCount.value_or(statistics.RowCount);
+    list->TotalDataWeight += statistics.DataWeight;
+    list->TotalRowCount += statistics.RowCount;
     list->TotalChunkCount += statistics.ChunkCount;
-
-    if (nodeId == InvalidNodeId) {
-        return;
-    }
-
-    for (const auto& dataSlice : list->Stripes.back()->DataSlices) {
-        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            bool isLocal = false;
-            for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
-                if (replica.GetNodeId() == nodeId) {
-                    i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
-                    if (locality > 0) {
-                        list->LocalDataWeight += locality;
-                        isLocal = true;
-                    }
-                }
-            }
-
-            if (isLocal) {
-                ++list->LocalChunkCount;
-            }
-        }
-    }
 }
 
 void AddStripeToList(
     TChunkStripePtr stripe,
-    const TChunkStripeListPtr& list,
-    std::optional<i64> stripeDataWeight,
-    std::optional<i64> stripeRowCount,
-    TNodeId nodeId)
+    const TChunkStripeListPtr& list)
 {
     list->Stripes.emplace_back(std::move(stripe));
     AccountStripeInList(
         list->Stripes.back(),
-        list,
-        stripeDataWeight,
-        stripeRowCount,
-        nodeId);
+        list);
 }
 
 std::vector<TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& stripeList)
