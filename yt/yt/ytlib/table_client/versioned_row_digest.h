@@ -13,6 +13,7 @@ struct TVersionedRowDigest
     std::vector<i64> EarliestNthTimestamp;
     IQuantileDigestPtr LastTimestampDigest;
     IQuantileDigestPtr AllButLastTimestampDigest;
+    IQuantileDigestPtr FirstTimestampDigest;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

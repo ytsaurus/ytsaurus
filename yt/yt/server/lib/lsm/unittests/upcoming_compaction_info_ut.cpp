@@ -93,7 +93,7 @@ INSTANTIATE_TEST_SUITE_P(
             .DigestFiller = CreateDigestFillter(100, 3, 0),
             .Result = {
                 .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(2),
+                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(3),
             }
         },
         TUpcomingCompactionInfoParams{
@@ -102,7 +102,7 @@ INSTANTIATE_TEST_SUITE_P(
             .DigestFiller = CreateDigestFillter(100, 100, 1),
             .Result = {
                 .Reason = EStoreCompactionReason::TtlCleanupExpected,
-                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(50),
+                .Timestamp = StartDate + TDuration::Days(1) + TDuration::Hours(51),
             }
         },
         // TtlCleanupExpected with MinDataVersions = 0

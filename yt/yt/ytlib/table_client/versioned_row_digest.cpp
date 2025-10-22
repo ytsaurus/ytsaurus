@@ -25,6 +25,7 @@ public:
     {
         Digest_.LastTimestampDigest = CreateTDigest(config->TDigest);
         Digest_.AllButLastTimestampDigest = CreateTDigest(config->TDigest);
+        Digest_.FirstTimestampDigest = CreateTDigest(config->TDigest);
     }
 
     void OnRow(TVersionedRow row) override
@@ -42,6 +43,7 @@ public:
             for (auto* value = currentValueBegin + 1; value < currentValueEnd; ++value) {
                 Digest_.AllButLastTimestampDigest->AddValue(TimestampToSecond(value->Timestamp));
             }
+            Digest_.FirstTimestampDigest->AddValue(TimestampToSecond(std::prev(currentValueEnd)->Timestamp));
 
             int timestampCount = currentValueEnd - currentValueBegin;
             for (int logIndex = 0; (1 << logIndex) - 1 < timestampCount; ++logIndex) {
@@ -104,6 +106,9 @@ void ToProto(NProto::TVersionedRowDigestExt* protoDigest, const TVersionedRowDig
     ToProto(
         protoDigest->mutable_all_but_last_timestamp_digest(),
         digest.AllButLastTimestampDigest->Serialize());
+    ToProto(
+        protoDigest->mutable_first_timestamp_digest(),
+        digest.FirstTimestampDigest->Serialize());
 }
 
 void FromProto(TVersionedRowDigest* digest, const NProto::TVersionedRowDigestExt& protoDigest)
@@ -123,6 +128,12 @@ void FromProto(TVersionedRowDigest* digest, const NProto::TVersionedRowDigestExt
             protoDigest.all_but_last_timestamp_digest().begin(),
             protoDigest.all_but_last_timestamp_digest().end());
         digest->AllButLastTimestampDigest = LoadQuantileDigest(serialized);
+    }
+    if (protoDigest.has_first_timestamp_digest()) {
+        auto serialized = TStringBuf(
+            protoDigest.first_timestamp_digest().begin(),
+            protoDigest.first_timestamp_digest().end());
+        digest->FirstTimestampDigest = LoadQuantileDigest(serialized);
     }
 }
 
