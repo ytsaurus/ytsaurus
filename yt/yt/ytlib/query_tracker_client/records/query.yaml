@@ -102,7 +102,7 @@ types:
         lock: query_tracker
 
       - cpp_name: Progress
-        cpp_type: TString
+        cpp_type: std::string
         column_name: progress
         column_type: String
         lock: query_tracker_progress
@@ -216,7 +216,7 @@ types:
         column_type: String
 
       - cpp_name: Progress
-        cpp_type: TString
+        cpp_type: std::string
         column_name: progress
         column_type: String
 

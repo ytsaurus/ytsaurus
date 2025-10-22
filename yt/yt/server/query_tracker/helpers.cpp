@@ -146,9 +146,9 @@ TString Compress(const TString& data, std::optional<ui64> maxCompressedStringSiz
     return maxCompressedStringSize.has_value() && compressedValue.size() > maxCompressedStringSize.value() ? DefaultCompressedValue : compressedValue;
 }
 
-TString Decompress(const TString& data)
+TString Decompress(const std::string& data)
 {
-    TStringInput input(data);
+    TMemoryInput input(data.begin(), data.size());
     TZstdDecompress decompressStream(&input);
     auto res = decompressStream.ReadAll();
     return res;
