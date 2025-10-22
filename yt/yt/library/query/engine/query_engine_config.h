@@ -35,6 +35,8 @@ struct TQueryEngineDynamicConfig
     : public NYTree::TYsonStruct
 {
     TCodegenCacheDynamicConfigPtr CodegenCache;
+    std::optional<EStatisticsAggregation> StatisticsAggregation;
+    std::optional<bool> UseOrderByInJoinSubqueries;
 
     REGISTER_YSON_STRUCT(TQueryEngineDynamicConfig);
 

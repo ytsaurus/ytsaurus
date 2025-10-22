@@ -4165,13 +4165,8 @@ private:
             options.MaxJoinBatchSize = request->max_join_batch_size();
         }
         options.UseOrderByInJoinSubqueries = YT_OPTIONAL_FROM_PROTO(*request, use_order_by_in_join_subqueries);
-        if (!options.UseOrderByInJoinSubqueries.has_value()) {
-            options.UseOrderByInJoinSubqueries = config->QueryFeatureToggles->UseOrderByInJoinSubqueries;
-        }
         if (request->has_statistics_aggregation()) {
             options.StatisticsAggregation = CheckedEnumCast<EStatisticsAggregation>(request->statistics_aggregation());
-        } else if (config->QueryFeatureToggles->StatisticsAggregation) {
-            options.StatisticsAggregation = *config->QueryFeatureToggles->StatisticsAggregation;
         }
         if (request->has_read_from()) {
             options.ReadFrom = CheckedEnumCast<EPeerKind>(request->read_from());

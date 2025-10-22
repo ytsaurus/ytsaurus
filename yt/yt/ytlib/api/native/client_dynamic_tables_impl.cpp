@@ -98,6 +98,7 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -107,6 +108,8 @@
 
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/library/query/engine/query_engine_config.h>
 
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
@@ -1616,6 +1619,18 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 {
     TQueryOptions queryOptions;
 
+    auto useOrderByInJoinSubqueriesDefault = false;
+    auto statisticsAggregationDefault = EStatisticsAggregation::None;
+    if (auto singletonDynamicConfig = TSingletonManager::GetDynamicConfig()) {
+        auto queryEngineConfig = singletonDynamicConfig->GetSingletonConfig<NQueryClient::TQueryEngineDynamicConfig>();
+
+        useOrderByInJoinSubqueriesDefault = queryEngineConfig->UseOrderByInJoinSubqueries.value_or(
+            useOrderByInJoinSubqueriesDefault);
+
+        statisticsAggregationDefault = queryEngineConfig->StatisticsAggregation.value_or(
+            statisticsAggregationDefault);
+    }
+
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
     queryOptions.VerboseLogging = options.VerboseLogging;
 
@@ -1649,8 +1664,10 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
     queryOptions.RowsetProcessingBatchSize = options.RowsetProcessingBatchSize.value_or(DefaultRowsetProcessingBatchSize);
     queryOptions.WriteRowsetSize = options.WriteRowsetSize.value_or(DefaultWriteRowsetSize);
     queryOptions.MaxJoinBatchSize = options.MaxJoinBatchSize.value_or(DefaultMaxJoinBatchSize);
-    queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries.value_or(false);
-    queryOptions.StatisticsAggregation = options.StatisticsAggregation.value_or(EStatisticsAggregation::None);
+    queryOptions.UseOrderByInJoinSubqueries = options.UseOrderByInJoinSubqueries.value_or(
+        useOrderByInJoinSubqueriesDefault);
+    queryOptions.StatisticsAggregation = options.StatisticsAggregation.value_or(
+        statisticsAggregationDefault);
     queryOptions.ReadFrom = options.ReadFrom;
 
     THROW_ERROR_EXCEPTION_UNLESS(queryOptions.RowsetProcessingBatchSize > 0,
