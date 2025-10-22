@@ -30,6 +30,7 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
 {
     const auto& allButLastDigest = digest.AllButLastTimestampDigest;
     const auto& lastDigest = digest.LastTimestampDigest;
+    const auto& firstDigest = digest.FirstTimestampDigest;
     const auto& earliestNthTimestamp = digest.EarliestNthTimestamp;
 
     auto minDataTtl = mountConfig->MinDataTtl;
@@ -43,8 +44,74 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
 
     TRowDigestUpcomingCompactionInfo result;
 
+    auto getAbsoluteRank = [] (const IQuantileDigestPtr& digest, TInstant time) {
+        return digest->GetRank(time.Seconds()) * digest->GetCount();
+    };
+
     // Check if there is timestamp when a certain ratio of data will be compacted.
-    if (minDataVersions == 1) {
+    if ((minDataVersions != 1 || firstDigest) && totalCount > 0) {
+        auto computeResult = [&] (TInstant right, std::function<double(TInstant)> getCurrentRatio) {
+            auto left = TInstant::Seconds(std::min(
+                allButLastDigest->GetQuantile(0),
+                lastDigest->GetQuantile(0)));
+
+            while (right - left > CompactionTimestampAccuracy) {
+                auto mid = left + (right - left) / 2;
+
+                if (getCurrentRatio(mid) >= maxObsoleteTimestampRatio) {
+                    right = mid;
+                } else {
+                    left = mid;
+                }
+            }
+
+            YT_LOG_DEBUG("Found upcoming compaction timestamp (StoreId: %v, Timestamp: %v, Reason: %v)",
+                storeId,
+                right,
+                EStoreCompactionReason::TtlCleanupExpected);
+
+            result = {
+                .Reason = EStoreCompactionReason::TtlCleanupExpected,
+                .Timestamp = right,
+            };
+        };
+
+        if (minDataVersions == 1) {
+            if (1 - firstDigest->GetCount() / static_cast<double>(totalCount) >= maxObsoleteTimestampRatio) {
+                auto right = TInstant::Seconds(std::max(
+                    allButLastDigest->GetQuantile(1),
+                    lastDigest->GetQuantile(1))) + minDataTtl;
+
+                auto getCurrentRatio = [&] (TInstant time) {
+                    // During compaction, all versions older than mid-minDataTtl will be deleted,
+                    // except for one version per row.
+                    return (getAbsoluteRank(allButLastDigest, time - minDataTtl) +
+                        getAbsoluteRank(lastDigest, time - minDataTtl) -
+                        getAbsoluteRank(firstDigest, time - minDataTtl)) / totalCount;
+
+                };
+
+                computeResult(right, getCurrentRatio);
+            }
+        } else {
+            auto lastTtl = maxDataVersions == 0
+                ? minDataTtl
+                : maxDataTtl;
+
+            auto right = TInstant::Seconds(std::max(
+                allButLastDigest->GetQuantile(maxObsoleteTimestampRatio),
+                lastDigest->GetQuantile(maxObsoleteTimestampRatio))) + lastTtl;
+
+            auto getCurrentRatio = [&] (TInstant time) {
+                return (getAbsoluteRank(allButLastDigest, time - minDataTtl) +
+                    getAbsoluteRank(lastDigest, time - lastTtl)) / totalCount;
+            };
+
+            computeResult(right, getCurrentRatio);
+        }
+    } else if (minDataVersions == 1 && !firstDigest) {
+        // Once there was no first timestamp digest and the algorithm was incorrect.
+        // However, it's still here for compatibility reasons.
         if (allButLastDigest->GetCount() > 0) {
             if (double sufficientQuantile = (totalCount * maxObsoleteTimestampRatio) / allButLastDigest->GetCount();
                 sufficientQuantile <= 1)
@@ -63,41 +130,6 @@ TRowDigestUpcomingCompactionInfo GetUpcomingCompactionInfo(
                 };
             }
         }
-    } else if (totalCount > 0) {
-        auto lastTtl = maxDataVersions == 0
-            ? minDataTtl
-            : maxDataTtl;
-
-        auto left = TInstant::Seconds(std::min(
-            allButLastDigest->GetQuantile(0),
-            lastDigest->GetQuantile(0)));
-        auto right = TInstant::Seconds(std::max(
-            allButLastDigest->GetQuantile(maxObsoleteTimestampRatio),
-            lastDigest->GetQuantile(maxObsoleteTimestampRatio))) + lastTtl;
-
-        while (right - left > CompactionTimestampAccuracy) {
-            auto mid = left + (right - left) / 2;
-
-            double currentRatio =
-                (allButLastDigest->GetRank((mid - minDataTtl).Seconds()) * allButLastDigest->GetCount() +
-                lastDigest->GetRank((mid - lastTtl).Seconds()) * lastDigest->GetCount()) / totalCount;
-
-            if (currentRatio >= maxObsoleteTimestampRatio) {
-                right = mid;
-            } else {
-                left = mid;
-            }
-        }
-
-        YT_LOG_DEBUG("Found upcoming compaction timestamp (StoreId: %v, Timestamp: %v, Reason: %v)",
-            storeId,
-            right,
-            EStoreCompactionReason::TtlCleanupExpected);
-
-        result = {
-            .Reason = EStoreCompactionReason::TtlCleanupExpected,
-            .Timestamp = right,
-        };
     }
 
     // Check if there is a value with many old timestamps.

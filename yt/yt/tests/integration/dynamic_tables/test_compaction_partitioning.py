@@ -735,6 +735,47 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         check(0, 1, 0.99)
         check(0, 0, 0.99)
 
+    @authors("tem-shett")
+    def test_timestamp_digest_min_data_versions_1(self):
+        sync_create_cells(1)
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "row_digest_fetch_period": 1,
+                    "use_row_digests": True,
+                },
+            },
+        })
+
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "min_data_ttl": 10000,
+                "max_data_ttl": 1e9,
+                "row_digest_compaction": {
+                    "max_obsolete_timestamp_ratio": 0.3
+                }
+            },
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                },
+            },
+            compression_codec="none",
+            dynamic_store_auto_flush_period=yson.YsonEntity(),
+        )
+
+        sync_mount_table("//tmp/t")
+        start_time = time()
+        insert_rows("//tmp/t", [{"key": i, "value": "v"} for i in range(20)])
+        sleep(5)
+        insert_rows("//tmp/t", [{"key": i, "value": "u"} for i in range(20)])
+        sync_flush_table("//tmp/t")
+        old_chunks = get("//tmp/t/@chunk_ids")
+        wait(lambda: (time() - start_time) > 12)
+        assert old_chunks == get("//tmp/t/@chunk_ids")
+        wait(lambda: old_chunks != get("//tmp/t/@chunk_ids"))
+
     @authors("dave11ar")
     def test_compaction_hints_after_cell_moved(self):
         def update_throttler_limit(limit):
