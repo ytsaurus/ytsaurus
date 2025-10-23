@@ -98,7 +98,6 @@ class TestPortals(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_validate_cypress_node_host_cell_role2(self):
         set("//sys/@config/multicell_manager/allow_master_cell_role_invariant_check", False)
-        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
         with raises_yt_error("cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
