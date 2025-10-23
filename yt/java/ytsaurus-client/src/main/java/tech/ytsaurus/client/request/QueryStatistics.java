@@ -1,63 +1,12 @@
 package tech.ytsaurus.client.request;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.rpcproxy.TQueryStatistics;
-import tech.ytsaurus.rpcproxy.TQueryStatistics.TAggregate;
-
-class LongAggregate {
-    @Nullable
-    private final Long total;
-    @Nullable
-    private final Long max;
-    @Nullable
-    private final String argmaxNode;
-
-    LongAggregate(Long value) {
-        this.total = value;
-        this.max = value;
-        this.argmaxNode = null;
-    }
-
-    LongAggregate(TAggregate aggregate) {
-        this.total = aggregate.hasTotal() ? aggregate.getTotal() : null;
-        this.max = aggregate.hasMax() ? aggregate.getTotal() : null;
-        this.argmaxNode = aggregate.hasArgmaxNode() ? aggregate.getArgmaxNode() : null;
-    }
-}
-
-class DurationAggregate {
-    @Nullable
-    private final Duration total;
-    @Nullable
-    private final Duration max;
-    @Nullable
-    private final String argmaxNode;
-
-    DurationAggregate(Long value) {
-        this.total = RpcUtil.durationFromMicros(value);
-        this.max = RpcUtil.durationFromMicros(value);
-        this.argmaxNode = null;
-    }
-
-    DurationAggregate(TAggregate aggregate) {
-        this.total = aggregate.hasTotal()
-                ? RpcUtil.durationFromMicros(aggregate.getTotal())
-                : null;
-        this.max = aggregate.hasMax()
-                ? RpcUtil.durationFromMicros(aggregate.getTotal())
-                : null;
-        this.argmaxNode = aggregate.hasArgmaxNode()
-                ? aggregate.getArgmaxNode()
-                : null;
-    }
-}
 
 /**
  * Immutable metadata about query statistics.
