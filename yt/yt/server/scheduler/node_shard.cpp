@@ -288,6 +288,7 @@ void TNodeShard::DoCleanup()
     AllocationsToSubmitToStrategy_.clear();
 
     ConcurrentHeartbeatCount_ = 0;
+    ConcurrentHeartbeatComplexity_ = 0;
 
     JobReporterQueueIsTooLargeNodeCount_ = 0;
 
