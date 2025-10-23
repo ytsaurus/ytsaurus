@@ -30,7 +30,7 @@ public:
         registrar.Postprocessor([] (TThis* command) {
             auto operationId = command->OperationId;
             if (operationId && command->OperationAlias.has_value() ||
-                !operationId && !command->OperationAlias.has_value())
+                !operationId && !command->OperationAlias.has_value() && !command->GetJobId())
             {
                 THROW_ERROR_EXCEPTION("Exactly one of \"operation_id\" and \"operation_alias\" should be set")
                     << TErrorAttribute("operation_id", command->OperationId)
@@ -39,7 +39,7 @@ public:
 
             if (command->OperationId) {
                 command->OperationIdOrAlias = command->OperationId;
-            } else {
+            } else if (command->OperationAlias) {
                 command->OperationIdOrAlias = *command->OperationAlias;
             }
         });
@@ -48,6 +48,10 @@ public:
 protected:
     // Is calculated by OperationId and OperationAlias.
     NScheduler::TOperationIdOrAlias OperationIdOrAlias;
+
+    virtual NScheduler::TJobId GetJobId() const {
+        return {};
+    }
 
 private:
     NScheduler::TOperationId OperationId;
@@ -134,6 +138,7 @@ private:
 
     void DoExecute(ICommandContextPtr context) override;
     bool HasResponseParameters() const override;
+    NScheduler::TJobId GetJobId() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,6 +171,7 @@ private:
     NJobTrackerClient::TJobId JobId;
 
     void DoExecute(ICommandContextPtr context) override;
+    NScheduler::TJobId GetJobId() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +234,7 @@ private:
     NJobTrackerClient::TJobId JobId;
 
     void DoExecute(ICommandContextPtr context) override;
+    NScheduler::TJobId GetJobId() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

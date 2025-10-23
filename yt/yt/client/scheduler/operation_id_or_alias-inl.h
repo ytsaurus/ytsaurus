@@ -33,7 +33,8 @@ void FromProto(TOperationIdOrAlias* operationIdOrAlias, const TProtoClass& enclo
             break;
         }
         case TProtoClass::OperationIdOrAliasCase::OPERATION_ID_OR_ALIAS_NOT_SET: {
-            THROW_ERROR_EXCEPTION("None of operation id and operation alias is set in oneof OperationIdOrAlias proto");
+            operationIdOrAlias->Payload = {};
+            break;
         }
     }
 }
@@ -45,7 +46,9 @@ void ToProto(TProtoClassPtr enclosingProtoMessage, const TOperationIdOrAlias& op
 
     Visit(operationIdOrAlias.Payload,
         [&] (const TOperationId& operationId) {
-            ToProto(enclosingProtoMessage->mutable_operation_id(), operationId);
+            if (operationId) {
+                ToProto(enclosingProtoMessage->mutable_operation_id(), operationId);
+            }
         },
         [&] (const TString& alias) {
             enclosingProtoMessage->set_operation_alias(alias);

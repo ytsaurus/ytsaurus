@@ -1088,6 +1088,8 @@ private:
     NRpc::IChannelPtr WrapChannel(NRpc::IChannelPtr channel) const;
     NRpc::IChannelFactoryPtr WrapChannelFactory(NRpc::IChannelFactoryPtr factory) const;
 
+    NControllerAgent::TOperationId GetJobOperation(NControllerAgent::TJobId jobId);
+
     const IClientPtr& GetOperationsArchiveClient();
 
     template <class T>
