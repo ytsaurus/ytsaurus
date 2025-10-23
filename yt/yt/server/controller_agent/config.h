@@ -825,6 +825,19 @@ DEFINE_REFCOUNTED_TYPE(TRemoteOperationsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TScheduleAllocationThrottlingConfig
+    : public NYTree::TYsonStructLite
+{
+    TDuration ScheduleAllocationTotalTimeThreshold;
+    TDuration JobEventsTotalTimeThreshold;
+
+    REGISTER_YSON_STRUCT_LITE(TScheduleAllocationThrottlingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TControllerAgentConfig
     : public TSingletonsDynamicConfig
 {
@@ -1188,8 +1201,9 @@ struct TControllerAgentConfig
 
     TDuration InvokerPoolTotalTimeAggregationPeriod;
 
-    TDuration ScheduleAllocationTotalTimeThreshold;
     TDuration JobEventsTotalTimeThreshold;
+
+    TScheduleAllocationThrottlingConfig ScheduleAllocationThrottling;
 
     // TODO(levysotsky): Get rid of this option when everybody migrates to new operation ACLs.
     bool AllowUsersGroupReadIntermediateData;
