@@ -13,7 +13,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, raises_yt_error, read_table, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
+    align_chaos_cell_tag, generate_chaos_cell_id, map_reduce, master_exit_read_only, raises_yt_error, read_table, remote_copy, sync_create_chaos_cell, wait, init_drivers, wait_drivers,
     exists, get, set, ls, create, remove, create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction, create_area, remove_area, create_rack, create_data_center, assert_true_for_all_cells,
     assert_true_for_secondary_cells, build_snapshot, get_driver, create_user, make_ace,
@@ -39,6 +39,8 @@ class MasterCellAdditionBase(YTEnvSetup):
     DEFER_CONTROLLER_AGENT_START = True
     DEFER_CHAOS_NODE_START = True
     # NB: It is impossible to defer start cypress proxies, since some setup handlers rely on their availability.
+
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     PRIMARY_CLUSTER_INDEX = 0
 
@@ -72,8 +74,6 @@ class MasterCellAdditionBase(YTEnvSetup):
         },
         "sync_directories_on_connect": False,
     }
-
-    NUM_SECONDARY_MASTER_CELLS = 3
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
@@ -487,12 +487,6 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         },
     }
 
-    DELTA_DRIVER_CONFIG = {
-        "cell_directory_synchronizer": {
-            "sync_cells_with_secondary_masters": False,
-        },
-    }
-
     def check_media(self):
         create_domestic_medium("ssd")
         create_account("a")
@@ -784,9 +778,11 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
 
 
-class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):
+class MasterCellAdditionWithRemoteClustersBaseChecks(MasterCellAdditionBase):
     NUM_NODES = 3
     NUM_CHAOS_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
 
     NUM_REMOTE_CLUSTERS = 2
     NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 0
@@ -903,3 +899,18 @@ class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):
         yield
 
         assert_true_for_all_cells(self.Env, _check)
+
+    def check_remote_copy(self):
+        yield
+
+        remote_driver = get_driver(cluster="remote_0")
+        create("table", "//tmp/t1", driver=remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
+        wait(lambda: self.do_with_retries(lambda: create("table", "//tmp/t2", attributes={"external_cell_tag": 13})))
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": "remote_0"},
+        )
+        assert read_table("//tmp/t2") == [{"a": "b"}]
