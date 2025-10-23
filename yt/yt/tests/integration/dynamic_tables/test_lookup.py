@@ -905,6 +905,40 @@ class TestLookup(TestSortedDynamicTablesBase):
             [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
         )
 
+    @authors("akozhikhov")
+    def test_data_node_lookup_with_key_filter(self):
+        chunk_writer_config = {
+            "key_filter" : {
+                "block_size": 100,
+                "enable": True,
+            },
+        }
+
+        sync_create_cells(1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            chunk_writer=chunk_writer_config,
+            mount_config={
+                "enable_key_filter_for_lookup": True,
+            },
+        )
+
+        self._enable_data_node_lookup("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": str(i)} for i in range(1, 10, 2)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        key_filter_checker = self._get_key_filter_lookup_checker("//tmp/t")
+
+        key_filter_checker.check([{"key": 2}, {"key": 42}], [])
+        key_filter_checker.check([{"key": 0}, {"key": 1}], [{"key": 1, "value": "1"}],)
+        key_filter_checker.check(keys, rows)
+
     @not_implemented_in_sequoia
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for, chunk_format", [
