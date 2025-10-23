@@ -644,6 +644,36 @@ class TestJobTracker(YTEnvSetup):
 
         wait(lambda: timed_out_settle_job_counter.get_delta() >= 1, timeout=10)
 
+    @authors("pogorelov")
+    def test_settle_job_cancellation_on_allocation_abort(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        profiler = profiler_factory().at_controller_agent(controller_agent)
+
+        cancelled_settle_job_counter = profiler.counter("rpc/server/canceled_request_count", tags={"yt_service": "JobTrackerService", "method": "SettleJob"})
+
+        op = run_test_vanilla(
+            "sleep 0.1",
+            job_count=1,
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 3000,
+                        "type": "sync",
+                    },
+                },
+            },
+        )
+
+        op.ensure_running()
+
+        orchid_path = self._get_job_tracker_orchid_path(controller_agent) + "/inflight_settle_job_requests"
+        wait(lambda: len(ls(orchid_path)) > 0, timeout=10)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            # Wait for the settle job request to be cancelled due to allocation abort (node heartbeat timeout).
+            wait(lambda: cancelled_settle_job_counter.get_delta() >= 1, timeout=10)
+            wait(lambda: len(ls(orchid_path)) == 0)
+
 
 @pytest.mark.enabled_multidaemon
 class TestJobTrackerRaces(YTEnvSetup):

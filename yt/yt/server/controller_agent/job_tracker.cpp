@@ -718,8 +718,8 @@ void TJobTracker::TOutBarrier::Init()
 }
 
 TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
-    // NB(pogorelov): We maust not cancel "out barrier" but should be able to cancel cancel "in barrier".
-    : Future_(outBarrier.Promise_.ToFuture().ToUncancelable().ToImmediatelyCancelable())
+    // NB(pogorelov): We must not cancel "out barrier" but should be able to cancel "in barrier".
+    : Future_(outBarrier.Promise_.ToFuture().ToImmediatelyCancelable(/*propagateCancelation*/ false))
     , Id_(outBarrier.Id_)
     , OutBarrierCreationTime_(outBarrier.CreatedAt_)
 { }
@@ -741,7 +741,7 @@ void TJobTracker::TInBarrier::Wait(TCallback&& onCanceled) const
     Future_.Subscribe(std::move(callback));
 
     // NB(pogorelov): Canceling request should not cancel barrier.
-    WaitFor(Future_.ToUncancelable().ToImmediatelyCancelable()).ThrowOnError();
+    WaitFor(Future_.ToImmediatelyCancelable(/*propagateCancelation*/ false)).ThrowOnError();
 }
 
 void TJobTracker::TInBarrier::Cancel(const TError& error) const
@@ -875,28 +875,6 @@ bool TJobTracker::TAllocationInfo::EraseFinishedJob(TJobId jobId)
     return FinishedJobs_.erase(jobId);
 }
 
-void TJobTracker::TAllocationInfo::FinishAndClearJobs() noexcept
-{
-    RunningJob_.reset();
-    FinishedJobs_.clear();
-    Finished_ = true;
-}
-
-void TJobTracker::TAllocationInfo::Finish(TSchedulerToAgentAllocationEvent&& event)
-{
-    YT_LOG_FATAL_IF(
-        Finished_ || PostponedAllocationEvent_,
-        "Event happened to already finished allocation (AllocationId: %v, Finished: %v, CurrentPostponedEvent: %v, NodeId: %v, NewEvent: %v)",
-        AllocationId,
-        Finished_,
-        PostponedAllocationEvent_,
-        NodeIdFromAllocationId(AllocationId),
-        event);
-
-    Finished_ = true;
-    PostponedAllocationEvent_ = std::move(event);
-}
-
 TSchedulerToAgentAllocationEvent TJobTracker::TAllocationInfo::ConsumePostponedEventOrCrash()
 {
     YT_VERIFY(PostponedAllocationEvent_);
@@ -934,6 +912,36 @@ void TJobTracker::TAllocationInfo::SetNewJobSettlingBarrier(TInBarrier barrier)
 const std::optional<TJobTracker::TInBarrier>& TJobTracker::TAllocationInfo::GetNewJobSettlingBarrier() const
 {
     return NewJobSettlingBarrier_;
+}
+
+void TJobTracker::TAllocationInfo::FinishAndClearJobs() noexcept
+{
+    RunningJob_.reset();
+    FinishedJobs_.clear();
+    Finished_ = true;
+
+    if (auto barrier = GetNewJobSettlingBarrier()) {
+        barrier->Cancel(TError("Allocation finished"));
+    }
+}
+
+void TJobTracker::TAllocationInfo::Finish(TSchedulerToAgentAllocationEvent&& event)
+{
+    YT_LOG_FATAL_IF(
+        Finished_ || PostponedAllocationEvent_,
+        "Event happened to already finished allocation (AllocationId: %v, Finished: %v, CurrentPostponedEvent: %v, NodeId: %v, NewEvent: %v)",
+        AllocationId,
+        Finished_,
+        PostponedAllocationEvent_,
+        NodeIdFromAllocationId(AllocationId),
+        event);
+
+    Finished_ = true;
+    PostponedAllocationEvent_ = std::move(event);
+
+    if (auto barrier = GetNewJobSettlingBarrier()) {
+        barrier->Cancel(TError("Allocation finished with event %v", GetPostponedEvent()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1187,7 +1195,12 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         class TSettleJobRequestGuard
         {
         public:
-            TSettleJobRequestGuard(TJobTracker& jobTracker, TAllocationId allocationId, TOperationId operationId, std::optional<TJobId> lastJobId, const TCtxSettleJobPtr& context)
+            TSettleJobRequestGuard(
+                TJobTracker& jobTracker,
+                TAllocationId allocationId,
+                TOperationId operationId,
+                std::optional<TJobId> lastJobId,
+                const TCtxSettleJobPtr& context)
                 : JobTracker_(jobTracker)
                 , AllocationId_(allocationId)
                 , OperationId_(operationId)
@@ -1203,7 +1216,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
                     .OperationId = operationId,
                     .LastJobId = lastJobId,
                     .Stage = ESettleJobRequestStage::WaitingOnBarrier,
-                    .ProcessingStartTime = TInstant::Now()
+                    .RequestContext = context,
                 });
             }
 
@@ -1219,6 +1232,8 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
 
             void SetStage(ESettleJobRequestStage stage)
             {
+                YT_ASSERT_INVOKER_AFFINITY(JobTracker_.GetInvoker());
+
                 RequestInfoIt_->second.Stage = stage;
             }
 
@@ -1805,7 +1820,7 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                 "JobId: %v",
                 jobId);
 
-            auto newJobStage = JobStageFromJobState(jobSummary.JobSummary->State);
+            const auto newJobStage = JobStageFromJobState(jobSummary.JobSummary->State);
 
             auto increaseJobMessageSizes = [&] (bool isKnownJob) {
                 int index = static_cast<int>(isKnownJob);
@@ -1835,7 +1850,9 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                     // (Actually, for now we never throttle finish jobs at all.)
                     if (!wasJobEventThrottled) {
                         YT_VERIFY(!operationUpdatesProcessingContext.ContextProcessedBarrier.IsEmpty());
-                        allocation.SetNewJobSettlingBarrier(operationUpdatesProcessingContext.ContextProcessedBarrier);
+                        if (!allocation.IsFinished() && newJobStage == EJobStage::Finished) {
+                            allocation.SetNewJobSettlingBarrier(operationUpdatesProcessingContext.ContextProcessedBarrier);
+                        }
                     }
 
                     continue;
@@ -2848,10 +2865,6 @@ std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded
 
         auto result = std::move(allocation);
 
-        if (auto barrier = result.GetNewJobSettlingBarrier()) {
-            barrier->Cancel(TError("Allocation removed after processing event %v", result.GetPostponedEvent()));
-        }
-
         if (!operationInfo) {
             operationInfo = &GetOrCrash(RegisteredOperations_, operationId);
         }
@@ -3230,7 +3243,7 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const std::string& nodeAddress,
                     });
             }
 
-            allocation.FinishAndClearJobs();
+            FinishAllocationAndClearJobs(allocation);
 
             YT_VERIFY(EraseAllocationIfNeeded(nodeJobs, allocationIt));
         }
@@ -3367,7 +3380,7 @@ void TJobTracker::ProcessAllocationEvent(
 
     auto& allocation = allocationIt->second;
 
-    allocation.Finish(TSchedulerToAgentAllocationEvent{std::move(allocationEvent)});
+    FinishAllocation(allocation, TSchedulerToAgentAllocationEvent{std::move(allocationEvent)});
 
     if (!allocation.GetRunningJob()) {
         skipAllocationEvent("Event happened on empty allocation", allocation.template ConsumePostponedEventOrCrash<TAllocationEvent>(), nodeInfo, allocationIt);
@@ -3665,6 +3678,37 @@ void TJobTracker::ProcessOperationContexts(THashMap<TOperationId, TOperationUpda
     for (auto& [operationId, operationUpdatesProcessingContext] : contexts) {
         ProcessOperationContext(std::move(operationUpdatesProcessingContext));
     }
+}
+
+void TJobTracker::CancelAllocationSettleJobRequests(TAllocationId allocationId)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    if (auto it = SettleJobRequestInfos_.find(allocationId); it != end(SettleJobRequestInfos_)) {
+        for (auto& requestInfo : it->second) {
+            requestInfo.second.RequestContext->Cancel();
+        }
+    }
+}
+
+// NB(pogorelov): FinishAndClearJobs() and FinishAllocation() will cancel barriers
+// that is already set or canceled by CancelAllocationSettleJobRequests.
+// But removing barrier cancelation from these methods would make code inconsistent.
+void TJobTracker::FinishAllocationAndClearJobs(TAllocationInfo& allocationInfo)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    CancelAllocationSettleJobRequests(allocationInfo.AllocationId);
+
+    allocationInfo.FinishAndClearJobs();
+}
+void TJobTracker::FinishAllocation(TAllocationInfo& allocationInfo, TSchedulerToAgentAllocationEvent&& event)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    CancelAllocationSettleJobRequests(allocationInfo.AllocationId);
+
+    allocationInfo.Finish(std::move(event));
 }
 
 void TJobTracker::DoInitialize(IInvokerPtr cancelableInvoker)
