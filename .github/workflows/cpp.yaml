@@ -32,7 +32,7 @@ jobs:
           memory: 64GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 558GB
+          disk-size: 744GB
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
