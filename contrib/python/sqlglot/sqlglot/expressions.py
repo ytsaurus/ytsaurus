@@ -1838,6 +1838,7 @@ class AlterColumn(Expression):
         "comment": False,
         "allow_null": False,
         "visible": False,
+        "rename_to": False,
     }
 
 
@@ -3633,6 +3634,7 @@ class Update(DML):
         "returning": False,
         "order": False,
         "limit": False,
+        "options": False,
     }
 
     def table(
@@ -4956,6 +4958,7 @@ class Alter(Expression):
         "cluster": False,
         "not_valid": False,
         "check": False,
+        "cascade": False,
     }
 
     @property
@@ -6754,7 +6757,13 @@ class JSONExists(Func):
 # https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/JSON_TABLE.html
 # Note: parsing of JSON column definitions is currently incomplete.
 class JSONColumnDef(Expression):
-    arg_types = {"this": False, "kind": False, "path": False, "nested_schema": False}
+    arg_types = {
+        "this": False,
+        "kind": False,
+        "path": False,
+        "nested_schema": False,
+        "ordinality": False,
+    }
 
 
 class JSONSchema(Expression):
