@@ -682,6 +682,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::CompressionRatio);
     descriptors->push_back(EInternedAttributeKey::UpdateMode);
+    descriptors->push_back(EInternedAttributeKey::SecurityTagsUpdateMode);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationFactor)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Vital)
@@ -800,6 +801,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         case EInternedAttributeKey::UpdateMode:
             BuildYsonFluently(consumer)
                 .Value(node->GetUpdateMode());
+            return true;
+
+        case EInternedAttributeKey::SecurityTagsUpdateMode:
+            BuildYsonFluently(consumer)
+                .Value(node->GetSecurityTagsUpdateMode());
             return true;
 
         case EInternedAttributeKey::Media: {
@@ -1196,6 +1202,8 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
         case EInternedAttributeKey::SecurityTags: {
             auto* node = LockThisImpl<TChunkOwnerBase>();
+
+            // This can probably be removed.
             if (node->GetUpdateMode() == EUpdateMode::Append) {
                 THROW_ERROR_EXCEPTION("Cannot change security tags of a node in %Qlv update mode",
                     node->GetUpdateMode());
@@ -1208,8 +1216,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode "
-                "(NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v)",
+            YT_LOG_DEBUG("Updating node security tags (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v)",
                 node->GetVersionedId(),
                 node->ComputeSecurityTags().Items,
                 securityTags.Items);
@@ -1217,7 +1224,11 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
             node->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
-            node->SetUpdateMode(EUpdateMode::Overwrite);
+            node->DeltaSecurityTags() = {};
+            if (!node->IsTrunk()) {
+                node->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Overwrite);
+            }
+
             return true;
         }
 

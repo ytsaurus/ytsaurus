@@ -1967,6 +1967,7 @@ class TestCrossCellCopy(YTEnvSetup):
             tx = start_transaction()
             self.CONTEXT_DEPENDENT_ATTRIBUTES.append("ref_counter")
             self.CONTEXT_DEPENDENT_ATTRIBUTES.append("update_mode")
+            self.CONTEXT_DEPENDENT_ATTRIBUTES.append("security_tags_update_mode")
 
         self.create_subtree(src_path, tx=tx)
         self.execute_command(
@@ -1981,6 +1982,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
         if use_tx:
             if self.COMMAND == "copy":
+                assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "security_tags_update_mode"
                 assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "update_mode"
                 assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "ref_counter"
             else:
@@ -2319,6 +2321,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("ref_counter")
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("update_mode")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("security_tags_update_mode")
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_count")
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_mode")
         self.CONTEXT_DEPENDENT_ATTRIBUTES.append("resource_usage")
@@ -2329,6 +2332,7 @@ class TestCrossCellCopy(YTEnvSetup):
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "resource_usage"
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "lock_mode"
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "lock_count"
+        assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "security_tags_update_mode"
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "update_mode"
         assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "ref_counter"
 

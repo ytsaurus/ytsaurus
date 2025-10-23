@@ -2,14 +2,15 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, concatenate, start_transaction, commit_transaction,
-    lock, write_file,
-    read_table, write_table, map)
+    lock, write_file, copy, read_table, write_table, map)
 
 from yt_helpers import wait_until_unlocked
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 import pytest
+
+import time
 
 ##################################################################
 
@@ -158,6 +159,7 @@ class TestSecurityTags(YTEnvSetup):
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
 
     @authors("babenko")
+    # I think this should actually be fine...
     def test_cannot_update_security_tags_in_append_mode(self):
         create("table", "//tmp/t")
 
@@ -274,6 +276,58 @@ class TestSecurityTags(YTEnvSetup):
         wait_until_unlocked("//tmp/t")
         write_table('<security_tags=["' + "a" * 128 + '"]>//tmp/t', [])
 
+    @authors("h0pless")
+    def test_tag_update_mode(self):
+        path = "//tmp/table"
+        create("table", path, attributes={"security_tags": ["my-amazing-tag"]})
+        assert get(f"{path}/@security_tags_update_mode") == "none"
+
+        set(f"{path}/@security_tags", ["some-other-tag"])
+        assert get(f"{path}/@security_tags_update_mode") == "none"
+
+        payload = [{"key": "key", "more": "a"}]
+
+        tx = start_transaction()
+        # Appending to a node with mode "none" should set mode to append.
+        write_table(f"<append=%true;security_tags=[more-tags]>{path}", payload, tx=tx)
+        assert get(f"{path}/@security_tags_update_mode", tx=tx) == "append"
+        assert_items_equal(get(f"{path}/@security_tags", tx=tx), ["some-other-tag", "more-tags"])
+
+        child_tx = start_transaction(tx=tx)
+        # Overwriting tags, however, should set the mode to overwrite, while adding extra tags.
+        write_table(f"<security_tags=[the-best-tag]>{path}", payload, tx=child_tx)
+        assert get(f"{path}/@security_tags_update_mode", tx=child_tx) == "overwrite"
+        assert_items_equal(get(f"{path}/@security_tags", tx=child_tx), ["the-best-tag"])
+
+        # But should do nothing to the original branch.
+        assert get(f"{path}/@security_tags_update_mode", tx=tx) == "append"
+        assert_items_equal(get(f"{path}/@security_tags", tx=tx), ["some-other-tag", "more-tags"])
+
+        # Merging overwrite over append should lead to an overwrite.
+        commit_transaction(child_tx)
+        assert get(f"{path}/@security_tags_update_mode", tx=tx) == "overwrite"
+        assert_items_equal(get(f"{path}/@security_tags", tx=tx), ["the-best-tag"])
+
+        # Directly overwriting an overwrite brach should take priority.
+        set(f"{path}/@security_tags", ["cool-tag"], tx=tx)
+        assert get(f"{path}/@security_tags_update_mode", tx=tx) == "overwrite"
+        assert_items_equal(get(f"{path}/@security_tags", tx=tx), ["cool-tag"])
+
+        # Appending security tags to an overwriting branch should keep overwrite priority, but add extra tags.
+        write_table(f"<append=%true;security_tags=[more-tags]>{path}", payload, tx=tx)
+        assert get(f"{path}/@security_tags_update_mode", tx=tx) == "overwrite"
+        assert_items_equal(get(f"{path}/@security_tags", tx=tx), ["cool-tag", "more-tags"])
+
+        # Appending data should not change anything about the security tags.
+        write_table(f"<append=%true>{path}", payload, tx=tx)
+        assert get(f"{path}/@security_tags_update_mode", tx=tx) == "overwrite"
+        assert_items_equal(get(f"{path}/@security_tags", tx=tx), ["cool-tag", "more-tags"])
+
+        # Trunk should keep the changes, while setting mode to none.
+        commit_transaction(tx)
+        assert get(f"{path}/@security_tags_update_mode") == "none"
+        assert_items_equal(get(f"{path}/@security_tags"), ["cool-tag", "more-tags"])
+
 
 ##################################################################
 
@@ -286,3 +340,38 @@ class TestSecurityTagsMulticell(TestSecurityTags):
     MASTER_CELL_DESCRIPTORS = {
         "11": {"roles": ["chunk_host"]},
     }
+
+
+##################################################################
+
+
+class TestSecurityTagsPortal(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    PAYLOAD = [{"key": "value"}]
+
+    @authors("h0pless")
+    def test_security_tags_core(self):
+        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
+
+        source_path = "//tmp/table"
+        destination_path = "//tmp/portal/table_copy_with_security_tags"
+
+        tx = start_transaction()
+        create("table", source_path, tx=tx)
+        write_table(f"<append=%true>{source_path}", self.PAYLOAD, tx=tx)
+        copy(source_path, destination_path, tx=tx)
+
+        set(f"{destination_path}/@security_tags", ["my_amazing_tag"], tx=tx)
+        commit_transaction(tx)
+
+        # Just don't crash...
+        time.sleep(2)

@@ -4,6 +4,7 @@
 #include "chunk_merger_traversal_info.h"
 #include "chunk_owner_data_statistics.h"
 
+#include <yt/yt/server/master/cypress_server/public.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
 #include <yt/yt/server/master/table_server/public.h>
@@ -29,6 +30,7 @@ class TChunkOwnerBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);
+    DEFINE_BYVAL_RW_PROPERTY(NCypressServer::ESecurityTagsUpdateMode, SecurityTagsUpdateMode, NCypressServer::ESecurityTagsUpdateMode::None);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, HunkReplication);
     DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, SnapshotStatistics);

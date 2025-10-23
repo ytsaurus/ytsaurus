@@ -103,8 +103,23 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         return true;
     }
 
+    // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
+    // Paranoia won. Should be safe to remove after 25.4.
+    auto appendEmptySecurityTags =
+        branchedNode->GetSecurityTagsUpdateMode() == ESecurityTagsUpdateMode::Append &&
+        branchedNode->DeltaSecurityTags()->IsEmpty();
+    YT_LOG_ALERT_IF(
+        appendEmptySecurityTags,
+        "Found a node with append security tags update mode, but no changes in security tags "
+        "(NodeId: %v, DeltaSecurityTags: %v, SnapshotSecurityTags: %v)",
+        branchedNode->GetVersionedId(),
+        branchedNode->DeltaSecurityTags()->Items,
+        branchedNode->SnapshotSecurityTags()->Items);
+
     return
         branchedNode->GetUpdateMode() != EUpdateMode::None ||
+        branchedNode->GetSecurityTagsUpdateMode() != ESecurityTagsUpdateMode::None ||
+        appendEmptySecurityTags ||
         branchedNode->GetPrimaryMediumIndex() != originatingNode->GetPrimaryMediumIndex() ||
         branchedNode->Replication() != originatingNode->Replication() ||
         branchedNode->GetHunkPrimaryMediumIndex() != originatingNode->GetHunkPrimaryMediumIndex() ||
@@ -113,9 +128,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
         branchedNode->GetEnableStripedErasure() != originatingNode->GetEnableStripedErasure() ||
         branchedNode->GetChunkMergerMode() != originatingNode->GetChunkMergerMode() ||
-        branchedNode->GetEnableSkynetSharing() != originatingNode->GetEnableSkynetSharing() ||
-        !branchedNode->DeltaSecurityTags()->IsEmpty() ||
-        !TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
+        branchedNode->GetEnableSkynetSharing() != originatingNode->GetEnableSkynetSharing();
 }
 
 template <class TChunkOwner>
@@ -300,6 +313,25 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             ? EUpdateMode::Overwrite
             : EUpdateMode::Append;
 
+    if (branchedNode->GetSecurityTagsUpdateMode() != ESecurityTagsUpdateMode::None) {
+        if (topmostCommit || branchedNode->GetSecurityTagsUpdateMode() == ESecurityTagsUpdateMode::Overwrite) {
+            originatingNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(branchedNode->ComputeSecurityTags());
+            originatingNode->DeltaSecurityTags() = {};
+        } else if (branchedNode->GetSecurityTagsUpdateMode() == ESecurityTagsUpdateMode::Append) {
+            originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
+                *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
+        }
+
+        auto newOriginatingSecurityTagsMode = topmostCommit
+            ? ESecurityTagsUpdateMode::None
+            : originatingNode->GetSecurityTagsUpdateMode() == ESecurityTagsUpdateMode::Overwrite ||
+              branchedNode->GetSecurityTagsUpdateMode() == ESecurityTagsUpdateMode::Overwrite
+                ? ESecurityTagsUpdateMode::Overwrite
+                : ESecurityTagsUpdateMode::Append;
+
+        originatingNode->SetSecurityTagsUpdateMode(newOriginatingSecurityTagsMode);
+    }
+
     // Check if we have anything to do at all.
     if (branchedMode == EUpdateMode::None) {
         // If ChunkMergerMode was changed need to reschedule chunk merge.
@@ -382,8 +414,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         originatingNode->SnapshotStatistics() = branchedNode->SnapshotStatistics();
         *originatingNode->MutableDeltaStatistics() = branchedNode->DeltaStatistics();
-        originatingNode->SnapshotSecurityTags() = branchedNode->SnapshotSecurityTags();
-        originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
         originatingNode->ChunkMergerTraversalInfo() = {};
     } else {
         YT_VERIFY(branchedMode == EUpdateMode::Append);
@@ -520,19 +550,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         // Update statistics.
         if (originatingMode == EUpdateMode::Append) {
             YT_VERIFY(!topmostCommit);
-
             *originatingNode->MutableDeltaStatistics() += branchedNode->DeltaStatistics();
-            originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
-                *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
         } else {
             if (newOriginatingMode == EUpdateMode::Append) {
                 *originatingNode->MutableDeltaStatistics() += branchedNode->DeltaStatistics();
-                originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
-                    *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
             } else {
                 originatingNode->SnapshotStatistics() += branchedNode->DeltaStatistics();
-                originatingNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(
-                    *originatingNode->SnapshotSecurityTags() + *branchedNode->DeltaSecurityTags());
             }
         }
 
@@ -569,11 +592,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG(
-        "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
-        "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
-        "BranchedHunkChunkListId: %v, BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, "
-        "BranchedReplication: %v, NewOriginatingChunkListId: %v, NewOriginatingHunkChunkListId: %v, "
-        "NewOriginatingUpdateMode: %v, BranchedSnapshotStatistics: %v, BranchedDeltaStatistics: %v, "
+        "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, OriginatingReplication: %v, "
+        "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedHunkChunkListId: %v, BranchedUpdateMode: %v, "
+        "BranchedSecurityTagsUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedReplication: %v, "
+        "NewOriginatingChunkListId: %v, NewOriginatingHunkChunkListId: %v, NewOriginatingUpdateMode: %v, "
+        "NewOriginatingSecurityTagsUpdateMode: %v, BranchedSnapshotStatistics: %v, BranchedDeltaStatistics: %v, "
         "NewOriginatingSnapshotStatistics: %v, NewOriginatingDeltaStatistics: %v)",
         originatingNode->GetVersionedId(),
         originatingPrimaryMedium->GetName(),
@@ -582,11 +605,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
         NObjectServer::GetObjectId(branchedNode->GetChunkList()),
         NObjectServer::GetObjectId(branchedNode->GetHunkChunkList()),
         branchedNode->GetUpdateMode(),
+        branchedNode->GetSecurityTagsUpdateMode(),
         branchedPrimaryMedium->GetName(),
         branchedNode->Replication(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()),
         originatingNode->GetUpdateMode(),
+        originatingNode->GetSecurityTagsUpdateMode(),
         branchedNode->SnapshotStatistics(),
         branchedNode->DeltaStatistics(),
         originatingNode->SnapshotStatistics(),
@@ -616,6 +641,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
     clonedTrunkNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
+    clonedTrunkNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::None);
 
     // NB: leaving delta statistics empty as snapshot statistics already take
     // it into account as part of the sum. Ditto security tags.
@@ -668,6 +694,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoSerializeNode(
     Save(*context, node->Replication());
     Save(*context, node->SnapshotStatistics());
     Save(*context, node->DeltaStatistics());
+    // Not saving security tags update mode here because on a cloned node it should always be none.
     Save(*context, node->SnapshotSecurityTags());
     Save(*context, node->DeltaSecurityTags());
     Save(*context, node->GetCompressionCodec());
@@ -706,6 +733,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMaterializeNode(
     const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
     trunkNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
+    trunkNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::None);
 
     trunkNode->SetCompressionCodec(Load<NCompression::ECodec>(*context));
     trunkNode->SetErasureCodec(Load<NErasure::ECodec>(*context));

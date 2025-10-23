@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAccountInSequoiaCopy)                                      (3044))  // h0pless
     ((SupportMaxNodeChildCountInSequoia)                            (3045))  // babenko
     ((MountPermissionToSequoiaNodes)                                (3046))  // danilalexeev
+    ((FixSecurityTagsMessingWithChunkListStructure)                 (3047))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

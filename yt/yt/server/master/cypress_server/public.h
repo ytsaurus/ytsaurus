@@ -116,6 +116,12 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ELockKeyKind, i8,
     ((Attribute)(2))
 );
 
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESecurityTagsUpdateMode, i8,
+    ((None)                     (0))
+    ((Append)                   (1))
+    ((Overwrite)                (2))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

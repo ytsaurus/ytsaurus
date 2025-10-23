@@ -2759,6 +2759,9 @@ private:
     // COMPAT(h0pless): FixSchemaDivergence.
     bool RecalculateSchemas_ = false;
 
+    // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
+    bool ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2835,6 +2838,10 @@ private:
         {
             RecalculateSchemas_ = true;
         }
+
+        if (context.GetVersion() < EMasterReign::FixSecurityTagsMessingWithChunkListStructure) {
+            ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = true;
+        }
     }
 
     void Clear() override
@@ -2863,6 +2870,7 @@ private:
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
         DropLegacyCellMapsOnSnapshotLoaded_ = false;
         RecalculateSchemas_ = false;
+        ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_ = false;
     }
 
     void SetZeroState() override
@@ -3102,6 +3110,36 @@ private:
                 }
             }
         }
+
+        // COMPAT(h0pless): FixSecurityTagsMessingWithChunkListStructure.
+        if (ResetUpdateModeOnTrunkNodesAndInferSecurityTagsUpdateMode_) {
+            for (auto [nodeId, node] : NodeMap_) {
+                if (!IsChunkOwnerType(node->GetType())) {
+                    continue;
+                }
+
+                auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
+
+                auto chunkOwnerUpdateMode = chunkOwnerNode->GetUpdateMode();
+                if (node->IsTrunk() && chunkOwnerNode->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
+                    YT_LOG_ALERT("Resetting update mode on a trunk node (NodeId: %v, OldUpdateMode: %v, NewUpdateMode: %v)",
+                        nodeId,
+                        chunkOwnerNode->GetUpdateMode(),
+                        NChunkClient::EUpdateMode::None);
+                    chunkOwnerNode->SetUpdateMode(NChunkClient::EUpdateMode::None);
+
+                    // No need to set non-trivial security tags update mode on trunk nodes.
+                    continue;
+                }
+
+                // Migrate to security tags update mode.
+                if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Append) {
+                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Append);
+                } else if (chunkOwnerUpdateMode == NChunkClient::EUpdateMode::Overwrite) {
+                    chunkOwnerNode->SetSecurityTagsUpdateMode(ESecurityTagsUpdateMode::Overwrite);
+                }
+            }
+        }
     }
 
     void CheckInvariants() override
@@ -3116,9 +3154,42 @@ private:
         }
 
         for (auto [nodeId, node] : NodeMap_) {
+            if (IsChunkOwnerType(node->GetType())) {
+                auto* chunkOnwerNode = node->As<TChunkOwnerBase>();
+                auto securityTagsUpdateMode = chunkOnwerNode->GetSecurityTagsUpdateMode();
+
+                if (securityTagsUpdateMode == ESecurityTagsUpdateMode::None) {
+                    YT_LOG_ALERT_UNLESS(chunkOnwerNode->DeltaSecurityTags()->IsEmpty(),
+                        "Node with a trivial security tags update mode has delta security tags "
+                        "(NodeId: %v, DeltaSecurityTags: %v, SnapshotSecurityTags: %v)",
+                        chunkOnwerNode->GetVersionedId(),
+                        chunkOnwerNode->DeltaSecurityTags()->Items,
+                        chunkOnwerNode->SnapshotSecurityTags()->Items);
+                } else if (securityTagsUpdateMode == ESecurityTagsUpdateMode::Append) {
+                    YT_LOG_ALERT_IF(chunkOnwerNode->DeltaSecurityTags()->IsEmpty(),
+                        "Node with append security tags update mode has empty delta security tags "
+                        "(NodeId: %v, DeltaSecurityTags: %v, SnapshotSecurityTags: %v)",
+                        chunkOnwerNode->GetVersionedId(),
+                        chunkOnwerNode->DeltaSecurityTags()->Items,
+                        chunkOnwerNode->SnapshotSecurityTags()->Items);
+                }
+
+                if (chunkOnwerNode->IsTrunk()) {
+                    auto updateMode = chunkOnwerNode->GetUpdateMode();
+                    YT_LOG_ALERT_UNLESS(updateMode == NChunkClient::EUpdateMode::None,
+                        "Trunk node with non-trivial update mode was found (NodeId: %v, UpdateMode: %v)",
+                        nodeId,
+                        updateMode);
+
+                    YT_LOG_ALERT_UNLESS(securityTagsUpdateMode == ESecurityTagsUpdateMode::None,
+                        "Trunk node with non-trivial security tags update mode was found (NodeId: %v, SecurityTagsUpdateMode: %v)",
+                        nodeId,
+                        updateMode);
+                }
+            }
+
             if (!node->IsTrunk()) {
                 auto transactionId = node->GetTransaction()->GetId();
-
                 if (!transactionToBranchedNodes.contains(transactionId)) {
                     YT_LOG_ALERT("Found a branch without active transaction (NodeId: %v)", node->GetVersionedId());
                     continue;
@@ -3129,8 +3200,10 @@ private:
                 } else {
                     transactionToBranchedNodes[transactionId].EraseOrCrash(node);
                 }
+
                 continue;
             }
+
             if (node->GetObjectRefCounter() == 0 &&
                 node->GetObjectWeakRefCounter() == 0 &&
                 node->GetObjectEphemeralRefCounter() == 0 &&
