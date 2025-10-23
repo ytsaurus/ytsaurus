@@ -29,14 +29,12 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-
-#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -46,10 +44,7 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
-
-#include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -59,19 +54,19 @@
 
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
+#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
-#include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <yt/yt/library/query/base/coordination_helpers.h>
 #include <yt/yt/library/query/base/helpers.h>
-#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query_common.h>
 #include <yt/yt/library/query/base/query_helpers.h>
-#include <yt/yt/library/query/base/coordination_helpers.h>
-#include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>

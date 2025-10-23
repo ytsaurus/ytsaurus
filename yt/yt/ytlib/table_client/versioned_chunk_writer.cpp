@@ -4,7 +4,6 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "helpers.h"
-#include "row_merger.h"
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
 #include "key_filter.h"
@@ -28,6 +27,8 @@
 #include <yt/yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/encoding_writer.h>
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
+
+#include <yt/yt/library/row_merger/row_merger.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_writer.h>
@@ -264,7 +265,7 @@ protected:
     const ui64 SamplingThreshold_;
 
     struct TVersionedChunkWriterBaseTag { };
-    TSamplingRowMerger SamplingRowMerger_;
+    NRowMerger::TSamplingRowMerger SamplingRowMerger_;
 
     TColumnarStatistics ColumnarStatistics_;
 

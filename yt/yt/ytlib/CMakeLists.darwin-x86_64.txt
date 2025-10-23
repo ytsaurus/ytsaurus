@@ -89,6 +89,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-orchid
   library-profiling-solomon
   yt-library-program
+  yt-library-row_merger
   library-query-base
   library-query-engine
   library-query-engine_api
@@ -524,15 +525,12 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/min_hash_digest_builder.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/nested_row_merger.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_level_security.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_dictionary.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_inferer.cpp
@@ -561,7 +559,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_offloading_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_reader_adapter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_digest.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_row_merger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/virtual_value_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/backup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/config.cpp
@@ -1827,6 +1824,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-orchid
   library-profiling-solomon
   yt-library-program
+  yt-library-row_merger
   library-query-base
   library-query-engine
   library-query-engine_api

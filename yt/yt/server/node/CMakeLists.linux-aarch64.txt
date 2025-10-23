@@ -69,6 +69,7 @@ target_link_libraries(yt-server-node PUBLIC
   library-query-engine
   library-query-row_comparer
   yt-library-re2
+  yt-library-row_merger
   yt-library-server_program
   yt-library-tcmalloc
   library-tracing-baggage_manager

@@ -47,7 +47,6 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>

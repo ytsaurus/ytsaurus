@@ -1,5 +1,7 @@
 #include "failing_on_rotation_reader.h"
 
+#include "tablet.h"
+
 #include <yt/yt/client/table_client/unversioned_reader.h>
 
 namespace NYT::NTableClient {

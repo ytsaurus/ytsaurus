@@ -1,13 +1,11 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/library/row_merger/row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
+#include <yt/yt/library/row_merger/overlapping_reader.h>
 
-#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
-
-#include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
@@ -24,12 +22,12 @@
 
 #include <yt/yt/client/tablet_client/watermark_runtime_data.h>
 
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 
-using NChunkClient::TDataSliceDescriptor;
+using namespace NTableClient;
+
 using NYT::TRange;
 using NTabletClient::ERowMergerType;
 
@@ -57,14 +55,15 @@ void PrintTo(TIdentityComparableVersionedRow row, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 namespace {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
+using namespace NTableClient;
 using namespace NConcurrency;
 using namespace NQueryClient;
 using namespace NChunkClient::NProto;
@@ -89,12 +88,12 @@ protected:
         const std::vector<TTimestamp>& deleteTimestamps = {},
         const std::vector<TTimestamp>& extraWriteTimestamps = {})
     {
-        return NTableClient::YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
+        return YsonToVersionedRow(Buffer_, keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
     }
 
     TUnversionedRow BuildUnversionedRow(const TString& valueYson)
     {
-        auto row = NTableClient::YsonToSchemalessRow(valueYson);
+        auto row = YsonToSchemalessRow(valueYson);
         return Buffer_->CaptureRow(row);
     }
 
@@ -3115,4 +3114,4 @@ TEST_F(TVersionedMergingReaderTest, Merge1New)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger

@@ -21,7 +21,6 @@ SRCS(
     permission_cache_ut.cpp
     replication_reader_ut.cpp
     replication_writer_ut.cpp
-    row_merger_ut.cpp
     secondary_index_ut.cpp
     serialize_ut.cpp
     sorted_merging_reader_ut.cpp

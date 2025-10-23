@@ -9,10 +9,8 @@
 #include "granule_filter.h"
 #include "helpers.h"
 #include "hunks.h"
-#include "overlapping_reader.h"
 #include "remote_dynamic_store_reader.h"
 #include "row_level_security.h"
-#include "row_merger.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_read_spec.h"
@@ -45,6 +43,9 @@
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
+
+#include <yt/yt/library/row_merger/overlapping_reader.h>
+#include <yt/yt/library/row_merger/row_merger.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -1200,7 +1201,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto omitFromUserColumns = std::move(timestampOnlyColumns);
 
-    auto nestedSchema = GetNestedColumnsSchema(tableSchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tableSchema);
     if (auto insertedNestedKeyColumns = GetMissingNestedKeyColumnsIfNeeded(columnFilter, nestedSchema);
         !insertedNestedKeyColumns.empty())
     {
@@ -1439,7 +1440,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     { };
 
     const auto& connection = chunkReaderHost->Client->GetNativeConnection();
-    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<NRowMerger::TSchemafulRowMerger>(
         New<TRowBuffer>(TSchemalessMergingMultiChunkReaderBufferTag()),
         versionedReadSchema->GetColumnCount(),
         versionedReadSchema->GetKeyColumnCount(),
@@ -1449,9 +1450,9 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         connection->GetColumnEvaluatorCache()->Find(versionedReadSchema),
         retentionTimestamp,
         timestampColumnMapping,
-        GetNestedColumnsSchema(versionedReadSchema));
+        NRowMerger::GetNestedColumnsSchema(versionedReadSchema));
 
-    auto schemafulReader = CreateSchemafulOverlappingRangeReader(
+    auto schemafulReader = NRowMerger::CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         createVersionedReader,

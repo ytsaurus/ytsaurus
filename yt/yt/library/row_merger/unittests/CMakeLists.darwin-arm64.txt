@@ -12,10 +12,10 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(columnar_merge)
+add_executable(unittester-row-merger)
 
 
-target_compile_options(columnar_merge PRIVATE
+target_compile_options(unittester-row-merger PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -23,32 +23,22 @@ target_compile_options(columnar_merge PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_include_directories(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
-)
-
-target_link_libraries(columnar_merge PUBLIC
+target_link_libraries(unittester-row-merger PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
-  yt-server-node
-  server-lib-io
-  yt-yt-ytlib
-  library-query-row_comparer
-  yt-library-signals
+  cpp-testing-gtest
+  cpp-testing-gtest_main
   yt-library-row_merger
+  library-query-engine
   yt-yt-client
-  yt-yt-core
-  library-cpp-getopt
 )
 
-target_allocator(columnar_merge
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+target_allocator(unittester-row-merger
+  system_allocator
 )
 
-target_link_options(columnar_merge PRIVATE
+target_link_options(unittester-row-merger PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -56,10 +46,39 @@ target_link_options(columnar_merge PRIVATE
   CoreFoundation
 )
 
-target_sources(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/main.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
+target_sources(unittester-row-merger PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/row_merger/unittests/row_merger_ut.cpp
 )
 
 
-vcs_info(columnar_merge)
+add_test(
+  NAME
+  unittester-row-merger
+  COMMAND
+  unittester-row-merger
+)
+
+set_property(
+  TEST
+  unittester-row-merger
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  unittester-row-merger
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(unittester-row-merger)
+
+set_property(
+  TEST
+  unittester-row-merger
+  PROPERTY
+  PROCESSORS
+  1
+)

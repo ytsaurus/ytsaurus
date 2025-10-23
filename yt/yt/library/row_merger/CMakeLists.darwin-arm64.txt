@@ -12,10 +12,12 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(columnar_merge)
+add_subdirectory(unittests)
+
+add_library(yt-library-row_merger)
 
 
-target_compile_options(columnar_merge PRIVATE
+target_compile_options(yt-library-row_merger PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -23,43 +25,23 @@ target_compile_options(columnar_merge PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_include_directories(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
-  ${PROJECT_SOURCE_DIR}/contrib/libs/re2
-)
-
-target_link_libraries(columnar_merge PUBLIC
+target_link_libraries(yt-library-row_merger PUBLIC
   contrib-libs-cxxsupp
   yutil
-  build-cow-on
-  yt-server-node
-  server-lib-io
-  yt-yt-ytlib
-  library-query-row_comparer
-  yt-library-signals
-  yt-library-row_merger
   yt-yt-client
+  yt-library-numeric
+  library-query-base
+  library-query-engine_api
   yt-yt-core
-  library-cpp-getopt
+  cpp-yt-compact_containers
+  cpp-yt-memory
+  cpp-yt-yson_string
 )
 
-target_allocator(columnar_merge
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-default
+target_sources(yt-library-row_merger PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/row_merger/nested_row_merger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/row_merger/overlapping_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/row_merger/row_merger.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/row_merger/versioned_row_merger.cpp
 )
 
-target_link_options(columnar_merge PRIVATE
-  -Wl,-platform_version,macos,11.0,11.0
-  -fPIC
-  -fPIC
-  -framework
-  CoreFoundation
-)
-
-target_sources(columnar_merge PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/main.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/columnar_merge/routines.cpp
-)
-
-
-vcs_info(columnar_merge)

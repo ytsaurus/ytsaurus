@@ -9,11 +9,11 @@
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 
-using namespace NTransactionClient;
 using namespace NQueryClient;
-
+using namespace NTableClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -700,4 +700,4 @@ void TSamplingRowMerger::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger

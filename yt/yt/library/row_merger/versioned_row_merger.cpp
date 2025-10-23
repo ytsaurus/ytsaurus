@@ -1,13 +1,13 @@
 #include "versioned_row_merger.h"
 #include "nested_row_merger.h"
 
-#include "config.h"
-
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -17,11 +17,12 @@
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 
 using namespace NQueryClient;
-using namespace NTransactionClient;
+using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1306,4 +1307,4 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger

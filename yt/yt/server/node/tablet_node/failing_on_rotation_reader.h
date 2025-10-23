@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/node/tablet_node/tablet.h>
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////

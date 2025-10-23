@@ -14,6 +14,7 @@ PEERDIR(
     yt/yt/client
     yt/yt/server/lib/io
     yt/yt/ytlib
+    yt/yt/library/row_merger
     yt/yt/library/query/engine
     library/cpp/getopt/small
 )

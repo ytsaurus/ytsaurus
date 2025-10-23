@@ -36,6 +36,7 @@ target_link_libraries(offline_read PUBLIC
   yt-yt-client
   server-lib-io
   yt-yt-ytlib
+  yt-library-row_merger
   library-query-engine
   cpp-getopt-small
 )

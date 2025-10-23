@@ -36,6 +36,7 @@ RECURSE(
     query
     random
     re2
+    row_merger
     safe_assert
     server_program
     signals

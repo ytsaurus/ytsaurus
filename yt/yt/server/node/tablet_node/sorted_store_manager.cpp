@@ -30,12 +30,13 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -1023,7 +1024,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             writerProfiler->Update(hunkChunkPayloadWriter, hunkChunkWriterStatistics);
         });
 
-        auto onFlushRowMerger = CreateVersionedRowMerger(
+        auto onFlushRowMerger = NRowMerger::CreateVersionedRowMerger(
             mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
             tabletSnapshot->QuerySchema,
@@ -1047,7 +1048,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto majorTimestamp = std::min(unflushedTimestamp, tabletSnapshot->RetainedTimestamp);
 
-        auto compactionRowMerger = CreateVersionedRowMerger(
+        auto compactionRowMerger = NRowMerger::CreateVersionedRowMerger(
             mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
             tabletSnapshot->QuerySchema,

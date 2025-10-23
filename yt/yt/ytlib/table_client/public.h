@@ -117,12 +117,6 @@ DECLARE_REFCOUNTED_CLASS(TBlockMetaCache)
 
 DECLARE_REFCOUNTED_CLASS(TTableColumnarStatisticsCache)
 
-class TSchemafulRowMerger;
-class TUnversionedRowMerger;
-class TSamplingRowMerger;
-
-struct IVersionedRowMerger;
-
 DECLARE_REFCOUNTED_STRUCT(TTableWriterOptions)
 DECLARE_REFCOUNTED_STRUCT(TTableReaderOptions)
 

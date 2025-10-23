@@ -470,15 +470,12 @@ SRCS(
     table_client/key_filter.cpp
     table_client/key_set.cpp
     table_client/min_hash_digest_builder.cpp
-    table_client/nested_row_merger.cpp
-    table_client/overlapping_reader.cpp
     table_client/partition_chunk_reader.cpp
     table_client/partition_sort_reader.cpp
     table_client/partitioner.cpp
     table_client/performance_counters.cpp
     table_client/remote_dynamic_store_reader.cpp
     table_client/row_level_security.cpp
-    table_client/row_merger.cpp
     table_client/samples_fetcher.cpp
     table_client/schema_dictionary.cpp
     table_client/schema_inferer.cpp
@@ -507,7 +504,6 @@ SRCS(
     table_client/versioned_offloading_reader.cpp
     table_client/versioned_reader_adapter.cpp
     table_client/versioned_row_digest.cpp
-    table_client/versioned_row_merger.cpp
     table_client/virtual_value_directory.cpp
 
     table_client/proto/row_level_security.proto
@@ -802,6 +798,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/program
+    yt/yt/library/row_merger
     yt/yt/library/query/base
     yt/yt/library/query/engine
     yt/yt/library/query/engine_api

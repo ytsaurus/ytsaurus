@@ -35,13 +35,14 @@ target_link_libraries(columnar_merge PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
-  library-query-row_comparer
-  yt-yt-core
-  yt-yt-client
-  yt-yt-ytlib
   yt-server-node
   server-lib-io
+  yt-yt-ytlib
+  library-query-row_comparer
   yt-library-signals
+  yt-library-row_merger
+  yt-yt-client
+  yt-yt-core
   library-cpp-getopt
 )
 
