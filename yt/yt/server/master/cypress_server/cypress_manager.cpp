@@ -53,6 +53,7 @@
 #include <yt/yt/server/master/node_tracker_server/cypress_integration.h>
 
 #include <yt/yt/server/master/object_server/cypress_integration.h>
+#include <yt/yt/server/master/object_server/garbage_collector.h>
 #include <yt/yt/server/master/object_server/object_detail.h>
 #include <yt/yt/server/master/object_server/sys_node_type_handler.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
@@ -3099,6 +3100,51 @@ private:
                 if (batchSize > 0) {
                     sendRequestAndLog(cellTag, req);
                 }
+            }
+        }
+    }
+
+    void CheckInvariants() override
+    {
+        TMasterAutomatonPart::CheckInvariants();
+
+        const auto& garbageCollector = Bootstrap_->GetObjectManager()->GetGarbageCollector();
+
+        THashMap<TTransactionId, TBranchedNodeSet> transactionToBranchedNodes;
+        for (auto [transactionId, transaction] : Bootstrap_->GetTransactionManager()->Transactions()) {
+            transactionToBranchedNodes[transactionId] = transaction->BranchedNodes();
+        }
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!node->IsTrunk()) {
+                auto transactionId = node->GetTransaction()->GetId();
+
+                if (!transactionToBranchedNodes.contains(transactionId)) {
+                    YT_LOG_ALERT("Found a branch without active transaction (NodeId: %v)", node->GetVersionedId());
+                    continue;
+                }
+
+                if (!transactionToBranchedNodes[transactionId].Contains(node)) {
+                    YT_LOG_ALERT("Found a branch missing in the transaction's BranchedNodeSet (NodeId: %v)", node->GetVersionedId());
+                } else {
+                    transactionToBranchedNodes[transactionId].EraseOrCrash(node);
+                }
+                continue;
+            }
+            if (node->GetObjectRefCounter() == 0 &&
+                node->GetObjectWeakRefCounter() == 0 &&
+                node->GetObjectEphemeralRefCounter() == 0 &&
+                !garbageCollector->IsRegisteredZombie(node) &&
+                !garbageCollector->IsEphemeralGhost(node))
+            {
+                YT_LOG_ALERT("Node leak detected (NodeId: %v)", node->GetId());
+            }
+        }
+
+        for (auto& [transactionId, branchNodeSet]: transactionToBranchedNodes) {
+            for (auto node : branchNodeSet) {
+                YT_LOG_ALERT("Found a branch missing in the entity map, but held by a transaction (NodeId: %v)",
+                    node->GetVersionedId());
             }
         }
     }
