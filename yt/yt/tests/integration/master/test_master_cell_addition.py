@@ -4,11 +4,11 @@ from yt.environment.helpers import assert_items_equal
 from yt.environment.default_config import get_dynamic_node_config
 
 from yt_commands import (
-    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, remote_copy, sync_create_cells,
+    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, sync_create_cells,
     read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
-from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
+from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionWithRemoteClustersBaseChecks
 
 import time
 import pytest
@@ -130,7 +130,7 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
 ##################################################################
 
 
-class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiClusterBaseChecks):
+class TestMasterCellAdditionWithRemoteClusters(MasterCellAdditionWithRemoteClustersBaseChecks):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
@@ -152,7 +152,7 @@ class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiCluste
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
-class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiCluster):
+class TestMasterCellAdditionWithRemoteClustersWithoutDowntime(TestMasterCellAdditionWithRemoteClusters):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
@@ -161,7 +161,7 @@ class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAddit
     DOWNTIME_ALL_COMPONENTS = False
 
 
-class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiCluster):
+class TestMasterCellsListChangeWithRemoteClustersWithoutDowntime(TestMasterCellAdditionWithRemoteClusters):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
@@ -282,18 +282,6 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
-    NUM_REMOTE_CLUSTERS = 1
-
-    NUM_MASTERS_REMOTE_0 = 1
-    NUM_SCHEDULERS_REMOTE_0 = 0
-    NUM_CONTROLLER_AGENTS_REMOTE_0 = 0
-
-    REMOTE_CLUSTER_NAME = "remote_0"
-
-    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
-        "21": {"roles": ["chunk_host", "cypress_node_host"]},
-    }
-
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
         "delay_master_cell_directory_start": True,
@@ -303,11 +291,6 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         },
         "sync_directories_on_connect": False,
     }
-
-    @classmethod
-    def setup_class(cls):
-        super(TestDynamicMasterCellPropagation, cls).setup_class(cls)
-        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -384,20 +367,6 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
-
-    def check_remote_copy(self):
-        yield
-
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
-        wait(lambda: self.do_with_retries(lambda: create("table", "//tmp/t2", attributes={"external_cell_tag": 13})))
-
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-        )
-        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("cherepashka")
     def test_add_cell(self):
