@@ -1162,6 +1162,29 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
     EXPECT_EQ(YsonToKey("50;50;50;abd"), result.second);
 }
 
+TEST_F(TRefineKeyRangeTest, IsNullQuery)
+{
+    auto tableSchema = New<TTableSchema>(std::vector{
+        TColumnSchema("k", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64),
+    });
+
+    auto expr = ParseAndPrepareExpression(
+        "k = 50 and l IS NULL",
+        *tableSchema);
+
+    auto result = RefineKeyRange(
+        GetSampleKeyColumns2(),
+        std::pair(YsonToKey("1"), YsonToKey("100")),
+        expr);
+
+    VerifyIdsInRange(result);
+
+    EXPECT_EQ(YsonToKey("50;#;"), result.first);
+    EXPECT_EQ(YsonToKey("50;#;" _MAX_), result.second);
+}
+
 TEST_F(TRefineKeyRangeTest, EmptyRange)
 {
     auto expr = ParseAndPrepareExpression(
