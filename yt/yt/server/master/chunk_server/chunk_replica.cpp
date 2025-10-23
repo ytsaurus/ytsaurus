@@ -1,5 +1,6 @@
 #include "chunk_replica.h"
 #include "chunk.h"
+#include "medium_base.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -19,6 +20,10 @@ using namespace NYson;
 using namespace NYTree;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +117,39 @@ void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaIndex value)
 void ToProto(ui32* protoValue, TChunkLocationPtrWithReplicaInfo value)
 {
     ToProto(protoValue, TChunkLocationPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, TStringBuf /*spec*/)
+{
+    auto* medium = value.GetPtr();
+
+    builder->AppendFormat("%v", medium->GetName());
+
+    if (value.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", value.GetReplicaIndex());
+    }
+
+    if (value.GetReplicaState() != EChunkReplicaState::Generic) {
+        builder->AppendFormat(":%v", value.GetReplicaState());
+    }
+
+    builder->AppendFormat("@%v", medium->GetIndex());
+}
+
+void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value)
+{
+    // Only applicable to offshore replicas. Domestic replicas require real node ids.
+    YT_LOG_ALERT_IF(value.GetPtr()->IsOffshore(),
+        "Attempted to serialize domestic medium as offshore (MediumName: %v)",
+        value.GetPtr()->GetName());
+
+    TChunkReplicaWithMedium replica(
+        NNodeTrackerClient::OffshoreNodeId,
+        value.GetReplicaIndex(),
+        value.GetPtr()->GetIndex());
+    NChunkClient::ToProto(protoValue, replica);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
