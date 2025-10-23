@@ -16,10 +16,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/ytlib/table_client/hunks.h>
-#include <yt/yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+
+#include <yt/yt/library/row_merger/overlapping_reader.h>
+#include <yt/yt/library/row_merger/row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -79,7 +80,7 @@ class TUnversifyingReader
 public:
     TUnversifyingReader(
         IVersionedReaderPtr versionedReader,
-        std::unique_ptr<TSchemafulRowMerger> rowMerger)
+        std::unique_ptr<NRowMerger::TSchemafulRowMerger> rowMerger)
         : VersionedReader_(std::move(versionedReader))
         , RowMerger_(std::move(rowMerger))
     {
@@ -132,7 +133,7 @@ public:
 
 private:
     const IVersionedReaderPtr VersionedReader_;
-    const std::unique_ptr<TSchemafulRowMerger> RowMerger_;
+    const std::unique_ptr<NRowMerger::TSchemafulRowMerger> RowMerger_;
     std::vector<TUnversionedRow> Rows_;
 };
 
@@ -398,7 +399,7 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
 
     ISchemafulUnversionedReaderPtr reader;
 
-    auto nestedSchema = GetNestedColumnsSchema(tabletSnapshot->QuerySchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tabletSnapshot->QuerySchema);
 
     if (mergeVersionedRows) {
         std::vector<TLegacyOwningKey> startStoreBounds;
@@ -419,7 +420,7 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
             timestampRange.RetentionTimestamp,
             timestampReadOptions);
 
-        reader = CreateSchemafulOverlappingRangeReader(
+        reader = NRowMerger::CreateSchemafulOverlappingRangeReader(
             std::move(startStoreBounds),
             std::move(rowMerger),
             [
@@ -603,7 +604,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
     ISchemafulUnversionedReaderPtr reader;
 
-    auto nestedSchema = GetNestedColumnsSchema(tabletSnapshot->QuerySchema);
+    auto nestedSchema = NRowMerger::GetNestedColumnsSchema(tabletSnapshot->QuerySchema);
 
     if (mergeVersionedRows) {
         auto enrichedColumnFilter = EnrichColumnFilter(
@@ -618,7 +619,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             timestampRange.RetentionTimestamp,
             timestampReadOptions);
 
-        reader = CreateSchemafulOverlappingRangeReader(
+        reader = NRowMerger::CreateSchemafulOverlappingRangeReader(
             std::move(boundaries),
             std::move(rowMerger),
             [
@@ -916,7 +917,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
-    auto rowMerger = CreateVersionedRowMerger(
+    auto rowMerger = NRowMerger::CreateVersionedRowMerger(
         mountConfig->RowMergerType,
         New<TRowBuffer>(TTabletReaderPoolTag()),
         tabletSnapshot->QuerySchema,
@@ -937,7 +938,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         boundaries.push_back(store->GetMinKey());
     }
 
-    auto reader = CreateVersionedOverlappingRangeReader(
+    auto reader = NRowMerger::CreateVersionedOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         [
@@ -973,7 +974,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
+std::unique_ptr<NRowMerger::TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
     TRowBufferPtr rowBuffer,
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& physicalColumnFilter,
@@ -981,7 +982,7 @@ std::unique_ptr<TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
     const TTimestampReadOptions& timestampReadOptions)
 {
     auto createRowMerger = [&] (int columnCount, const TColumnFilter& rowMergerColumnFilter) {
-        return std::make_unique<TSchemafulRowMerger>(
+        return std::make_unique<NRowMerger::TSchemafulRowMerger>(
             std::move(rowBuffer),
             columnCount,
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
@@ -989,7 +990,7 @@ std::unique_ptr<TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
             tabletSnapshot->ColumnEvaluator,
             retentionTimestamp,
             timestampReadOptions.TimestampColumnMapping,
-            GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
+            NRowMerger::GetNestedColumnsSchema(tabletSnapshot->QuerySchema));
     };
 
     if (timestampReadOptions.TimestampColumnMapping.empty()) {

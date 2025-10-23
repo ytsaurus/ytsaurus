@@ -19,13 +19,14 @@
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
-#include <yt/yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_row_digest.h>
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+
+#include <yt/yt/library/row_merger/overlapping_reader.h>
+#include <yt/yt/library/row_merger/row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -709,14 +710,14 @@ std::unique_ptr<IUniversalReader> CreateMergedUnversionedUniversalReader(
     auto columnEvaluatorCache = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
     auto columnEvaluator = columnEvaluatorCache->Find(schema);
-    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<NRowMerger::TSchemafulRowMerger>(
         New<TRowBuffer>(),
         schema->GetColumnCount(),
         schema->GetKeyColumnCount(),
         NTableClient::TColumnFilter(),
         columnEvaluator);
 
-    auto schemafulReader = CreateSchemafulOverlappingRangeReader(
+    auto schemafulReader = NRowMerger::CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         std::move(readerFactory),
@@ -759,7 +760,7 @@ std::unique_ptr<IUniversalReader> CreateMergedVersionedUniversalReader(
     auto columnEvaluatorCache = CreateColumnEvaluatorCache(
         New<TColumnEvaluatorCacheConfig>());
     auto columnEvaluator = columnEvaluatorCache->Find(schema);
-    auto rowMerger = CreateLegacyVersionedRowMerger(
+    auto rowMerger = NRowMerger::CreateLegacyVersionedRowMerger(
         New<TRowBuffer>(),
         schema->GetColumnCount(),
         schema->GetKeyColumnCount(),
@@ -771,7 +772,7 @@ std::unique_ptr<IUniversalReader> CreateMergedVersionedUniversalReader(
         false,
         false);
 
-    auto versionedReader = CreateVersionedOverlappingRangeReader(
+    auto versionedReader = NRowMerger::CreateVersionedOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         std::move(readerFactory),

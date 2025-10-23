@@ -213,6 +213,7 @@ PEERDIR(
     yt/yt/library/query/engine
     yt/yt/library/query/row_comparer
     yt/yt/library/re2
+    yt/yt/library/row_merger
     yt/yt/library/server_program
     yt/yt/library/tcmalloc
     yt/yt/library/tracing/baggage_manager

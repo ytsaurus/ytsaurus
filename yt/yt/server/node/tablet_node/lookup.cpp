@@ -29,8 +29,9 @@
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+
+#include <yt/yt/library/row_merger/row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -218,7 +219,7 @@ public:
         IMemoryUsageTrackerPtr memoryUsageTracker,
         TTimestampColumnMapping timestampColumnMapping)
         : TCompressingAdapterBase(codec, std::move(memoryUsageTracker))
-        , Merger_(std::make_unique<TSchemafulRowMerger>(
+        , Merger_(std::make_unique<NRowMerger::TSchemafulRowMerger>(
             std::move(rowBuffer),
             tabletSnapshot->PhysicalSchema->GetColumnCount() + (!timestampColumnMapping.empty()
                 ? tabletSnapshot->PhysicalSchema->GetValueColumnCount()
@@ -239,7 +240,7 @@ public:
 protected:
     using TMutableRow = TMutableUnversionedRow;
 
-    std::unique_ptr<TSchemafulRowMerger> Merger_;
+    std::unique_ptr<NRowMerger::TSchemafulRowMerger> Merger_;
 
     void WriteRow(TUnversionedRow row)
     {
@@ -263,7 +264,7 @@ public:
         TRowBufferPtr rowBuffer,
         IMemoryUsageTrackerPtr memoryUsageTracker)
         : TCompressingAdapterBase(codec, std::move(memoryUsageTracker))
-        , Merger_(CreateVersionedRowMerger(
+        , Merger_(NRowMerger::CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
             std::move(rowBuffer),
             tabletSnapshot->PhysicalSchema,
@@ -285,7 +286,7 @@ public:
 protected:
     using TMutableRow = TMutableVersionedRow;
 
-    std::unique_ptr<IVersionedRowMerger> Merger_;
+    std::unique_ptr<NRowMerger::IVersionedRowMerger> Merger_;
 
     void WriteRow(TVersionedRow row)
     {
@@ -387,7 +388,7 @@ protected:
         , StoreFlushIndex_(tabletSnapshot->StoreFlushIndex)
         , RowBuffer_(std::move(rowBuffer))
         , Logger(std::move(logger))
-        , CacheRowMerger_(CreateVersionedRowMerger(
+        , CacheRowMerger_(NRowMerger::CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
             RowBuffer_,
             tabletSnapshot->PhysicalSchema,
@@ -780,7 +781,7 @@ private:
     const ui32 StoreFlushIndex_;
     const TRowBufferPtr RowBuffer_;
     const NLogging::TLogger Logger;
-    const std::unique_ptr<IVersionedRowMerger> CacheRowMerger_;
+    const std::unique_ptr<NRowMerger::IVersionedRowMerger> CacheRowMerger_;
 
     TSimpleRowMerger SimpleRowMerger_;
 
@@ -2504,7 +2505,7 @@ protected:
 
     const IUnversionedRowsetWriterPtr Writer_;
     const TSchemafulPipePtr Pipe_;
-    std::unique_ptr<TSchemafulRowMerger> Merger_;
+    std::unique_ptr<NRowMerger::TSchemafulRowMerger> Merger_;
 
     const TPromise<void> ResultPromise_ = NewPromise<void>();
 

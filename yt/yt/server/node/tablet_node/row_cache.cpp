@@ -1,6 +1,6 @@
 #include "row_cache.h"
 
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
@@ -151,7 +151,7 @@ void TRowCache::SetLastFlushedIndex(ui32 storeFlushIndex)
 TUpdateCacheStatistics TRowCache::UpdateItems(
     TRange<NTableClient::TVersionedRow> rows,
     NTableClient::TTimestamp retainedTimestamp,
-    NTableClient::IVersionedRowMerger* compactionRowMerger,
+    NRowMerger::IVersionedRowMerger* compactionRowMerger,
     ui32 storeFlushIndex,
     const NLogging::TLogger& Logger)
 {

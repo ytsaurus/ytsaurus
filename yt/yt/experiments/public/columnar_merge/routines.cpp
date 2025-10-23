@@ -17,11 +17,12 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
-#include <yt/yt/ytlib/table_client/overlapping_reader.h>
-#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
-#include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+
+#include <yt/yt/library/row_merger/overlapping_reader.h>
+#include <yt/yt/library/row_merger/row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
@@ -406,14 +407,14 @@ ISchemafulUnversionedReaderPtr CreateMergingReader(
     auto columnEvaluator = columnEvaluatorCache->Find(schema);
 
     // Column filter does not correspond schema.
-    auto rowMerger = std::make_unique<TSchemafulRowMerger>(
+    auto rowMerger = std::make_unique<NRowMerger::TSchemafulRowMerger>(
         New<TRowBuffer>(),
         options.ValueColumnCount >= 0 ? schema->GetKeyColumnCount() + options.ValueColumnCount : schema->GetColumnCount(),
         schema->GetKeyColumnCount(),
         columnFilter,
         columnEvaluator);
 
-    auto versionedReader = CreateSchemafulOverlappingRangeReader(
+    auto versionedReader = NRowMerger::CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         [readers = std::move(readers)] (int index) {
@@ -471,7 +472,7 @@ IVersionedReaderPtr CreateCompactionReader(
     auto columnEvaluatorCache = CreateColumnEvaluatorCache(New<TColumnEvaluatorCacheConfig>());
     auto columnEvaluator = columnEvaluatorCache->Find(schema);
 
-    auto rowMerger = CreateLegacyVersionedRowMerger(
+    auto rowMerger = NRowMerger::CreateLegacyVersionedRowMerger(
         New<TRowBuffer>(),
         schema->GetColumnCount(),
         schema->GetKeyColumnCount(),
@@ -483,7 +484,7 @@ IVersionedReaderPtr CreateCompactionReader(
         false,
         false);
 
-    auto versionedReader = CreateVersionedOverlappingRangeReader(
+    auto versionedReader = NRowMerger::CreateVersionedOverlappingRangeReader(
         std::move(boundaries),
         std::move(rowMerger),
         [readers = std::move(readers)] (int index) {

@@ -1,7 +1,7 @@
 #include "overlapping_reader.h"
 
-#include "row_merger.h"
-#include "versioned_row_merger.h"
+#include <yt/yt/library/row_merger/row_merger.h>
+#include <yt/yt/library/row_merger/versioned_row_merger.h>
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -17,11 +17,12 @@
 
 #include <tuple>
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -601,4 +602,4 @@ IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger

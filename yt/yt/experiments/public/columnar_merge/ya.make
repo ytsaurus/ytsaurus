@@ -15,13 +15,19 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/library/query/row_comparer
-    yt/yt/core
-    yt/yt/client
-    yt/yt/ytlib
     yt/yt/server/node
     yt/yt/server/lib/io
+
+    yt/yt/ytlib
+
+    yt/yt/library/query/row_comparer
     yt/yt/library/signals
+    yt/yt/library/row_merger
+
+    yt/yt/client
+
+    yt/yt/core
+
     library/cpp/getopt
 )
 

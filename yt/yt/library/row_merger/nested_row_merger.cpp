@@ -1,5 +1,4 @@
 #include "nested_row_merger.h"
-#include "config.h"
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
@@ -12,10 +11,11 @@
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 
-using namespace NTransactionClient;
+using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 
 using NYson::EYsonItemType;
@@ -718,4 +718,4 @@ TColumnFilter EnrichColumnFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger

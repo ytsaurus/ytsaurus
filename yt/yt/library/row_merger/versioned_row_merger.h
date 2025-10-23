@@ -1,27 +1,27 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/library/query/base/public.h>
 
 #include <library/cpp/yt/yson_string/public.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NRowMerger {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IVersionedRowMerger
     : public TNonCopyable
 {
-    using TResultingRow = TVersionedRow;
+    using TResultingRow = NTableClient::TVersionedRow;
 
     virtual ~IVersionedRowMerger() = default;
 
-    virtual void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit = MaxTimestamp) = 0;
+    virtual void AddPartialRow(
+        NTableClient::TVersionedRow row,
+        NTableClient::TTimestamp upperTimestampLimit = NTableClient::MaxTimestamp) = 0;
 
-    virtual TMutableVersionedRow BuildMergedRow(bool produceEmptyRow = false) = 0;
+    virtual NTableClient::TMutableVersionedRow BuildMergedRow(bool produceEmptyRow = false) = 0;
 
     virtual void Reset() = 0;
 };
@@ -29,13 +29,13 @@ struct IVersionedRowMerger
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
-    TRowBufferPtr rowBuffer,
+    NTableClient::TRowBufferPtr rowBuffer,
     int columnCount,
     int keyColumnCount,
-    const TColumnFilter& columnFilter,
-    TRetentionConfigPtr config,
-    TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp,
+    const NTableClient::TColumnFilter& columnFilter,
+    NTableClient::TRetentionConfigPtr config,
+    NTableClient::TTimestamp currentTimestamp,
+    NTableClient::TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool mergeRowsOnFlush,
     std::optional<int> ttlColumnIndex = std::nullopt,
@@ -46,12 +46,12 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
 
 std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NTabletClient::ERowMergerType rowMergerType,
-    TRowBufferPtr rowBuffer,
-    TTableSchemaPtr tableSchema,
-    const TColumnFilter& columnFilter,
-    TRetentionConfigPtr config,
-    TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp,
+    NTableClient::TRowBufferPtr rowBuffer,
+    NTableClient::TTableSchemaPtr tableSchema,
+    const NTableClient::TColumnFilter& columnFilter,
+    NTableClient::TRetentionConfigPtr config,
+    NTableClient::TTimestamp currentTimestamp,
+    NTableClient::TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     NYT::NYson::TYsonString customRuntimeData,
     bool mergeRowsOnFlush,
@@ -61,4 +61,4 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace NYT::NRowMerger

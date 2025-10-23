@@ -1,6 +1,6 @@
 #include "tablet_request_batcher.h"
 
-#include <yt/yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/library/row_merger/row_merger.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -100,12 +100,12 @@ private:
         { };
         auto rowBuffer = New<TRowBuffer>(TTabletRequestBatcherBufferTag());
 
-        TUnversionedRowMerger rowMerger(
+        NRowMerger::TUnversionedRowMerger rowMerger(
             rowBuffer,
             columnCount,
             keyColumnCount,
             ColumnEvaluator_,
-            GetNestedColumnsSchema(TableSchema_));
+            NRowMerger::GetNestedColumnsSchema(TableSchema_));
 
         bool hasSharedWriteLocks = false;
 

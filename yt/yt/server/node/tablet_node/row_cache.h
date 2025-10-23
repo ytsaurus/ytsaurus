@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/table_client/public.h>
 
+#include <yt/yt/library/row_merger/public.h>
+
 #include <yt/yt/core/misc/slab_allocator.h>
 #include <yt/yt/core/misc/concurrent_cache.h>
 
@@ -42,7 +44,7 @@ public:
     TUpdateCacheStatistics UpdateItems(
         TRange<NTableClient::TVersionedRow> rows,
         NTableClient::TTimestamp retainedTimestamp,
-        NTableClient::IVersionedRowMerger* compactionRowMerger,
+        NRowMerger::IVersionedRowMerger* compactionRowMerger,
         ui32 storeFlushIndex,
         const NLogging::TLogger& Logger);
 
