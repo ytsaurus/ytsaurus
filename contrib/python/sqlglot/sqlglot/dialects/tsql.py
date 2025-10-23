@@ -670,6 +670,12 @@ class TSQL(Dialect):
 
         SET_OP_MODIFIERS = {"offset"}
 
+        ODBC_DATETIME_LITERALS = {
+            "d": exp.Date,
+            "t": exp.Time,
+            "ts": exp.Timestamp,
+        }
+
         def _parse_alter_table_set(self) -> exp.AlterSet:
             return self._parse_wrapped(super()._parse_alter_table_set)
 
@@ -901,6 +907,11 @@ class TSQL(Dialect):
                 this = self._parse_schema(self._parse_id_var(any_token=False))
 
             return self.expression(exp.UniqueColumnConstraint, this=this)
+
+        def _parse_update(self) -> exp.Update:
+            expression = super()._parse_update()
+            expression.set("options", self._parse_options())
+            return expression
 
         def _parse_partition(self) -> t.Optional[exp.Partition]:
             if not self._match_text_seq("WITH", "(", "PARTITIONS"):
