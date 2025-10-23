@@ -495,6 +495,7 @@
     XX(Sealed, sealed) \
     XX(SecondaryIndices, secondary_indices) \
     XX(SecurityTags, security_tags) \
+    XX(SecurityTagsUpdateMode, security_tags_update_mode) \
     XX(Sequoia, sequoia) \
     XX(SequoiaReign, sequoia_reign) \
     XX(SerializationType, serialization_type) \

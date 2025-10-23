@@ -69,6 +69,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ChunkLists_);
     Save(context, UpdateMode_);
+    Save(context, SecurityTagsUpdateMode_);
     Save(context, Replication_);
     Save(context, PrimaryMediumIndex_);
     Save(context, SnapshotStatistics_);
@@ -102,6 +103,14 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
 
     Load(context, ChunkLists_);
     Load(context, UpdateMode_);
+
+    // Initial migration is done in OnAfterSnapshotLoaded in CypressManager.
+    if (context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure && context.GetVersion() < EMasterReign::Start_25_4 ||
+        context.GetVersion() >= EMasterReign::FixSecurityTagsMessingWithChunkListStructure_25_4)
+    {
+        Load(context, SecurityTagsUpdateMode_);
+    }
+
     Load(context, Replication_);
     Load(context, PrimaryMediumIndex_);
     Load(context, SnapshotStatistics_);
@@ -350,14 +359,25 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
             if (context.Statistics) {
                 *MutableDeltaStatistics() = *context.Statistics;
             }
-            DeltaSecurityTags_ = context.SecurityTags;
+
+            if (context.SecurityTags && !context.SecurityTags->IsEmpty()) {
+                DeltaSecurityTags_ = context.SecurityTags;
+                SecurityTagsUpdateMode_ = ESecurityTagsUpdateMode::Append;
+            }
+
             break;
 
         case EUpdateMode::Overwrite:
             if (context.Statistics) {
                 SnapshotStatistics_ = *context.Statistics;
             }
-            SnapshotSecurityTags_ = context.SecurityTags;
+
+            SnapshotSecurityTags_ = context.SecurityTags
+                ? context.SecurityTags
+                : TInternedSecurityTags{};
+            DeltaSecurityTags_ = {};
+            SecurityTagsUpdateMode_ = ESecurityTagsUpdateMode::Overwrite;
+
             break;
 
         default:
