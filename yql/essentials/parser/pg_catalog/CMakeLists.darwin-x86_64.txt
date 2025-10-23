@@ -54,134 +54,134 @@ target_link_libraries(essentials-parser-pg_catalog.global PUBLIC
 )
 
 target_sources(essentials-parser-pg_catalog.global PRIVATE
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/60856d9edcc55b30578c8671a458c924.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8cd6966918a5d569f6395ada240d5c41.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/168b56c6d06692cc542ac7eae10097b0.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/be313124949f45297a2c9214cfddccd6.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/d26a36d307bccca2d6911886af6f208e.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/3b58bb9cdee201df7d4153fc05b58ed1.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/577da77f39f85d37ba19295d8ed9ed10.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f2eb184209f36cadf269d8ad1a80f752.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/0a4651272ec17576d3b9f8f3c5f5271c.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/e488ee744c267e2250ec71c0f55db0ad.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/de7794bb43ccf4ce08fcdb4bd399c775.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/b5a61ad928a1c455ecd73d57917c41dc.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8f52edca2d91fa74679b1e7a65fbd231.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/19c382a9c817800b1dc8402619e3c2df.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/d1d29179eaae7009ec82237035d4bf43.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/cb0a79135ff56a1fd63fd8c7a81ca4de.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/a9e7e66a34ad57aceaa43aa96b82a34a.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/e4fee39e3de768e02b9c1858918df577.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/936a95b9f9c9893ea4a4ff7cbb22575b.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/0bde4e4664dfcb59a5e183aa881bac3b.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/bfbc6465d574a2434902d00b6874f6cc.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/658b33cae1889a0a522d39b63f5d2aa6.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/5f016a7e7b32dad0e20b010417065f05.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f41a4ff090be691c0f2abbc2ff548c3b.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8a1be1169b28b6342bae4c008c8d338c.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/b79638b23f2f48d31915bdbb7de5cb49.cpp
 )
 
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/60856d9edcc55b30578c8671a458c924.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/19c382a9c817800b1dc8402619e3c2df.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_operator.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_operator.dat
   KEYS
   pg_operator.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8cd6966918a5d569f6395ada240d5c41.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/d1d29179eaae7009ec82237035d4bf43.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_proc.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_proc.dat
   KEYS
   pg_proc.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/168b56c6d06692cc542ac7eae10097b0.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/cb0a79135ff56a1fd63fd8c7a81ca4de.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_type.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_type.dat
   KEYS
   pg_type.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/be313124949f45297a2c9214cfddccd6.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/a9e7e66a34ad57aceaa43aa96b82a34a.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_cast.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_cast.dat
   KEYS
   pg_cast.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/d26a36d307bccca2d6911886af6f208e.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/e4fee39e3de768e02b9c1858918df577.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_aggregate.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_aggregate.dat
   KEYS
   pg_aggregate.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/3b58bb9cdee201df7d4153fc05b58ed1.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/936a95b9f9c9893ea4a4ff7cbb22575b.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_opfamily.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_opfamily.dat
   KEYS
   pg_opfamily.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/577da77f39f85d37ba19295d8ed9ed10.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/0bde4e4664dfcb59a5e183aa881bac3b.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_opclass.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_opclass.dat
   KEYS
   pg_opclass.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f2eb184209f36cadf269d8ad1a80f752.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/bfbc6465d574a2434902d00b6874f6cc.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_amproc.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_amproc.dat
   KEYS
   pg_amproc.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/0a4651272ec17576d3b9f8f3c5f5271c.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/658b33cae1889a0a522d39b63f5d2aa6.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_amop.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_amop.dat
   KEYS
   pg_amop.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/e488ee744c267e2250ec71c0f55db0ad.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/5f016a7e7b32dad0e20b010417065f05.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_am.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_am.dat
   KEYS
   pg_am.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/de7794bb43ccf4ce08fcdb4bd399c775.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/f41a4ff090be691c0f2abbc2ff548c3b.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_conversion.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_conversion.dat
   KEYS
   pg_conversion.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/b5a61ad928a1c455ecd73d57917c41dc.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8a1be1169b28b6342bae4c008c8d338c.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/pg_language.dat
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/include/catalog/pg_language.dat
   KEYS
   pg_language.dat
   OPTS
 )
 
 resources(essentials-parser-pg_catalog.global
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/8f52edca2d91fa74679b1e7a65fbd231.cpp
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/pg_catalog/b79638b23f2f48d31915bdbb7de5cb49.cpp
   INPUTS
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_catalog/data/system_functions.sql
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/pg_wrapper/postgresql/src/backend/catalog/system_functions.sql
   KEYS
   system_functions.sql
   OPTS
