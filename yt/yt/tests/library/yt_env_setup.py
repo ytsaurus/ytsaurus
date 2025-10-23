@@ -553,7 +553,7 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_driver_logging_config(cls, config):
-        update_inplace(config, cls.DELTA_DRIVER_LOGGING_CONFIG)
+        cls._apply_effective_config_patch(config, "DELTA_DRIVER_LOGGING_CONFIG")
 
     @classmethod
     def master_cell_tag_from_cell_index(cls, cell_index, cluster_index=0):
@@ -665,6 +665,9 @@ class YTEnvSetup(object):
                     "expire_after_access_time": 300000,
                 }
 
+        local_yt_config = {}
+        cls._apply_effective_config_patch(local_yt_config, "DELTA_LOCAL_YT_CONFIG", index)
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
@@ -724,7 +727,7 @@ class YTEnvSetup(object):
             enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
             delta_global_cluster_connection_config=delta_global_cluster_connection_config,
             enable_multidaemon=enable_multidaemon,
-            **cls.get_param("DELTA_LOCAL_YT_CONFIG", index),
+            **local_yt_config,
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
@@ -1141,9 +1144,7 @@ class YTEnvSetup(object):
             yt_commands.print_debug("Resend full job info is enabled")
             config["%true"]["exec_node"]["controller_agent_connector"]["resend_full_job_info"] = True
 
-        delta_node_config = cls.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
-
-        update_inplace(config, delta_node_config)
+        cls._apply_effective_config_patch(config, "DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
 
         if cls._is_ground_cluster(cluster_index):
             config["%true"]["tablet_node"].setdefault("security_manager", {})
@@ -1172,7 +1173,7 @@ class YTEnvSetup(object):
 
         for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
-                update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
+                cls._apply_effective_config_patch(config, "DELTA_MASTER_CONFIG", cluster_index)
                 cls.update_timestamp_provider_config(config, cluster_index)
                 cls.update_sequoia_connection_config(config, cluster_index)
                 cls.update_transaction_supervisor_config(config, cluster_index)
@@ -1185,7 +1186,7 @@ class YTEnvSetup(object):
                 multidaemon_config["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = config
 
         for index, config in enumerate(configs["scheduler"]):
-            update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_SCHEDULER_CONFIG", cluster_index)
 
             if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
                 # TODO(kvk1920): wait_for_ground_sync().
@@ -1204,31 +1205,31 @@ class YTEnvSetup(object):
             multidaemon_config["daemons"][f"clock_{index}"]["config"] = config
 
         for index, config in enumerate(configs["queue_agent"]):
-            update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_QUEUE_AGENT_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_queue_agent_config(config)
             multidaemon_config["daemons"][f"queue_agent_{index}"]["config"] = config
 
         for index, config in enumerate(configs["kafka_proxy"]):
-            update_inplace(config, cls.get_param("DELTA_KAFKA_PROXY_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_KAFKA_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_kafka_proxy_config(config)
             multidaemon_config["daemons"][f"kafka_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cell_balancer"]):
-            update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_CELL_BALANCER_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_cell_balancer_config(config)
             multidaemon_config["daemons"][f"cell_balancer_{index}"]["config"] = config
 
         for index, config in enumerate(configs["tablet_balancer"]):
-            update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_TABLET_BALANCER_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_tablet_balancer_config(config, multidaemon_config)
             multidaemon_config["daemons"][f"tablet_balancer_{index}"]["config"] = config
 
         for index, config in enumerate(configs["master_cache"]):
-            update_inplace(config, cls.get_param("DELTA_MASTER_CACHE_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_MASTER_CACHE_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_master_cache_config(config)
             multidaemon_config["daemons"][f"master_cache_{index}"]["config"] = config
@@ -1243,7 +1244,7 @@ class YTEnvSetup(object):
                     "set_committed_attribute_via_transaction_action": False,
                     "commit_operation_cypress_node_changes_via_system_transaction": True,
                 })
-            update_inplace(config, cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_controller_agent_config(config, cluster_index)
             multidaemon_config["daemons"][f"controller_agent_{index}"]["config"] = config
@@ -1252,7 +1253,7 @@ class YTEnvSetup(object):
         assert node_flavors_length == 0 or cls.NUM_NODES == node_flavors_length
 
         for index, config in enumerate(configs["node"]):
-            update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_NODE_CONFIG", cluster_index)
             if cls.USE_CUSTOM_ROOTFS:
                 update_inplace(config, get_custom_rootfs_delta_node_config())
 
@@ -1276,7 +1277,7 @@ class YTEnvSetup(object):
             cls.modify_node_config(config, cluster_index)
 
         for index, config in enumerate(configs["chaos_node"]):
-            update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_CHAOS_NODE_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_chaos_node_config(config, cluster_index)
             multidaemon_config["daemons"][f"chaos_node_{index}"]["config"] = config
@@ -1285,7 +1286,7 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
-            update_inplace(config, cls.get_param("DELTA_HTTP_PROXY_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_HTTP_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_http_proxy_config(config, cluster_index, multidaemon_config, index)
             multidaemon_config["daemons"][f"http_proxy_{index}"]["config"] = config
@@ -1294,27 +1295,24 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             config["cluster_connection"]["scheduler"]["use_scheduler_job_prober_service"] = False
 
-            update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_RPC_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_rpc_proxy_config(config, cluster_index, multidaemon_config, index)
             multidaemon_config["daemons"][f"rpc_proxy_{index}"]["config"] = config
 
         for index, config in enumerate(configs["cypress_proxy"]):
-            update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_CYPRESS_PROXY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_cypress_proxy_config(config, cluster_index)
             multidaemon_config["daemons"][f"cypress_proxy_{index}"]["config"] = config
 
         for key, config in configs["driver"].items():
-            update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+            cls._apply_effective_config_patch(config, "DELTA_DRIVER_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
             cls.modify_driver_config(config)
 
-        update_inplace(
-            configs["rpc_driver"],
-            cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index),
-        )
+        cls._apply_effective_config_patch(configs["rpc_driver"], "DELTA_RPC_DRIVER_CONFIG", cluster_index)
 
     @classmethod
     def update_transaction_supervisor_config(cls, config, cluster_index):
@@ -1369,6 +1367,13 @@ class YTEnvSetup(object):
             config["timestamp_provider"] = primary_timestamp_provider
         if "cluster_connection" in config:
             config["cluster_connection"]["timestamp_provider"] = primary_timestamp_provider
+
+    @classmethod
+    def _apply_effective_config_patch(cls, base_config, param_name, cluster_index=None):
+        param_name = param_name if cluster_index is None else cls._get_param_real_name(param_name, cluster_index)
+        for base in cls.__mro__[::-1]:
+            patch = base.__dict__.get(param_name, {})
+            update_inplace(base_config, patch)
 
     @classmethod
     def teardown_class(cls):
@@ -2095,24 +2100,22 @@ class YTEnvSetup(object):
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
 
-    def _apply_cypress_proxy_dynamic_config_patches(self, config, cluster_index):
-        if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
+    @classmethod
+    def _apply_cypress_proxy_dynamic_config_patches(cls, config, cluster_index):
+        if cls.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
             update_inplace(config, {
                 "response_keeper": {
                     "enable": True,
                 },
             })
-        delta_cypress_proxy_config = self.get_param("DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG", cluster_index)
-        update_inplace(config, delta_cypress_proxy_config)
+        cls._apply_effective_config_patch(config, "DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG", cluster_index)
         return config
 
     @classmethod
     def _apply_master_dynamic_config_patches(cls, config, cluster_index):
         master_cell_descriptors = cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
 
-        update_inplace(
-            config, cls.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
-        )
+        cls._apply_effective_config_patch(config, "DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
         config["enable_descending_sort_order"] = True
         config["enable_descending_sort_order_dynamic"] = True
