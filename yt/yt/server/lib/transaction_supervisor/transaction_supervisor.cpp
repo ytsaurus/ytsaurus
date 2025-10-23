@@ -286,7 +286,7 @@ public:
         it = EmplaceOrCrash(
             Barriers_,
             lastStronglyOrderedTransactionSequenceNumber,
-            TPromiseWithCreationTime(NewPromise<void>(), GetInstant()));
+            TBarrier(NewPromise<void>(), GetInstant()));
         return it->second.Promise.ToFuture().ToUncancelable();
     }
 
@@ -316,7 +316,7 @@ public:
         if (!Barriers_.empty()) {
             barrierWaitTime = GetInstant() - Barriers_.begin()->second.CreationTime;
         }
-        buffer->AddGauge("/transaction_supervisor/barrier_wait_time", barrierWaitTime.MillisecondsFloat());
+        buffer->AddGauge("/transaction_supervisor/barrier_wait_time", barrierWaitTime.SecondsFloat());
     }
 
 private:
@@ -366,14 +366,13 @@ private:
 
     TTimestamp LastCoordinatorCommitTimestamp_ = NullTimestamp;
 
-    template <class T>
-    struct TPromiseWithCreationTime
+    struct TBarrier
     {
-        TPromise<T> Promise;
+        TPromise<void> Promise;
         TInstant CreationTime;
     };
 
-    std::map<i64, TPromiseWithCreationTime<void>> Barriers_;
+    std::map<i64, TBarrier> Barriers_;
 
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
@@ -2888,8 +2887,8 @@ private:
 
         {
             auto guard = Guard(SequencerLock_);
-            for (auto& [_, promiseWithCreationtime] : Barriers_) {
-                readyPromises.push_back(std::move(promiseWithCreationtime.Promise));
+            for (auto& [_, barrier] : Barriers_) {
+                readyPromises.push_back(std::move(barrier.Promise));
             }
             Barriers_.clear();
         }
