@@ -9,6 +9,8 @@ from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_helpers import profiler_factory
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     move, remove, link,
@@ -1167,6 +1169,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         create_user("u")
+        set("//tmp/t/@acl/end", make_ace("deny", "u", "mount"))
         with pytest.raises(YtError):
             mount_table("//tmp/t", authenticated_user="u")
         with pytest.raises(YtError):
@@ -1248,6 +1251,23 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             set(config_path, bundle_controller_config, authenticated_user="looser212")
 
         assert bundle_controller_config == get(config_path, authenticated_user="looser212")
+
+    @authors("danilalexeev")
+    @not_implemented_in_sequoia
+    def test_mount_permission_denied_by_ancestor(self):
+        sync_create_cells(1)
+        create("map_node", "//tmp/d")
+        self._create_sorted_table("//tmp/d/t")
+        create_user("u")
+        set("//tmp/d/@acl/end", make_ace("deny", "u", "mount"))
+        with raises_yt_error("Access denied"):
+            sync_mount_table("//tmp/d/t", authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            sync_unmount_table("//tmp/d/t", authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            remount_table("//tmp/d/t", authenticated_user="u")
+        with raises_yt_error("Access denied"):
+            sync_reshard_table("//tmp/d/t", [[]], authenticated_user="u")
 
     @authors("savrus")
     def test_mount_permission_allowed_by_ancestor(self):
@@ -1918,6 +1938,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//tmp/t/@tablet_error_count") == 0
 
     @authors("savrus", "babenko", "h0pless")
+    @not_implemented_in_sequoia
     def test_disallowed_dynamic_table_alter(self):
         sync_create_cells(1)
         sorted_schema = make_schema(
@@ -1984,6 +2005,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: int(get_cpu_delta()) == 0)
 
     @authors("savrus", "babenko")
+    @not_implemented_in_sequoia
     def test_bundle_node_list(self):
         create_tablet_cell_bundle("b", attributes={"node_tag_filter": "b"})
 
@@ -3586,6 +3608,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
 
     @authors("ifsmirnov")
+    @not_implemented_in_sequoia
     def test_link_to_tablet(self):
         cell_id = sync_create_cells(1)[0]
         self._create_sorted_table("//tmp/t")
@@ -3786,7 +3809,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
     @authors("ifsmirnov")
     def test_mount_config_copy_portal(self):
-        if self.ENABLE_TMP_PORTAL:
+        if self.ENABLE_TMP_PORTAL or self.ENABLE_TMP_ROOTSTOCK:
             pytest.skip()
 
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
@@ -3885,6 +3908,37 @@ class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+
+class TestDynamicTablesSequoia(TestDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["sequoia_node_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True,
+        },
+        "tablet_manager": {
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+            "enable_user_directory_per_request_sync": True,
+        },
+    }
 
 
 ##################################################################
