@@ -305,4 +305,4 @@ class TestYamrMode(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [b"1\t2\t3\n"])
         with pytest.raises(yt.YtError):
-            yt.run_map("cat", source_table=table, destination_table=None)
+            yt.run_map("cat", source_table=table, destination_table=None, spec={"mapper": {"close_stdout_if_unused": True}})

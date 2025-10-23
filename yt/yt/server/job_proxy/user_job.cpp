@@ -1098,10 +1098,17 @@ private:
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto wrappingError = TError("Error writing to output table %v", i);
 
-            auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
-                ? PrepareOutputPipeReader(CreateNamedPipe(), {1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
-                : PrepareOutputPipeReader(CreateNamedPipe(), {jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
-            TablePipeReaders_.push_back(reader);
+            std::vector<int> fds = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
+                ? std::vector<int>{1, jobDescriptor}
+                : std::vector<int>{jobDescriptor};
+
+            auto reader = PrepareOutputPipeReader(CreateNamedPipe(), fds, TableOutputs_[i].get(), &OutputActions_, wrappingError);
+            TablePipeReaders_.push_back(std::move(reader));
+
+            YT_LOG_DEBUG(
+                "Output pipe reader created (Index: %v, FDs: %v)",
+                i,
+                fds);
         }
 
         FinalizeActions_.push_back(BIND([this, this_ = MakeStrong(this)] {
@@ -1145,8 +1152,11 @@ private:
 
         actions->push_back(BIND([=, this, this_ = MakeStrong(this)] {
             try {
-                PipeInputToOutput(asyncInput, output, BufferSize);
-                YT_LOG_INFO("Data successfully read from pipe (PipePath: %v)", pipe->GetPath());
+                auto totalBytes = PipeInputToOutput(asyncInput, output, BufferSize);
+                YT_LOG_INFO(
+                    "Data successfully read from pipe (PipePath: %v, ReadBytes: %v)",
+                    pipe->GetPath(),
+                    totalBytes);
             } catch (const std::exception& ex) {
                 auto error = wrappingError
                     << ex;
@@ -1267,29 +1277,36 @@ private:
         // 3 - not used
         // 4 - second output table
 
-        // Configure stderr pipe.
+        {
+            // Configure stderr pipe.
 
-        std::vector<int> errorOutputDescriptors = {STDERR_FILENO};
-        // Redirect stdout to stderr to allow writing to stdout.
-        if (UserJobSpec_.redirect_stdout_to_stderr()) {
-            errorOutputDescriptors.push_back(STDOUT_FILENO);
+            std::vector<int> errorOutputDescriptors = {STDERR_FILENO};
+            // Redirect stdout to stderr to allow writing to stdout.
+            if (UserJobSpec_.redirect_stdout_to_stderr()) {
+                errorOutputDescriptors.push_back(STDOUT_FILENO);
+                YT_LOG_INFO("Redirecting stdout to stderr");
+            }
+
+            StderrPipeReader_ = PrepareOutputPipeReader(
+                CreateNamedPipe(),
+                errorOutputDescriptors,
+                CreateErrorOutput(),
+                &StderrActions_,
+                TError("Error writing to stderr"),
+                /*onError*/ [&] (const IConnectionReaderPtr& input, const TError& error) {
+                    // We abort asyncInput for stderr.
+                    // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
+                    // because we want to read and save as much stderr as possible even if job is failing.
+                    // But if stderr transferring fiber itself fails, child process may hang
+                    // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
+                    YT_UNUSED_FUTURE(input->Abort());
+                    THROW_ERROR error;
+                });
+
+            YT_LOG_DEBUG("Stderr pipes initialized (FDs: %v)", errorOutputDescriptors);
         }
 
-        StderrPipeReader_ = PrepareOutputPipeReader(
-            CreateNamedPipe(),
-            errorOutputDescriptors,
-            CreateErrorOutput(),
-            &StderrActions_,
-            TError("Error writing to stderr"),
-            /*onError*/ [&] (const IConnectionReaderPtr& input, const TError& error) {
-                // We abort asyncInput for stderr.
-                // Almost all readers are aborted in `OnIOErrorOrFinished', but stderr doesn't,
-                // because we want to read and save as much stderr as possible even if job is failing.
-                // But if stderr transferring fiber itself fails, child process may hang
-                // if it wants to write more stderr. So we abort input (and therefore close the pipe) here.
-                YT_UNUSED_FUTURE(input->Abort());
-                THROW_ERROR error;
-            });
+        YT_LOG_DEBUG("Initializing output pipes");
 
         PrepareOutputTablePipes();
 
@@ -1300,6 +1317,8 @@ private:
                 CreateStatisticsOutput(),
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
+
+            YT_LOG_DEBUG("Statistics pipe reader created (FD: %v)", JobStatisticsFD);
 
             auto* profileOutput = [&] () -> IOutputStream* {
                 if (!JobProfiler_ || !JobProfiler_->GetUserJobProfilerSpec()) {
@@ -1329,6 +1348,8 @@ private:
                         YT_UNUSED_FUTURE(input->Abort());
                         ++JobProfilerFailureCount_;
                     });
+
+                YT_LOG_DEBUG("Profile pipe reader created (FD: %v)", JobProfileFD);
             }
         }
 
@@ -1665,6 +1686,16 @@ private:
         }
 
         executorConfig->JobId = ToString(JobId_);
+
+        if (UserJobSpec_.close_stdout_if_unused()) {
+            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::Close;
+        } else if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
+            // No need to redirect stdout to devnull in case of porto environment since stdout
+            // is redirected to reserved buffer (container stderr) by default.
+            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::Leave;
+        } else {
+            executorConfig->StdoutUnusedAction = EStdoutUnusedAction::RedirrectToDevNull;
+        }
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
 #ifdef _asan_enabled_
