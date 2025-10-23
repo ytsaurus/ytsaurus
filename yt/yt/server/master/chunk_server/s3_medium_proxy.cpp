@@ -1,6 +1,5 @@
 #include "s3_medium_proxy.h"
 
-#include "config.h"
 #include "medium_proxy_base.h"
 #include "s3_medium.h"
 

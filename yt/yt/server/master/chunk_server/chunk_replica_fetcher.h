@@ -3,6 +3,7 @@
 #include "public.h"
 #include "private.h"
 #include "chunk_replica.h"
+#include "stored_chunk_replica.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -20,19 +21,18 @@ struct IChunkReplicaFetcher
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId) const = 0;
     virtual bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const = 0;
 
-    virtual TChunkLocationPtrWithReplicaInfoList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const = 0;
+    virtual TStoredChunkReplicaList FilterAliveReplicas(const std::vector<TSequoiaChunkReplica>& replicas) const = 0;
 
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
         NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
 
-    using TChunkToLocationPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>>;
     // TODO(aleksandra-zh): Let both of these helpers (future and non-future version) live for now, one will take over eventually.
-    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(
+    virtual TErrorOr<TStoredChunkReplicaList> GetChunkReplicas(
         const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk,
         bool includeUnapproved = false) const = 0;
-    virtual TChunkToLocationPtrWithReplicaInfoList GetChunkReplicas(
+    virtual TChunkToStoredChunkReplicaList GetChunkReplicas(
         const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks,
         bool includeUnapproved = false) const = 0;
 

@@ -19,12 +19,12 @@ public:
         const TChunkPlacement* chunkPlacement,
         const TDomesticMedium* medium,
         const TGenericChunk* chunk,
-        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        const TStoredChunkReplicaList& replicas,
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes,
         const TNodeList* allocatedNodes,
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
+        TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica)
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
         , Chunk_(chunk)
@@ -52,8 +52,13 @@ public:
 
         int mediumIndex = medium->GetIndex();
         for (auto replica : replicas) {
-            if (replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex) {
-                auto node = replica.GetPtr()->GetNode();
+            auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
+            if (!locationReplica) {
+                continue;
+            }
+            auto chunkLocation = locationReplica->AsChunkLocationPtr();
+            if (replica.GetEffectiveMediumIndex() == mediumIndex) {
+                auto node = chunkLocation->GetNode();
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
@@ -244,7 +249,7 @@ template <typename TGenericChunk>
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TDomesticMedium* medium,
     TGenericChunk* chunk,
-    const TChunkLocationPtrWithReplicaInfoList& replicas,
+    const TStoredChunkReplicaList& replicas,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
@@ -277,7 +282,7 @@ template <typename TGenericChunk>
 TNodeList TChunkPlacement::GetWriteTargets(
     TDomesticMedium* medium,
     TGenericChunk* chunk,
-    const TChunkLocationPtrWithReplicaInfoList& replicas,
+    const TStoredChunkReplicaList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -286,7 +291,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
     const std::optional<std::string>& preferredHostName,
-    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica,
+    TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica,
     bool systemAllocation)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
@@ -469,13 +474,13 @@ template <typename TGenericChunk>
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TDomesticMedium* medium,
     TGenericChunk* chunk,
-    const TChunkLocationPtrWithReplicaInfoList& replicas,
+    const TStoredChunkReplicaList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
     NChunkClient::ESessionType sessionType,
-    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
+    TAugmentedStoredChunkReplicaPtr unsafelyPlacedReplica)
 {
     auto targetNodes = GetWriteTargets(
         medium,
