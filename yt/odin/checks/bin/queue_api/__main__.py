@@ -8,6 +8,8 @@ from yt.common import wait
 from logging import Logger
 from datetime import datetime
 
+import time
+
 
 def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
     client = yt_client
@@ -111,17 +113,6 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
 
             return expected_registrations == registrations
 
-        wait(check_registrations, error_message="Check for list_queue_consumer_registration timed out", timeout=wait_timeout)
-
-        logger.info("Registered queue consumer")
-
-        rows = [{"data": "anime"}, {"data": "manga"}]
-        expected_rows = [{**row, "$row_index": i, "$tablet_index": 0} for i, row in enumerate(rows)]
-
-        client.insert_rows(queue_path, rows)
-
-        logger.info("Inserted rows in %s", queue_path)
-
         def guard_check(exception_handler):
             def guard_check_factory(check_function):
                 def guarded_check_function(*args, **kwargs):
@@ -147,11 +138,28 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
             client.advance_consumer(consumer_path, queue_path, 0, 0, 1, client_side=False)
             return True
 
-        wait(lambda: check_pull_consumer(expected_rows[0], 0), error_message="Check for pull_consumer timed out", timeout=wait_timeout)
+        start_time = time.time()
+        deadline = start_time + wait_timeout
+
+        def get_timeout():
+            # NB(apachee): 5 second timeout regardless of how much time is left minimum.
+            return max(deadline - time.time(), 5)
+
+        wait(check_registrations, error_message="Check for list_queue_consumer_registration timed out", timeout=get_timeout())
+        logger.info("Registered queue consumer")
+
+        rows = [{"data": "anime"}, {"data": "manga"}]
+        expected_rows = [{**row, "$row_index": i, "$tablet_index": 0} for i, row in enumerate(rows)]
+        client.insert_rows(queue_path, rows)
+        logger.info("Inserted rows in %s", queue_path)
+
+        wait(lambda: check_pull_consumer(expected_rows[0], 0), error_message="Check for pull_consumer timed out", timeout=get_timeout())
         logger.info("Pulled first row from queue %s using consumer %s", queue_path, consumer_path)
-        wait(check_advance_consumer, error_message="Check for advance_consumer timed out", timeout=wait_timeout)
+
+        wait(check_advance_consumer, error_message="Check for advance_consumer timed out", timeout=get_timeout())
         logger.info("Advanced consumer %s for queue %s", consumer_path, queue_path)
-        wait(lambda: check_pull_consumer(expected_rows[1], 1), error_message="Check for pull_consumer timed out", timeout=wait_timeout)
+
+        wait(lambda: check_pull_consumer(expected_rows[1], 1), error_message="Check for pull_consumer timed out", timeout=get_timeout())
         logger.info("Pulled second row from queue %s using consumer %s", queue_path, consumer_path)
 
         # NB(apachee): With this, unregister is called only once.
