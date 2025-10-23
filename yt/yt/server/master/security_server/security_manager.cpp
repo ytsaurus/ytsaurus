@@ -544,6 +544,7 @@ public:
             AccountProfiler()
                 .WithGlobal()
                 .WithDefaultDisabled()
+                .WithProducerRemoveSupport()
                 .AddProducer("", producer);
         }
 
@@ -556,139 +557,134 @@ public:
             .TimeCounter("/acl_iteration_cumulative_time");
     }
 
-    void RefreshAccountsForProfiling()
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        AccountsForProfiling_.clear();
-        for (auto [_, account] : Accounts()) {
-            if (IsObjectAlive(account) && IsShardActive(account->GetShardIndex())) {
-                AccountsForProfiling_.push_back(account);
-            }
-        }
-    }
-
     void OnAccountsProfiling()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        if (!Bootstrap_->IsPrimaryMaster()) {
+        MaybeToggleAccountsProfiling();
+        if (!AccountsProfilingEnabled_) {
             return;
         }
 
         std::vector<TSensorBuffer> buffers(std::ssize(AccountProfilingProducers_));
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        for (auto* account : AccountsForProfiling_) {
-            // NB: Account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
-            // to report outdated values. The worst part is that outdated and current values will get added up.
-            // On the other note, the distribution is not quite uniform, but it does not matter here.
-            auto bufferIndex = account->GetProfilingBucketIndex() % std::ssize(buffers);
-            auto& buffer = buffers[bufferIndex];
-
-            TWithTagGuard accountTag(&buffer, "account", account->GetName());
-
-            const auto& statistics = account->ClusterStatistics();
-            buffer.AddGauge("/node_count", statistics.CommittedResourceUsage.GetNodeCount());
-            buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
-            buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
-
-            auto profileDetailed = [&] (i64 usage, i64 committedUsage, std::string name)  {
-                {
-                    TWithTagGuard guard(&buffer, "status", "committed");
-                    buffer.AddGauge(name, committedUsage);
-                }
-                {
-                    TWithTagGuard guard(&buffer, "status", "uncommitted");
-                    buffer.AddGauge(name, std::max(static_cast<i64>(0), usage - committedUsage));
-                }
-            };
-
-            profileDetailed(
-                statistics.ResourceUsage.GetNodeCount(),
-                statistics.CommittedResourceUsage.GetNodeCount(),
-                "/detailed_node_count");
-            profileDetailed(
-                statistics.ResourceUsage.GetChunkCount(),
-                statistics.CommittedResourceUsage.GetChunkCount(),
-                "/detailed_chunk_count");
-
-            TCompactVector<int, 4> additionalMediumIndexes;
-            for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
-                additionalMediumIndexes.push_back(mediumIndex);
-            }
-            auto diskSpace = statistics.ResourceUsage.GetPatchedDiskSpace(
-                chunkManager,
-                additionalMediumIndexes);
-            auto committedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
-                chunkManager,
-                additionalMediumIndexes);
-
-            for (auto [medium, space] : diskSpace) {
-                if (!IsObjectAlive(medium)) {
-                    continue;
-                }
-                TWithTagGuard guard(&buffer, "medium", medium->GetName());
-                buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
-                auto committedIt = std::find_if(
-                    committedDiskSpace.begin(),
-                    committedDiskSpace.end(),
-                    [index = medium->GetIndex()] (const auto& pair) {return pair.first->GetIndex() == index;});
-                if (committedIt != committedDiskSpace.end()) {
-                    profileDetailed(space / double(1_GB), committedIt->second / double(1_GB), "/detailed_disk_space_in_gb");
-                }
+        for (const auto& [shardIndex, accounts] : IncumbentShardIndexToAccountsForProfiling_) {
+            if (!IsShardActive(shardIndex)) {
+                continue;
             }
 
-            const auto& resourceLimit = account->ClusterResourceLimits();
-            for (const auto& [index, space]: resourceLimit.DiskSpace()) {
-                const auto* medium = chunkManager->FindMediumByIndex(index);
-                if (!IsObjectAlive(medium)) {
-                    continue;
+            for (auto* account : accounts) {
+                // NB: Account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
+                // to report outdated values. The worst part is that outdated and current values will get added up.
+                // On the other note, the distribution is not quite uniform, but it does not matter here.
+                auto bufferIndex = account->GetProfilingBucketIndex() % std::ssize(buffers);
+                auto& buffer = buffers[bufferIndex];
+
+                TWithTagGuard accountTag(&buffer, "account", account->GetName());
+
+                const auto& statistics = account->ClusterStatistics();
+                buffer.AddGauge("/node_count", statistics.CommittedResourceUsage.GetNodeCount());
+                buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
+                buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
+
+                auto profileDetailed = [&] (i64 usage, i64 committedUsage, std::string name)  {
+                    {
+                        TWithTagGuard guard(&buffer, "status", "committed");
+                        buffer.AddGauge(name, committedUsage);
+                    }
+                    {
+                        TWithTagGuard guard(&buffer, "status", "uncommitted");
+                        buffer.AddGauge(name, std::max(static_cast<i64>(0), usage - committedUsage));
+                    }
+                };
+
+                profileDetailed(
+                    statistics.ResourceUsage.GetNodeCount(),
+                    statistics.CommittedResourceUsage.GetNodeCount(),
+                    "/detailed_node_count");
+                profileDetailed(
+                    statistics.ResourceUsage.GetChunkCount(),
+                    statistics.CommittedResourceUsage.GetChunkCount(),
+                    "/detailed_chunk_count");
+
+                TCompactVector<int, 4> additionalMediumIndexes;
+                for (auto [mediumIndex, _] : account->ClusterResourceLimits().DiskSpace()) {
+                    additionalMediumIndexes.push_back(mediumIndex);
                 }
-                TWithTagGuard guard(&buffer, "medium", medium->GetName());
-                buffer.AddGauge("/disk_space_limit_in_gb", space.UnsafeToUnderlying() / double(1_GB));
-            }
+                auto diskSpace = statistics.ResourceUsage.GetPatchedDiskSpace(
+                    chunkManager,
+                    additionalMediumIndexes);
+                auto committedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
+                    chunkManager,
+                    additionalMediumIndexes);
 
-            buffer.AddGauge("/node_count_limit", resourceLimit.GetNodeCount().UnsafeToUnderlying());
-            buffer.AddGauge("/chunk_count_limit", resourceLimit.GetChunkCount().UnsafeToUnderlying());
+                for (auto [medium, space] : diskSpace) {
+                    if (!IsObjectAlive(medium)) {
+                        continue;
+                    }
+                    TWithTagGuard guard(&buffer, "medium", medium->GetName());
+                    buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
+                    auto committedIt = std::find_if(
+                        committedDiskSpace.begin(),
+                        committedDiskSpace.end(),
+                        [index = medium->GetIndex()] (const auto& pair) {return pair.first->GetIndex() == index;});
+                    if (committedIt != committedDiskSpace.end()) {
+                        profileDetailed(space / double(1_GB), committedIt->second / double(1_GB), "/detailed_disk_space_in_gb");
+                    }
+                }
 
-            buffer.AddGauge("/tablet_static_memory_in_gb", statistics.ResourceUsage.GetTabletStaticMemory());
-            buffer.AddGauge("/tablet_static_memory_limit_in_gb", resourceLimit.GetTabletStaticMemory().UnsafeToUnderlying());
-            profileDetailed(
-                statistics.ResourceUsage.GetTabletStaticMemory(),
-                statistics.CommittedResourceUsage.GetTabletStaticMemory(),
-                "/detailed_tablet_static_memory_in_gb");
+                const auto& resourceLimit = account->ClusterResourceLimits();
+                for (const auto& [index, space]: resourceLimit.DiskSpace()) {
+                    const auto* medium = chunkManager->FindMediumByIndex(index);
+                    if (!IsObjectAlive(medium)) {
+                        continue;
+                    }
+                    TWithTagGuard guard(&buffer, "medium", medium->GetName());
+                    buffer.AddGauge("/disk_space_limit_in_gb", space.UnsafeToUnderlying() / double(1_GB));
+                }
 
-            buffer.AddGauge("/tablet_count", statistics.ResourceUsage.GetTabletCount());
-            buffer.AddGauge("/tablet_count_limit", resourceLimit.GetTabletCount().UnsafeToUnderlying());
-            profileDetailed(
-                statistics.ResourceUsage.GetTabletCount(),
-                statistics.CommittedResourceUsage.GetTabletCount(),
-                "/detailed_tablet_count");
+                buffer.AddGauge("/node_count_limit", resourceLimit.GetNodeCount().UnsafeToUnderlying());
+                buffer.AddGauge("/chunk_count_limit", resourceLimit.GetChunkCount().UnsafeToUnderlying());
 
-            const auto& masterLimits = resourceLimit.MasterMemory();
-            buffer.AddGauge("/total_master_memory_limit", masterLimits.Total.UnsafeToUnderlying());
-            buffer.AddGauge("/chunk_host_master_memory", masterLimits.ChunkHost.UnsafeToUnderlying());
-            for (const auto& [cellTag, limit] : masterLimits.PerCell) {
-                TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
-                buffer.AddGauge("/per_cell_master_memory_limit", limit.UnsafeToUnderlying());
-            }
+                buffer.AddGauge("/tablet_static_memory_in_gb", statistics.ResourceUsage.GetTabletStaticMemory());
+                buffer.AddGauge("/tablet_static_memory_limit_in_gb", resourceLimit.GetTabletStaticMemory().UnsafeToUnderlying());
+                profileDetailed(
+                    statistics.ResourceUsage.GetTabletStaticMemory(),
+                    statistics.CommittedResourceUsage.GetTabletStaticMemory(),
+                    "/detailed_tablet_static_memory_in_gb");
 
-            const auto& multicellStatistics = account->MulticellStatistics();
-            for (const auto& [cellTag, cellStatistics] : multicellStatistics) {
-                TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
-                auto usage = cellStatistics.ResourceUsage;
-                auto committedUsage = cellStatistics.ResourceUsage;
+                buffer.AddGauge("/tablet_count", statistics.ResourceUsage.GetTabletCount());
+                buffer.AddGauge("/tablet_count_limit", resourceLimit.GetTabletCount().UnsafeToUnderlying());
+                profileDetailed(
+                    statistics.ResourceUsage.GetTabletCount(),
+                    statistics.CommittedResourceUsage.GetTabletCount(),
+                    "/detailed_tablet_count");
 
-                buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
+                const auto& masterLimits = resourceLimit.MasterMemory();
+                buffer.AddGauge("/total_master_memory_limit", masterLimits.Total.UnsafeToUnderlying());
+                buffer.AddGauge("/chunk_host_master_memory", masterLimits.ChunkHost.UnsafeToUnderlying());
+                for (const auto& [cellTag, limit] : masterLimits.PerCell) {
+                    TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
+                    buffer.AddGauge("/per_cell_master_memory_limit", limit.UnsafeToUnderlying());
+                }
 
-                for (auto memoryType : TEnumTraits<EMasterMemoryType>::GetDomainValues())
-                {
-                    TWithTagGuard guard(&buffer, "type", Format("%lv", memoryType));
-                    profileDetailed(
-                        usage.DetailedMasterMemory()[memoryType],
-                        committedUsage.DetailedMasterMemory()[memoryType],
-                        "/detailed_master_memory");
+                const auto& multicellStatistics = account->MulticellStatistics();
+                for (const auto& [cellTag, cellStatistics] : multicellStatistics) {
+                    TWithTagGuard guard(&buffer, "cell_tag", ToString(cellTag));
+                    auto usage = cellStatistics.ResourceUsage;
+                    auto committedUsage = cellStatistics.ResourceUsage;
+
+                    buffer.AddGauge("/master_memory", usage.GetTotalMasterMemory());
+
+                    for (auto memoryType : TEnumTraits<EMasterMemoryType>::GetDomainValues())
+                    {
+                        TWithTagGuard guard(&buffer, "type", Format("%lv", memoryType));
+                        profileDetailed(
+                            usage.DetailedMasterMemory()[memoryType],
+                            committedUsage.DetailedMasterMemory()[memoryType],
+                            "/detailed_master_memory");
+                    }
                 }
             }
         }
@@ -717,11 +713,10 @@ public:
 
     void DestroyAccount(TAccount* account)
     {
+        auto& accounts = IncumbentShardIndexToAccountsForProfiling_[account->GetShardIndex()];
         // Destroying accounts is rare, so O(n) deletion should be OK.
-        if (IsShardActive(account->GetShardIndex())) {
-            auto it = std::remove(AccountsForProfiling_.begin(), AccountsForProfiling_.end(), account);
-            AccountsForProfiling_.erase(it, AccountsForProfiling_.end());
-        }
+        auto it = std::remove(accounts.begin(), accounts.end(), account);
+        accounts.erase(it, accounts.end());
 
         auto usageDelta = -account->LocalStatistics().ResourceUsage;
         auto committedUsageDelta = -account->LocalStatistics().CommittedResourceUsage;
@@ -2863,8 +2858,9 @@ private:
 
     std::vector<TBufferedProducerPtr> AccountProfilingProducers_;
 
-    std::vector<TAccount*> AccountsForProfiling_;
+    THashMap<int, std::vector<TAccount*>> IncumbentShardIndexToAccountsForProfiling_;
 
+    bool AccountsProfilingEnabled_ = false;
     TPeriodicExecutorPtr AccountsProfilingExecutor_;
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
@@ -3058,12 +3054,10 @@ private:
 
         InitializeAccountStatistics(account);
 
-        // Make the fake reference.
+        // Take an artificial reference.
         YT_VERIFY(account->RefObject() == 1);
 
-        if (IsShardActive(account->GetShardIndex())) {
-            AccountsForProfiling_.push_back(account);
-        }
+        IncumbentShardIndexToAccountsForProfiling_[account->GetShardIndex()].push_back(account);
 
         return account;
     }
@@ -3097,7 +3091,7 @@ private:
         auto* group = GroupMap_.Insert(id, std::move(groupHolder));
         YT_VERIFY(GroupNameMap_.emplace(group->GetName(), group).second);
 
-        // Make the fake reference.
+        // Take an artificial reference.
         YT_VERIFY(group->RefObject() == 1);
 
         return group;
@@ -3111,7 +3105,7 @@ private:
         auto* networkProject = NetworkProjectMap_.Insert(id, std::move(networkProjectHolder));
         YT_VERIFY(NetworkProjectNameMap_.emplace(networkProject->GetName(), networkProject).second);
 
-        // Make the fake reference.
+        // Take an artificial reference.
         YT_VERIFY(networkProject->RefObject() == 1);
 
         return networkProject;
@@ -3126,7 +3120,7 @@ private:
         auto proxyRole = ProxyRoleMap_.Insert(id, std::move(proxyRoleHolder));
         YT_VERIFY(ProxyRoleNameMaps_[proxyKind].emplace(name, proxyRole).second);
 
-        // Make the fake reference.
+        // Take an artificial reference.
         YT_VERIFY(proxyRole->RefObject() == 1);
 
         return proxyRole;
@@ -3268,6 +3262,9 @@ private:
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
             InitializeAccountStatistics(account);
+
+            // Removing accounts from this map on destroy, so zombies should still be added.
+            IncumbentShardIndexToAccountsForProfiling_[account->GetShardIndex()].push_back(account);
 
             if (!IsObjectAlive(account)) {
                 continue;
@@ -3627,11 +3624,11 @@ private:
     {
         THashMap<TAccount*, int> accountToRefCounter;
         for (auto [accountId, account] : AccountMap_) {
-            // Fake ref counter cannot be estimated from the automaton
+            // Artificial ref counter cannot be estimated from the automaton
             // state, so we believe that account is either a zombie or
-            // has fake ref counter.
-            auto fakeRefCounter = IsObjectAlive(account) ? 1 : 0;
-            EmplaceOrCrash(accountToRefCounter, account, fakeRefCounter);
+            // has artificial ref counter.
+            auto artificialRefCounter = IsObjectAlive(account) ? 1 : 0;
+            EmplaceOrCrash(accountToRefCounter, account, artificialRefCounter);
         }
 
         // Accounts are referenced by staged chunk trees.
@@ -3703,7 +3700,8 @@ private:
         AccountMap_.Clear();
         AccountNameMap_.clear();
 
-        AccountsForProfiling_.clear();
+        AccountsProfilingEnabled_ = false;
+        IncumbentShardIndexToAccountsForProfiling_.clear();
 
         AccountResourceUsageLeaseMap_.Clear();
 
@@ -4007,6 +4005,15 @@ private:
 
         RequestTracker_->Start();
         UserActivityTracker_->Start();
+
+        // Profiling stuff.
+        if (Bootstrap_->IsPrimaryMaster()) {
+            AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+                BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
+                GetDynamicConfig()->AccountsProfilingPeriod);
+            AccountsProfilingExecutor_->Start();
+        }
     }
 
     void OnLeaderActive() override
@@ -4031,24 +4038,8 @@ private:
         AccountMasterMemoryUsageUpdateExecutor_->Start();
     }
 
-    void OnIncumbencyStarted(int shardIndex) override
-    {
-        TShardedIncumbentBase::OnIncumbencyStarted(shardIndex);
-        MaybeToggleAccountsProfiling();
-    }
-
-    void OnIncumbencyFinished(int shardIndex) override
-    {
-        TShardedIncumbentBase::OnIncumbencyFinished(shardIndex);
-        MaybeToggleAccountsProfiling();
-    }
-
     bool NeedsAccountProfiling() const
     {
-        if (!Bootstrap_->IsPrimaryMaster()) {
-            return false;
-        }
-
         if (!GetDynamicConfig()->EnableAccountsProfiling) {
             return false;
         }
@@ -4058,56 +4049,19 @@ private:
 
     void MaybeToggleAccountsProfiling()
     {
-        if (NeedsAccountProfiling()) {
-            StartAccountProfiling();
-        } else {
-            StopAccountProfiling();
-        }
-    }
-
-    void StartAccountProfiling()
-    {
-        if (!AccountsProfilingExecutor_) {
-            AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-                BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
-                GetDynamicConfig()->AccountsProfilingPeriod);
-            AccountsProfilingExecutor_->Start();
+        auto shouldEnableAccountsProfiling = NeedsAccountProfiling();
+        if (shouldEnableAccountsProfiling == AccountsProfilingEnabled_) {
+            return;
         }
 
         for (const auto& producer : AccountProfilingProducers_) {
-            producer->SetEnabled(true);
+            producer->SetEnabled(shouldEnableAccountsProfiling);
         }
 
-        RefreshAccountsForProfiling();
+        YT_LOG_DEBUG("Account profiling %v",
+            shouldEnableAccountsProfiling ? "started" : "stopped");
 
-        YT_LOG_DEBUG("Account profiling started (SampleAccounts: %v, Count: %v)",
-            MakeShrunkFormattableView(
-                AccountsForProfiling_,
-                [] (
-                    TStringBuilderBase* builder,
-                    TAccount* account
-                ) {
-                    builder->AppendFormat("%v", account->GetName());
-                },
-                /*limit*/ 10),
-            AccountsForProfiling_.size());
-    }
-
-    void StopAccountProfiling()
-    {
-        if (AccountsProfilingExecutor_) {
-            YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
-            AccountsProfilingExecutor_.Reset();
-        }
-
-        for (const auto& producer : AccountProfilingProducers_) {
-            producer->SetEnabled(false);
-        }
-
-        AccountsForProfiling_.clear();
-
-        YT_LOG_DEBUG("Account profiling stopped");
+        AccountsProfilingEnabled_ = shouldEnableAccountsProfiling;
     }
 
     void OnStopLeading() override
@@ -4131,6 +4085,11 @@ private:
             YT_UNUSED_FUTURE(AccountMasterMemoryUsageUpdateExecutor_->Stop());
             AccountMasterMemoryUsageUpdateExecutor_.Reset();
         }
+
+        if (AccountsProfilingExecutor_) {
+            YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
+            AccountsProfilingExecutor_.Reset();
+        }
     }
 
     void OnStopFollowing() override
@@ -4139,6 +4098,11 @@ private:
 
         RequestTracker_->Stop();
         UserActivityTracker_->Stop();
+
+        if (AccountsProfilingExecutor_) {
+            YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
+            AccountsProfilingExecutor_.Reset();
+        }
     }
 
     void CommitAccountMasterMemoryUsage()
