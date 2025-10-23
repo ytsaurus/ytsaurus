@@ -20,6 +20,7 @@ using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NApi;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,9 +82,13 @@ void Delay(TDuration delay, EDelayType delayType)
     }
 }
 
-void MaybeDelay(const TDelayConfigPtr& delayConfig)
+void MaybeDelay(const TDelayConfigPtr& delayConfig, const TLogger* logger)
 {
     if (delayConfig) {
+        if (logger) {
+            const auto& Logger = *logger;
+            YT_LOG_DEBUG("Making test delay (Duration: %v, Type: %v)", delayConfig->Duration, delayConfig->Type);
+        }
         Delay(delayConfig->Duration, delayConfig->Type);
     }
 }

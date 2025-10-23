@@ -9705,7 +9705,7 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
             state);
     }
 
-    MaybeDelay(Spec_->TestingOperationOptions->SettleJobDelay);
+    MaybeDelay(Spec_->TestingOperationOptions->SettleJobDelay, &Logger);
 
     if (Spec_->TestingOperationOptions->FailSettleJobRequests) {
         THROW_ERROR_EXCEPTION("Testing failure");
