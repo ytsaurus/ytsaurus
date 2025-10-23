@@ -1369,7 +1369,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("aleksandra-zh")
     def test_validate_chunk_host_cell_role2(self):
-        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
         with raises_yt_error("cannot host chunks"):
             create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
@@ -1379,7 +1378,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("aleksandra-zh")
     def test_multicell_with_primary_chunk_host(self):
-        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {"10": {"roles": ["cypress_node_host", "chunk_host"]}})
 
         create("table", "//t")
