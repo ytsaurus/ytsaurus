@@ -299,7 +299,11 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                 if not os.path.exists(os.path.dirname(full_path)):
                     os.makedirs(os.path.dirname(full_path))
                 with open(full_path, "wb") as f:
-                    f.write(b"\0" * size)
+                    f.seek(size - 1)
+                    f.write(b"\0")
+                # fh = os.open(full_path, os.O_RDWR)
+                # os.posix_fallocate(fh, 0, size)
+                # os.close(fh)
 
             tables = []
             if filtered_files_sizes == all_files_sizes:
