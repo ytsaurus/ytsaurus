@@ -55,7 +55,8 @@ protected:
         const NCypressServer::TLockRequest& request = NCypressClient::ELockMode::Exclusive,
         bool recursive = false);
 
-    NYTree::IAttributeDictionary* GetCustomAttributes() override;
+    const NYTree::IAttributeDictionary& CustomAttributes() const override;
+    NYTree::IAttributeDictionary* MutableCustomAttributesOrNull() override;
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
@@ -69,7 +70,15 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, FinishRestore);
 
 private:
-    TMountConfigAttributeDictionaryPtr WrappedAttributes_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MountConfigAttributesLock_);
+    mutable TImmutableMountConfigAttributeDictionaryPtr ImmutableMountConfigAttributes_;
+    TMutableMountConfigAttributeDictionaryPtr MutableMountConfigAttributes_;
+
+    template <class TMountConfigAttributeDictionary>
+    static auto GetMountConfigAttributes(
+        auto this_,
+        auto& mountConfigAttributesHolder,
+        auto baseAttributeProvider);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

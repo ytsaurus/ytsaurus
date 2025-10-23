@@ -352,12 +352,12 @@ protected:
 
     const IAttributeDictionary& Attributes() const override
     {
-        return *const_cast<TSelf*>(this)->GetCombinedAttributes();
+        return CombinedAttributes();
     }
 
     IAttributeDictionary* MutableAttributes() override
     {
-        return GetCombinedAttributes();
+        return MutableCombinedAttributes();
     }
 
     ENodeType GetType() const override
