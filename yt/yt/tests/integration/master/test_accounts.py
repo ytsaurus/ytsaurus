@@ -4889,35 +4889,35 @@ class TestAccountsProfiling(YTEnvSetup):
         account_name = "Frank"
         create_account(account_name)
 
-        sleep(1)
+        sleep(2)
 
         follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
         follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
 
         # Find which follower is currently reporting metrics for account.
         follower_to_restart = ""
-        follower_profilers_with_reported_sys_metrics = []
-        follower_profilers_without_reported_sys_metrics = []
+        follower_profilers_with_reported_account_metrics = []
+        follower_profilers_without_reported_account_metrics = []
         for address, profiler in zip(follower_addresses, follower_profilers):
             values = profiler.gauge(gauge_name, fixed_tags={"account": account_name}).get_all()
             if len(values) != 0:
                 follower_to_restart = address
-                follower_profilers_with_reported_sys_metrics.append(profiler)
+                follower_profilers_with_reported_account_metrics.append(profiler)
             else:
-                follower_profilers_without_reported_sys_metrics.append(profiler)
+                follower_profilers_without_reported_account_metrics.append(profiler)
 
-        assert len(follower_profilers_with_reported_sys_metrics) == 1
+        assert len(follower_profilers_with_reported_account_metrics) == 1
 
         index_to_restart = self.Env.configs["master"][0]["primary_master"]["addresses"].index(follower_to_restart)
 
         self.Env.kill_service("master", indexes=[index_to_restart])
 
-        wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_sys_metrics, gauge_name, account_name))
+        wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_account_metrics, gauge_name, account_name))
 
         self.Env.start_master_cell(set_config=False)
 
         # Wait for master to be actually up.
         wait(lambda: get(f"//sys/primary_masters/{follower_to_restart}/orchid/monitoring/hydra/active", default=False), ignore_exceptions=True)
 
-        wait(lambda: self._check_account_is_profiled(follower_profilers_with_reported_sys_metrics, gauge_name, account_name))
-        wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_sys_metrics, gauge_name, account_name) is False)
+        wait(lambda: self._check_account_is_profiled(follower_profilers_with_reported_account_metrics, gauge_name, account_name))
+        wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_account_metrics, gauge_name, account_name) is False)
