@@ -6293,6 +6293,8 @@ class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
 
         wait(_check)
 
+        wait(lambda: cell_id1 not in self._get_chaos_cell_orchid(cell_id, "/chaos_manager/coordinators"))
+
         execute_command(
             "forsake_chaos_coordinator",
             parameters={
