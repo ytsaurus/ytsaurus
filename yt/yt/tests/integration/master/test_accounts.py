@@ -4682,7 +4682,7 @@ class TestAccountTreeMulticell(TestAccountTree):
 
 
 class TestAccountsProfiling(YTEnvSetup):
-    ENABLE_MULTIDAEMON = False  # Checks profiling.
+    ENABLE_MULTIDAEMON = False  # Has component restarts.
     NUM_MASTERS = 3
 
     def _get_leader_address(self):
@@ -4819,7 +4819,7 @@ class TestAccountsProfiling(YTEnvSetup):
             self._check_profiler_values(profiler, gauge_name, False)
 
     @authors("kazachonok")
-    def test_accounts_profiling2(self):
+    def test_accounts_profiling_totality(self):
         # Testing that every existing account is profiled by someone, and that all profiled accounts exist
 
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", True)
@@ -4861,3 +4861,63 @@ class TestAccountsProfiling(YTEnvSetup):
         for i in range(10):
             create_new_account()
         wait(lambda: self._check_profiling_totality(accounts, profilers, gauge_name))
+
+    def _check_account_is_profiled(self, profilers, gauge_name, account_name):
+        for profiler in profilers:
+            values = profiler.gauge(gauge_name, fixed_tags={"account": account_name}).get_all()
+            if len(values) != 0:
+                return True
+        return False
+
+    @authors("h0pless")
+    def test_accounts_profiling_follower_restart(self):
+        set("//sys/@config/incumbent_manager", {
+            "scheduler": {
+                "incumbents": {
+                    "security_manager": {
+                        "use_followers": True,
+                    }
+                }
+            },
+            "peer_lease_duration": 1000,
+            "peer_grace_period": 2000,
+            "banned_peers": [],
+        })
+
+        set("//sys/@config/security_manager/accounts_profiling_period", 100)
+        gauge_name = "accounts/chunk_count"
+        account_name = "Frank"
+        create_account(account_name)
+
+        sleep(1)
+
+        follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
+        follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
+
+        # Find which follower is currently reporting metrics for account.
+        follower_to_restart = ""
+        follower_profilers_with_reported_sys_metrics = []
+        follower_profilers_without_reported_sys_metrics = []
+        for address, profiler in zip(follower_addresses, follower_profilers):
+            values = profiler.gauge(gauge_name, fixed_tags={"account": account_name}).get_all()
+            if len(values) != 0:
+                follower_to_restart = address
+                follower_profilers_with_reported_sys_metrics.append(profiler)
+            else:
+                follower_profilers_without_reported_sys_metrics.append(profiler)
+
+        assert len(follower_profilers_with_reported_sys_metrics) == 1
+
+        index_to_restart = self.Env.configs["master"][0]["primary_master"]["addresses"].index(follower_to_restart)
+
+        self.Env.kill_service("master", indexes=[index_to_restart])
+
+        wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_sys_metrics, gauge_name, account_name))
+
+        self.Env.start_master_cell(set_config=False)
+
+        # Wait for master to be actually up.
+        wait(lambda: get(f"//sys/primary_masters/{follower_to_restart}/orchid/monitoring/hydra/active", default=False), ignore_exceptions=True)
+
+        wait(lambda: self._check_account_is_profiled(follower_profilers_with_reported_sys_metrics, gauge_name, account_name))
+        wait(lambda: self._check_account_is_profiled(follower_profilers_without_reported_sys_metrics, gauge_name, account_name) is False)
