@@ -1971,18 +1971,39 @@ TTableNode* TTableNodeProxy::LockThisImpl(
     return TBase::LockThisImpl<TTableNode>(request, recursive);
 }
 
-IAttributeDictionary* TTableNodeProxy::GetCustomAttributes()
+template <class TMountConfigAttributeDictionary>
+auto TTableNodeProxy::GetMountConfigAttributes(
+    auto this_,
+    auto& mountConfigAttributesHolder,
+    auto baseAttributeProvider)
 {
-    if (!WrappedAttributes_) {
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
-        WrappedAttributes_ = New<TMountConfigAttributeDictionary>(
-            Bootstrap_,
-            GetThisImpl(),
-            Transaction_,
-            TBase::GetCustomAttributes(),
+    auto guard = Guard(this_->MountConfigAttributesLock_);
+    if (!mountConfigAttributesHolder) {
+        const auto& config = this_->Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+        mountConfigAttributesHolder = New<TMountConfigAttributeDictionary>(
+            this_->Bootstrap_,
+            this_->GetThisImpl(),
+            this_->Transaction_,
+            baseAttributeProvider(),
             config->IncludeMountConfigAttributesInUserAttributes);
     }
-    return WrappedAttributes_.Get();
+    return mountConfigAttributesHolder;
+}
+
+const IAttributeDictionary& TTableNodeProxy::CustomAttributes() const
+{
+    return *GetMountConfigAttributes<TImmutableMountConfigAttributeDictionary>(
+        this,
+        ImmutableMountConfigAttributes_,
+        [&] { return &TBase::CustomAttributes(); });
+}
+
+IAttributeDictionary* TTableNodeProxy::MutableCustomAttributesOrNull()
+{
+    return GetMountConfigAttributes<TMutableMountConfigAttributeDictionary>(
+        this,
+        MutableMountConfigAttributes_,
+        [&] { return TBase::MutableCustomAttributesOrNull(); }).Get();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)

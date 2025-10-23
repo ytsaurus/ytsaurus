@@ -31,6 +31,10 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = TableServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 // Enumerates the attributes which were present in mount config by the moment
@@ -134,11 +138,11 @@ bool IsOldStyleMountConfigAttribute(TStringBuf key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMountConfigAttributeDictionary::TMountConfigAttributeDictionary(
+TImmutableMountConfigAttributeDictionary::TImmutableMountConfigAttributeDictionary(
     TBootstrap* bootstrap,
-    TTableNode* owner,
+    const TTableNode* owner,
     TTransaction* transaction,
-    NYTree::IAttributeDictionary* baseAttributes,
+    const NYTree::IAttributeDictionary* baseAttributes,
     bool includeOldAttributesInList)
     : Bootstrap_(bootstrap)
     , Owner_(owner)
@@ -147,7 +151,7 @@ TMountConfigAttributeDictionary::TMountConfigAttributeDictionary(
     , IncludeOldAttributesInList_(includeOldAttributesInList)
 { }
 
-auto TMountConfigAttributeDictionary::ListKeys() const -> std::vector<TKey>
+auto TImmutableMountConfigAttributeDictionary::ListKeys() const -> std::vector<TKey>
 {
     if (!IncludeOldAttributesInList_) {
         return BaseAttributes_->ListKeys();
@@ -167,7 +171,7 @@ auto TMountConfigAttributeDictionary::ListKeys() const -> std::vector<TKey>
     return result;
 }
 
-auto TMountConfigAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
+auto TImmutableMountConfigAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
 {
     if (!IncludeOldAttributesInList_) {
         return BaseAttributes_->ListPairs();
@@ -187,7 +191,7 @@ auto TMountConfigAttributeDictionary::ListPairs() const -> std::vector<TKeyValue
     return result;
 }
 
-auto TMountConfigAttributeDictionary::FindYson(TKeyView key) const -> TValue
+auto TImmutableMountConfigAttributeDictionary::FindYson(TKeyView key) const -> TValue
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         if (auto storage = Owner_->FindMountConfigStorage()) {
@@ -198,7 +202,36 @@ auto TMountConfigAttributeDictionary::FindYson(TKeyView key) const -> TValue
     return BaseAttributes_->FindYson(key);
 }
 
-void TMountConfigAttributeDictionary::SetYson(TKeyView key, const NYson::TYsonString& value)
+void TImmutableMountConfigAttributeDictionary::SetYson(TKeyView /*key*/, const NYson::TYsonString& /*value*/)
+{
+    YT_ABORT();
+}
+
+bool TImmutableMountConfigAttributeDictionary::Remove(TKeyView /*key*/)
+{
+    YT_LOG_ALERT("Attempt to remove an item from an immutable mount config attribute dictionary");
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMutableMountConfigAttributeDictionary::TMutableMountConfigAttributeDictionary(
+    TBootstrap* bootstrap,
+    TTableNode* owner,
+    TTransaction* transaction,
+    NYTree::IAttributeDictionary* mutableBaseAttributes,
+    bool includeOldAttributesInList)
+    : TImmutableMountConfigAttributeDictionary(
+        bootstrap,
+        owner,
+        transaction,
+        mutableBaseAttributes,
+        includeOldAttributesInList)
+    , Owner_(owner)
+    , BaseAttributes_(mutableBaseAttributes)
+{ }
+
+void TMutableMountConfigAttributeDictionary::SetYson(TKeyView key, const NYson::TYsonString& value)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         auto* lockedTable = LockMountConfigAttribute();
@@ -208,7 +241,7 @@ void TMountConfigAttributeDictionary::SetYson(TKeyView key, const NYson::TYsonSt
     return BaseAttributes_->SetYson(key, value);
 }
 
-bool TMountConfigAttributeDictionary::Remove(TKeyView key)
+bool TMutableMountConfigAttributeDictionary::Remove(TKeyView key)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         auto* lockedTable = LockMountConfigAttribute();
@@ -218,7 +251,7 @@ bool TMountConfigAttributeDictionary::Remove(TKeyView key)
     return BaseAttributes_->Remove(key);
 }
 
-TTableNode* TMountConfigAttributeDictionary::LockMountConfigAttribute()
+TTableNode* TMutableMountConfigAttributeDictionary::LockMountConfigAttribute()
 {
     return Bootstrap_->GetCypressManager()->LockNode(
         Owner_->GetTrunkNode(),
@@ -246,7 +279,7 @@ void InternalizeMountConfigAttributes(IAttributeDictionary* attributes)
         mountConfigNode = GetEphemeralNodeFactory()->CreateMap();
     }
 
-    for (auto&& [key, value] : oldStyleAttributes) {
+    for (auto& [key, value] : oldStyleAttributes) {
         mountConfigNode->AddChild(key, ConvertToNode(std::move(value)));
     }
 

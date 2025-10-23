@@ -58,7 +58,7 @@ public:
 
     // This method is made public for orchid nodes, which obtain their manifests
     // from owning node's custom attributes.
-    NYTree::IAttributeDictionary* GetCustomAttributes() override;
+    const NYTree::IAttributeDictionary& CustomAttributes() const override;
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -102,6 +102,8 @@ protected:
 
     void BeforeInvoke(const NYTree::IYPathServiceContextPtr& context) override;
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
+
+    NYTree::IAttributeDictionary* MutableCustomAttributesOrNull() override;
 
     // NYTree::TSupportsAttributes members
     void SetAttribute(

@@ -128,12 +128,12 @@ TTransaction* TObjectProxyBase::GetTransaction() const
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    return *const_cast<TObjectProxyBase*>(this)->GetCombinedAttributes();
+    return CombinedAttributes();
 }
 
 IAttributeDictionary* TObjectProxyBase::MutableAttributes()
 {
-    return GetCombinedAttributes();
+    return MutableCombinedAttributes();
 }
 
 void TObjectProxyBase::SetModified(EModificationType modificationType)
@@ -495,7 +495,13 @@ void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& contex
     ExternalizeToMasters(std::move(context), handler->GetReplicationCellTags(Object_));
 }
 
-IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
+const IAttributeDictionary& TObjectProxyBase::CustomAttributes() const
+{
+    YT_ASSERT(CustomAttributes_);
+    return *CustomAttributes_;
+}
+
+IAttributeDictionary* TObjectProxyBase::MutableCustomAttributesOrNull()
 {
     YT_ASSERT(CustomAttributes_);
     return CustomAttributes_;
@@ -667,7 +673,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::UserAttributeKeys: {
-            auto customKeys = GetCustomAttributes()->ListKeys();
+            auto customKeys = CustomAttributes().ListKeys();
             const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
             consumer->OnBeginList();
             for (const auto& key : customKeys) {
@@ -688,7 +694,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         }
 
         case EInternedAttributeKey::UserAttributes: {
-            auto customPairs = GetCustomAttributes()->ListPairs();
+            auto customPairs = CustomAttributes().ListPairs();
             const auto& systemCustomKeys = Metadata_->SystemCustomAttributeKeysCache.GetCustomAttributeKeys(this);
             consumer->OnBeginMap();
             for (const auto& [key, value] : customPairs) {

@@ -69,7 +69,7 @@ IYPathServicePtr CreateService(
         auto objectNode = DynamicPointerCast<TObjectProxyBase>(owningNode);
         YT_VERIFY(objectNode);
 
-        auto manifestNode = ConvertToNode(objectNode->GetCustomAttributes());
+        auto manifestNode = ConvertToNode(objectNode->CustomAttributes());
 
         try {
             manifest->Load(manifestNode);

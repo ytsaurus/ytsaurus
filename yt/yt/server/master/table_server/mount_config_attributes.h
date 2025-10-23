@@ -16,15 +16,15 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMountConfigAttributeDictionary
+class TImmutableMountConfigAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
 public:
-    TMountConfigAttributeDictionary(
+    TImmutableMountConfigAttributeDictionary(
         NCellMaster::TBootstrap* bootstrap,
-        TTableNode* owner,
+        const TTableNode* owner,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* baseAttributes,
+        const NYTree::IAttributeDictionary* baseAttributes,
         bool includeOldAttributesInList);
 
     std::vector<TKey> ListKeys() const override;
@@ -34,17 +34,40 @@ public:
     void SetYson(TKeyView key, const TValue& value) override;
     bool Remove(TKeyView key) override;
 
-private:
+protected:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TTableNode* const Owner_;
+    const TTableNode* const Owner_;
     NTransactionServer::TTransaction* const Transaction_;
-    NYTree::IAttributeDictionary* const BaseAttributes_;
+    const NYTree::IAttributeDictionary* const BaseAttributes_;
     const bool IncludeOldAttributesInList_ = false;
+};
+
+DEFINE_REFCOUNTED_TYPE(TImmutableMountConfigAttributeDictionary)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMutableMountConfigAttributeDictionary
+    : public TImmutableMountConfigAttributeDictionary
+{
+public:
+    TMutableMountConfigAttributeDictionary(
+        NCellMaster::TBootstrap* bootstrap,
+        TTableNode* owner,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* mutableBaseAttributes,
+        bool includeOldAttributesInList);
+
+    void SetYson(TKeyView key, const TValue& value) override;
+    bool Remove(TKeyView key) override;
+
+private:
+    TTableNode* const Owner_;
+    NYTree::IAttributeDictionary* const BaseAttributes_;
 
     TTableNode* LockMountConfigAttribute();
 };
 
-DEFINE_REFCOUNTED_TYPE(TMountConfigAttributeDictionary)
+DEFINE_REFCOUNTED_TYPE(TMutableMountConfigAttributeDictionary)
 
 ////////////////////////////////////////////////////////////////////////////////
 
