@@ -3476,7 +3476,9 @@ private:
         Save(context, Decommissioned_);
 
         {
-            auto guard = Guard(SequencerLock_);
+            // These fields are protected by SequencerLock_, yet here it's not taken.
+            // This might seem reckless, but it's actually fine. These fields are being modified in the Automaton thread only.
+            // When writing a snapshot in a forked process no mutations can be applied, thus these fields can be accessed.
             Save(context, NextStronglyOrderedTransactionSequenceNumber_);
             Save(context, UncommittedTransactionSequenceNumbers_);
             Save(context, TransactionIdToSequenceNumber_);
