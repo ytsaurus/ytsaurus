@@ -57,7 +57,6 @@ target_include_directories(libs-apache-arrow_next PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/utf8proc
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
-  ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
 )
 
 target_link_libraries(libs-apache-arrow_next PUBLIC
