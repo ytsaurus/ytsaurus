@@ -214,7 +214,7 @@ TConstraintRef IsNullConstraintExtractor(
     if (referenceExpr) {
         int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
         if (keyPartIndex >= 0) {
-            return constraints->Constant(MakeUnversionedNullValue(), keyPartIndex);
+            return constraints->Constant(MakeUnversionedNullValue(keyPartIndex), keyPartIndex);
         }
     }
 
