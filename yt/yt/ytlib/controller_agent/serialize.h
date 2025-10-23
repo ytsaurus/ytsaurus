@@ -77,13 +77,13 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RlsInOperations)                       (301905))
     ((FixRlsSnapshots)                       (301906))
     // 25.4 starts here
-    ((BumpTo_25_4)                           (302000))
-    ((PrimaryCompressedDataSizePerJob)       (302001))
-    ((RemoveOldOrderedChunkPoolSlicing)      (302002))
-    ((RemoveOldUnorderedChunkPoolSlicing)    (302003))
-    ((DistributedJobManagers)                (302004))
-    ((PerTableInputQuery)                    (302005))
-    ((RemoveUnusedLocalityStatistics)        (302006))
+    ((BumpTo_25_4)                           (302100))
+    ((PrimaryCompressedDataSizePerJob)       (302101))
+    ((RemoveOldOrderedChunkPoolSlicing)      (302102))
+    ((RemoveOldUnorderedChunkPoolSlicing)    (302103))
+    ((DistributedJobManagers)                (302104))
+    ((PerTableInputQuery)                    (302105))
+    ((RemoveUnusedLocalityStatistics)        (302106))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
