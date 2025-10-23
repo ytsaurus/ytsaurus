@@ -113,9 +113,7 @@ public:
             future = cookie.GetValue();
         }
 
-        return future
-            .ToUncancelable()
-            .ToImmediatelyCancelable();
+        return future.ToImmediatelyCancelable(/*propagateCancelation*/ false);
     }
 
     bool InsertMeta(
