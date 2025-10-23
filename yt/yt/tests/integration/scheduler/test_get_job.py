@@ -6,7 +6,7 @@ from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     create_pool, run_sleeping_vanilla, print_debug,
     update_controller_agent_config, get_allocation_id_from_job_id,
-    lookup_rows, write_table, map, vanilla, run_test_vanilla,
+    lookup_rows, write_table, map, map_reduce, vanilla, run_test_vanilla, list_jobs, merge, sort,
     abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists, wait_for_cells)
 
 import yt_error_codes
@@ -29,6 +29,9 @@ import datetime
 from copy import deepcopy
 
 
+MB_SEC_TO_BYTES_MS_DIVISOR = 1000 * 1024 * 1024
+
+
 class _TestGetJobBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -36,6 +39,14 @@ class _TestGetJobBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+        },
         "job_resource_manager": {
             "resource_limits": {
                 "cpu": 1,
@@ -125,6 +136,110 @@ class _TestGetJobBase(YTEnvSetup):
 class _TestGetJobCommon(_TestGetJobBase):
     ENABLE_MULTIDAEMON = True
 
+    def _run_consumption_job(
+        self,
+        *,
+        command,
+        cpu_limit,
+        memory_limit,
+        memory_reserve_factor,
+        gpu_limit=0,
+    ):
+        task_patch = {
+            "cpu_limit": cpu_limit,
+            "memory_limit": memory_limit,
+            "memory_reserve_factor": memory_reserve_factor,
+        }
+        if gpu_limit:
+            task_patch["gpu_limit"] = gpu_limit
+            task_patch["enable_gpu_layers"] = False
+
+        op = run_test_vanilla(
+            command,
+            track=True,
+            task_patch=task_patch,
+        )
+
+        jobs = list_jobs(op.id, state="completed")["jobs"]
+        assert len(jobs) == 1
+        job_id = jobs[0]["id"]
+
+        stats = get_job(op.id, job_id)["statistics"]
+        consumption_stats = stats["resource_usage"]["consumption_running"]
+        initial_stats = stats["resource_usage"]["initial"]
+        # User job memory reserve + 128mb footprint(for job proxy and other stuff)
+        initial_memory_bytes = int(memory_limit * memory_reserve_factor + 128 * 1024 * 1024)
+        return consumption_stats, initial_stats, initial_memory_bytes
+
+    @staticmethod
+    def _assert_consumption_total(value: int, time_ms: int, units_per_ms: int, units_divisor: int, metric_name: str):
+        assert time_ms > 0, f"Running time for {metric_name} consumption should be positive, got {time_ms}"
+        assert units_per_ms >= 0, f"{metric_name} usage per millisecond must be non-negative, got {units_per_ms}"
+        # Underlying time is in microseconds and floored to milliseconds, so we need to account for that.
+        expected_min = (time_ms * units_per_ms) // units_divisor
+        expected_max = ((time_ms + 1) * units_per_ms) // units_divisor
+        assert expected_min <= value <= expected_max, \
+            f"{metric_name} consumption {value} outside [{expected_min}, {expected_max}]. time_ms: {time_ms}, units_per_ms: {units_per_ms}, units_divisor: {units_divisor}"
+
+    @staticmethod
+    def _assert_cpu_consumption(running_stats, initial_stats):
+        _TestGetJobCommon._assert_consumption_total(
+            running_stats["cpu"]["sum"],
+            running_stats["time"]["sum"],
+            initial_stats["cpu"]["sum"],
+            1,
+            "cpu",
+        )
+
+    @staticmethod
+    def _assert_vcpu_consumption(running_stats, initial_stats):
+        _TestGetJobCommon._assert_consumption_total(
+            running_stats["vcpu"]["sum"],
+            running_stats["time"]["sum"],
+            initial_stats["vcpu"]["sum"],
+            1,
+            "vcpu",
+        )
+
+    @staticmethod
+    def _assert_gpu_consumption(running_stats, initial_stats):
+        _TestGetJobCommon._assert_consumption_total(
+            running_stats["gpu"]["sum"],
+            running_stats["time"]["sum"],
+            initial_stats["gpu"]["sum"],
+            1,
+            "gpu",
+        )
+
+    @staticmethod
+    def _assert_memory_consumption(running_stats, initial_stats):
+        # This is in mb_sec instead of bytes_ms, so we need to divide by 1024 * 1024 for mb -> bytes and by 1000 for ms -> sec.
+        _TestGetJobCommon._assert_consumption_total(
+            running_stats["user_memory"]["sum"],
+            running_stats["time"]["sum"],
+            initial_stats["user_memory"]["sum"],
+            MB_SEC_TO_BYTES_MS_DIVISOR,
+            "user_memory",
+        )
+
+    def _assert_completed_jobs_have_consumption(self, op_id):
+        jobs = list_jobs(op_id)["jobs"]
+        assert jobs, "Operation produced no jobs"
+        completed_found = False
+        for job_info in jobs:
+            if job_info["state"] != "completed":
+                continue
+            stats = get_job(op_id, job_info["id"])["statistics"]
+            resource_usage_stats = stats["resource_usage"]
+            running = resource_usage_stats["consumption_running"]
+            initial = resource_usage_stats["initial"]
+            assert running["cpu"]["sum"] > 0, "CPU consumption should be positive"
+            assert running["time"]["sum"] > 0, "Running time should be positive"
+            assert running["user_memory"]["sum"] > 0, "Memory consumption should be positive"
+            assert initial["cpu"]["sum"] > 0, "Initial CPU usage should be positive"
+            completed_found = True
+        assert completed_found, "No completed job found for operation"
+
     @authors("omgronny")
     def test_get_job(self):
         create_pool("my_pool")
@@ -187,6 +302,399 @@ class _TestGetJobCommon(_TestGetJobBase):
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
         self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=None)
+
+    # Job consumption tracking tests
+    # These tests verify that resource consumption (CPU, vCPU, memory, GPU) is tracked during job execution.
+    # Metrics are exposed at /resource_usage/consumption_running/{cpu,vcpu,user_memory,gpu}
+    # and the initial demand snapshot at /resource_usage/initial/{cpu,vcpu,user_memory,gpu}.
+
+    RESOURCE_SCENARIOS = (
+        pytest.param(
+            {
+                "sleep_s": 0.3,
+                "cpu_limit": 1.0,
+                "memory_limit": 512 * 1024 * 1024,
+                "memory_reserve_factor": 0.5,
+                "gpu_limit": 0,
+            },
+            id="cpu-default",
+        ),
+        pytest.param(
+            {
+                "sleep_s": 0.2,
+                "cpu_limit": 0.1,
+                "memory_limit": 512 * 1024 * 1024,
+                "memory_reserve_factor": 0.1,
+                "gpu_limit": 0,
+            },
+            id="minimal-cpu",
+        ),
+        pytest.param(
+            {
+                "sleep_s": 0.4,
+                "cpu_limit": 1.0,
+                "memory_limit": 512 * 1024 * 1024,
+                "memory_reserve_factor": 0.8,
+                "gpu_limit": 2,
+            },
+            id="gpu",
+        ),
+    )
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.parametrize("scenario", RESOURCE_SCENARIOS)
+    def test_job_consumption_resource_matrix(self, scenario):
+        """Verify resource consumption accounting across CPU, vCPU, memory, and GPU."""
+        command = f"sleep {scenario['sleep_s']}"
+        running, initial, initial_memory_bytes = self._run_consumption_job(
+            command=command,
+            cpu_limit=scenario["cpu_limit"],
+            memory_limit=scenario["memory_limit"],
+            memory_reserve_factor=scenario["memory_reserve_factor"],
+            gpu_limit=scenario["gpu_limit"],
+        )
+
+        time_ms = running["time"]["sum"]
+        minimal_expected_time_ms = scenario["sleep_s"] * 1000
+        maximum_expected_time_ms = minimal_expected_time_ms + 200
+        assert time_ms >= minimal_expected_time_ms, \
+            f"Time {time_ms}ms should be at least {minimal_expected_time_ms}ms"
+        assert time_ms <= maximum_expected_time_ms, \
+            f"Time {time_ms}ms should be at most {maximum_expected_time_ms}ms"
+
+        expected_cpu_millicores = int(round(scenario["cpu_limit"] * 1000))
+        expected_gpu_units = int(scenario["gpu_limit"])
+
+        assert initial["cpu"]["sum"] == expected_cpu_millicores, \
+            f"CPU usage initially {initial['cpu']['sum']} != expected {expected_cpu_millicores}"
+        assert initial["vcpu"]["sum"] == expected_cpu_millicores, \
+            f"vCPU usage initially {initial['vcpu']['sum']} != expected {expected_cpu_millicores}"
+        assert initial["user_memory"]["sum"] == initial_memory_bytes, \
+            f"User memory initially {initial['user_memory']['sum']} != expected {initial_memory_bytes}"
+        assert initial["gpu"]["sum"] == expected_gpu_units, \
+            f"GPU usage initially {initial['gpu']['sum']} != expected {expected_gpu_units}"
+
+        self._assert_cpu_consumption(running, initial)
+        self._assert_vcpu_consumption(running, initial)
+        self._assert_memory_consumption(running, initial)
+        self._assert_gpu_consumption(running, initial)
+
+    @authors("aleksandr.gaev")
+    def test_job_consumption_increases_over_time(self):
+        """Verify consumption increases while job is running."""
+        cpu_limit = 1.0
+        memory_limit_bytes = 512 * 1024 * 1024
+        memory_reserve_factor = 0.5
+
+        op = run_test_vanilla(
+            with_breakpoint("sleep 0.5; BREAKPOINT; sleep 0.5"),
+            track=False,
+            task_patch={
+                "cpu_limit": cpu_limit,
+                "memory_limit": memory_limit_bytes,
+                "memory_reserve_factor": memory_reserve_factor,
+            },
+        )
+
+        (job_id,) = wait_breakpoint()
+
+        # Wait for initial consumption to accumulate
+        def has_consumption():
+            try:
+                job_info = get_job(op.id, job_id)
+                stats = job_info.get("statistics", {})
+                resource_usage = stats.get("resource_usage", {})
+                running = resource_usage.get("consumption_running", {})
+                return running.get("cpu", {}).get("sum", 0) > 0
+            except Exception:
+                return False
+
+        wait(has_consumption, timeout=30)
+
+        # Get consumption while running
+        stats_t1 = get_job(op.id, job_id)["statistics"]
+        resource_usage_t1 = stats_t1["resource_usage"]
+        running_t1 = resource_usage_t1["consumption_running"]
+        initial = resource_usage_t1["initial"]
+
+        cpu_t1 = running_t1["cpu"]["sum"]
+        memory_t1 = running_t1["user_memory"]["sum"]
+        time_t1 = running_t1["time"]["sum"]
+
+        assert cpu_t1 > 0
+        assert memory_t1 > 0
+        assert time_t1 > 0
+
+        # Wait a bit more
+        time.sleep(0.3)
+
+        # Get consumption again while still running
+        stats_t2 = get_job(op.id, job_id)["statistics"]
+        resource_usage_t2 = stats_t2["resource_usage"]
+        running_t2 = resource_usage_t2["consumption_running"]
+
+        assert resource_usage_t2["initial"] == initial, "Initial usage should never change"
+
+        cpu_t2 = running_t2["cpu"]["sum"]
+        memory_t2 = running_t2["user_memory"]["sum"]
+        time_t2 = running_t2["time"]["sum"]
+
+        # Consumption should increase over time
+        assert cpu_t2 > cpu_t1
+        assert memory_t2 > memory_t1
+        assert time_t2 > time_t1
+
+        # Complete the job
+        release_breakpoint()
+        op.track()
+
+        # Final consumption should be even higher
+        stats_final = get_job(op.id, job_id)["statistics"]
+        resource_usage_final = stats_final["resource_usage"]
+        running_final = resource_usage_final["consumption_running"]
+        initial_final = resource_usage_final["initial"]
+
+        assert initial_final == initial, "Initial usage should not change after job completion"
+
+        cpu_final = running_final["cpu"]["sum"]
+
+        assert cpu_final > cpu_t2
+        self._assert_cpu_consumption(running_final, initial_final)
+        self._assert_vcpu_consumption(running_final, initial_final)
+        self._assert_memory_consumption(running_final, initial_final)
+        self._assert_gpu_consumption(running_final, initial_final)
+
+    @authors("krock21")
+    def test_job_consumption_tracks_high_memory_usage_with_low_reserve(self):
+        """Verify consumption reflects high memory usage even with a small reserve."""
+        cpu_limit = 1.0
+        memory_limit_bytes = 1024 * 1024 * 1024
+        memory_reserve_factor = 0.1
+
+        # Need to give some time to get correct average value for memory. Deleting buf to verify that consumption doesn't go down after that.
+        command = """python3 - <<'PY'
+import time
+
+buf = bytearray(800 * 1024 * 1024)
+time.sleep(10.0)
+del buf
+time.sleep(10.0)
+PY
+"""
+
+        running, initial, _ = self._run_consumption_job(
+            command=command,
+            cpu_limit=cpu_limit,
+            memory_limit=memory_limit_bytes,
+            memory_reserve_factor=memory_reserve_factor,
+            gpu_limit=0,
+        )
+
+        self._assert_cpu_consumption(running, initial)
+        self._assert_vcpu_consumption(running, initial)
+        self._assert_gpu_consumption(running, initial)
+
+        # A job should increase memory usage up to 928mb (800mb user_job + 128mb ahead reserve)
+
+        running_time = running["time"]["sum"]
+        memory_consumption = running["user_memory"]["sum"]
+        average_memory_consumption = (memory_consumption * 1000) // running_time
+        assert 800 <= average_memory_consumption <= 950, (
+            "Memory consumption did not reflect high usage. "
+            f"Job was expected to consume 800mb and worked for {running_time/1000}s, "
+            f"but average consumption is {average_memory_consumption}"
+        )
+
+    TERMINAL_SCENARIOS = (
+        pytest.param(
+            {
+                "mode": "failed_breakpoint",
+                "use_breakpoint": True,
+                "command_template": "BREAKPOINT; sleep 0.3; exit 1",
+                "spec": {"fail_on_job_restart": False},
+                "expected_state": "failed",
+                "sleep_s": 0.3,
+                "memory_reserve_factor": 0.5,
+                "should_abort": False,
+            },
+            id="failed",
+        ),
+        pytest.param(
+            {
+                "mode": "aborted_breakpoint",
+                "use_breakpoint": True,
+                "command_template": "BREAKPOINT; sleep 5",
+                "spec": {},
+                "expected_state": "aborted",
+                "sleep_s": 0.0,
+                "memory_reserve_factor": 0.5,
+                "should_abort": True,
+            },
+            id="aborted",
+        ),
+        pytest.param(
+            {
+                "mode": "failed_no_breakpoint",
+                "use_breakpoint": False,
+                "command": "sleep 0.3; exit 1",
+                "spec": {"fail_on_job_restart": False},
+                "expected_state": "failed",
+                "sleep_s": 0.3,
+                "memory_reserve_factor": 0.5,
+                "should_abort": False,
+            },
+            id="failed-no-breakpoint",
+        ),
+    )
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.parametrize("scenario", TERMINAL_SCENARIOS)
+    def test_job_consumption_terminal_states(self, scenario):
+        """Verify consumption persists for failed and aborted jobs."""
+        cpu_limit = 1.0
+        memory_limit_bytes = 512 * 1024 * 1024
+        memory_reserve_factor = scenario["memory_reserve_factor"]
+
+        task_patch = {
+            "cpu_limit": cpu_limit,
+            "memory_limit": memory_limit_bytes,
+            "memory_reserve_factor": memory_reserve_factor,
+        }
+
+        if scenario["use_breakpoint"]:
+            op = run_test_vanilla(
+                with_breakpoint(scenario["command_template"]),
+                track=False,
+                spec=scenario.get("spec"),
+                task_patch=task_patch,
+            )
+
+            (job_id,) = wait_breakpoint()
+
+            def has_consumption():
+                try:
+                    stats = get_job(op.id, job_id).get("statistics", {})
+                    resource_usage = stats.get("resource_usage", {})
+                    running = resource_usage.get("consumption_running", {})
+                    return running.get("cpu", {}).get("sum", 0) > 0
+                except Exception:
+                    return False
+
+            wait(has_consumption, timeout=30)
+
+            resource_usage_before = get_job(op.id, job_id)["statistics"]["resource_usage"]
+            running_before = resource_usage_before["consumption_running"]
+            initial = resource_usage_before["initial"]
+            cpu_before = running_before["cpu"]["sum"]
+            time_before = running_before["time"]["sum"]
+
+            if scenario["should_abort"]:
+                abort_job(job_id)
+            release_breakpoint()
+            if scenario["should_abort"]:
+                op.track()
+            else:
+                with raises_yt_error(yt_error_codes.MaxFailedJobsLimitExceeded):
+                    op.track()
+
+            job_info = get_job(op.id, job_id)
+            assert job_info["state"] == scenario["expected_state"]
+
+            stats = job_info["statistics"]
+            resource_usage = stats["resource_usage"]
+            running = resource_usage["consumption_running"]
+            initial = resource_usage["initial"]
+
+            assert running["cpu"]["sum"] >= cpu_before, \
+                f"CPU consumption should not decrease: {cpu_before} -> {running['cpu']['sum']}"
+            assert running["time"]["sum"] >= time_before, \
+                f"Running time should not decrease: {time_before} -> {running['time']['sum']}"
+
+            minimal_expected_time_ms = scenario["sleep_s"] * 1000
+            assert running["time"]["sum"] >= minimal_expected_time_ms, \
+                f"Time {running['time']['sum']}ms should be at least {minimal_expected_time_ms}ms"
+        else:
+            op = run_test_vanilla(
+                scenario["command"],
+                track=False,
+                spec=scenario.get("spec"),
+                task_patch=task_patch,
+            )
+            with raises_yt_error(yt_error_codes.MaxFailedJobsLimitExceeded):
+                op.track()
+
+            jobs = list_jobs(op.id)["jobs"]
+            assert jobs, "Operation produced no jobs"
+            job_id = jobs[0]["id"]
+            job_info = get_job(op.id, job_id)
+            assert job_info["state"] == scenario["expected_state"]
+            stats = job_info["statistics"]
+            resource_usage = stats["resource_usage"]
+            running = resource_usage["consumption_running"]
+            initial = resource_usage["initial"]
+
+            minimal_expected_time_ms = scenario["sleep_s"] * 1000
+            maximum_expected_time_ms = minimal_expected_time_ms + 200
+            time_ms = running["time"]["sum"]
+            assert time_ms >= minimal_expected_time_ms, \
+                f"Time {time_ms}ms should be at least {minimal_expected_time_ms}ms"
+            assert time_ms <= maximum_expected_time_ms, \
+                f"Time {time_ms}ms should be at most {maximum_expected_time_ms}ms"
+
+        self._assert_cpu_consumption(running, initial)
+        self._assert_vcpu_consumption(running, initial)
+        self._assert_memory_consumption(running, initial)
+        self._assert_gpu_consumption(running, initial)
+
+    @authors("aleksandr.gaev")
+    def test_merge_job_consumption(self):
+        create("table", "//tmp/consumption_merge_in")
+        create("table", "//tmp/consumption_merge_out")
+        write_table("//tmp/consumption_merge_in", [{"key": i, "value": "x" * 100} for i in range(50)])
+
+        merge_op = merge(
+            in_=["//tmp/consumption_merge_in"],
+            out="//tmp/consumption_merge_out",
+            spec={"force_transform": True},
+            track=False,
+        )
+        merge_op.track()
+
+        self._assert_completed_jobs_have_consumption(merge_op.id)
+
+    @authors("aleksandr.gaev")
+    def test_sort_job_consumption(self):
+        create("table", "//tmp/consumption_sort_in")
+        create("table", "//tmp/consumption_sort_out")
+        write_table("//tmp/consumption_sort_in", [{"key": i, "value": "x" * 50} for i in range(40)])
+
+        sort_op = sort(
+            in_="//tmp/consumption_sort_in",
+            out="//tmp/consumption_sort_out",
+            sort_by=["key"],
+            track=False,
+        )
+        sort_op.track()
+
+        self._assert_completed_jobs_have_consumption(sort_op.id)
+
+    @authors("aleksandr.gaev")
+    def test_mapreduce_job_consumption(self):
+        create("table", "//tmp/consumption_mr_in")
+        create("table", "//tmp/consumption_mr_out")
+        write_table("//tmp/consumption_mr_in", [{"key": i, "value": i} for i in range(30)])
+
+        mr_op = map_reduce(
+            mapper_command="cat",
+            reducer_command="cat",
+            in_="//tmp/consumption_mr_in",
+            out="//tmp/consumption_mr_out",
+            sort_by=["key"],
+            track=False,
+        )
+        mr_op.track()
+
+        self._assert_completed_jobs_have_consumption(mr_op.id)
 
     @authors("omgronny")
     def test_operation_ids_table(self):

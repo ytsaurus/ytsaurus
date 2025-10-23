@@ -119,6 +119,8 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
+#include <library/cpp/int128/int128.h>
+
 #include <util/system/env.h>
 
 namespace NYT::NExecNode {
@@ -173,6 +175,10 @@ static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr i64 CenticoresToMillicoresMultiplier = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -907,6 +913,47 @@ void TJob::Finalize(EJobState finalState, TError error)
         /*byJobProxyCompletion*/ false);
 }
 
+TDuration TJob::GetRunningPhaseDuration() const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    if (RunningPhaseStartTime_ == TInstant::Zero()) {
+        return TDuration::Zero();
+    }
+    if (RunningPhaseStopTime_ == TInstant::Zero()) {
+        return TInstant::Now() - RunningPhaseStartTime_;
+    }
+    return RunningPhaseStopTime_ - RunningPhaseStartTime_;
+}
+
+TDuration TJob::UpdateConsumptionTracking(std::optional<NClusterNode::TJobResources> newUsage)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto duration = GetRunningPhaseDuration();
+    // Propagate consumption to the new duration.
+    if (duration > RunningPhaseDurationAtLastUpdate_) {
+        auto durationDiff = duration - RunningPhaseDurationAtLastUpdate_;
+        auto usage = RunningPhaseResourceUsage_;
+        // Convert from centicores (GetUnderlyingValue() returns centicores) to millicores.
+        i128 cpuMillicores = usage.Cpu.GetUnderlyingValue() * CenticoresToMillicoresMultiplier;
+        i128 vcpuMillicores = usage.VCpu.GetUnderlyingValue() * CenticoresToMillicoresMultiplier;
+        i128 gpu = static_cast<i128>(usage.Gpu);
+        RunningPhaseCpuConsumption_ += cpuMillicores * static_cast<i128>(durationDiff.MicroSeconds());
+        RunningPhaseVCpuConsumption_ += vcpuMillicores * static_cast<i128>(durationDiff.MicroSeconds());
+        RunningPhaseUserMemoryConsumption_ += static_cast<i128>(usage.UserMemory) * static_cast<i128>(durationDiff.MicroSeconds());
+        RunningPhaseGpuConsumption_ += gpu * static_cast<i128>(durationDiff.MicroSeconds());
+        RunningPhaseDurationAtLastUpdate_ = duration;
+    }
+
+    // Update resource usage if needed.
+    if (newUsage) {
+        RunningPhaseResourceUsage_ = std::move(*newUsage);
+    }
+
+    return RunningPhaseDurationAtLastUpdate_;
+}
+
 void TJob::OnJobFinalized()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1285,6 +1332,8 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     if (JobPhase_ == EJobPhase::Running) {
         ResourceHolder_->SetBaseResourceUsage(newUsage);
     }
+
+    UpdateConsumptionTracking(newUsage);
 }
 
 void TJob::SetProgress(double progress)
@@ -1422,6 +1471,8 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
     EnrichStatisticsWithArtifactsInfo(&statistics);
 
     UpdateIOStatistics(statistics);
+
+    EnrichStatisticsWithConsumptionInfo(&statistics);
 
     StatisticsYson_ = ConvertToYsonString(statistics);
 
@@ -2080,6 +2131,16 @@ void TJob::SetJobPhase(EJobPhase phase)
         "Setting new job phase (Previous: %v, New: %v)",
         JobPhase_,
         phase);
+
+    // Running phase consumption tracking.
+    if (phase == EJobPhase::Running && JobPhase_ != EJobPhase::Running) {
+        RunningPhaseStartTime_ = TInstant::Now();
+        auto currentUsage = GetResourceUsage();
+        UpdateConsumptionTracking(std::move(currentUsage));
+    } else if (phase != EJobPhase::Running && JobPhase_ == EJobPhase::Running) {
+        RunningPhaseStopTime_ = TInstant::Now();
+        UpdateConsumptionTracking();
+    }
 
     JobPhase_ = phase;
     AddJobEvent(phase);
@@ -4051,6 +4112,44 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size"_SP, ChunkCacheStatistics_.CacheHitArtifactsSize);
     statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ChunkCacheStatistics_.CacheMissArtifactsSize);
     statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ChunkCacheStatistics_.CacheBypassedArtifactsSize);
+}
+
+void TJob::EnrichStatisticsWithConsumptionInfo(TStatistics* statistics)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto duration = UpdateConsumptionTracking();
+
+    constexpr i128 MicrosecondsInMillisecond = 1'000;
+    constexpr i128 MicrosecondsInSecond = 1'000'000;
+    constexpr i128 BytesInMebibyte = 1024 * 1024;
+
+    i128 cpuMillicoreMilliseconds = RunningPhaseCpuConsumption_ / MicrosecondsInMillisecond;
+    i128 vcpuMillicoreMilliseconds = RunningPhaseVCpuConsumption_ / MicrosecondsInMillisecond;
+    i128 userMemoryMebibyteSeconds = RunningPhaseUserMemoryConsumption_ / (BytesInMebibyte * MicrosecondsInSecond);
+    i128 gpuMilliseconds = RunningPhaseGpuConsumption_ / MicrosecondsInMillisecond;
+
+    auto clamp = [] (i128 value) -> i64 {
+        constexpr i128 MaxI64 = static_cast<i128>(std::numeric_limits<i64>::max());
+        return value > MaxI64 ? std::numeric_limits<i64>::max() : static_cast<i64>(value);
+    };
+
+    statistics->ReplacePathWithSample("/resource_usage/consumption_running/cpu"_SP, clamp(cpuMillicoreMilliseconds));
+    statistics->ReplacePathWithSample("/resource_usage/consumption_running/vcpu"_SP, clamp(vcpuMillicoreMilliseconds));
+    statistics->ReplacePathWithSample("/resource_usage/consumption_running/user_memory"_SP, clamp(userMemoryMebibyteSeconds));
+    statistics->ReplacePathWithSample("/resource_usage/consumption_running/gpu"_SP, clamp(gpuMilliseconds));
+
+    statistics->ReplacePathWithSample("/resource_usage/consumption_running/time"_SP, static_cast<i64>(duration.MilliSeconds()));
+
+    auto initialCpuMillicores = static_cast<i64>(InitialResourceDemand_.Cpu.GetUnderlyingValue() * CenticoresToMillicoresMultiplier);
+    auto initialVCpuMillicores = static_cast<i64>(InitialResourceDemand_.VCpu.GetUnderlyingValue() * CenticoresToMillicoresMultiplier);
+    auto initialUserMemoryBytes = static_cast<i64>(InitialResourceDemand_.UserMemory);
+    auto initialGpu = static_cast<i64>(InitialResourceDemand_.Gpu);
+
+    statistics->ReplacePathWithSample("/resource_usage/initial/cpu"_SP, initialCpuMillicores);
+    statistics->ReplacePathWithSample("/resource_usage/initial/vcpu"_SP, initialVCpuMillicores);
+    statistics->ReplacePathWithSample("/resource_usage/initial/user_memory"_SP, initialUserMemoryBytes);
+    statistics->ReplacePathWithSample("/resource_usage/initial/gpu"_SP, initialGpu);
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
