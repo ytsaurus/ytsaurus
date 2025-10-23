@@ -77,8 +77,9 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RlsInOperations)                       (301905))
     ((FixRlsSnapshots)                       (301906))
     ((PrimaryCompressedDataSizePerJob)       (301907))
-    // 25.4 starts here
-    ((BumpTo_25_4)                           (302000))
+    // Be careful with snapshot numbering!
+    // There is a gap due to accidental cherry-picking of an invalid snapshot version.
+    ((WronglyCherryPickedSnapshotVersion)    (302000))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
