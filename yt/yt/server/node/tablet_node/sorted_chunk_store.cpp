@@ -717,8 +717,6 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory)
     {
-        const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
-
         // Check for in-memory reads.
         if (auto chunkState = chunk->FindPreloadedChunkState()) {
             MaybeWrapUnderlyingReader(
@@ -752,25 +750,19 @@ private:
 
         auto backendReaders = chunk->GetBackendReaders(workloadCategory);
 
-        if (mountConfig->EnableDataNodeLookup && backendReaders.OffloadingReader) {
-            auto options = New<TOffloadingReaderOptions>(TOffloadingReaderOptions{
-                .ChunkReadOptions = chunkReadOptions,
-                .TableId = tabletSnapshot->TableId,
-                .MountRevision = tabletSnapshot->MountRevision,
-                .TableSchema = tabletSnapshot->TableSchema,
-                .ColumnFilter = columnFilter,
-                .Timestamp = timestamp,
-                .ProduceAllVersions = produceAllVersions,
-                .OverrideTimestamp = chunk->OverrideTimestamp_,
-                .EnableHashChunkIndex = mountConfig->EnableHashChunkIndexForLookup
-            });
-            MaybeWrapUnderlyingReader(
+        // NB: To filter keys we need to obtain meta first,
+        // so we will check possibility of DNL again after filtering keys.
+        if (CanOffloadViaDataNodeLookup(tabletSnapshot, backendReaders, /*keysFiltered*/ false)) {
+            OffloadViaDataNodeLookup(
+                /*keysFiltered*/ false,
+                tabletSnapshot,
+                std::move(backendReaders),
+                chunkReadOptions,
+                columnFilter,
+                timestamp,
+                produceAllVersions,
                 chunk,
-                CreateVersionedOffloadingLookupReader(
-                    std::move(backendReaders.OffloadingReader),
-                    std::move(options),
-                    std::move(keys)),
-                chunkReadOptions);
+                std::move(keys));
             return VoidFuture;
         }
 
@@ -910,6 +902,20 @@ private:
             return;
         }
 
+        if (CanOffloadViaDataNodeLookup(tabletSnapshot, backendReaders, /*keysFiltered*/ true)) {
+            OffloadViaDataNodeLookup(
+                /*keysFiltered*/ true,
+                tabletSnapshot,
+                std::move(backendReaders),
+                chunkReadOptions,
+                columnFilter,
+                timestamp,
+                produceAllVersions,
+                chunkStore,
+                std::move(keys));
+            return;
+        }
+
         chunkStore->ValidateBlockSize(tabletSnapshot, chunkMeta, chunkReadOptions.WorkloadDescriptor);
 
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
@@ -983,6 +989,50 @@ private:
             chunkReadOptions,
             /*needSetTimestamp*/ false);
         return;
+    }
+
+    bool CanOffloadViaDataNodeLookup(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TBackendReaders& backendReaders,
+        bool keysFiltered) const
+    {
+        return
+            tabletSnapshot->Settings.MountConfig->EnableDataNodeLookup &&
+            backendReaders.OffloadingReader &&
+            (keysFiltered || !tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup);
+    }
+
+    void OffloadViaDataNodeLookup(
+        bool keysFiltered,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TBackendReaders backendReaders,
+        const TClientChunkReadOptions& chunkReadOptions,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        TSortedChunkStore* const chunk,
+        TSharedRange<TLegacyKey> keys)
+    {
+        YT_VERIFY(CanOffloadViaDataNodeLookup(tabletSnapshot, backendReaders, keysFiltered));
+
+        auto options = New<TOffloadingReaderOptions>(TOffloadingReaderOptions{
+            .ChunkReadOptions = chunkReadOptions,
+            .TableId = tabletSnapshot->TableId,
+            .MountRevision = tabletSnapshot->MountRevision,
+            .TableSchema = tabletSnapshot->TableSchema,
+            .ColumnFilter = columnFilter,
+            .Timestamp = timestamp,
+            .ProduceAllVersions = produceAllVersions,
+            .OverrideTimestamp = chunk->OverrideTimestamp_,
+            .EnableHashChunkIndex = tabletSnapshot->Settings.MountConfig->EnableHashChunkIndexForLookup
+        });
+        MaybeWrapUnderlyingReader(
+            chunk,
+            CreateVersionedOffloadingLookupReader(
+                std::move(backendReaders.OffloadingReader),
+                std::move(options),
+                std::move(keys)),
+            chunkReadOptions);
     }
 
     void MaybeWrapUnderlyingReader(
