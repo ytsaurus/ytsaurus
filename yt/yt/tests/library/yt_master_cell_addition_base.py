@@ -286,6 +286,19 @@ class MasterCellAdditionBase(YTEnvSetup):
             build_snapshot(cell_id=cell_id, set_read_only=True)
 
     @classmethod
+    def _master_exit_readonly(cls):
+        def exit_readonly():
+            try:
+                master_exit_read_only_sync()
+            except YtError as error:
+                if error.is_rpc_unavailable() or error.contains_text("Unknown cell"):
+                    return False
+                else:
+                    raise
+            return True
+        wait(exit_readonly)
+
+    @classmethod
     def _kill_drivers(cls):
         drivers = ["driver"]
         cls.Env.kill_service("driver")
@@ -413,7 +426,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             if downtime:
                 cls._rewrite_optional_services_configs()
 
-            master_exit_read_only_sync()
+            cls._master_exit_readonly()
         cls.Env.synchronize()
 
         cls._abort_world_initializer_transactions()
