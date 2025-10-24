@@ -134,6 +134,8 @@ private:
     void CleanUpParent() override;
 };
 
+DEFINE_REFCOUNTED_TYPE(TSimpleProcess)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
