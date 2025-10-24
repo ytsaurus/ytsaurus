@@ -11,7 +11,7 @@ from yt_helpers import profiler_factory
 
 from yt_queries import get_query_tracker_info, get_query_declared_parameters_info
 
-from yt.wrapper import yson
+from yt.wrapper import yson, YtError
 
 import yt_error_codes
 
@@ -43,6 +43,14 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
             return
 
         assert_items_equal(result, expected)
+
+    def _test_simple_query_error(self, query, expected, **kwargs):
+        try:
+            self._run_simple_query(query, **kwargs)
+        except YtError as err:
+            assert err.contains_text(expected)
+            return
+        assert False
 
     def _exists_pending_stage_in_progress(self, query):
         queryInfo = query.get()
@@ -1725,6 +1733,122 @@ class TestYqlAgentDynConfigWithProcesses(TestYqlAgentDynConfig):
 @authors("staketd")
 class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
     YQL_SUBPROCESSES_COUNT = 8
+
+
+@authors("a-romanov")
+class TestsDDL(TestQueriesYqlSimpleBase):
+    NUM_TEST_PARTITIONS = 3
+
+    def test_simple_create_table(self, query_tracker, yql_agent):
+        self._test_simple_query("create table `//tmp/t1` (xyz Text, abc Int32 not null, uvw Date null);", None)
+        self._test_simple_query("$p = process `//tmp/t1`; select FormatType(TypeOf($p)) as type;", [{'type': "List<Struct<'abc':Int32,'uvw':Date?,'xyz':Utf8?>>"}])
+
+    def test_error_already_exists(self, query_tracker, yql_agent):
+        self._test_simple_query("create table `//tmp/t2` (xyz Text);", None)
+        self._test_simple_query_error("create table `//tmp/t2` (xyz Text);", "already exists.")
+
+    def test_error_double_create(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            create table `//tmp/t0` (xyz Text);
+            create table `//tmp/t0` (xyz Text);
+        """, "already exists.")
+
+    def test_error_write_and_create(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            insert into `//tmp/t0` (xyz) values ("one"u),("two"u);
+            create table `//tmp/t0` (xyz Text);
+        """, "already exists.")
+
+    def test_error_create_and_drop(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            create table `//tmp/ttt` (xyz Text);
+            drop table `//tmp/ttt`;
+        """, "is modified and dropped in the same transaction")
+
+    def test_create_commit_drop(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t3` (xyz Text);
+            commit;
+            drop table `//tmp/t3`;
+        """, None)
+
+    def test_create_commit_read(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t4` (xyz Text);
+            commit;
+            select * from `//tmp/t4`;
+        """, [])
+
+    def test_create_and_write(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t7` (xyz Text);
+            insert into `//tmp/t7` (xyz) values ("one"u),("two"u);
+        """, None)
+        self._test_simple_query("select * from `//tmp/t7`", [{'xyz': "one"}, {'xyz': "two"}])
+
+    def test_create_table_with_order_by(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            create table `//tmp/t5` (
+                key Text,
+                subkey Int32,
+                value Date,
+                order by(key, subkey)
+            );
+        """, None)
+        self._test_simple_query("""
+            $p = process `//tmp/t5`;
+            select FormatType(ListItemType(TypeOf($p))) as type, YQL::ConstraintsOf($p) as constraints;
+        """, [{'type': "Struct<'key':Utf8?,'subkey':Int32?,'value':Date?>", 'constraints': """{
+  "Empty":true,
+  "Sorted":
+    [
+      [
+        "key",
+        true
+      ],
+      [
+        "subkey",
+        true
+      ]
+    ]
+}"""
+               }])
+
+    def test_create_table_with_order_by_descending(self, query_tracker, yql_agent):
+        self._test_simple_query_error("""
+            create table `//tmp/t6` (
+                key Text,
+                subkey Int32,
+                value Date,
+                order by(key asc, subkey desc)
+            );
+        """, "is only supported when YT's native descending sort is enabled")
+        self._test_simple_query("""
+            pragma yt.UseNativeDescSort;
+            create table `//tmp/t6` (
+                key Text,
+                subkey Int32,
+                value Date,
+                order by(key asc, subkey desc)
+            );
+            commit;
+            $p = process `//tmp/t6`;
+            select FormatType(ListItemType(TypeOf($p))) as type, YQL::ConstraintsOf($p) as constraints;
+        """, [{'type': "Struct<'key':Utf8?,'subkey':Int32?,'value':Date?>", 'constraints': """{
+  "Empty":true,
+  "Sorted":
+    [
+      [
+        "key",
+        true
+      ],
+      [
+        "subkey",
+        false
+      ]
+    ]
+}"""
+               }])
 
 
 @authors("mpereskokova")
