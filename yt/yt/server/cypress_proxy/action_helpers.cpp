@@ -3,6 +3,8 @@
 #include "actions.h"
 #include "helpers.h"
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
@@ -178,6 +180,11 @@ TNodeId CopySubtree(
     TInheritedAttributesCalculator attributeCalculator;
     attributeCalculator.ChangeNode(destinationRootPath.GetDirPath(), destinationInheritedAttributes);
 
+    std::vector<std::string> blacklistedInheritableAttributes;
+    if (!options.PreserveAccount) {
+        blacklistedInheritableAttributes.push_back(NServer::EInternedAttributeKey::Account.Unintern());
+    }
+
     for (const auto& sourceNode : sourceNodes) {
         TAbsolutePath destinationPath(sourceNode.Path);
         destinationPath.UnsafeMutableUnderlying()->replace(
@@ -187,7 +194,8 @@ TNodeId CopySubtree(
 
         attributeCalculator.ChangeNode(
             destinationPath,
-            GetOrCrash(sourceInheritableAttributes, sourceNode.Id).Get());
+            GetOrCrash(sourceInheritableAttributes, sourceNode.Id).Get(),
+            blacklistedInheritableAttributes);
 
         NRecords::TNodeIdToPath sourceRecord{
             .Key = {.NodeId = sourceNode.Id},
