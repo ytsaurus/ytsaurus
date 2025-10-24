@@ -44,18 +44,18 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(apollo1321): Change to class.
 struct TChunkStripeList
     : public TRefCounted
 {
-    TChunkStripeList() = default;
-    TChunkStripeList(int stripeCount);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkStripePtr>, Stripes);
+
+    void Reserve(i64 size);
 
     NTableClient::TChunkStripeStatisticsVector GetStatistics() const;
     NTableClient::TChunkStripeStatistics GetAggregateStatistics() const;
 
     void AddStripe(TChunkStripePtr stripe);
-
-    std::vector<TChunkStripePtr> Stripes;
 
     std::optional<int> PartitionTag;
 

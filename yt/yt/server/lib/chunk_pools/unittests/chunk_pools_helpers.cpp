@@ -42,7 +42,7 @@ TCompletedJobSummary SummaryWithSplitJobCount(
     std::optional<int> readRowCount)
 {
     TCompletedJobSummary jobSummary;
-    for (const auto& stripe : stripeList->Stripes) {
+    for (const auto& stripe : stripeList->Stripes()) {
         std::copy(
             stripe->DataSlices.begin(),
             stripe->DataSlices.end(),
@@ -67,7 +67,7 @@ void CheckUnsuccessfulSplitMarksJobUnsplittable(IPersistentChunkPoolPtr chunkPoo
     EXPECT_EQ(0, cookie);
     EXPECT_TRUE(chunkPool->IsSplittable(cookie));
     auto stripeList = chunkPool->GetStripeList(cookie);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes().size());
 
     auto splitJobCount = 3;
     auto readRowCount = 0;

@@ -11,19 +11,6 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(apollo1321): Remove this.
-//! Recalculate stripe list statistics like TotalChunkCount, TotalDataWeight, etc.
-void AccountStripeInList(
-    const TChunkStripePtr& stripe,
-    const TChunkStripeListPtr& list);
-
-// TODO(apollo1321): Remove this.
-//! Add chunk stripe to chunk stripe list and recalculate stripe list statistics like
-//! TotalChunkCount, TotalDataWeight, etc.
-void AddStripeToList(
-    TChunkStripePtr stripe,
-    const TChunkStripeListPtr& list);
-
 // TODO(apollo1321): Move to methods of TChunkStripeList.
 std::vector<NChunkClient::TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& stripeList);
 

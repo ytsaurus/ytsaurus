@@ -230,7 +230,7 @@ protected:
     {
         for (auto cookie : OutputCookies_) {
             auto stripeList = ChunkPool_->GetStripeList(cookie);
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 YT_VERIFY(stripe);
                 for (const auto& dataSlice : stripe->DataSlices) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -247,7 +247,7 @@ protected:
     {
         std::vector<int> chunkIndices(InputTables_.size());
         for (const auto& stripeList : stripeLists) {
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 ASSERT_LE(stripe->GetTableIndex(), std::ssize(OriginalChunks_));
                 const auto& chunks = OriginalChunks_[stripe->GetTableIndex()];
                 int& chunkIndex = chunkIndices[stripe->GetTableIndex()];
@@ -275,7 +275,7 @@ protected:
         } else {
             Cdebug << "C ";
             auto stripeList = ChunkPool_->GetStripeList(cookie);
-            for (const auto& dataSlice : stripeList->Stripes[0]->DataSlices) {
+            for (const auto& dataSlice : stripeList->Stripes()[0]->DataSlices) {
                 Cdebug << ToString(dataSlice->GetSingleUnversionedChunk()->GetChunkId()) << " ";
             }
             Cdebug << Endl;
@@ -297,10 +297,10 @@ protected:
     {
         ASSERT_FALSE(TeleportChunks_.contains(cookie));
         auto stripeList = ChunkPool_->GetStripeList(cookie);
-        EXPECT_EQ(stripeList->Stripes.size(), 1u);
-        EXPECT_EQ(stripeList->Stripes[0]->DataSlices.size(), chunks.size());
-        for (int index = 0; index < std::ssize(stripeList->Stripes[0]->DataSlices); ++index) {
-            EXPECT_EQ(stripeList->Stripes[0]->DataSlices[index]->GetSingleUnversionedChunk()->GetChunkId(), chunks[index]->GetChunkId());
+        EXPECT_EQ(stripeList->Stripes().size(), 1u);
+        EXPECT_EQ(stripeList->Stripes()[0]->DataSlices.size(), chunks.size());
+        for (int index = 0; index < std::ssize(stripeList->Stripes()[0]->DataSlices); ++index) {
+            EXPECT_EQ(stripeList->Stripes()[0]->DataSlices[index]->GetSingleUnversionedChunk()->GetChunkId(), chunks[index]->GetChunkId());
         }
     }
 
@@ -353,10 +353,10 @@ protected:
 
             for (
                 ssize_t stripeIndex = 0;
-                stripeIndex < std::ssize(stripeList->Stripes);
+                stripeIndex < std::ssize(stripeList->Stripes());
                 ++stripeIndex
             ) {
-                for (const auto& dataSlice : stripeList->Stripes[stripeIndex]->DataSlices) {
+                for (const auto& dataSlice : stripeList->Stripes()[stripeIndex]->DataSlices) {
                     ASSERT_LT(dataSliceIndex, std::ssize(dataSliceDataWeights));
                     EXPECT_EQ(dataSlice->GetDataWeight(), dataSliceDataWeights[dataSliceIndex]);
                     ++dataSliceIndex;
@@ -871,7 +871,7 @@ TEST_F(TOrderedChunkPoolTest, EnlargementAfterSampling)
 
     for (const auto& cookie : allCookies) {
         const auto& stripeList = ChunkPool_->GetStripeList(cookie);
-        for (const auto& stripe : stripeList->Stripes) {
+        for (const auto& stripe : stripeList->Stripes()) {
             for (const auto& slice : stripe->DataSlices) {
                 ++chunkCountAfterSampling;
                 int currentChunkIndex = chunkIdToIndex[slice->GetSingleUnversionedChunk()->GetChunkId()];
@@ -1351,8 +1351,8 @@ TEST_PI(TOrderedChunkPoolTest, VariousOperationsWithPoolTest, Range(0, NumberOfR
                 // ASSERT_NE(outputCookie, IChunkPoolOutput::NullCookie);
                 // error: undefined reference to 'NYT::NScheduler::IChunkPoolOutput::NullCookie'
                 auto stripeList = ChunkPool_->GetStripeList(outputCookie);
-                ASSERT_TRUE(stripeList->Stripes[0]);
-                const auto& stripe = stripeList->Stripes[0];
+                ASSERT_TRUE(stripeList->Stripes()[0]);
+                const auto& stripe = stripeList->Stripes()[0];
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunk();
                 auto chunkId = chunk->GetChunkId();
@@ -1534,7 +1534,7 @@ TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, 
         const auto& stripeList = ChunkPool_->GetStripeList(cookie);
 
         i64 sliceCount = 0;
-        for (const auto& stripe : stripeList->Stripes) {
+        for (const auto& stripe : stripeList->Stripes()) {
             sliceCount += std::ssize(stripe->DataSlices);
         }
 
@@ -1547,7 +1547,7 @@ TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, 
         if (!BatchRowCount_.has_value()) {
             if (!useJobSizeAdjuster && sliceCount > 1)  {
                 i64 maxDataWeightSlice = 0;
-                for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& stripe : stripeList->Stripes()) {
                     for (const auto& slice : stripe->DataSlices) {
                         maxDataWeightSlice = std::max(maxDataWeightSlice, slice->GetDataWeight());
                     }
@@ -1564,11 +1564,11 @@ TEST_PI(TOrderedChunkPoolTest, BuildJobsInputByCompressedDataSizeAndDataWeight, 
 
             int rowsLeft = *BatchRowCount_;
             i64 lastRowBatchDataWeight = 0;
-            int stripeIndex = std::ssize(stripeList->Stripes) - 1;
+            int stripeIndex = std::ssize(stripeList->Stripes()) - 1;
             while (stripeIndex >= 0 && rowsLeft > 0) {
-                int sliceIndex = std::ssize(stripeList->Stripes[stripeIndex]->DataSlices) - 1;
+                int sliceIndex = std::ssize(stripeList->Stripes()[stripeIndex]->DataSlices) - 1;
                 while (sliceIndex >= 0 && rowsLeft > 0) {
-                    const auto& slice = stripeList->Stripes[stripeIndex]->DataSlices[sliceIndex];
+                    const auto& slice = stripeList->Stripes()[stripeIndex]->DataSlices[sliceIndex];
                     i64 currentSliceRowCount = std::min<i64>(slice->GetRowCount(), rowsLeft);
 
                     lastRowBatchDataWeight += std::ceil(static_cast<double>(slice->GetDataWeight()) / slice->GetRowCount()) * currentSliceRowCount;

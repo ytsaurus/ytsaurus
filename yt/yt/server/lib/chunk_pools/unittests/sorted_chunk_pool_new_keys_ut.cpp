@@ -611,7 +611,7 @@ protected:
 
     static TChunkStripePtr GetStripeByTableIndex(const TChunkStripeListPtr& stripeList, int tableIndex)
     {
-        for (auto& stripe : stripeList->Stripes) {
+        for (auto& stripe : stripeList->Stripes()) {
             if (stripe->DataSlices.front()->GetTableIndex() == tableIndex) {
                 return stripe;
             }
@@ -632,7 +632,7 @@ protected:
 
         // Check that data slices from each stripe are all from the same table.
         for (const auto& stripeList : stripeLists) {
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 ASSERT_TRUE(!stripe->DataSlices.empty());
                 int tableIndex = stripe->DataSlices.front()->GetTableIndex();
 
@@ -720,7 +720,7 @@ protected:
         };
 
         for (const auto& stripeList : stripeLists) {
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 ASSERT_TRUE(!stripe->DataSlices.empty());
                 int tableIndex = stripe->DataSlices.front()->GetTableIndex();
                 if (!InputTables_[tableIndex].IsForeign()) {
@@ -749,12 +749,12 @@ protected:
         auto checkPrecedence = [&] (const TChunkStripeListPtr& lhs, const TChunkStripeListPtr& rhs) {
             // TODO(max42): it is possible to rewrite this check in linear time, but the
             // implementation is quite nasty even for a quadratic version, so let's stop on it.
-            for (const auto& lhsStripe : lhs->Stripes) {
+            for (const auto& lhsStripe : lhs->Stripes()) {
                 if (lhsStripe->Foreign) {
                     continue;
                 }
                 for (const auto& lhsDataSlice : lhsStripe->DataSlices) {
-                    for (const auto& rhsStripe : rhs->Stripes) {
+                    for (const auto& rhsStripe : rhs->Stripes()) {
                         if (rhsStripe->Foreign) {
                             continue;
                         }
@@ -810,7 +810,7 @@ protected:
     {
         for (const auto& stripeList : stripeLists) {
             int dataSlicesTotalNumber = 0;
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 if (stripe) {
                     dataSlicesTotalNumber += stripe->DataSlices.size();
                 }
@@ -830,7 +830,7 @@ protected:
         for (const auto& stripeList : stripeLists) {
             TKeyBound lowerBound = TKeyBound::MakeEmpty(/*isUpper*/ false);
             TKeyBound upperBound = TKeyBound::MakeEmpty(/*isUpper*/ true);
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 if (InputTables_[stripe->GetTableIndex()].IsForeign()) {
                     continue;
                 }
@@ -865,7 +865,7 @@ protected:
     {
         for (const auto& stripeList : stripeLists) {
             bool hasPrimarySlices = false;
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 if (stripe->Foreign) {
                     continue;
                 }
@@ -879,7 +879,7 @@ protected:
     {
         for (auto cookie : OutputCookies_) {
             if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
-                for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& stripe : stripeList->Stripes()) {
                     int tableIndex = stripe->GetTableIndex();
                     EXPECT_EQ(InputTables_[tableIndex].IsForeign(), stripe->Foreign);
                 }
@@ -898,7 +898,7 @@ protected:
                 THashSet<TChunkId> attachedForeignChunks;
                 THashSet<TChunkId> requiredForeignChunks;
 
-                for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& stripe : stripeList->Stripes()) {
                     if (!stripe) {
                         continue;
                     }
@@ -932,7 +932,7 @@ protected:
     {
         for (auto cookie : OutputCookies_) {
             if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
-                for (const auto& stripe : stripeList->Stripes) {
+                for (const auto& stripe : stripeList->Stripes()) {
                     if (stripe) {
                         for (const auto& dataSlice : stripe->DataSlices) {
                             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -1490,7 +1490,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeWithPersistBeforeFinish)
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1u, stripeLists.size());
-    EXPECT_EQ(3u, stripeLists.front()->Stripes.size());
+    EXPECT_EQ(3u, stripeLists.front()->Stripes().size());
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirectory)
@@ -1663,7 +1663,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
     // At least one stripe list should be responsible for the shared key {2}.
     bool anyCovers2 = false;
     for (const auto& stripeList : stripeLists) {
-        if (stripeList->Stripes.size() == 2u) {
+        if (stripeList->Stripes().size() == 2u) {
             anyCovers2 = true;
         }
     }
@@ -2234,7 +2234,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
     ExtractOutputCookiesWhilePossible();
     ASSERT_EQ(ExtractedCookies_.size(), 2u);
     auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
-    ASSERT_EQ(newStripeList->Stripes.size(), 3u);
+    ASSERT_EQ(newStripeList->Stripes().size(), 3u);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.size(), 1u);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.front()->LowerLimit().KeyBound, BuildBound(">=", {13}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.size(), 1u);
@@ -2424,7 +2424,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
     CheckEverything(stripeLists);
 
     for (const auto& stripeList : stripeLists) {
-        EXPECT_EQ(2u, stripeList->Stripes.size());
+        EXPECT_EQ(2u, stripeList->Stripes().size());
     }
 }
 
@@ -2461,8 +2461,8 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
     jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
-        stripeLists[0]->Stripes[0]->DataSlices.begin(),
-        stripeLists[0]->Stripes[0]->DataSlices.end());
+        stripeLists[0]->Stripes()[0]->DataSlices.begin(),
+        stripeLists[0]->Stripes()[0]->DataSlices.end());
     jobSummary.SplitJobCount = 10;
     ChunkPool_->Completed(*OutputCookies_.begin(), jobSummary);
 
@@ -2536,7 +2536,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
     ASSERT_LE(stripeLists.size(), 12u);
 
     for (const auto& stripeList : stripeLists) {
-        ASSERT_EQ(stripeList->Stripes.size(), 2u);
+        ASSERT_EQ(stripeList->Stripes().size(), 2u);
         ASSERT_LE(GetStripeByTableIndex(stripeList, 1)->DataSlices.size(), 2u);
     }
 }
@@ -2907,8 +2907,8 @@ TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
     ExtractOutputCookiesWhilePossible();
     ASSERT_EQ(ExtractedCookies_.size(), 1u);
     auto stripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
-    ASSERT_EQ(stripeList->Stripes.size(), 1u);
-    const auto& stripe = stripeList->Stripes.front();
+    ASSERT_EQ(stripeList->Stripes().size(), 1u);
+    const auto& stripe = stripeList->Stripes().front();
     ASSERT_EQ(stripe->DataSlices.size(), 100u);
     for (int index = 0; index + 1 < std::ssize(stripe->DataSlices); ++index) {
         ASSERT_EQ(*stripe->DataSlices[index]->UpperLimit().RowIndex, *stripe->DataSlices[index + 1]->LowerLimit().RowIndex);
@@ -2947,13 +2947,13 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase)
 
     auto stripeLists = GetAllStripeLists();
     ASSERT_EQ(stripeLists.size(), 2u);
-    ASSERT_EQ(stripeLists[0]->Stripes.size(), 1u);
-    ASSERT_EQ(stripeLists[1]->Stripes.size(), 1u);
+    ASSERT_EQ(stripeLists[0]->Stripes().size(), 1u);
+    ASSERT_EQ(stripeLists[1]->Stripes().size(), 1u);
     std::vector<TInputChunkPtr> chunkSequence;
-    for (const auto& dataSlice : stripeLists[0]->Stripes[0]->DataSlices) {
+    for (const auto& dataSlice : stripeLists[0]->Stripes()[0]->DataSlices) {
         chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
-    for (const auto& dataSlice : stripeLists[1]->Stripes[0]->DataSlices) {
+    for (const auto& dataSlice : stripeLists[1]->Stripes()[0]->DataSlices) {
         chunkSequence.push_back(dataSlice->GetSingleUnversionedChunk());
     }
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
@@ -3169,9 +3169,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestSeveralSlicesInInputStripe)
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1u, stripeLists.size());
-    EXPECT_EQ(2u, stripeLists[0]->Stripes.size());
-    EXPECT_EQ(2u, stripeLists[0]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(2u, stripeLists[0]->Stripes[1]->DataSlices.size());
+    EXPECT_EQ(2u, stripeLists[0]->Stripes().size());
+    EXPECT_EQ(2u, stripeLists[0]->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(2u, stripeLists[0]->Stripes()[1]->DataSlices.size());
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys1)
@@ -3205,15 +3205,15 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys1)
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(4u, stripeLists.size());
-    EXPECT_EQ(1u, stripeLists[0]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[0]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(1u, stripeLists[1]->Stripes.size());
-    EXPECT_EQ(2u, stripeLists[1]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(1u, stripeLists[2]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[2]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(2u, stripeLists[3]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[3]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(1u, stripeLists[3]->Stripes[1]->DataSlices.size());
+    EXPECT_EQ(1u, stripeLists[0]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[0]->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(1u, stripeLists[1]->Stripes().size());
+    EXPECT_EQ(2u, stripeLists[1]->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(1u, stripeLists[2]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[2]->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(2u, stripeLists[3]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[3]->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(1u, stripeLists[3]->Stripes()[1]->DataSlices.size());
 
     CheckEverything(stripeLists);
 }
@@ -3242,12 +3242,12 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys2)
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(4u, stripeLists.size());
-    EXPECT_EQ(1u, stripeLists[0]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[0]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildBound(">=", {2}), stripeLists[0]->Stripes[0]->DataSlices[0]->LowerLimit().KeyBound);
-    EXPECT_EQ(1u, stripeLists[1]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[2]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[3]->Stripes.size());
+    EXPECT_EQ(1u, stripeLists[0]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[0]->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(BuildBound(">=", {2}), stripeLists[0]->Stripes()[0]->DataSlices[0]->LowerLimit().KeyBound);
+    EXPECT_EQ(1u, stripeLists[1]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[2]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[3]->Stripes().size());
 
     CheckEverything(stripeLists);
 }
@@ -3286,8 +3286,8 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuspendFinishResumeTest)
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1u, stripeLists.size());
-    EXPECT_EQ(1u, stripeLists[0]->Stripes.size());
-    EXPECT_EQ(3u, stripeLists[0]->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(1u, stripeLists[0]->Stripes().size());
+    EXPECT_EQ(3u, stripeLists[0]->Stripes()[0]->DataSlices.size());
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, SliceByPrimaryDataSize)
@@ -3538,7 +3538,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DoNotReuseChunkSlicesAfterReset)
         auto stripeLists = GetAllStripeLists();
 
         for (const auto& stripeList : stripeLists) {
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                         // TTask::AddChunksToInputSpec() modifies chunk slices this way:
@@ -3589,8 +3589,8 @@ TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
 
     EXPECT_EQ(1u, TeleportChunks_.size());
     ASSERT_EQ(2u, stripeLists.size());
-    EXPECT_EQ(1u, stripeLists[0]->Stripes.size());
-    EXPECT_EQ(1u, stripeLists[1]->Stripes.size());
+    EXPECT_EQ(1u, stripeLists[0]->Stripes().size());
+    EXPECT_EQ(1u, stripeLists[1]->Stripes().size());
 
     CheckEverything(stripeLists);
 }
@@ -3767,13 +3767,13 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     auto outputCookie = ChunkPool_->Extract(TNodeId(0));
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
-    EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildBound("<", {0xB}), stripeList->Stripes[0]->DataSlices[0]->UpperLimit().KeyBound);
+    EXPECT_EQ(1u, stripeList->Stripes().size());
+    EXPECT_EQ(2u, stripeList->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(BuildBound("<", {0xB}), stripeList->Stripes()[0]->DataSlices[0]->UpperLimit().KeyBound);
 
     std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
-        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
-        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
+        CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices[0]),
+        CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices[1]),
     };
     unreadDataSlices[0]->LowerLimit().RowIndex = 15;
     TCompletedJobSummary jobSummary;
@@ -3784,9 +3784,9 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     outputCookie = ChunkPool_->Extract(TNodeId(0));
     stripeList = ChunkPool_->GetStripeList(outputCookie);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
-    EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildBound("<", {0xB}), stripeList->Stripes[0]->DataSlices[0]->UpperLimit().KeyBound);
+    EXPECT_EQ(1u, stripeList->Stripes().size());
+    EXPECT_EQ(2u, stripeList->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(BuildBound("<", {0xB}), stripeList->Stripes()[0]->DataSlices[0]->UpperLimit().KeyBound);
 }
 
 // YTADMINREQ-19334
@@ -3829,13 +3829,13 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     auto outputCookie = ChunkPool_->Extract(TNodeId(0));
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
-    EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(10, stripeList->Stripes[0]->DataSlices[0]->UpperLimit().RowIndex);
+    EXPECT_EQ(1u, stripeList->Stripes().size());
+    EXPECT_EQ(2u, stripeList->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(10, stripeList->Stripes()[0]->DataSlices[0]->UpperLimit().RowIndex);
 
     std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
-        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
-        CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
+        CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices[0]),
+        CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices[1]),
     };
     unreadDataSlices[0]->LowerLimit().RowIndex = 5;
     unreadDataSlices[0]->LowerLimit().KeyBound = BuildBound(">=", {0xB});
@@ -3847,10 +3847,10 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     outputCookie = ChunkPool_->Extract(TNodeId(0));
     stripeList = ChunkPool_->GetStripeList(outputCookie);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
-    EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildBound(">=", {0xB}), stripeList->Stripes[0]->DataSlices[0]->LowerLimit().KeyBound);
-    EXPECT_EQ(5, stripeList->Stripes[0]->DataSlices[0]->LowerLimit().RowIndex);
+    EXPECT_EQ(1u, stripeList->Stripes().size());
+    EXPECT_EQ(2u, stripeList->Stripes()[0]->DataSlices.size());
+    EXPECT_EQ(BuildBound(">=", {0xB}), stripeList->Stripes()[0]->DataSlices[0]->LowerLimit().KeyBound);
+    EXPECT_EQ(5, stripeList->Stripes()[0]->DataSlices[0]->LowerLimit().RowIndex);
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
@@ -3890,7 +3890,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
     EXPECT_THAT(TeleportChunks_, IsEmpty());
 
     CheckEverything(stripeLists);
-    EXPECT_EQ(2u, stripeLists[0]->Stripes[0]->DataSlices.size());
+    EXPECT_EQ(2u, stripeLists[0]->Stripes()[0]->DataSlices.size());
 }
 
 TEST_F(TSortedChunkPoolNewKeysTest, DynamicStores)
@@ -4904,8 +4904,8 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
                 // ASSERT_NE(outputCookie, IChunkPoolOutput::NullCookie);
                 // error: undefined reference to 'NYT::NScheduler::IChunkPoolOutput::NullCookie'
                 auto stripeList = ChunkPool_->GetStripeList(outputCookie);
-                ASSERT_TRUE(stripeList->Stripes[0]);
-                const auto& stripe = stripeList->Stripes[0];
+                ASSERT_TRUE(stripeList->Stripes()[0]);
+                const auto& stripe = stripeList->Stripes()[0];
                 const auto& dataSlice = stripe->DataSlices.front();
                 const auto& chunk = dataSlice->GetSingleUnversionedChunk();
                 auto chunkId = chunk->GetChunkId();

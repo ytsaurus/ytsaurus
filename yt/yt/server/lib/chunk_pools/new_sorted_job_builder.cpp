@@ -398,7 +398,7 @@ public:
             };
 
             // Validate slice order between slices in each stripe.
-            for (const auto& stripe : job->GetStripeList()->Stripes) {
+            for (const auto& stripe : job->GetStripeList()->Stripes()) {
                 auto inputStreamIndex = stripe->GetInputStreamIndex();
                 for (int index = 0; index + 1 < std::ssize(stripe->DataSlices); ++index) {
                     validatePair(
@@ -412,7 +412,7 @@ public:
             }
 
             // Validate slice order between primary stripes.
-            for (const auto& stripe : job->GetStripeList()->Stripes) {
+            for (const auto& stripe : job->GetStripeList()->Stripes()) {
                 auto inputStreamIndex = stripe->GetInputStreamIndex();
                 if (InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsForeign()) {
                     continue;
@@ -630,7 +630,7 @@ private:
                 }
                 compressor.Add(job.GetPrimaryLowerBound());
                 compressor.Add(job.GetPrimaryUpperBound());
-                for (const auto& stripe : job.GetStripeList()->Stripes) {
+                for (const auto& stripe : job.GetStripeList()->Stripes()) {
                     for (const auto& dataSlice : stripe->DataSlices) {
                         compressor.Add(dataSlice->LowerLimit().KeyBound);
                         compressor.Add(dataSlice->UpperLimit().KeyBound);
@@ -668,7 +668,7 @@ private:
                     continue;
                 }
                 std::vector<TLegacyDataSlicePtr> dataSlices;
-                for (const auto& stripe : job.GetStripeList()->Stripes) {
+                for (const auto& stripe : job.GetStripeList()->Stripes()) {
                     for (const auto& dataSlice : stripe->DataSlices) {
                         dataSlices.push_back(dataSlice);
                     }

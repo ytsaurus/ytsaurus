@@ -230,7 +230,7 @@ protected:
 
         // Check that data slices from each stripe are all from the same table.
         for (const auto& stripeList : stripeLists) {
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 ASSERT_TRUE(!stripe->DataSlices.empty());
                 int tableIndex = stripe->DataSlices.front()->GetTableIndex();
 
@@ -324,7 +324,7 @@ protected:
     {
         for (auto cookie : OutputCookies_) {
             auto stripeList = ChunkPool_->GetStripeList(cookie);
-            for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& stripe : stripeList->Stripes()) {
                 if (stripe) {
                     for (const auto& dataSlice : stripe->DataSlices) {
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -580,7 +580,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     auto stripeList = ChunkPool_->GetStripeList(0);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes().size());
     EXPECT_TRUE(TeleportChunks_.empty());
 
     ChunkPool_->Suspend(0);
@@ -622,7 +622,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     auto stripeList = ChunkPool_->GetStripeList(0);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes().size());
     EXPECT_TRUE(TeleportChunks_.empty());
 
     ChunkPool_->Suspend(0);
@@ -634,7 +634,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
     stripeList = ChunkPool_->GetStripeList(1);
-    EXPECT_EQ(1u, stripeList->Stripes.size());
+    EXPECT_EQ(1u, stripeList->Stripes().size());
 }
 
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
@@ -1068,7 +1068,7 @@ protected:
         if (cookie == IChunkPoolOutput::NullCookie) {
             return cookie;
         }
-        auto stripes = ChunkPool_->GetStripeList(cookie)->Stripes;
+        auto stripes = ChunkPool_->GetStripeList(cookie)->Stripes();
         YT_VERIFY(std::ssize(stripes) == 1);
         auto dataSlices = stripes.front()->DataSlices;
         YT_VERIFY(std::ssize(dataSlices) == 1);
@@ -1584,8 +1584,8 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 // ASSERT_NE(outputCookie, IChunkPoolOutput::NullCookie);
                 // error: undefined reference to 'NYT::NScheduler::IChunkPoolOutput::NullCookie'
                 auto stripeList = ChunkPool_->GetStripeList(outputCookie);
-                ASSERT_EQ(std::ssize(stripeList->Stripes), 1);
-                const auto& stripe = stripeList->Stripes[0];
+                ASSERT_EQ(std::ssize(stripeList->Stripes()), 1);
+                const auto& stripe = stripeList->Stripes()[0];
                 ASSERT_TRUE(stripe);
 
                 THashSet<TChunkId> inputChunks;
