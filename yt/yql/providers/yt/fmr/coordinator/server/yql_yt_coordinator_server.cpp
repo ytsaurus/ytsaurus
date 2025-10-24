@@ -22,6 +22,7 @@ enum class EOperationHandler {
     SendHeartbeatResponse,
     GetFmrTableInfo,
     ClearSession,
+    DropTables,
     Ping
 };
 
@@ -80,6 +81,9 @@ private:
             return EOperationHandler::GetFmrTableInfo;
         } else if (queryPath == "clear_session") {
             return EOperationHandler::ClearSession;
+        } else if (queryPath == "drop_tables") {
+            YQL_ENSURE(httpRequest.Method == "POST");
+            return EOperationHandler::DropTables;
         } else if (queryPath == "ping") {
             return EOperationHandler::Ping;
         }
@@ -102,6 +106,7 @@ public:
         THandler sendHeartbeatResponseHandler = std::bind(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this, std::placeholders::_1);
         THandler getFmrTableInfoHandler = std::bind(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this, std::placeholders::_1);
         THandler clearSessionHandler = std::bind(&TFmrCoordinatorServer::ClearSessionHandler, this, std::placeholders::_1);
+        THandler dropTablesHandler = std::bind(&TFmrCoordinatorServer::DropTablesHandler, this, std::placeholders::_1);
         THandler pingHandler = std::bind(&TFmrCoordinatorServer::PingHandler, this, std::placeholders::_1);
 
 
@@ -112,6 +117,7 @@ public:
             {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler},
             {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler},
             {EOperationHandler::ClearSession, clearSessionHandler},
+            {EOperationHandler::DropTables, dropTablesHandler},
             {EOperationHandler::Ping, pingHandler}
         };
     }
@@ -219,6 +225,24 @@ private:
 
         Coordinator_->ClearSession(ClearSessionRequestFromProto(protoClearSessionRequest)).GetValueSync();
         THttpResponse httpResponse(HTTP_OK);
+        return httpResponse;
+    }
+
+    THttpResponse DropTablesHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+
+        NProto::TDropTablesRequest protoRequest;
+        YQL_ENSURE(protoRequest.ParseFromString(input.ReadAll()));
+
+        auto response = Coordinator_->DropTables(
+            DropTablesRequestFromProto(protoRequest)
+        ).GetValueSync();
+
+        NProto::TDropTablesResponse protoResponse = DropTablesResponseToProto(response);
+
+        THttpResponse httpResponse(HTTP_OK);
+        httpResponse.SetContentType("application/x-protobuf");
+        httpResponse.SetContent(protoResponse.SerializeAsString());
         return httpResponse;
     }
 
