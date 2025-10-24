@@ -20,6 +20,10 @@ IF (OS_LINUX AND CGO_ENABLED)
     CGO_SRCS(dl_linux.go)
 ENDIF()
 
+IF (OS_ANDROID AND CGO_ENABLED)
+    CGO_SRCS(dl_linux.go)
+ENDIF()
+
 END()
 
 RECURSE(

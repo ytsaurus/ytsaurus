@@ -83,6 +83,30 @@ IF (OS_WINDOWS)
     GO_TEST_SRCS(du_windows_test.go)
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        copy_irregular_unix.go
+        copy_linux.go
+        copy_nondarwin.go
+        diff_linux.go
+        diff_unix.go
+        dtype_linux.go
+        du_unix.go
+        hardlink_unix.go
+        magic_linux.go
+        stat_unix.go
+    )
+
+    GO_TEST_SRCS(
+        copy_linux_test.go
+        copy_unix_test.go
+        dtype_linux_test.go
+        du_cmd_unix_test.go
+        du_unix_test.go
+        path_test.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

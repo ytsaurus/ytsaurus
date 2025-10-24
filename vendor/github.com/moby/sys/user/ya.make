@@ -22,6 +22,12 @@ IF (OS_DARWIN)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        lookup_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

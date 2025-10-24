@@ -43,6 +43,16 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        term_unix.go
+        termios_nonbsd.go
+        termios_unix.go
+    )
+
+    GO_TEST_SRCS(term_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

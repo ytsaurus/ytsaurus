@@ -48,6 +48,14 @@ IF (OS_WINDOWS)
     GO_TEST_SRCS(mergediff_nolinux_test.go)
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        client_unix.go
+    )
+
+    GO_TEST_SRCS(mergediff_linux_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

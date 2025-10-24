@@ -50,6 +50,12 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        errors.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

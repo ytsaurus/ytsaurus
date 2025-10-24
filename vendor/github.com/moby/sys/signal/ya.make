@@ -32,6 +32,15 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        signal_linux.go
+        signal_unix.go
+    )
+
+    GO_TEST_SRCS(signal_linux_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

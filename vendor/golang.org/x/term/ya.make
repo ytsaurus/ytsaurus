@@ -33,6 +33,13 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        term_unix.go
+        term_unix_other.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

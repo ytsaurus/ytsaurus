@@ -28,6 +28,12 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        atime_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

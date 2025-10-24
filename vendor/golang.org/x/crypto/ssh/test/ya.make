@@ -40,6 +40,18 @@ IF (OS_DARWIN)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    GO_TEST_SRCS(
+        agent_unix_test.go
+        cert_test.go
+        dial_unix_test.go
+        forward_unix_test.go
+        multi_auth_test.go
+        session_test.go
+        test_unix_test.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

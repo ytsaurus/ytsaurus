@@ -65,6 +65,15 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        terminal_check_notappengine.go
+        terminal_check_unix.go
+    )
+
+    GO_XTEST_SRCS(example_hook_test.go)
+ENDIF()
+
 END()
 
 RECURSE(
