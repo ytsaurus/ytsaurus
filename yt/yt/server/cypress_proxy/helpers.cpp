@@ -656,17 +656,26 @@ const IConstAttributeDictionaryPtr& TInheritedAttributesCalculator::GetParentInh
     return Ancestry_[std::ssize(Ancestry_) - 2].InheritedAttributes;
 }
 
-void TInheritedAttributesCalculator::ChangeNode(TAbsolutePath path, const IAttributeDictionary* inheritableAttributes)
+void TInheritedAttributesCalculator::ChangeNode(
+    TAbsolutePath path,
+    const IAttributeDictionary* inheritableAttributes,
+    TRange<std::string> attributeBlacklist)
 {
-    for (auto parentPath = path.GetDirPath(); !Ancestry_.empty() && Ancestry_.back().Path != parentPath; )
-    {
+    for (auto parentPath = path.GetDirPath(); !Ancestry_.empty() && Ancestry_.back().Path != parentPath;) {
         Ancestry_.pop_back();
     }
 
+    auto isAttributeBlacklisted = [&] (const std::string& key) {
+        return  std::ranges::find(attributeBlacklist, key) != attributeBlacklist.end();
+    };
+
     if (!Ancestry_.empty()) {
         bool trivial = true;
-        auto parentInheritedAttributes = GetCurrentInheritedAttributes();
+        const auto& parentInheritedAttributes = GetCurrentInheritedAttributes();
         for (const auto& [key, value] : inheritableAttributes->ListPairs()) {
+            if (isAttributeBlacklisted(key)) {
+                continue;
+            }
             auto parentValue = parentInheritedAttributes->FindYson(key);
             if (!parentValue || parentValue != value) {
                 trivial = false;
@@ -685,7 +694,12 @@ void TInheritedAttributesCalculator::ChangeNode(TAbsolutePath path, const IAttri
     }
 
     auto inheritedAttributes = Ancestry_.empty() ? EmptyAttributes().Clone() : GetCurrentInheritedAttributes()->Clone();
-    inheritedAttributes->MergeFrom(*inheritableAttributes);
+    for (const auto& [key, value] : inheritableAttributes->ListPairs()) {
+        if (isAttributeBlacklisted(key)) {
+            continue;
+        }
+        inheritedAttributes->SetYson(key, value);
+    }
 
     Ancestry_.push_back({
         .Path = std::move(path),

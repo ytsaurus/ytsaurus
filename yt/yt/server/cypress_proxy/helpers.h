@@ -146,11 +146,12 @@ std::string BuildMultipleTransactionSelectCondition(
 class TInheritedAttributesCalculator
 {
 public:
-    TInheritedAttributesCalculator() = default;
-
     // As in "change dir" aka "cd" except that non-composite nodes can be entered, too.
     // The nodes are supposed to be traversed pre-order, as induced by the result of FetchSubtree.
-    void ChangeNode(NSequoiaClient::TAbsolutePath path, const NYTree::IAttributeDictionary* inheritableAttributes);
+    void ChangeNode(
+        NSequoiaClient::TAbsolutePath path,
+        const NYTree::IAttributeDictionary* inheritableAttributes,
+        TRange<std::string> attributeBlacklist = {});
 
     const NYTree::IConstAttributeDictionaryPtr& GetCurrentInheritedAttributes() const;
     const NYTree::IConstAttributeDictionaryPtr& GetParentInheritedAttributes() const;

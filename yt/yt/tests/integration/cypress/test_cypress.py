@@ -649,7 +649,6 @@ class TestCypress(YTEnvSetup):
             assert get(f"{table_path}/@chunk_merger_mode") == "auto"
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_account1(self):
         create_account("a1")
         create_account("a2")
