@@ -370,7 +370,7 @@ func Test_metrics_encode(t *testing.T) {
 			65,
 		},
 		{
-			"counter+nameTag+existingNameLabel-v1.2",
+			"counter+nameTag+existingNameLabel-withUseNameTag-v1.2",
 			&Metrics{
 				metrics: []Metric{
 					func() Metric {
@@ -418,6 +418,96 @@ func Test_metrics_encode(t *testing.T) {
 				},
 			},
 			59,
+		},
+		{
+			"counter+nameTag+existingNameLabel-v1.2",
+			&Metrics{
+				metrics: []Metric{
+					func() Metric {
+						g := NewCounter(
+							"mycounter",
+							42,
+							WithTags(map[string]string{
+								"name": "custom_name_value",
+							}))
+						return &g
+					}(),
+				},
+			},
+			version12,
+			[]byte{
+				0x53, 0x50, // magic
+				0x02, 0x01, // version
+				0x18, 0x00, // header size
+				0x0,                // time precision
+				0x0,                // compression algorithm
+				0x0, 0x0, 0x0, 0x0, // label names size (0 bytes)
+				0x12, 0x0, 0x0, 0x0, // label values size (18 bytes: "custom_name_value\0")
+				0x1, 0x0, 0x0, 0x0, // metric count
+				0x1, 0x0, 0x0, 0x0, // point count
+				// label names pool
+				// empty
+				// label values pool
+				0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x5f, 0x6e, 0x61, 0x6d, 0x65, 0x5f,
+				0x76, 0x61, 0x6c, 0x75, 0x65, 0x0, // "custom_name_value\0"
+			},
+			[]byte{0x0, 0x0, 0x0, 0x0}, // common time
+			commonLabels{
+				0x0,
+				[][]byte{},
+			},
+			[][]byte{
+				{
+					0x9, // types (counter without timestamp)
+					0x0, // flags
+					0x0, // nameValueIndex
+					0x0, // labels count (name)
+
+					0x2a, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // 42: metrics value
+				},
+			},
+			59,
+		},
+		{
+			"counter-v1.2",
+			&Metrics{
+				metrics: []Metric{
+					func() Metric {
+						g := NewCounter("mycounter", 42)
+						return &g
+					}(),
+				},
+			},
+			version12,
+			[]byte{
+				0x53, 0x50, // magic
+				0x02, 0x01, // version
+				0x18, 0x00, // header size
+				0x0,                // time precision
+				0x0,                // compression algorithm
+				0x0, 0x0, 0x0, 0x0, // label names size (0 bytes)
+				0xa, 0x0, 0x0, 0x0, // label values size (10 bytes: "mycounter\0")
+				0x1, 0x0, 0x0, 0x0, // metric count
+				0x1, 0x0, 0x0, 0x0, // point count
+				// label names pool
+				// label values pool
+				0x6d, 0x79, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x0, // "mycounter\0"
+			},
+			[]byte{0x0, 0x0, 0x0, 0x0}, // common time
+			commonLabels{
+				0x0,
+				[][]byte{},
+			},
+			[][]byte{
+				{
+					0x9,                                     // types (counter without timestamp)
+					0x0,                                     // flags
+					0x0,                                     // nameValueIndex (должен указывать на "mycounter")
+					0x0,                                     // labels count
+					0x2a, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, // 42: metrics value
+				},
+			},
+			51,
 		},
 	}
 
