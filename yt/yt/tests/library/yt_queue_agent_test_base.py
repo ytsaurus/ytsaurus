@@ -545,6 +545,19 @@ class QueueStaticExportHelpers(ABC):
         print_debug(f"Aborting transactions in subtree {path}")
         abort_transactions(transactions, driver=driver, verbose=True)
 
+    # NB(apachee): We only take queue snapshots, so we wouldn't run into any issues with locks here.
+    def _remove_queue_export_by_export_destination(self, export_dir, driver=None, **kwargs):
+        queue_id = get(f"{export_dir}/@queue_static_export_destination/originating_queue_id", driver=driver, **kwargs)
+
+        static_export_config = get(f"#{queue_id}/@static_export_config", driver=driver, **kwargs)
+
+        # Filtered config.
+        static_export_config = {name: config for name, config in static_export_config.items() if export_dir != config["export_directory"]}
+
+        set(f"#{queue_id}/@static_export_config", static_export_config, driver=driver, **kwargs)
+
+        print_debug(f"Successfully removed queue export by export destination ({export_dir})")
+
     def remove_export_destination(self, export_dir, cluster_name="primary", **kwargs):
         print_debug(f"Removing export destination {export_dir} on cluster {cluster_name}")
         self._initialize_active_export_destinations()
@@ -555,6 +568,11 @@ class QueueStaticExportHelpers(ABC):
         driver = None
         if cluster_name != "primary":
             driver = get_driver(cluster=cluster_name)
+
+        try:
+            self._remove_queue_export_by_export_destination(export_dir, driver=driver, **kwargs)
+        except Exception as ex:
+            print_debug(f"Failed to disable exports to {export_dir} from queue export config: {ex}")
 
         def try_remove():
             self._abort_transactions_in_subtree(export_dir, driver)
