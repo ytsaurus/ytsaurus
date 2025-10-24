@@ -103,6 +103,10 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
+    registrar.Parameter("disable_maintenance_flag_replication", &TThis::DisableMaintenanceFlagReplication)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("forbid_maintenance_attribute_writes", &TThis::ForbidMaintenanceAttributeWrites)
         .Default(false);
 

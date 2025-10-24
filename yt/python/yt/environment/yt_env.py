@@ -1756,7 +1756,7 @@ class YTInstance(object):
 
     def _list_nodes(self, pick_chaos=False):
         client = self._create_cluster_client()
-        nodes = client.list("//sys/cluster_nodes", attributes=["state", "flavors"])
+        nodes = client.list("//sys/cluster_nodes", attributes=["state", "flavors", "banned"])
 
         # COMPAT(savrus): drop default flavors list when 20.3 is deprecated
         nodes = [n for n in nodes if ("chaos" in n.attributes.get("flavors", [])) == pick_chaos]
@@ -1798,8 +1798,13 @@ class YTInstance(object):
             nodes = self._list_nodes(pick_chaos=False)
             # "mixed" is for the first start, "online" is for potential later restarts.
             target_states = ("mixed", "online") if self.yt_config.defer_secondary_cell_start else ("online")
-            return len(nodes) == self.yt_config.node_count and \
-                all(node.attributes["state"] in target_states for node in nodes)
+
+            def check_node(node):
+                if node.attributes["banned"]:
+                    return node.attributes["state"] == "offline"
+                return node.attributes["state"] in target_states
+
+            return len(nodes) == self.yt_config.node_count and all(map(check_node, nodes))
 
         self._wait_for_component(
             "node",
