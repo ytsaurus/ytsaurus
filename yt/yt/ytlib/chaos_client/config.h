@@ -110,7 +110,7 @@ struct TChaosReplicationCardUpdatesBatcherConfig
 
     static void Register(TRegistrar registrar);
 
-protected:
+private:
     void ApplyDynamicInplace(const TChaosReplicationCardUpdatesBatcherDynamicConfigPtr& dynamicConfig);
 
 };
