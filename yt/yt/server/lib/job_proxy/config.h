@@ -497,9 +497,6 @@ struct TJobProxyInternalConfig
     //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
     bool EnableRootVolumeDiskQuota;
 
-    //! Restrict places allowed for porto volumes and layers.
-    bool RestrictPortoPlace;
-
     bool StartQueueConsumerRegistrationManager;
 
     bool EnableSignatureGeneration;

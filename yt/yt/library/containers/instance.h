@@ -121,7 +121,6 @@ struct IInstanceLauncher
         bool enableNat64 = false) = 0;
     virtual void DisableNetwork() = 0;
     virtual void SetHostName(const TString& hostName) = 0;
-    virtual void SetPlaces(const std::vector<TString>& places) = 0;
 
     virtual TFuture<IInstancePtr> Launch(
         const TString& path,

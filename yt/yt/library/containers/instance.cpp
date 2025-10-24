@@ -382,11 +382,6 @@ public:
         Spec_.HostName = hostName;
     }
 
-    void SetPlaces(const std::vector<TString>& places) override
-    {
-        Spec_.Places = places;
-    }
-
     TFuture<IInstancePtr> Launch(
         const TString& path,
         const std::vector<TString>& args,

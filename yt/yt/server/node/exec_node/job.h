@@ -310,8 +310,6 @@ private:
     const bool Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
     const bool RootVolumeDiskQuotaEnabled_;
-    //! Restrict places allowed for porto volumes and layers.
-    const bool RestrictPortoPlace_;
 
     const bool HasUserJobSpec_;
 

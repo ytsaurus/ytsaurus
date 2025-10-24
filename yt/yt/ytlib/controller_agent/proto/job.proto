@@ -356,7 +356,7 @@ message TUserJobSpec
 
     optional bool close_stdout_if_unused = 87;
 
-    optional bool restrict_porto_place = 89;
+    // 89 is reserved for restrict_porto_place
 }
 
 ////////////////////////////////////////////////////////////////////////////////

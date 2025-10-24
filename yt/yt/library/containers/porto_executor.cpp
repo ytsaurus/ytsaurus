@@ -699,10 +699,6 @@ private:
             }
         }
 
-        for (const auto& place : spec.Places) {
-            portoSpec.mutable_place()->add_cfg()->set_place(place);
-        }
-
         {
             auto* ulimit = portoSpec.mutable_ulimit()->add_ulimit();
             ulimit->set_type("core");

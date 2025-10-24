@@ -410,9 +410,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
         .Default(false);
 
-    registrar.Parameter("restrict_porto_place", &TThis::RestrictPortoPlace)
-        .Default(false);
-
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
         .Default(40000)
         .GreaterThan(0);
