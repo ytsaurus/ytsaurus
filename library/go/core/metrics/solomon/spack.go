@@ -217,11 +217,13 @@ func (s *spackMetric) calculateMetricFlags() uint8 {
 	return flags
 }
 
-func (s *spackMetric) getMetricNameValue() string {
+func (s *spackMetric) getMetricNameValue(name string) string {
 	value := s.metric.Name()
-	if lvalue, ok := s.metric.getLabels()[s.metric.getNameTag()]; ok {
+
+	if lvalue, ok := s.metric.getLabels()[name]; ok {
 		value = lvalue
 	}
+
 	return value
 }
 
@@ -322,6 +324,9 @@ func (se *spackEncoder) processMetric(metric Metric) (*spackMetric, error) {
 		if name == metric.getNameTag() {
 			continue
 		}
+		if se.version == version12 && name == "name" {
+			continue
+		}
 		if cValue, ok := se.metrics.CommonLabels()[name]; ok && cValue == value {
 			continue
 		}
@@ -345,11 +350,13 @@ func (se *spackEncoder) processMetricNameTag(m *spackMetric) error {
 }
 
 func (se *spackEncoder) processNameTagV11(m *spackMetric) error {
-	return m.writeLabel(se, m.metric.getNameTag(), m.getMetricNameValue())
+	nameTag := m.metric.getNameTag()
+
+	return m.writeLabel(se, nameTag, m.getMetricNameValue(nameTag))
 }
 
 func (se *spackEncoder) processNameTagV12(m *spackMetric) error {
-	value := m.getMetricNameValue()
+	value := m.getMetricNameValue("name")
 
 	err := se.addValue(value)
 	if err != nil {
