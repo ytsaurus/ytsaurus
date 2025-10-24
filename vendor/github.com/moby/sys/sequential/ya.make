@@ -26,4 +26,10 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        sequential_unix.go
+    )
+ENDIF()
+
 END()

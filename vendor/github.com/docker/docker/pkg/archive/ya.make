@@ -53,4 +53,17 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        archive_linux.go
+        archive_unix.go
+        changes_linux.go
+        changes_unix.go
+        copy_unix.go
+        diff_unix.go
+        path_unix.go
+        time_linux.go
+    )
+ENDIF()
+
 END()

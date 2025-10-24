@@ -28,4 +28,11 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        devices_unix.go
+        mknod_unix.go
+    )
+ENDIF()
+
 END()

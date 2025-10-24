@@ -28,6 +28,14 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        userns_linux.go
+    )
+
+    GO_TEST_SRCS(userns_linux_test.go)
+ENDIF()
+
 END()
 
 RECURSE(

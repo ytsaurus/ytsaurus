@@ -31,4 +31,12 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        idtools_unix.go
+        usergroupadd_linux.go
+        utils_unix.go
+    )
+ENDIF()
+
 END()

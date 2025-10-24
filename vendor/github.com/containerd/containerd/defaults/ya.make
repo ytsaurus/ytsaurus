@@ -27,4 +27,10 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        defaults_unix.go
+    )
+ENDIF()
+
 END()

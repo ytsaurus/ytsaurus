@@ -63,6 +63,16 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        ioctl.go
+        ioctl_inner.go
+        pty_linux.go
+        start.go
+        winsize_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

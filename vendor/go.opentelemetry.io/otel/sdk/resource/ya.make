@@ -89,6 +89,26 @@ IF (OS_WINDOWS)
     GO_XTEST_SRCS(os_windows_test.go)
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        host_id_linux.go
+        host_id_readfile.go
+        os_release_unix.go
+        os_unix.go
+    )
+
+    GO_TEST_SRCS(
+        export_common_unix_test.go
+        export_unix_test.go
+        host_id_readfile_test.go
+    )
+
+    GO_XTEST_SRCS(
+        os_release_unix_test.go
+        os_unix_test.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

@@ -58,6 +58,16 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        chtimes_linux.go
+        diskwriter_unix.go
+        diskwriter_unixnobsd.go
+        followlinks_unix.go
+        stat_unix.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

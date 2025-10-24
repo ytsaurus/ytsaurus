@@ -26,4 +26,10 @@ IF (OS_WINDOWS)
     )
 ENDIF()
 
+IF (OS_ANDROID)
+    SRCS(
+        platforms_deprecated_other.go
+    )
+ENDIF()
+
 END()
