@@ -117,6 +117,11 @@ struct TDynamicNodeTrackerConfig
 
     TDuration ProfilingPeriod;
 
+    // COMPAT(kvk1920): remove after 25.4.
+    // Maintenance request modifications are already replicated to secondary
+    // cells so it's useless and even wrong to replicate flag modification.
+    bool DisableMaintenanceFlagReplication;
+
     // COMPAT(kvk1920)
     bool ForbidMaintenanceAttributeWrites;
 

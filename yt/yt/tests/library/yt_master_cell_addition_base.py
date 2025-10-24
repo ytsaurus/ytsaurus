@@ -16,7 +16,7 @@ from yt_commands import (
     start_transaction, abort_transaction, create_area, remove_area, create_rack, create_data_center, assert_true_for_all_cells,
     assert_true_for_secondary_cells, build_snapshot, get_driver, create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
-    print_debug, decommission_node, write_table)
+    print_debug, decommission_node, write_table, add_maintenance, remove_maintenance)
 
 from yt_helpers import master_exit_read_only_sync, wait_no_peers_in_read_only
 from yt.test_helpers import assert_items_equal
@@ -73,6 +73,12 @@ class MasterCellAdditionBase(YTEnvSetup):
         "12": {"roles": ["chunk_host", "cypress_node_host"]},
         "13": {"roles": []},
     }
+
+    # NB: without this maintenance flag writes are prohibited and replicating
+    # flags like "banned" and "decomission" during node replication on cell
+    # addition doesn't happen which differs from behavior on most of production
+    # clusters.
+    TEST_MAINTENANCE_FLAGS = True
 
     def setup_class(cls):
         super(MasterCellAdditionBase, cls).setup_class()
@@ -259,21 +265,24 @@ class MasterCellAdditionBase(YTEnvSetup):
     @classmethod
     def _wait_for_nodes_state(cls, expected_state, aggregate_state):
         def check_multicell_states():
-            nodes = ls("//sys/cluster_nodes", attributes=["multicell_states"])
+            nodes = ls("//sys/cluster_nodes", attributes=["multicell_states", "banned"])
             return all(
                 all(
-                    v == expected_state
+                    "offline" if node.attributes["banned"] else v == expected_state
                     for v in node.attributes["multicell_states"].values()
                 )
-                for node in nodes
+                for node in nodes if not node.attributes["banned"]
             )
 
         def check_aggregated():
-            nodes = ls("//sys/cluster_nodes", attributes=["state"])
-            return all(
-                node.attributes["state"] == expected_state
-                for node in nodes
-            )
+            nodes = ls("//sys/cluster_nodes", attributes=["state", "banned"])
+
+            def check_node(node):
+                if node.attributes["banned"]:
+                    return node.attributes["state"] == "offline"
+                return node.attributes["state"] == expected_state
+
+            return all(map(check_node, nodes))
 
         wait(
             check_aggregated if aggregate_state else check_multicell_states,
@@ -431,7 +440,8 @@ class MasterCellAdditionBase(YTEnvSetup):
 
 
 class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
-    NUM_NODES = 3
+    # NB: 1 node will be banned during checks.
+    NUM_NODES = 4
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
@@ -686,9 +696,13 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         assert_true_for_all_cells(self.Env, check)
 
     def check_nodes_configuration(self):
-        def _check_nodes_state(nodes, driver=None):
+        def _check_nodes_state(nodes):
             for node in nodes:
-                assert get(f"//sys/cluster_nodes/{node}/@state", driver=driver) == "online"
+                attrs = get(f"//sys/cluster_nodes/{node}/@", attributes=["state", "banned"])
+                if attrs["banned"]:
+                    assert attrs["state"] == "offline"
+                else:
+                    assert attrs["state"] == "online"
             return True
 
         nodes = ls("//sys/cluster_nodes")
@@ -698,8 +712,11 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
         multicell_states = {tag : "online" for tag in ["10", "11", "12", "13"]}
         for node in nodes:
-            assert get(f"//sys/cluster_nodes/{node}/@multicell_states") == multicell_states
-        assert_true_for_all_cells(self.Env, lambda driver: _check_nodes_state(nodes, driver=driver))
+            if get(f"//sys/cluster_nodes/{node}/@banned"):
+                assert get(f"//sys/cluster_nodes/{node}/@multicell_states") == {tag: "offline" for tag in ["10, 11, 12, 13"]}
+            else:
+                assert get(f"//sys/cluster_nodes/{node}/@multicell_states") == multicell_states
+        assert_true_for_all_cells(self.Env, lambda driver: _check_nodes_state(nodes))
 
     def check_map_reduce_avialibility(self):
         def _check_basic_map_reduce():
@@ -740,6 +757,33 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
         create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
+
+    def check_banned_nodes(self):
+        node = ls("//sys/data_nodes")[-1]
+
+        maintenance_id = add_maintenance("cluster_node", node, "ban", "Test")[node]
+        wait(lambda: get(f"//sys/data_nodes/{node}/@state") == "offline")
+
+        for tx in ls("//sys/topmost_transactions", attributes=["title"]):
+            if node in tx.attributes["title"]:
+                abort_transaction(str(tx))
+
+        yield
+
+        remove_maintenance("cluster_node", node, id=maintenance_id)
+        wait(lambda: get(f"//sys/data_nodes/{node}/@state") == "online")
+        assert get(f"//sys/data_nodes/{node}/@multicell_states") == {
+            "10": "online",
+            "11": "online",
+            "12": "online",
+            "13": "online",
+        }
+
+        for cell_index in range(4):
+            driver = get_driver(cell_index)
+            assert all(map(
+                lambda request: request["type"] != "ban",
+                get(f"//sys/data_nodes/{node}/@maintenance_requests", driver=driver).values()))
 
 
 class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):

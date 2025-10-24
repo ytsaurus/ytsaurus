@@ -45,6 +45,7 @@
 
 namespace NYT::NNodeTrackerServer {
 
+using namespace NCellMaster;
 using namespace NCellarClient;
 using namespace NChunkClient;
 using namespace NMaintenanceTrackerServer;
@@ -84,24 +85,30 @@ private:
 
         const auto* node = GetThisImpl();
 
+        // COMPAT(kvk1920)
+        bool replicateMaintenanceFlags = !Bootstrap_
+            ->GetDynamicConfig()
+            ->NodeTracker
+            ->DisableMaintenanceFlagReplication;
+
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Banned)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(replicateMaintenanceFlags));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Decommissioned)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(replicateMaintenanceFlags));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableWriteSessions)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(replicateMaintenanceFlags));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableSchedulerJobs)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(replicateMaintenanceFlags));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableTabletCells)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(replicateMaintenanceFlags));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PendingRestart)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(replicateMaintenanceFlags));
         descriptors->push_back(EInternedAttributeKey::MaintenanceRequests);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
             .SetPresent(node->GetRack())
@@ -869,4 +876,3 @@ IObjectProxyPtr CreateClusterNodeProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerServer
-
