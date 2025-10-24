@@ -315,20 +315,21 @@ private:
 
             auto list = New<TChunkStripeList>();
             list->PartitionTag = PartitionIndex_;
+            list->Reserve(run.ElementaryIndexEnd - run.ElementaryIndexBegin);
+
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
-                auto stripe = Owner_->ElementaryStripes_[index];
-                list->Stripes.push_back(stripe);
-                list->TotalChunkCount += stripe->GetChunkCount();
+                list->AddStripe(Owner_->ElementaryStripes_[index]);
             }
 
-            // NB: Never ever make TotalDataWeight and TotalBoostFactor approximate.
+            // NB: Never ever make TotalDataWeight approximate.
             // Otherwise sort data size and row counters will be severely corrupted
+
+            // NB(apollo1321): Actually, this data weight is uncompressed data size here.
+            // This behaviour is incorrect and should be fixed in YT-26516.
             list->TotalDataWeight = run.DataWeight;
             list->TotalRowCount = run.RowCount;
 
-            list->IsApproximate = run.IsApproximate;
-
-            for (const auto& stripe : list->Stripes) {
+            for (const auto& stripe : list->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices) {
                     YT_VERIFY(!dataSlice->IsLegacy);
                 }

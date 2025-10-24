@@ -91,15 +91,11 @@ PHOENIX_DEFINE_TYPE(TChunkStripe);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripeList::TChunkStripeList(int stripeCount)
-    : Stripes(stripeCount)
-{ }
-
 TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
 {
     TChunkStripeStatisticsVector result;
-    result.reserve(Stripes.size());
-    for (const auto& stripe : Stripes) {
+    result.reserve(Stripes_.size());
+    for (const auto& stripe : Stripes_) {
         result.push_back(stripe->GetStatistics());
     }
     return result;
@@ -132,12 +128,12 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     TotalValueCount += statistics.ValueCount;
     TotalCompressedDataSize += statistics.CompressedDataSize;
     TotalSliceCount += std::ssize(stripe->DataSlices);
-    Stripes.emplace_back(std::move(stripe));
+    Stripes_.push_back(std::move(stripe));
 }
 
 void TChunkStripeList::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Stripes);
+    PHOENIX_REGISTER_FIELD(1, Stripes_);
     PHOENIX_REGISTER_FIELD(2, PartitionTag);
     PHOENIX_REGISTER_FIELD(3, IsApproximate);
     PHOENIX_REGISTER_FIELD(4, TotalDataWeight);
@@ -149,17 +145,22 @@ void TChunkStripeList::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(10, TotalCompressedDataSize,
         .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            for (const auto& stripe : this_->Stripes) {
+            for (const auto& stripe : this_->Stripes_) {
                 this_->TotalCompressedDataSize += stripe->GetStatistics().CompressedDataSize;
             }
         }));
     PHOENIX_REGISTER_FIELD(11, TotalSliceCount,
         .SinceVersion(ESnapshotVersion::AddSliceCountStatistics)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
-            for (const auto& stripe : this_->Stripes) {
+            for (const auto& stripe : this_->Stripes_) {
                 this_->TotalSliceCount += std::ssize(stripe->DataSlices);
             }
         }));
+}
+
+void TChunkStripeList::Reserve(i64 size)
+{
+    Stripes_.reserve(size);
 }
 
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();

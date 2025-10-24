@@ -1,6 +1,5 @@
 #include "helpers.h"
 
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
@@ -15,30 +14,10 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AccountStripeInList(
-    const TChunkStripePtr& stripe,
-    const TChunkStripeListPtr& list)
-{
-    auto statistics = stripe->GetStatistics();
-    list->TotalDataWeight += statistics.DataWeight;
-    list->TotalRowCount += statistics.RowCount;
-    list->TotalChunkCount += statistics.ChunkCount;
-}
-
-void AddStripeToList(
-    TChunkStripePtr stripe,
-    const TChunkStripeListPtr& list)
-{
-    list->Stripes.emplace_back(std::move(stripe));
-    AccountStripeInList(
-        list->Stripes.back(),
-        list);
-}
-
 std::vector<TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& stripeList)
 {
     std::vector<TInputChunkPtr> chunks;
-    for (const auto& stripe : stripeList->Stripes) {
+    for (const auto& stripe : stripeList->Stripes()) {
         for (const auto& dataSlice : stripe->DataSlices) {
             chunks.emplace_back(dataSlice->GetSingleUnversionedChunk());
         }

@@ -1,22 +1,21 @@
 #include "new_job_manager.h"
 
-#include <yt/yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NChunkPools {
 
-using namespace NControllerAgent;
 using namespace NChunkClient;
+using namespace NControllerAgent;
 using namespace NLogging;
 using namespace NTableClient;
-using namespace NYson;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,16 +57,18 @@ void TNewJobStub::AddPreliminaryForeignDataSlice(const TLegacyDataSlicePtr& data
 
 void TNewJobStub::Finalize()
 {
-    for (const auto& [tableAndRangeIndex, stripe] : StripeMap_) {
+    std::vector<TChunkStripePtr> stripes;
+    stripes.reserve(StripeMap_.size());
+    for (auto& [tableAndRangeIndex, stripe] : StripeMap_) {
         for (const auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
         }
-        StripeList_->AddStripe(stripe);
+        stripes.push_back(std::move(stripe));
     }
     StripeMap_.clear();
 
     // This order is crucial for ordered map.
-    std::sort(StripeList_->Stripes.begin(), StripeList_->Stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
+    std::sort(stripes.begin(), stripes.end(), [] (const TChunkStripePtr& lhs, const TChunkStripePtr& rhs) {
         auto& lhsSlice = lhs->DataSlices.front();
         auto& rhsSlice = rhs->DataSlices.front();
 
@@ -78,16 +79,9 @@ void TNewJobStub::Finalize()
         return lhsSlice->GetRangeIndex() < rhsSlice->GetRangeIndex();
     });
 
-    //    Ideally, there should be no need in such sorting.
-    //
-    //    for (const auto& stripe : StripeList_->Stripes) {
-    //        std::stable_sort(stripe->DataSlices.begin(), stripe->DataSlices.end(), [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
-    //            if (lhs->Tag && rhs->Tag && *lhs->Tag != *rhs->Tag) {
-    //                return *lhs->Tag < *rhs->Tag;
-    //            }
-    //            return lhs->GetSliceIndex() < rhs->GetSliceIndex();
-    //        });
-//    }
+    for (auto& stripe : stripes) {
+        StripeList_->AddStripe(std::move(stripe));
+    }
 }
 
 i64 TNewJobStub::GetDataWeight() const
@@ -751,7 +745,7 @@ std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPool
 {
     YT_VERIFY(0 <= inputCookie && inputCookie < std::ssize(Jobs_));
     std::vector<TLegacyDataSlicePtr> foreignSlices;
-    for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
+    for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes()) {
         if (stripe->Foreign) {
             std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));
             stripe->DataSlices.clear();
@@ -828,7 +822,7 @@ void TNewJobManager::Enlarge(
         i64 foreignDataWeight = currentJobStub->GetForeignDataWeight();
         i64 compressedDataSize = currentJobStub->GetCompressedDataSize();
         i64 sliceCount = currentJobStub->GetSliceCount();
-        for (const auto& stripe : job.StripeList()->Stripes) {
+        for (const auto& stripe : job.StripeList()->Stripes()) {
             if (!force && stripe->Foreign) {
                 YT_LOG_DEBUG("Stopping enlargement due to the foreign data stripe");
                 return false;
@@ -907,7 +901,7 @@ void TNewJobManager::Enlarge(
 
             const auto& job = Jobs_[*finishIndex];
             if (shouldJoinJob(currentJobStub.get(), job, finishIndex == startIndex /*force*/)) {
-                for (const auto& stripe : job.StripeList()->Stripes) {
+                for (const auto& stripe : job.StripeList()->Stripes()) {
                     for (const auto& dataSlice : stripe->DataSlices) {
                         // TODO(coteeq): Do not duplicate rows in foreign slices here.
                         // For primary slices everything is simple - we just throw more slices to

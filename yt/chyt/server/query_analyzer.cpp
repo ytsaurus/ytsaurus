@@ -651,7 +651,7 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
     for (int index = 0; index < std::ssize(OperandSpecs_); ++index) {
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {
-            stripes.emplace_back(subquery.StripeList->Stripes[index]);
+            stripes.emplace_back(subquery.StripeList->Stripes()[index]);
         }
 
         auto spec = OperandSpecs_[index];

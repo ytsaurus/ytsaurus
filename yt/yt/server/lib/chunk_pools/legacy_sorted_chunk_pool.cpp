@@ -218,7 +218,7 @@ public:
         auto legacyStripeList = JobManager_->GetStripeList(cookie);
         newStripeList->PartitionTag = legacyStripeList->PartitionTag;
         newStripeList->IsApproximate = legacyStripeList->IsApproximate;
-        for (const auto& legacyStripe : legacyStripeList->Stripes) {
+        for (const auto& legacyStripe : legacyStripeList->Stripes()) {
             auto newStripe = New<TChunkStripe>();
             newStripe->Foreign = legacyStripe->Foreign;
             for (const auto& legacyDataSlice : legacyStripe->DataSlices) {
@@ -229,7 +229,7 @@ public:
                 newDataSlice->TransformToNew(RowBuffer_, prefixLength);
                 newStripe->DataSlices.emplace_back(std::move(newDataSlice));
             }
-            AddStripeToList(newStripe, newStripeList);
+            newStripeList->AddStripe(std::move(newStripe));
         }
         return CachedNewStripeLists_[cookie] = newStripeList;
     }

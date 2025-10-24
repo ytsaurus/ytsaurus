@@ -1092,7 +1092,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
 
     TReadRangeRegistry inputReadRangeRegistry;
 
-    for (const auto& chunkStripe : inputStripeList->Stripes) {
+    for (const auto& chunkStripe : inputStripeList->Stripes()) {
         for (const auto& dataSlice : chunkStripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
             if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
@@ -1115,7 +1115,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
         auto& subquery = subqueries.emplace_back();
         subquery.StripeList = chunkPool->GetStripeList(cookie);
 
-        for (const auto& chunkStripe : subquery.StripeList->Stripes) {
+        for (const auto& chunkStripe : subquery.StripeList->Stripes()) {
             for (const auto& dataSlice : chunkStripe->DataSlices) {
                 YT_VERIFY(!dataSlice->IsLegacy);
                 if (dataSlice->ReadRangeIndex) {
@@ -1148,23 +1148,28 @@ std::vector<TSubquery> BuildThreadSubqueries(
     // In the end, each stripe list contains exactly one or two stripes, depending
     // on the number of operands.
     for (auto& subquery : subqueries) {
-        auto flattenedStripeList = New<TChunkStripeList>();
-        flattenedStripeList->Stripes.resize(queryInput.OperandCount);
+        std::vector<TChunkStripePtr> flattenedStripes(queryInput.OperandCount);
         for (int operandIndex = 0; operandIndex < queryInput.OperandCount; ++operandIndex) {
-            flattenedStripeList->Stripes[operandIndex] = New<TChunkStripe>();
+            flattenedStripes[operandIndex] = New<TChunkStripe>();
         }
-        for (const auto& stripe : subquery.StripeList->Stripes) {
+
+        for (const auto& stripe : subquery.StripeList->Stripes()) {
             int operandIndex = queryInput.InputTables[stripe->GetTableIndex()]->OperandIndex;
             YT_VERIFY(operandIndex >= 0);
             YT_VERIFY(operandIndex < queryInput.OperandCount);
-            auto& flattenedStripe = flattenedStripeList->Stripes[operandIndex];
+            auto& flattenedStripe = flattenedStripes[operandIndex];
             for (const auto& dataSlice : stripe->DataSlices) {
                 flattenedStripe->DataSlices.push_back(dataSlice);
             }
         }
-        for (const auto& stripe : flattenedStripeList->Stripes) {
-            AccountStripeInList(stripe, flattenedStripeList);
+
+        auto flattenedStripeList = New<TChunkStripeList>();
+        flattenedStripeList->Reserve(flattenedStripes.size());
+
+        for (auto& stripe : flattenedStripes) {
+            flattenedStripeList->AddStripe(std::move(stripe));
         }
+
         subquery.StripeList.Swap(flattenedStripeList);
     }
 
@@ -1211,19 +1216,20 @@ std::vector<TSubquery> BuildThreadSubqueries(
                     dataWeight);
                 auto& enlargedSubquery = enlargedSubqueries.emplace_back();
                 enlargedSubquery.StripeList = New<TChunkStripeList>();
-                std::vector<TChunkStripePtr> stripes(subqueries[leftIndex].StripeList->Stripes.size());
+                std::vector<TChunkStripePtr> stripes(subqueries[leftIndex].StripeList->Stripes().size());
                 for (auto& stripe : stripes) {
                     stripe = New<TChunkStripe>();
                 }
                 for (size_t index = leftIndex; index < rightIndex; ++index) {
                     for (size_t stripeIndex = 0; stripeIndex < stripes.size(); ++stripeIndex) {
-                        for (auto& dataSlice : subqueries[index].StripeList->Stripes[stripeIndex]->DataSlices) {
+                        for (auto& dataSlice : subqueries[index].StripeList->Stripes()[stripeIndex]->DataSlices) {
                             stripes[stripeIndex]->DataSlices.emplace_back(std::move(dataSlice));
                         }
                     }
                 }
+
                 for (auto& stripe : stripes) {
-                    AddStripeToList(std::move(stripe), enlargedSubquery.StripeList);
+                    enlargedSubquery.StripeList->AddStripe(std::move(stripe));
                 }
 
                 enlargedSubquery.Bounds = {subqueries[leftIndex].Bounds.first, subqueries[rightIndex - 1].Bounds.second};

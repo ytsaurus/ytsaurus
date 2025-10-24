@@ -135,7 +135,7 @@ protected:
         EXPECT_EQ(job.GetSliceCount(), std::ssize(expectations.SliceExpectations));
         EXPECT_EQ(job.GetDataWeight(), expectations.DataWeight);
 
-        const auto& stripes = job.GetStripeList()->Stripes;
+        const auto& stripes = job.GetStripeList()->Stripes();
         ASSERT_EQ(std::ssize(stripes), 1);
 
         const auto& dataSlices = stripes[0]->DataSlices;

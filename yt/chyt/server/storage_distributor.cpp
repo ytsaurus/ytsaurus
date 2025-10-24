@@ -626,7 +626,7 @@ private:
         if (canUseBlockSampling && SamplingRate_) {
             YT_LOG_DEBUG("Using block sampling (SamplingRate: %v)",
                 SamplingRate_);
-            for (const auto& stripe : QueryInput_.StripeList->Stripes) {
+            for (const auto& stripe : QueryInput_.StripeList->Stripes()) {
                 for (const auto& dataSlice : stripe->DataSlices) {
                     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                         chunkSlice->ApplySamplingSelectivityFactor(*SamplingRate_);
