@@ -25,11 +25,11 @@ auto MakeSimpleKey(int first, const std::string& second)
     return builder.FinishRow();
 }
 
-class TTestCommonPivotKeyIndices
+class TCommonPivotKeyIndicesTest
     : public ::testing::Test
 { };
 
-TEST_F(TTestCommonPivotKeyIndices, TestEqual)
+TEST_F(TCommonPivotKeyIndicesTest, TestEqual)
 {
     std::vector<TLegacyOwningKey> leftKeys;
     leftKeys.push_back(MakeSimpleKey(1000, "blabla"));
@@ -47,7 +47,7 @@ TEST_F(TTestCommonPivotKeyIndices, TestEqual)
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
 
-TEST_F(TTestCommonPivotKeyIndices, TestUnequal)
+TEST_F(TCommonPivotKeyIndicesTest, TestUnequal)
 {
     std::vector<TLegacyOwningKey> leftKeys, rightKeys;
     leftKeys.push_back(MakeSimpleKey(1000, "blabla"));
@@ -66,7 +66,7 @@ TEST_F(TTestCommonPivotKeyIndices, TestUnequal)
     ASSERT_EQ(expectedCommonIndices, commonIndices);
 }
 
-TEST_F(TTestCommonPivotKeyIndices, TestMixed)
+TEST_F(TCommonPivotKeyIndicesTest, TestMixed)
 {
     std::vector<TLegacyOwningKey> leftKeys, rightKeys;
     leftKeys.push_back(MakeSimpleKey(1000, "blabla"));
@@ -87,14 +87,14 @@ TEST_F(TTestCommonPivotKeyIndices, TestMixed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestMetricDistribution
+class TMetricDistributionTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*metrics*/ std::vector<i64>,
         /*distribution*/ std::vector<double>>>
 { };
 
-TEST_P(TTestMetricDistribution, ViaMemorySize)
+TEST_P(TMetricDistributionTest, ViaMemorySize)
 {
     const auto& params = GetParam();
     auto sizes = std::get<0>(params);
@@ -104,8 +104,8 @@ TEST_P(TTestMetricDistribution, ViaMemorySize)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestMetricDistribution,
-    TTestMetricDistribution,
+    TMetricDistributionTest,
+    TMetricDistributionTest,
     ::testing::Values(
         std::tuple(
             std::vector<i64>{40, 20, 60, 40},
@@ -157,7 +157,7 @@ auto GetTotalMettric(const std::vector<double>& metrics)
         });
 }
 
-class TTestCalculateMajorMetricsBetweenSamePivots
+class TCalculateMajorMetricsBetweenSamePivotsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*rightMetrics*/ std::vector<double>,
@@ -166,7 +166,7 @@ class TTestCalculateMajorMetricsBetweenSamePivots
         /*metrics*/ std::vector<double>>>
 { };
 
-TEST_P(TTestCalculateMajorMetricsBetweenSamePivots, Simple)
+TEST_P(TCalculateMajorMetricsBetweenSamePivotsTest, Simple)
 {
     const auto& params = GetParam();
     auto rightMetrics = std::get<0>(params);
@@ -193,8 +193,8 @@ TEST_P(TTestCalculateMajorMetricsBetweenSamePivots, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestCalculateMajorMetricsBetweenSamePivots,
-    TTestCalculateMajorMetricsBetweenSamePivots,
+    TCalculateMajorMetricsBetweenSamePivotsTest,
+    TCalculateMajorMetricsBetweenSamePivotsTest,
     ::testing::Values(
         std::tuple(
             std::vector<double>{40, 20, 60, 40},
@@ -244,7 +244,7 @@ auto MakePivotKeys(const std::vector<int>& values)
     return keys;
 }
 
-class TTestCalculateMajorMetrics
+class TCalculateMajorMetricsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*rightMetrics*/ std::vector<double>,
@@ -255,7 +255,7 @@ class TTestCalculateMajorMetrics
         /*metrics*/ std::vector<double>>>
 { };
 
-TEST_P(TTestCalculateMajorMetrics, Simple)
+TEST_P(TCalculateMajorMetricsTest, Simple)
 {
     const auto& params = GetParam();
     auto rightMetrics = std::get<0>(params);
@@ -282,8 +282,8 @@ TEST_P(TTestCalculateMajorMetrics, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestCalculateMajorMetrics,
-    TTestCalculateMajorMetrics,
+    TCalculateMajorMetricsTest,
+    TCalculateMajorMetricsTest,
     ::testing::Values(
         std::tuple(
             std::vector<double>{40, 20, 60, 40},
@@ -317,7 +317,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestReshardByReferencePivots
+class TReshardByReferencePivotsTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*leftPivotKeys*/ std::vector<int>,
@@ -345,7 +345,7 @@ int VerifyActions(
     return tabletCount;
 }
 
-TEST_P(TTestReshardByReferencePivots, Simple)
+TEST_P(TReshardByReferencePivotsTest, Simple)
 {
     const auto& params = GetParam();
     auto leftPivotKeys = MakePivotKeys(std::get<0>(params));
@@ -368,8 +368,8 @@ TEST_P(TTestReshardByReferencePivots, Simple)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TTestReshardByReferencePivots,
-    TTestReshardByReferencePivots,
+    TReshardByReferencePivotsTest,
+    TReshardByReferencePivotsTest,
     ::testing::Values(
         std::tuple(
             std::vector<int>{0, 1},

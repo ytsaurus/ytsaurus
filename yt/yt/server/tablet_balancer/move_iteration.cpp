@@ -361,7 +361,7 @@ public:
                 for (const auto& minorTablePath : minorTablePaths) {
                     auto it = tableRegistry->AlienTablePaths().find(TTableRegistry::TAlienTableTag(cluster, minorTablePath));
                     THROW_ERROR_EXCEPTION_IF(it == tableRegistry->AlienTablePaths().end(),
-                        "Not all tables was resolved. Table id for table %v on cluster %v was not found. "
+                        "Not all tables was resolved. Table id for table %v on cluster %Qv was not found. "
                         "Check that table path is correct",
                         minorTablePath,
                         cluster);

@@ -336,7 +336,7 @@ void TTableTabletBalancerConfig::Register(TRegistrar registrar)
             auto uniquePaths = THashSet<TYPath>(paths.begin(), paths.end());
             if (std::ssize(uniquePaths) != std::ssize(paths)) {
                 THROW_ERROR_EXCEPTION("\"replica_aliases\" must contain unique paths for each cluster, "
-                    "but cluster %v has two identical paths",
+                    "but cluster %Qv has two identical paths",
                     cluster);
             }
         }
