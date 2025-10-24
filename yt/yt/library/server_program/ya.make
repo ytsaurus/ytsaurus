@@ -14,6 +14,7 @@ PEERDIR(
     yt/yt/core/service_discovery/yp # for YPSD singleton
 
     yt/yt/library/program
+    yt/yt/library/coredumper
     yt/yt/library/containers
     yt/yt/library/disk_manager
     yt/yt/library/fusion
