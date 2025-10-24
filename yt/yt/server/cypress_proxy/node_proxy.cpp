@@ -1204,14 +1204,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     auto nodesToCopy = SequoiaSession_->FetchSubtree(sourceRootPath);
 
     auto nodeAncestry = GetNodeAncestry(replace);
-    auto inheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
+    auto sourceInheritableAttributes = SequoiaSession_->FetchInheritableAttributes(
         {nodeAncestry, nodesToCopy.Nodes},
         /*duringCopy*/ true,
         GetNativeAuthenticatedClient());
 
     auto destinationInheritedAttributes = NCypressProxy::CalculateInheritedAttributes(
         nodeAncestry,
-        inheritableAttributes);
+        sourceInheritableAttributes);
 
     std::vector<TCypressNodeDescriptor> removedNodes;
     auto [destinationParentId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
@@ -1247,7 +1247,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     auto destinationRootPath = JoinNestedNodesToPath(Path_, destinationSuffixDirectoryTokens);
     auto destinationId = SequoiaSession_->CopySubtree(
         nodesToCopy,
-        inheritableAttributes,
+        sourceInheritableAttributes,
         destinationRootPath,
         destinationParentId,
         destinationInheritedAttributes.Get(),
@@ -1641,7 +1641,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, CalculateInheritedAttributes)
     TInheritedAttributesCalculator attributeCalculator;
     attributeCalculator.ChangeNode(sourceSubtree.Nodes.front().Path.GetDirPath(), dstInheritedAttributes.Get());
 
-    for (auto node : sourceSubtree.Nodes) {
+    for (const auto& node : sourceSubtree.Nodes) {
         auto sourceAttributes = GetOrCrash(sourceInheritableAttributes, node.Id);
         attributeCalculator.ChangeNode(node.Path, sourceAttributes.Get());
 
