@@ -63,7 +63,7 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
                     auto index = performanceCountersTableSchema->GetColumnIndexOrThrow(performanceCounterKey);
                     auto values = ConvertTo<INodePtr>(performanceCountersRow->Get()[index]);
                     THROW_ERROR_EXCEPTION_IF(values->GetType() != ENodeType::List && values->GetType() != ENodeType::Entity,
-                        "Node has unexpected value type: expected one of (%Qv, %Qv), actual %Qv",
+                        "Node has unexpected value type: expected one of (%Qlv, %Qlv), actual %Qlv",
                         ENodeType::List,
                         ENodeType::Entity,
                         values->GetType());
