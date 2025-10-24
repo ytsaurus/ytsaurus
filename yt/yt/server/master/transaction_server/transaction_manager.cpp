@@ -3596,8 +3596,6 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        LeaseTracker_->Start();
-
         // Recreate leases for all active transactions.
         for (auto [transactionId, transaction] : TransactionMap_) {
             auto state = transaction->GetTransientState();
@@ -3607,6 +3605,10 @@ private:
                 CreateLease(transaction);
             }
         }
+
+        // NB: all transaction must be registered in lease tracker before its
+        // start to avoid "No such tx" errors on ping requests.
+        LeaseTracker_->Start();
 
         BoomerangTracker_->Start();
     }
