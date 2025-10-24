@@ -14,6 +14,8 @@ public:
     TControllerJobReport JobId(TJobId jobId);
     TControllerJobReport HasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType);
     TControllerJobReport JobCookie(ui64 jobCookie);
+    TControllerJobReport JobCookieGroupIndex(ui64 jobCookie);
+    TControllerJobReport MainJobId(TJobId mainJobId);
     TControllerJobReport Address(std::optional<std::string> address);
     TControllerJobReport Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses);
     TControllerJobReport ControllerState(EJobState controllerState);

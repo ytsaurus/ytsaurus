@@ -354,7 +354,9 @@ message TUserJobSpec
     // Enable EJobPhase::CachingArtifacts in job
     optional bool enable_caching_artifacts_phase = 86 [default = false];
 
-    optional bool close_stdout_if_unused = 87;
+    optional bool is_secondary_distributed = 87;
+
+    optional bool close_stdout_if_unused = 88;
 
     // 89 is reserved for restrict_porto_place
 }

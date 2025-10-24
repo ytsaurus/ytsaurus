@@ -358,6 +358,29 @@ class TestGetJob(_TestGetJobCommon):
         else:
             wait(lambda: get_controller_state_from_archive(op.id, job_id) == "completed")
 
+    @authors("faucct")
+    def test_distributed_operation(self):
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": ":",
+                        "cookie_group_size": 2,
+                    },
+                },
+            },
+        )
+        wait(lambda: len(op.list_jobs()) == 2)
+        main, replica = sorted(
+            [{"id": job, **get_job(op.id, job, attributes=["job_cookie_group_index", "main_job_id"])} for job in op.list_jobs()],
+            key=lambda job: job["job_cookie_group_index"],
+        )
+        assert main["main_job_id"] == main["id"]
+        assert main["job_cookie_group_index"] == 0
+        assert replica["main_job_id"] == main["id"]
+        assert replica["job_cookie_group_index"] == 1
+
     @authors("omgronny")
     def test_abort_vanished_jobs_in_archive(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))

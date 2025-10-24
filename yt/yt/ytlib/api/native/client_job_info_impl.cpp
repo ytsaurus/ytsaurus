@@ -123,6 +123,8 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "monitoring_descriptor",
     "core_infos",
     "job_cookie",
+    "job_cookie_group_index",
+    "main_job_id",
     "operation_incarnation",
     "archive_features",
     "brief_statistics",
@@ -217,6 +219,8 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"monitoring_descriptor", {}},
     {"core_infos", {}},
     {"job_cookie", {}},
+    {"job_cookie_group_index", 62},
+    {"main_job_id", 62},
     {"brief_statistics", {}},
     {"statistics", {}},
     {"exec_attributes", {}},
@@ -1559,6 +1563,15 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
         builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
     }
 
+    if (options.MainJobId) {
+        auto mainJobId = options.MainJobId.Underlying();
+
+        builder->AddWhereConjunct(Format(
+            "(main_job_id_hi, main_job_id_lo) = (%vu, %vu)",
+            mainJobId.Parts64[0],
+            mainJobId.Parts64[1]));
+    }
+
     if (options.WithCompetitors) {
         if (*options.WithCompetitors) {
             builder->AddWhereConjunct("has_competitors");
@@ -1709,6 +1722,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .PoolTree = record.PoolTree,
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
+            .JobCookieGroupIndex = record.JobCookieGroupIndex,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
             .OperationIncarnation = record.OperationIncarnation,
             .GangRank = record.GangRank,
@@ -1776,6 +1790,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.JobCompetitionId = TJobId(TGuid::FromString(*record.JobCompetitionId));
         }
 
+        if (record.MainJobIdHi) {
+            job.MainJobId = TJobId(TGuid(*record.MainJobIdHi, *record.MainJobIdLo));
+        }
+
         if (record.ProbingJobCompetitionId) {
             job.ProbingJobCompetitionId = TJobId(TGuid::FromString(*record.ProbingJobCompetitionId));
         }
@@ -1833,7 +1851,7 @@ void TClient::AddSelectExpressions(
             continue;
         }
 
-        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
+        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "main_job_id") {
             builder->AddSelectExpression(attribute + "_hi");
             builder->AddSelectExpression(attribute + "_lo");
         } else if (attribute == "start_time" || attribute == "finish_time") {
@@ -1986,6 +2004,8 @@ static void ParseJobsFromControllerAgentResponse(
     auto needTaskName = attributes.contains("task_name");
     auto needCoreInfos = attributes.contains("core_infos");
     auto needJobCookie = attributes.contains("job_cookie");
+    auto needJobCookieGroupIndex = attributes.contains("job_cookie_group_index");
+    auto needMainJobId = attributes.contains("main_job_id");
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
     auto needOperationIncarnation = attributes.contains("operation_incarnation");
     auto needAllocationId = attributes.contains("allocation_id");
@@ -2066,6 +2086,14 @@ static void ParseJobsFromControllerAgentResponse(
         if (needJobCookie) {
             job.JobCookie = jobMapNode->FindChildValue<ui64>("job_cookie");
         }
+        if (needJobCookieGroupIndex) {
+            job.JobCookieGroupIndex = jobMapNode->FindChildValue<ui64>("job_cookie_group_index");
+        }
+        if (needMainJobId) {
+            if (auto mainJobId = jobMapNode->FindChildValue<TJobId>("main_job_id")) {
+                job.MainJobId = *mainJobId;
+            }
+        }
         if (needMonitoringDescriptor) {
             job.MonitoringDescriptor = jobMapNode->FindChildValue<TString>("monitoring_descriptor");
         }
@@ -2119,6 +2147,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
+        auto mainJobId = jobMap->FindChildValue<TJobId>("main_job_id");
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
@@ -2132,6 +2161,7 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.State || options.State == state) &&
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
+            (!options.MainJobId || options.MainJobId == mainJobId) &&
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
             (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
             (!options.TaskName || options.TaskName == taskName) &&
@@ -2332,6 +2362,8 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);
     mergeNullableField(&TJob::JobCookie);
+    mergeNullableField(&TJob::JobCookieGroupIndex);
+    mergeNullableField(&TJob::MainJobId);
     mergeNullableField(&TJob::OperationIncarnation);
     mergeNullableField(&TJob::AllocationId);
     mergeNullableField(&TJob::GangRank);
@@ -2623,7 +2655,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
         }
-        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id") {
+        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id" || attribute == "main_job_id") {
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {

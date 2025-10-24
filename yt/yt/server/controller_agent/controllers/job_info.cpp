@@ -66,6 +66,29 @@ PHOENIX_DEFINE_TYPE(TAllocation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TJoblet::TCookieGroupInfo& cookieGroupInfo, TStringBuf /*spec*/)
+{
+    if (!cookieGroupInfo) {
+        builder->AppendFormat("%v", std::nullopt);
+        return;
+    }
+
+    builder->AppendFormat("{%v:%v}", cookieGroupInfo.MainJobId, cookieGroupInfo.OutputIndex);
+}
+
+TJoblet::TCookieGroupInfo::operator bool() const noexcept
+{
+    return static_cast<bool>(MainJobId);
+}
+
+void TJoblet::TCookieGroupInfo::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, MainJobId);
+    PHOENIX_REGISTER_FIELD(2, OutputIndex);
+}
+
+PHOENIX_DEFINE_TYPE(TJoblet::TCookieGroupInfo);
+
 TJoblet::TJoblet(
     TTask* task,
     int jobIndex,
@@ -211,6 +234,8 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
+    PHOENIX_REGISTER_FIELD(48, CookieGroupInfo,
+        .SinceVersion(ESnapshotVersion::DistributedJobManagers));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
        this_->Revived = true;

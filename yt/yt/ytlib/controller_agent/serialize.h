@@ -80,6 +80,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // Be careful with snapshot numbering!
     // There is a gap due to accidental cherry-picking of an invalid snapshot version.
     ((WronglyCherryPickedSnapshotVersion)    (302000))
+    ((DistributedJobManagers)                (302001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
