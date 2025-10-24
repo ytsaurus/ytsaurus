@@ -315,3 +315,29 @@ class TestSchedulerRowLevelSecurityCommands(YTEnvSetup):
 
         do(partial(reduce, command="cat"), {"reduce_by": ["int"]}, output_is_sorted=False)
         do(partial(merge), {"mode": "sorted", "merge_by": ["int"]})
+
+    def test_no_row_indices(self, optimize_for):
+        if optimize_for == "lookup":
+            pytest.skip()
+        self._prepare_simple_test("scan")
+
+        def run_merge(**kwargs):
+            kwargs = {
+                **kwargs,
+                "mode": "unordered",
+                "spec": {
+                    "omit_inaccessible_rows": True,
+                },
+            }
+            return merge(**kwargs)
+
+        def assert_throws(in_):
+            with raises_yt_error("Cannot use ranges with row_index"):
+                run_merge(in_=in_, out="<create=%true>//tmp/t_out", authenticated_user="prime_user")
+
+        assert_throws("//tmp/t[#1]")
+        assert_throws("//tmp/t[#1:#3]")
+        assert_throws(["//tmp/t", "//tmp/t[#1]"])
+
+        # No restrictions if we can prove that row indices are not broken.
+        run_merge(in_="//tmp/t[#1]", out="<create=%true>//tmp/t_out", authenticated_user="full_read_user")
