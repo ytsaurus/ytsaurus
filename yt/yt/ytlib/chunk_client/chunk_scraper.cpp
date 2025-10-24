@@ -406,7 +406,12 @@ private:
             ++chunkAvailabilityCounters[chunkInfo.Availability];
         }
 
-        WaitFor(BIND([this, rsp = std::move(rsp)] { NodeDirectory_->MergeFrom(rsp->node_directory()); })
+        WaitFor(
+            BIND([rsp = std::move(rsp), nodeDirectoryWeak = TWeakPtr(NodeDirectory_)] {
+                if (auto nodeDirectory = nodeDirectoryWeak.Lock()) {
+                    nodeDirectory->MergeFrom(rsp->node_directory());
+                }
+            })
             .AsyncVia(HeavyInvoker_)
             .Run()
             .ToImmediatelyCancelable())
