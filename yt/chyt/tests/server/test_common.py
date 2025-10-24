@@ -2351,6 +2351,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             clique.make_query('select key from "//tmp/t"', user="u") == [{"key": 15}]
 
+            with raises_yt_error("Cannot use ranges with row_index"):
+                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
+            # Check again for sanity to account for various miscachings.
+            with raises_yt_error("Cannot use ranges with row_index"):
+                clique.make_query('select * from `<upper_limit={row_index=100}>//tmp/t`', user="u")
+
     @authors("buyval01")
     def test_complex_secondary_query_headers(self):
         create(

@@ -214,6 +214,11 @@ void GetUserObjectBasicAttributes(
             : userObject->TransactionId.value_or(defaultTransactionId);
 
         if (rsp->has_row_level_acl()) {
+            YT_VERIFY(Any(permission & EPermission::Read));
+            if (userObject->Path.HasRowIndexInRanges()) {
+                THROW_ERROR_EXCEPTION("Cannot use ranges with row_index to read a table with row-level ACL")
+                    << TErrorAttribute("path", userObject->Path);
+            }
             userObject->RowLevelAcl.emplace();
             FromProto(&*userObject->RowLevelAcl, rsp->row_level_acl().items());
         }

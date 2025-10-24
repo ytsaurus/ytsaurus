@@ -769,12 +769,29 @@ class PartitionTablesRlsBase(TestPartitionTablesBase):
         ]
         assert sorted_dicts(collected_rows) == expected_rows
 
+    @authors("coteeq")
+    def test_no_row_indices(self):
+        create_user("u")
+        self._create_table("//tmp/t", chunk_count=2, rows_per_chunk=4, row_weight=1)
+        yt_set("//tmp/t/@acl", [
+            dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate='key_1 = "0000000001"'),
+            dict(action="allow", subjects=["u"], permissions=["read"], row_access_predicate='key_1 = "0000000002"'),
+        ])
+
+        with raises_yt_error("Cannot use ranges with row_index"):
+            partition_tables(
+                ["//tmp/t[#1:#3]"],
+                data_weight_per_partition=1,
+                enable_cookies=True,
+                omit_inaccessible_rows=True,
+                authenticated_user="u",
+            )
+
 
 class TestPartitionTablesRlsNative(PartitionTablesRlsBase):
     DRIVER_BACKEND = "native"
 
 
-@pytest.mark.xfail(reason="RPC driver does not know how to output partitions yet")
 class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
     DRIVER_BACKEND = "rpc"
 
@@ -795,3 +812,9 @@ class TestPartitionTablesRlsRpc(PartitionTablesRlsBase):
     NUM_RPC_PROXIES = 1
 
     OWNERS_PATH = "//sys/public_keys/by_owner"
+
+    @authors("coteeq")
+    def test_read_partition_rls(self):
+        # This is actually an xfail, because RPC driver does not know how to output partitions yet.
+        with raises_yt_error("Table schemas are unknown"):
+            super().test_read_partition_rls()

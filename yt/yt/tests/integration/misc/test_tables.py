@@ -2930,6 +2930,12 @@ class TestTables(YTEnvSetup):
 
         assert read_table("//tmp/t", omit_inaccessible_rows=True, authenticated_user="u") == rows[1:3] + [rows[6]]
 
+        with raises_yt_error("Cannot use ranges with row_index"):
+            read_table("//tmp/t[#2]", omit_inaccessible_rows=True, authenticated_user="u")
+
+        with raises_yt_error("Cannot use ranges with row_index"):
+            read_table("//tmp/t[#1:#2]", omit_inaccessible_rows=True, authenticated_user="u")
+
 
 ##################################################################
 
