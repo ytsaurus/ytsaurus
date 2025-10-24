@@ -25,6 +25,7 @@ SRCS(
     api/native/client_cache.cpp
     api/native/client_cypress_impl.cpp
     api/native/client_distributed_table_impl.cpp
+    api/native/client_distributed_file_impl.cpp
     api/native/client_dynamic_tables_impl.cpp
     api/native/client_file_cache_impl.cpp
     api/native/client_files_impl.cpp
@@ -268,9 +269,11 @@ SRCS(
     exec_node_admin/proto/exec_node_admin_service.proto
     exec_node_tracker_client/proto/exec_node_tracker_service.proto
 
+    file_client/helpers.cpp
     file_client/file_chunk_output.cpp
     file_client/file_chunk_reader.cpp
     file_client/file_chunk_writer.cpp
+    file_client/file_fragment_writer.cpp
 
     file_client/proto/file_chunk_meta.proto
 

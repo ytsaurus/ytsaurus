@@ -1002,6 +1002,22 @@ public: \
         const TSignedWriteFragmentCookiePtr& cookie,
         const TTableFragmentWriterOptions& options) override;
 
+    IMPLEMENT_METHOD(TDistributedWriteFileSessionWithCookies, StartDistributedWriteFileSession, (
+        const NYPath::TRichYPath& path,
+        const TDistributedWriteFileSessionStartOptions& options),
+        (path, options))
+    IMPLEMENT_METHOD(void, PingDistributedWriteFileSession, (
+        const TSignedDistributedWriteFileSessionPtr& session,
+        const TDistributedWriteFileSessionPingOptions& options),
+        (session, options))
+    IMPLEMENT_METHOD(void, FinishDistributedWriteFileSession, (
+        const TDistributedWriteFileSessionWithResults& sessionWithResults,
+        const TDistributedWriteFileSessionFinishOptions& options),
+        (sessionWithResults, options))
+    IFileFragmentWriterPtr CreateFileFragmentWriter(
+        const TSignedWriteFileFragmentCookiePtr& cookie,
+        const TFileFragmentWriterOptions& options) override;
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 

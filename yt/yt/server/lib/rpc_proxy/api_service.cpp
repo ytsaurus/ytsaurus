@@ -44,6 +44,7 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/distributed_table_session.h>
+#include <yt/yt/client/api/distributed_file_session.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/helpers.h>
@@ -867,6 +868,14 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingDistributedWriteSession));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FinishDistributedWriteSession));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteTableFragment)
+            .SetStreamingEnabled(true)
+            .SetCancelable(true));
+
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(StartDistributedWriteFileSession)
+            .SetCancelable(true));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingDistributedWriteFileSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(FinishDistributedWriteFileSession));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteFileFragment)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
 
@@ -6463,8 +6472,8 @@ private:
                     if (sessionId != result.SessionId) {
                         THROW_ERROR_EXCEPTION(
                             "Found write results with a different session id")
-                            << TErrorAttribute("excepted_session_id", sessionId)
-                            << TErrorAttribute("found_session_id", result.SessionId)
+                            << TErrorAttribute("finish_distributed_write_session_id", sessionId)
+                            << TErrorAttribute("write_result_session_id", result.SessionId)
                             << TErrorAttribute("cookie_id", result.CookieId);
                     }
                     validation.push_back(ValidateSignature(signedResult.Underlying()));
@@ -6496,7 +6505,7 @@ private:
 
         PatchTableWriterOptions(&options);
 
-        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonString(cookie.Underlying()->Payload()));
+        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v, Main transaction id: %v",
@@ -6524,6 +6533,150 @@ private:
                 auto writeResult = tableWriter->GetWriteFragmentResult();
                 response->set_signed_write_result(ToProto(ConvertToYsonString(writeResult)));
             });
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // DISTRIBUTED FILE CLIENT
+    ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartDistributedWriteFileSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TRichYPath path;
+        TDistributedWriteFileSessionStartOptions options;
+        ParseRequest(&path, &options, *request);
+
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->StartDistributedWriteFileSession(path, options);
+            },
+            [] (const auto& context, const auto& result) {
+                context->Response().set_signed_session(ToProto(ConvertToYsonString(result.Session)));
+                for (const auto& cookie : result.Cookies) {
+                    context->Response().add_signed_cookies(ConvertToYsonString(cookie).ToString());
+                }
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingDistributedWriteFileSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TSignedDistributedWriteFileSessionPtr session;
+        TDistributedWriteFileSessionPingOptions options;
+        ParseRequest(&session, &options, *request);
+
+        auto concreteSession = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(session.Underlying()->Payload()));
+        context->SetRequestInfo(
+            "FileId: %v",
+            concreteSession.HostData.FileId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PingDistributedWriteFileSession(session, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FinishDistributedWriteFileSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TDistributedWriteFileSessionWithResults sessionWithResults;
+
+        TDistributedWriteFileSessionFinishOptions options;
+        ParseRequest(&sessionWithResults, &options, *request);
+
+        auto session = ConvertTo<TDistributedWriteFileSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
+
+        context->SetRequestInfo(
+            "FileId: %v",
+            session.HostData.FileId);
+
+        ExecuteCall(
+            context,
+            [=, this, options = std::move(options), sessionWithResults = std::move(sessionWithResults), sessionId = session.RootChunkListId] {
+                std::vector<TFuture<bool>> validation;
+                validation.reserve(1 + std::ssize(sessionWithResults.Results));
+                validation.push_back(ValidateSignature(sessionWithResults.Session.Underlying()));
+                for (const auto& signedResult : sessionWithResults.Results) {
+                    auto result = ConvertTo<TWriteFileFragmentResult>(TYsonStringBuf(signedResult.Underlying()->Payload()));
+                    if (sessionId != result.SessionId) {
+                        THROW_ERROR_EXCEPTION(
+                            "Found write results with a different session id")
+                            << TErrorAttribute("finish_distributed_write_session_id", sessionId)
+                            << TErrorAttribute("write_result_session_id", result.SessionId)
+                            << TErrorAttribute("cookie_id", result.CookieId);
+                    }
+                    validation.push_back(ValidateSignature(signedResult.Underlying()));
+                }
+
+                return AllSucceeded(std::move(validation))
+                    .ApplyUnique(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
+                        auto allValid = std::ranges::all_of(results, [] (bool value) {
+                            return value;
+                        });
+                        THROW_ERROR_EXCEPTION_UNLESS(
+                            allValid,
+                            "Signature validation failed for distributed write file session finish");
+                        return client->FinishDistributedWriteFileSession(std::move(sessionWithResults), options);
+                    }));
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFileFragment)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("write_file_fragment");
+
+        TSignedWriteFileFragmentCookiePtr cookie;
+
+        TFileFragmentWriterOptions options;
+        ParseRequest(&cookie, &options, *request);
+
+        auto concreteCookie = ConvertTo<TWriteFileFragmentCookie>(TYsonStringBuf(cookie.Underlying()->Payload()));
+        const auto& cookieData = concreteCookie.CookieData;
+
+        context->SetRequestInfo(
+            "FileId: %v, Main transaction id: %v",
+            cookieData.FileId,
+            cookieData.MainTransactionId);
+
+        auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION(
+                "Signature validation failed for write file fragment")
+                    << TErrorAttribute("session_id", concreteCookie.SessionId)
+                    << TErrorAttribute("cookie_id", concreteCookie.CookieId);
+        }
+
+        auto fileWriter = client->CreateFileFragmentWriter(cookie, options);
+
+        WaitFor(fileWriter->Open())
+            .ThrowOnError();
+
+        HandleOutputStreamingRequest(
+            context,
+            [&] (TSharedRef block) {
+                WaitFor(fileWriter->Write(std::move(block)))
+                    .ThrowOnError();
+            },
+            [&] {
+                WaitFor(fileWriter->Close())
+                    .ThrowOnError();
+                auto writeResult = fileWriter->GetWriteFragmentResult();
+                response->set_signed_write_result(ToProto(ConvertToYsonString(writeResult)));
+            },
+            /*feedbackEnabled*/ false);
     }
 
     ////////////////////////////////////////////////////////////////////////////////
