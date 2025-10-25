@@ -25,7 +25,7 @@ enum class EYtWriteMode: ui32 {
     Create          /* "create" */,
     CreateIfNotExists /* "create_if_not_exists" */,
     Alter           /* "alter" */,
-
+    CreateObject    /* "createObject" */,
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +135,7 @@ enum class EYtSettingType: ui64 {
     Columns                  /* "columns"*/,
     Actions                  /* "actions"*/,
     OrderBy                  /* "orderby","order_by" */,
+    Features                 /* "features"*/,
 
     LAST
 };

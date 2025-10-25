@@ -409,6 +409,16 @@
             ]
         },
         {
+            "Name": "TYtCreateView",
+            "Base": "TYtIsolatedOpBase",
+            "Match": {"Type": "Callable", "Name": "YtCreateView!"},
+            "Children": [
+                {"Index": 3, "Name": "Original", "Type": "TCoAtom"},
+                {"Index": 4, "Name": "Compiled", "Type": "TExprBase"},
+                {"Index": 5, "Name": "Settings", "Type": "TCoNameValueTupleList"}
+            ]
+        },
+        {
             "Name": "TYtOutputList",
             "ListBase": "TYtOutput"
         },
