@@ -1449,6 +1449,43 @@ class TestUserJobIsolation(YTEnvSetup):
 
     @authors("yuryalekseev")
     @pytest.mark.parametrize("restrict_porto_place", [False, True])
+    def test_create_container_with_default_place(self, restrict_porto_place):
+        op = run_test_vanilla(
+            # Here default place (no place) is used.
+            command=with_breakpoint("portoctl exec -L 'nonexistent_layer' container command='ls' 1>&2; BREAKPOINT"),
+            task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
+        )
+
+        job_id = wait_breakpoint()[0]
+
+        # Make sure that container fails to start.
+        assert b"Cannot open directory" in get_job_stderr(op.id, job_id)
+        assert b"Cannot start container" in get_job_stderr(op.id, job_id)
+
+        release_breakpoint()
+        op.track()
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("restrict_porto_place", [False, True])
+    def test_create_container_with_explicit_place(self, restrict_porto_place):
+        op = run_test_vanilla(
+            # Here default place (no place) is used.
+            command=with_breakpoint("portoctl exec -L 'nonexistent_layer' container command='ls' place='/nonexistent' 1>&2; BREAKPOINT"),
+            task_patch={"enable_porto": "isolate", "restrict_porto_place": restrict_porto_place},
+        )
+
+        job_id = wait_breakpoint()[0]
+
+        if restrict_porto_place:
+            assert b"Cannot start container: Permission:(Place /nonexistent is not permitted)\n" in get_job_stderr(op.id, job_id)
+        else:
+            assert b"Cannot start container: Unknown:(No such file or directory: Cannot open directory" in get_job_stderr(op.id, job_id)
+
+        release_breakpoint()
+        op.track()
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("restrict_porto_place", [False, True])
     def test_create_volume_with_default_place(self, restrict_porto_place):
         op = run_test_vanilla(
             # Here default place (no place) is used.
