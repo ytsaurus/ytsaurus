@@ -128,6 +128,13 @@ json_logs:
       # For zstd, the first 8 bytes of the value are the uncompressed size
       # encoded as little-endian uint64, followed by the zstd-compressed payload.
       compression_codec: zstd_6
+
+      # OPTIONAL
+      # Minimum total size in bytes of compressed rows to batch before pushing to YT queue.
+      # If 0, each row is pushed immediately.
+      #
+      # Default value is 0.
+      bytes_per_rows_batch: 1048576
       
       rpc_proxy_role: default
 
