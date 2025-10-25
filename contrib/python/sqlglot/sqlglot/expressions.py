@@ -1008,8 +1008,8 @@ class Expression(metaclass=_Expression):
 
     def div(self, other: ExpOrStr, typed: bool = False, safe: bool = False) -> Div:
         div = self._binop(Div, other)
-        div.args["typed"] = typed
-        div.args["safe"] = safe
+        div.set("typed", typed)
+        div.set("safe", safe)
         return div
 
     def asc(self, nulls_first: bool = True) -> Ordered:
@@ -1727,6 +1727,7 @@ class CTE(DerivedTable):
         "alias": True,
         "scalar": False,
         "materialized": False,
+        "key_expressions": False,
     }
 
 
@@ -2386,6 +2387,7 @@ class Insert(DDL, DML):
         "partition": False,
         "settings": False,
         "source": False,
+        "default": False,
     }
 
     def with_(
@@ -5560,6 +5562,10 @@ class Tan(Func):
     pass
 
 
+class Tanh(Func):
+    pass
+
+
 class Degrees(Func):
     pass
 
@@ -7199,6 +7205,10 @@ class VectorSearch(Func):
         "distance_type": False,
         "options": False,
     }
+
+
+class Pi(Func):
+    arg_types = {}
 
 
 class Pow(Binary, Func):
