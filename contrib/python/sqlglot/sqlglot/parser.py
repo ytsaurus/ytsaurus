@@ -805,6 +805,7 @@ class Parser(metaclass=_Parser):
     EXPRESSION_PARSERS = {
         exp.Cluster: lambda self: self._parse_sort(exp.Cluster, TokenType.CLUSTER_BY),
         exp.Column: lambda self: self._parse_column(),
+        exp.ColumnDef: lambda self: self._parse_column_def(self._parse_column()),
         exp.Condition: lambda self: self._parse_assignment(),
         exp.DataType: lambda self: self._parse_types(allow_identifiers=False, schema=True),
         exp.Expression: lambda self: self._parse_expression(),
@@ -2962,6 +2963,7 @@ class Parser(metaclass=_Parser):
             where=self._match_pair(TokenType.REPLACE, TokenType.WHERE) and self._parse_assignment(),
             partition=self._match(TokenType.PARTITION_BY) and self._parse_partitioned_by(),
             settings=self._match_text_seq("SETTINGS") and self._parse_settings_property(),
+            default=self._match_text_seq("DEFAULT", "VALUES"),
             expression=self._parse_derived_table_values() or self._parse_ddl_select(),
             conflict=self._parse_on_conflict(),
             returning=returning or self._parse_returning(),
@@ -3110,7 +3112,8 @@ class Parser(metaclass=_Parser):
             exp.Delete,
             tables=tables,
             this=self._match(TokenType.FROM) and self._parse_table(joins=True),
-            using=self._match(TokenType.USING) and self._parse_table(joins=True),
+            using=self._match(TokenType.USING)
+            and self._parse_csv(lambda: self._parse_table(joins=True)),
             cluster=self._match(TokenType.ON) and self._parse_on_property(),
             where=self._parse_where(),
             returning=returning or self._parse_returning(),
@@ -3434,6 +3437,10 @@ class Parser(metaclass=_Parser):
         if not alias or not alias.this:
             self.raise_error("Expected CTE to have alias")
 
+        key_expressions = (
+            self._parse_wrapped_id_vars() if self._match_text_seq("USING", "KEY") else None
+        )
+
         if not self._match(TokenType.ALIAS) and not self.OPTIONAL_ALIAS_TOKEN_CTE:
             self._retreat(index)
             return None
@@ -3452,6 +3459,7 @@ class Parser(metaclass=_Parser):
             this=self._parse_wrapped(self._parse_statement),
             alias=alias,
             materialized=materialized,
+            key_expressions=key_expressions,
             comments=comments,
         )
 
@@ -3566,7 +3574,8 @@ class Parser(metaclass=_Parser):
 
                         this.set(key, expression)
                         if key == "limit":
-                            offset = expression.args.pop("offset", None)
+                            offset = expression.args.get("offset")
+                            expression.set("offset", None)
 
                             if offset:
                                 offset = exp.Offset(expression=offset)
@@ -5266,8 +5275,8 @@ class Parser(metaclass=_Parser):
             this = self.expression(klass, this=this, comments=comments, expression=expression)
 
             if isinstance(this, exp.Div):
-                this.args["typed"] = self.dialect.TYPED_DIVISION
-                this.args["safe"] = self.dialect.SAFE_DIVISION
+                this.set("typed", self.dialect.TYPED_DIVISION)
+                this.set("safe", self.dialect.SAFE_DIVISION)
 
         return this
 

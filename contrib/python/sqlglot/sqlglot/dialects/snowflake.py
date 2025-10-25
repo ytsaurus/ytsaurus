@@ -571,8 +571,13 @@ class Snowflake(Dialect):
             exp.Degrees,
             exp.Exp,
             exp.Sin,
+            exp.Sinh,
             exp.Tan,
+            exp.Tanh,
             exp.Asin,
+            exp.Asinh,
+            exp.Atan,
+            exp.Atan2,
             exp.Atanh,
             exp.Cbrt,
         },
@@ -671,6 +676,7 @@ class Snowflake(Dialect):
                 exp.Stuff,
                 exp.Substring,
                 exp.Round,
+                exp.Ceil,
             )
         },
         **{
