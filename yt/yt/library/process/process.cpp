@@ -1,5 +1,4 @@
 #include "process.h"
-#include "pipe.h"
 
 #include <yt/yt/core/misc/proc.h>
 
@@ -52,7 +51,7 @@
 
 namespace NYT {
 
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NNet;
 using namespace NConcurrency;
 

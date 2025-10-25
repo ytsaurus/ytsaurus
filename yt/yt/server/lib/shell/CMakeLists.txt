@@ -32,6 +32,7 @@ target_link_libraries(server-lib-shell PUBLIC
   yt-yt-ytlib
   yt-library-containers
   yt-library-process
+  yt-library-pipe_io
 )
 
 target_sources(server-lib-shell PRIVATE

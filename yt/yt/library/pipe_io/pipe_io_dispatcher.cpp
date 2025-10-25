@@ -1,42 +1,42 @@
-#include "io_dispatcher.h"
+#include "pipe_io_dispatcher.h"
 
 #include "config.h"
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/concurrency/poller.h>
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIODispatcher::TIODispatcher()
+TPipeIODispatcher::TPipeIODispatcher()
     : Poller_(BIND([] { return CreateThreadPoolPoller(1, "Pipes"); }))
 { }
 
-TIODispatcher::~TIODispatcher() = default;
+TPipeIODispatcher::~TPipeIODispatcher() = default;
 
-TIODispatcher* TIODispatcher::Get()
+TPipeIODispatcher* TPipeIODispatcher::Get()
 {
-    return Singleton<TIODispatcher>();
+    return Singleton<TPipeIODispatcher>();
 }
 
-void TIODispatcher::Configure(const TIODispatcherConfigPtr& config)
+void TPipeIODispatcher::Configure(const TPipeIODispatcherConfigPtr& config)
 {
     Poller_->SetPollingPeriod(config->ThreadPoolPollingPeriod);
 }
 
-IInvokerPtr TIODispatcher::GetInvoker()
+IInvokerPtr TPipeIODispatcher::GetInvoker()
 {
     return Poller_.Value()->GetInvoker();
 }
 
-IPollerPtr TIODispatcher::GetPoller()
+IPollerPtr TPipeIODispatcher::GetPoller()
 {
     return Poller_.Value();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

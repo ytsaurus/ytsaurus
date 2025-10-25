@@ -7,7 +7,7 @@
 
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <util/system/file.h>
 

@@ -7,7 +7,7 @@
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
 
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/logging/formatter.h>
 #include <yt/yt/core/logging/log_manager.h>

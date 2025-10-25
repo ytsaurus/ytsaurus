@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pipe.h"
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/misc/error.h>
 
@@ -60,7 +60,7 @@ protected:
     std::atomic<bool> Started_ = false;
     std::atomic<bool> Finished_ = false;
     int MaxSpawnActionFD_ = - 1;
-    NPipes::TPipe Pipe_;
+    NPipeIO::TPipe Pipe_;
     // Container for owning string data. Use std::deque because it never moves contained objects.
     std::deque<std::string> StringHolders_;
     std::vector<const char*> Args_;
@@ -110,8 +110,8 @@ public:
 private:
     const TDuration PollPeriod_;
 
-    NPipes::TPipeFactory PipeFactory_;
-    std::array<NPipes::TPipe, 3> StdPipes_;
+    NPipeIO::TPipeFactory PipeFactory_;
+    std::array<NPipeIO::TPipe, 3> StdPipes_;
 
     NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
 

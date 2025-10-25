@@ -1,6 +1,7 @@
 #include "pipe.h"
+
 #include "private.h"
-#include "io_dispatcher.h"
+#include "pipe_io_dispatcher.h"
 
 #include <yt/yt/core/net/connection.h>
 
@@ -10,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 using namespace NNet;
 
@@ -62,7 +63,7 @@ void TNamedPipe::Open(int permissions)
 IConnectionReaderPtr TNamedPipe::CreateAsyncReader()
 {
     YT_VERIFY(!Path_.empty());
-    return CreateInputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
+    return CreateInputConnectionFromPath(Path_, TPipeIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
 IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(EDeliveryFencedMode deliveryFencedMode)
@@ -70,7 +71,7 @@ IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(EDeliveryFencedMode deliveryF
     YT_VERIFY(!Path_.empty());
     return CreateOutputConnectionFromPath(
         Path_,
-        TIODispatcher::Get()->GetPoller(),
+        TPipeIODispatcher::Get()->GetPoller(),
         MakeStrong(this),
         Capacity_,
         deliveryFencedMode);
@@ -154,14 +155,14 @@ IConnectionWriterPtr TPipe::CreateAsyncWriter()
 {
     YT_VERIFY(WriteFD_ != InvalidFD);
     SafeMakeNonblocking(WriteFD_);
-    return CreateConnectionFromFD(ReleaseWriteFD(), {}, {}, TIODispatcher::Get()->GetPoller());
+    return CreateConnectionFromFD(ReleaseWriteFD(), {}, {}, TPipeIODispatcher::Get()->GetPoller());
 }
 
 IConnectionReaderPtr TPipe::CreateAsyncReader()
 {
     YT_VERIFY(ReadFD_ != InvalidFD);
     SafeMakeNonblocking(ReadFD_);
-    return CreateConnectionFromFD(ReleaseReadFD(), {}, {}, TIODispatcher::Get()->GetPoller());
+    return CreateConnectionFromFD(ReleaseReadFD(), {}, {}, TPipeIODispatcher::Get()->GetPoller());
 }
 
 int TPipe::ReleaseReadFD()
@@ -269,4 +270,4 @@ void TPipeFactory::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

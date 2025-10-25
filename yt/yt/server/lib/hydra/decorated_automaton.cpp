@@ -41,7 +41,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <library/cpp/yt/logging/backends/stream/stream_log_manager.h>
 
@@ -57,7 +57,7 @@ namespace NYT::NHydra {
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NLogging;
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NNet;

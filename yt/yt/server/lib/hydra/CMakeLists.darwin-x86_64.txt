@@ -46,7 +46,7 @@ target_include_directories(server-lib-hydra PUBLIC
 target_link_libraries(server-lib-hydra PUBLIC
   contrib-libs-cxxsupp
   yutil
-  yt-library-process
+  yt-library-pipe_io
   yt-yt-ytlib
   server-lib-misc
   server-lib-election

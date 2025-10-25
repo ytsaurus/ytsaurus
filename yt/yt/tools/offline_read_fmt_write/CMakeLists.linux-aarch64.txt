@@ -36,6 +36,7 @@ target_link_libraries(offline_read_fmt_write PUBLIC
   build-cow-on
   yt-yt-core
   cpp-yt-phdr_cache
+  yt-library-pipe_io
   yt-yt-client
   server-lib-io
   yt-yt-ytlib

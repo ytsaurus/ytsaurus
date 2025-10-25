@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
 
@@ -44,7 +44,7 @@ struct TUserJobExecutorConfig
     TString Command;
 
     //! Pipes to redirect into user job.
-    std::vector<NPipes::TNamedPipeConfigPtr> Pipes;
+    std::vector<NPipeIO::TNamedPipeConfigPtr> Pipes;
 
     //! Id of the running job.
     TString JobId;

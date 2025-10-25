@@ -1,5 +1,5 @@
-#include <yt/yt/library/process/pipe.h>
-#include <yt/yt/library/process/io_dispatcher.h>
+#include <yt/yt/library/pipe_io/pipe.h>
+#include <yt/yt/library/pipe_io/pipe_io_dispatcher.h>
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/client/formats/config.h>
 
@@ -279,9 +279,9 @@ void GuardedMain(int argc, char** argv)
         TLegacyOwningKey(),
         TLegacyOwningKey());
 
-    NPipes::TPipeFactory factory;
-    NPipes::TPipe pipe = factory.Create();
-    auto writerStream = NNet::CreateConnectionFromFD(1, {}, {}, NPipes::TIODispatcher::Get()->GetPoller());
+    NPipeIO::TPipeFactory factory;
+    NPipeIO::TPipe pipe = factory.Create();
+    auto writerStream = NNet::CreateConnectionFromFD(1, {}, {}, NPipeIO::TPipeIODispatcher::Get()->GetPoller());
     auto writer = NFormats::CreateStaticTableWriterForFormat(
         format,
         reader.GetReader()->GetNameTable(),
