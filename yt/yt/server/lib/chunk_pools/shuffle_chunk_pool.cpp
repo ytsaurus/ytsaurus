@@ -395,14 +395,13 @@ private:
 
         void CheckCompleted()
         {
-            bool completed = Owner_->Finished && (JobCounter->GetCompletedTotal() == std::ssize(Runs_));
-            if (!IsCompleted_ && completed) {
+            bool wasCompleted = IsCompleted_;
+            IsCompleted_ = Owner_->Finished && (JobCounter->GetCompletedTotal() == std::ssize(Runs_));
+            if (!wasCompleted && IsCompleted_) {
                 Completed_.Fire();
-            } else if (IsCompleted_ && !completed) {
+            } else if (wasCompleted && !IsCompleted_) {
                 Uncompleted_.Fire();
             }
-
-            IsCompleted_ = completed;
         }
 
     private:
