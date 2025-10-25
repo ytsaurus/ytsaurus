@@ -3,7 +3,7 @@ PROGRAM()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 PEERDIR(
-    yt/yt/library/process
+    yt/yt/library/pipe_io
     yt/yt/library/skiff_ext
     yt/yt/client
     yt/yt/library/formats

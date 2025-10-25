@@ -38,6 +38,7 @@ PEERDIR(
 
     yt/yt/library/monitoring
     yt/yt/library/orchid
+    yt/yt/library/pipe_io
     yt/yt/library/profiling/solomon
     yt/yt/library/server_program
     yt/yt/library/ytprof

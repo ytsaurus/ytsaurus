@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,4 +11,4 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, PtyLogger, "Pty");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

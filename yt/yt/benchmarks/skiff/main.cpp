@@ -14,8 +14,8 @@
 #include <yt/yt/client/table_client/value_consumer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/library/process/io_dispatcher.h>
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe_io_dispatcher.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/core/profiling/timing.h>
@@ -571,8 +571,8 @@ private:
 
 void GenerateCodeDecode(EBenchmarkedFormat format, const IDataset& dataset)
 {
-    NPipes::TPipeFactory factory;
-    NPipes::TPipe pipe = factory.Create();
+    NPipeIO::TPipeFactory factory;
+    NPipeIO::TPipe pipe = factory.Create();
 
     auto writerStream = pipe.CreateAsyncWriter();
     auto readerStream = pipe.CreateAsyncReader();
@@ -622,7 +622,7 @@ void GenerateCodeDecode(EBenchmarkedFormat format, const IDataset& dataset)
 
 void GenerateCode(EBenchmarkedFormat format, const IDataset& dataset, int writerRunCount)
 {
-    auto writerStream = NNet::CreateConnectionFromFD(1, {}, {}, NPipes::TIODispatcher::Get()->GetPoller());
+    auto writerStream = NNet::CreateConnectionFromFD(1, {}, {}, NPipeIO::TPipeIODispatcher::Get()->GetPoller());
 
     const auto& owningData = dataset.GetData();
     std::vector<TUnversionedRow> data;
@@ -658,7 +658,7 @@ void Parse(EBenchmarkedFormat format, const IDataset& dataset)
 {
     NProfiling::TWallTimer timer;
 
-    auto readerStream = NNet::CreateConnectionFromFD(0, {}, {}, NPipes::TIODispatcher::Get()->GetPoller());
+    auto readerStream = NNet::CreateConnectionFromFD(0, {}, {}, NPipeIO::TPipeIODispatcher::Get()->GetPoller());
 
     TCountingValueConsumer consumer(dataset.GetNameTable());
     auto parser = dataset.CreateParser(format, &consumer);
@@ -677,8 +677,8 @@ void ParseWrite(EBenchmarkedFormat format, const IDataset& dataset)
 {
     NProfiling::TWallTimer timer;
 
-    auto readerStream = NNet::CreateConnectionFromFD(0, {}, {}, NPipes::TIODispatcher::Get()->GetPoller());
-    auto writerStream = NNet::CreateConnectionFromFD(1, {}, {}, NPipes::TIODispatcher::Get()->GetPoller());
+    auto readerStream = NNet::CreateConnectionFromFD(0, {}, {}, NPipeIO::TPipeIODispatcher::Get()->GetPoller());
+    auto writerStream = NNet::CreateConnectionFromFD(1, {}, {}, NPipeIO::TPipeIODispatcher::Get()->GetPoller());
 
     auto writer = dataset.CreateWriter(format, dataset.GetNameTable(), writerStream);
     TMyWritingValueConsumer consumer(dataset.GetNameTable(), writer);

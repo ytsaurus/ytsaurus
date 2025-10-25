@@ -22,7 +22,7 @@
 
 #include <yt/yt/core/net/connection.h>
 
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -37,7 +37,7 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NApi;
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NScheduler;
 using namespace NServer;
 

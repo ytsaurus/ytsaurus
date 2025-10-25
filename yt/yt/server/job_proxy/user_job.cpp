@@ -132,7 +132,7 @@ using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NChunkClient::NProto;
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NQueryClient;
 using namespace NRpc;
 using namespace NCoreDump;

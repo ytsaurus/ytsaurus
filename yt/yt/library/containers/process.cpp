@@ -9,7 +9,7 @@
 
 namespace NYT::NContainers {
 
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NNet;
 using namespace NConcurrency;
 

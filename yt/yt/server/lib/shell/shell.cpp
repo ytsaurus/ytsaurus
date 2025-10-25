@@ -14,7 +14,8 @@
 #include <yt/yt/server/tools/tools.h>
 
 #include <yt/yt/library/process/process.h>
-#include <yt/yt/library/process/pty.h>
+
+#include <yt/yt/library/pipe_io/pty.h>
 
 #include <yt/yt/core/actions/bind.h>
 
@@ -34,7 +35,7 @@ namespace NYT::NShell {
 
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NNet;
 using namespace NTools;
 

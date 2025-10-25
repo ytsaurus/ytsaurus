@@ -47,6 +47,7 @@ PEERDIR(
     yt/yt/library/containers
     yt/yt/library/containers/cri
     yt/yt/library/orchid
+    yt/yt/library/pipe_io
     yt/yt/library/profiling/solomon
     yt/yt/library/query/row_comparer
     yt/yt/library/server_program

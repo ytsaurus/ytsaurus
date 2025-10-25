@@ -33,7 +33,7 @@ private:
     const NContainers::IInstanceLauncherPtr ContainerLauncher_;
 
     TAtomicIntrusivePtr<NContainers::IInstance> ContainerInstance_;
-    std::vector<NPipes::TNamedPipePtr> NamedPipes_;
+    std::vector<NPipeIO::TNamedPipePtr> NamedPipes_;
 
     void DoSpawn() override;
     THashMap<TString, TString> DecomposeEnv() const;

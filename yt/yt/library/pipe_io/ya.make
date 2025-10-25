@@ -3,13 +3,16 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    process.cpp
-    subprocess.cpp
+    config.cpp
+    GLOBAL configure_pipe_io_dispatcher.cpp
+    pipe_io_dispatcher.cpp
+    pipe.cpp
+    pty.cpp
 )
 
 PEERDIR(
     yt/yt/core
-    yt/yt/library/pipe_io
+    contrib/libs/re2
 )
 
 END()

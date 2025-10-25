@@ -1,13 +1,12 @@
 #include "pty.h"
 
-#include "io_dispatcher.h"
+#include "pipe_io_dispatcher.h"
 
-#include <yt/yt/core/misc/common.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/net/connection.h>
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 using namespace NNet;
 
@@ -35,7 +34,7 @@ IConnectionWriterPtr TPty::CreateMasterAsyncWriter()
     int fd = SafeDup(MasterFD_);
     SafeSetCloexec(fd);
     SafeMakeNonblocking(fd);
-    return CreateConnectionFromFD(fd, {}, {}, TIODispatcher::Get()->GetPoller());
+    return CreateConnectionFromFD(fd, {}, {}, TPipeIODispatcher::Get()->GetPoller());
 }
 
 IConnectionReaderPtr TPty::CreateMasterAsyncReader()
@@ -44,7 +43,7 @@ IConnectionReaderPtr TPty::CreateMasterAsyncReader()
     int fd = SafeDup(MasterFD_);
     SafeSetCloexec(fd);
     SafeMakeNonblocking(fd);
-    return CreateConnectionFromFD(fd, {}, {}, TIODispatcher::Get()->GetPoller());
+    return CreateConnectionFromFD(fd, {}, {}, TPipeIODispatcher::Get()->GetPoller());
 }
 
 int TPty::GetMasterFD() const
@@ -61,4 +60,4 @@ int TPty::GetSlaveFD() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

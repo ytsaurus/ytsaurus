@@ -4,38 +4,38 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TIODispatcherConfig
+struct TPipeIODispatcherConfig
     : public NYTree::TYsonStruct
 {
     TDuration ThreadPoolPollingPeriod;
 
-    TIODispatcherConfigPtr ApplyDynamic(const TIODispatcherDynamicConfigPtr& dynamicConfig) const;
+    TPipeIODispatcherConfigPtr ApplyDynamic(const TPipeIODispatcherDynamicConfigPtr& dynamicConfig) const;
 
-    REGISTER_YSON_STRUCT(TIODispatcherConfig);
+    REGISTER_YSON_STRUCT(TPipeIODispatcherConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TIODispatcherConfig)
+DEFINE_REFCOUNTED_TYPE(TPipeIODispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TIODispatcherDynamicConfig
+struct TPipeIODispatcherDynamicConfig
     : public NYTree::TYsonStruct
 {
     std::optional<TDuration> ThreadPoolPollingPeriod;
 
-    REGISTER_YSON_STRUCT(TIODispatcherDynamicConfig);
+    REGISTER_YSON_STRUCT(TPipeIODispatcherDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TIODispatcherDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TPipeIODispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

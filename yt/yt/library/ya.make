@@ -29,6 +29,7 @@ RECURSE(
     numeric
     oom
     orchid
+    pipe_io
     process
     profiling
     program

@@ -9,7 +9,7 @@
 
 #include <yt/yt/library/backtrace_introspector/introspect.h>
 
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -20,7 +20,7 @@
 #include <random>
 
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -621,4 +621,4 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

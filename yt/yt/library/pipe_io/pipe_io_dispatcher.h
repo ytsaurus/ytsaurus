@@ -8,23 +8,23 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NPipes {
+namespace NYT::NPipeIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIODispatcher
+class TPipeIODispatcher
 {
 public:
-    static TIODispatcher* Get();
-    ~TIODispatcher();
+    static TPipeIODispatcher* Get();
+    ~TPipeIODispatcher();
 
-    void Configure(const TIODispatcherConfigPtr& config);
+    void Configure(const TPipeIODispatcherConfigPtr& config);
 
     IInvokerPtr GetInvoker();
     NConcurrency::IPollerPtr GetPoller();
 
 private:
-    TIODispatcher();
+    TPipeIODispatcher();
 
     Y_DECLARE_SINGLETON_FRIEND()
 
@@ -33,4 +33,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+} // namespace NYT::NPipeIO

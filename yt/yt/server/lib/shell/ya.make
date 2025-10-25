@@ -13,6 +13,7 @@ PEERDIR(
     yt/yt/ytlib
     yt/yt/library/containers
     yt/yt/library/process
+    yt/yt/library/pipe_io
 )
 
 END()

@@ -12,8 +12,8 @@
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 
-#include <yt/yt/library/process/io_dispatcher.h>
-#include <yt/yt/library/process/pipe.h>
+#include <yt/yt/library/pipe_io/pipe_io_dispatcher.h>
+#include <yt/yt/library/pipe_io/pipe.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -43,7 +43,7 @@ using namespace NCypressClient;
 using namespace NFS;
 using namespace NLogging;
 using namespace NNet;
-using namespace NPipes;
+using namespace NPipeIO;
 using namespace NTableClient;
 using namespace NTableServer;
 using namespace NYTree;
@@ -88,7 +88,7 @@ i64 TGpuCoreReader::GetBytesAvailable() const
 
 IConnectionReaderPtr TGpuCoreReader::CreateAsyncReader()
 {
-    return CreateInputConnectionFromFD(Fd_, Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
+    return CreateInputConnectionFromFD(Fd_, Path_, TPipeIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
